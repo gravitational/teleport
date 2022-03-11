@@ -82,7 +82,8 @@ func (c *IAM) AddClientIDToOpenIDConnectProviderRequest(input *AddClientIDToOpen
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -158,8 +159,8 @@ func (c *IAM) AddRoleToInstanceProfileRequest(input *AddRoleToInstanceProfileInp
 // Adds the specified IAM role to the specified instance profile. An instance
 // profile can contain only one role, and this quota cannot be increased. You
 // can remove the existing role and then add a different role to an instance
-// profile. You must then wait for the change to appear across all of AWS because
-// of eventual consistency (https://en.wikipedia.org/wiki/Eventual_consistency).
+// profile. You must then wait for the change to appear across all of Amazon
+// Web Services because of eventual consistency (https://en.wikipedia.org/wiki/Eventual_consistency).
 // To force the change, you must disassociate the instance profile (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DisassociateIamInstanceProfile.html)
 // and then associate the instance profile (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_AssociateIamInstanceProfile.html),
 // or you can stop your instance and then restart it.
@@ -189,7 +190,8 @@ func (c *IAM) AddRoleToInstanceProfileRequest(input *AddRoleToInstanceProfileInp
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeUnmodifiableEntityException "UnmodifiableEntity"
 //   The request was rejected because only the service that depends on the service-linked
@@ -284,7 +286,8 @@ func (c *IAM) AddUserToGroupRequest(input *AddUserToGroupInput) (req *request.Re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -362,6 +365,10 @@ func (c *IAM) AttachGroupPolicyRequest(input *AttachGroupPolicyInput) (req *requ
 // You use this operation to attach a managed policy to a group. To embed an
 // inline policy in a group, use PutGroupPolicy.
 //
+// As a best practice, you can validate your IAM policies. To learn more, see
+// Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
+// in the IAM User Guide.
+//
 // For more information about policies, see Managed policies and inline policies
 // (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
 // in the IAM User Guide.
@@ -380,15 +387,16 @@ func (c *IAM) AttachGroupPolicyRequest(input *AttachGroupPolicyInput) (req *requ
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
 //   for an input parameter.
 //
 //   * ErrCodePolicyNotAttachableException "PolicyNotAttachable"
-//   The request failed because AWS service role policies can only be attached
-//   to the service-linked role for that service.
+//   The request failed because Amazon Web Services service role policies can
+//   only be attached to the service-linked role for that service.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -474,6 +482,10 @@ func (c *IAM) AttachRolePolicyRequest(input *AttachRolePolicyInput) (req *reques
 // see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
 // in the IAM User Guide.
 //
+// As a best practice, you can validate your IAM policies. To learn more, see
+// Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
+// in the IAM User Guide.
+//
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
 // the error.
@@ -488,7 +500,8 @@ func (c *IAM) AttachRolePolicyRequest(input *AttachRolePolicyInput) (req *reques
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -501,8 +514,8 @@ func (c *IAM) AttachRolePolicyRequest(input *AttachRolePolicyInput) (req *reques
 //   request the change through that service.
 //
 //   * ErrCodePolicyNotAttachableException "PolicyNotAttachable"
-//   The request failed because AWS service role policies can only be attached
-//   to the service-linked role for that service.
+//   The request failed because Amazon Web Services service role policies can
+//   only be attached to the service-linked role for that service.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -580,6 +593,10 @@ func (c *IAM) AttachUserPolicyRequest(input *AttachUserPolicyInput) (req *reques
 // You use this operation to attach a managed policy to a user. To embed an
 // inline policy in a user, use PutUserPolicy.
 //
+// As a best practice, you can validate your IAM policies. To learn more, see
+// Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
+// in the IAM User Guide.
+//
 // For more information about policies, see Managed policies and inline policies
 // (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
 // in the IAM User Guide.
@@ -598,15 +615,16 @@ func (c *IAM) AttachUserPolicyRequest(input *AttachUserPolicyInput) (req *reques
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
 //   for an input parameter.
 //
 //   * ErrCodePolicyNotAttachableException "PolicyNotAttachable"
-//   The request failed because AWS service role policies can only be attached
-//   to the service-linked role for that service.
+//   The request failed because Amazon Web Services service role policies can
+//   only be attached to the service-linked role for that service.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -680,13 +698,14 @@ func (c *IAM) ChangePasswordRequest(input *ChangePasswordInput) (req *request.Re
 // ChangePassword API operation for AWS Identity and Access Management.
 //
 // Changes the password of the IAM user who is calling this operation. This
-// operation can be performed using the AWS CLI, the AWS API, or the My Security
-// Credentials page in the AWS Management Console. The AWS account root user
-// password is not affected by this operation.
+// operation can be performed using the CLI, the Amazon Web Services API, or
+// the My Security Credentials page in the Amazon Web Services Management Console.
+// The Amazon Web Services account root user password is not affected by this
+// operation.
 //
-// Use UpdateLoginProfile to use the AWS CLI, the AWS API, or the Users page
-// in the IAM console to change the password for any IAM user. For more information
-// about modifying passwords, see Managing passwords (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html)
+// Use UpdateLoginProfile to use the CLI, the Amazon Web Services API, or the
+// Users page in the IAM console to change the password for any IAM user. For
+// more information about modifying passwords, see Managing passwords (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -707,7 +726,8 @@ func (c *IAM) ChangePasswordRequest(input *ChangePasswordInput) (req *request.Re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeEntityTemporarilyUnmodifiableException "EntityTemporarilyUnmodifiable"
 //   The request was rejected because it referenced an entity that is temporarily
@@ -789,24 +809,26 @@ func (c *IAM) CreateAccessKeyRequest(input *CreateAccessKeyInput) (req *request.
 
 // CreateAccessKey API operation for AWS Identity and Access Management.
 //
-// Creates a new AWS secret access key and corresponding AWS access key ID for
-// the specified user. The default status for new keys is Active.
+// Creates a new Amazon Web Services secret access key and corresponding Amazon
+// Web Services access key ID for the specified user. The default status for
+// new keys is Active.
 //
 // If you do not specify a user name, IAM determines the user name implicitly
-// based on the AWS access key ID signing the request. This operation works
-// for access keys under the AWS account. Consequently, you can use this operation
-// to manage AWS account root user credentials. This is true even if the AWS
-// account has no associated users.
+// based on the Amazon Web Services access key ID signing the request. This
+// operation works for access keys under the Amazon Web Services account. Consequently,
+// you can use this operation to manage Amazon Web Services account root user
+// credentials. This is true even if the Amazon Web Services account has no
+// associated users.
 //
 // For information about quotas on the number of keys you can create, see IAM
 // and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
 // in the IAM User Guide.
 //
-// To ensure the security of your AWS account, the secret access key is accessible
-// only during key and user creation. You must save the key (for example, in
-// a text file) if you want to be able to access it again. If a secret key is
-// lost, you can delete the access keys for the associated user and then create
-// new keys.
+// To ensure the security of your Amazon Web Services account, the secret access
+// key is accessible only during key and user creation. You must save the key
+// (for example, in a text file) if you want to be able to access it again.
+// If a secret key is lost, you can delete the access keys for the associated
+// user and then create new keys.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -822,7 +844,8 @@ func (c *IAM) CreateAccessKeyRequest(input *CreateAccessKeyInput) (req *request.
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -895,8 +918,9 @@ func (c *IAM) CreateAccountAliasRequest(input *CreateAccountAliasInput) (req *re
 
 // CreateAccountAlias API operation for AWS Identity and Access Management.
 //
-// Creates an alias for your AWS account. For information about using an AWS
-// account alias, see Using an alias for your AWS account ID (https://docs.aws.amazon.com/IAM/latest/UserGuide/AccountAlias.html)
+// Creates an alias for your Amazon Web Services account. For information about
+// using an Amazon Web Services account alias, see Using an alias for your Amazon
+// Web Services account ID (https://docs.aws.amazon.com/IAM/latest/UserGuide/AccountAlias.html)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -913,7 +937,8 @@ func (c *IAM) CreateAccountAliasRequest(input *CreateAccountAliasInput) (req *re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -1001,7 +1026,8 @@ func (c *IAM) CreateGroupRequest(input *CreateGroupInput) (req *request.Request,
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeEntityAlreadyExistsException "EntityAlreadyExists"
 //   The request was rejected because it attempted to create a resource that already
@@ -1082,7 +1108,9 @@ func (c *IAM) CreateInstanceProfileRequest(input *CreateInstanceProfileInput) (r
 // CreateInstanceProfile API operation for AWS Identity and Access Management.
 //
 // Creates a new instance profile. For information about instance profiles,
-// see About instance profiles (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entities).
+// see Using roles for applications on Amazon EC2 (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2.html)
+// in the IAM User Guide, and Instance profiles (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html#ec2-instance-profile)
+// in the Amazon EC2 User Guide.
 //
 // For information about the number of instance profiles you can create, see
 // IAM object quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
@@ -1106,7 +1134,8 @@ func (c *IAM) CreateInstanceProfileRequest(input *CreateInstanceProfileInput) (r
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeConcurrentModificationException "ConcurrentModification"
 //   The request was rejected because multiple requests to change this object
@@ -1184,12 +1213,13 @@ func (c *IAM) CreateLoginProfileRequest(input *CreateLoginProfileInput) (req *re
 // CreateLoginProfile API operation for AWS Identity and Access Management.
 //
 // Creates a password for the specified IAM user. A password allows an IAM user
-// to access AWS services through the AWS Management Console.
-//
-// You can use the AWS CLI, the AWS API, or the Users page in the IAM console
-// to create a password for any IAM user. Use ChangePassword to update your
-// own existing password in the My Security Credentials page in the AWS Management
+// to access Amazon Web Services services through the Amazon Web Services Management
 // Console.
+//
+// You can use the CLI, the Amazon Web Services API, or the Users page in the
+// IAM console to create a password for any IAM user. Use ChangePassword to
+// update your own existing password in the My Security Credentials page in
+// the Amazon Web Services Management Console.
 //
 // For more information about managing passwords, see Managing passwords (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html)
 // in the IAM User Guide.
@@ -1216,7 +1246,8 @@ func (c *IAM) CreateLoginProfileRequest(input *CreateLoginProfileInput) (req *re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -1293,20 +1324,35 @@ func (c *IAM) CreateOpenIDConnectProviderRequest(input *CreateOpenIDConnectProvi
 //
 // The OIDC provider that you create with this operation can be used as a principal
 // in a role's trust policy. Such a policy establishes a trust relationship
-// between AWS and the OIDC provider.
+// between Amazon Web Services and the OIDC provider.
+//
+// If you are using an OIDC identity provider from Google, Facebook, or Amazon
+// Cognito, you don't need to create a separate IAM identity provider. These
+// OIDC identity providers are already built-in to Amazon Web Services and are
+// available for your use. Instead, you can move directly to creating new roles
+// using your identity provider. To learn more, see Creating a role for web
+// identity or OpenID connect federation (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)
+// in the IAM User Guide.
 //
 // When you create the IAM OIDC provider, you specify the following:
 //
 //    * The URL of the OIDC identity provider (IdP) to trust
 //
 //    * A list of client IDs (also known as audiences) that identify the application
-//    or applications that are allowed to authenticate using the OIDC provider
+//    or applications allowed to authenticate using the OIDC provider
 //
 //    * A list of thumbprints of one or more server certificates that the IdP
 //    uses
 //
-// You get all of this information from the OIDC IdP that you want to use to
-// access AWS.
+// You get all of this information from the OIDC IdP you want to use to access
+// Amazon Web Services.
+//
+// Amazon Web Services secures communication with some OIDC identity providers
+// (IdPs) through our library of trusted certificate authorities (CAs) instead
+// of using a certificate thumbprint to verify your IdP server certificate.
+// These OIDC IdPs include Google, and those that use an Amazon S3 bucket to
+// host a JSON Web Key Set (JWKS) endpoint. In these cases, your legacy thumbprint
+// remains in your configuration, but is no longer used for validation.
 //
 // The trust for the OIDC provider is derived from the IAM provider that this
 // operation creates. Therefore, it is best to limit access to the CreateOpenIDConnectProvider
@@ -1330,7 +1376,8 @@ func (c *IAM) CreateOpenIDConnectProviderRequest(input *CreateOpenIDConnectProvi
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeConcurrentModificationException "ConcurrentModification"
 //   The request was rejected because multiple requests to change this object
@@ -1407,11 +1454,15 @@ func (c *IAM) CreatePolicyRequest(input *CreatePolicyInput) (req *request.Reques
 
 // CreatePolicy API operation for AWS Identity and Access Management.
 //
-// Creates a new managed policy for your AWS account.
+// Creates a new managed policy for your Amazon Web Services account.
 //
 // This operation creates a policy version with a version identifier of v1 and
 // sets v1 as the policy's default version. For more information about policy
 // versions, see Versioning for managed policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-versions.html)
+// in the IAM User Guide.
+//
+// As a best practice, you can validate your IAM policies. To learn more, see
+// Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
 // in the IAM User Guide.
 //
 // For more information about managed policies in general, see Managed policies
@@ -1432,7 +1483,8 @@ func (c *IAM) CreatePolicyRequest(input *CreatePolicyInput) (req *request.Reques
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeEntityAlreadyExistsException "EntityAlreadyExists"
 //   The request was rejected because it attempted to create a resource that already
@@ -1552,7 +1604,8 @@ func (c *IAM) CreatePolicyVersionRequest(input *CreatePolicyVersionInput) (req *
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -1624,8 +1677,8 @@ func (c *IAM) CreateRoleRequest(input *CreateRoleInput) (req *request.Request, o
 
 // CreateRole API operation for AWS Identity and Access Management.
 //
-// Creates a new role for your AWS account. For more information about roles,
-// see IAM roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/WorkingWithRoles.html).
+// Creates a new role for your Amazon Web Services account. For more information
+// about roles, see IAM roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/WorkingWithRoles.html).
 // For information about quotas for role names and the number of roles you can
 // create, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
 // in the IAM User Guide.
@@ -1640,7 +1693,8 @@ func (c *IAM) CreateRoleRequest(input *CreateRoleInput) (req *request.Request, o
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -1735,8 +1789,8 @@ func (c *IAM) CreateSAMLProviderRequest(input *CreateSAMLProviderInput) (req *re
 // The SAML provider resource that you create with this operation can be used
 // as a principal in an IAM role's trust policy. Such a policy can enable federated
 // users who sign in using the SAML IdP to assume the role. You can create an
-// IAM role that supports Web-based single sign-on (SSO) to the AWS Management
-// Console or one that supports API access to AWS.
+// IAM role that supports Web-based single sign-on (SSO) to the Amazon Web Services
+// Management Console or one that supports API access to Amazon Web Services.
 //
 // When you create the SAML provider resource, you upload a SAML metadata document
 // that you get from your IdP. That document includes the issuer's name, expiration
@@ -1748,7 +1802,7 @@ func (c *IAM) CreateSAMLProviderRequest(input *CreateSAMLProviderInput) (req *re
 // This operation requires Signature Version 4 (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html).
 //
 // For more information, see Enabling SAML 2.0 federated users to access the
-// AWS Management Console (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-saml.html)
+// Amazon Web Services Management Console (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-saml.html)
 // and About SAML 2.0-based federation (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_saml.html)
 // in the IAM User Guide.
 //
@@ -1770,7 +1824,8 @@ func (c *IAM) CreateSAMLProviderRequest(input *CreateSAMLProviderInput) (req *re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeConcurrentModificationException "ConcurrentModification"
 //   The request was rejected because multiple requests to change this object
@@ -1847,17 +1902,17 @@ func (c *IAM) CreateServiceLinkedRoleRequest(input *CreateServiceLinkedRoleInput
 
 // CreateServiceLinkedRole API operation for AWS Identity and Access Management.
 //
-// Creates an IAM role that is linked to a specific AWS service. The service
-// controls the attached policies and when the role can be deleted. This helps
-// ensure that the service is not broken by an unexpectedly changed or deleted
-// role, which could put your AWS resources into an unknown state. Allowing
-// the service to control the role helps improve service stability and proper
-// cleanup when a service and its role are no longer needed. For more information,
-// see Using service-linked roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/using-service-linked-roles.html)
+// Creates an IAM role that is linked to a specific Amazon Web Services service.
+// The service controls the attached policies and when the role can be deleted.
+// This helps ensure that the service is not broken by an unexpectedly changed
+// or deleted role, which could put your Amazon Web Services resources into
+// an unknown state. Allowing the service to control the role helps improve
+// service stability and proper cleanup when a service and its role are no longer
+// needed. For more information, see Using service-linked roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/using-service-linked-roles.html)
 // in the IAM User Guide.
 //
 // To attach a policy to this service-linked role, you must make the request
-// using the AWS service that depends on this role.
+// using the Amazon Web Services service that depends on this role.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1873,7 +1928,8 @@ func (c *IAM) CreateServiceLinkedRoleRequest(input *CreateServiceLinkedRoleInput
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeNoSuchEntityException "NoSuchEntity"
 //   The request was rejected because it referenced a resource entity that does
@@ -1956,13 +2012,14 @@ func (c *IAM) CreateServiceSpecificCredentialRequest(input *CreateServiceSpecifi
 // You can have a maximum of two sets of service-specific credentials for each
 // supported service per user.
 //
-// You can create service-specific credentials for AWS CodeCommit and Amazon
-// Keyspaces (for Apache Cassandra).
+// You can create service-specific credentials for CodeCommit and Amazon Keyspaces
+// (for Apache Cassandra).
 //
 // You can reset the password to a new service-generated value by calling ResetServiceSpecificCredential.
 //
 // For more information about service-specific credentials, see Using IAM with
-// AWS CodeCommit: Git credentials, SSH keys, and AWS access keys (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_ssh-keys.html)
+// CodeCommit: Git credentials, SSH keys, and Amazon Web Services access keys
+// (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_ssh-keys.html)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -1975,7 +2032,8 @@ func (c *IAM) CreateServiceSpecificCredentialRequest(input *CreateServiceSpecifi
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeNoSuchEntityException "NoSuchEntity"
 //   The request was rejected because it referenced a resource entity that does
@@ -2050,7 +2108,7 @@ func (c *IAM) CreateUserRequest(input *CreateUserInput) (req *request.Request, o
 
 // CreateUser API operation for AWS Identity and Access Management.
 //
-// Creates a new IAM user for your AWS account.
+// Creates a new IAM user for your Amazon Web Services account.
 //
 // For information about quotas for the number of IAM users you can create,
 // see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
@@ -2066,7 +2124,8 @@ func (c *IAM) CreateUserRequest(input *CreateUserInput) (req *request.Request, o
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeEntityAlreadyExistsException "EntityAlreadyExists"
 //   The request was rejected because it attempted to create a resource that already
@@ -2155,10 +2214,10 @@ func (c *IAM) CreateVirtualMFADeviceRequest(input *CreateVirtualMFADeviceInput) 
 
 // CreateVirtualMFADevice API operation for AWS Identity and Access Management.
 //
-// Creates a new virtual MFA device for the AWS account. After creating the
-// virtual MFA, use EnableMFADevice to attach the MFA device to an IAM user.
-// For more information about creating and working with virtual MFA devices,
-// see Using a virtual MFA device (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_VirtualMFA.html)
+// Creates a new virtual MFA device for the Amazon Web Services account. After
+// creating the virtual MFA, use EnableMFADevice to attach the MFA device to
+// an IAM user. For more information about creating and working with virtual
+// MFA devices, see Using a virtual MFA device (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_VirtualMFA.html)
 // in the IAM User Guide.
 //
 // For information about the maximum number of MFA devices you can create, see
@@ -2167,9 +2226,9 @@ func (c *IAM) CreateVirtualMFADeviceRequest(input *CreateVirtualMFADeviceInput) 
 //
 // The seed information contained in the QR code and the Base32 string should
 // be treated like any other secret access information. In other words, protect
-// the seed information as you would your AWS access keys or your passwords.
-// After you provision your virtual device, you should ensure that the information
-// is destroyed following secure procedures.
+// the seed information as you would your Amazon Web Services access keys or
+// your passwords. After you provision your virtual device, you should ensure
+// that the information is destroyed following secure procedures.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2181,7 +2240,8 @@ func (c *IAM) CreateVirtualMFADeviceRequest(input *CreateVirtualMFADeviceInput) 
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -2294,7 +2354,8 @@ func (c *IAM) DeactivateMFADeviceRequest(input *DeactivateMFADeviceInput) (req *
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -2370,10 +2431,10 @@ func (c *IAM) DeleteAccessKeyRequest(input *DeleteAccessKeyInput) (req *request.
 // Deletes the access key pair associated with the specified IAM user.
 //
 // If you do not specify a user name, IAM determines the user name implicitly
-// based on the AWS access key ID signing the request. This operation works
-// for access keys under the AWS account. Consequently, you can use this operation
-// to manage AWS account root user credentials even if the AWS account has no
-// associated users.
+// based on the Amazon Web Services access key ID signing the request. This
+// operation works for access keys under the Amazon Web Services account. Consequently,
+// you can use this operation to manage Amazon Web Services account root user
+// credentials even if the Amazon Web Services account has no associated users.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2389,7 +2450,8 @@ func (c *IAM) DeleteAccessKeyRequest(input *DeleteAccessKeyInput) (req *request.
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -2462,8 +2524,9 @@ func (c *IAM) DeleteAccountAliasRequest(input *DeleteAccountAliasInput) (req *re
 
 // DeleteAccountAlias API operation for AWS Identity and Access Management.
 //
-// Deletes the specified AWS account alias. For information about using an AWS
-// account alias, see Using an alias for your AWS account ID (https://docs.aws.amazon.com/IAM/latest/UserGuide/AccountAlias.html)
+// Deletes the specified Amazon Web Services account alias. For information
+// about using an Amazon Web Services account alias, see Using an alias for
+// your Amazon Web Services account ID (https://docs.aws.amazon.com/IAM/latest/UserGuide/AccountAlias.html)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -2480,7 +2543,8 @@ func (c *IAM) DeleteAccountAliasRequest(input *DeleteAccountAliasInput) (req *re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -2553,7 +2617,8 @@ func (c *IAM) DeleteAccountPasswordPolicyRequest(input *DeleteAccountPasswordPol
 
 // DeleteAccountPasswordPolicy API operation for AWS Identity and Access Management.
 //
-// Deletes the password policy for the AWS account. There are no parameters.
+// Deletes the password policy for the Amazon Web Services account. There are
+// no parameters.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2569,7 +2634,8 @@ func (c *IAM) DeleteAccountPasswordPolicyRequest(input *DeleteAccountPasswordPol
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -2663,7 +2729,8 @@ func (c *IAM) DeleteGroupRequest(input *DeleteGroupInput) (req *request.Request,
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -2758,7 +2825,8 @@ func (c *IAM) DeleteGroupPolicyRequest(input *DeleteGroupPolicyInput) (req *requ
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -2860,7 +2928,8 @@ func (c *IAM) DeleteInstanceProfileRequest(input *DeleteInstanceProfileInput) (r
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -2934,17 +3003,19 @@ func (c *IAM) DeleteLoginProfileRequest(input *DeleteLoginProfileInput) (req *re
 // DeleteLoginProfile API operation for AWS Identity and Access Management.
 //
 // Deletes the password for the specified IAM user, which terminates the user's
-// ability to access AWS services through the AWS Management Console.
+// ability to access Amazon Web Services services through the Amazon Web Services
+// Management Console.
 //
-// You can use the AWS CLI, the AWS API, or the Users page in the IAM console
-// to delete a password for any IAM user. You can use ChangePassword to update,
-// but not delete, your own password in the My Security Credentials page in
-// the AWS Management Console.
+// You can use the CLI, the Amazon Web Services API, or the Users page in the
+// IAM console to delete a password for any IAM user. You can use ChangePassword
+// to update, but not delete, your own password in the My Security Credentials
+// page in the Amazon Web Services Management Console.
 //
-// Deleting a user's password does not prevent a user from accessing AWS through
-// the command line interface or the API. To prevent all user access, you must
-// also either make any access keys inactive or delete them. For more information
-// about making keys inactive or deleting them, see UpdateAccessKey and DeleteAccessKey.
+// Deleting a user's password does not prevent a user from accessing Amazon
+// Web Services through the command line interface or the API. To prevent all
+// user access, you must also either make any access keys inactive or delete
+// them. For more information about making keys inactive or deleting them, see
+// UpdateAccessKey and DeleteAccessKey.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2966,7 +3037,8 @@ func (c *IAM) DeleteLoginProfileRequest(input *DeleteLoginProfileInput) (req *re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -3173,7 +3245,8 @@ func (c *IAM) DeletePolicyRequest(input *DeletePolicyInput) (req *request.Reques
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -3278,7 +3351,8 @@ func (c *IAM) DeletePolicyVersionRequest(input *DeletePolicyVersionInput) (req *
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -3385,7 +3459,8 @@ func (c *IAM) DeleteRoleRequest(input *DeleteRoleInput) (req *request.Request, o
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeUnmodifiableEntityException "UnmodifiableEntity"
 //   The request was rejected because only the service that depends on the service-linked
@@ -3586,7 +3661,8 @@ func (c *IAM) DeleteRolePolicyRequest(input *DeleteRolePolicyInput) (req *reques
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeUnmodifiableEntityException "UnmodifiableEntity"
 //   The request was rejected because only the service that depends on the service-linked
@@ -3688,7 +3764,8 @@ func (c *IAM) DeleteSAMLProviderRequest(input *DeleteSAMLProviderInput) (req *re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeNoSuchEntityException "NoSuchEntity"
 //   The request was rejected because it referenced a resource entity that does
@@ -3768,10 +3845,10 @@ func (c *IAM) DeleteSSHPublicKeyRequest(input *DeleteSSHPublicKeyInput) (req *re
 // Deletes the specified SSH public key.
 //
 // The SSH public key deleted by this operation is used only for authenticating
-// the associated IAM user to an AWS CodeCommit repository. For more information
-// about using SSH keys to authenticate to an AWS CodeCommit repository, see
-// Set up AWS CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-// in the AWS CodeCommit User Guide.
+// the associated IAM user to an CodeCommit repository. For more information
+// about using SSH keys to authenticate to an CodeCommit repository, see Set
+// up CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
+// in the CodeCommit User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3856,8 +3933,8 @@ func (c *IAM) DeleteServerCertificateRequest(input *DeleteServerCertificateInput
 //
 // For more information about working with server certificates, see Working
 // with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-// in the IAM User Guide. This topic also includes a list of AWS services that
-// can use the server certificates that you manage with IAM.
+// in the IAM User Guide. This topic also includes a list of Amazon Web Services
+// services that can use the server certificates that you manage with IAM.
 //
 // If you are using a server certificate with Elastic Load Balancing, deleting
 // the certificate could have implications for your application. If Elastic
@@ -3887,7 +3964,8 @@ func (c *IAM) DeleteServerCertificateRequest(input *DeleteServerCertificateInput
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -3973,11 +4051,11 @@ func (c *IAM) DeleteServiceLinkedRoleRequest(input *DeleteServiceLinkedRoleInput
 // the service-linked role, you must first remove those resources from the linked
 // service and then submit the deletion request again. Resources are specific
 // to the service that is linked to the role. For more information about removing
-// resources from a service, see the AWS documentation (http://docs.aws.amazon.com/)
+// resources from a service, see the Amazon Web Services documentation (http://docs.aws.amazon.com/)
 // for your service.
 //
 // For more information about service-linked roles, see Roles terms and concepts:
-// AWS service-linked role (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html#iam-term-service-linked-role)
+// Amazon Web Services service-linked role (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html#iam-term-service-linked-role)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -3994,7 +4072,8 @@ func (c *IAM) DeleteServiceLinkedRoleRequest(input *DeleteServiceLinkedRoleInput
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -4151,10 +4230,11 @@ func (c *IAM) DeleteSigningCertificateRequest(input *DeleteSigningCertificateInp
 // Deletes a signing certificate associated with the specified IAM user.
 //
 // If you do not specify a user name, IAM determines the user name implicitly
-// based on the AWS access key ID signing the request. This operation works
-// for access keys under the AWS account. Consequently, you can use this operation
-// to manage AWS account root user credentials even if the AWS account has no
-// associated IAM users.
+// based on the Amazon Web Services access key ID signing the request. This
+// operation works for access keys under the Amazon Web Services account. Consequently,
+// you can use this operation to manage Amazon Web Services account root user
+// credentials even if the Amazon Web Services account has no associated IAM
+// users.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4170,7 +4250,8 @@ func (c *IAM) DeleteSigningCertificateRequest(input *DeleteSigningCertificateInp
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -4243,10 +4324,10 @@ func (c *IAM) DeleteUserRequest(input *DeleteUserInput) (req *request.Request, o
 
 // DeleteUser API operation for AWS Identity and Access Management.
 //
-// Deletes the specified IAM user. Unlike the AWS Management Console, when you
-// delete a user programmatically, you must delete the items attached to the
-// user manually, or the deletion fails. For more information, see Deleting
-// an IAM user (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_manage.html#id_users_deleting_cli).
+// Deletes the specified IAM user. Unlike the Amazon Web Services Management
+// Console, when you delete a user programmatically, you must delete the items
+// attached to the user manually, or the deletion fails. For more information,
+// see Deleting an IAM user (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_manage.html#id_users_deleting_cli).
 // Before attempting to delete a user, remove the following items:
 //
 //    * Password (DeleteLoginProfile)
@@ -4277,7 +4358,8 @@ func (c *IAM) DeleteUserRequest(input *DeleteUserInput) (req *request.Request, o
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeNoSuchEntityException "NoSuchEntity"
 //   The request was rejected because it referenced a resource entity that does
@@ -4474,7 +4556,8 @@ func (c *IAM) DeleteUserPolicyRequest(input *DeleteUserPolicyInput) (req *reques
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -4570,7 +4653,8 @@ func (c *IAM) DeleteVirtualMFADeviceRequest(input *DeleteVirtualMFADeviceInput) 
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -4664,7 +4748,8 @@ func (c *IAM) DetachGroupPolicyRequest(input *DetachGroupPolicyInput) (req *requ
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -4762,7 +4847,8 @@ func (c *IAM) DetachRolePolicyRequest(input *DetachRolePolicyInput) (req *reques
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -4866,7 +4952,8 @@ func (c *IAM) DetachUserPolicyRequest(input *DetachUserPolicyInput) (req *reques
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -4971,7 +5058,8 @@ func (c *IAM) EnableMFADeviceRequest(input *EnableMFADeviceInput) (req *request.
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeNoSuchEntityException "NoSuchEntity"
 //   The request was rejected because it referenced a resource entity that does
@@ -5047,8 +5135,8 @@ func (c *IAM) GenerateCredentialReportRequest(input *GenerateCredentialReportInp
 
 // GenerateCredentialReport API operation for AWS Identity and Access Management.
 //
-// Generates a credential report for the AWS account. For more information about
-// the credential report, see Getting credential reports (https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html)
+// Generates a credential report for the Amazon Web Services account. For more
+// information about the credential report, see Getting credential reports (https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -5061,7 +5149,8 @@ func (c *IAM) GenerateCredentialReportRequest(input *GenerateCredentialReportInp
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -5133,16 +5222,16 @@ func (c *IAM) GenerateOrganizationsAccessReportRequest(input *GenerateOrganizati
 
 // GenerateOrganizationsAccessReport API operation for AWS Identity and Access Management.
 //
-// Generates a report for service last accessed data for AWS Organizations.
-// You can generate a report for any entities (organization root, organizational
+// Generates a report for service last accessed data for Organizations. You
+// can generate a report for any entities (organization root, organizational
 // unit, or account) or policies in your organization.
 //
-// To call this operation, you must be signed in using your AWS Organizations
-// management account credentials. You can use your long-term IAM user or root
-// user credentials, or temporary credentials from assuming an IAM role. SCPs
-// must be enabled for your organization root. You must have the required IAM
-// and AWS Organizations permissions. For more information, see Refining permissions
-// using service last accessed data (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html)
+// To call this operation, you must be signed in using your Organizations management
+// account credentials. You can use your long-term IAM user or root user credentials,
+// or temporary credentials from assuming an IAM role. SCPs must be enabled
+// for your organization root. You must have the required IAM and Organizations
+// permissions. For more information, see Refining permissions using service
+// last accessed data (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html)
 // in the IAM User Guide.
 //
 // You can generate a service last accessed data report for entities by specifying
@@ -5150,7 +5239,7 @@ func (c *IAM) GenerateOrganizationsAccessReportRequest(input *GenerateOrganizati
 // by any service control policies (SCPs) that apply to the entity.
 //
 // You can generate a service last accessed data report for a policy by specifying
-// an entity's path and an optional AWS Organizations policy ID. This data includes
+// an entity's path and an optional Organizations policy ID. This data includes
 // a list of services that are allowed by the specified SCP.
 //
 // For each service in both report types, the data includes the most recent
@@ -5160,14 +5249,15 @@ func (c *IAM) GenerateOrganizationsAccessReportRequest(input *GenerateOrganizati
 // Reducing permissions using service last accessed data (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html)
 // in the IAM User Guide.
 //
-// The data includes all attempts to access AWS, not just the successful ones.
-// This includes all attempts that were made using the AWS Management Console,
-// the AWS API through any of the SDKs, or any of the command line tools. An
-// unexpected entry in the service last accessed data does not mean that an
-// account has been compromised, because the request might have been denied.
-// Refer to your CloudTrail logs as the authoritative source for information
-// about all API calls and whether they were successful or denied access. For
-// more information, see Logging IAM events with CloudTrail (https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html)
+// The data includes all attempts to access Amazon Web Services, not just the
+// successful ones. This includes all attempts that were made using the Amazon
+// Web Services Management Console, the Amazon Web Services API through any
+// of the SDKs, or any of the command line tools. An unexpected entry in the
+// service last accessed data does not mean that an account has been compromised,
+// because the request might have been denied. Refer to your CloudTrail logs
+// as the authoritative source for information about all API calls and whether
+// they were successful or denied access. For more information, see Logging
+// IAM events with CloudTrail (https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html)
 // in the IAM User Guide.
 //
 // This operation returns a JobId. Use this parameter in the GetOrganizationsAccessReport
@@ -5177,8 +5267,8 @@ func (c *IAM) GenerateOrganizationsAccessReportRequest(input *GenerateOrganizati
 // you can retrieve the report.
 //
 // To generate a service last accessed data report for entities, specify an
-// entity path without specifying the optional AWS Organizations policy ID.
-// The type of entity that you specify determines the data returned in the report.
+// entity path without specifying the optional Organizations policy ID. The
+// type of entity that you specify determines the data returned in the report.
 //
 //    * Root – When you specify the organizations root as the entity, the
 //    resulting report lists all of the services allowed by SCPs that are attached
@@ -5193,9 +5283,9 @@ func (c *IAM) GenerateOrganizationsAccessReportRequest(input *GenerateOrganizati
 //    account, because the management account is not limited by SCPs.
 //
 //    * management account – When you specify the management account, the
-//    resulting report lists all AWS services, because the management account
-//    is not limited by SCPs. For each service, the report includes data for
-//    only the management account.
+//    resulting report lists all Amazon Web Services services, because the management
+//    account is not limited by SCPs. For each service, the report includes
+//    data for only the management account.
 //
 //    * Account – When you specify another account as the entity, the resulting
 //    report lists all of the services allowed by SCPs that are attached to
@@ -5203,7 +5293,7 @@ func (c *IAM) GenerateOrganizationsAccessReportRequest(input *GenerateOrganizati
 //    for only the specified account.
 //
 // To generate a service last accessed data report for policies, specify an
-// entity path and the optional AWS Organizations policy ID. The type of entity
+// entity path and the optional Organizations policy ID. The type of entity
 // that you specify determines the data returned for each service.
 //
 //    * Root – When you specify the root entity and a policy ID, the resulting
@@ -5225,10 +5315,10 @@ func (c *IAM) GenerateOrganizationsAccessReportRequest(input *GenerateOrganizati
 //    data.
 //
 //    * management account – When you specify the management account, the
-//    resulting report lists all AWS services, because the management account
-//    is not limited by SCPs. If you specify a policy ID in the CLI or API,
-//    the policy is ignored. For each service, the report includes data for
-//    only the management account.
+//    resulting report lists all Amazon Web Services services, because the management
+//    account is not limited by SCPs. If you specify a policy ID in the CLI
+//    or API, the policy is ignored. For each service, the report includes data
+//    for only the management account.
 //
 //    * Account – When you specify another account entity and a policy ID,
 //    the resulting report lists all of the services that are allowed by the
@@ -5329,20 +5419,21 @@ func (c *IAM) GenerateServiceLastAccessedDetailsRequest(input *GenerateServiceLa
 // GenerateServiceLastAccessedDetails API operation for AWS Identity and Access Management.
 //
 // Generates a report that includes details about when an IAM resource (user,
-// group, role, or policy) was last used in an attempt to access AWS services.
-// Recent activity usually appears within four hours. IAM reports activity for
-// the last 365 days, or less if your Region began supporting this feature within
-// the last year. For more information, see Regions where data is tracked (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#access-advisor_tracking-period).
+// group, role, or policy) was last used in an attempt to access Amazon Web
+// Services services. Recent activity usually appears within four hours. IAM
+// reports activity for at least the last 400 days, or less if your Region began
+// supporting this feature within the last year. For more information, see Regions
+// where data is tracked (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#access-advisor_tracking-period).
 //
-// The service last accessed data includes all attempts to access an AWS API,
-// not just the successful ones. This includes all attempts that were made using
-// the AWS Management Console, the AWS API through any of the SDKs, or any of
-// the command line tools. An unexpected entry in the service last accessed
-// data does not mean that your account has been compromised, because the request
-// might have been denied. Refer to your CloudTrail logs as the authoritative
-// source for information about all API calls and whether they were successful
-// or denied access. For more information, see Logging IAM events with CloudTrail
-// (https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html)
+// The service last accessed data includes all attempts to access an Amazon
+// Web Services API, not just the successful ones. This includes all attempts
+// that were made using the Amazon Web Services Management Console, the Amazon
+// Web Services API through any of the SDKs, or any of the command line tools.
+// An unexpected entry in the service last accessed data does not mean that
+// your account has been compromised, because the request might have been denied.
+// Refer to your CloudTrail logs as the authoritative source for information
+// about all API calls and whether they were successful or denied access. For
+// more information, see Logging IAM events with CloudTrail (https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html)
 // in the IAM User Guide.
 //
 // The GenerateServiceLastAccessedDetails operation returns a JobId. Use this
@@ -5350,15 +5441,16 @@ func (c *IAM) GenerateServiceLastAccessedDetailsRequest(input *GenerateServiceLa
 // your report:
 //
 //    * GetServiceLastAccessedDetails – Use this operation for users, groups,
-//    roles, or policies to list every AWS service that the resource could access
-//    using permissions policies. For each service, the response includes information
-//    about the most recent access attempt. The JobId returned by GenerateServiceLastAccessedDetail
-//    must be used by the same role within a session, or by the same user when
-//    used to call GetServiceLastAccessedDetail.
+//    roles, or policies to list every Amazon Web Services service that the
+//    resource could access using permissions policies. For each service, the
+//    response includes information about the most recent access attempt. The
+//    JobId returned by GenerateServiceLastAccessedDetail must be used by the
+//    same role within a session, or by the same user when used to call GetServiceLastAccessedDetail.
 //
 //    * GetServiceLastAccessedDetailsWithEntities – Use this operation for
 //    groups and policies to list information about the associated entities
-//    (users or roles) that attempted to access a specific AWS service.
+//    (users or roles) that attempted to access a specific Amazon Web Services
+//    service.
 //
 // To check the status of the GenerateServiceLastAccessedDetails request, use
 // the JobId parameter in the same operations and test the JobStatus response
@@ -5370,10 +5462,10 @@ func (c *IAM) GenerateServiceLastAccessedDetailsRequest(input *GenerateServiceLa
 //
 // Service last accessed data does not use other policy types when determining
 // whether a resource could access a service. These other policy types include
-// resource-based policies, access control lists, AWS Organizations policies,
-// IAM permissions boundaries, and AWS STS assume role policies. It only applies
-// permissions policy logic. For more about the evaluation of policy types,
-// see Evaluating policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
+// resource-based policies, access control lists, Organizations policies, IAM
+// permissions boundaries, and STS assume role policies. It only applies permissions
+// policy logic. For more about the evaluation of policy types, see Evaluating
+// policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
 // in the IAM User Guide.
 //
 // For more information about service and action last accessed data, see Reducing
@@ -5463,9 +5555,9 @@ func (c *IAM) GetAccessKeyLastUsedRequest(input *GetAccessKeyLastUsedInput) (req
 // GetAccessKeyLastUsed API operation for AWS Identity and Access Management.
 //
 // Retrieves information about when the specified access key was last used.
-// The information includes the date and time of last use, along with the AWS
-// service and Region that were specified in the last request made with that
-// key.
+// The information includes the date and time of last use, along with the Amazon
+// Web Services service and Region that were specified in the last request made
+// with that key.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5473,6 +5565,12 @@ func (c *IAM) GetAccessKeyLastUsedRequest(input *GetAccessKeyLastUsedInput) (req
 //
 // See the AWS API reference guide for AWS Identity and Access Management's
 // API operation GetAccessKeyLastUsed for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeNoSuchEntityException "NoSuchEntity"
+//   The request was rejected because it referenced a resource entity that does
+//   not exist. The error message describes the resource.
+//
 // See also, https://docs.aws.amazon.com/goto/WebAPI/iam-2010-05-08/GetAccessKeyLastUsed
 func (c *IAM) GetAccessKeyLastUsed(input *GetAccessKeyLastUsedInput) (*GetAccessKeyLastUsedOutput, error) {
 	req, out := c.GetAccessKeyLastUsedRequest(input)
@@ -5546,9 +5644,9 @@ func (c *IAM) GetAccountAuthorizationDetailsRequest(input *GetAccountAuthorizati
 // GetAccountAuthorizationDetails API operation for AWS Identity and Access Management.
 //
 // Retrieves information about all IAM users, groups, roles, and policies in
-// your AWS account, including their relationships to one another. Use this
-// operation to obtain a snapshot of the configuration of IAM permissions (users,
-// groups, roles, and policies) in your account.
+// your Amazon Web Services account, including their relationships to one another.
+// Use this operation to obtain a snapshot of the configuration of IAM permissions
+// (users, groups, roles, and policies) in your account.
 //
 // Policies returned by this operation are URL-encoded compliant with RFC 3986
 // (https://tools.ietf.org/html/rfc3986). You can use a URL decoding method
@@ -5689,10 +5787,10 @@ func (c *IAM) GetAccountPasswordPolicyRequest(input *GetAccountPasswordPolicyInp
 
 // GetAccountPasswordPolicy API operation for AWS Identity and Access Management.
 //
-// Retrieves the password policy for the AWS account. This tells you the complexity
-// requirements and mandatory rotation periods for the IAM user passwords in
-// your account. For more information about using a password policy, see Managing
-// an IAM password policy (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingPasswordPolicies.html).
+// Retrieves the password policy for the Amazon Web Services account. This tells
+// you the complexity requirements and mandatory rotation periods for the IAM
+// user passwords in your account. For more information about using a password
+// policy, see Managing an IAM password policy (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingPasswordPolicies.html).
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5776,7 +5874,8 @@ func (c *IAM) GetAccountSummaryRequest(input *GetAccountSummaryInput) (req *requ
 
 // GetAccountSummary API operation for AWS Identity and Access Management.
 //
-// Retrieves information about IAM entity usage and IAM quotas in the AWS account.
+// Retrieves information about IAM entity usage and IAM quotas in the Amazon
+// Web Services account.
 //
 // For information about IAM quotas, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
 // in the IAM User Guide.
@@ -5863,12 +5962,13 @@ func (c *IAM) GetContextKeysForCustomPolicyRequest(input *GetContextKeysForCusto
 // The policies are supplied as a list of one or more strings. To get the context
 // keys from policies associated with an IAM user, group, or role, use GetContextKeysForPrincipalPolicy.
 //
-// Context keys are variables maintained by AWS and its services that provide
-// details about the context of an API query request. Context keys can be evaluated
-// by testing against a value specified in an IAM policy. Use GetContextKeysForCustomPolicy
-// to understand what key names and values you must supply when you call SimulateCustomPolicy.
-// Note that all parameters are shown in unencoded form here for clarity but
-// must be URL encoded to be included as a part of a real HTML request.
+// Context keys are variables maintained by Amazon Web Services and its services
+// that provide details about the context of an API query request. Context keys
+// can be evaluated by testing against a value specified in an IAM policy. Use
+// GetContextKeysForCustomPolicy to understand what key names and values you
+// must supply when you call SimulateCustomPolicy. Note that all parameters
+// are shown in unencoded form here for clarity but must be URL encoded to be
+// included as a part of a real HTML request.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5961,9 +6061,9 @@ func (c *IAM) GetContextKeysForPrincipalPolicyRequest(input *GetContextKeysForPr
 // to other users. If you do not want users to see other user's permissions,
 // then consider allowing them to use GetContextKeysForCustomPolicy instead.
 //
-// Context keys are variables maintained by AWS and its services that provide
-// details about the context of an API query request. Context keys can be evaluated
-// by testing against a value in an IAM policy. Use GetContextKeysForPrincipalPolicy
+// Context keys are variables maintained by Amazon Web Services and its services
+// that provide details about the context of an API query request. Context keys
+// can be evaluated by testing against a value in an IAM policy. Use GetContextKeysForPrincipalPolicy
 // to understand what key names and values you must supply when you call SimulatePrincipalPolicy.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -6048,8 +6148,8 @@ func (c *IAM) GetCredentialReportRequest(input *GetCredentialReportInput) (req *
 
 // GetCredentialReport API operation for AWS Identity and Access Management.
 //
-// Retrieves a credential report for the AWS account. For more information about
-// the credential report, see Getting credential reports (https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html)
+// Retrieves a credential report for the Amazon Web Services account. For more
+// information about the credential report, see Getting credential reports (https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -6474,9 +6574,19 @@ func (c *IAM) GetLoginProfileRequest(input *GetLoginProfileInput) (req *request.
 
 // GetLoginProfile API operation for AWS Identity and Access Management.
 //
-// Retrieves the user name and password creation date for the specified IAM
-// user. If the user has not been assigned a password, the operation returns
-// a 404 (NoSuchEntity) error.
+// Retrieves the user name for the specified IAM user. A login profile is created
+// when you create a password for the user to access the Amazon Web Services
+// Management Console. If the user does not exist or does not have a password,
+// the operation returns a 404 (NoSuchEntity) error.
+//
+// If you create an IAM user with access to the console, the CreateDate reflects
+// the date you created the initial password for the user.
+//
+// If you create an IAM user with programmatic access, and then later add a
+// password for the user to access the Amazon Web Services Management Console,
+// the CreateDate reflects the initial password creation date. A user with programmatic
+// access does not have a login profile unless you create a password for the
+// user to access the Amazon Web Services Management Console.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6649,8 +6759,8 @@ func (c *IAM) GetOrganizationsAccessReportRequest(input *GetOrganizationsAccessR
 
 // GetOrganizationsAccessReport API operation for AWS Identity and Access Management.
 //
-// Retrieves the service last accessed data report for AWS Organizations that
-// was previously generated using the GenerateOrganizationsAccessReport operation.
+// Retrieves the service last accessed data report for Organizations that was
+// previously generated using the GenerateOrganizationsAccessReport operation.
 // This operation retrieves the status of your report job and the report contents.
 //
 // Depending on the parameters that you passed when you generated the report,
@@ -7247,10 +7357,10 @@ func (c *IAM) GetSSHPublicKeyRequest(input *GetSSHPublicKeyInput) (req *request.
 // Retrieves the specified SSH public key, including metadata about the key.
 //
 // The SSH public key retrieved by this operation is used only for authenticating
-// the associated IAM user to an AWS CodeCommit repository. For more information
-// about using SSH keys to authenticate to an AWS CodeCommit repository, see
-// Set up AWS CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-// in the AWS CodeCommit User Guide.
+// the associated IAM user to an CodeCommit repository. For more information
+// about using SSH keys to authenticate to an CodeCommit repository, see Set
+// up CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
+// in the CodeCommit User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7338,8 +7448,8 @@ func (c *IAM) GetServerCertificateRequest(input *GetServerCertificateInput) (req
 //
 // For more information about working with server certificates, see Working
 // with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-// in the IAM User Guide. This topic includes a list of AWS services that can
-// use the server certificates that you manage with IAM.
+// in the IAM User Guide. This topic includes a list of Amazon Web Services
+// services that can use the server certificates that you manage with IAM.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7426,15 +7536,16 @@ func (c *IAM) GetServiceLastAccessedDetailsRequest(input *GetServiceLastAccessed
 // Retrieves a service last accessed report that was created using the GenerateServiceLastAccessedDetails
 // operation. You can use the JobId parameter in GetServiceLastAccessedDetails
 // to retrieve the status of your report job. When the report is complete, you
-// can retrieve the generated report. The report includes a list of AWS services
-// that the resource (user, group, role, or managed policy) can access.
+// can retrieve the generated report. The report includes a list of Amazon Web
+// Services services that the resource (user, group, role, or managed policy)
+// can access.
 //
 // Service last accessed data does not use other policy types when determining
 // whether a resource could access a service. These other policy types include
-// resource-based policies, access control lists, AWS Organizations policies,
-// IAM permissions boundaries, and AWS STS assume role policies. It only applies
-// permissions policy logic. For more about the evaluation of policy types,
-// see Evaluating policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
+// resource-based policies, access control lists, Organizations policies, IAM
+// permissions boundaries, and STS assume role policies. It only applies permissions
+// policy logic. For more about the evaluation of policy types, see Evaluating
+// policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
 // in the IAM User Guide.
 //
 // For each service that the resource could access using permissions policies,
@@ -7754,7 +7865,8 @@ func (c *IAM) GetUserRequest(input *GetUserInput) (req *request.Request, output 
 // creation date, path, unique ID, and ARN.
 //
 // If you do not specify a user name, IAM determines the user name implicitly
-// based on the AWS access key ID used to sign the request to this operation.
+// based on the Amazon Web Services access key ID used to sign the request to
+// this operation.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7951,13 +8063,14 @@ func (c *IAM) ListAccessKeysRequest(input *ListAccessKeysInput) (req *request.Re
 // the results using the MaxItems and Marker parameters.
 //
 // If the UserName field is not specified, the user name is determined implicitly
-// based on the AWS access key ID used to sign the request. This operation works
-// for access keys under the AWS account. Consequently, you can use this operation
-// to manage AWS account root user credentials even if the AWS account has no
-// associated users.
+// based on the Amazon Web Services access key ID used to sign the request.
+// This operation works for access keys under the Amazon Web Services account.
+// Consequently, you can use this operation to manage Amazon Web Services account
+// root user credentials even if the Amazon Web Services account has no associated
+// users.
 //
-// To ensure the security of your AWS account, the secret access key is accessible
-// only during key and user creation.
+// To ensure the security of your Amazon Web Services account, the secret access
+// key is accessible only during key and user creation.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -8099,10 +8212,11 @@ func (c *IAM) ListAccountAliasesRequest(input *ListAccountAliasesInput) (req *re
 
 // ListAccountAliases API operation for AWS Identity and Access Management.
 //
-// Lists the account alias associated with the AWS account (Note: you can have
-// only one). For information about using an AWS account alias, see Using an
-// alias for your AWS account ID (https://docs.aws.amazon.com/IAM/latest/UserGuide/AccountAlias.html)
-// in the IAM User Guide.
+// Lists the account alias associated with the Amazon Web Services account (Note:
+// you can have only one). For information about using an Amazon Web Services
+// account alias, see Using an alias for your Amazon Web Services account ID
+// (https://docs.aws.amazon.com/IAM/latest/UserGuide/AccountAlias.html) in the
+// IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -9776,7 +9890,8 @@ func (c *IAM) ListMFADevicesRequest(input *ListMFADevicesInput) (req *request.Re
 // Lists the MFA devices for an IAM user. If the request includes a IAM user
 // name, then this operation lists all the MFA devices associated with the specified
 // user. If you do not specify a user name, IAM determines the user name implicitly
-// based on the AWS access key ID signing the request for this operation.
+// based on the Amazon Web Services access key ID signing the request for this
+// operation.
 //
 // You can paginate the results using the MaxItems and Marker parameters.
 //
@@ -10008,7 +10123,7 @@ func (c *IAM) ListOpenIDConnectProvidersRequest(input *ListOpenIDConnectProvider
 // ListOpenIDConnectProviders API operation for AWS Identity and Access Management.
 //
 // Lists information about the IAM OpenID Connect (OIDC) provider resource objects
-// defined in the AWS account.
+// defined in the Amazon Web Services account.
 //
 // IAM resource-listing operations return a subset of the available attributes
 // for the resource. For example, this operation does not return tags, even
@@ -10099,13 +10214,14 @@ func (c *IAM) ListPoliciesRequest(input *ListPoliciesInput) (req *request.Reques
 
 // ListPolicies API operation for AWS Identity and Access Management.
 //
-// Lists all the managed policies that are available in your AWS account, including
-// your own customer-defined managed policies and all AWS managed policies.
+// Lists all the managed policies that are available in your Amazon Web Services
+// account, including your own customer-defined managed policies and all Amazon
+// Web Services managed policies.
 //
 // You can filter the list of policies that is returned using the optional OnlyAttached,
 // Scope, and PathPrefix parameters. For example, to list only the customer
-// managed policies in your AWS account, set Scope to Local. To list only AWS
-// managed policies, set Scope to AWS.
+// managed policies in your Amazon Web Services account, set Scope to Local.
+// To list only Amazon Web Services managed policies, set Scope to AWS.
 //
 // You can paginate the results using the MaxItems and Marker parameters.
 //
@@ -10253,10 +10369,9 @@ func (c *IAM) ListPoliciesGrantingServiceAccessRequest(input *ListPoliciesGranti
 //
 // This operation does not use other policy types when determining whether a
 // resource could access a service. These other policy types include resource-based
-// policies, access control lists, AWS Organizations policies, IAM permissions
-// boundaries, and AWS STS assume role policies. It only applies permissions
-// policy logic. For more about the evaluation of policy types, see Evaluating
-// policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
+// policies, access control lists, Organizations policies, IAM permissions boundaries,
+// and STS assume role policies. It only applies permissions policy logic. For
+// more about the evaluation of policy types, see Evaluating policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
 // in the IAM User Guide.
 //
 // The list of policies returned by the operation depends on the ARN of the
@@ -11183,10 +11298,10 @@ func (c *IAM) ListSSHPublicKeysRequest(input *ListSSHPublicKeysInput) (req *requ
 // IAM user. If none exists, the operation returns an empty list.
 //
 // The SSH public keys returned by this operation are used only for authenticating
-// the IAM user to an AWS CodeCommit repository. For more information about
-// using SSH keys to authenticate to an AWS CodeCommit repository, see Set up
-// AWS CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-// in the AWS CodeCommit User Guide.
+// the IAM user to an CodeCommit repository. For more information about using
+// SSH keys to authenticate to an CodeCommit repository, see Set up CodeCommit
+// for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
+// in the CodeCommit User Guide.
 //
 // Although each user is limited to a small number of keys, you can still paginate
 // the results using the MaxItems and Marker parameters.
@@ -11326,10 +11441,10 @@ func (c *IAM) ListServerCertificateTagsRequest(input *ListServerCertificateTagsI
 // tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
 // in the IAM User Guide.
 //
-// For certificates in a Region supported by AWS Certificate Manager (ACM),
-// we recommend that you don't use IAM server certificates. Instead, use ACM
-// to provision, manage, and deploy your server certificates. For more information
-// about IAM server certificates, Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
+// For certificates in a Region supported by Certificate Manager (ACM), we recommend
+// that you don't use IAM server certificates. Instead, use ACM to provision,
+// manage, and deploy your server certificates. For more information about IAM
+// server certificates, Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -11427,8 +11542,8 @@ func (c *IAM) ListServerCertificatesRequest(input *ListServerCertificatesInput) 
 //
 // For more information about working with server certificates, see Working
 // with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-// in the IAM User Guide. This topic also includes a list of AWS services that
-// can use the server certificates that you manage with IAM.
+// in the IAM User Guide. This topic also includes a list of Amazon Web Services
+// services that can use the server certificates that you manage with IAM.
 //
 // IAM resource-listing operations return a subset of the available attributes
 // for the resource. For example, this operation does not return tags, even
@@ -11569,9 +11684,9 @@ func (c *IAM) ListServiceSpecificCredentialsRequest(input *ListServiceSpecificCr
 // the specified IAM user. If none exists, the operation returns an empty list.
 // The service-specific credentials returned by this operation are used only
 // for authenticating the IAM user to a specific service. For more information
-// about using service-specific credentials to authenticate to an AWS service,
-// see Set up service-specific credentials (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-gc.html)
-// in the AWS CodeCommit User Guide.
+// about using service-specific credentials to authenticate to an Amazon Web
+// Services service, see Set up service-specific credentials (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-gc.html)
+// in the CodeCommit User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -11667,10 +11782,11 @@ func (c *IAM) ListSigningCertificatesRequest(input *ListSigningCertificatesInput
 // you can still paginate the results using the MaxItems and Marker parameters.
 //
 // If the UserName field is not specified, the user name is determined implicitly
-// based on the AWS access key ID used to sign the request for this operation.
-// This operation works for access keys under the AWS account. Consequently,
-// you can use this operation to manage AWS account root user credentials even
-// if the AWS account has no associated users.
+// based on the Amazon Web Services access key ID used to sign the request for
+// this operation. This operation works for access keys under the Amazon Web
+// Services account. Consequently, you can use this operation to manage Amazon
+// Web Services account root user credentials even if the Amazon Web Services
+// account has no associated users.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -11944,6 +12060,12 @@ func (c *IAM) ListUserTagsRequest(input *ListUserTagsInput) (req *request.Reques
 		Name:       opListUserTags,
 		HTTPMethod: "POST",
 		HTTPPath:   "/",
+		Paginator: &request.Paginator{
+			InputTokens:     []string{"Marker"},
+			OutputTokens:    []string{"Marker"},
+			LimitToken:      "MaxItems",
+			TruncationToken: "IsTruncated",
+		},
 	}
 
 	if input == nil {
@@ -12000,6 +12122,58 @@ func (c *IAM) ListUserTagsWithContext(ctx aws.Context, input *ListUserTagsInput,
 	return out, req.Send()
 }
 
+// ListUserTagsPages iterates over the pages of a ListUserTags operation,
+// calling the "fn" function with the response data for each page. To stop
+// iterating, return false from the fn function.
+//
+// See ListUserTags method for more information on how to use this operation.
+//
+// Note: This operation can generate multiple requests to a service.
+//
+//    // Example iterating over at most 3 pages of a ListUserTags operation.
+//    pageNum := 0
+//    err := client.ListUserTagsPages(params,
+//        func(page *iam.ListUserTagsOutput, lastPage bool) bool {
+//            pageNum++
+//            fmt.Println(page)
+//            return pageNum <= 3
+//        })
+//
+func (c *IAM) ListUserTagsPages(input *ListUserTagsInput, fn func(*ListUserTagsOutput, bool) bool) error {
+	return c.ListUserTagsPagesWithContext(aws.BackgroundContext(), input, fn)
+}
+
+// ListUserTagsPagesWithContext same as ListUserTagsPages except
+// it takes a Context and allows setting request options on the pages.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *IAM) ListUserTagsPagesWithContext(ctx aws.Context, input *ListUserTagsInput, fn func(*ListUserTagsOutput, bool) bool, opts ...request.Option) error {
+	p := request.Pagination{
+		NewRequest: func() (*request.Request, error) {
+			var inCpy *ListUserTagsInput
+			if input != nil {
+				tmp := *input
+				inCpy = &tmp
+			}
+			req, _ := c.ListUserTagsRequest(inCpy)
+			req.SetContext(ctx)
+			req.ApplyOptions(opts...)
+			return req, nil
+		},
+	}
+
+	for p.Next() {
+		if !fn(p.Page().(*ListUserTagsOutput), !p.HasNextPage()) {
+			break
+		}
+	}
+
+	return p.Err()
+}
+
 const opListUsers = "ListUsers"
 
 // ListUsersRequest generates a "aws/request.Request" representing the
@@ -12051,8 +12225,8 @@ func (c *IAM) ListUsersRequest(input *ListUsersInput) (req *request.Request, out
 // ListUsers API operation for AWS Identity and Access Management.
 //
 // Lists the IAM users that have the specified path prefix. If no path prefix
-// is specified, the operation returns all users in the AWS account. If there
-// are none, the operation returns an empty list.
+// is specified, the operation returns all users in the Amazon Web Services
+// account. If there are none, the operation returns an empty list.
 //
 // IAM resource-listing operations return a subset of the available attributes
 // for the resource. For example, this operation does not return tags, even
@@ -12197,15 +12371,15 @@ func (c *IAM) ListVirtualMFADevicesRequest(input *ListVirtualMFADevicesInput) (r
 
 // ListVirtualMFADevices API operation for AWS Identity and Access Management.
 //
-// Lists the virtual MFA devices defined in the AWS account by assignment status.
-// If you do not specify an assignment status, the operation returns a list
-// of all virtual MFA devices. Assignment status can be Assigned, Unassigned,
-// or Any.
+// Lists the virtual MFA devices defined in the Amazon Web Services account
+// by assignment status. If you do not specify an assignment status, the operation
+// returns a list of all virtual MFA devices. Assignment status can be Assigned,
+// Unassigned, or Any.
 //
 // IAM resource-listing operations return a subset of the available attributes
 // for the resource. For example, this operation does not return tags, even
-// though they are an attribute of the returned object. To view all of the information
-// for a virtual MFA device, see ListVirtualMFADevices.
+// though they are an attribute of the returned object. To view tag information
+// for a virtual MFA device, see ListMFADeviceTags.
 //
 // You can paginate the results using the MaxItems and Marker parameters.
 //
@@ -12362,7 +12536,8 @@ func (c *IAM) PutGroupPolicyRequest(input *PutGroupPolicyInput) (req *request.Re
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeMalformedPolicyDocumentException "MalformedPolicyDocument"
 //   The request was rejected because the policy document was malformed. The error
@@ -12444,10 +12619,10 @@ func (c *IAM) PutRolePermissionsBoundaryRequest(input *PutRolePermissionsBoundar
 // PutRolePermissionsBoundary API operation for AWS Identity and Access Management.
 //
 // Adds or updates the policy that is specified as the IAM role's permissions
-// boundary. You can use an AWS managed policy or a customer managed policy
-// to set the boundary for a role. Use the boundary to control the maximum permissions
-// that the role can have. Setting a permissions boundary is an advanced feature
-// that can affect the permissions for the role.
+// boundary. You can use an Amazon Web Services managed policy or a customer
+// managed policy to set the boundary for a role. Use the boundary to control
+// the maximum permissions that the role can have. Setting a permissions boundary
+// is an advanced feature that can affect the permissions for the role.
 //
 // You cannot set the boundary for a service-linked role.
 //
@@ -12480,8 +12655,8 @@ func (c *IAM) PutRolePermissionsBoundaryRequest(input *PutRolePermissionsBoundar
 //   request the change through that service.
 //
 //   * ErrCodePolicyNotAttachableException "PolicyNotAttachable"
-//   The request failed because AWS service role policies can only be attached
-//   to the service-linked role for that service.
+//   The request failed because Amazon Web Services service role policies can
+//   only be attached to the service-linked role for that service.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -12588,7 +12763,8 @@ func (c *IAM) PutRolePolicyRequest(input *PutRolePolicyInput) (req *request.Requ
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeMalformedPolicyDocumentException "MalformedPolicyDocument"
 //   The request was rejected because the policy document was malformed. The error
@@ -12676,10 +12852,10 @@ func (c *IAM) PutUserPermissionsBoundaryRequest(input *PutUserPermissionsBoundar
 // PutUserPermissionsBoundary API operation for AWS Identity and Access Management.
 //
 // Adds or updates the policy that is specified as the IAM user's permissions
-// boundary. You can use an AWS managed policy or a customer managed policy
-// to set the boundary for a user. Use the boundary to control the maximum permissions
-// that the user can have. Setting a permissions boundary is an advanced feature
-// that can affect the permissions for the user.
+// boundary. You can use an Amazon Web Services managed policy or a customer
+// managed policy to set the boundary for a user. Use the boundary to control
+// the maximum permissions that the user can have. Setting a permissions boundary
+// is an advanced feature that can affect the permissions for the user.
 //
 // Policies that are used as permissions boundaries do not provide permissions.
 // You must also attach a permissions policy to the user. To learn how the effective
@@ -12704,8 +12880,8 @@ func (c *IAM) PutUserPermissionsBoundaryRequest(input *PutUserPermissionsBoundar
 //   for an input parameter.
 //
 //   * ErrCodePolicyNotAttachableException "PolicyNotAttachable"
-//   The request failed because AWS service role policies can only be attached
-//   to the service-linked role for that service.
+//   The request failed because Amazon Web Services service role policies can
+//   only be attached to the service-linked role for that service.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -12806,7 +12982,8 @@ func (c *IAM) PutUserPolicyRequest(input *PutUserPolicyInput) (req *request.Requ
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeMalformedPolicyDocumentException "MalformedPolicyDocument"
 //   The request was rejected because the policy document was malformed. The error
@@ -13006,7 +13183,8 @@ func (c *IAM) RemoveRoleFromInstanceProfileRequest(input *RemoveRoleFromInstance
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeUnmodifiableEntityException "UnmodifiableEntity"
 //   The request was rejected because only the service that depends on the service-linked
@@ -13101,7 +13279,8 @@ func (c *IAM) RemoveUserFromGroupRequest(input *RemoveUserFromGroupInput) (req *
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -13174,9 +13353,9 @@ func (c *IAM) ResetServiceSpecificCredentialRequest(input *ResetServiceSpecificC
 // ResetServiceSpecificCredential API operation for AWS Identity and Access Management.
 //
 // Resets the password for a service-specific credential. The new password is
-// AWS generated and cryptographically strong. It cannot be configured by the
-// user. Resetting the password immediately invalidates the previous password
-// associated with this user.
+// Amazon Web Services generated and cryptographically strong. It cannot be
+// configured by the user. Resetting the password immediately invalidates the
+// previous password associated with this user.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -13258,7 +13437,7 @@ func (c *IAM) ResyncMFADeviceRequest(input *ResyncMFADeviceInput) (req *request.
 // ResyncMFADevice API operation for AWS Identity and Access Management.
 //
 // Synchronizes the specified MFA device with its IAM resource object on the
-// AWS servers.
+// Amazon Web Services servers.
 //
 // For more information about creating and working with virtual MFA devices,
 // see Using a virtual MFA device (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_VirtualMFA.html)
@@ -13282,7 +13461,8 @@ func (c *IAM) ResyncMFADeviceRequest(input *ResyncMFADeviceInput) (req *request.
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -13384,7 +13564,8 @@ func (c *IAM) SetDefaultPolicyVersionRequest(input *SetDefaultPolicyVersionInput
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -13458,23 +13639,24 @@ func (c *IAM) SetSecurityTokenServicePreferencesRequest(input *SetSecurityTokenS
 // SetSecurityTokenServicePreferences API operation for AWS Identity and Access Management.
 //
 // Sets the specified version of the global endpoint token as the token version
-// used for the AWS account.
+// used for the Amazon Web Services account.
 //
-// By default, AWS Security Token Service (STS) is available as a global service,
+// By default, Security Token Service (STS) is available as a global service,
 // and all STS requests go to a single endpoint at https://sts.amazonaws.com.
-// AWS recommends using Regional STS endpoints to reduce latency, build in redundancy,
-// and increase session token availability. For information about Regional endpoints
-// for STS, see AWS AWS Security Token Service endpoints and quotas (https://docs.aws.amazon.com/general/latest/gr/sts.html)
-// in the AWS General Reference.
+// Amazon Web Services recommends using Regional STS endpoints to reduce latency,
+// build in redundancy, and increase session token availability. For information
+// about Regional endpoints for STS, see Security Token Service endpoints and
+// quotas (https://docs.aws.amazon.com/general/latest/gr/sts.html) in the Amazon
+// Web Services General Reference.
 //
 // If you make an STS call to the global endpoint, the resulting session tokens
 // might be valid in some Regions but not others. It depends on the version
-// that is set in this operation. Version 1 tokens are valid only in AWS Regions
-// that are available by default. These tokens do not work in manually enabled
-// Regions, such as Asia Pacific (Hong Kong). Version 2 tokens are valid in
-// all Regions. However, version 2 tokens are longer and might affect systems
-// where you temporarily store tokens. For information, see Activating and deactivating
-// STS in an AWS region (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_enable-regions.html)
+// that is set in this operation. Version 1 tokens are valid only in Amazon
+// Web Services Regions that are available by default. These tokens do not work
+// in manually enabled Regions, such as Asia Pacific (Hong Kong). Version 2
+// tokens are valid in all Regions. However, version 2 tokens are longer and
+// might affect systems where you temporarily store tokens. For information,
+// see Activating and deactivating STS in an Amazon Web Services Region (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_enable-regions.html)
 // in the IAM User Guide.
 //
 // To view the current session token version, see the GlobalEndpointTokenVersion
@@ -13565,8 +13747,9 @@ func (c *IAM) SimulateCustomPolicyRequest(input *SimulateCustomPolicyInput) (req
 // SimulateCustomPolicy API operation for AWS Identity and Access Management.
 //
 // Simulate how a set of IAM policies and optionally a resource-based policy
-// works with a list of API operations and AWS resources to determine the policies'
-// effective permissions. The policies are provided as strings.
+// works with a list of API operations and Amazon Web Services resources to
+// determine the policies' effective permissions. The policies are provided
+// as strings.
 //
 // The simulation does not perform the API operations; it only checks the authorization
 // to determine if the simulated policies allow or deny the operations. You
@@ -13575,11 +13758,11 @@ func (c *IAM) SimulateCustomPolicyRequest(input *SimulateCustomPolicyInput) (req
 // If you want to simulate existing policies that are attached to an IAM user,
 // group, or role, use SimulatePrincipalPolicy instead.
 //
-// Context keys are variables that are maintained by AWS and its services and
-// which provide details about the context of an API query request. You can
-// use the Condition element of an IAM policy to evaluate context keys. To get
-// the list of context keys that the policies require for correct simulation,
-// use GetContextKeysForCustomPolicy.
+// Context keys are variables that are maintained by Amazon Web Services and
+// its services and which provide details about the context of an API query
+// request. You can use the Condition element of an IAM policy to evaluate context
+// keys. To get the list of context keys that the policies require for correct
+// simulation, use GetContextKeysForCustomPolicy.
 //
 // If the output is long, you can use MaxItems and Marker parameters to paginate
 // the results.
@@ -13729,11 +13912,11 @@ func (c *IAM) SimulatePrincipalPolicyRequest(input *SimulatePrincipalPolicyInput
 // SimulatePrincipalPolicy API operation for AWS Identity and Access Management.
 //
 // Simulate how a set of IAM policies attached to an IAM entity works with a
-// list of API operations and AWS resources to determine the policies' effective
-// permissions. The entity can be an IAM user, group, or role. If you specify
-// a user, then the simulation also includes all of the policies that are attached
-// to groups that the user belongs to. You can simulate resources that don't
-// exist in your account.
+// list of API operations and Amazon Web Services resources to determine the
+// policies' effective permissions. The entity can be an IAM user, group, or
+// role. If you specify a user, then the simulation also includes all of the
+// policies that are attached to groups that the user belongs to. You can simulate
+// resources that don't exist in your account.
 //
 // You can optionally include a list of one or more additional policies specified
 // as strings to include in the simulation. If you want to simulate only policies
@@ -13749,10 +13932,11 @@ func (c *IAM) SimulatePrincipalPolicyRequest(input *SimulatePrincipalPolicyInput
 // to other users. If you do not want users to see other user's permissions,
 // then consider allowing them to use SimulateCustomPolicy instead.
 //
-// Context keys are variables maintained by AWS and its services that provide
-// details about the context of an API query request. You can use the Condition
-// element of an IAM policy to evaluate context keys. To get the list of context
-// keys that the policies require for correct simulation, use GetContextKeysForPrincipalPolicy.
+// Context keys are variables maintained by Amazon Web Services and its services
+// that provide details about the context of an API query request. You can use
+// the Condition element of an IAM policy to evaluate context keys. To get the
+// list of context keys that the policies require for correct simulation, use
+// GetContextKeysForPrincipalPolicy.
 //
 // If the output is long, you can use the MaxItems and Marker parameters to
 // paginate the results.
@@ -13924,9 +14108,9 @@ func (c *IAM) TagInstanceProfileRequest(input *TagInstanceProfileInput) (req *re
 //    (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in the
 //    IAM User Guide.
 //
-//    * AWS always interprets the tag Value as a single string. If you need
-//    to store an array, you can store comma-separated values in the string.
-//    However, you must interpret the value in your code.
+//    * Amazon Web Services always interprets the tag Value as a single string.
+//    If you need to store an array, you can store comma-separated values in
+//    the string. However, you must interpret the value in your code.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -13946,7 +14130,8 @@ func (c *IAM) TagInstanceProfileRequest(input *TagInstanceProfileInput) (req *re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeConcurrentModificationException "ConcurrentModification"
 //   The request was rejected because multiple requests to change this object
@@ -14049,9 +14234,9 @@ func (c *IAM) TagMFADeviceRequest(input *TagMFADeviceInput) (req *request.Reques
 //    (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in the
 //    IAM User Guide.
 //
-//    * AWS always interprets the tag Value as a single string. If you need
-//    to store an array, you can store comma-separated values in the string.
-//    However, you must interpret the value in your code.
+//    * Amazon Web Services always interprets the tag Value as a single string.
+//    If you need to store an array, you can store comma-separated values in
+//    the string. However, you must interpret the value in your code.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -14071,7 +14256,8 @@ func (c *IAM) TagMFADeviceRequest(input *TagMFADeviceInput) (req *request.Reques
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeConcurrentModificationException "ConcurrentModification"
 //   The request was rejected because multiple requests to change this object
@@ -14176,9 +14362,9 @@ func (c *IAM) TagOpenIDConnectProviderRequest(input *TagOpenIDConnectProviderInp
 //    (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in the
 //    IAM User Guide.
 //
-//    * AWS always interprets the tag Value as a single string. If you need
-//    to store an array, you can store comma-separated values in the string.
-//    However, you must interpret the value in your code.
+//    * Amazon Web Services always interprets the tag Value as a single string.
+//    If you need to store an array, you can store comma-separated values in
+//    the string. However, you must interpret the value in your code.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -14194,7 +14380,8 @@ func (c *IAM) TagOpenIDConnectProviderRequest(input *TagOpenIDConnectProviderInp
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -14300,9 +14487,9 @@ func (c *IAM) TagPolicyRequest(input *TagPolicyInput) (req *request.Request, out
 //    (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in the
 //    IAM User Guide.
 //
-//    * AWS always interprets the tag Value as a single string. If you need
-//    to store an array, you can store comma-separated values in the string.
-//    However, you must interpret the value in your code.
+//    * Amazon Web Services always interprets the tag Value as a single string.
+//    If you need to store an array, you can store comma-separated values in
+//    the string. However, you must interpret the value in your code.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -14318,7 +14505,8 @@ func (c *IAM) TagPolicyRequest(input *TagPolicyInput) (req *request.Request, out
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -14421,7 +14609,7 @@ func (c *IAM) TagRoleRequest(input *TagRoleInput) (req *request.Request, output 
 //    in the IAM User Guide.
 //
 //    * Cost allocation - Use tags to help track which individuals and teams
-//    are using which AWS resources.
+//    are using which Amazon Web Services resources.
 //
 //    * If any one of the tags is invalid or if you exceed the allowed maximum
 //    number of tags, then the entire request fails and the resource is not
@@ -14429,9 +14617,9 @@ func (c *IAM) TagRoleRequest(input *TagRoleInput) (req *request.Request, output 
 //    (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in the
 //    IAM User Guide.
 //
-//    * AWS always interprets the tag Value as a single string. If you need
-//    to store an array, you can store comma-separated values in the string.
-//    However, you must interpret the value in your code.
+//    * Amazon Web Services always interprets the tag Value as a single string.
+//    If you need to store an array, you can store comma-separated values in
+//    the string. However, you must interpret the value in your code.
 //
 // For more information about tagging, see Tagging IAM identities (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
 // in the IAM User Guide.
@@ -14450,7 +14638,8 @@ func (c *IAM) TagRoleRequest(input *TagRoleInput) (req *request.Request, output 
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -14559,9 +14748,9 @@ func (c *IAM) TagSAMLProviderRequest(input *TagSAMLProviderInput) (req *request.
 //    (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in the
 //    IAM User Guide.
 //
-//    * AWS always interprets the tag Value as a single string. If you need
-//    to store an array, you can store comma-separated values in the string.
-//    However, you must interpret the value in your code.
+//    * Amazon Web Services always interprets the tag Value as a single string.
+//    If you need to store an array, you can store comma-separated values in
+//    the string. However, you must interpret the value in your code.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -14577,7 +14766,8 @@ func (c *IAM) TagSAMLProviderRequest(input *TagSAMLProviderInput) (req *request.
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -14662,10 +14852,10 @@ func (c *IAM) TagServerCertificateRequest(input *TagServerCertificateInput) (req
 // Adds one or more tags to an IAM server certificate. If a tag with the same
 // key name already exists, then that tag is overwritten with the new value.
 //
-// For certificates in a Region supported by AWS Certificate Manager (ACM),
-// we recommend that you don't use IAM server certificates. Instead, use ACM
-// to provision, manage, and deploy your server certificates. For more information
-// about IAM server certificates, Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
+// For certificates in a Region supported by Certificate Manager (ACM), we recommend
+// that you don't use IAM server certificates. Instead, use ACM to provision,
+// manage, and deploy your server certificates. For more information about IAM
+// server certificates, Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
 // in the IAM User Guide.
 //
 // A tag consists of a key name and an associated value. By assigning tags to
@@ -14684,7 +14874,7 @@ func (c *IAM) TagServerCertificateRequest(input *TagServerCertificateInput) (req
 //    in the IAM User Guide.
 //
 //    * Cost allocation - Use tags to help track which individuals and teams
-//    are using which AWS resources.
+//    are using which Amazon Web Services resources.
 //
 //    * If any one of the tags is invalid or if you exceed the allowed maximum
 //    number of tags, then the entire request fails and the resource is not
@@ -14692,9 +14882,9 @@ func (c *IAM) TagServerCertificateRequest(input *TagServerCertificateInput) (req
 //    (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in the
 //    IAM User Guide.
 //
-//    * AWS always interprets the tag Value as a single string. If you need
-//    to store an array, you can store comma-separated values in the string.
-//    However, you must interpret the value in your code.
+//    * Amazon Web Services always interprets the tag Value as a single string.
+//    If you need to store an array, you can store comma-separated values in
+//    the string. However, you must interpret the value in your code.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -14714,7 +14904,8 @@ func (c *IAM) TagServerCertificateRequest(input *TagServerCertificateInput) (req
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeConcurrentModificationException "ConcurrentModification"
 //   The request was rejected because multiple requests to change this object
@@ -14813,7 +15004,7 @@ func (c *IAM) TagUserRequest(input *TagUserInput) (req *request.Request, output 
 //    the IAM User Guide.
 //
 //    * Cost allocation - Use tags to help track which individuals and teams
-//    are using which AWS resources.
+//    are using which Amazon Web Services resources.
 //
 //    * If any one of the tags is invalid or if you exceed the allowed maximum
 //    number of tags, then the entire request fails and the resource is not
@@ -14821,9 +15012,9 @@ func (c *IAM) TagUserRequest(input *TagUserInput) (req *request.Request, output 
 //    (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in the
 //    IAM User Guide.
 //
-//    * AWS always interprets the tag Value as a single string. If you need
-//    to store an array, you can store comma-separated values in the string.
-//    However, you must interpret the value in your code.
+//    * Amazon Web Services always interprets the tag Value as a single string.
+//    If you need to store an array, you can store comma-separated values in
+//    the string. However, you must interpret the value in your code.
 //
 // For more information about tagging, see Tagging IAM identities (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
 // in the IAM User Guide.
@@ -14842,7 +15033,8 @@ func (c *IAM) TagUserRequest(input *TagUserInput) (req *request.Request, output 
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -15505,10 +15697,10 @@ func (c *IAM) UntagServerCertificateRequest(input *UntagServerCertificateInput) 
 // about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
 // in the IAM User Guide.
 //
-// For certificates in a Region supported by AWS Certificate Manager (ACM),
-// we recommend that you don't use IAM server certificates. Instead, use ACM
-// to provision, manage, and deploy your server certificates. For more information
-// about IAM server certificates, Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
+// For certificates in a Region supported by Certificate Manager (ACM), we recommend
+// that you don't use IAM server certificates. Instead, use ACM to provision,
+// manage, and deploy your server certificates. For more information about IAM
+// server certificates, Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -15700,10 +15892,11 @@ func (c *IAM) UpdateAccessKeyRequest(input *UpdateAccessKeyInput) (req *request.
 // a key rotation workflow.
 //
 // If the UserName is not specified, the user name is determined implicitly
-// based on the AWS access key ID used to sign the request. This operation works
-// for access keys under the AWS account. Consequently, you can use this operation
-// to manage AWS account root user credentials even if the AWS account has no
-// associated users.
+// based on the Amazon Web Services access key ID used to sign the request.
+// This operation works for access keys under the Amazon Web Services account.
+// Consequently, you can use this operation to manage Amazon Web Services account
+// root user credentials even if the Amazon Web Services account has no associated
+// users.
 //
 // For information about rotating keys, see Managing keys and certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/ManagingCredentials.html)
 // in the IAM User Guide.
@@ -15722,7 +15915,8 @@ func (c *IAM) UpdateAccessKeyRequest(input *UpdateAccessKeyInput) (req *request.
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -15795,14 +15989,14 @@ func (c *IAM) UpdateAccountPasswordPolicyRequest(input *UpdateAccountPasswordPol
 
 // UpdateAccountPasswordPolicy API operation for AWS Identity and Access Management.
 //
-// Updates the password policy settings for the AWS account.
+// Updates the password policy settings for the Amazon Web Services account.
 //
-//    * This operation does not support partial updates. No parameters are required,
-//    but if you do not specify a parameter, that parameter's value reverts
-//    to its default value. See the Request Parameters section for each parameter's
-//    default value. Also note that some parameters do not allow the default
-//    parameter to be explicitly set. Instead, to invoke the default value,
-//    do not include that parameter when you invoke the operation.
+// This operation does not support partial updates. No parameters are required,
+// but if you do not specify a parameter, that parameter's value reverts to
+// its default value. See the Request Parameters section for each parameter's
+// default value. Also note that some parameters do not allow the default parameter
+// to be explicitly set. Instead, to invoke the default value, do not include
+// that parameter when you invoke the operation.
 //
 // For more information about using a password policy, see Managing an IAM password
 // policy (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingPasswordPolicies.html)
@@ -15826,7 +16020,8 @@ func (c *IAM) UpdateAccountPasswordPolicyRequest(input *UpdateAccountPasswordPol
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -15922,7 +16117,8 @@ func (c *IAM) UpdateAssumeRolePolicyRequest(input *UpdateAssumeRolePolicyInput) 
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeUnmodifiableEntityException "UnmodifiableEntity"
 //   The request was rejected because only the service that depends on the service-linked
@@ -16032,7 +16228,8 @@ func (c *IAM) UpdateGroupRequest(input *UpdateGroupInput) (req *request.Request,
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -16105,10 +16302,11 @@ func (c *IAM) UpdateLoginProfileRequest(input *UpdateLoginProfileInput) (req *re
 
 // UpdateLoginProfile API operation for AWS Identity and Access Management.
 //
-// Changes the password for the specified IAM user. You can use the AWS CLI,
-// the AWS API, or the Users page in the IAM console to change the password
-// for any IAM user. Use ChangePassword to change your own password in the My
-// Security Credentials page in the AWS Management Console.
+// Changes the password for the specified IAM user. You can use the CLI, the
+// Amazon Web Services API, or the Users page in the IAM console to change the
+// password for any IAM user. Use ChangePassword to change your own password
+// in the My Security Credentials page in the Amazon Web Services Management
+// Console.
 //
 // For more information about modifying passwords, see Managing passwords (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html)
 // in the IAM User Guide.
@@ -16137,7 +16335,8 @@ func (c *IAM) UpdateLoginProfileRequest(input *UpdateLoginProfileInput) (req *re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -16216,12 +16415,19 @@ func (c *IAM) UpdateOpenIDConnectProviderThumbprintRequest(input *UpdateOpenIDCo
 // The list that you pass with this operation completely replaces the existing
 // list of thumbprints. (The lists are not merged.)
 //
-// Typically, you need to update a thumbprint only when the identity provider's
+// Typically, you need to update a thumbprint only when the identity provider
 // certificate changes, which occurs rarely. However, if the provider's certificate
 // does change, any attempt to assume an IAM role that specifies the OIDC provider
 // as a principal fails until the certificate thumbprint is updated.
 //
-// Trust for the OIDC provider is derived from the provider's certificate and
+// Amazon Web Services secures communication with some OIDC identity providers
+// (IdPs) through our library of trusted certificate authorities (CAs) instead
+// of using a certificate thumbprint to verify your IdP server certificate.
+// These OIDC IdPs include Google, and those that use an Amazon S3 bucket to
+// host a JSON Web Key Set (JWKS) endpoint. In these cases, your legacy thumbprint
+// remains in your configuration, but is no longer used for validation.
+//
+// Trust for the OIDC provider is derived from the provider certificate and
 // is validated by the thumbprint. Therefore, it is best to limit access to
 // the UpdateOpenIDConnectProviderThumbprint operation to highly privileged
 // users.
@@ -16518,7 +16724,8 @@ func (c *IAM) UpdateSAMLProviderRequest(input *UpdateSAMLProviderInput) (req *re
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -16597,10 +16804,10 @@ func (c *IAM) UpdateSSHPublicKeyRequest(input *UpdateSSHPublicKeyInput) (req *re
 // work flow.
 //
 // The SSH public key affected by this operation is used only for authenticating
-// the associated IAM user to an AWS CodeCommit repository. For more information
-// about using SSH keys to authenticate to an AWS CodeCommit repository, see
-// Set up AWS CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-// in the AWS CodeCommit User Guide.
+// the associated IAM user to an CodeCommit repository. For more information
+// about using SSH keys to authenticate to an CodeCommit repository, see Set
+// up CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
+// in the CodeCommit User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -16686,8 +16893,8 @@ func (c *IAM) UpdateServerCertificateRequest(input *UpdateServerCertificateInput
 //
 // For more information about working with server certificates, see Working
 // with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-// in the IAM User Guide. This topic also includes a list of AWS services that
-// can use the server certificates that you manage with IAM.
+// in the IAM User Guide. This topic also includes a list of Amazon Web Services
+// services that can use the server certificates that you manage with IAM.
 //
 // You should understand the implications of changing a server certificate's
 // path or name. For more information, see Renaming a server certificate (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs_manage.html#RenamingServerCerts)
@@ -16720,7 +16927,8 @@ func (c *IAM) UpdateServerCertificateRequest(input *UpdateServerCertificateInput
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -16882,10 +17090,11 @@ func (c *IAM) UpdateSigningCertificateRequest(input *UpdateSigningCertificateInp
 // user's signing certificate as part of a certificate rotation work flow.
 //
 // If the UserName field is not specified, the user name is determined implicitly
-// based on the AWS access key ID used to sign the request. This operation works
-// for access keys under the AWS account. Consequently, you can use this operation
-// to manage AWS account root user credentials even if the AWS account has no
-// associated users.
+// based on the Amazon Web Services access key ID used to sign the request.
+// This operation works for access keys under the Amazon Web Services account.
+// Consequently, you can use this operation to manage Amazon Web Services account
+// root user credentials even if the Amazon Web Services account has no associated
+// users.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -16901,7 +17110,8 @@ func (c *IAM) UpdateSigningCertificateRequest(input *UpdateSigningCertificateInp
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeServiceFailureException "ServiceFailure"
 //   The request processing has failed because of an unknown error, exception
@@ -17001,7 +17211,8 @@ func (c *IAM) UpdateUserRequest(input *UpdateUserInput) (req *request.Request, o
 //
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeEntityAlreadyExistsException "EntityAlreadyExists"
 //   The request was rejected because it attempted to create a resource that already
@@ -17091,10 +17302,10 @@ func (c *IAM) UploadSSHPublicKeyRequest(input *UploadSSHPublicKeyInput) (req *re
 // Uploads an SSH public key and associates it with the specified IAM user.
 //
 // The SSH public key uploaded by this operation can be used only for authenticating
-// the associated IAM user to an AWS CodeCommit repository. For more information
-// about using SSH keys to authenticate to an AWS CodeCommit repository, see
-// Set up AWS CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-// in the AWS CodeCommit User Guide.
+// the associated IAM user to an CodeCommit repository. For more information
+// about using SSH keys to authenticate to an CodeCommit repository, see Set
+// up CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
+// in the CodeCommit User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -17106,7 +17317,8 @@ func (c *IAM) UploadSSHPublicKeyRequest(input *UploadSSHPublicKeyInput) (req *re
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeNoSuchEntityException "NoSuchEntity"
 //   The request was rejected because it referenced a resource entity that does
@@ -17190,20 +17402,21 @@ func (c *IAM) UploadServerCertificateRequest(input *UploadServerCertificateInput
 
 // UploadServerCertificate API operation for AWS Identity and Access Management.
 //
-// Uploads a server certificate entity for the AWS account. The server certificate
-// entity includes a public key certificate, a private key, and an optional
-// certificate chain, which should all be PEM-encoded.
+// Uploads a server certificate entity for the Amazon Web Services account.
+// The server certificate entity includes a public key certificate, a private
+// key, and an optional certificate chain, which should all be PEM-encoded.
 //
-// We recommend that you use AWS Certificate Manager (https://docs.aws.amazon.com/acm/)
+// We recommend that you use Certificate Manager (https://docs.aws.amazon.com/acm/)
 // to provision, manage, and deploy your server certificates. With ACM you can
-// request a certificate, deploy it to AWS resources, and let ACM handle certificate
-// renewals for you. Certificates provided by ACM are free. For more information
-// about using ACM, see the AWS Certificate Manager User Guide (https://docs.aws.amazon.com/acm/latest/userguide/).
+// request a certificate, deploy it to Amazon Web Services resources, and let
+// ACM handle certificate renewals for you. Certificates provided by ACM are
+// free. For more information about using ACM, see the Certificate Manager User
+// Guide (https://docs.aws.amazon.com/acm/latest/userguide/).
 //
 // For more information about working with server certificates, see Working
 // with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-// in the IAM User Guide. This topic includes a list of AWS services that can
-// use the server certificates that you manage with IAM.
+// in the IAM User Guide. This topic includes a list of Amazon Web Services
+// services that can use the server certificates that you manage with IAM.
 //
 // For information about the number of server certificates you can upload, see
 // IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
@@ -17212,10 +17425,11 @@ func (c *IAM) UploadServerCertificateRequest(input *UploadServerCertificateInput
 // Because the body of the public key certificate, private key, and the certificate
 // chain can be large, you should use POST rather than GET when calling UploadServerCertificate.
 // For information about setting up signatures and authorization through the
-// API, see Signing AWS API requests (https://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html)
-// in the AWS General Reference. For general information about using the Query
-// API with IAM, see Calling the API by making HTTP query requests (https://docs.aws.amazon.com/IAM/latest/UserGuide/programming.html)
-// in the IAM User Guide.
+// API, see Signing Amazon Web Services API requests (https://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html)
+// in the Amazon Web Services General Reference. For general information about
+// using the Query API with IAM, see Calling the API by making HTTP query requests
+// (https://docs.aws.amazon.com/IAM/latest/UserGuide/programming.html) in the
+// IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -17227,7 +17441,8 @@ func (c *IAM) UploadServerCertificateRequest(input *UploadServerCertificateInput
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeInvalidInputException "InvalidInput"
 //   The request was rejected because an invalid or out-of-range value was supplied
@@ -17321,26 +17536,27 @@ func (c *IAM) UploadSigningCertificateRequest(input *UploadSigningCertificateInp
 // UploadSigningCertificate API operation for AWS Identity and Access Management.
 //
 // Uploads an X.509 signing certificate and associates it with the specified
-// IAM user. Some AWS services require you to use certificates to validate requests
-// that are signed with a corresponding private key. When you upload the certificate,
-// its default status is Active.
+// IAM user. Some Amazon Web Services services require you to use certificates
+// to validate requests that are signed with a corresponding private key. When
+// you upload the certificate, its default status is Active.
 //
 // For information about when you would use an X.509 signing certificate, see
 // Managing server certificates in IAM (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
 // in the IAM User Guide.
 //
 // If the UserName is not specified, the IAM user name is determined implicitly
-// based on the AWS access key ID used to sign the request. This operation works
-// for access keys under the AWS account. Consequently, you can use this operation
-// to manage AWS account root user credentials even if the AWS account has no
-// associated users.
+// based on the Amazon Web Services access key ID used to sign the request.
+// This operation works for access keys under the Amazon Web Services account.
+// Consequently, you can use this operation to manage Amazon Web Services account
+// root user credentials even if the Amazon Web Services account has no associated
+// users.
 //
 // Because the body of an X.509 certificate can be large, you should use POST
 // rather than GET when calling UploadSigningCertificate. For information about
-// setting up signatures and authorization through the API, see Signing AWS
-// API requests (https://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html)
-// in the AWS General Reference. For general information about using the Query
-// API with IAM, see Making query requests (https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html)
+// setting up signatures and authorization through the API, see Signing Amazon
+// Web Services API requests (https://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html)
+// in the Amazon Web Services General Reference. For general information about
+// using the Query API with IAM, see Making query requests (https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html)
 // in the IAM User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -17353,7 +17569,8 @@ func (c *IAM) UploadSigningCertificateRequest(input *UploadSigningCertificateInp
 // Returned Error Codes:
 //   * ErrCodeLimitExceededException "LimitExceeded"
 //   The request was rejected because it attempted to create resources beyond
-//   the current AWS account limits. The error message describes the limit exceeded.
+//   the current Amazon Web Services account limits. The error message describes
+//   the limit exceeded.
 //
 //   * ErrCodeEntityAlreadyExistsException "EntityAlreadyExists"
 //   The request was rejected because it attempted to create a resource that already
@@ -17400,10 +17617,10 @@ func (c *IAM) UploadSigningCertificateWithContext(ctx aws.Context, input *Upload
 	return out, req.Send()
 }
 
-// An object that contains details about when a principal in the reported AWS
-// Organizations entity last attempted to access an AWS service. A principal
-// can be an IAM user, an IAM role, or the AWS account root user within the
-// reported Organizations entity.
+// An object that contains details about when a principal in the reported Organizations
+// entity last attempted to access an Amazon Web Services service. A principal
+// can be an IAM user, an IAM role, or the Amazon Web Services account root
+// user within the reported Organizations entity.
 //
 // This data type is a response element in the GetOrganizationsAccessReport
 // operation.
@@ -17412,7 +17629,7 @@ type AccessDetail struct {
 
 	// The path of the Organizations entity (root, organizational unit, or account)
 	// from which an authenticated principal last attempted to access the service.
-	// AWS does not report unauthenticated requests.
+	// Amazon Web Services does not report unauthenticated requests.
 	//
 	// This field is null if no principals (IAM users, IAM roles, or root users)
 	// in the reported Organizations entity attempted to access the service within
@@ -17421,7 +17638,7 @@ type AccessDetail struct {
 
 	// The date and time, in ISO 8601 date-time format (http://www.iso.org/iso/iso8601),
 	// when an authenticated principal most recently attempted to access the service.
-	// AWS does not report unauthenticated requests.
+	// Amazon Web Services does not report unauthenticated requests.
 	//
 	// This field is null if no principals in the reported Organizations entity
 	// attempted to access the service within the reporting period (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#service-last-accessed-reporting-period).
@@ -17441,12 +17658,12 @@ type AccessDetail struct {
 	// The namespace of the service in which access was attempted.
 	//
 	// To learn the service namespace of a service, see Actions, resources, and
-	// condition keys for AWS services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
+	// condition keys for Amazon Web Services services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
 	// in the Service Authorization Reference. Choose the name of the service to
 	// view details for that service. In the first paragraph, find the service prefix.
 	// For example, (service prefix: a4b). For more information about service namespaces,
-	// see AWS service namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
-	// in the AWS General Reference.
+	// see Amazon Web Services service namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
+	// in the Amazon Web Services General Reference.
 	//
 	// ServiceNamespace is a required field
 	ServiceNamespace *string `min:"1" type:"string" required:"true"`
@@ -17456,12 +17673,20 @@ type AccessDetail struct {
 	TotalAuthenticatedEntities *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccessDetail) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccessDetail) GoString() string {
 	return s.String()
 }
@@ -17502,7 +17727,7 @@ func (s *AccessDetail) SetTotalAuthenticatedEntities(v int64) *AccessDetail {
 	return s
 }
 
-// Contains information about an AWS access key.
+// Contains information about an Amazon Web Services access key.
 //
 // This data type is used as a response element in the CreateAccessKey and ListAccessKeys
 // operations.
@@ -17524,6 +17749,10 @@ type AccessKey struct {
 
 	// The secret key used to sign requests.
 	//
+	// SecretAccessKey is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by AccessKey's
+	// String and GoString methods.
+	//
 	// SecretAccessKey is a required field
 	SecretAccessKey *string `type:"string" required:"true" sensitive:"true"`
 
@@ -17539,12 +17768,20 @@ type AccessKey struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccessKey) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccessKey) GoString() string {
 	return s.String()
 }
@@ -17579,8 +17816,8 @@ func (s *AccessKey) SetUserName(v string) *AccessKey {
 	return s
 }
 
-// Contains information about the last time an AWS access key was used since
-// IAM began tracking this information on April 22, 2015.
+// Contains information about the last time an Amazon Web Services access key
+// was used since IAM began tracking this information on April 22, 2015.
 //
 // This data type is used as a response element in the GetAccessKeyLastUsed
 // operation.
@@ -17601,8 +17838,8 @@ type AccessKeyLastUsed struct {
 	// LastUsedDate is a required field
 	LastUsedDate *time.Time `type:"timestamp" required:"true"`
 
-	// The AWS Region where this access key was most recently used. The value for
-	// this field is "N/A" in the following situations:
+	// The Amazon Web Services Region where this access key was most recently used.
+	// The value for this field is "N/A" in the following situations:
 	//
 	//    * The user does not have an access key.
 	//
@@ -17611,14 +17848,15 @@ type AccessKeyLastUsed struct {
 	//
 	//    * There is no sign-in data associated with the user.
 	//
-	// For more information about AWS Regions, see Regions and endpoints (https://docs.aws.amazon.com/general/latest/gr/rande.html)
-	// in the Amazon Web Services General Reference.
+	// For more information about Amazon Web Services Regions, see Regions and endpoints
+	// (https://docs.aws.amazon.com/general/latest/gr/rande.html) in the Amazon
+	// Web Services General Reference.
 	//
 	// Region is a required field
 	Region *string `type:"string" required:"true"`
 
-	// The name of the AWS service with which this access key was most recently
-	// used. The value of this field is "N/A" in the following situations:
+	// The name of the Amazon Web Services service with which this access key was
+	// most recently used. The value of this field is "N/A" in the following situations:
 	//
 	//    * The user does not have an access key.
 	//
@@ -17631,12 +17869,20 @@ type AccessKeyLastUsed struct {
 	ServiceName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccessKeyLastUsed) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccessKeyLastUsed) GoString() string {
 	return s.String()
 }
@@ -17659,7 +17905,8 @@ func (s *AccessKeyLastUsed) SetServiceName(v string) *AccessKeyLastUsed {
 	return s
 }
 
-// Contains information about an AWS access key, without its secret key.
+// Contains information about an Amazon Web Services access key, without its
+// secret key.
 //
 // This data type is used as a response element in the ListAccessKeys operation.
 type AccessKeyMetadata struct {
@@ -17679,12 +17926,20 @@ type AccessKeyMetadata struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccessKeyMetadata) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccessKeyMetadata) GoString() string {
 	return s.String()
 }
@@ -17730,12 +17985,20 @@ type AddClientIDToOpenIDConnectProviderInput struct {
 	OpenIDConnectProviderArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddClientIDToOpenIDConnectProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddClientIDToOpenIDConnectProviderInput) GoString() string {
 	return s.String()
 }
@@ -17778,12 +18041,20 @@ type AddClientIDToOpenIDConnectProviderOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddClientIDToOpenIDConnectProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddClientIDToOpenIDConnectProviderOutput) GoString() string {
 	return s.String()
 }
@@ -17810,12 +18081,20 @@ type AddRoleToInstanceProfileInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToInstanceProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToInstanceProfileInput) GoString() string {
 	return s.String()
 }
@@ -17858,12 +18137,20 @@ type AddRoleToInstanceProfileOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToInstanceProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToInstanceProfileOutput) GoString() string {
 	return s.String()
 }
@@ -17890,12 +18177,20 @@ type AddUserToGroupInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddUserToGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddUserToGroupInput) GoString() string {
 	return s.String()
 }
@@ -17938,12 +18233,20 @@ type AddUserToGroupOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddUserToGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddUserToGroupOutput) GoString() string {
 	return s.String()
 }
@@ -17963,18 +18266,26 @@ type AttachGroupPolicyInput struct {
 	// The Amazon Resource Name (ARN) of the IAM policy you want to attach.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachGroupPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachGroupPolicyInput) GoString() string {
 	return s.String()
 }
@@ -18017,12 +18328,20 @@ type AttachGroupPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachGroupPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachGroupPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -18033,7 +18352,7 @@ type AttachRolePolicyInput struct {
 	// The Amazon Resource Name (ARN) of the IAM policy you want to attach.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -18048,12 +18367,20 @@ type AttachRolePolicyInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachRolePolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachRolePolicyInput) GoString() string {
 	return s.String()
 }
@@ -18096,12 +18423,20 @@ type AttachRolePolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachRolePolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachRolePolicyOutput) GoString() string {
 	return s.String()
 }
@@ -18112,7 +18447,7 @@ type AttachUserPolicyInput struct {
 	// The Amazon Resource Name (ARN) of the IAM policy you want to attach.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -18127,12 +18462,20 @@ type AttachUserPolicyInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachUserPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachUserPolicyInput) GoString() string {
 	return s.String()
 }
@@ -18175,12 +18518,20 @@ type AttachUserPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachUserPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachUserPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -18206,12 +18557,20 @@ type AttachedPermissionsBoundary struct {
 	PermissionsBoundaryType *string `type:"string" enum:"PermissionsBoundaryAttachmentType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachedPermissionsBoundary) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachedPermissionsBoundary) GoString() string {
 	return s.String()
 }
@@ -18241,22 +18600,31 @@ func (s *AttachedPermissionsBoundary) SetPermissionsBoundaryType(v string) *Atta
 type AttachedPolicy struct {
 	_ struct{} `type:"structure"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	PolicyArn *string `min:"20" type:"string"`
 
 	// The friendly name of the attached policy.
 	PolicyName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachedPolicy) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AttachedPolicy) GoString() string {
 	return s.String()
 }
@@ -18276,33 +18644,49 @@ func (s *AttachedPolicy) SetPolicyName(v string) *AttachedPolicy {
 type ChangePasswordInput struct {
 	_ struct{} `type:"structure"`
 
-	// The new password. The new password must conform to the AWS account's password
-	// policy, if one exists.
+	// The new password. The new password must conform to the Amazon Web Services
+	// account's password policy, if one exists.
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) that is used to validate
 	// this parameter is a string of characters. That string can include almost
 	// any printable ASCII character from the space (\u0020) through the end of
 	// the ASCII character range (\u00FF). You can also include the tab (\u0009),
 	// line feed (\u000A), and carriage return (\u000D) characters. Any of these
-	// characters are valid in a password. However, many tools, such as the AWS
-	// Management Console, might restrict the ability to type certain characters
-	// because they have special meaning within that tool.
+	// characters are valid in a password. However, many tools, such as the Amazon
+	// Web Services Management Console, might restrict the ability to type certain
+	// characters because they have special meaning within that tool.
+	//
+	// NewPassword is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by ChangePasswordInput's
+	// String and GoString methods.
 	//
 	// NewPassword is a required field
 	NewPassword *string `min:"1" type:"string" required:"true" sensitive:"true"`
 
 	// The IAM user's current password.
 	//
+	// OldPassword is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by ChangePasswordInput's
+	// String and GoString methods.
+	//
 	// OldPassword is a required field
 	OldPassword *string `min:"1" type:"string" required:"true" sensitive:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ChangePasswordInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ChangePasswordInput) GoString() string {
 	return s.String()
 }
@@ -18345,12 +18729,20 @@ type ChangePasswordOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ChangePasswordOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ChangePasswordOutput) GoString() string {
 	return s.String()
 }
@@ -18379,12 +18771,20 @@ type ContextEntry struct {
 	ContextKeyValues []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ContextEntry) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ContextEntry) GoString() string {
 	return s.String()
 }
@@ -18431,12 +18831,20 @@ type CreateAccessKeyInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateAccessKeyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateAccessKeyInput) GoString() string {
 	return s.String()
 }
@@ -18470,12 +18878,20 @@ type CreateAccessKeyOutput struct {
 	AccessKey *AccessKey `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateAccessKeyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateAccessKeyOutput) GoString() string {
 	return s.String()
 }
@@ -18500,12 +18916,20 @@ type CreateAccountAliasInput struct {
 	AccountAlias *string `min:"3" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateAccountAliasInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateAccountAliasInput) GoString() string {
 	return s.String()
 }
@@ -18536,12 +18960,20 @@ type CreateAccountAliasOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateAccountAliasOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateAccountAliasOutput) GoString() string {
 	return s.String()
 }
@@ -18574,12 +19006,20 @@ type CreateGroupInput struct {
 	Path *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateGroupInput) GoString() string {
 	return s.String()
 }
@@ -18625,12 +19065,20 @@ type CreateGroupOutput struct {
 	Group *Group `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateGroupOutput) GoString() string {
 	return s.String()
 }
@@ -18678,12 +19126,20 @@ type CreateInstanceProfileInput struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateInstanceProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateInstanceProfileInput) GoString() string {
 	return s.String()
 }
@@ -18745,12 +19201,20 @@ type CreateInstanceProfileOutput struct {
 	InstanceProfile *InstanceProfile `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateInstanceProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateInstanceProfileOutput) GoString() string {
 	return s.String()
 }
@@ -18771,9 +19235,13 @@ type CreateLoginProfileInput struct {
 	// any printable ASCII character from the space (\u0020) through the end of
 	// the ASCII character range (\u00FF). You can also include the tab (\u0009),
 	// line feed (\u000A), and carriage return (\u000D) characters. Any of these
-	// characters are valid in a password. However, many tools, such as the AWS
-	// Management Console, might restrict the ability to type certain characters
-	// because they have special meaning within that tool.
+	// characters are valid in a password. However, many tools, such as the Amazon
+	// Web Services Management Console, might restrict the ability to type certain
+	// characters because they have special meaning within that tool.
+	//
+	// Password is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by CreateLoginProfileInput's
+	// String and GoString methods.
 	//
 	// Password is a required field
 	Password *string `min:"1" type:"string" required:"true" sensitive:"true"`
@@ -18792,12 +19260,20 @@ type CreateLoginProfileInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateLoginProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateLoginProfileInput) GoString() string {
 	return s.String()
 }
@@ -18852,12 +19328,20 @@ type CreateLoginProfileOutput struct {
 	LoginProfile *LoginProfile `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateLoginProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateLoginProfileOutput) GoString() string {
 	return s.String()
 }
@@ -18871,10 +19355,10 @@ func (s *CreateLoginProfileOutput) SetLoginProfile(v *LoginProfile) *CreateLogin
 type CreateOpenIDConnectProviderInput struct {
 	_ struct{} `type:"structure"`
 
-	// A list of client IDs (also known as audiences). When a mobile or web app
-	// registers with an OpenID Connect provider, they establish a value that identifies
-	// the application. (This is the value that's sent as the client_id parameter
-	// on OAuth requests.)
+	// Provides a list of client IDs, also known as audiences. When a mobile or
+	// web app registers with an OpenID Connect provider, they establish a value
+	// that identifies the application. This is the value that's sent as the client_id
+	// parameter on OAuth requests.
 	//
 	// You can register multiple client IDs with the same provider. For example,
 	// you might have multiple applications that use the same OIDC provider. You
@@ -18909,8 +19393,8 @@ type CreateOpenIDConnectProviderInput struct {
 	// In that case, the thumbprint string would be the hex-encoded SHA-1 hash value
 	// of the certificate used by https://keys.server.example.com.
 	//
-	// For more information about obtaining the OIDC provider's thumbprint, see
-	// Obtaining the thumbprint for an OpenID Connect provider (https://docs.aws.amazon.com/IAM/latest/UserGuide/identity-providers-oidc-obtain-thumbprint.html)
+	// For more information about obtaining the OIDC provider thumbprint, see Obtaining
+	// the thumbprint for an OpenID Connect provider (https://docs.aws.amazon.com/IAM/latest/UserGuide/identity-providers-oidc-obtain-thumbprint.html)
 	// in the IAM User Guide.
 	//
 	// ThumbprintList is a required field
@@ -18920,22 +19404,31 @@ type CreateOpenIDConnectProviderInput struct {
 	// correspond to the iss claim in the provider's OpenID Connect ID tokens. Per
 	// the OIDC standard, path components are allowed but query parameters are not.
 	// Typically the URL consists of only a hostname, like https://server.example.org
-	// or https://example.com.
+	// or https://example.com. The URL should not contain a port number.
 	//
-	// You cannot register the same provider multiple times in a single AWS account.
-	// If you try to submit a URL that has already been used for an OpenID Connect
-	// provider in the AWS account, you will get an error.
+	// You cannot register the same provider multiple times in a single Amazon Web
+	// Services account. If you try to submit a URL that has already been used for
+	// an OpenID Connect provider in the Amazon Web Services account, you will get
+	// an error.
 	//
 	// Url is a required field
 	Url *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateOpenIDConnectProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateOpenIDConnectProviderInput) GoString() string {
 	return s.String()
 }
@@ -19008,12 +19501,20 @@ type CreateOpenIDConnectProviderOutput struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateOpenIDConnectProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateOpenIDConnectProviderOutput) GoString() string {
 	return s.String()
 }
@@ -19056,15 +19557,26 @@ type CreatePolicyInput struct {
 	// can contain any ASCII character from the ! (\u0021) through the DEL character
 	// (\u007F), including most punctuation characters, digits, and upper and lowercased
 	// letters.
+	//
+	// You cannot use an asterisk (*) in the path name.
 	Path *string `min:"1" type:"string"`
 
 	// The JSON policy document that you want to use as the content for the new
 	// policy.
 	//
-	// You must provide policies in JSON format in IAM. However, for AWS CloudFormation
+	// You must provide policies in JSON format in IAM. However, for CloudFormation
 	// templates formatted in YAML, you can provide the policy in JSON or YAML format.
-	// AWS CloudFormation always converts a YAML policy to JSON format before submitting
+	// CloudFormation always converts a YAML policy to JSON format before submitting
 	// it to IAM.
+	//
+	// The maximum length of the policy document that you can pass in this operation,
+	// including whitespace, is listed below. To view the maximum character counts
+	// of a managed policy with no whitespaces, see IAM and STS character quotas
+	// (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entity-length).
+	//
+	// To learn more about JSON policy grammar, see Grammar of the IAM JSON policy
+	// language (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_grammar.html)
+	// in the IAM User Guide.
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
 	// parameter is a string of characters consisting of the following:
@@ -19100,12 +19612,20 @@ type CreatePolicyInput struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreatePolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreatePolicyInput) GoString() string {
 	return s.String()
 }
@@ -19183,12 +19703,20 @@ type CreatePolicyOutput struct {
 	Policy *Policy `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreatePolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreatePolicyOutput) GoString() string {
 	return s.String()
 }
@@ -19206,7 +19734,7 @@ type CreatePolicyVersionInput struct {
 	// a new version.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -19214,10 +19742,15 @@ type CreatePolicyVersionInput struct {
 	// The JSON policy document that you want to use as the content for this new
 	// version of the policy.
 	//
-	// You must provide policies in JSON format in IAM. However, for AWS CloudFormation
+	// You must provide policies in JSON format in IAM. However, for CloudFormation
 	// templates formatted in YAML, you can provide the policy in JSON or YAML format.
-	// AWS CloudFormation always converts a YAML policy to JSON format before submitting
+	// CloudFormation always converts a YAML policy to JSON format before submitting
 	// it to IAM.
+	//
+	// The maximum length of the policy document that you can pass in this operation,
+	// including whitespace, is listed below. To view the maximum character counts
+	// of a managed policy with no whitespaces, see IAM and STS character quotas
+	// (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entity-length).
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
 	// parameter is a string of characters consisting of the following:
@@ -19246,12 +19779,20 @@ type CreatePolicyVersionInput struct {
 	SetAsDefault *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreatePolicyVersionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreatePolicyVersionInput) GoString() string {
 	return s.String()
 }
@@ -19304,12 +19845,20 @@ type CreatePolicyVersionOutput struct {
 	PolicyVersion *PolicyVersion `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreatePolicyVersionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreatePolicyVersionOutput) GoString() string {
 	return s.String()
 }
@@ -19327,8 +19876,8 @@ type CreateRoleInput struct {
 	// assume the role.
 	//
 	// In IAM, you must provide a JSON policy that has been converted to a string.
-	// However, for AWS CloudFormation templates formatted in YAML, you can provide
-	// the policy in JSON or YAML format. AWS CloudFormation always converts a YAML
+	// However, for CloudFormation templates formatted in YAML, you can provide
+	// the policy in JSON or YAML format. CloudFormation always converts a YAML
 	// policy to JSON format before submitting it to IAM.
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
@@ -19355,8 +19904,8 @@ type CreateRoleInput struct {
 	// role. If you do not specify a value for this setting, the default maximum
 	// of one hour is applied. This setting can have a value from 1 hour to 12 hours.
 	//
-	// Anyone who assumes the role from the AWS CLI or API can use the DurationSeconds
-	// API parameter or the duration-seconds CLI parameter to request a longer session.
+	// Anyone who assumes the role from the or API can use the DurationSeconds API
+	// parameter or the duration-seconds CLI parameter to request a longer session.
 	// The MaxSessionDuration setting determines the maximum duration that can be
 	// requested using the DurationSeconds parameter. If users don't specify a value
 	// for the DurationSeconds parameter, their security credentials are valid for
@@ -19405,12 +19954,20 @@ type CreateRoleInput struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateRoleInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateRoleInput) GoString() string {
 	return s.String()
 }
@@ -19508,12 +20065,20 @@ type CreateRoleOutput struct {
 	Role *Role `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateRoleOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateRoleOutput) GoString() string {
 	return s.String()
 }
@@ -19558,12 +20123,20 @@ type CreateSAMLProviderInput struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateSAMLProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateSAMLProviderInput) GoString() string {
 	return s.String()
 }
@@ -19632,12 +20205,20 @@ type CreateSAMLProviderOutput struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateSAMLProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateSAMLProviderOutput) GoString() string {
 	return s.String()
 }
@@ -19657,13 +20238,13 @@ func (s *CreateSAMLProviderOutput) SetTags(v []*Tag) *CreateSAMLProviderOutput {
 type CreateServiceLinkedRoleInput struct {
 	_ struct{} `type:"structure"`
 
-	// The service principal for the AWS service to which this role is attached.
-	// You use a string similar to a URL but without the http:// in front. For example:
-	// elasticbeanstalk.amazonaws.com.
+	// The service principal for the Amazon Web Services service to which this role
+	// is attached. You use a string similar to a URL but without the http:// in
+	// front. For example: elasticbeanstalk.amazonaws.com.
 	//
 	// Service principals are unique and case-sensitive. To find the exact service
-	// principal for your service-linked role, see AWS services that work with IAM
-	// (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_aws-services-that-work-with-iam.html)
+	// principal for your service-linked role, see Amazon Web Services services
+	// that work with IAM (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_aws-services-that-work-with-iam.html)
 	// in the IAM User Guide. Look for the services that have Yes in the Service-Linked
 	// Role column. Choose the Yes link to view the service-linked role documentation
 	// for that service.
@@ -19686,12 +20267,20 @@ type CreateServiceLinkedRoleInput struct {
 	Description *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateServiceLinkedRoleInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateServiceLinkedRoleInput) GoString() string {
 	return s.String()
 }
@@ -19740,12 +20329,20 @@ type CreateServiceLinkedRoleOutput struct {
 	Role *Role `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateServiceLinkedRoleOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateServiceLinkedRoleOutput) GoString() string {
 	return s.String()
 }
@@ -19759,9 +20356,9 @@ func (s *CreateServiceLinkedRoleOutput) SetRole(v *Role) *CreateServiceLinkedRol
 type CreateServiceSpecificCredentialInput struct {
 	_ struct{} `type:"structure"`
 
-	// The name of the AWS service that is to be associated with the credentials.
-	// The service you specify here is the only service that can be accessed using
-	// these credentials.
+	// The name of the Amazon Web Services service that is to be associated with
+	// the credentials. The service you specify here is the only service that can
+	// be accessed using these credentials.
 	//
 	// ServiceName is a required field
 	ServiceName *string `type:"string" required:"true"`
@@ -19778,12 +20375,20 @@ type CreateServiceSpecificCredentialInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateServiceSpecificCredentialInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateServiceSpecificCredentialInput) GoString() string {
 	return s.String()
 }
@@ -19830,12 +20435,20 @@ type CreateServiceSpecificCredentialOutput struct {
 	ServiceSpecificCredential *ServiceSpecificCredential `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateServiceSpecificCredentialOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateServiceSpecificCredentialOutput) GoString() string {
 	return s.String()
 }
@@ -19887,12 +20500,20 @@ type CreateUserInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateUserInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateUserInput) GoString() string {
 	return s.String()
 }
@@ -19961,12 +20582,20 @@ type CreateUserOutput struct {
 	User *User `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateUserOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateUserOutput) GoString() string {
 	return s.String()
 }
@@ -20015,12 +20644,20 @@ type CreateVirtualMFADeviceInput struct {
 	VirtualMFADeviceName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateVirtualMFADeviceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateVirtualMFADeviceInput) GoString() string {
 	return s.String()
 }
@@ -20082,12 +20719,20 @@ type CreateVirtualMFADeviceOutput struct {
 	VirtualMFADevice *VirtualMFADevice `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateVirtualMFADeviceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateVirtualMFADeviceOutput) GoString() string {
 	return s.String()
 }
@@ -20121,12 +20766,20 @@ type DeactivateMFADeviceInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeactivateMFADeviceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeactivateMFADeviceInput) GoString() string {
 	return s.String()
 }
@@ -20169,12 +20822,20 @@ type DeactivateMFADeviceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeactivateMFADeviceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeactivateMFADeviceOutput) GoString() string {
 	return s.String()
 }
@@ -20200,12 +20861,20 @@ type DeleteAccessKeyInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccessKeyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccessKeyInput) GoString() string {
 	return s.String()
 }
@@ -20245,12 +20914,20 @@ type DeleteAccessKeyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccessKeyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccessKeyOutput) GoString() string {
 	return s.String()
 }
@@ -20269,12 +20946,20 @@ type DeleteAccountAliasInput struct {
 	AccountAlias *string `min:"3" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccountAliasInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccountAliasInput) GoString() string {
 	return s.String()
 }
@@ -20305,12 +20990,20 @@ type DeleteAccountAliasOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccountAliasOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccountAliasOutput) GoString() string {
 	return s.String()
 }
@@ -20319,12 +21012,20 @@ type DeleteAccountPasswordPolicyInput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccountPasswordPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccountPasswordPolicyInput) GoString() string {
 	return s.String()
 }
@@ -20333,12 +21034,20 @@ type DeleteAccountPasswordPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccountPasswordPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteAccountPasswordPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -20356,12 +21065,20 @@ type DeleteGroupInput struct {
 	GroupName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGroupInput) GoString() string {
 	return s.String()
 }
@@ -20392,12 +21109,20 @@ type DeleteGroupOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGroupOutput) GoString() string {
 	return s.String()
 }
@@ -20425,12 +21150,20 @@ type DeleteGroupPolicyInput struct {
 	PolicyName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGroupPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGroupPolicyInput) GoString() string {
 	return s.String()
 }
@@ -20473,12 +21206,20 @@ type DeleteGroupPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGroupPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGroupPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -20496,12 +21237,20 @@ type DeleteInstanceProfileInput struct {
 	InstanceProfileName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteInstanceProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteInstanceProfileInput) GoString() string {
 	return s.String()
 }
@@ -20532,12 +21281,20 @@ type DeleteInstanceProfileOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteInstanceProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteInstanceProfileOutput) GoString() string {
 	return s.String()
 }
@@ -20555,12 +21312,20 @@ type DeleteLoginProfileInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteLoginProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteLoginProfileInput) GoString() string {
 	return s.String()
 }
@@ -20591,12 +21356,20 @@ type DeleteLoginProfileOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteLoginProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteLoginProfileOutput) GoString() string {
 	return s.String()
 }
@@ -20612,12 +21385,20 @@ type DeleteOpenIDConnectProviderInput struct {
 	OpenIDConnectProviderArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteOpenIDConnectProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteOpenIDConnectProviderInput) GoString() string {
 	return s.String()
 }
@@ -20648,12 +21429,20 @@ type DeleteOpenIDConnectProviderOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteOpenIDConnectProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteOpenIDConnectProviderOutput) GoString() string {
 	return s.String()
 }
@@ -20664,18 +21453,26 @@ type DeletePolicyInput struct {
 	// The Amazon Resource Name (ARN) of the IAM policy you want to delete.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletePolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletePolicyInput) GoString() string {
 	return s.String()
 }
@@ -20706,12 +21503,20 @@ type DeletePolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletePolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletePolicyOutput) GoString() string {
 	return s.String()
 }
@@ -20723,7 +21528,7 @@ type DeletePolicyVersionInput struct {
 	// a version.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -20743,12 +21548,20 @@ type DeletePolicyVersionInput struct {
 	VersionId *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletePolicyVersionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletePolicyVersionInput) GoString() string {
 	return s.String()
 }
@@ -20788,12 +21601,20 @@ type DeletePolicyVersionOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletePolicyVersionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletePolicyVersionOutput) GoString() string {
 	return s.String()
 }
@@ -20811,12 +21632,20 @@ type DeleteRoleInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRoleInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRoleInput) GoString() string {
 	return s.String()
 }
@@ -20847,12 +21676,20 @@ type DeleteRoleOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRoleOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRoleOutput) GoString() string {
 	return s.String()
 }
@@ -20867,12 +21704,20 @@ type DeleteRolePermissionsBoundaryInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRolePermissionsBoundaryInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRolePermissionsBoundaryInput) GoString() string {
 	return s.String()
 }
@@ -20903,12 +21748,20 @@ type DeleteRolePermissionsBoundaryOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRolePermissionsBoundaryOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRolePermissionsBoundaryOutput) GoString() string {
 	return s.String()
 }
@@ -20936,12 +21789,20 @@ type DeleteRolePolicyInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRolePolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRolePolicyInput) GoString() string {
 	return s.String()
 }
@@ -20984,12 +21845,20 @@ type DeleteRolePolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRolePolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteRolePolicyOutput) GoString() string {
 	return s.String()
 }
@@ -21003,12 +21872,20 @@ type DeleteSAMLProviderInput struct {
 	SAMLProviderArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSAMLProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSAMLProviderInput) GoString() string {
 	return s.String()
 }
@@ -21039,12 +21916,20 @@ type DeleteSAMLProviderOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSAMLProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSAMLProviderOutput) GoString() string {
 	return s.String()
 }
@@ -21071,12 +21956,20 @@ type DeleteSSHPublicKeyInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSSHPublicKeyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSSHPublicKeyInput) GoString() string {
 	return s.String()
 }
@@ -21119,12 +22012,20 @@ type DeleteSSHPublicKeyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSSHPublicKeyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSSHPublicKeyOutput) GoString() string {
 	return s.String()
 }
@@ -21142,12 +22043,20 @@ type DeleteServerCertificateInput struct {
 	ServerCertificateName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServerCertificateInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServerCertificateInput) GoString() string {
 	return s.String()
 }
@@ -21178,12 +22087,20 @@ type DeleteServerCertificateOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServerCertificateOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServerCertificateOutput) GoString() string {
 	return s.String()
 }
@@ -21197,12 +22114,20 @@ type DeleteServiceLinkedRoleInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServiceLinkedRoleInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServiceLinkedRoleInput) GoString() string {
 	return s.String()
 }
@@ -21239,12 +22164,20 @@ type DeleteServiceLinkedRoleOutput struct {
 	DeletionTaskId *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServiceLinkedRoleOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServiceLinkedRoleOutput) GoString() string {
 	return s.String()
 }
@@ -21278,12 +22211,20 @@ type DeleteServiceSpecificCredentialInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServiceSpecificCredentialInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServiceSpecificCredentialInput) GoString() string {
 	return s.String()
 }
@@ -21323,12 +22264,20 @@ type DeleteServiceSpecificCredentialOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServiceSpecificCredentialOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteServiceSpecificCredentialOutput) GoString() string {
 	return s.String()
 }
@@ -21353,12 +22302,20 @@ type DeleteSigningCertificateInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSigningCertificateInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSigningCertificateInput) GoString() string {
 	return s.String()
 }
@@ -21398,12 +22355,20 @@ type DeleteSigningCertificateOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSigningCertificateOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteSigningCertificateOutput) GoString() string {
 	return s.String()
 }
@@ -21421,12 +22386,20 @@ type DeleteUserInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserInput) GoString() string {
 	return s.String()
 }
@@ -21457,12 +22430,20 @@ type DeleteUserOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserOutput) GoString() string {
 	return s.String()
 }
@@ -21477,12 +22458,20 @@ type DeleteUserPermissionsBoundaryInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserPermissionsBoundaryInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserPermissionsBoundaryInput) GoString() string {
 	return s.String()
 }
@@ -21513,12 +22502,20 @@ type DeleteUserPermissionsBoundaryOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserPermissionsBoundaryOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserPermissionsBoundaryOutput) GoString() string {
 	return s.String()
 }
@@ -21546,12 +22543,20 @@ type DeleteUserPolicyInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserPolicyInput) GoString() string {
 	return s.String()
 }
@@ -21594,12 +22599,20 @@ type DeleteUserPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteUserPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -21618,12 +22631,20 @@ type DeleteVirtualMFADeviceInput struct {
 	SerialNumber *string `min:"9" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteVirtualMFADeviceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteVirtualMFADeviceInput) GoString() string {
 	return s.String()
 }
@@ -21654,12 +22675,20 @@ type DeleteVirtualMFADeviceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteVirtualMFADeviceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteVirtualMFADeviceOutput) GoString() string {
 	return s.String()
 }
@@ -21683,12 +22712,20 @@ type DeletionTaskFailureReasonType struct {
 	RoleUsageList []*RoleUsageType `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletionTaskFailureReasonType) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeletionTaskFailureReasonType) GoString() string {
 	return s.String()
 }
@@ -21720,18 +22757,26 @@ type DetachGroupPolicyInput struct {
 	// The Amazon Resource Name (ARN) of the IAM policy you want to detach.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachGroupPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachGroupPolicyInput) GoString() string {
 	return s.String()
 }
@@ -21774,12 +22819,20 @@ type DetachGroupPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachGroupPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachGroupPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -21790,7 +22843,7 @@ type DetachRolePolicyInput struct {
 	// The Amazon Resource Name (ARN) of the IAM policy you want to detach.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -21805,12 +22858,20 @@ type DetachRolePolicyInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachRolePolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachRolePolicyInput) GoString() string {
 	return s.String()
 }
@@ -21853,12 +22914,20 @@ type DetachRolePolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachRolePolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachRolePolicyOutput) GoString() string {
 	return s.String()
 }
@@ -21869,7 +22938,7 @@ type DetachUserPolicyInput struct {
 	// The Amazon Resource Name (ARN) of the IAM policy you want to detach.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -21884,12 +22953,20 @@ type DetachUserPolicyInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachUserPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachUserPolicyInput) GoString() string {
 	return s.String()
 }
@@ -21932,12 +23009,20 @@ type DetachUserPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachUserPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DetachUserPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -21993,12 +23078,20 @@ type EnableMFADeviceInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EnableMFADeviceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EnableMFADeviceInput) GoString() string {
 	return s.String()
 }
@@ -22065,18 +23158,27 @@ type EnableMFADeviceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EnableMFADeviceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EnableMFADeviceOutput) GoString() string {
 	return s.String()
 }
 
 // An object that contains details about when the IAM entities (users or roles)
-// were last used in an attempt to access the specified AWS service.
+// were last used in an attempt to access the specified Amazon Web Services
+// service.
 //
 // This data type is a response element in the GetServiceLastAccessedDetailsWithEntities
 // operation.
@@ -22089,20 +23191,28 @@ type EntityDetails struct {
 	EntityInfo *EntityInfo `type:"structure" required:"true"`
 
 	// The date and time, in ISO 8601 date-time format (http://www.iso.org/iso/iso8601),
-	// when the authenticated entity last attempted to access AWS. AWS does not
-	// report unauthenticated requests.
+	// when the authenticated entity last attempted to access Amazon Web Services.
+	// Amazon Web Services does not report unauthenticated requests.
 	//
 	// This field is null if no IAM entities attempted to access the service within
 	// the reporting period (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#service-last-accessed-reporting-period).
 	LastAuthenticated *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EntityDetails) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EntityDetails) GoString() string {
 	return s.String()
 }
@@ -22125,10 +23235,11 @@ func (s *EntityDetails) SetLastAuthenticated(v time.Time) *EntityDetails {
 type EntityInfo struct {
 	_ struct{} `type:"structure"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// Arn is a required field
 	Arn *string `min:"20" type:"string" required:"true"`
@@ -22154,12 +23265,20 @@ type EntityInfo struct {
 	Type *string `type:"string" required:"true" enum:"PolicyOwnerEntityType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EntityInfo) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EntityInfo) GoString() string {
 	return s.String()
 }
@@ -22213,12 +23332,20 @@ type ErrorDetails struct {
 	Message *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ErrorDetails) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ErrorDetails) GoString() string {
 	return s.String()
 }
@@ -22262,14 +23389,14 @@ type EvaluationResult struct {
 	// If the simulation evaluates policies within the same account and specifies
 	// all resources (*), then the parameter is not returned.
 	//
-	// When you make a cross-account request, AWS evaluates the request in the trusting
-	// account and the trusted account. The request is allowed only if both evaluations
-	// return true. For more information about how policies are evaluated, see Evaluating
-	// policies within a single account (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics).
+	// When you make a cross-account request, Amazon Web Services evaluates the
+	// request in the trusting account and the trusted account. The request is allowed
+	// only if both evaluations return true. For more information about how policies
+	// are evaluated, see Evaluating policies within a single account (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics).
 	//
-	// If an AWS Organizations SCP included in the evaluation denies access, the
-	// simulation ends. In this case, policy evaluation does not proceed any further
-	// and this parameter is not returned.
+	// If an Organizations SCP included in the evaluation denies access, the simulation
+	// ends. In this case, policy evaluation does not proceed any further and this
+	// parameter is not returned.
 	EvalDecisionDetails map[string]*string `type:"map"`
 
 	// The ARN of the resource that the indicated API operation was tested on.
@@ -22305,12 +23432,20 @@ type EvaluationResult struct {
 	ResourceSpecificResults []*ResourceSpecificResult `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EvaluationResult) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EvaluationResult) GoString() string {
 	return s.String()
 }
@@ -22373,12 +23508,20 @@ type GenerateCredentialReportInput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateCredentialReportInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateCredentialReportInput) GoString() string {
 	return s.String()
 }
@@ -22394,12 +23537,20 @@ type GenerateCredentialReportOutput struct {
 	State *string `type:"string" enum:"ReportStateType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateCredentialReportOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateCredentialReportOutput) GoString() string {
 	return s.String()
 }
@@ -22419,29 +23570,37 @@ func (s *GenerateCredentialReportOutput) SetState(v string) *GenerateCredentialR
 type GenerateOrganizationsAccessReportInput struct {
 	_ struct{} `type:"structure"`
 
-	// The path of the AWS Organizations entity (root, OU, or account). You can
-	// build an entity path using the known structure of your organization. For
-	// example, assume that your account ID is 123456789012 and its parent OU ID
-	// is ou-rge0-awsabcde. The organization root ID is r-f6g7h8i9j0example and
-	// your organization ID is o-a1b2c3d4e5. Your entity path is o-a1b2c3d4e5/r-f6g7h8i9j0example/ou-rge0-awsabcde/123456789012.
+	// The path of the Organizations entity (root, OU, or account). You can build
+	// an entity path using the known structure of your organization. For example,
+	// assume that your account ID is 123456789012 and its parent OU ID is ou-rge0-awsabcde.
+	// The organization root ID is r-f6g7h8i9j0example and your organization ID
+	// is o-a1b2c3d4e5. Your entity path is o-a1b2c3d4e5/r-f6g7h8i9j0example/ou-rge0-awsabcde/123456789012.
 	//
 	// EntityPath is a required field
 	EntityPath *string `min:"19" type:"string" required:"true"`
 
-	// The identifier of the AWS Organizations service control policy (SCP). This
-	// parameter is optional.
+	// The identifier of the Organizations service control policy (SCP). This parameter
+	// is optional.
 	//
 	// This ID is used to generate information about when an account principal that
-	// is limited by the SCP attempted to access an AWS service.
+	// is limited by the SCP attempted to access an Amazon Web Services service.
 	OrganizationsPolicyId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateOrganizationsAccessReportInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateOrganizationsAccessReportInput) GoString() string {
 	return s.String()
 }
@@ -22481,12 +23640,20 @@ type GenerateOrganizationsAccessReportOutput struct {
 	JobId *string `min:"36" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateOrganizationsAccessReportOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateOrganizationsAccessReportOutput) GoString() string {
 	return s.String()
 }
@@ -22502,7 +23669,7 @@ type GenerateServiceLastAccessedDetailsInput struct {
 
 	// The ARN of the IAM resource (user, group, role, or managed policy) used to
 	// generate information about when the resource was last used in an attempt
-	// to access an AWS service.
+	// to access an Amazon Web Services service.
 	//
 	// Arn is a required field
 	Arn *string `min:"20" type:"string" required:"true"`
@@ -22516,12 +23683,20 @@ type GenerateServiceLastAccessedDetailsInput struct {
 	Granularity *string `type:"string" enum:"AccessAdvisorUsageGranularityType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateServiceLastAccessedDetailsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateServiceLastAccessedDetailsInput) GoString() string {
 	return s.String()
 }
@@ -22564,12 +23739,20 @@ type GenerateServiceLastAccessedDetailsOutput struct {
 	JobId *string `min:"36" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateServiceLastAccessedDetailsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GenerateServiceLastAccessedDetailsOutput) GoString() string {
 	return s.String()
 }
@@ -22593,12 +23776,20 @@ type GetAccessKeyLastUsedInput struct {
 	AccessKeyId *string `min:"16" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccessKeyLastUsedInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccessKeyLastUsedInput) GoString() string {
 	return s.String()
 }
@@ -22634,16 +23825,24 @@ type GetAccessKeyLastUsedOutput struct {
 	// Contains information about the last time the access key was used.
 	AccessKeyLastUsed *AccessKeyLastUsed `type:"structure"`
 
-	// The name of the AWS IAM user that owns this access key.
+	// The name of the IAM user that owns this access key.
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccessKeyLastUsedOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccessKeyLastUsedOutput) GoString() string {
 	return s.String()
 }
@@ -22690,12 +23889,20 @@ type GetAccountAuthorizationDetailsInput struct {
 	MaxItems *int64 `min:"1" type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountAuthorizationDetailsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountAuthorizationDetailsInput) GoString() string {
 	return s.String()
 }
@@ -22763,12 +23970,20 @@ type GetAccountAuthorizationDetailsOutput struct {
 	UserDetailList []*UserDetail `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountAuthorizationDetailsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountAuthorizationDetailsOutput) GoString() string {
 	return s.String()
 }
@@ -22813,12 +24028,20 @@ type GetAccountPasswordPolicyInput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountPasswordPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountPasswordPolicyInput) GoString() string {
 	return s.String()
 }
@@ -22833,12 +24056,20 @@ type GetAccountPasswordPolicyOutput struct {
 	PasswordPolicy *PasswordPolicy `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountPasswordPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountPasswordPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -22853,12 +24084,20 @@ type GetAccountSummaryInput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountSummaryInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountSummaryInput) GoString() string {
 	return s.String()
 }
@@ -22872,12 +24111,20 @@ type GetAccountSummaryOutput struct {
 	SummaryMap map[string]*int64 `type:"map"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountSummaryOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetAccountSummaryOutput) GoString() string {
 	return s.String()
 }
@@ -22911,12 +24158,20 @@ type GetContextKeysForCustomPolicyInput struct {
 	PolicyInputList []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetContextKeysForCustomPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetContextKeysForCustomPolicyInput) GoString() string {
 	return s.String()
 }
@@ -22949,12 +24204,20 @@ type GetContextKeysForPolicyResponse struct {
 	ContextKeyNames []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetContextKeysForPolicyResponse) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetContextKeysForPolicyResponse) GoString() string {
 	return s.String()
 }
@@ -22994,18 +24257,26 @@ type GetContextKeysForPrincipalPolicyInput struct {
 	// a real HTML request.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicySourceArn is a required field
 	PolicySourceArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetContextKeysForPrincipalPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetContextKeysForPrincipalPolicyInput) GoString() string {
 	return s.String()
 }
@@ -23042,12 +24313,20 @@ type GetCredentialReportInput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetCredentialReportInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetCredentialReportInput) GoString() string {
 	return s.String()
 }
@@ -23057,7 +24336,6 @@ type GetCredentialReportOutput struct {
 	_ struct{} `type:"structure"`
 
 	// Contains the credential report. The report is Base64-encoded.
-	//
 	// Content is automatically base64 encoded/decoded by the SDK.
 	Content []byte `type:"blob"`
 
@@ -23069,12 +24347,20 @@ type GetCredentialReportOutput struct {
 	ReportFormat *string `type:"string" enum:"ReportFormatType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetCredentialReportOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetCredentialReportOutput) GoString() string {
 	return s.String()
 }
@@ -23127,12 +24413,20 @@ type GetGroupInput struct {
 	MaxItems *int64 `min:"1" type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetGroupInput) GoString() string {
 	return s.String()
 }
@@ -23204,12 +24498,20 @@ type GetGroupOutput struct {
 	Users []*User `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetGroupOutput) GoString() string {
 	return s.String()
 }
@@ -23260,12 +24562,20 @@ type GetGroupPolicyInput struct {
 	PolicyName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetGroupPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetGroupPolicyInput) GoString() string {
 	return s.String()
 }
@@ -23316,8 +24626,8 @@ type GetGroupPolicyOutput struct {
 	// The policy document.
 	//
 	// IAM stores policies in JSON format. However, resources that were created
-	// using AWS CloudFormation templates can be formatted in YAML. AWS CloudFormation
-	// always converts a YAML policy to JSON format before submitting it to IAM.
+	// using CloudFormation templates can be formatted in YAML. CloudFormation always
+	// converts a YAML policy to JSON format before submitting it to IAM.
 	//
 	// PolicyDocument is a required field
 	PolicyDocument *string `min:"1" type:"string" required:"true"`
@@ -23328,12 +24638,20 @@ type GetGroupPolicyOutput struct {
 	PolicyName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetGroupPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetGroupPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -23369,12 +24687,20 @@ type GetInstanceProfileInput struct {
 	InstanceProfileName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetInstanceProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetInstanceProfileInput) GoString() string {
 	return s.String()
 }
@@ -23411,12 +24737,20 @@ type GetInstanceProfileOutput struct {
 	InstanceProfile *InstanceProfile `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetInstanceProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetInstanceProfileOutput) GoString() string {
 	return s.String()
 }
@@ -23440,12 +24774,20 @@ type GetLoginProfileInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetLoginProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetLoginProfileInput) GoString() string {
 	return s.String()
 }
@@ -23476,18 +24818,27 @@ func (s *GetLoginProfileInput) SetUserName(v string) *GetLoginProfileInput {
 type GetLoginProfileOutput struct {
 	_ struct{} `type:"structure"`
 
-	// A structure containing the user name and password create date for the user.
+	// A structure containing the user name and the profile creation date for the
+	// user.
 	//
 	// LoginProfile is a required field
 	LoginProfile *LoginProfile `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetLoginProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetLoginProfileOutput) GoString() string {
 	return s.String()
 }
@@ -23506,18 +24857,26 @@ type GetOpenIDConnectProviderInput struct {
 	// by using the ListOpenIDConnectProviders operation.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// OpenIDConnectProviderArn is a required field
 	OpenIDConnectProviderArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetOpenIDConnectProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetOpenIDConnectProviderInput) GoString() string {
 	return s.String()
 }
@@ -23553,7 +24912,7 @@ type GetOpenIDConnectProviderOutput struct {
 	ClientIDList []*string `type:"list"`
 
 	// The date and time when the IAM OIDC provider resource object was created
-	// in the AWS account.
+	// in the Amazon Web Services account.
 	CreateDate *time.Time `type:"timestamp"`
 
 	// A list of tags that are attached to the specified IAM OIDC provider. The
@@ -23571,12 +24930,20 @@ type GetOpenIDConnectProviderOutput struct {
 	Url *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetOpenIDConnectProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetOpenIDConnectProviderOutput) GoString() string {
 	return s.String()
 }
@@ -23643,12 +25010,20 @@ type GetOrganizationsAccessReportInput struct {
 	SortKey *string `type:"string" enum:"SortKeyType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetOrganizationsAccessReportInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetOrganizationsAccessReportInput) GoString() string {
 	return s.String()
 }
@@ -23752,12 +25127,20 @@ type GetOrganizationsAccessReportOutput struct {
 	NumberOfServicesNotAccessed *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetOrganizationsAccessReportOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetOrganizationsAccessReportOutput) GoString() string {
 	return s.String()
 }
@@ -23823,18 +25206,26 @@ type GetPolicyInput struct {
 	// about.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetPolicyInput) GoString() string {
 	return s.String()
 }
@@ -23869,12 +25260,20 @@ type GetPolicyOutput struct {
 	Policy *Policy `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -23892,7 +25291,7 @@ type GetPolicyVersionInput struct {
 	// about.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -23908,12 +25307,20 @@ type GetPolicyVersionInput struct {
 	VersionId *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetPolicyVersionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetPolicyVersionInput) GoString() string {
 	return s.String()
 }
@@ -23957,12 +25364,20 @@ type GetPolicyVersionOutput struct {
 	PolicyVersion *PolicyVersion `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetPolicyVersionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetPolicyVersionOutput) GoString() string {
 	return s.String()
 }
@@ -23986,12 +25401,20 @@ type GetRoleInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetRoleInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetRoleInput) GoString() string {
 	return s.String()
 }
@@ -24028,12 +25451,20 @@ type GetRoleOutput struct {
 	Role *Role `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetRoleOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetRoleOutput) GoString() string {
 	return s.String()
 }
@@ -24066,12 +25497,20 @@ type GetRolePolicyInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetRolePolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetRolePolicyInput) GoString() string {
 	return s.String()
 }
@@ -24117,8 +25556,8 @@ type GetRolePolicyOutput struct {
 	// The policy document.
 	//
 	// IAM stores policies in JSON format. However, resources that were created
-	// using AWS CloudFormation templates can be formatted in YAML. AWS CloudFormation
-	// always converts a YAML policy to JSON format before submitting it to IAM.
+	// using CloudFormation templates can be formatted in YAML. CloudFormation always
+	// converts a YAML policy to JSON format before submitting it to IAM.
 	//
 	// PolicyDocument is a required field
 	PolicyDocument *string `min:"1" type:"string" required:"true"`
@@ -24134,12 +25573,20 @@ type GetRolePolicyOutput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetRolePolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetRolePolicyOutput) GoString() string {
 	return s.String()
 }
@@ -24169,18 +25616,26 @@ type GetSAMLProviderInput struct {
 	// to get information about.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// SAMLProviderArn is a required field
 	SAMLProviderArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetSAMLProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetSAMLProviderInput) GoString() string {
 	return s.String()
 }
@@ -24227,12 +25682,20 @@ type GetSAMLProviderOutput struct {
 	ValidUntil *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetSAMLProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetSAMLProviderOutput) GoString() string {
 	return s.String()
 }
@@ -24290,12 +25753,20 @@ type GetSSHPublicKeyInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetSSHPublicKeyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetSSHPublicKeyInput) GoString() string {
 	return s.String()
 }
@@ -24351,12 +25822,20 @@ type GetSSHPublicKeyOutput struct {
 	SSHPublicKey *SSHPublicKey `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetSSHPublicKeyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetSSHPublicKeyOutput) GoString() string {
 	return s.String()
 }
@@ -24380,12 +25859,20 @@ type GetServerCertificateInput struct {
 	ServerCertificateName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServerCertificateInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServerCertificateInput) GoString() string {
 	return s.String()
 }
@@ -24422,12 +25909,20 @@ type GetServerCertificateOutput struct {
 	ServerCertificate *ServerCertificate `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServerCertificateOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServerCertificateOutput) GoString() string {
 	return s.String()
 }
@@ -24467,12 +25962,20 @@ type GetServiceLastAccessedDetailsInput struct {
 	MaxItems *int64 `min:"1" type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLastAccessedDetailsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLastAccessedDetailsInput) GoString() string {
 	return s.String()
 }
@@ -24567,12 +26070,20 @@ type GetServiceLastAccessedDetailsOutput struct {
 	ServicesLastAccessed []*ServiceLastAccessed `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLastAccessedDetailsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLastAccessedDetailsOutput) GoString() string {
 	return s.String()
 }
@@ -24651,27 +26162,36 @@ type GetServiceLastAccessedDetailsWithEntitiesInput struct {
 	// service where to continue from.
 	MaxItems *int64 `min:"1" type:"integer"`
 
-	// The service namespace for an AWS service. Provide the service namespace to
-	// learn when the IAM entity last attempted to access the specified service.
+	// The service namespace for an Amazon Web Services service. Provide the service
+	// namespace to learn when the IAM entity last attempted to access the specified
+	// service.
 	//
 	// To learn the service namespace for a service, see Actions, resources, and
-	// condition keys for AWS services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
+	// condition keys for Amazon Web Services services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
 	// in the IAM User Guide. Choose the name of the service to view details for
 	// that service. In the first paragraph, find the service prefix. For example,
 	// (service prefix: a4b). For more information about service namespaces, see
-	// AWS service namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
-	// in the AWS General Reference.
+	// Amazon Web Services service namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
+	// in the Amazon Web Services General Reference.
 	//
 	// ServiceNamespace is a required field
 	ServiceNamespace *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLastAccessedDetailsWithEntitiesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLastAccessedDetailsWithEntitiesInput) GoString() string {
 	return s.String()
 }
@@ -24733,7 +26253,7 @@ type GetServiceLastAccessedDetailsWithEntitiesOutput struct {
 
 	// An EntityDetailsList object that contains details about when an IAM entity
 	// (user or role) used group or policy permissions in an attempt to access the
-	// specified AWS service.
+	// specified Amazon Web Services service.
 	//
 	// EntityDetailsList is a required field
 	EntityDetailsList []*EntityDetails `type:"list" required:"true"`
@@ -24774,12 +26294,20 @@ type GetServiceLastAccessedDetailsWithEntitiesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLastAccessedDetailsWithEntitiesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLastAccessedDetailsWithEntitiesOutput) GoString() string {
 	return s.String()
 }
@@ -24836,12 +26364,20 @@ type GetServiceLinkedRoleDeletionStatusInput struct {
 	DeletionTaskId *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLinkedRoleDeletionStatusInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLinkedRoleDeletionStatusInput) GoString() string {
 	return s.String()
 }
@@ -24880,12 +26416,20 @@ type GetServiceLinkedRoleDeletionStatusOutput struct {
 	Status *string `type:"string" required:"true" enum:"DeletionTaskStatusType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLinkedRoleDeletionStatusOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetServiceLinkedRoleDeletionStatusOutput) GoString() string {
 	return s.String()
 }
@@ -24914,12 +26458,20 @@ type GetUserInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetUserInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetUserInput) GoString() string {
 	return s.String()
 }
@@ -24961,21 +26513,30 @@ type GetUserOutput struct {
 	//
 	// You can use password last used information to identify unused credentials
 	// for deletion. For example, you might delete users who did not sign in to
-	// AWS in the last 90 days. In cases like this, we recommend that you adjust
-	// your evaluation window to include dates after May 23, 2018. Alternatively,
-	// if your users use access keys to access AWS programmatically you can refer
-	// to access key last used information because it is accurate for all dates.
+	// Amazon Web Services in the last 90 days. In cases like this, we recommend
+	// that you adjust your evaluation window to include dates after May 23, 2018.
+	// Alternatively, if your users use access keys to access Amazon Web Services
+	// programmatically you can refer to access key last used information because
+	// it is accurate for all dates.
 	//
 	// User is a required field
 	User *User `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetUserOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetUserOutput) GoString() string {
 	return s.String()
 }
@@ -25008,12 +26569,20 @@ type GetUserPolicyInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetUserPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetUserPolicyInput) GoString() string {
 	return s.String()
 }
@@ -25059,8 +26628,8 @@ type GetUserPolicyOutput struct {
 	// The policy document.
 	//
 	// IAM stores policies in JSON format. However, resources that were created
-	// using AWS CloudFormation templates can be formatted in YAML. AWS CloudFormation
-	// always converts a YAML policy to JSON format before submitting it to IAM.
+	// using CloudFormation templates can be formatted in YAML. CloudFormation always
+	// converts a YAML policy to JSON format before submitting it to IAM.
 	//
 	// PolicyDocument is a required field
 	PolicyDocument *string `min:"1" type:"string" required:"true"`
@@ -25076,12 +26645,20 @@ type GetUserPolicyOutput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetUserPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GetUserPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -25149,12 +26726,20 @@ type Group struct {
 	Path *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Group) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Group) GoString() string {
 	return s.String()
 }
@@ -25196,10 +26781,11 @@ func (s *Group) SetPath(v string) *Group {
 type GroupDetail struct {
 	_ struct{} `type:"structure"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	Arn *string `min:"20" type:"string"`
 
 	// A list of the managed policies attached to the group.
@@ -25226,12 +26812,20 @@ type GroupDetail struct {
 	Path *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GroupDetail) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GroupDetail) GoString() string {
 	return s.String()
 }
@@ -25335,12 +26929,20 @@ type InstanceProfile struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s InstanceProfile) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s InstanceProfile) GoString() string {
 	return s.String()
 }
@@ -25415,12 +27017,20 @@ type ListAccessKeysInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAccessKeysInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAccessKeysInput) GoString() string {
 	return s.String()
 }
@@ -25484,12 +27094,20 @@ type ListAccessKeysOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAccessKeysOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAccessKeysOutput) GoString() string {
 	return s.String()
 }
@@ -25533,12 +27151,20 @@ type ListAccountAliasesInput struct {
 	MaxItems *int64 `min:"1" type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAccountAliasesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAccountAliasesInput) GoString() string {
 	return s.String()
 }
@@ -25575,8 +27201,8 @@ func (s *ListAccountAliasesInput) SetMaxItems(v int64) *ListAccountAliasesInput 
 type ListAccountAliasesOutput struct {
 	_ struct{} `type:"structure"`
 
-	// A list of aliases associated with the account. AWS supports only one alias
-	// per account.
+	// A list of aliases associated with the account. Amazon Web Services supports
+	// only one alias per account.
 	//
 	// AccountAliases is a required field
 	AccountAliases []*string `type:"list" required:"true"`
@@ -25594,12 +27220,20 @@ type ListAccountAliasesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAccountAliasesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAccountAliasesOutput) GoString() string {
 	return s.String()
 }
@@ -25664,12 +27298,20 @@ type ListAttachedGroupPoliciesInput struct {
 	PathPrefix *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedGroupPoliciesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedGroupPoliciesInput) GoString() string {
 	return s.String()
 }
@@ -25743,12 +27385,20 @@ type ListAttachedGroupPoliciesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedGroupPoliciesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedGroupPoliciesOutput) GoString() string {
 	return s.String()
 }
@@ -25812,12 +27462,20 @@ type ListAttachedRolePoliciesInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedRolePoliciesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedRolePoliciesInput) GoString() string {
 	return s.String()
 }
@@ -25891,12 +27549,20 @@ type ListAttachedRolePoliciesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedRolePoliciesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedRolePoliciesOutput) GoString() string {
 	return s.String()
 }
@@ -25960,12 +27626,20 @@ type ListAttachedUserPoliciesInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedUserPoliciesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedUserPoliciesInput) GoString() string {
 	return s.String()
 }
@@ -26039,12 +27713,20 @@ type ListAttachedUserPoliciesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedUserPoliciesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListAttachedUserPoliciesOutput) GoString() string {
 	return s.String()
 }
@@ -26109,7 +27791,7 @@ type ListEntitiesForPolicyInput struct {
 	// The Amazon Resource Name (ARN) of the IAM policy for which you want the versions.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -26124,12 +27806,20 @@ type ListEntitiesForPolicyInput struct {
 	PolicyUsageFilter *string `type:"string" enum:"PolicyUsageType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListEntitiesForPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListEntitiesForPolicyInput) GoString() string {
 	return s.String()
 }
@@ -26221,12 +27911,20 @@ type ListEntitiesForPolicyOutput struct {
 	PolicyUsers []*PolicyUser `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListEntitiesForPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListEntitiesForPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -26291,12 +27989,20 @@ type ListGroupPoliciesInput struct {
 	MaxItems *int64 `min:"1" type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupPoliciesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupPoliciesInput) GoString() string {
 	return s.String()
 }
@@ -26367,12 +28073,20 @@ type ListGroupPoliciesOutput struct {
 	PolicyNames []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupPoliciesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupPoliciesOutput) GoString() string {
 	return s.String()
 }
@@ -26425,12 +28139,20 @@ type ListGroupsForUserInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupsForUserInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupsForUserInput) GoString() string {
 	return s.String()
 }
@@ -26497,12 +28219,20 @@ type ListGroupsForUserOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupsForUserOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupsForUserOutput) GoString() string {
 	return s.String()
 }
@@ -26558,12 +28288,20 @@ type ListGroupsInput struct {
 	PathPrefix *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupsInput) GoString() string {
 	return s.String()
 }
@@ -26627,12 +28365,20 @@ type ListGroupsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListGroupsOutput) GoString() string {
 	return s.String()
 }
@@ -26660,9 +28406,9 @@ type ListInstanceProfileTagsInput struct {
 
 	// The name of the IAM instance profile whose tags you want to see.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// InstanceProfileName is a required field
 	InstanceProfileName *string `min:"1" type:"string" required:"true"`
@@ -26673,25 +28419,32 @@ type ListInstanceProfileTagsInput struct {
 	// the next call should start.
 	Marker *string `min:"1" type:"string"`
 
-	// (Optional) Use this only when paginating results to indicate the maximum
-	// number of items that you want in the response. If additional items exist
-	// beyond the maximum that you specify, the IsTruncated response element is
-	// true.
+	// Use this only when paginating results to indicate the maximum number of items
+	// you want in the response. If additional items exist beyond the maximum you
+	// specify, the IsTruncated response element is true.
 	//
-	// If you do not include this parameter, it defaults to 100. Note that IAM might
-	// return fewer results, even when more results are available. In that case,
-	// the IsTruncated response element returns true, and Marker contains a value
-	// to include in the subsequent call that tells the service where to continue
-	// from.
+	// If you do not include this parameter, the number of items defaults to 100.
+	// Note that IAM might return fewer results, even when there are more results
+	// available. In that case, the IsTruncated response element returns true, and
+	// Marker contains a value to include in the subsequent call that tells the
+	// service where to continue from.
 	MaxItems *int64 `min:"1" type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfileTagsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfileTagsInput) GoString() string {
 	return s.String()
 }
@@ -26740,11 +28493,11 @@ type ListInstanceProfileTagsOutput struct {
 	_ struct{} `type:"structure"`
 
 	// A flag that indicates whether there are more items to return. If your results
-	// were truncated, you can use the Marker request parameter to make a subsequent
-	// pagination request that retrieves more items. Note that IAM might return
-	// fewer than the MaxItems number of results even when more results are available.
-	// Check IsTruncated after every call to ensure that you receive all of your
-	// results.
+	// were truncated, you can make a subsequent pagination request using the Marker
+	// request parameter to retrieve more items. Note that IAM might return fewer
+	// than the MaxItems number of results even when there are more results available.
+	// We recommend that you check IsTruncated after every call to ensure that you
+	// receive all your results.
 	IsTruncated *bool `type:"boolean"`
 
 	// When IsTruncated is true, this element is present and contains the value
@@ -26759,12 +28512,20 @@ type ListInstanceProfileTagsOutput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfileTagsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfileTagsOutput) GoString() string {
 	return s.String()
 }
@@ -26817,12 +28578,20 @@ type ListInstanceProfilesForRoleInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfilesForRoleInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfilesForRoleInput) GoString() string {
 	return s.String()
 }
@@ -26889,12 +28658,20 @@ type ListInstanceProfilesForRoleOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfilesForRoleOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfilesForRoleOutput) GoString() string {
 	return s.String()
 }
@@ -26950,12 +28727,20 @@ type ListInstanceProfilesInput struct {
 	PathPrefix *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfilesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfilesInput) GoString() string {
 	return s.String()
 }
@@ -27019,12 +28804,20 @@ type ListInstanceProfilesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfilesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListInstanceProfilesOutput) GoString() string {
 	return s.String()
 }
@@ -27056,35 +28849,42 @@ type ListMFADeviceTagsInput struct {
 	// the next call should start.
 	Marker *string `min:"1" type:"string"`
 
-	// (Optional) Use this only when paginating results to indicate the maximum
-	// number of items that you want in the response. If additional items exist
-	// beyond the maximum that you specify, the IsTruncated response element is
-	// true.
+	// Use this only when paginating results to indicate the maximum number of items
+	// you want in the response. If additional items exist beyond the maximum you
+	// specify, the IsTruncated response element is true.
 	//
-	// If you do not include this parameter, it defaults to 100. Note that IAM might
-	// return fewer results, even when more results are available. In that case,
-	// the IsTruncated response element returns true, and Marker contains a value
-	// to include in the subsequent call that tells the service where to continue
-	// from.
+	// If you do not include this parameter, the number of items defaults to 100.
+	// Note that IAM might return fewer results, even when there are more results
+	// available. In that case, the IsTruncated response element returns true, and
+	// Marker contains a value to include in the subsequent call that tells the
+	// service where to continue from.
 	MaxItems *int64 `min:"1" type:"integer"`
 
 	// The unique identifier for the IAM virtual MFA device whose tags you want
 	// to see. For virtual MFA devices, the serial number is the same as the ARN.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// SerialNumber is a required field
 	SerialNumber *string `min:"9" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListMFADeviceTagsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListMFADeviceTagsInput) GoString() string {
 	return s.String()
 }
@@ -27133,11 +28933,11 @@ type ListMFADeviceTagsOutput struct {
 	_ struct{} `type:"structure"`
 
 	// A flag that indicates whether there are more items to return. If your results
-	// were truncated, you can use the Marker request parameter to make a subsequent
-	// pagination request that retrieves more items. Note that IAM might return
-	// fewer than the MaxItems number of results even when more results are available.
-	// Check IsTruncated after every call to ensure that you receive all of your
-	// results.
+	// were truncated, you can make a subsequent pagination request using the Marker
+	// request parameter to retrieve more items. Note that IAM might return fewer
+	// than the MaxItems number of results even when there are more results available.
+	// We recommend that you check IsTruncated after every call to ensure that you
+	// receive all your results.
 	IsTruncated *bool `type:"boolean"`
 
 	// When IsTruncated is true, this element is present and contains the value
@@ -27152,12 +28952,20 @@ type ListMFADeviceTagsOutput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListMFADeviceTagsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListMFADeviceTagsOutput) GoString() string {
 	return s.String()
 }
@@ -27208,12 +29016,20 @@ type ListMFADevicesInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListMFADevicesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListMFADevicesInput) GoString() string {
 	return s.String()
 }
@@ -27277,12 +29093,20 @@ type ListMFADevicesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListMFADevicesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListMFADevicesOutput) GoString() string {
 	return s.String()
 }
@@ -27314,35 +29138,42 @@ type ListOpenIDConnectProviderTagsInput struct {
 	// the next call should start.
 	Marker *string `min:"1" type:"string"`
 
-	// (Optional) Use this only when paginating results to indicate the maximum
-	// number of items that you want in the response. If additional items exist
-	// beyond the maximum that you specify, the IsTruncated response element is
-	// true.
+	// Use this only when paginating results to indicate the maximum number of items
+	// you want in the response. If additional items exist beyond the maximum you
+	// specify, the IsTruncated response element is true.
 	//
-	// If you do not include this parameter, it defaults to 100. Note that IAM might
-	// return fewer results, even when more results are available. In that case,
-	// the IsTruncated response element returns true, and Marker contains a value
-	// to include in the subsequent call that tells the service where to continue
-	// from.
+	// If you do not include this parameter, the number of items defaults to 100.
+	// Note that IAM might return fewer results, even when there are more results
+	// available. In that case, the IsTruncated response element returns true, and
+	// Marker contains a value to include in the subsequent call that tells the
+	// service where to continue from.
 	MaxItems *int64 `min:"1" type:"integer"`
 
 	// The ARN of the OpenID Connect (OIDC) identity provider whose tags you want
 	// to see.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// OpenIDConnectProviderArn is a required field
 	OpenIDConnectProviderArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListOpenIDConnectProviderTagsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListOpenIDConnectProviderTagsInput) GoString() string {
 	return s.String()
 }
@@ -27391,11 +29222,11 @@ type ListOpenIDConnectProviderTagsOutput struct {
 	_ struct{} `type:"structure"`
 
 	// A flag that indicates whether there are more items to return. If your results
-	// were truncated, you can use the Marker request parameter to make a subsequent
-	// pagination request that retrieves more items. Note that IAM might return
-	// fewer than the MaxItems number of results even when more results are available.
-	// Check IsTruncated after every call to ensure that you receive all of your
-	// results.
+	// were truncated, you can make a subsequent pagination request using the Marker
+	// request parameter to retrieve more items. Note that IAM might return fewer
+	// than the MaxItems number of results even when there are more results available.
+	// We recommend that you check IsTruncated after every call to ensure that you
+	// receive all your results.
 	IsTruncated *bool `type:"boolean"`
 
 	// When IsTruncated is true, this element is present and contains the value
@@ -27411,12 +29242,20 @@ type ListOpenIDConnectProviderTagsOutput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListOpenIDConnectProviderTagsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListOpenIDConnectProviderTagsOutput) GoString() string {
 	return s.String()
 }
@@ -27443,12 +29282,20 @@ type ListOpenIDConnectProvidersInput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListOpenIDConnectProvidersInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListOpenIDConnectProvidersInput) GoString() string {
 	return s.String()
 }
@@ -27457,16 +29304,25 @@ func (s ListOpenIDConnectProvidersInput) GoString() string {
 type ListOpenIDConnectProvidersOutput struct {
 	_ struct{} `type:"structure"`
 
-	// The list of IAM OIDC provider resource objects defined in the AWS account.
+	// The list of IAM OIDC provider resource objects defined in the Amazon Web
+	// Services account.
 	OpenIDConnectProviderList []*OpenIDConnectProviderListEntry `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListOpenIDConnectProvidersOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListOpenIDConnectProvidersOutput) GoString() string {
 	return s.String()
 }
@@ -27492,21 +29348,29 @@ type ListPoliciesGrantingServiceAccessEntry struct {
 	// The namespace of the service that was accessed.
 	//
 	// To learn the service namespace of a service, see Actions, resources, and
-	// condition keys for AWS services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
+	// condition keys for Amazon Web Services services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
 	// in the Service Authorization Reference. Choose the name of the service to
 	// view details for that service. In the first paragraph, find the service prefix.
 	// For example, (service prefix: a4b). For more information about service namespaces,
-	// see AWS service namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
-	// in the AWS General Reference.
+	// see Amazon Web Services service namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
+	// in the Amazon Web Services General Reference.
 	ServiceNamespace *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesGrantingServiceAccessEntry) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesGrantingServiceAccessEntry) GoString() string {
 	return s.String()
 }
@@ -27538,26 +29402,35 @@ type ListPoliciesGrantingServiceAccessInput struct {
 	// the next call should start.
 	Marker *string `min:"1" type:"string"`
 
-	// The service namespace for the AWS services whose policies you want to list.
+	// The service namespace for the Amazon Web Services services whose policies
+	// you want to list.
 	//
 	// To learn the service namespace for a service, see Actions, resources, and
-	// condition keys for AWS services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
+	// condition keys for Amazon Web Services services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
 	// in the IAM User Guide. Choose the name of the service to view details for
 	// that service. In the first paragraph, find the service prefix. For example,
 	// (service prefix: a4b). For more information about service namespaces, see
-	// AWS service namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
-	// in the AWS General Reference.
+	// Amazon Web Services service namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
+	// in the Amazon Web Services General Reference.
 	//
 	// ServiceNamespaces is a required field
 	ServiceNamespaces []*string `min:"1" type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesGrantingServiceAccessInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesGrantingServiceAccessInput) GoString() string {
 	return s.String()
 }
@@ -27626,12 +29499,20 @@ type ListPoliciesGrantingServiceAccessOutput struct {
 	PoliciesGrantingServiceAccess []*ListPoliciesGrantingServiceAccessEntry `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesGrantingServiceAccessOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesGrantingServiceAccessOutput) GoString() string {
 	return s.String()
 }
@@ -27702,20 +29583,29 @@ type ListPoliciesInput struct {
 
 	// The scope to use for filtering the results.
 	//
-	// To list only AWS managed policies, set Scope to AWS. To list only the customer
-	// managed policies in your AWS account, set Scope to Local.
+	// To list only Amazon Web Services managed policies, set Scope to AWS. To list
+	// only the customer managed policies in your Amazon Web Services account, set
+	// Scope to Local.
 	//
 	// This parameter is optional. If it is not included, or if it is set to All,
 	// all policies are returned.
 	Scope *string `type:"string" enum:"PolicyScopeType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesInput) GoString() string {
 	return s.String()
 }
@@ -27795,12 +29685,20 @@ type ListPoliciesOutput struct {
 	Policies []*Policy `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPoliciesOutput) GoString() string {
 	return s.String()
 }
@@ -27832,34 +29730,41 @@ type ListPolicyTagsInput struct {
 	// the next call should start.
 	Marker *string `min:"1" type:"string"`
 
-	// (Optional) Use this only when paginating results to indicate the maximum
-	// number of items that you want in the response. If additional items exist
-	// beyond the maximum that you specify, the IsTruncated response element is
-	// true.
+	// Use this only when paginating results to indicate the maximum number of items
+	// you want in the response. If additional items exist beyond the maximum you
+	// specify, the IsTruncated response element is true.
 	//
-	// If you do not include this parameter, it defaults to 100. Note that IAM might
-	// return fewer results, even when more results are available. In that case,
-	// the IsTruncated response element returns true, and Marker contains a value
-	// to include in the subsequent call that tells the service where to continue
-	// from.
+	// If you do not include this parameter, the number of items defaults to 100.
+	// Note that IAM might return fewer results, even when there are more results
+	// available. In that case, the IsTruncated response element returns true, and
+	// Marker contains a value to include in the subsequent call that tells the
+	// service where to continue from.
 	MaxItems *int64 `min:"1" type:"integer"`
 
 	// The ARN of the IAM customer managed policy whose tags you want to see.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPolicyTagsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPolicyTagsInput) GoString() string {
 	return s.String()
 }
@@ -27908,11 +29813,11 @@ type ListPolicyTagsOutput struct {
 	_ struct{} `type:"structure"`
 
 	// A flag that indicates whether there are more items to return. If your results
-	// were truncated, you can use the Marker request parameter to make a subsequent
-	// pagination request that retrieves more items. Note that IAM might return
-	// fewer than the MaxItems number of results even when more results are available.
-	// Check IsTruncated after every call to ensure that you receive all of your
-	// results.
+	// were truncated, you can make a subsequent pagination request using the Marker
+	// request parameter to retrieve more items. Note that IAM might return fewer
+	// than the MaxItems number of results even when there are more results available.
+	// We recommend that you check IsTruncated after every call to ensure that you
+	// receive all your results.
 	IsTruncated *bool `type:"boolean"`
 
 	// When IsTruncated is true, this element is present and contains the value
@@ -27927,12 +29832,20 @@ type ListPolicyTagsOutput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPolicyTagsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPolicyTagsOutput) GoString() string {
 	return s.String()
 }
@@ -27978,18 +29891,26 @@ type ListPolicyVersionsInput struct {
 	// The Amazon Resource Name (ARN) of the IAM policy for which you want the versions.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPolicyVersionsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPolicyVersionsInput) GoString() string {
 	return s.String()
 }
@@ -28058,12 +29979,20 @@ type ListPolicyVersionsOutput struct {
 	Versions []*PolicyVersion `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPolicyVersionsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListPolicyVersionsOutput) GoString() string {
 	return s.String()
 }
@@ -28116,12 +30045,20 @@ type ListRolePoliciesInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRolePoliciesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRolePoliciesInput) GoString() string {
 	return s.String()
 }
@@ -28188,12 +30125,20 @@ type ListRolePoliciesOutput struct {
 	PolicyNames []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRolePoliciesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRolePoliciesOutput) GoString() string {
 	return s.String()
 }
@@ -28225,16 +30170,15 @@ type ListRoleTagsInput struct {
 	// the next call should start.
 	Marker *string `min:"1" type:"string"`
 
-	// (Optional) Use this only when paginating results to indicate the maximum
-	// number of items that you want in the response. If additional items exist
-	// beyond the maximum that you specify, the IsTruncated response element is
-	// true.
+	// Use this only when paginating results to indicate the maximum number of items
+	// you want in the response. If additional items exist beyond the maximum you
+	// specify, the IsTruncated response element is true.
 	//
-	// If you do not include this parameter, it defaults to 100. Note that IAM might
-	// return fewer results, even when more results are available. In that case,
-	// the IsTruncated response element returns true, and Marker contains a value
-	// to include in the subsequent call that tells the service where to continue
-	// from.
+	// If you do not include this parameter, the number of items defaults to 100.
+	// Note that IAM might return fewer results, even when there are more results
+	// available. In that case, the IsTruncated response element returns true, and
+	// Marker contains a value to include in the subsequent call that tells the
+	// service where to continue from.
 	MaxItems *int64 `min:"1" type:"integer"`
 
 	// The name of the IAM role for which you want to see the list of tags.
@@ -28247,12 +30191,20 @@ type ListRoleTagsInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRoleTagsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRoleTagsInput) GoString() string {
 	return s.String()
 }
@@ -28301,11 +30253,11 @@ type ListRoleTagsOutput struct {
 	_ struct{} `type:"structure"`
 
 	// A flag that indicates whether there are more items to return. If your results
-	// were truncated, you can use the Marker request parameter to make a subsequent
-	// pagination request that retrieves more items. Note that IAM might return
-	// fewer than the MaxItems number of results even when more results are available.
-	// Check IsTruncated after every call to ensure that you receive all of your
-	// results.
+	// were truncated, you can make a subsequent pagination request using the Marker
+	// request parameter to retrieve more items. Note that IAM might return fewer
+	// than the MaxItems number of results even when there are more results available.
+	// We recommend that you check IsTruncated after every call to ensure that you
+	// receive all your results.
 	IsTruncated *bool `type:"boolean"`
 
 	// When IsTruncated is true, this element is present and contains the value
@@ -28320,12 +30272,20 @@ type ListRoleTagsOutput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRoleTagsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRoleTagsOutput) GoString() string {
 	return s.String()
 }
@@ -28381,12 +30341,20 @@ type ListRolesInput struct {
 	PathPrefix *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRolesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRolesInput) GoString() string {
 	return s.String()
 }
@@ -28450,12 +30418,20 @@ type ListRolesOutput struct {
 	Roles []*Role `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRolesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListRolesOutput) GoString() string {
 	return s.String()
 }
@@ -28487,35 +30463,42 @@ type ListSAMLProviderTagsInput struct {
 	// the next call should start.
 	Marker *string `min:"1" type:"string"`
 
-	// (Optional) Use this only when paginating results to indicate the maximum
-	// number of items that you want in the response. If additional items exist
-	// beyond the maximum that you specify, the IsTruncated response element is
-	// true.
+	// Use this only when paginating results to indicate the maximum number of items
+	// you want in the response. If additional items exist beyond the maximum you
+	// specify, the IsTruncated response element is true.
 	//
-	// If you do not include this parameter, it defaults to 100. Note that IAM might
-	// return fewer results, even when more results are available. In that case,
-	// the IsTruncated response element returns true, and Marker contains a value
-	// to include in the subsequent call that tells the service where to continue
-	// from.
+	// If you do not include this parameter, the number of items defaults to 100.
+	// Note that IAM might return fewer results, even when there are more results
+	// available. In that case, the IsTruncated response element returns true, and
+	// Marker contains a value to include in the subsequent call that tells the
+	// service where to continue from.
 	MaxItems *int64 `min:"1" type:"integer"`
 
 	// The ARN of the Security Assertion Markup Language (SAML) identity provider
 	// whose tags you want to see.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// SAMLProviderArn is a required field
 	SAMLProviderArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSAMLProviderTagsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSAMLProviderTagsInput) GoString() string {
 	return s.String()
 }
@@ -28564,11 +30547,11 @@ type ListSAMLProviderTagsOutput struct {
 	_ struct{} `type:"structure"`
 
 	// A flag that indicates whether there are more items to return. If your results
-	// were truncated, you can use the Marker request parameter to make a subsequent
-	// pagination request that retrieves more items. Note that IAM might return
-	// fewer than the MaxItems number of results even when more results are available.
-	// Check IsTruncated after every call to ensure that you receive all of your
-	// results.
+	// were truncated, you can make a subsequent pagination request using the Marker
+	// request parameter to retrieve more items. Note that IAM might return fewer
+	// than the MaxItems number of results even when there are more results available.
+	// We recommend that you check IsTruncated after every call to ensure that you
+	// receive all your results.
 	IsTruncated *bool `type:"boolean"`
 
 	// When IsTruncated is true, this element is present and contains the value
@@ -28584,12 +30567,20 @@ type ListSAMLProviderTagsOutput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSAMLProviderTagsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSAMLProviderTagsOutput) GoString() string {
 	return s.String()
 }
@@ -28616,12 +30607,20 @@ type ListSAMLProvidersInput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSAMLProvidersInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSAMLProvidersInput) GoString() string {
 	return s.String()
 }
@@ -28630,16 +30629,25 @@ func (s ListSAMLProvidersInput) GoString() string {
 type ListSAMLProvidersOutput struct {
 	_ struct{} `type:"structure"`
 
-	// The list of SAML provider resource objects defined in IAM for this AWS account.
+	// The list of SAML provider resource objects defined in IAM for this Amazon
+	// Web Services account.
 	SAMLProviderList []*SAMLProviderListEntry `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSAMLProvidersOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSAMLProvidersOutput) GoString() string {
 	return s.String()
 }
@@ -28671,8 +30679,8 @@ type ListSSHPublicKeysInput struct {
 	MaxItems *int64 `min:"1" type:"integer"`
 
 	// The name of the IAM user to list SSH public keys for. If none is specified,
-	// the UserName field is determined implicitly based on the AWS access key used
-	// to sign the request.
+	// the UserName field is determined implicitly based on the Amazon Web Services
+	// access key used to sign the request.
 	//
 	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
 	// a string of characters consisting of upper and lowercase alphanumeric characters
@@ -28680,12 +30688,20 @@ type ListSSHPublicKeysInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSSHPublicKeysInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSSHPublicKeysInput) GoString() string {
 	return s.String()
 }
@@ -28747,12 +30763,20 @@ type ListSSHPublicKeysOutput struct {
 	SSHPublicKeys []*SSHPublicKeyMetadata `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSSHPublicKeysOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSSHPublicKeysOutput) GoString() string {
 	return s.String()
 }
@@ -28784,34 +30808,41 @@ type ListServerCertificateTagsInput struct {
 	// the next call should start.
 	Marker *string `min:"1" type:"string"`
 
-	// (Optional) Use this only when paginating results to indicate the maximum
-	// number of items that you want in the response. If additional items exist
-	// beyond the maximum that you specify, the IsTruncated response element is
-	// true.
+	// Use this only when paginating results to indicate the maximum number of items
+	// you want in the response. If additional items exist beyond the maximum you
+	// specify, the IsTruncated response element is true.
 	//
-	// If you do not include this parameter, it defaults to 100. Note that IAM might
-	// return fewer results, even when more results are available. In that case,
-	// the IsTruncated response element returns true, and Marker contains a value
-	// to include in the subsequent call that tells the service where to continue
-	// from.
+	// If you do not include this parameter, the number of items defaults to 100.
+	// Note that IAM might return fewer results, even when there are more results
+	// available. In that case, the IsTruncated response element returns true, and
+	// Marker contains a value to include in the subsequent call that tells the
+	// service where to continue from.
 	MaxItems *int64 `min:"1" type:"integer"`
 
 	// The name of the IAM server certificate whose tags you want to see.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// ServerCertificateName is a required field
 	ServerCertificateName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServerCertificateTagsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServerCertificateTagsInput) GoString() string {
 	return s.String()
 }
@@ -28860,11 +30891,11 @@ type ListServerCertificateTagsOutput struct {
 	_ struct{} `type:"structure"`
 
 	// A flag that indicates whether there are more items to return. If your results
-	// were truncated, you can use the Marker request parameter to make a subsequent
-	// pagination request that retrieves more items. Note that IAM might return
-	// fewer than the MaxItems number of results even when more results are available.
-	// Check IsTruncated after every call to ensure that you receive all of your
-	// results.
+	// were truncated, you can make a subsequent pagination request using the Marker
+	// request parameter to retrieve more items. Note that IAM might return fewer
+	// than the MaxItems number of results even when there are more results available.
+	// We recommend that you check IsTruncated after every call to ensure that you
+	// receive all your results.
 	IsTruncated *bool `type:"boolean"`
 
 	// When IsTruncated is true, this element is present and contains the value
@@ -28879,12 +30910,20 @@ type ListServerCertificateTagsOutput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServerCertificateTagsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServerCertificateTagsOutput) GoString() string {
 	return s.String()
 }
@@ -28940,12 +30979,20 @@ type ListServerCertificatesInput struct {
 	PathPrefix *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServerCertificatesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServerCertificatesInput) GoString() string {
 	return s.String()
 }
@@ -29009,12 +31056,20 @@ type ListServerCertificatesOutput struct {
 	ServerCertificateMetadataList []*ServerCertificateMetadata `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServerCertificatesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServerCertificatesOutput) GoString() string {
 	return s.String()
 }
@@ -29040,8 +31095,9 @@ func (s *ListServerCertificatesOutput) SetServerCertificateMetadataList(v []*Ser
 type ListServiceSpecificCredentialsInput struct {
 	_ struct{} `type:"structure"`
 
-	// Filters the returned results to only those for the specified AWS service.
-	// If not specified, then AWS returns service-specific credentials for all services.
+	// Filters the returned results to only those for the specified Amazon Web Services
+	// service. If not specified, then Amazon Web Services returns service-specific
+	// credentials for all services.
 	ServiceName *string `type:"string"`
 
 	// The name of the user whose service-specific credentials you want information
@@ -29054,12 +31110,20 @@ type ListServiceSpecificCredentialsInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServiceSpecificCredentialsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServiceSpecificCredentialsInput) GoString() string {
 	return s.String()
 }
@@ -29096,12 +31160,20 @@ type ListServiceSpecificCredentialsOutput struct {
 	ServiceSpecificCredentials []*ServiceSpecificCredentialMetadata `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServiceSpecificCredentialsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListServiceSpecificCredentialsOutput) GoString() string {
 	return s.String()
 }
@@ -29140,12 +31212,20 @@ type ListSigningCertificatesInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSigningCertificatesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSigningCertificatesInput) GoString() string {
 	return s.String()
 }
@@ -29209,12 +31289,20 @@ type ListSigningCertificatesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSigningCertificatesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListSigningCertificatesOutput) GoString() string {
 	return s.String()
 }
@@ -29267,12 +31355,20 @@ type ListUserPoliciesInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUserPoliciesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUserPoliciesInput) GoString() string {
 	return s.String()
 }
@@ -29339,12 +31435,20 @@ type ListUserPoliciesOutput struct {
 	PolicyNames []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUserPoliciesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUserPoliciesOutput) GoString() string {
 	return s.String()
 }
@@ -29376,34 +31480,41 @@ type ListUserTagsInput struct {
 	// the next call should start.
 	Marker *string `min:"1" type:"string"`
 
-	// (Optional) Use this only when paginating results to indicate the maximum
-	// number of items that you want in the response. If additional items exist
-	// beyond the maximum that you specify, the IsTruncated response element is
-	// true.
+	// Use this only when paginating results to indicate the maximum number of items
+	// you want in the response. If additional items exist beyond the maximum you
+	// specify, the IsTruncated response element is true.
 	//
-	// If you do not include this parameter, it defaults to 100. Note that IAM might
-	// return fewer results, even when more results are available. In that case,
-	// the IsTruncated response element returns true, and Marker contains a value
-	// to include in the subsequent call that tells the service where to continue
-	// from.
+	// If you do not include this parameter, the number of items defaults to 100.
+	// Note that IAM might return fewer results, even when there are more results
+	// available. In that case, the IsTruncated response element returns true, and
+	// Marker contains a value to include in the subsequent call that tells the
+	// service where to continue from.
 	MaxItems *int64 `min:"1" type:"integer"`
 
 	// The name of the IAM user whose tags you want to see.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// UserName is a required field
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUserTagsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUserTagsInput) GoString() string {
 	return s.String()
 }
@@ -29452,11 +31563,11 @@ type ListUserTagsOutput struct {
 	_ struct{} `type:"structure"`
 
 	// A flag that indicates whether there are more items to return. If your results
-	// were truncated, you can use the Marker request parameter to make a subsequent
-	// pagination request that retrieves more items. Note that IAM might return
-	// fewer than the MaxItems number of results even when more results are available.
-	// Check IsTruncated after every call to ensure that you receive all of your
-	// results.
+	// were truncated, you can make a subsequent pagination request using the Marker
+	// request parameter to retrieve more items. Note that IAM might return fewer
+	// than the MaxItems number of results even when there are more results available.
+	// We recommend that you check IsTruncated after every call to ensure that you
+	// receive all your results.
 	IsTruncated *bool `type:"boolean"`
 
 	// When IsTruncated is true, this element is present and contains the value
@@ -29471,12 +31582,20 @@ type ListUserTagsOutput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUserTagsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUserTagsOutput) GoString() string {
 	return s.String()
 }
@@ -29532,12 +31651,20 @@ type ListUsersInput struct {
 	PathPrefix *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUsersInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUsersInput) GoString() string {
 	return s.String()
 }
@@ -29601,12 +31728,20 @@ type ListUsersOutput struct {
 	Users []*User `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUsersOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListUsersOutput) GoString() string {
 	return s.String()
 }
@@ -29655,12 +31790,20 @@ type ListVirtualMFADevicesInput struct {
 	MaxItems *int64 `min:"1" type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListVirtualMFADevicesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListVirtualMFADevicesInput) GoString() string {
 	return s.String()
 }
@@ -29722,12 +31865,20 @@ type ListVirtualMFADevicesOutput struct {
 	VirtualMFADevices []*VirtualMFADevice `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListVirtualMFADevicesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListVirtualMFADevicesOutput) GoString() string {
 	return s.String()
 }
@@ -29765,19 +31916,27 @@ type LoginProfile struct {
 	// Specifies whether the user is required to set a new password on next sign-in.
 	PasswordResetRequired *bool `type:"boolean"`
 
-	// The name of the user, which can be used for signing in to the AWS Management
-	// Console.
+	// The name of the user, which can be used for signing in to the Amazon Web
+	// Services Management Console.
 	//
 	// UserName is a required field
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s LoginProfile) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s LoginProfile) GoString() string {
 	return s.String()
 }
@@ -29823,12 +31982,20 @@ type MFADevice struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s MFADevice) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s MFADevice) GoString() string {
 	return s.String()
 }
@@ -29864,10 +32031,11 @@ func (s *MFADevice) SetUserName(v string) *MFADevice {
 type ManagedPolicyDetail struct {
 	_ struct{} `type:"structure"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	Arn *string `min:"20" type:"string"`
 
 	// The number of principal entities (users, groups, and roles) that the policy
@@ -29928,12 +32096,20 @@ type ManagedPolicyDetail struct {
 	UpdateDate *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ManagedPolicyDetail) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ManagedPolicyDetail) GoString() string {
 	return s.String()
 }
@@ -30014,19 +32190,28 @@ func (s *ManagedPolicyDetail) SetUpdateDate(v time.Time) *ManagedPolicyDetail {
 type OpenIDConnectProviderListEntry struct {
 	_ struct{} `type:"structure"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	Arn *string `min:"20" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OpenIDConnectProviderListEntry) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OpenIDConnectProviderListEntry) GoString() string {
 	return s.String()
 }
@@ -30047,12 +32232,20 @@ type OrganizationsDecisionDetail struct {
 	AllowedByOrganizations *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OrganizationsDecisionDetail) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OrganizationsDecisionDetail) GoString() string {
 	return s.String()
 }
@@ -30070,7 +32263,11 @@ func (s *OrganizationsDecisionDetail) SetAllowedByOrganizations(v bool) *Organiz
 type PasswordPolicy struct {
 	_ struct{} `type:"structure"`
 
-	// Specifies whether IAM users are allowed to change their own password.
+	// Specifies whether IAM users are allowed to change their own password. Gives
+	// IAM users permissions to iam:ChangePassword for only their user and to the
+	// iam:GetAccountPasswordPolicy action. This option does not attach a permissions
+	// policy to each user, rather the permissions are applied at the account-level
+	// for all users by IAM.
 	AllowUsersToChangePassword *bool `type:"boolean"`
 
 	// Indicates whether passwords in the account expire. Returns true if MaxPasswordAge
@@ -30078,8 +32275,11 @@ type PasswordPolicy struct {
 	// not present.
 	ExpirePasswords *bool `type:"boolean"`
 
-	// Specifies whether IAM users are prevented from setting a new password after
-	// their password has expired.
+	// Specifies whether IAM users are prevented from setting a new password via
+	// the Amazon Web Services Management Console after their password has expired.
+	// The IAM user cannot access the console until an administrator resets the
+	// password. IAM users with iam:ChangePassword permission and active access
+	// keys can reset their own expired console password using the CLI or API.
 	HardExpiry *bool `type:"boolean"`
 
 	// The number of days that an IAM user password is valid.
@@ -30111,12 +32311,20 @@ type PasswordPolicy struct {
 	RequireUppercaseCharacters *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PasswordPolicy) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PasswordPolicy) GoString() string {
 	return s.String()
 }
@@ -30197,12 +32405,20 @@ type PermissionsBoundaryDecisionDetail struct {
 	AllowedByPermissionsBoundary *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PermissionsBoundaryDecisionDetail) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PermissionsBoundaryDecisionDetail) GoString() string {
 	return s.String()
 }
@@ -30224,10 +32440,11 @@ func (s *PermissionsBoundaryDecisionDetail) SetAllowedByPermissionsBoundary(v bo
 type Policy struct {
 	_ struct{} `type:"structure"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	Arn *string `min:"20" type:"string"`
 
 	// The number of entities (users, groups, and roles) that the policy is attached
@@ -30288,12 +32505,20 @@ type Policy struct {
 	UpdateDate *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Policy) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Policy) GoString() string {
 	return s.String()
 }
@@ -30384,12 +32609,20 @@ type PolicyDetail struct {
 	PolicyName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyDetail) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyDetail) GoString() string {
 	return s.String()
 }
@@ -30429,10 +32662,11 @@ type PolicyGrantingServiceAccess struct {
 	// in the IAM User Guide.
 	EntityType *string `type:"string" enum:"PolicyOwnerEntityType"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	PolicyArn *string `min:"20" type:"string"`
 
 	// The policy name.
@@ -30448,12 +32682,20 @@ type PolicyGrantingServiceAccess struct {
 	PolicyType *string `type:"string" required:"true" enum:"PolicyType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyGrantingServiceAccess) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyGrantingServiceAccess) GoString() string {
 	return s.String()
 }
@@ -30508,12 +32750,20 @@ type PolicyGroup struct {
 	GroupName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyGroup) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyGroup) GoString() string {
 	return s.String()
 }
@@ -30550,12 +32800,20 @@ type PolicyRole struct {
 	RoleName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyRole) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyRole) GoString() string {
 	return s.String()
 }
@@ -30592,12 +32850,20 @@ type PolicyUser struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyUser) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyUser) GoString() string {
 	return s.String()
 }
@@ -30653,12 +32919,20 @@ type PolicyVersion struct {
 	VersionId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyVersion) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PolicyVersion) GoString() string {
 	return s.String()
 }
@@ -30701,12 +32975,20 @@ type Position struct {
 	Line *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Position) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Position) GoString() string {
 	return s.String()
 }
@@ -30737,10 +33019,10 @@ type PutGroupPolicyInput struct {
 
 	// The policy document.
 	//
-	// You must provide policies in JSON format in IAM. However, for AWS CloudFormation
+	// You must provide policies in JSON format in IAM. However, for CloudFormation
 	// templates formatted in YAML, you can provide the policy in JSON or YAML format.
-	// AWS CloudFormation always converts a YAML policy to JSON format before submitting
-	// it to IAM.
+	// CloudFormation always converts a YAML policy to JSON format before submitting
+	// it to = IAM.
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
 	// parameter is a string of characters consisting of the following:
@@ -30767,12 +33049,20 @@ type PutGroupPolicyInput struct {
 	PolicyName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutGroupPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutGroupPolicyInput) GoString() string {
 	return s.String()
 }
@@ -30827,12 +33117,20 @@ type PutGroupPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutGroupPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutGroupPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -30853,12 +33151,20 @@ type PutRolePermissionsBoundaryInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutRolePermissionsBoundaryInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutRolePermissionsBoundaryInput) GoString() string {
 	return s.String()
 }
@@ -30901,12 +33207,20 @@ type PutRolePermissionsBoundaryOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutRolePermissionsBoundaryOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutRolePermissionsBoundaryOutput) GoString() string {
 	return s.String()
 }
@@ -30916,9 +33230,9 @@ type PutRolePolicyInput struct {
 
 	// The policy document.
 	//
-	// You must provide policies in JSON format in IAM. However, for AWS CloudFormation
+	// You must provide policies in JSON format in IAM. However, for CloudFormation
 	// templates formatted in YAML, you can provide the policy in JSON or YAML format.
-	// AWS CloudFormation always converts a YAML policy to JSON format before submitting
+	// CloudFormation always converts a YAML policy to JSON format before submitting
 	// it to IAM.
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
@@ -30955,12 +33269,20 @@ type PutRolePolicyInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutRolePolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutRolePolicyInput) GoString() string {
 	return s.String()
 }
@@ -31015,12 +33337,20 @@ type PutRolePolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutRolePolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutRolePolicyOutput) GoString() string {
 	return s.String()
 }
@@ -31041,12 +33371,20 @@ type PutUserPermissionsBoundaryInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutUserPermissionsBoundaryInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutUserPermissionsBoundaryInput) GoString() string {
 	return s.String()
 }
@@ -31089,12 +33427,20 @@ type PutUserPermissionsBoundaryOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutUserPermissionsBoundaryOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutUserPermissionsBoundaryOutput) GoString() string {
 	return s.String()
 }
@@ -31104,9 +33450,9 @@ type PutUserPolicyInput struct {
 
 	// The policy document.
 	//
-	// You must provide policies in JSON format in IAM. However, for AWS CloudFormation
+	// You must provide policies in JSON format in IAM. However, for CloudFormation
 	// templates formatted in YAML, you can provide the policy in JSON or YAML format.
-	// AWS CloudFormation always converts a YAML policy to JSON format before submitting
+	// CloudFormation always converts a YAML policy to JSON format before submitting
 	// it to IAM.
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
@@ -31143,12 +33489,20 @@ type PutUserPolicyInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutUserPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutUserPolicyInput) GoString() string {
 	return s.String()
 }
@@ -31203,12 +33557,20 @@ type PutUserPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutUserPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PutUserPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -31227,18 +33589,26 @@ type RemoveClientIDFromOpenIDConnectProviderInput struct {
 	// ListOpenIDConnectProviders operation.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// OpenIDConnectProviderArn is a required field
 	OpenIDConnectProviderArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveClientIDFromOpenIDConnectProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveClientIDFromOpenIDConnectProviderInput) GoString() string {
 	return s.String()
 }
@@ -31281,12 +33651,20 @@ type RemoveClientIDFromOpenIDConnectProviderOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveClientIDFromOpenIDConnectProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveClientIDFromOpenIDConnectProviderOutput) GoString() string {
 	return s.String()
 }
@@ -31313,12 +33691,20 @@ type RemoveRoleFromInstanceProfileInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromInstanceProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromInstanceProfileInput) GoString() string {
 	return s.String()
 }
@@ -31361,12 +33747,20 @@ type RemoveRoleFromInstanceProfileOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromInstanceProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromInstanceProfileOutput) GoString() string {
 	return s.String()
 }
@@ -31393,12 +33787,20 @@ type RemoveUserFromGroupInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveUserFromGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveUserFromGroupInput) GoString() string {
 	return s.String()
 }
@@ -31441,12 +33843,20 @@ type RemoveUserFromGroupOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveUserFromGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveUserFromGroupOutput) GoString() string {
 	return s.String()
 }
@@ -31473,12 +33883,20 @@ type ResetServiceSpecificCredentialInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResetServiceSpecificCredentialInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResetServiceSpecificCredentialInput) GoString() string {
 	return s.String()
 }
@@ -31525,12 +33943,20 @@ type ResetServiceSpecificCredentialOutput struct {
 	ServiceSpecificCredential *ServiceSpecificCredential `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResetServiceSpecificCredentialOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResetServiceSpecificCredentialOutput) GoString() string {
 	return s.String()
 }
@@ -31587,12 +34013,20 @@ type ResourceSpecificResult struct {
 	PermissionsBoundaryDecisionDetail *PermissionsBoundaryDecisionDetail `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResourceSpecificResult) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResourceSpecificResult) GoString() string {
 	return s.String()
 }
@@ -31669,12 +34103,20 @@ type ResyncMFADeviceInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResyncMFADeviceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResyncMFADeviceInput) GoString() string {
 	return s.String()
 }
@@ -31741,12 +34183,20 @@ type ResyncMFADeviceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResyncMFADeviceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResyncMFADeviceOutput) GoString() string {
 	return s.String()
 }
@@ -31776,9 +34226,8 @@ type Role struct {
 	Description *string `type:"string"`
 
 	// The maximum session duration (in seconds) for the specified role. Anyone
-	// who uses the AWS CLI, or API to assume the role can specify the duration
-	// using the optional DurationSeconds API parameter or duration-seconds CLI
-	// parameter.
+	// who uses the CLI, or API to assume the role can specify the duration using
+	// the optional DurationSeconds API parameter or duration-seconds CLI parameter.
 	MaxSessionDuration *int64 `min:"3600" type:"integer"`
 
 	// The path to the role. For more information about paths, see IAM identifiers
@@ -31822,12 +34271,20 @@ type Role struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Role) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Role) GoString() string {
 	return s.String()
 }
@@ -31905,10 +34362,11 @@ func (s *Role) SetTags(v []*Tag) *Role {
 type RoleDetail struct {
 	_ struct{} `type:"structure"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	Arn *string `min:"20" type:"string"`
 
 	// The trust policy that grants permission to assume the role.
@@ -31964,12 +34422,20 @@ type RoleDetail struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RoleDetail) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RoleDetail) GoString() string {
 	return s.String()
 }
@@ -32068,16 +34534,24 @@ type RoleLastUsed struct {
 	// in the IAM User Guide.
 	LastUsedDate *time.Time `type:"timestamp"`
 
-	// The name of the AWS Region in which the role was last used.
+	// The name of the Amazon Web Services Region in which the role was last used.
 	Region *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RoleLastUsed) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RoleLastUsed) GoString() string {
 	return s.String()
 }
@@ -32109,12 +34583,20 @@ type RoleUsageType struct {
 	Resources []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RoleUsageType) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RoleUsageType) GoString() string {
 	return s.String()
 }
@@ -32145,12 +34627,20 @@ type SAMLProviderListEntry struct {
 	ValidUntil *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SAMLProviderListEntry) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SAMLProviderListEntry) GoString() string {
 	return s.String()
 }
@@ -32196,8 +34686,8 @@ type SSHPublicKey struct {
 	SSHPublicKeyId *string `min:"20" type:"string" required:"true"`
 
 	// The status of the SSH public key. Active means that the key can be used for
-	// authentication with an AWS CodeCommit repository. Inactive means that the
-	// key cannot be used.
+	// authentication with an CodeCommit repository. Inactive means that the key
+	// cannot be used.
 	//
 	// Status is a required field
 	Status *string `type:"string" required:"true" enum:"StatusType"`
@@ -32212,12 +34702,20 @@ type SSHPublicKey struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SSHPublicKey) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SSHPublicKey) GoString() string {
 	return s.String()
 }
@@ -32270,8 +34768,8 @@ type SSHPublicKeyMetadata struct {
 	SSHPublicKeyId *string `min:"20" type:"string" required:"true"`
 
 	// The status of the SSH public key. Active means that the key can be used for
-	// authentication with an AWS CodeCommit repository. Inactive means that the
-	// key cannot be used.
+	// authentication with an CodeCommit repository. Inactive means that the key
+	// cannot be used.
 	//
 	// Status is a required field
 	Status *string `type:"string" required:"true" enum:"StatusType"`
@@ -32288,12 +34786,20 @@ type SSHPublicKeyMetadata struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SSHPublicKeyMetadata) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SSHPublicKeyMetadata) GoString() string {
 	return s.String()
 }
@@ -32349,12 +34855,20 @@ type ServerCertificate struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServerCertificate) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServerCertificate) GoString() string {
 	return s.String()
 }
@@ -32425,12 +34939,20 @@ type ServerCertificateMetadata struct {
 	UploadDate *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServerCertificateMetadata) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServerCertificateMetadata) GoString() string {
 	return s.String()
 }
@@ -32480,21 +35002,22 @@ type ServiceLastAccessed struct {
 
 	// The date and time, in ISO 8601 date-time format (http://www.iso.org/iso/iso8601),
 	// when an authenticated entity most recently attempted to access the service.
-	// AWS does not report unauthenticated requests.
+	// Amazon Web Services does not report unauthenticated requests.
 	//
 	// This field is null if no IAM entities attempted to access the service within
 	// the reporting period (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#service-last-accessed-reporting-period).
 	LastAuthenticated *time.Time `type:"timestamp"`
 
 	// The ARN of the authenticated entity (user or role) that last attempted to
-	// access the service. AWS does not report unauthenticated requests.
+	// access the service. Amazon Web Services does not report unauthenticated requests.
 	//
 	// This field is null if no IAM entities attempted to access the service within
 	// the reporting period (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#service-last-accessed-reporting-period).
 	LastAuthenticatedEntity *string `min:"20" type:"string"`
 
 	// The Region from which the authenticated entity (user or role) last attempted
-	// to access the service. AWS does not report unauthenticated requests.
+	// to access the service. Amazon Web Services does not report unauthenticated
+	// requests.
 	//
 	// This field is null if no IAM entities attempted to access the service within
 	// the reporting period (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#service-last-accessed-reporting-period).
@@ -32508,12 +35031,12 @@ type ServiceLastAccessed struct {
 	// The namespace of the service in which access was attempted.
 	//
 	// To learn the service namespace of a service, see Actions, resources, and
-	// condition keys for AWS services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
+	// condition keys for Amazon Web Services services (https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
 	// in the Service Authorization Reference. Choose the name of the service to
 	// view details for that service. In the first paragraph, find the service prefix.
 	// For example, (service prefix: a4b). For more information about service namespaces,
-	// see AWS Service Namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
-	// in the AWS General Reference.
+	// see Amazon Web Services Service Namespaces (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces)
+	// in the Amazon Web Services General Reference.
 	//
 	// ServiceNamespace is a required field
 	ServiceNamespace *string `min:"1" type:"string" required:"true"`
@@ -32536,12 +35059,20 @@ type ServiceLastAccessed struct {
 	TrackedActionsLastAccessed []*TrackedActionLastAccessed `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServiceLastAccessed) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServiceLastAccessed) GoString() string {
 	return s.String()
 }
@@ -32605,6 +35136,10 @@ type ServiceSpecificCredential struct {
 
 	// The generated password for the service-specific credential.
 	//
+	// ServicePassword is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by ServiceSpecificCredential's
+	// String and GoString methods.
+	//
 	// ServicePassword is a required field
 	ServicePassword *string `type:"string" required:"true" sensitive:"true"`
 
@@ -32615,8 +35150,8 @@ type ServiceSpecificCredential struct {
 
 	// The generated user name for the service-specific credential. This value is
 	// generated by combining the IAM user's name combined with the ID number of
-	// the AWS account, as in jane-at-123456789012, for example. This value cannot
-	// be configured by the user.
+	// the Amazon Web Services account, as in jane-at-123456789012, for example.
+	// This value cannot be configured by the user.
 	//
 	// ServiceUserName is a required field
 	ServiceUserName *string `min:"17" type:"string" required:"true"`
@@ -32633,12 +35168,20 @@ type ServiceSpecificCredential struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServiceSpecificCredential) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServiceSpecificCredential) GoString() string {
 	return s.String()
 }
@@ -32722,12 +35265,20 @@ type ServiceSpecificCredentialMetadata struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServiceSpecificCredentialMetadata) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ServiceSpecificCredentialMetadata) GoString() string {
 	return s.String()
 }
@@ -32775,7 +35326,7 @@ type SetDefaultPolicyVersionInput struct {
 	// want to set.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -32790,12 +35341,20 @@ type SetDefaultPolicyVersionInput struct {
 	VersionId *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SetDefaultPolicyVersionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SetDefaultPolicyVersionInput) GoString() string {
 	return s.String()
 }
@@ -32835,12 +35394,20 @@ type SetDefaultPolicyVersionOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SetDefaultPolicyVersionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SetDefaultPolicyVersionOutput) GoString() string {
 	return s.String()
 }
@@ -32849,24 +35416,33 @@ type SetSecurityTokenServicePreferencesInput struct {
 	_ struct{} `type:"structure"`
 
 	// The version of the global endpoint token. Version 1 tokens are valid only
-	// in AWS Regions that are available by default. These tokens do not work in
-	// manually enabled Regions, such as Asia Pacific (Hong Kong). Version 2 tokens
-	// are valid in all Regions. However, version 2 tokens are longer and might
-	// affect systems where you temporarily store tokens.
+	// in Amazon Web Services Regions that are available by default. These tokens
+	// do not work in manually enabled Regions, such as Asia Pacific (Hong Kong).
+	// Version 2 tokens are valid in all Regions. However, version 2 tokens are
+	// longer and might affect systems where you temporarily store tokens.
 	//
-	// For information, see Activating and deactivating STS in an AWS region (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_enable-regions.html)
+	// For information, see Activating and deactivating STS in an Amazon Web Services
+	// Region (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_enable-regions.html)
 	// in the IAM User Guide.
 	//
 	// GlobalEndpointTokenVersion is a required field
 	GlobalEndpointTokenVersion *string `type:"string" required:"true" enum:"GlobalEndpointTokenVersion"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SetSecurityTokenServicePreferencesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SetSecurityTokenServicePreferencesInput) GoString() string {
 	return s.String()
 }
@@ -32894,12 +35470,20 @@ type SetSecurityTokenServicePreferencesOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SetSecurityTokenServicePreferencesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SetSecurityTokenServicePreferencesOutput) GoString() string {
 	return s.String()
 }
@@ -32936,12 +35520,20 @@ type SigningCertificate struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SigningCertificate) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SigningCertificate) GoString() string {
 	return s.String()
 }
@@ -33026,6 +35618,11 @@ type SimulateCustomPolicyInput struct {
 	// in the IAM User Guide. The policy input is specified as a string that contains
 	// the complete, valid JSON text of a permissions boundary policy.
 	//
+	// The maximum length of the policy document that you can pass in this operation,
+	// including whitespace, is listed below. To view the maximum character counts
+	// of a managed policy with no whitespaces, see IAM and STS character quotas
+	// (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entity-length).
+	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
 	// parameter is a string of characters consisting of the following:
 	//
@@ -33049,6 +35646,11 @@ type SimulateCustomPolicyInput struct {
 	// API operations. In other words, do not use policies designed to restrict
 	// what a user can do while using the temporary credentials.
 	//
+	// The maximum length of the policy document that you can pass in this operation,
+	// including whitespace, is listed below. To view the maximum character counts
+	// of a managed policy with no whitespaces, see IAM and STS character quotas
+	// (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entity-length).
+	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
 	// parameter is a string of characters consisting of the following:
 	//
@@ -33064,12 +35666,12 @@ type SimulateCustomPolicyInput struct {
 	// PolicyInputList is a required field
 	PolicyInputList []*string `type:"list" required:"true"`
 
-	// A list of ARNs of AWS resources to include in the simulation. If this parameter
-	// is not provided, then the value defaults to * (all resources). Each API in
-	// the ActionNames parameter is evaluated for each resource in this list. The
-	// simulation determines the access result (allowed or denied) of each combination
-	// and reports it in the response. You can simulate resources that don't exist
-	// in your account.
+	// A list of ARNs of Amazon Web Services resources to include in the simulation.
+	// If this parameter is not provided, then the value defaults to * (all resources).
+	// Each API in the ActionNames parameter is evaluated for each resource in this
+	// list. The simulation determines the access result (allowed or denied) of
+	// each combination and reports it in the response. You can simulate resources
+	// that don't exist in your account.
 	//
 	// The simulation does not automatically retrieve policies for the specified
 	// resources. If you want to include a resource policy in the simulation, then
@@ -33079,7 +35681,7 @@ type SimulateCustomPolicyInput struct {
 	// resources included in the simulation or you receive an invalid input error.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	ResourceArns []*string `type:"list"`
 
 	// Specifies the type of simulation to run. Different API operations that support
@@ -33113,15 +35715,15 @@ type SimulateCustomPolicyInput struct {
 	//    subnet, volume
 	ResourceHandlingOption *string `min:"1" type:"string"`
 
-	// An ARN representing the AWS account ID that specifies the owner of any simulated
-	// resource that does not identify its owner in the resource ARN. Examples of
-	// resource ARNs include an S3 bucket or object. If ResourceOwner is specified,
-	// it is also used as the account owner of any ResourcePolicy included in the
-	// simulation. If the ResourceOwner parameter is not specified, then the owner
-	// of the resources and the resource policy defaults to the account of the identity
-	// provided in CallerArn. This parameter is required only if you specify a resource-based
-	// policy and account that owns the resource is different from the account that
-	// owns the simulated calling user CallerArn.
+	// An ARN representing the Amazon Web Services account ID that specifies the
+	// owner of any simulated resource that does not identify its owner in the resource
+	// ARN. Examples of resource ARNs include an S3 bucket or object. If ResourceOwner
+	// is specified, it is also used as the account owner of any ResourcePolicy
+	// included in the simulation. If the ResourceOwner parameter is not specified,
+	// then the owner of the resources and the resource policy defaults to the account
+	// of the identity provided in CallerArn. This parameter is required only if
+	// you specify a resource-based policy and account that owns the resource is
+	// different from the account that owns the simulated calling user CallerArn.
 	//
 	// The ARN for an account uses the following syntax: arn:aws:iam::AWS-account-ID:root.
 	// For example, to represent the account with the 112233445566 ID, use the following
@@ -33131,6 +35733,11 @@ type SimulateCustomPolicyInput struct {
 	// A resource-based policy to include in the simulation provided as a string.
 	// Each resource in the simulation is treated as if it had this policy attached.
 	// You can include only one resource-based policy in a simulation.
+	//
+	// The maximum length of the policy document that you can pass in this operation,
+	// including whitespace, is listed below. To view the maximum character counts
+	// of a managed policy with no whitespaces, see IAM and STS character quotas
+	// (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entity-length).
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
 	// parameter is a string of characters consisting of the following:
@@ -33146,12 +35753,20 @@ type SimulateCustomPolicyInput struct {
 	ResourcePolicy *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SimulateCustomPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SimulateCustomPolicyInput) GoString() string {
 	return s.String()
 }
@@ -33287,12 +35902,20 @@ type SimulatePolicyResponse struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SimulatePolicyResponse) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SimulatePolicyResponse) GoString() string {
 	return s.String()
 }
@@ -33341,7 +35964,7 @@ type SimulatePrincipalPolicyInput struct {
 	// policy's Principal element has a value to use in evaluating the policy.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	CallerArn *string `min:"1" type:"string"`
 
 	// A list of context keys and corresponding values for the simulation to use.
@@ -33376,6 +35999,11 @@ type SimulatePrincipalPolicyInput struct {
 	// boundaries, see Permissions boundaries for IAM entities (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html)
 	// in the IAM User Guide. The policy input is specified as a string containing
 	// the complete, valid JSON text of a permissions boundary policy.
+	//
+	// The maximum length of the policy document that you can pass in this operation,
+	// including whitespace, is listed below. To view the maximum character counts
+	// of a managed policy with no whitespaces, see IAM and STS character quotas
+	// (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entity-length).
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
 	// parameter is a string of characters consisting of the following:
@@ -33413,25 +36041,30 @@ type SimulatePrincipalPolicyInput struct {
 	// If you specify a user, the simulation also includes all policies that are
 	// attached to any groups the user belongs to.
 	//
+	// The maximum length of the policy document that you can pass in this operation,
+	// including whitespace, is listed below. To view the maximum character counts
+	// of a managed policy with no whitespaces, see IAM and STS character quotas
+	// (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entity-length).
+	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// PolicySourceArn is a required field
 	PolicySourceArn *string `min:"20" type:"string" required:"true"`
 
-	// A list of ARNs of AWS resources to include in the simulation. If this parameter
-	// is not provided, then the value defaults to * (all resources). Each API in
-	// the ActionNames parameter is evaluated for each resource in this list. The
-	// simulation determines the access result (allowed or denied) of each combination
-	// and reports it in the response. You can simulate resources that don't exist
-	// in your account.
+	// A list of ARNs of Amazon Web Services resources to include in the simulation.
+	// If this parameter is not provided, then the value defaults to * (all resources).
+	// Each API in the ActionNames parameter is evaluated for each resource in this
+	// list. The simulation determines the access result (allowed or denied) of
+	// each combination and reports it in the response. You can simulate resources
+	// that don't exist in your account.
 	//
 	// The simulation does not automatically retrieve policies for the specified
 	// resources. If you want to include a resource policy in the simulation, then
 	// you must include the policy as a string in the ResourcePolicy parameter.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	ResourceArns []*string `type:"list"`
 
 	// Specifies the type of simulation to run. Different API operations that support
@@ -33465,13 +36098,13 @@ type SimulatePrincipalPolicyInput struct {
 	//    subnet, volume
 	ResourceHandlingOption *string `min:"1" type:"string"`
 
-	// An AWS account ID that specifies the owner of any simulated resource that
-	// does not identify its owner in the resource ARN. Examples of resource ARNs
-	// include an S3 bucket or object. If ResourceOwner is specified, it is also
-	// used as the account owner of any ResourcePolicy included in the simulation.
-	// If the ResourceOwner parameter is not specified, then the owner of the resources
-	// and the resource policy defaults to the account of the identity provided
-	// in CallerArn. This parameter is required only if you specify a resource-based
+	// An Amazon Web Services account ID that specifies the owner of any simulated
+	// resource that does not identify its owner in the resource ARN. Examples of
+	// resource ARNs include an S3 bucket or object. If ResourceOwner is specified,
+	// it is also used as the account owner of any ResourcePolicy included in the
+	// simulation. If the ResourceOwner parameter is not specified, then the owner
+	// of the resources and the resource policy defaults to the account of the identity
+	// provided in CallerArn. This parameter is required only if you specify a resource-based
 	// policy and account that owns the resource is different from the account that
 	// owns the simulated calling user CallerArn.
 	ResourceOwner *string `min:"1" type:"string"`
@@ -33479,6 +36112,11 @@ type SimulatePrincipalPolicyInput struct {
 	// A resource-based policy to include in the simulation provided as a string.
 	// Each resource in the simulation is treated as if it had this policy attached.
 	// You can include only one resource-based policy in a simulation.
+	//
+	// The maximum length of the policy document that you can pass in this operation,
+	// including whitespace, is listed below. To view the maximum character counts
+	// of a managed policy with no whitespaces, see IAM and STS character quotas
+	// (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entity-length).
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
 	// parameter is a string of characters consisting of the following:
@@ -33494,12 +36132,20 @@ type SimulatePrincipalPolicyInput struct {
 	ResourcePolicy *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SimulatePrincipalPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SimulatePrincipalPolicyInput) GoString() string {
 	return s.String()
 }
@@ -33644,12 +36290,20 @@ type Statement struct {
 	StartPosition *Position `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Statement) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Statement) GoString() string {
 	return s.String()
 }
@@ -33697,20 +36351,28 @@ type Tag struct {
 	// number associated with the different cost centers in your company. Typically,
 	// many resources have tags with the same key name but with different values.
 	//
-	// AWS always interprets the tag Value as a single string. If you need to store
-	// an array, you can store comma-separated values in the string. However, you
-	// must interpret the value in your code.
+	// Amazon Web Services always interprets the tag Value as a single string. If
+	// you need to store an array, you can store comma-separated values in the string.
+	// However, you must interpret the value in your code.
 	//
 	// Value is a required field
 	Value *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Tag) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Tag) GoString() string {
 	return s.String()
 }
@@ -33751,9 +36413,9 @@ type TagInstanceProfileInput struct {
 
 	// The name of the IAM instance profile to which you want to add tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// InstanceProfileName is a required field
 	InstanceProfileName *string `min:"1" type:"string" required:"true"`
@@ -33765,12 +36427,20 @@ type TagInstanceProfileInput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagInstanceProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagInstanceProfileInput) GoString() string {
 	return s.String()
 }
@@ -33820,12 +36490,20 @@ type TagInstanceProfileOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagInstanceProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagInstanceProfileOutput) GoString() string {
 	return s.String()
 }
@@ -33836,9 +36514,9 @@ type TagMFADeviceInput struct {
 	// The unique identifier for the IAM virtual MFA device to which you want to
 	// add tags. For virtual MFA devices, the serial number is the same as the ARN.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// SerialNumber is a required field
 	SerialNumber *string `min:"9" type:"string" required:"true"`
@@ -33850,12 +36528,20 @@ type TagMFADeviceInput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagMFADeviceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagMFADeviceInput) GoString() string {
 	return s.String()
 }
@@ -33905,12 +36591,20 @@ type TagMFADeviceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagMFADeviceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagMFADeviceOutput) GoString() string {
 	return s.String()
 }
@@ -33920,9 +36614,9 @@ type TagOpenIDConnectProviderInput struct {
 
 	// The ARN of the OIDC identity provider in IAM to which you want to add tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// OpenIDConnectProviderArn is a required field
 	OpenIDConnectProviderArn *string `min:"20" type:"string" required:"true"`
@@ -33934,12 +36628,20 @@ type TagOpenIDConnectProviderInput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagOpenIDConnectProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagOpenIDConnectProviderInput) GoString() string {
 	return s.String()
 }
@@ -33989,12 +36691,20 @@ type TagOpenIDConnectProviderOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagOpenIDConnectProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagOpenIDConnectProviderOutput) GoString() string {
 	return s.String()
 }
@@ -34004,9 +36714,9 @@ type TagPolicyInput struct {
 
 	// The ARN of the IAM customer managed policy to which you want to add tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -34018,12 +36728,20 @@ type TagPolicyInput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagPolicyInput) GoString() string {
 	return s.String()
 }
@@ -34073,12 +36791,20 @@ type TagPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -34102,12 +36828,20 @@ type TagRoleInput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagRoleInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagRoleInput) GoString() string {
 	return s.String()
 }
@@ -34157,12 +36891,20 @@ type TagRoleOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagRoleOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagRoleOutput) GoString() string {
 	return s.String()
 }
@@ -34172,9 +36914,9 @@ type TagSAMLProviderInput struct {
 
 	// The ARN of the SAML identity provider in IAM to which you want to add tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// SAMLProviderArn is a required field
 	SAMLProviderArn *string `min:"20" type:"string" required:"true"`
@@ -34186,12 +36928,20 @@ type TagSAMLProviderInput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagSAMLProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagSAMLProviderInput) GoString() string {
 	return s.String()
 }
@@ -34241,12 +36991,20 @@ type TagSAMLProviderOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagSAMLProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagSAMLProviderOutput) GoString() string {
 	return s.String()
 }
@@ -34256,9 +37014,9 @@ type TagServerCertificateInput struct {
 
 	// The name of the IAM server certificate to which you want to add tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// ServerCertificateName is a required field
 	ServerCertificateName *string `min:"1" type:"string" required:"true"`
@@ -34270,12 +37028,20 @@ type TagServerCertificateInput struct {
 	Tags []*Tag `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagServerCertificateInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagServerCertificateInput) GoString() string {
 	return s.String()
 }
@@ -34325,12 +37091,20 @@ type TagServerCertificateOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagServerCertificateOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagServerCertificateOutput) GoString() string {
 	return s.String()
 }
@@ -34346,20 +37120,28 @@ type TagUserInput struct {
 
 	// The name of the IAM user to which you want to add tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// UserName is a required field
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagUserInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagUserInput) GoString() string {
 	return s.String()
 }
@@ -34409,12 +37191,20 @@ type TagUserOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagUserOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TagUserOutput) GoString() string {
 	return s.String()
 }
@@ -34431,14 +37221,16 @@ type TrackedActionLastAccessed struct {
 	// are actions that report activity to IAM.
 	ActionName *string `type:"string"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	LastAccessedEntity *string `min:"20" type:"string"`
 
 	// The Region from which the authenticated entity (user or role) last attempted
-	// to access the tracked action. AWS does not report unauthenticated requests.
+	// to access the tracked action. Amazon Web Services does not report unauthenticated
+	// requests.
 	//
 	// This field is null if no IAM entities attempted to access the service within
 	// the reporting period (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#service-last-accessed-reporting-period).
@@ -34446,19 +37238,27 @@ type TrackedActionLastAccessed struct {
 
 	// The date and time, in ISO 8601 date-time format (http://www.iso.org/iso/iso8601),
 	// when an authenticated entity most recently attempted to access the tracked
-	// service. AWS does not report unauthenticated requests.
+	// service. Amazon Web Services does not report unauthenticated requests.
 	//
 	// This field is null if no IAM entities attempted to access the service within
 	// the reporting period (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#service-last-accessed-reporting-period).
 	LastAccessedTime *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TrackedActionLastAccessed) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TrackedActionLastAccessed) GoString() string {
 	return s.String()
 }
@@ -34492,9 +37292,9 @@ type UntagInstanceProfileInput struct {
 
 	// The name of the IAM instance profile from which you want to remove tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// InstanceProfileName is a required field
 	InstanceProfileName *string `min:"1" type:"string" required:"true"`
@@ -34506,12 +37306,20 @@ type UntagInstanceProfileInput struct {
 	TagKeys []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagInstanceProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagInstanceProfileInput) GoString() string {
 	return s.String()
 }
@@ -34551,12 +37359,20 @@ type UntagInstanceProfileOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagInstanceProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagInstanceProfileOutput) GoString() string {
 	return s.String()
 }
@@ -34568,9 +37384,9 @@ type UntagMFADeviceInput struct {
 	// to remove tags. For virtual MFA devices, the serial number is the same as
 	// the ARN.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// SerialNumber is a required field
 	SerialNumber *string `min:"9" type:"string" required:"true"`
@@ -34582,12 +37398,20 @@ type UntagMFADeviceInput struct {
 	TagKeys []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagMFADeviceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagMFADeviceInput) GoString() string {
 	return s.String()
 }
@@ -34627,12 +37451,20 @@ type UntagMFADeviceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagMFADeviceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagMFADeviceOutput) GoString() string {
 	return s.String()
 }
@@ -34642,9 +37474,9 @@ type UntagOpenIDConnectProviderInput struct {
 
 	// The ARN of the OIDC provider in IAM from which you want to remove tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// OpenIDConnectProviderArn is a required field
 	OpenIDConnectProviderArn *string `min:"20" type:"string" required:"true"`
@@ -34656,12 +37488,20 @@ type UntagOpenIDConnectProviderInput struct {
 	TagKeys []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagOpenIDConnectProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagOpenIDConnectProviderInput) GoString() string {
 	return s.String()
 }
@@ -34701,12 +37541,20 @@ type UntagOpenIDConnectProviderOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagOpenIDConnectProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagOpenIDConnectProviderOutput) GoString() string {
 	return s.String()
 }
@@ -34717,9 +37565,9 @@ type UntagPolicyInput struct {
 	// The ARN of the IAM customer managed policy from which you want to remove
 	// tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// PolicyArn is a required field
 	PolicyArn *string `min:"20" type:"string" required:"true"`
@@ -34731,12 +37579,20 @@ type UntagPolicyInput struct {
 	TagKeys []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagPolicyInput) GoString() string {
 	return s.String()
 }
@@ -34776,12 +37632,20 @@ type UntagPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -34805,12 +37669,20 @@ type UntagRoleInput struct {
 	TagKeys []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagRoleInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagRoleInput) GoString() string {
 	return s.String()
 }
@@ -34850,12 +37722,20 @@ type UntagRoleOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagRoleOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagRoleOutput) GoString() string {
 	return s.String()
 }
@@ -34866,9 +37746,9 @@ type UntagSAMLProviderInput struct {
 	// The ARN of the SAML identity provider in IAM from which you want to remove
 	// tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// SAMLProviderArn is a required field
 	SAMLProviderArn *string `min:"20" type:"string" required:"true"`
@@ -34880,12 +37760,20 @@ type UntagSAMLProviderInput struct {
 	TagKeys []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagSAMLProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagSAMLProviderInput) GoString() string {
 	return s.String()
 }
@@ -34925,12 +37813,20 @@ type UntagSAMLProviderOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagSAMLProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagSAMLProviderOutput) GoString() string {
 	return s.String()
 }
@@ -34940,9 +37836,9 @@ type UntagServerCertificateInput struct {
 
 	// The name of the IAM server certificate from which you want to remove tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// ServerCertificateName is a required field
 	ServerCertificateName *string `min:"1" type:"string" required:"true"`
@@ -34954,12 +37850,20 @@ type UntagServerCertificateInput struct {
 	TagKeys []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagServerCertificateInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagServerCertificateInput) GoString() string {
 	return s.String()
 }
@@ -34999,12 +37903,20 @@ type UntagServerCertificateOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagServerCertificateOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagServerCertificateOutput) GoString() string {
 	return s.String()
 }
@@ -35020,20 +37932,28 @@ type UntagUserInput struct {
 
 	// The name of the IAM user from which you want to remove tags.
 	//
-	// This parameter accepts (through its regex pattern (http://wikipedia.org/wiki/regex))
-	// a string of characters that consist of upper and lowercase alphanumeric characters
-	// with no spaces. You can also include any of the following characters: =,.@-
+	// This parameter allows (through its regex pattern (http://wikipedia.org/wiki/regex))
+	// a string of characters consisting of upper and lowercase alphanumeric characters
+	// with no spaces. You can also include any of the following characters: _+=,.@-
 	//
 	// UserName is a required field
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagUserInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagUserInput) GoString() string {
 	return s.String()
 }
@@ -35073,12 +37993,20 @@ type UntagUserOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagUserOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UntagUserOutput) GoString() string {
 	return s.String()
 }
@@ -35096,8 +38024,8 @@ type UpdateAccessKeyInput struct {
 	AccessKeyId *string `min:"16" type:"string" required:"true"`
 
 	// The status you want to assign to the secret access key. Active means that
-	// the key can be used for programmatic calls to AWS, while Inactive means that
-	// the key cannot be used.
+	// the key can be used for programmatic calls to Amazon Web Services, while
+	// Inactive means that the key cannot be used.
 	//
 	// Status is a required field
 	Status *string `type:"string" required:"true" enum:"StatusType"`
@@ -35110,12 +38038,20 @@ type UpdateAccessKeyInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAccessKeyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAccessKeyInput) GoString() string {
 	return s.String()
 }
@@ -35164,12 +38100,20 @@ type UpdateAccessKeyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAccessKeyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAccessKeyOutput) GoString() string {
 	return s.String()
 }
@@ -35177,9 +38121,9 @@ func (s UpdateAccessKeyOutput) GoString() string {
 type UpdateAccountPasswordPolicyInput struct {
 	_ struct{} `type:"structure"`
 
-	// Allows all IAM users in your account to use the AWS Management Console to
-	// change their own passwords. For more information, see Letting IAM users change
-	// their own passwords (https://docs.aws.amazon.com/IAM/latest/UserGuide/HowToPwdIAMUser.html)
+	// Allows all IAM users in your account to use the Amazon Web Services Management
+	// Console to change their own passwords. For more information, see Permitting
+	// IAM users to change their own passwords (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_passwords_enable-user-change.html)
 	// in the IAM User Guide.
 	//
 	// If you do not specify a value for this parameter, then the operation uses
@@ -35187,12 +38131,22 @@ type UpdateAccountPasswordPolicyInput struct {
 	// not automatically have permissions to change their own password.
 	AllowUsersToChangePassword *bool `type:"boolean"`
 
-	// Prevents IAM users from setting a new password after their password has expired.
-	// The IAM user cannot be accessed until an administrator resets the password.
+	// Prevents IAM users who are accessing the account via the Amazon Web Services
+	// Management Console from setting a new console password after their password
+	// has expired. The IAM user cannot access the console until an administrator
+	// resets the password.
 	//
 	// If you do not specify a value for this parameter, then the operation uses
 	// the default value of false. The result is that IAM users can change their
 	// passwords after they expire and continue to sign in as the user.
+	//
+	// In the Amazon Web Services Management Console, the custom password policy
+	// option Allow users to change their own password gives IAM users permissions
+	// to iam:ChangePassword for only their user and to the iam:GetAccountPasswordPolicy
+	// action. This option does not attach a permissions policy to each user, rather
+	// the permissions are applied at the account-level for all users by IAM. IAM
+	// users with iam:ChangePassword permission and active access keys can reset
+	// their own expired console password using the CLI or API.
 	HardExpiry *bool `type:"boolean"`
 
 	// The number of days that an IAM user password is valid.
@@ -35250,12 +38204,20 @@ type UpdateAccountPasswordPolicyInput struct {
 	RequireUppercaseCharacters *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAccountPasswordPolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAccountPasswordPolicyInput) GoString() string {
 	return s.String()
 }
@@ -35337,12 +38299,20 @@ type UpdateAccountPasswordPolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAccountPasswordPolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAccountPasswordPolicyOutput) GoString() string {
 	return s.String()
 }
@@ -35352,9 +38322,9 @@ type UpdateAssumeRolePolicyInput struct {
 
 	// The policy that grants an entity permission to assume the role.
 	//
-	// You must provide policies in JSON format in IAM. However, for AWS CloudFormation
+	// You must provide policies in JSON format in IAM. However, for CloudFormation
 	// templates formatted in YAML, you can provide the policy in JSON or YAML format.
-	// AWS CloudFormation always converts a YAML policy to JSON format before submitting
+	// CloudFormation always converts a YAML policy to JSON format before submitting
 	// it to IAM.
 	//
 	// The regex pattern (http://wikipedia.org/wiki/regex) used to validate this
@@ -35382,12 +38352,20 @@ type UpdateAssumeRolePolicyInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAssumeRolePolicyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAssumeRolePolicyInput) GoString() string {
 	return s.String()
 }
@@ -35430,12 +38408,20 @@ type UpdateAssumeRolePolicyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAssumeRolePolicyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateAssumeRolePolicyOutput) GoString() string {
 	return s.String()
 }
@@ -35471,12 +38457,20 @@ type UpdateGroupInput struct {
 	NewPath *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateGroupInput) GoString() string {
 	return s.String()
 }
@@ -35525,12 +38519,20 @@ type UpdateGroupOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateGroupOutput) GoString() string {
 	return s.String()
 }
@@ -35553,8 +38555,12 @@ type UpdateLoginProfileInput struct {
 	//    return (\u000D)
 	//
 	// However, the format can be further restricted by the account administrator
-	// by setting a password policy on the AWS account. For more information, see
-	// UpdateAccountPasswordPolicy.
+	// by setting a password policy on the Amazon Web Services account. For more
+	// information, see UpdateAccountPasswordPolicy.
+	//
+	// Password is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by UpdateLoginProfileInput's
+	// String and GoString methods.
 	Password *string `min:"1" type:"string" sensitive:"true"`
 
 	// Allows this new password to be used only once by requiring the specified
@@ -35571,12 +38577,20 @@ type UpdateLoginProfileInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateLoginProfileInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateLoginProfileInput) GoString() string {
 	return s.String()
 }
@@ -35622,12 +38636,20 @@ type UpdateLoginProfileOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateLoginProfileOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateLoginProfileOutput) GoString() string {
 	return s.String()
 }
@@ -35640,7 +38662,7 @@ type UpdateOpenIDConnectProviderThumbprintInput struct {
 	// ARNs by using the ListOpenIDConnectProviders operation.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// OpenIDConnectProviderArn is a required field
 	OpenIDConnectProviderArn *string `min:"20" type:"string" required:"true"`
@@ -35652,12 +38674,20 @@ type UpdateOpenIDConnectProviderThumbprintInput struct {
 	ThumbprintList []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateOpenIDConnectProviderThumbprintInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateOpenIDConnectProviderThumbprintInput) GoString() string {
 	return s.String()
 }
@@ -35697,12 +38727,20 @@ type UpdateOpenIDConnectProviderThumbprintOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateOpenIDConnectProviderThumbprintOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateOpenIDConnectProviderThumbprintOutput) GoString() string {
 	return s.String()
 }
@@ -35721,12 +38759,20 @@ type UpdateRoleDescriptionInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateRoleDescriptionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateRoleDescriptionInput) GoString() string {
 	return s.String()
 }
@@ -35769,12 +38815,20 @@ type UpdateRoleDescriptionOutput struct {
 	Role *Role `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateRoleDescriptionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateRoleDescriptionOutput) GoString() string {
 	return s.String()
 }
@@ -35795,7 +38849,7 @@ type UpdateRoleInput struct {
 	// role. If you do not specify a value for this setting, the default maximum
 	// of one hour is applied. This setting can have a value from 1 hour to 12 hours.
 	//
-	// Anyone who assumes the role from the AWS CLI or API can use the DurationSeconds
+	// Anyone who assumes the role from the CLI or API can use the DurationSeconds
 	// API parameter or the duration-seconds CLI parameter to request a longer session.
 	// The MaxSessionDuration setting determines the maximum duration that can be
 	// requested using the DurationSeconds parameter. If users don't specify a value
@@ -35813,12 +38867,20 @@ type UpdateRoleInput struct {
 	RoleName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateRoleInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateRoleInput) GoString() string {
 	return s.String()
 }
@@ -35864,12 +38926,20 @@ type UpdateRoleOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateRoleOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateRoleOutput) GoString() string {
 	return s.String()
 }
@@ -35889,18 +38959,26 @@ type UpdateSAMLProviderInput struct {
 	// The Amazon Resource Name (ARN) of the SAML provider to update.
 	//
 	// For more information about ARNs, see Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	//
 	// SAMLProviderArn is a required field
 	SAMLProviderArn *string `min:"20" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSAMLProviderInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSAMLProviderInput) GoString() string {
 	return s.String()
 }
@@ -35947,12 +39025,20 @@ type UpdateSAMLProviderOutput struct {
 	SAMLProviderArn *string `min:"20" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSAMLProviderOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSAMLProviderOutput) GoString() string {
 	return s.String()
 }
@@ -35976,7 +39062,7 @@ type UpdateSSHPublicKeyInput struct {
 	SSHPublicKeyId *string `min:"20" type:"string" required:"true"`
 
 	// The status to assign to the SSH public key. Active means that the key can
-	// be used for authentication with an AWS CodeCommit repository. Inactive means
+	// be used for authentication with an CodeCommit repository. Inactive means
 	// that the key cannot be used.
 	//
 	// Status is a required field
@@ -35992,12 +39078,20 @@ type UpdateSSHPublicKeyInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSSHPublicKeyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSSHPublicKeyInput) GoString() string {
 	return s.String()
 }
@@ -36049,12 +39143,20 @@ type UpdateSSHPublicKeyOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSSHPublicKeyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSSHPublicKeyOutput) GoString() string {
 	return s.String()
 }
@@ -36092,12 +39194,20 @@ type UpdateServerCertificateInput struct {
 	ServerCertificateName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateServerCertificateInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateServerCertificateInput) GoString() string {
 	return s.String()
 }
@@ -36146,12 +39256,20 @@ type UpdateServerCertificateOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateServerCertificateOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateServerCertificateOutput) GoString() string {
 	return s.String()
 }
@@ -36183,12 +39301,20 @@ type UpdateServiceSpecificCredentialInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateServiceSpecificCredentialInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateServiceSpecificCredentialInput) GoString() string {
 	return s.String()
 }
@@ -36237,12 +39363,20 @@ type UpdateServiceSpecificCredentialOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateServiceSpecificCredentialOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateServiceSpecificCredentialOutput) GoString() string {
 	return s.String()
 }
@@ -36260,8 +39394,8 @@ type UpdateSigningCertificateInput struct {
 	CertificateId *string `min:"24" type:"string" required:"true"`
 
 	// The status you want to assign to the certificate. Active means that the certificate
-	// can be used for programmatic calls to AWS Inactive means that the certificate
-	// cannot be used.
+	// can be used for programmatic calls to Amazon Web Services Inactive means
+	// that the certificate cannot be used.
 	//
 	// Status is a required field
 	Status *string `type:"string" required:"true" enum:"StatusType"`
@@ -36274,12 +39408,20 @@ type UpdateSigningCertificateInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSigningCertificateInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSigningCertificateInput) GoString() string {
 	return s.String()
 }
@@ -36328,12 +39470,20 @@ type UpdateSigningCertificateOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSigningCertificateOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateSigningCertificateOutput) GoString() string {
 	return s.String()
 }
@@ -36371,12 +39521,20 @@ type UpdateUserInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateUserInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateUserInput) GoString() string {
 	return s.String()
 }
@@ -36425,12 +39583,20 @@ type UpdateUserOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateUserOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpdateUserOutput) GoString() string {
 	return s.String()
 }
@@ -36468,12 +39634,20 @@ type UploadSSHPublicKeyInput struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadSSHPublicKeyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadSSHPublicKeyInput) GoString() string {
 	return s.String()
 }
@@ -36520,12 +39694,20 @@ type UploadSSHPublicKeyOutput struct {
 	SSHPublicKey *SSHPublicKey `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadSSHPublicKeyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadSSHPublicKeyOutput) GoString() string {
 	return s.String()
 }
@@ -36604,6 +39786,10 @@ type UploadServerCertificateInput struct {
 	//    * The special characters tab (\u0009), line feed (\u000A), and carriage
 	//    return (\u000D)
 	//
+	// PrivateKey is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by UploadServerCertificateInput's
+	// String and GoString methods.
+	//
 	// PrivateKey is a required field
 	PrivateKey *string `min:"1" type:"string" required:"true" sensitive:"true"`
 
@@ -36627,12 +39813,20 @@ type UploadServerCertificateInput struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadServerCertificateInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadServerCertificateInput) GoString() string {
 	return s.String()
 }
@@ -36732,12 +39926,20 @@ type UploadServerCertificateOutput struct {
 	Tags []*Tag `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadServerCertificateOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadServerCertificateOutput) GoString() string {
 	return s.String()
 }
@@ -36782,12 +39984,20 @@ type UploadSigningCertificateInput struct {
 	UserName *string `min:"1" type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadSigningCertificateInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadSigningCertificateInput) GoString() string {
 	return s.String()
 }
@@ -36833,12 +40043,20 @@ type UploadSigningCertificateOutput struct {
 	Certificate *SigningCertificate `type:"structure" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadSigningCertificateOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UploadSigningCertificateOutput) GoString() string {
 	return s.String()
 }
@@ -36875,9 +40093,9 @@ type User struct {
 	CreateDate *time.Time `type:"timestamp" required:"true"`
 
 	// The date and time, in ISO 8601 date-time format (http://www.iso.org/iso/iso8601),
-	// when the user's password was last used to sign in to an AWS website. For
-	// a list of AWS websites that capture a user's last sign-in time, see the Credential
-	// reports (https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html)
+	// when the user's password was last used to sign in to an Amazon Web Services
+	// website. For a list of Amazon Web Services websites that capture a user's
+	// last sign-in time, see the Credential reports (https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html)
 	// topic in the IAM User Guide. If a password is used more than once in a five-minute
 	// span, only the first use is returned in this field. If the field is null
 	// (no value), then it indicates that they never signed in with a password.
@@ -36927,12 +40145,20 @@ type User struct {
 	UserName *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s User) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s User) GoString() string {
 	return s.String()
 }
@@ -36993,10 +40219,11 @@ func (s *User) SetUserName(v string) *User {
 type UserDetail struct {
 	_ struct{} `type:"structure"`
 
-	// The Amazon Resource Name (ARN). ARNs are unique identifiers for AWS resources.
+	// The Amazon Resource Name (ARN). ARNs are unique identifiers for Amazon Web
+	// Services resources.
 	//
 	// For more information about ARNs, go to Amazon Resource Names (ARNs) (https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html)
-	// in the AWS General Reference.
+	// in the Amazon Web Services General Reference.
 	Arn *string `min:"20" type:"string"`
 
 	// A list of the managed policies attached to the user.
@@ -37038,12 +40265,20 @@ type UserDetail struct {
 	UserPolicyList []*PolicyDetail `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UserDetail) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UserDetail) GoString() string {
 	return s.String()
 }
@@ -37115,6 +40350,10 @@ type VirtualMFADevice struct {
 	// The base32 seed defined as specified in RFC3548 (https://tools.ietf.org/html/rfc3548.txt).
 	// The Base32StringSeed is base64-encoded.
 	//
+	// Base32StringSeed is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by VirtualMFADevice's
+	// String and GoString methods.
+	//
 	// Base32StringSeed is automatically base64 encoded/decoded by the SDK.
 	Base32StringSeed []byte `type:"blob" sensitive:"true"`
 
@@ -37125,6 +40364,10 @@ type VirtualMFADevice struct {
 	// where $virtualMFADeviceName is one of the create call arguments. AccountName
 	// is the user name if set (otherwise, the account ID otherwise), and Base32String
 	// is the seed in base32 format. The Base32String value is base64-encoded.
+	//
+	// QRCodePNG is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by VirtualMFADevice's
+	// String and GoString methods.
 	//
 	// QRCodePNG is automatically base64 encoded/decoded by the SDK.
 	QRCodePNG []byte `type:"blob" sensitive:"true"`
@@ -37143,12 +40386,20 @@ type VirtualMFADevice struct {
 	User *User `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s VirtualMFADevice) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s VirtualMFADevice) GoString() string {
 	return s.String()
 }

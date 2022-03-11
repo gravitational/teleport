@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 package s3manager
