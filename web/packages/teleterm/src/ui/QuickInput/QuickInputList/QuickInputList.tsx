@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Label, Box, Text, Flex } from 'design';
+import { makeLabelTag } from 'teleport/components/formatters';
 import * as types from 'teleterm/ui/services/quickInput/types';
 
 const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
@@ -77,6 +78,25 @@ function SshLoginItem(props: { item: types.SuggestionSshLogin }) {
   );
 }
 
+function ServerItem(props: { item: types.SuggestionServer }) {
+  const { hostname, uri, labelsList } = props.item.data;
+  const $labels = labelsList.map((label, index) => (
+    <Label mr="1" key={index} kind="secondary">
+      {makeLabelTag(label)}
+    </Label>
+  ));
+
+  return (
+    <div>
+      <Flex alignItems="center">
+        <Box mr={2}>{hostname}</Box>
+        <Box color="text.placeholder">{uri}</Box>
+      </Flex>
+      {$labels}
+    </div>
+  );
+}
+
 function UnknownItem(props: { item: types.Suggestion }) {
   const { kind } = props.item;
   return <div>unknown kind: {kind} </div>;
@@ -124,6 +144,7 @@ const ComponentMap: Record<
 > = {
   ['suggestion.cmd']: CmdItem,
   ['suggestion.ssh-login']: SshLoginItem,
+  ['suggestion.server']: ServerItem,
 };
 
 type Props = {

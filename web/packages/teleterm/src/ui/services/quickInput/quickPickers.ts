@@ -21,6 +21,7 @@ import { CommandLauncher } from 'teleterm/ui/commandLauncher';
 import {
   QuickInputPicker,
   SuggestionCmd,
+  SuggestionServer,
   SuggestionSshLogin,
   AutocompleteResult,
 } from './types';
@@ -138,12 +139,24 @@ export class QuickCommandPicker implements QuickInputPicker {
 }
 
 export class QuickTshSshPicker implements QuickInputPicker {
-  // Taken from https://unix.stackexchange.com/a/435120
-  private sshLoginRegex = /^[a-z_]([a-z0-9_-]{0,31}|[a-z0-9_-]{0,30}\$)$/;
+  // An SSH login doesn't start with `-`, hence the special group for the first character.
+  private sshLoginRegex = /[a-z0-9_][a-z0-9_-]*/i;
+  private totalSshLoginRegex = new RegExp(
+    `^${this.sshLoginRegex.source}$`,
+    'i'
+  );
+  // For now we assume there's nothing else after user@host, so if we see any space after `@`, we
+  // don't show any matches.
+  // To support that properly, we'd need to add account for the cursor index.
+  private totalSshLoginAndHostRegex = new RegExp(
+    `^(?<loginPart>${this.sshLoginRegex.source}@)(?<hostPart>\\S*)$`,
+    'i'
+  );
 
   constructor(
     private launcher: CommandLauncher,
-    private sshLoginPicker: QuickSshLoginPicker
+    private sshLoginPicker: QuickSshLoginPicker,
+    private serverPicker: QuickServerPicker
   ) {}
 
   onFilter() {
@@ -176,7 +189,18 @@ export class QuickTshSshPicker implements QuickInputPicker {
       return this.sshLoginPicker.getAutocompleteResult('', startIndex);
     }
 
-    const loginMatch = input.match(this.sshLoginRegex);
+    const hostMatch = input.match(this.totalSshLoginAndHostRegex);
+
+    if (hostMatch) {
+      const hostStartIndex = startIndex + hostMatch.groups.loginPart.length;
+
+      return this.serverPicker.getAutocompleteResult(
+        hostMatch.groups.hostPart,
+        hostStartIndex
+      );
+    }
+
+    const loginMatch = input.match(this.totalSshLoginRegex);
 
     if (loginMatch) {
       return this.sshLoginPicker.getAutocompleteResult(
@@ -246,6 +270,42 @@ export class QuickSshLoginPicker implements QuickInputPicker {
 
   getAutocompleteResult(input: string, startIndex: number): AutocompleteResult {
     const suggestions = this.filterSshLogins(input);
+    return {
+      kind: 'autocomplete.partial-match',
+      suggestions,
+      targetToken: {
+        startIndex,
+        value: input,
+      },
+    };
+  }
+}
+
+export class QuickServerPicker implements QuickInputPicker {
+  constructor(
+    private workspacesService: WorkspacesService,
+    private clustersService: ClustersService
+  ) {}
+
+  private filterServers(input: string): SuggestionServer[] {
+    // TODO(ravicious): Use local cluster URI.
+    // TODO(ravicious): Handle the `--cluster` tsh ssh flag.
+    const rootClusterUri = this.workspacesService.getRootClusterUri();
+    const servers = this.clustersService.searchServers(rootClusterUri, {
+      search: input,
+    });
+
+    return servers.map(server => ({
+      kind: 'suggestion.server' as const,
+      token: server.hostname,
+      data: server,
+    }));
+  }
+
+  onPick(suggestion: SuggestionCmd) {}
+
+  getAutocompleteResult(input: string, startIndex: number): AutocompleteResult {
+    const suggestions = this.filterServers(input);
     return {
       kind: 'autocomplete.partial-match',
       suggestions,

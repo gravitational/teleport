@@ -43,14 +43,17 @@ export class QuickInputService extends Store<State> {
     });
 
     const sshLoginPicker = new pickers.QuickSshLoginPicker(
-      this,
+      workspacesService,
+      clustersService
+    );
+    const serverPicker = new pickers.QuickServerPicker(
       workspacesService,
       clustersService
     );
 
     this.quickCommandPicker.registerPickerForCommand(
       'tsh ssh',
-      new pickers.QuickTshSshPicker(launcher, sshLoginPicker)
+      new pickers.QuickTshSshPicker(launcher, sshLoginPicker, serverPicker)
     );
     this.quickCommandPicker.registerPickerForCommand(
       'tsh proxy db',

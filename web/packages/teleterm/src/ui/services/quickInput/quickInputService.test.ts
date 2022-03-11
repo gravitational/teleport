@@ -275,6 +275,75 @@ test("the SSH login autocomplete is shown only if there's at least one space aft
   });
 });
 
+test('getAutocompleteResult returns correct target token for an SSH host suggestion right after user@', () => {
+  mockCommandLauncherAutocompleteCommands(
+    CommandLauncherMock,
+    onlyTshSshCommand
+  );
+  jest
+    .spyOn(ClustersServiceMock.prototype, 'searchServers')
+    .mockImplementation(() => {
+      return [
+        {
+          hostname: 'bazbar',
+          name: '',
+          addr: '',
+          uri: '',
+          tunnel: false,
+          labelsList: null,
+        },
+      ];
+    });
+  const quickInputService = new QuickInputService(
+    new CommandLauncherMock(undefined),
+    new ClustersServiceMock(undefined),
+    new WorkspacesServiceMock(undefined, undefined, undefined)
+  );
+
+  const autocompleteResult =
+    quickInputService.getAutocompleteResult('tsh ssh user@');
+  expect(autocompleteResult.kind).toBe('autocomplete.partial-match');
+  expect((autocompleteResult as AutocompletePartialMatch).targetToken).toEqual({
+    value: '',
+    startIndex: 13,
+  });
+});
+
+test('getAutocompleteResult returns correct target token for a partial match on an SSH host suggestion', () => {
+  mockCommandLauncherAutocompleteCommands(
+    CommandLauncherMock,
+    onlyTshSshCommand
+  );
+  jest
+    .spyOn(ClustersServiceMock.prototype, 'searchServers')
+    .mockImplementation(() => {
+      return [
+        {
+          hostname: 'bazbar',
+          name: '',
+          addr: '',
+          uri: '',
+          tunnel: false,
+          labelsList: null,
+        },
+      ];
+    });
+  const quickInputService = new QuickInputService(
+    new CommandLauncherMock(undefined),
+    new ClustersServiceMock(undefined),
+    new WorkspacesServiceMock(undefined, undefined, undefined)
+  );
+
+  const autocompleteResult = quickInputService.getAutocompleteResult(
+    '   tsh ssh    foo@baz'
+  );
+  expect(autocompleteResult.kind).toBe('autocomplete.partial-match');
+  expect((autocompleteResult as AutocompletePartialMatch).targetToken).toEqual({
+    value: 'baz',
+    startIndex: 18,
+  });
+});
+
 test('picking a command suggestion in an empty input autocompletes the command', () => {
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),

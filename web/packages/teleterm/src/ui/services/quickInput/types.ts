@@ -1,3 +1,5 @@
+import { tsh } from 'teleterm/ui/services/clusters/types';
+
 type SuggestionBase<T, R> = {
   kind: T;
   token: string;
@@ -15,12 +17,14 @@ export type SuggestionSshLogin = SuggestionBase<
   string
 > & { appendToToken: string };
 
+export type SuggestionServer = SuggestionBase<'suggestion.server', tsh.Server>;
+
+export type Suggestion = SuggestionCmd | SuggestionSshLogin | SuggestionServer;
+
 export type QuickInputPicker = {
   onPick(suggestion: Suggestion): void;
   getAutocompleteResult(input: string, startIndex: number): AutocompleteResult;
 };
-
-export type Suggestion = SuggestionCmd | SuggestionSshLogin;
 
 export type AutocompleteToken = {
   value: string;
