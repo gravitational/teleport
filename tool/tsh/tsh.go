@@ -1930,6 +1930,9 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 
 	fmt.Printf("%vProfile URL:        %v\n", prefix, p.ProxyURL.String())
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
+	if len(p.ActiveRequests.AccessRequests) != 0 {
+		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests.AccessRequests, ", "))
+	}
 	if p.Cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", p.Cluster)
 	}
