@@ -124,8 +124,8 @@ Machine ID can join with a token or the [IAM Method](https://goteleport.com/docs
 
 Now start Machine ID using the `tbot` binary. The `tbot start` command will
 start running Machine ID in a loop, writing renewable certificates to
-`/var/lib/teleport` and the short-lived certificates your application will use
-to `/opt/machine-id`.
+`/var/lib/teleport/bot` and the short-lived certificates your application will
+use to `/opt/machine-id`.
 
 In a production environment you will want to run Machine ID in the background
 using a service manager like systemd. However, in this guide you will run it in
@@ -135,7 +135,7 @@ the foreground to better understand how it works.
   <TabItem label="Token-based Joining">
   ```code
   $ tbot start \
-     --data-dir=/var/lib/teleport \
+     --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=00000000000000000000000000000000 \
      --join-method=token \
@@ -146,7 +146,7 @@ the foreground to better understand how it works.
   <TabItem label="IAM Method">
   ```code
   $ tbot start \
-     --data-dir=/var/lib/teleport \
+     --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
@@ -158,21 +158,25 @@ the foreground to better understand how it works.
 
 Replace the following fields with values from your own cluster.
 
+<Details scope={["cloud"]} scopeOnly={true}>
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command
 - `destination-dir` is where Machine ID writes renewable certificates, which are only used by Machine ID and should not be used by applications and tools
-- `data-dir` is where Machine ID writes the short-lived certificate. This certificate should be used by applications and tools.
-<Details scope={["cloud"]} scopeOnly={true}>
-- `auth-server` is the address of your Teleport Auth Server
+- `data-dir` is where Machine ID writes the short-lived certificate. This certificate should be used by applications and tools
+- `auth-server` is the address of your Teleport Cloud Proxy Server, for example `example.teleport.sh:443`
 </Details>
 <Details scope={["oss","enterprise"]} scopeOnly={true}>
-- `auth-server` is the address of your Teleport Cloud Proxy Server
+- `token` is the token output by the `tctl bots add` command or the name of your IAM method token
+- `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command
+- `destination-dir` is where Machine ID writes renewable certificates, which are only used by Machine ID and should not be used by applications and tools
+- `data-dir` is where Machine ID writes the short-lived certificate. This certificate should be used by applications and tools
+- `auth-server` is the address of your Teleport Auth Server, for example `auth.example.com:3025`
 </Details>
 
 Now that Machine ID has successfully started, let's investigate the
 `/opt/machine-id` directory to see what was written to disk.
 
-```
+```code
 $ tree /opt/machine-id
 machine-id
 ├── key
@@ -213,32 +217,21 @@ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
 
 <Admonition type="note" title="Roles must have logins defined">
   If you see the below error, it means the user you are trying to log in as is
-  not specified under `logins` in the role you are using. If you have been
-  following along with the `access` role, run
-  `tctl get roles/access > access.yaml`, update the `logins` field, and update
-  your role with `tctl create -f access.yaml`.
+  not specified under `logins` in the role you are using.
 
   ```code
-  $ ssh -F /opt/machine-id/ssh_config root@node-name
+  $ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
   root@node-name: Permission denied (publickey).
   kex_exchange_identification: Connection closed by remote host
   ```
+
+  If you have been following along with the `access` role, do the following.
+
+  - Export the role by running `tctl get roles/access > access.yaml`
+  - Edit the `logins` field in `access.yaml`
+  - Update the role by running `tctl create -f access.yaml`
 </Admonition>
 
 Now you can replace any invocations of `ssh` with the above command to provide
 your applications and tools a machine identity that can be rotated, audited,
 and controlled with all the familiar Teleport access controls.
-
-{
-/*
-TODO(russjones): Once we have other links, include them here.
-
-## Next Steps
-
-For the next steps, dive deeper into the topics relevant to your Machine ID use-case, for example:
-
-* Check out configuration [guides](./guides.mdx).
-* See [frequently asked questions](./faq.mdx).
-
-*/
-}
