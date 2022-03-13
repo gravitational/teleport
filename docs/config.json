@@ -565,6 +565,20 @@
           "slug": "/machine-id/getting-started/"
         },
         {
+          "title": "Reference",
+          "slug": "/machine-id/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/machine-id/reference/cli/"
+            }
+          ]
+        },
+        {
           "title": "Guides",
           "slug": "/machine-id/guides/",
           "entries": [
