@@ -355,7 +355,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 
 	// add Node token generation
-	// DELETE IN 10.0. Deprecated, use /webapi/token for generating tokens of any role.
+	// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
 	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
