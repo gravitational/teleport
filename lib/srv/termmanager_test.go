@@ -42,11 +42,7 @@ func TestCTRLCPassthrough(t *testing.T) {
 	m.On()
 	r, w := io.Pipe()
 	m.AddReader("foo", r)
-
-	go func() {
-		w.Write([]byte("\x03"))
-	}()
-
+	go w.Write([]byte("\x03"))
 	buf := make([]byte, 1)
 	_, err := m.Read(buf)
 	require.NoError(t, err)
@@ -57,10 +53,7 @@ func TestCTRLCCapture(t *testing.T) {
 	m := NewTermManager()
 	r, w := io.Pipe()
 	m.AddReader("foo", r)
-
-	go func() {
-		w.Write([]byte("\x03"))
-	}()
+	go w.Write([]byte("\x03"))
 
 	select {
 	case <-m.TerminateNotifier():
