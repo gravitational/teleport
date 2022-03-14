@@ -288,21 +288,47 @@ func NewDatabaseFromElasticacheCluster(replica *elasticache.ReplicationGroup) ([
 }
 
 func newElasticacheDatabase(replica *elasticache.ReplicationGroup, metadata *types.AWS, endpoint *elasticache.Endpoint) (types.Database, error) {
-	nameSuffix := "" //TODO(jakule): fix me
-	if metadata.Elasticache.EndpointType == types.AWSRedis_ENDPOINT_READER {
-		nameSuffix = "-reader"
-	}
-
 	return types.NewDatabaseV3(types.Metadata{
-		Name: aws.StringValue(replica.ReplicationGroupId) + nameSuffix,
-		Description: fmt.Sprintf("Elasticache %s in %v (%s)", metadata.Elasticache.Mode,
-			metadata.Region, metadata.Elasticache.EndpointType),
-		Labels: labelsFromElasticache(replica, metadata),
+		Name:        elasticacheName(replica, metadata),
+		Description: elasticacheDescription(metadata),
+		Labels:      labelsFromElasticache(replica, metadata),
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
 		AWS:      *metadata,
 	})
+}
+
+func elasticacheName(replica *elasticache.ReplicationGroup, metadata *types.AWS) string {
+	nameSuffix := ""
+	if metadata.Elasticache.EndpointType == types.AWSRedis_ENDPOINT_READER {
+		nameSuffix = "-" + ElasticacheEndpointTypeReader
+	}
+
+	return aws.StringValue(replica.ReplicationGroupId) + nameSuffix
+}
+
+func elasticacheDescription(metadata *types.AWS) string {
+	var (
+		mode         string
+		endpointType string
+	)
+
+	switch metadata.Elasticache.Mode {
+	case types.AWSRedis_MODE_SINGLE:
+		mode = ElasticacheModeStandalone
+	case types.AWSRedis_MODE_CLUSTER:
+		mode = ElasticacheModeCluster
+	}
+
+	switch metadata.Elasticache.EndpointType {
+	case types.AWSRedis_ENDPOINT_PRIMARY:
+		endpointType = fmt.Sprintf("(%s endpoint)", ElasticacheEndpointTypePrimary)
+	case types.AWSRedis_ENDPOINT_READER:
+		endpointType = fmt.Sprintf("(%s endpoint)", ElasticacheEndpointTypeReader)
+	}
+
+	return fmt.Sprintf("ElastiCache %s in %v %s", mode, metadata.Region, endpointType)
 }
 
 func MetadataFromElasticacheInstance(replica *elasticache.ReplicationGroup, endpoint *elasticache.Endpoint) (*types.AWS, error) {
@@ -711,4 +737,16 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
+)
+
+const (
+	ElasticacheEndpointTypePrimary = "primary"
+
+	ElasticacheEndpointTypeReader = "reader"
+)
+
+const (
+	ElasticacheModeStandalone = "standalone"
+
+	ElasticacheModeCluster = "cluster"
 )
