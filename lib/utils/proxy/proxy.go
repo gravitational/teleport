@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"golang.org/x/crypto/ssh"
@@ -61,11 +60,6 @@ func (d directDial) dialALPNWithDeadline(network string, addr string, config *ss
 		return nil, trace.Wrap(err)
 	}
 	conf := d.tlsConfig.Clone()
-	if conf == nil {
-		conf = &tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
-		}
-	}
 	conf.ServerName = address.Host()
 	conf.InsecureSkipVerify = d.insecure
 	tlsConn, err := tls.DialWithDialer(dialer, network, addr, conf)
@@ -85,17 +79,20 @@ type Dialer interface {
 }
 
 type directDial struct {
-	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
-	tlsRoutingEnabled bool
 	// insecure is whether to skip certificate validation.
 	insecure bool
 	// tlsConfig is the TLS config to use.
 	tlsConfig *tls.Config
 }
 
+// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
+func (d directDial) tlsRoutingEnabled() bool {
+	return d.tlsConfig != nil
+}
+
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	if d.tlsRoutingEnabled {
+	if d.tlsRoutingEnabled() {
 		client, err := d.dialALPNWithDeadline(network, addr, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -111,17 +108,12 @@ func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) 
 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	if d.tlsRoutingEnabled {
+	if d.tlsRoutingEnabled() {
 		addr, err := utils.ParseAddr(address)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		conf := d.tlsConfig.Clone()
-		if conf == nil {
-			conf = &tls.Config{
-				NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
-			}
-		}
 		conf.ServerName = addr.Host()
 		conf.InsecureSkipVerify = d.insecure
 		tlsConn, err := tls.Dial("tcp", address, conf)
@@ -140,12 +132,15 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 type proxyDial struct {
 	// proxyHost is the HTTPS proxy address.
 	proxyHost string
-	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
-	tlsRoutingEnabled bool
 	// insecure is whether to skip certificate validation.
 	insecure bool
 	// tlsConfig is the TLS config to use.
 	tlsConfig *tls.Config
+}
+
+// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
+func (d proxyDial) tlsRoutingEnabled() bool {
+	return d.tlsConfig != nil
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -161,17 +156,12 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if d.tlsRoutingEnabled {
+	if d.tlsRoutingEnabled() {
 		address, err := utils.ParseAddr(address)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		conf := d.tlsConfig.Clone()
-		if conf == nil {
-			conf = &tls.Config{
-				NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
-			}
-		}
 		conf.ServerName = address.Host()
 		conf.InsecureSkipVerify = d.insecure
 		conn = tls.Client(conn, conf)
@@ -190,19 +180,14 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 	if config.Timeout > 0 {
 		pconn.SetReadDeadline(time.Now().Add(config.Timeout))
 	}
-	if d.tlsRoutingEnabled {
+	if d.tlsRoutingEnabled() {
 		address, err := utils.ParseAddr(addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		conf := d.tlsConfig.Clone()
-		if conf == nil {
-			conf = &tls.Config{
-				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-				InsecureSkipVerify: d.insecure,
-			}
-		}
 		conf.ServerName = address.Host()
+		conf.InsecureSkipVerify = d.insecure
 		pconn = tls.Client(pconn, conf)
 	}
 
@@ -218,11 +203,9 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 }
 
 type dialerOptions struct {
-	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
-	tlsRoutingEnabled bool
 	// insecureSkipTLSVerify is whether to skip certificate validation.
 	insecureSkipTLSVerify bool
-	// tlsConfig is the TLS config to use.
+	// tlsConfig is the TLS config to use for TLS routing.
 	tlsConfig *tls.Config
 }
 
@@ -230,9 +213,9 @@ type dialerOptions struct {
 type DialerOptionFunc func(options *dialerOptions)
 
 // WithALPNDialer creates a dialer that allows to Teleport running in single-port mode.
-func WithALPNDialer() DialerOptionFunc {
+func WithALPNDialer(tlsConfig *tls.Config) DialerOptionFunc {
 	return func(options *dialerOptions) {
-		options.tlsRoutingEnabled = true
+		options.tlsConfig = tlsConfig
 	}
 }
 
@@ -240,13 +223,6 @@ func WithALPNDialer() DialerOptionFunc {
 func WithInsecureSkipTLSVerify(insecure bool) DialerOptionFunc {
 	return func(options *dialerOptions) {
 		options.insecureSkipTLSVerify = insecure
-	}
-}
-
-// WithTLSConfig creates a dialer that uses a specific tls config.
-func WithTLSConfig(tlsConfig *tls.Config) DialerOptionFunc {
-	return func(options *dialerOptions) {
-		options.tlsConfig = tlsConfig
 	}
 }
 
@@ -268,17 +244,15 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	if proxyAddr == "" {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{
-			tlsRoutingEnabled: options.tlsRoutingEnabled,
-			insecure:          options.insecureSkipTLSVerify,
-			tlsConfig:         options.tlsConfig,
+			insecure:  options.insecureSkipTLSVerify,
+			tlsConfig: options.tlsConfig,
 		}
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
 	return proxyDial{
-		proxyHost:         proxyAddr,
-		tlsRoutingEnabled: options.tlsRoutingEnabled,
-		insecure:          options.insecureSkipTLSVerify,
-		tlsConfig:         options.tlsConfig,
+		proxyHost: proxyAddr,
+		insecure:  options.insecureSkipTLSVerify,
+		tlsConfig: options.tlsConfig,
 	}
 }
 

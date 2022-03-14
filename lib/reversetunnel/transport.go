@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
@@ -97,7 +99,9 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 		// address thus the ping call will always fail.
 		t.Log.Debugf("Failed to ping web proxy %q addr: %v", addr.Addr, err)
 	} else if resp.Proxy.TLSRoutingEnabled {
-		opts = append(opts, proxy.WithALPNDialer())
+		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
+			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		}))
 	}
 
 	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
