@@ -329,7 +329,7 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
-	if d.GetAWS().Elasticache.ReplicationGroupID != "" {
+	if d.GetAWS().Cache.ReplicationGroupID != "" {
 		return DatabaseTypeElasticache
 	}
 	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
@@ -427,8 +427,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if d.Spec.AWS.Elasticache.ReplicationGroupID == "" {
-			d.Spec.AWS.Elasticache.ReplicationGroupID = clusterID
+		if d.Spec.AWS.Cache.ReplicationGroupID == "" {
+			d.Spec.AWS.Cache.ReplicationGroupID = clusterID
 		}
 	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)

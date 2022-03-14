@@ -279,7 +279,8 @@ func MetadataFromElasticacheInstance(replica *elasticache.ReplicationGroup) (*ty
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
-		Elasticache: types.Elasticache{
+		Cache: types.AWSCache{
+			ServiceType:        types.AWSCache_CACHE_ELASTICACHE,
 			ReplicationGroupID: aws.StringValue(replica.ReplicationGroupId),
 		},
 		//RDS: types.RDS{
@@ -611,6 +612,7 @@ const (
 const (
 	// rdsEndpointSuffix is the RDS/Aurora endpoint suffix.
 	rdsEndpointSuffix = ".rds.amazonaws.com"
+	// awsCacheEndpointPrefix
 )
 
 const (

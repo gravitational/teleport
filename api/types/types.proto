@@ -283,8 +283,7 @@ message AWS {
     // AccountID is the AWS account ID this database belongs to.
     string AccountID = 4 [ (gogoproto.jsontag) = "account_id,omitempty" ];
 
-    Elasticache Elasticache = 5
-        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "elasticache,omitempty" ];
+    AWSCache Cache = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "cache,omitempty" ];
 }
 
 // Redshift contains AWS Redshift specific database metadata.
@@ -294,9 +293,23 @@ message Redshift {
 }
 
 // Elasticache contains AWS ElastiCache specific database metadata.
-message Elasticache {
-    // ClusterID is the Elasticache cluster identifier.
-    string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id,omitempty" ];
+message AWSCache {
+    AWSCacheType ServiceType = 1 [ (gogoproto.jsontag) = "service_type" ];
+    // ClusterID is the Elasticache/MemoryDB cluster identifier.
+    string ReplicationGroupID = 2 [ (gogoproto.jsontag) = "replication_group_id" ];
+
+    enum AWSCacheType {
+        CACHE_UNSPECIFIED = 0;
+        CACHE_ELASTICACHE = 1;
+        CACHE_MEMORYDB = 2;
+    }
+
+    enum AWSCacheEndpointType {
+        ENDPOINT_UNSPECIFIED = 0;
+        ENDPOINT_PRIMARY = 1;
+        ENDPOINT_READER = 2;
+        ENDPOINT_CONFIGURATION = 3;
+    }
 }
 
 // RDS contains AWS RDS specific database metadata.
