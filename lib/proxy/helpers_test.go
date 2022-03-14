@@ -80,7 +80,7 @@ func (s *mockProxyService) DialNode(stream clientapi.ProxyService_DialNodeServer
 }
 
 // newSelfSignedCA creates a new CA for testing.
-func newSelfSignedCA(t *testing.T) (*tlsca.CertAuthority, error) {
+func newSelfSignedCA(t *testing.T) *tlsca.CertAuthority {
 	rsaKey, err := ssh.ParseRawPrivateKey(fixtures.PEMBytes["rsa"])
 	require.NoError(t, err)
 
@@ -92,7 +92,7 @@ func newSelfSignedCA(t *testing.T) (*tlsca.CertAuthority, error) {
 	ca, err := tlsca.FromCertAndSigner(cert, rsaKey.(*rsa.PrivateKey))
 	require.NoError(t, err)
 
-	return ca, nil
+	return ca
 }
 
 // certFromIdentity creates a tls config for a given CA and identity.

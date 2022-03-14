@@ -25,15 +25,14 @@ import (
 
 // TestClientConn checks the client's connection caching capabilities
 func TestClientConn(t *testing.T) {
-	ca, err := newSelfSignedCA()
-	require.NoError(t, err)
+	ca := newSelfSignedCA(t)
 
 	client, _ := setupClient(t, ca, ca, types.RoleProxy)
 	_, _, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
 	server2, _, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
 
 	// simulate watcher finding two servers
-	err = client.updateConnections([]types.Server{def1, def2})
+	err := client.updateConnections([]types.Server{def1, def2})
 	require.NoError(t, err)
 	require.Len(t, client.conns, 2)
 
@@ -70,15 +69,14 @@ func TestClientConn(t *testing.T) {
 
 // TestClientUpdate checks the client's watcher update behaviour
 func TestClientUpdate(t *testing.T) {
-	ca, err := newSelfSignedCA()
-	require.NoError(t, err)
+	ca := newSelfSignedCA(t)
 
 	client, _ := setupClient(t, ca, ca, types.RoleProxy)
 	_, _, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
 	server2, _, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
 
 	// watcher finds two servers
-	err = client.updateConnections([]types.Server{def1, def2})
+	err := client.updateConnections([]types.Server{def1, def2})
 	require.NoError(t, err)
 	require.Len(t, client.conns, 2)
 	require.Contains(t, client.conns, "s1")
@@ -125,16 +123,13 @@ func TestClientUpdate(t *testing.T) {
 }
 
 func TestCAChange(t *testing.T) {
-	clientCA, err := newSelfSignedCA()
-	require.NoError(t, err)
-
-	serverCA, err := newSelfSignedCA()
-	require.NoError(t, err)
+	clientCA := newSelfSignedCA(t)
+	serverCA := newSelfSignedCA(t)
 
 	client, clientTLSConfig := setupClient(t, clientCA, serverCA, types.RoleProxy)
 	server, serverTLSConfig, serverDef := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
 
-	err = client.updateConnections([]types.Server{serverDef})
+	err := client.updateConnections([]types.Server{serverDef})
 	require.NoError(t, err)
 	require.Len(t, client.conns, 1)
 
@@ -147,8 +142,7 @@ func TestCAChange(t *testing.T) {
 	require.NoError(t, sendMsg(ogStream))
 
 	// server ca rotated
-	newServerCA, err := newSelfSignedCA()
-	require.NoError(t, err)
+	newServerCA := newSelfSignedCA(t)
 
 	newServerTLSConfig := certFromIdentity(t, newServerCA, tlsca.Identity{
 		Groups: []string{string(types.RoleProxy)},
@@ -185,8 +179,7 @@ func TestCAChange(t *testing.T) {
 	require.NoError(t, sendMsg(ogStream))
 
 	// client ca rotated
-	newClientCA, err := newSelfSignedCA()
-	require.NoError(t, err)
+	newClientCA := newSelfSignedCA(t)
 
 	newClientTLSConfig := certFromIdentity(t, newClientCA, tlsca.Identity{
 		Groups: []string{string(types.RoleProxy)},
