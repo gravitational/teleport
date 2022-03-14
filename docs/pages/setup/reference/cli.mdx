@@ -1331,7 +1331,7 @@ Both `tsh` and `tctl` allow you to filter node, app, db, and kube resources usin
 
 The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
 
-The `--query` flag allows you to perform more sophisticated searches using a [predicate language](#predicate-language) that is detailed in the next section.
+The `--query` flag allows you to perform more sophisticated searches using a [predicate language](predicate-language.mdx#resource-filtering).
 
 In both cases, you can further refine the results by appending a list of comma-separated labels to the command. For example:
 
@@ -1339,37 +1339,7 @@ In both cases, you can further refine the results by appending a list of comma-s
 $ tsh ls --search=foo,bar labelKey1=labelValue1,labelKey2=labelValue2
 ```
 
-### [Predicate Language](#predicate-language)
-
-The `--query` flag uses the same predicate language used else where but tailored for resources. 
-
-For common resource fields, we defined shortened field names that can easily be accessed by:
-
-| Short Field    | Actual Field                                            | Example                 |
-|----------------|---------------------------------------------------------|-------------------------|
-| labels.\<key\> | resource.metadata.labels + resource.spec.dynamic_labels | labels.env == "staging" |
-| name           | resource.metadata.name                                  | name = "jenkins"        |
-
-The language supports the following operators:
-
-| Operator | Meaning                              | Example                                             |
-|----------|--------------------------------------|-----------------------------------------------------|
-| ==       | equal to                             | `labels.env == "prod"` or `labels["env"] == "prod"` |
-| !=       | not equal to                         | `labels.env != "prod"`                              |
-| &&       | and (all conditions must match)      | `labels.env == "prod" && labels.os == "mac"`        |
-| \|\|     | or  (any one condition should match) | `labels.env == "dev" \|\| labels.env == "qa"`       |
-| !        | not (used with functions)            | `!equals(labels.env, "prod")`                       |
-
-The language also supports the following functions:
-
-| Functions (with examples)             | Description                                          |
-|---------------------------------------|------------------------------------------------------|
-| `equals(labels.env, "prod")`          | resources with label key `env` equal to `prod`       |
-| `exists(labels.env)`                  | resources with a label key `env`; value unchecked    |
-| `!exists(labels.env)`                 | resources without a label key `env`; value unchecked |
-| `search("foo", "bar", "some phrase")` | fuzzy match against common resource fields           |
-
-### Examples
+### Filter Examples
 
 The example with filters, searches for nodes with labels with key `env` equal to `staging` and key `os` equal to `mac`.
 
