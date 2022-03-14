@@ -31,7 +31,7 @@ func TestServerTLS(t *testing.T) {
 	// trusted certificates with proxy roles.
 	client1, _ := setupClient(t, ca1, ca1, types.RoleProxy)
 	_, _, serverDef1 := setupServer(t, "s1", ca1, ca1, types.RoleProxy)
-	err = client1.updateConnections([]types.Server{serverDef1})
+	err := client1.updateConnections([]types.Server{serverDef1})
 	require.NoError(t, err)
 	stream, _, err := client1.dial([]string{"s1"})
 	require.NoError(t, err)
