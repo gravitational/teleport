@@ -541,6 +541,16 @@
         {
           "title": "Getting Started",
           "slug": "/machine-id/getting-started/"
+        },
+        {
+          "title": "Guides",
+          "slug": "/machine-id/guides/",
+          "entries": [
+            {
+              "title": "Machine ID with Web Apps",
+              "slug": "/machine-id/guides/webapps/"
+            }
+          ]
         }
       ]
     },

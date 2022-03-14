@@ -1,0 +1,159 @@
+---
+title: Machine ID with Web Apps
+description: Protecting your web applications with Machine ID
+---
+
+In this guide, we will demonstrate how to use Machine ID with web applications
+to protect your database.
+
+You may already be using Teleport Database Access to protect your database
+when humans access it. Machine ID can be used to protect your data when
+machines, like web applications, access your data as well. With Machine ID you
+will be able to get the same short-lived certificates tied to a machine
+identity that can be rotated, audited, and controlled with all the familiar
+Teleport access controls.
+
+<Figure align="left" bordered caption="Machine ID and Database Access Deployment">
+  ![Machine ID and Database Access Deployment](../../img/machine-id/machine-id-webapps.png)
+</Figure>
+
+## Prerequisites
+
+You will need [Teleport Enterprise](../../enterprise/introduction.mdx) or
+[Teleport Cloud](../../cloud/introduction.mdx) >= 9.0.0 
+
+If you have not already put your database behind Teleport Database Access,
+follow the [Database Access Getting Started Guide](../../docs/pages/database-access/getting-started.mdx).
+
+If you have not already setup Machine ID, follow the
+[Machine ID Getting Started Guide](../../docs/pages/machine-id/getting-started.mdx)
+to familiarize yourself with Machine ID.
+
+## Step 1/2 Configure and start Machine ID
+
+First, determine which role(s) are needed to access your Database using
+`tctl get roles` and then use `tctl` to create a bot user with the required
+roles. In the example below, you will create a bot user `webapp` and assign
+this bot user the `database` role.
+
+Database Access supports databases like PostgreSQL, MongoDB, Redis, and much
+more. See our [Database Access Guides](../../docs/database-access/guides/) for
+full list.
+
+<Details scope={["cloud"]} scopeOnly={true}>
+On your client machine, log in to Teleport using `tsh` before using `tctl`.
+
+```code
+$ tctl bots add webapp --roles=database
+```
+</Details>
+<Details scope={["oss","enterprise"]} scopeOnly={true}>
+Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
+your system.
+
+```code
+$ tctl bots add webapp --roles=database
+```
+</Details>
+
+Machine ID also allows you to use Linux ACLs to control access to certificates
+on disk. You will use this to limit the access your web application has to the
+short-lived certificates Machine ID issues.
+
+In the example that follows, we'll work with the assumption you will be running
+Machine ID as the Linux user `teleport` and your web application as the Linux
+user `webapp`. Create and initialize the directories you will need using the
+`tbot init` command.
+
+```code
+$ tbot init \
+    --destination-dir=/opt/machine-id \
+    --bot-user=teleport \
+    --owner=teleport:teleport \
+    --reader-user=webapp \
+```
+
+Next, you will use systemd to run Machine ID in the background of each
+web application worker.
+
+First create a configuration file for Machine ID at `/etc/tbot.yaml`.
+
+<Details scope={["cloud"]} scopeOnly={true}>
+```yaml
+auth_server: "example.teleport.sh:443"
+onboarding:
+  join_method: "token"
+  token: "00000000000000000000000000000000"
+  ca_pins:
+  - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+storage:
+  directory: /var/lib/teleport/bot
+destinations:
+  - directory: /opt/machine-id
+```
+</Details>
+<Details scope={["oss","enterprise"]} scopeOnly={true}>
+```yaml
+auth_server: "auth.example.com:3025"
+onboarding:
+  join_method: "token"
+  token: "00000000000000000000000000000000"
+  ca_pins:
+  - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+storage:
+  directory: /var/lib/teleport/bot
+destinations:
+  - directory: /opt/machine-id
+```
+</Details>
+
+Next, create a systemd.unit file at `/etc/systemd/system/machine-id.service`.
+
+```systemd
+[Unit]
+Description=Teleport Machine ID Service
+After=network.target
+
+[Service]
+Type=simple
+User=teleport
+Group=teleport
+Restart=on-failure
+ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/machine-id.pid
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Finally, run the following commands to start Machine ID.
+
+```code
+$ sudo systemctl daemon-reload 
+$ sudo systemctl start machine-id
+$ sudo systemctl status machine-id
+```
+
+## Step 2/2. Update and run your application
+
+Use the below sample Go programs to test connectivity to your database.
+
+<Tabs>
+  <TabItem label="Self-Hosted PostgreSQL">
+  ```code
+  (!docs/pages/includes/machine-id/postgresql.go!)
+  ```
+  </TabItem>
+  <TabItem label="Self-Hosted MongoDB">
+  ```code
+  (!docs/pages/includes/machine-id/mongodb.go!)
+  ```
+  </TabItem>
+</Tabs>
+
+You are all set. You have provided your web application with short-lived
+certificates tied to a machine identity that can be used to access your
+database that can be rotated, audited, and controlled with all the familiar
+Teleport access controls.
