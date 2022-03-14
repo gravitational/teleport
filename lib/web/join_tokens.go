@@ -66,11 +66,13 @@ type createTokenRequest struct {
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req createTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
+		log.WithError(err).Error("error reading body")
 		return nil, trace.Wrap(err)
 	}
 
 	clt, err := ctx.GetClient()
 	if err != nil {
+		log.WithError(err).Error("error getting client")
 		return nil, trace.Wrap(err)
 	}
 
