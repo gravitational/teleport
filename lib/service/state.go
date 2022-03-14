@@ -161,7 +161,7 @@ func (f *processState) getStateLocked() componentStateEnum {
 	if numOK == f.componentCount {
 		state = stateOK
 	} else if numOK > f.componentCount {
-		f.process.log.Errorf("incorrect count of components, this is a bug!")
+		f.process.log.Errorf("incorrect count of components (found: %d; expected: %d), this is a bug!", numOK, f.componentCount)
 	}
 	return state
 }

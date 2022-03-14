@@ -62,6 +62,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -300,6 +301,53 @@ func (cfg *Config) DebugDumpToYAML() string {
 		return err.Error()
 	}
 	return string(out)
+}
+
+// ComponentsCount returns the number of components enabled.
+func (cfg *Config) ComponentCount(log logrus.FieldLogger) int {
+	componentCount := 0
+
+	if cfg.Auth.Enabled {
+		componentCount++
+		log.Infof("Auth component enabled (%d).", componentCount)
+	}
+
+	if cfg.SSH.Enabled {
+		componentCount++
+		log.Infof("SSH component enabled (%d).", componentCount)
+	}
+
+	proxyConfig := cfg.Proxy
+	if proxyConfig.Enabled {
+		componentCount++
+		log.Infof("Proxy component enabled (%d).", componentCount)
+	}
+	if proxyConfig.Kube.Enabled && !proxyConfig.Kube.ListenAddr.IsEmpty() && !proxyConfig.DisableReverseTunnel {
+		componentCount++
+		log.Infof("Proxy Kube component enabled (%d).", componentCount)
+	}
+
+	if cfg.Kube.Enabled {
+		componentCount++
+		log.Infof("Kube component enabled (%d).", componentCount)
+	}
+
+	if cfg.Apps.Enabled {
+		componentCount++
+		log.Infof("Apps component enabled (%d).", componentCount)
+	}
+
+	if cfg.Databases.Enabled {
+		componentCount++
+		log.Infof("Databases component enabled (%d).", componentCount)
+	}
+
+	if cfg.WindowsDesktop.Enabled {
+		componentCount++
+		log.Infof("WindowsDesktop component enabled (%d).", componentCount)
+	}
+
+	return componentCount
 }
 
 // CachePolicy sets caching policy for proxies and nodes
