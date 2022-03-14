@@ -502,57 +502,73 @@ func TestApplyProxySettings(t *testing.T) {
 func TestParseSearchKeywords(t *testing.T) {
 	t.Parallel()
 
-	expected := [][]string{
-		{},
-		{"foo"},
-		{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
-		{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
-	}
-
 	testCases := []struct {
-		name      string
-		delimiter rune
-		specs     []string
+		name     string
+		spec     string
+		expected []string
 	}{
 		{
-			name:      "with comma delimiter",
-			delimiter: ',',
-			specs: []string{
-				"",
-				"foo",
-				`"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
-				`"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
-			},
+			name: "empty input",
+			spec: "",
 		},
 		{
-			name: "with 0 value delimiter (fallback to comma)",
-			specs: []string{
-				"",
-				"foo",
-				`"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
-				`"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
-			},
+			name:     "simple input",
+			spec:     "foo",
+			expected: []string{"foo"},
 		},
 		{
-			name:      "with space delimiter",
-			delimiter: ' ',
-			specs: []string{
-				"",
-				"foo",
-				`foo,bar "some phrase's" baz=qux's "some other  phrase" " another one  "`,
-				`服务器环境=测试,操作系统类别 Linux  机房=华北 `,
-			},
+			name:     "complex input",
+			spec:     `"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
+			expected: []string{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
+		},
+		{
+			name:     "unicode input",
+			spec:     `"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
+			expected: []string{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
 		},
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			for i, spec := range tc.specs {
-				m := ParseSearchKeywords(spec, tc.delimiter)
-				require.Equal(t, expected[i], m)
-			}
+			m := ParseSearchKeywords(tc.spec, ',')
+			require.Equal(t, tc.expected, m)
+		})
+	}
+
+	// Test default delimiter (which is a comma)
+	m := ParseSearchKeywords("foo,bar", rune(0))
+	require.Equal(t, []string{"foo", "bar"}, m)
+}
+
+func TestParseSearchKeywords_SpaceDelimiter(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		spec     string
+		expected []string
+	}{
+		{
+			name:     "simple input",
+			spec:     "foo",
+			expected: []string{"foo"},
+		},
+		{
+			name:     "complex input",
+			spec:     `foo,bar "some phrase's" baz=qux's "some other  phrase" " another one  "`,
+			expected: []string{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
+		},
+		{
+			name:     "unicode input",
+			spec:     `服务器环境=测试,操作系统类别 Linux  机房=华北 `,
+			expected: []string{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := ParseSearchKeywords(tc.spec, ' ')
+			require.Equal(t, tc.expected, m)
 		})
 	}
 }
