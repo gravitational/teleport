@@ -351,7 +351,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// token generation
+	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+
 	// add Node token generation
+	// DELETE IN 10.0. Deprecated, use /webapi/token for generating tokens of any role.
 	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
@@ -361,10 +365,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
-	// database token generation
-	// TODO(mcbattirola): make a single endpoint to generate tokens that receives roles as parameters
-	// instead of having one endpoint for roles app/node and one for db
-	h.POST("/webapi/databases/token", h.WithAuth(h.createDatabaseJoinTokenHandle))
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
