@@ -17,7 +17,9 @@ limitations under the License.
 package srv
 
 import (
+	"io"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
@@ -33,4 +35,36 @@ func TestAtomicAlign(t *testing.T) {
 
 	verifyAlign(&m.countWritten)
 	verifyAlign(&m.countRead)
+}
+
+func TestCTRLCPassthrough(t *testing.T) {
+	m := NewTermManager()
+	m.On()
+	r, w := io.Pipe()
+	m.AddReader("foo", r)
+
+	go func() {
+		w.Write([]byte("\x03"))
+	}()
+
+	buf := make([]byte, 1)
+	_, err := m.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, []byte("\x03"), buf)
+}
+
+func TestCTRLCCapture(t *testing.T) {
+	m := NewTermManager()
+	r, w := io.Pipe()
+	m.AddReader("foo", r)
+
+	go func() {
+		w.Write([]byte("\x03"))
+	}()
+
+	select {
+	case <-m.TerminateNotifier():
+	case <-time.After(time.Second * 10):
+		t.Fatal("terminateNotifier should've seen an event")
+	}
 }
