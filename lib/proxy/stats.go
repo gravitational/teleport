@@ -78,20 +78,10 @@ func (s *statsHandler) HandleRPC(ctx context.Context, rpcStats stats.RPCStats) {
 	method, _ := ctx.Value(methodKey{}).(string)
 
 	switch rs := rpcStats.(type) {
-	case *stats.InHeader:
-		// fmt.Printf("------------------ %v in header rpc: %+v\n", rpcStats.IsClient(), v)
 	case *stats.InPayload:
-		// fmt.Printf("------------------ %v in payload rpc: %+v\n", rpcStats.IsClient(), v)
 		s.reporter.measureMessageReceived(service, method, float64(rs.WireLength))
-	case *stats.InTrailer:
-		// fmt.Printf("------------------ %v in trailer rpc: %+v\n", rpcStats.IsClient(), v)
-	case *stats.OutHeader:
-		// fmt.Printf("------------------ %v out header rpc: %+v\n", rpcStats.IsClient(), v)
 	case *stats.OutPayload:
 		s.reporter.measureMessageSent(service, method, float64(rs.WireLength))
-		// fmt.Printf("------------------ %v out payload rpc: %+v\n", rpcStats.IsClient(), v)
-	case *stats.OutTrailer:
-		// fmt.Printf("------------------ %v out trailer rpc: %+v\n", rpcStats.IsClient(), v)
 	case *stats.Begin:
 		s.reporter.incRPC(service, method)
 	case *stats.End:
