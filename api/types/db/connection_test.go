@@ -131,10 +131,10 @@ func Test_parseRedisURI(t *testing.T) {
 			errStr: "invalid Redis URI scheme",
 		},
 		{
-			name:   "empty Address",
+			name:   "empty address",
 			uri:    "",
 			want:   nil,
-			errStr: "Address is empty",
+			errStr: "address is empty",
 		},
 	}
 	for _, tt := range tests {
