@@ -535,7 +535,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	err = s.server.Auth().CreateSAMLConnector(connector)
 	c.Assert(err, IsNil)
-	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC)))
+	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
 
 	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
@@ -771,7 +771,7 @@ func TestClusterNodesGet(t *testing.T) {
 	nodes := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
 	require.Len(t, nodes.Items, 1)
-	require.Equal(t, nodes.TotalCount, 1)
+	require.Equal(t, 1, nodes.TotalCount)
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
@@ -2066,7 +2066,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
-	require.Equal(t, resp.TotalCount, 1)
+	require.Equal(t, 1, resp.TotalCount)
 	require.EqualValues(t, ui.Database{
 		Name:     "test-db-name",
 		Desc:     "test-description",
@@ -2123,7 +2123,7 @@ func TestClusterKubesGet(t *testing.T) {
 	resp = testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
-	require.Equal(t, resp.TotalCount, 1)
+	require.Equal(t, 1, resp.TotalCount)
 	require.EqualValues(t, ui.KubeCluster{
 		Name:   "test-kube-name",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -2135,10 +2135,6 @@ func TestClusterAppsGet(t *testing.T) {
 
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com")
-
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
-	require.NoError(t, err)
 
 	type testResponse struct {
 		Items      []ui.App `json:"items"`
@@ -2166,18 +2162,19 @@ func TestClusterAppsGet(t *testing.T) {
 	}
 
 	// Register a app service.
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	_, err := env.server.Auth().UpsertApplicationServer(context.Background(), resource)
 	require.NoError(t, err)
 
 	// Make the call.
-	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
-	require.Equal(t, resp.TotalCount, 1)
+	require.Equal(t, 1, resp.TotalCount)
 	require.EqualValues(t, ui.App{
 		Name:        resource.Spec.App.GetName(),
 		Description: resource.Spec.App.GetDescription(),

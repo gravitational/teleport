@@ -113,16 +113,18 @@ type KubeCluster struct {
 func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
-		uiLabels := []Label{}
+		staticLabels := cluster.GetStaticLabels()
+		dynamicLabels := cluster.GetDynamicLabels()
+		uiLabels := make([]Label, 0, len(staticLabels)+len(dynamicLabels))
 
-		for name, value := range cluster.GetStaticLabels() {
+		for name, value := range staticLabels {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: value,
 			})
 		}
 
-		for name, cmd := range cluster.GetDynamicLabels() {
+		for name, cmd := range dynamicLabels {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
 				Value: cmd.GetResult(),

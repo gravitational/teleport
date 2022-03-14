@@ -303,7 +303,7 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	// Sort is expected in format `<fieldName>:<asc|desc>` where
 	// index 0 is fieldName and index 1 is direction.
 	// If a direction is not set, or is not recognized, it defaults to ASC.
-	sortBy := types.SortBy{}
+	var sortBy types.SortBy
 	sortParam := values.Get("sort")
 	if sortParam != "" {
 		vals := strings.Split(sortParam, ":")

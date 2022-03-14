@@ -422,10 +422,9 @@ func TestListResources(t *testing.T) {
 			}
 
 			_, err = listResources(m, httpReq, types.KindNode)
-			switch tc.wantBadParamErr {
-			case true:
+			if tc.wantBadParamErr {
 				require.True(t, trace.IsBadParameter(err))
-			default:
+			} else {
 				require.NoError(t, err)
 			}
 		})
