@@ -283,7 +283,8 @@ message AWS {
     // AccountID is the AWS account ID this database belongs to.
     string AccountID = 4 [ (gogoproto.jsontag) = "account_id,omitempty" ];
 
-    AWSCache Cache = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "cache,omitempty" ];
+    AWSRedis Elasticache = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "elasticache,omitempty" ];
 }
 
 // Redshift contains AWS Redshift specific database metadata.
@@ -293,22 +294,25 @@ message Redshift {
 }
 
 // Elasticache contains AWS ElastiCache specific database metadata.
-message AWSCache {
-    AWSCacheType ServiceType = 1 [ (gogoproto.jsontag) = "service_type" ];
-    // ClusterID is the Elasticache/MemoryDB cluster identifier.
-    string ReplicationGroupID = 2 [ (gogoproto.jsontag) = "replication_group_id" ];
+message AWSRedis {
+    // ReplicationGroupID is the Elasticache/MemoryDB cluster identifier.
+    string ReplicationGroupID = 1 [ (gogoproto.jsontag) = "replication_group_id" ];
 
-    enum AWSCacheType {
-        CACHE_UNSPECIFIED = 0;
-        CACHE_ELASTICACHE = 1;
-        CACHE_MEMORYDB = 2;
-    }
+    AWSRedisEndpointType EndpointType = 2 [ (gogoproto.jsontag) = "endpoint_type" ];
 
-    enum AWSCacheEndpointType {
+    AWSRedisMode Mode = 3 [ (gogoproto.jsontag) = "mode" ];
+
+    enum AWSRedisEndpointType {
         ENDPOINT_UNSPECIFIED = 0;
         ENDPOINT_PRIMARY = 1;
         ENDPOINT_READER = 2;
         ENDPOINT_CONFIGURATION = 3;
+    }
+
+    enum AWSRedisMode {
+        MODE_UNSPECIFIED = 0;
+        MODE_SINGLE = 1;
+        MODE_CLUSTER = 2;
     }
 }
 
