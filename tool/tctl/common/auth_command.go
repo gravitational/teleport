@@ -137,15 +137,16 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
 func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+	ctx := context.Background()
 	switch cmd {
 	case a.authGenerate.FullCommand():
-		err = a.GenerateKeys()
+		err = a.GenerateKeys(ctx)
 	case a.authExport.FullCommand():
-		err = a.ExportAuthorities(client)
+		err = a.ExportAuthorities(ctx, client)
 	case a.authSign.FullCommand():
-		err = a.GenerateAndSignKeys(client)
+		err = a.GenerateAndSignKeys(ctx, client)
 	case a.authRotate.FullCommand():
-		err = a.RotateCertAuthority(client)
+		err = a.RotateCertAuthority(ctx, client)
 	default:
 		return false, nil
 	}
@@ -157,7 +158,7 @@ var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
-func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
+func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI) error {
 	var typesToExport []types.CertAuthType
 
 	// this means to export TLS authority
@@ -166,11 +167,11 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 	// "tls-host" and "tls-user" were added later to allow export of the user
 	// TLS CA.
 	case "tls", "tls-host":
-		return a.exportTLSAuthority(client, types.HostCA, false)
+		return a.exportTLSAuthority(ctx, client, types.HostCA, false)
 	case "tls-user":
-		return a.exportTLSAuthority(client, types.UserCA, false)
+		return a.exportTLSAuthority(ctx, client, types.UserCA, false)
 	case "tls-user-der", "windows":
-		return a.exportTLSAuthority(client, types.UserCA, true)
+		return a.exportTLSAuthority(ctx, client, types.UserCA, true)
 	}
 
 	// if no --type flag is given, export all types
@@ -192,7 +193,7 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 	// trusted ones)
 	var authorities []types.CertAuthority
 	for _, at := range typesToExport {
-		cas, err := client.GetCertAuthorities(at, a.exportPrivateKeys)
+		cas, err := client.GetCertAuthorities(ctx, at, a.exportPrivateKeys)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -261,12 +262,13 @@ func (a *AuthCommand) ExportAuthorities(client auth.ClientI) error {
 	return nil
 }
 
-func (a *AuthCommand) exportTLSAuthority(client auth.ClientI, typ types.CertAuthType, unpackPEM bool) error {
+func (a *AuthCommand) exportTLSAuthority(ctx context.Context, client auth.ClientI, typ types.CertAuthType, unpackPEM bool) error {
 	clusterName, err := client.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	certAuthority, err := client.GetCertAuthority(
+		ctx,
 		types.CertAuthID{Type: typ, DomainName: clusterName},
 		a.exportPrivateKeys,
 	)
@@ -299,8 +301,8 @@ func (a *AuthCommand) exportTLSAuthority(client auth.ClientI, typ types.CertAuth
 }
 
 // GenerateKeys generates a new keypair
-func (a *AuthCommand) GenerateKeys() error {
-	keygen := native.New(context.TODO(), native.PrecomputeKeys(0))
+func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
+	keygen := native.New(ctx, native.PrecomputeKeys(0))
 	defer keygen.Close()
 	privBytes, pubBytes, err := keygen.GenerateKeyPair("")
 	if err != nil {
@@ -321,23 +323,23 @@ func (a *AuthCommand) GenerateKeys() error {
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
-func (a *AuthCommand) GenerateAndSignKeys(clusterAPI auth.ClientI) error {
+func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
 	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach:
-		return a.generateDatabaseKeys(clusterAPI)
+		return a.generateDatabaseKeys(ctx, clusterAPI)
 	}
 	switch {
 	case a.genUser != "" && a.genHost == "":
-		return a.generateUserKeys(clusterAPI)
+		return a.generateUserKeys(ctx, clusterAPI)
 	case a.genUser == "" && a.genHost != "":
-		return a.generateHostKeys(clusterAPI)
+		return a.generateHostKeys(ctx, clusterAPI)
 	default:
 		return trace.BadParameter("--user or --host must be specified")
 	}
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
-func (a *AuthCommand) RotateCertAuthority(client auth.ClientI) error {
+func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client auth.ClientI) error {
 	req := auth.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
@@ -348,7 +350,7 @@ func (a *AuthCommand) RotateCertAuthority(client auth.ClientI) error {
 	} else {
 		req.Mode = types.RotationModeAuto
 	}
-	if err := client.RotateCertAuthority(req); err != nil {
+	if err := client.RotateCertAuthority(ctx, req); err != nil {
 		return err
 	}
 	if a.rotateTargetPhase != "" {
@@ -360,7 +362,7 @@ func (a *AuthCommand) RotateCertAuthority(client auth.ClientI) error {
 	return nil
 }
 
-func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
+func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	// only format=openssh is supported
 	if a.outputFormat != identityfile.FormatOpenSSH {
 		return trace.BadParameter("invalid --format flag %q, only %q is supported", a.outputFormat, identityfile.FormatOpenSSH)
@@ -387,7 +389,7 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	hostCAs, err := clusterAPI.GetCertAuthorities(types.HostCA, false)
+	hostCAs, err := clusterAPI.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -414,17 +416,17 @@ func (a *AuthCommand) generateHostKeys(clusterAPI auth.ClientI) error {
 
 // generateDatabaseKeys generates a new unsigned key and signs it with Teleport
 // CA for database access.
-func (a *AuthCommand) generateDatabaseKeys(clusterAPI auth.ClientI) error {
+func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	key, err := client.NewKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.generateDatabaseKeysForKey(clusterAPI, key)
+	return a.generateDatabaseKeysForKey(ctx, clusterAPI, key)
 }
 
 // generateDatabaseKeysForKey signs the provided unsigned key with Teleport CA
 // for database access.
-func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *client.Key) error {
+func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI auth.ClientI, key *client.Key) error {
 	principals := strings.Split(a.genHost, ",")
 	if len(principals) == 1 && principals[0] == "" {
 		return trace.BadParameter("at least one hostname must be specified via --host flag")
@@ -459,7 +461,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(clusterAPI auth.ClientI, key *c
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	resp, err := clusterAPI.GenerateDatabaseCert(context.TODO(),
+	resp, err := clusterAPI.GenerateDatabaseCert(ctx,
 		&proto.DatabaseCertRequest{
 			CSR: csr,
 			// Important to include SANs since CommonName has been deprecated
@@ -548,7 +550,7 @@ cockroach start \
 `))
 )
 
-func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
+func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	// Validate --proxy flag.
 	if err := a.checkProxyAddr(clusterAPI); err != nil {
 		return trace.Wrap(err)
@@ -578,7 +580,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	}
 	key.ClusterName = a.leafCluster
 
-	if err := a.checkKubeCluster(clusterAPI); err != nil {
+	if err := a.checkKubeCluster(ctx, clusterAPI); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -586,12 +588,12 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	var certUsage proto.UserCertsRequest_CertUsage
 
 	if a.appName != "" {
-		server, err := getApplicationServer(context.TODO(), clusterAPI, a.appName)
+		server, err := getApplicationServer(ctx, clusterAPI, a.appName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		appSession, err := clusterAPI.CreateAppSession(context.TODO(), types.CreateAppSessionRequest{
+		appSession, err := clusterAPI.CreateAppSession(ctx, types.CreateAppSessionRequest{
 			Username:    a.genUser,
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,
@@ -610,7 +612,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	}
 
 	// Request signed certs from `auth` server.
-	certs, err := clusterAPI.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
+	certs, err := clusterAPI.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey:         key.Pub,
 		Username:          a.genUser,
 		Expires:           time.Now().UTC().Add(a.genTTL),
@@ -626,7 +628,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	key.Cert = certs.SSH
 	key.TLSCert = certs.TLS
 
-	hostCAs, err := clusterAPI.GetCertAuthorities(types.HostCA, false)
+	hostCAs, err := clusterAPI.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -673,7 +675,7 @@ func (a *AuthCommand) checkLeafCluster(clusterAPI auth.ClientI) error {
 
 }
 
-func (a *AuthCommand) checkKubeCluster(clusterAPI auth.ClientI) error {
+func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.ClientI) error {
 	if a.outputFormat != identityfile.FormatKubernetes && a.kubeCluster != "" {
 		// User set --kube-cluster-name but it's not actually used for the chosen --format.
 		// Print a warning but continue.
@@ -693,7 +695,7 @@ func (a *AuthCommand) checkKubeCluster(clusterAPI auth.ClientI) error {
 		return nil
 	}
 
-	a.kubeCluster, err = kubeutils.CheckOrSetKubeCluster(context.TODO(), clusterAPI, a.kubeCluster, a.leafCluster)
+	a.kubeCluster, err = kubeutils.CheckOrSetKubeCluster(ctx, clusterAPI, a.kubeCluster, a.leafCluster)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
