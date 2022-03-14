@@ -81,18 +81,15 @@ type Dialer interface {
 type directDial struct {
 	// insecure is whether to skip certificate validation.
 	insecure bool
+	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
+	tlsRoutingEnabled bool
 	// tlsConfig is the TLS config to use.
 	tlsConfig *tls.Config
 }
 
-// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
-func (d directDial) tlsRoutingEnabled() bool {
-	return d.tlsConfig != nil
-}
-
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	if d.tlsRoutingEnabled() {
+	if d.tlsRoutingEnabled {
 		client, err := d.dialALPNWithDeadline(network, addr, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -108,7 +105,7 @@ func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) 
 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	if d.tlsRoutingEnabled() {
+	if d.tlsRoutingEnabled {
 		addr, err := utils.ParseAddr(address)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -134,13 +131,10 @@ type proxyDial struct {
 	proxyHost string
 	// insecure is whether to skip certificate validation.
 	insecure bool
+	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
+	tlsRoutingEnabled bool
 	// tlsConfig is the TLS config to use.
 	tlsConfig *tls.Config
-}
-
-// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
-func (d proxyDial) tlsRoutingEnabled() bool {
-	return d.tlsConfig != nil
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -156,7 +150,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if d.tlsRoutingEnabled() {
+	if d.tlsRoutingEnabled {
 		address, err := utils.ParseAddr(address)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -180,7 +174,7 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 	if config.Timeout > 0 {
 		pconn.SetReadDeadline(time.Now().Add(config.Timeout))
 	}
-	if d.tlsRoutingEnabled() {
+	if d.tlsRoutingEnabled {
 		address, err := utils.ParseAddr(addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -205,6 +199,8 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 type dialerOptions struct {
 	// insecureSkipTLSVerify is whether to skip certificate validation.
 	insecureSkipTLSVerify bool
+	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
+	tlsRoutingEnabled bool
 	// tlsConfig is the TLS config to use for TLS routing.
 	tlsConfig *tls.Config
 }
@@ -215,6 +211,7 @@ type DialerOptionFunc func(options *dialerOptions)
 // WithALPNDialer creates a dialer that allows to Teleport running in single-port mode.
 func WithALPNDialer(tlsConfig *tls.Config) DialerOptionFunc {
 	return func(options *dialerOptions) {
+		options.tlsRoutingEnabled = true
 		options.tlsConfig = tlsConfig
 	}
 }
@@ -244,15 +241,17 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	if proxyAddr == "" {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{
-			insecure:  options.insecureSkipTLSVerify,
-			tlsConfig: options.tlsConfig,
+			insecure:          options.insecureSkipTLSVerify,
+			tlsRoutingEnabled: options.tlsRoutingEnabled,
+			tlsConfig:         options.tlsConfig,
 		}
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
 	return proxyDial{
-		proxyHost: proxyAddr,
-		insecure:  options.insecureSkipTLSVerify,
-		tlsConfig: options.tlsConfig,
+		proxyHost:         proxyAddr,
+		insecure:          options.insecureSkipTLSVerify,
+		tlsRoutingEnabled: options.tlsRoutingEnabled,
+		tlsConfig:         options.tlsConfig,
 	}
 }
 
