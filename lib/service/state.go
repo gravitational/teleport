@@ -57,10 +57,10 @@ func init() {
 
 // processState tracks the state of the Teleport process.
 type processState struct {
-	process         *TeleportProcess
-	mu              sync.Mutex
-	states          map[string]*componentState
-	componentsCount int
+	process        *TeleportProcess
+	mu             sync.Mutex
+	states         map[string]*componentState
+	componentCount int
 }
 
 type componentState struct {
@@ -76,9 +76,9 @@ func newProcessState(process *TeleportProcess) (*processState, error) {
 	}
 
 	return &processState{
-		process:         process,
-		states:          make(map[string]*componentState),
-		componentsCount: 1, // FIXME
+		process:        process,
+		states:         make(map[string]*componentState),
+		componentCount: process.ComponentCount(),
 	}, nil
 }
 
@@ -141,7 +141,7 @@ func (f *processState) update(event Event) {
 // Note: f.mu must be locked by the caller!
 func (f *processState) getStateLocked() componentStateEnum {
 	// Return stateStarting if not all components have sent updates yet.
-	if len(f.states) < f.componentsCount {
+	if len(f.states) < f.componentCount {
 		return stateStarting
 	}
 
@@ -158,9 +158,9 @@ func (f *processState) getStateLocked() componentStateEnum {
 		}
 	}
 	// Only return stateOK if *all* components are in stateOK.
-	if numOK == f.componentsCount {
+	if numOK == f.componentCount {
 		state = stateOK
-	} else if numOK > f.componentsCount {
+	} else if numOK > f.componentCount {
 		f.process.log.Errorf("incorrect count of components, this is a bug!")
 	}
 	return state

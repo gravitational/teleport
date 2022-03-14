@@ -187,7 +187,7 @@ const (
 	// in a graceful way.
 	TeleportReloadEvent = "TeleportReload"
 
-	// TeleportPhaseChangeEvent is generated to indidate that teleport
+	// TeleportPhaseChangeEvent is generated to indicate that teleport
 	// CA rotation phase has been updated, used in tests
 	TeleportPhaseChangeEvent = "TeleportPhaseChange"
 
@@ -363,6 +363,45 @@ func (process *TeleportProcess) onHeartbeat(component string) func(err error) {
 			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
 		}
 	}
+}
+
+// ComponentsCount returns the number of components enabled.
+func (process *TeleportProcess) ComponentCount() int {
+	componentCount := 0
+
+	if process.Config.Auth.Enabled {
+		componentCount++
+	}
+
+	if process.Config.SSH.Enabled {
+		componentCount++
+	}
+
+	proxyConfig := process.Config.Proxy
+	if proxyConfig.Enabled {
+		componentCount++
+	}
+	if proxyConfig.Kube.Enabled && !proxyConfig.Kube.ListenAddr.IsEmpty() && !proxyConfig.DisableReverseTunnel {
+		componentCount++
+	}
+
+	if process.Config.Kube.Enabled {
+		componentCount++
+	}
+
+	if process.Config.Apps.Enabled {
+		componentCount++
+	}
+
+	if process.Config.Databases.Enabled {
+		componentCount++
+	}
+
+	if process.Config.WindowsDesktop.Enabled {
+		componentCount++
+	}
+
+	return componentCount
 }
 
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
