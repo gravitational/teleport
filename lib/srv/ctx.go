@@ -369,8 +369,17 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		cancel:                 cancel,
 	}
 
-	// Pre-setup log entry in case early failures need to log something.
-	child.initLogEntry()
+	fields := log.Fields{
+		"local":        child.ServerConn.LocalAddr(),
+		"remote":       child.ServerConn.RemoteAddr(),
+		"login":        child.Identity.Login,
+		"teleportUser": child.Identity.TeleportUser,
+		"id":           child.id,
+	}
+	child.Entry = log.WithFields(log.Fields{
+		trace.Component:       child.srv.Component(),
+		trace.ComponentFields: fields,
+	})
 
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
@@ -382,8 +391,17 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
 
-	// Update log entry with updated values like child.disconnectExpiredCert.
-	child.initLogEntry()
+	// Update log entry fields.
+	if !child.disconnectExpiredCert.IsZero() {
+		fields["cert"] = child.disconnectExpiredCert
+	}
+	if child.clientIdleTimeout != 0 {
+		fields["idle"] = child.clientIdleTimeout
+	}
+	child.Entry = log.WithFields(log.Fields{
+		trace.Component:       srv.Component(),
+		trace.ComponentFields: fields,
+	})
 
 	lockTargets, err := ComputeLockTargets(srv, identityContext)
 	if err != nil {
@@ -442,29 +460,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.x11rdyw)
 
 	return ctx, child, nil
-}
-
-// initLogEntry initialize log entry.
-func (c *ServerContext) initLogEntry() {
-	fields := log.Fields{
-		"login":        c.Identity.Login,
-		"teleportUser": c.Identity.TeleportUser,
-		"id":           c.id,
-	}
-	if c.ServerConn != nil {
-		fields["local"] = c.ServerConn.LocalAddr()
-		fields["remote"] = c.ServerConn.RemoteAddr()
-	}
-	if !c.disconnectExpiredCert.IsZero() {
-		fields["cert"] = c.disconnectExpiredCert
-	}
-	if c.clientIdleTimeout != 0 {
-		fields["idle"] = c.clientIdleTimeout
-	}
-	c.Entry = log.WithFields(log.Fields{
-		trace.Component:       c.srv.Component(),
-		trace.ComponentFields: fields,
-	})
 }
 
 // Parent grants access to the connection-level context of which this
