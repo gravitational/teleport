@@ -14,9 +14,10 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 
+
 */
 
-package redis
+package db
 
 import (
 	"testing"
@@ -28,74 +29,74 @@ func Test_parseRedisURI(t *testing.T) {
 	tests := []struct {
 		name   string
 		uri    string
-		want   *ConnectionOptions
+		want   *RedisConnectionOptions
 		errStr string
 	}{
 		{
 			name: "correct URI",
 			uri:  "redis://localhost:6379",
-			want: &ConnectionOptions{
-				mode:    Standalone,
-				address: "localhost",
-				port:    "6379",
+			want: &RedisConnectionOptions{
+				Mode: Standalone,
+				Host: "localhost",
+				Port: "6379",
 			},
 			errStr: "",
 		},
 		{
-			name: "correct host:port",
+			name: "correct host:Port",
 			uri:  "localhost:6379",
-			want: &ConnectionOptions{
-				mode:    Standalone,
-				address: "localhost",
-				port:    "6379",
+			want: &RedisConnectionOptions{
+				Mode: Standalone,
+				Host: "localhost",
+				Port: "6379",
 			},
 			errStr: "",
 		},
 		{
 			name: "rediss schema is accepted",
 			uri:  "rediss://localhost:6379",
-			want: &ConnectionOptions{
-				mode:    Standalone,
-				address: "localhost",
-				port:    "6379",
+			want: &RedisConnectionOptions{
+				Mode: Standalone,
+				Host: "localhost",
+				Port: "6379",
 			},
 			errStr: "",
 		},
 		{
-			name: "IP address passes",
+			name: "IP Address passes",
 			uri:  "rediss://1.2.3.4:6379",
-			want: &ConnectionOptions{
-				mode:    Standalone,
-				address: "1.2.3.4",
-				port:    "6379",
+			want: &RedisConnectionOptions{
+				Mode: Standalone,
+				Host: "1.2.3.4",
+				Port: "6379",
 			},
 			errStr: "",
 		},
 		{
 			name: "single instance explicit",
 			uri:  "redis://localhost:6379?mode=standalone",
-			want: &ConnectionOptions{
-				mode:    Standalone,
-				address: "localhost",
-				port:    "6379",
+			want: &RedisConnectionOptions{
+				Mode: Standalone,
+				Host: "localhost",
+				Port: "6379",
 			},
 			errStr: "",
 		},
 		{
 			name: "cluster enabled",
 			uri:  "redis://localhost:6379?mode=cluster",
-			want: &ConnectionOptions{
-				mode:    Cluster,
-				address: "localhost",
-				port:    "6379",
+			want: &RedisConnectionOptions{
+				Mode: Cluster,
+				Host: "localhost",
+				Port: "6379",
 			},
 			errStr: "",
 		},
 		{
-			name:   "invalid connection mode",
+			name:   "invalid connection Mode",
 			uri:    "redis://localhost:6379?mode=foo",
 			want:   nil,
-			errStr: "incorrect connection mode",
+			errStr: "incorrect connection Mode",
 		},
 		{
 			name:   "invalid connection string",
@@ -104,22 +105,22 @@ func Test_parseRedisURI(t *testing.T) {
 			errStr: "failed to parse Redis URL",
 		},
 		{
-			name: "only address default port",
+			name: "only Address default Port",
 			uri:  "localhost",
-			want: &ConnectionOptions{
-				mode:    Standalone,
-				address: "localhost",
-				port:    "6379",
+			want: &RedisConnectionOptions{
+				Mode: Standalone,
+				Host: "localhost",
+				Port: "6379",
 			},
 			errStr: "",
 		},
 		{
-			name: "default port",
+			name: "default Port",
 			uri:  "redis://localhost",
-			want: &ConnectionOptions{
-				mode:    Standalone,
-				address: "localhost",
-				port:    "6379",
+			want: &RedisConnectionOptions{
+				Mode: Standalone,
+				Host: "localhost",
+				Port: "6379",
 			},
 			errStr: "",
 		},
@@ -130,10 +131,10 @@ func Test_parseRedisURI(t *testing.T) {
 			errStr: "invalid Redis URI scheme",
 		},
 		{
-			name:   "empty address",
+			name:   "empty Address",
 			uri:    "",
 			want:   nil,
-			errStr: "address is empty",
+			errStr: "Address is empty",
 		},
 	}
 	for _, tt := range tests {

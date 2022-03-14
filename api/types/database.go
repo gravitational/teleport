@@ -24,6 +24,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/types/db"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
@@ -474,14 +475,14 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 
 // parseElasticacheEndpoint extracts cluster ID and region from the provided Elasticache endpoint.
 func parseElasticacheEndpoint(endpoint string) (clusterID, endpointType string, err error) {
-	host, _, err := net.SplitHostPort(endpoint)
+	connOpt, err := db.ParseRedisAddress(endpoint)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
 	// Elasticache endpoint looks like this:
 	// clustercfg.test-instance.dwudvg.memorydb.us-east-1.amazonaws.com
-	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, ElasticacheSuffix) || len(parts) != 7 {
+	parts := strings.Split(connOpt.Host, ".")
+	if !strings.HasSuffix(connOpt.Host, ElasticacheSuffix) || len(parts) != 7 {
 		return "", "", trace.BadParameter("failed to parse %v as Elasticache endpoint", endpoint)
 	}
 	// TODO(jakule) incorrect.....

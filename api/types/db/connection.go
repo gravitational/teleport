@@ -16,7 +16,7 @@
 
 */
 
-package redis
+package db
 
 import (
 	"net"
@@ -27,40 +27,40 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// DefaultPort is the Redis default port.
-const DefaultPort = "6379"
+// RedisDefaultPort is the Redis default Port.
+const RedisDefaultPort = "6379"
 
 const (
-	// URIScheme is a Redis scheme: https://www.iana.org/assignments/uri-schemes/prov/redis
+	// RedisURIScheme is a Redis scheme: https://www.iana.org/assignments/uri-schemes/prov/redis
 	// Teleport always uses Redis connection over TLS.
-	URIScheme = "redis"
-	// URISchemeTLS is a Redis scheme that uses TLS for database connection: https://www.iana.org/assignments/uri-schemes/prov/rediss
-	URISchemeTLS = "rediss"
+	RedisURIScheme = "redis"
+	// RedisURISchemeTLS is a Redis scheme that uses TLS for database connection: https://www.iana.org/assignments/uri-schemes/prov/rediss
+	RedisURISchemeTLS = "rediss"
 )
 
-// ConnectionMode defines the mode in which Redis is configured. Currently, supported are single and cluster.
-type ConnectionMode string
+// RedisConnectionMode defines the Mode in which Redis is configured. Currently, supported are single and cluster.
+type RedisConnectionMode string
 
 const (
-	// Standalone mode should be used when connecting to a single Redis instance.
-	Standalone ConnectionMode = "standalone"
-	// Cluster mode should be used when connecting to a Redis Cluster.
-	Cluster ConnectionMode = "cluster"
+	// Standalone Mode should be used when connecting to a single Redis instance.
+	Standalone RedisConnectionMode = "standalone"
+	// Cluster Mode should be used when connecting to a Redis Cluster.
+	Cluster RedisConnectionMode = "cluster"
 )
 
-// ConnectionOptions defines Redis connection options.
-type ConnectionOptions struct {
-	// mode defines Redis connection mode like cluster or single instance.
-	mode ConnectionMode
-	// address of Redis instance.
-	address string
-	// port on which Redis expects new connections.
-	port string
+// RedisConnectionOptions defines Redis connection options.
+type RedisConnectionOptions struct {
+	// Mode defines Redis connection Mode like cluster or single instance.
+	Mode RedisConnectionMode
+	// Host of Redis instance.
+	Host string
+	// Port on which Redis expects new connections.
+	Port string
 }
 
 // ParseRedisAddress parses a Redis connection string and returns the parsed
-// connection options like address and connection mode. If port is skipped
-// default Redis 6379 is used.
+// connection options like host, port and connection mode. If port is skipped
+// default Redis 6379 port is used.
 // Correct inputs:
 // 	rediss://redis.example.com:6379?mode=cluster
 // 	redis://redis.example.com:6379
@@ -68,7 +68,7 @@ type ConnectionOptions struct {
 //
 // Incorrect input:
 //	redis.example.com:6379?mode=cluster
-func ParseRedisAddress(addr string) (*ConnectionOptions, error) {
+func ParseRedisAddress(addr string) (*RedisConnectionOptions, error) {
 	if addr == "" {
 		return nil, trace.BadParameter("Redis address is empty")
 	}
@@ -84,10 +84,10 @@ func ParseRedisAddress(addr string) (*ConnectionOptions, error) {
 		}
 
 		switch u.Scheme {
-		case URIScheme, URISchemeTLS:
+		case RedisURIScheme, RedisURISchemeTLS:
 		default:
-			return nil, trace.BadParameter("failed to parse Redis address %q, invalid Redis URI scheme: %q. "+
-				"Expected %q or %q.", addr, u.Scheme, URIScheme, URISchemeTLS)
+			return nil, trace.BadParameter("failed to parse Redis Address %q, invalid Redis URI scheme: %q. "+
+				"Expected %q or %q.", addr, u.Scheme, RedisURIScheme, RedisURISchemeTLS)
 		}
 
 		redisURL = *u
@@ -109,39 +109,39 @@ func ParseRedisAddress(addr string) (*ConnectionOptions, error) {
 			return nil, trace.BadParameter("failed to parse Redis host: %q, error: %v", addr, err)
 		}
 
-		// Check if the port can be parsed as a number. net.SplitHostPort() doesn't guarantee that.
+		// Check if the Port can be parsed as a number. net.SplitHostPort() doesn't guarantee that.
 		_, err = strconv.Atoi(port)
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse Redis URL %q, please provide instance address in "+
-				"form address:port or rediss://address:port, error: %v", addr, err)
+				"form host:port or rediss://host:port, error: %v", addr, err)
 		}
 
 	} else {
-		port = DefaultPort
+		port = RedisDefaultPort
 		host = instanceAddr
 	}
 
 	values := redisURL.Query()
 	// Get additional connections options
 
-	// Default to the single mode.
+	// Default to the single Mode.
 	mode := Standalone
 	if values.Has("mode") {
 		connMode := strings.ToLower(values.Get("mode"))
-		switch ConnectionMode(connMode) {
+		switch RedisConnectionMode(connMode) {
 		case Standalone:
 			mode = Standalone
 		case Cluster:
 			mode = Cluster
 		default:
-			return nil, trace.BadParameter("incorrect connection mode %q, supported are: %s and %s",
+			return nil, trace.BadParameter("incorrect connection Mode %q, supported are: %s and %s",
 				connMode, Standalone, Cluster)
 		}
 	}
 
-	return &ConnectionOptions{
-		mode:    mode,
-		address: host,
-		port:    port,
+	return &RedisConnectionOptions{
+		Mode: mode,
+		Host: host,
+		Port: port,
 	}, nil
 }

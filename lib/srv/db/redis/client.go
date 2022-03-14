@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/api/types/db"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/trace"
 )
@@ -87,21 +88,21 @@ type clusterClient struct {
 	redis.ClusterClient
 }
 
-// newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
+// newClient creates a new Redis client based on given RedisConnectionMode. If connection mode is not supported
 // an error is returned.
-func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsConfig *tls.Config, username, password string) (redis.UniversalClient, error) {
-	connectionAddr := net.JoinHostPort(connectionOptions.address, connectionOptions.port)
+func newClient(ctx context.Context, connectionOptions *db.RedisConnectionOptions, tlsConfig *tls.Config, username, password string) (redis.UniversalClient, error) {
+	connectionAddr := net.JoinHostPort(connectionOptions.Host, connectionOptions.Port)
 	// TODO(jakub): Use system CA bundle if connecting to AWS.
 	// TODO(jakub): Investigate Redis Sentinel.
-	switch connectionOptions.mode {
-	case Standalone:
+	switch connectionOptions.Mode {
+	case db.Standalone:
 		return redis.NewClient(&redis.Options{
 			Addr:      connectionAddr,
 			TLSConfig: tlsConfig,
 			Username:  username,
 			Password:  password,
 		}), nil
-	case Cluster:
+	case db.Cluster:
 		client := &clusterClient{
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
 				Addrs:     []string{connectionAddr},
@@ -116,7 +117,7 @@ func newClient(ctx context.Context, connectionOptions *ConnectionOptions, tlsCon
 		return client, nil
 	default:
 		// We've checked that while validating the config, but checking again can help with regression.
-		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
+		return nil, trace.BadParameter("incorrect connection mode %s", connectionOptions.Mode)
 	}
 }
 

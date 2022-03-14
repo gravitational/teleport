@@ -37,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/db"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -53,7 +54,6 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -797,7 +797,7 @@ func (d *Database) CheckAndSetDefaults() error {
 			}
 		}
 	} else if d.Protocol == defaults.ProtocolRedis {
-		_, err := redis.ParseRedisAddress(d.URI)
+		_, err := db.ParseRedisAddress(d.URI)
 		if err != nil {
 			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
 		}

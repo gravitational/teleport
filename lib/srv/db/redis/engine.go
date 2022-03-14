@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/db"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -199,7 +200,7 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		return nil, trace.Wrap(err)
 	}
 
-	connectionOptions, err := ParseRedisAddress(sessionCtx.Database.GetURI())
+	connectionOptions, err := db.ParseRedisAddress(sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
