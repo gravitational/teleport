@@ -95,20 +95,22 @@ func (f *elasticacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 			continue
 		}
 
-		database, err := services.NewDatabaseFromElasticacheCluster(cluster)
+		ecDatabases, err := services.NewDatabaseFromElasticacheCluster(cluster)
 		if err != nil {
 			f.log.Infof("Could not convert elasticache cluster %q to database resource: %v.",
 				aws.StringValue(cluster.ReplicationGroupId), err)
 			continue
 		}
 
-		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
-		if err != nil {
-			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
-		} else if match {
-			databases = append(databases, database)
-		} else {
-			f.log.Debugf("%v doesn't match selector.", database)
+		for _, database := range ecDatabases {
+			match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
+			if err != nil {
+				f.log.Warnf("Failed to match %v against selector: %v.", database, err)
+			} else if match {
+				databases = append(databases, database)
+			} else {
+				f.log.Debugf("%v doesn't match selector.", database)
+			}
 		}
 	}
 	return databases, nil

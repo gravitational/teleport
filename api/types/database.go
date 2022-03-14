@@ -479,6 +479,10 @@ func parseElasticacheEndpoint(endpoint string) (clusterID, endpointType string, 
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
+	// TODO(jakule): map regionAndAz to AWS region:
+	// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/GettingStarted.ConnectToCacheNode.html
+	// https://docs.aws.amazon.com/ram/latest/userguide/working-with-az-ids.html
+
 	// Elasticache endpoint looks like this:
 	// clustercfg.test-instance.dwudvg.memorydb.us-east-1.amazonaws.com
 	parts := strings.Split(connOpt.Host, ".")

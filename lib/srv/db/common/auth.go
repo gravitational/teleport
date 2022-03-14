@@ -194,21 +194,7 @@ func (a *dbAuth) GetElasticacheAuthToken(sessionCtx *Session) (string, string, e
 		UserId:             aws.String(sessionCtx.DatabaseUser),
 		Passwords:          []*string{aws.String(password)},
 	})
-	// ref: https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth.html
-	//resp, err := elasticache.New(awsSession).ModifyReplicationGroup(&elasticache.ModifyReplicationGroupInput{
-	//	ReplicationGroupId: aws.String(sessionCtx.Database.GetAWS().Elasticache.ReplicationGroupID),
-	//	AuthToken:          aws.String("testPass"), //TODO(jakule): generate password
-	//	ApplyImmediately:   aws.Bool(true),
-	//	//ClusterIdentifier: aws.String(sessionCtx.Database.GetAWS().Redshift.ClusterID),
-	//	//DbUser:            aws.String(sessionCtx.DatabaseUser),
-	//	//DbName:            aws.String(sessionCtx.DatabaseName),
-	//	//// TODO(r0mant): Do not auto-create database account if DbUser doesn't
-	//	//// exist for now, but it may be potentially useful in future.
-	//	//AutoCreate: aws.Bool(false),
-	//	//// TODO(r0mant): List of additional groups DbUser will join for the
-	//	//// session. Do we need to let people control this?
-	//	//DbGroups: []*string{},
-	//})
+
 	if err != nil {
 		return "", "", trace.AccessDenied(`Could not generate ElastiCache IAM auth token:
 
@@ -222,7 +208,6 @@ propagate):
 `, err, sessionCtx.Database.GetIAMPolicy())
 	}
 	return *resp.UserId, password, nil
-	//return *resp., *resp.DbPassword, nil
 }
 
 // GetCloudSQLAuthToken returns authorization token that will be used as a

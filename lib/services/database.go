@@ -237,33 +237,67 @@ func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, 
 	})
 }
 
-func NewDatabaseFromElasticacheCluster(replica *elasticache.ReplicationGroup) (types.Database, error) {
-	var endpoint *elasticache.Endpoint
+func NewDatabaseFromElasticacheCluster(replica *elasticache.ReplicationGroup) ([]types.Database, error) {
+	databases := make([]types.Database, 0)
 
 	if replica.ConfigurationEndpoint != nil {
-		endpoint = replica.ConfigurationEndpoint
-	}
-
-	for _, nodeGroup := range replica.NodeGroups {
-		if nodeGroup.PrimaryEndpoint != nil {
-			endpoint = nodeGroup.PrimaryEndpoint
-			break
+		metadata, err := MetadataFromElasticacheInstance(replica, nil) // TODO: fix me
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		if nodeGroup.ReaderEndpoint != nil {
-			endpoint = nodeGroup.ReaderEndpoint
+		database, err := newElasticacheDatabase(replica, metadata, replica.ConfigurationEndpoint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		databases = append(databases, database)
+	} else {
+		addEndpoint := func(nodeGroup *elasticache.NodeGroup, endpoint *elasticache.Endpoint) error {
+			metadata, err := MetadataFromElasticacheInstance(replica, endpoint) // TODO refactor
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			database, err := newElasticacheDatabase(replica, metadata, endpoint)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			databases = append(databases, database)
+
+			return nil
+		}
+
+		for _, nodeGroup := range replica.NodeGroups {
+			if nodeGroup.PrimaryEndpoint != nil {
+				if err := addEndpoint(nodeGroup, nodeGroup.PrimaryEndpoint); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+
+			if nodeGroup.ReaderEndpoint != nil {
+				if err := addEndpoint(nodeGroup, nodeGroup.ReaderEndpoint); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 		}
 	}
 
-	metadata, err := MetadataFromElasticacheInstance(replica)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	return databases, nil
+}
+
+func newElasticacheDatabase(replica *elasticache.ReplicationGroup, metadata *types.AWS, endpoint *elasticache.Endpoint) (types.Database, error) {
+	nameSuffix := "" //TODO(jakule): fix me
+	if metadata.Elasticache.EndpointType == types.AWSRedis_ENDPOINT_READER {
+		nameSuffix = "-reader"
 	}
 
 	return types.NewDatabaseV3(types.Metadata{
-		Name:        aws.StringValue(replica.ReplicationGroupId),
-		Description: fmt.Sprintf("Elasticache cluster in %v", metadata.Region),
-		//Labels:      labelsFromRedshiftCluster(cluster, metadata),
+		Name: aws.StringValue(replica.ReplicationGroupId) + nameSuffix,
+		Description: fmt.Sprintf("Elasticache %s in %v (%s)", metadata.Elasticache.Mode,
+			metadata.Region, metadata.Elasticache.EndpointType),
+		Labels: labelsFromElasticache(replica, metadata),
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
@@ -271,23 +305,38 @@ func NewDatabaseFromElasticacheCluster(replica *elasticache.ReplicationGroup) (t
 	})
 }
 
-func MetadataFromElasticacheInstance(replica *elasticache.ReplicationGroup) (*types.AWS, error) {
+func MetadataFromElasticacheInstance(replica *elasticache.ReplicationGroup, endpoint *elasticache.Endpoint) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(replica.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var endpointType types.AWSRedis_AWSRedisEndpointType
+
+	switch {
+	case replica.ConfigurationEndpoint != nil:
+		endpointType = types.AWSRedis_ENDPOINT_CONFIGURATION
+	case strings.HasPrefix(aws.StringValue(endpoint.Address), "master"):
+		endpointType = types.AWSRedis_ENDPOINT_PRIMARY
+	case strings.HasPrefix(aws.StringValue(endpoint.Address), "replica"):
+		endpointType = types.AWSRedis_ENDPOINT_READER
+	}
+
+	clusterEnabled := aws.BoolValue(replica.ClusterEnabled)
+	mode := types.AWSRedis_MODE_SINGLE
+
+	if clusterEnabled {
+		mode = types.AWSRedis_MODE_CLUSTER
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		Elasticache: types.AWSRedis{
+			EndpointType:       endpointType,
 			ReplicationGroupID: aws.StringValue(replica.ReplicationGroupId),
+			Mode:               mode,
 		},
-		//RDS: types.RDS{
-		//	InstanceID: aws.StringValue(replica.ReplicationGroupId),
-		//	//ClusterID:  aws.StringValue(replica.),
-		//	//ResourceID: aws.StringValue(replica.Re),
-		//	//IAMAuth:    aws.BoolValue(replica.),
-		//},
 	}, nil
 }
 
@@ -401,6 +450,13 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 		}
 	}
 	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelAccountID] = meta.AccountID
+	labels[labelRegion] = meta.Region
+	return labels
+}
+
+func labelsFromElasticache(replica *elasticache.ReplicationGroup, meta *types.AWS) map[string]string {
+	labels := make(map[string]string)
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
 	return labels

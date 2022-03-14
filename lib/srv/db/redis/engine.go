@@ -200,9 +200,36 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		return nil, trace.Wrap(err)
 	}
 
-	connectionOptions, err := db.ParseRedisAddress(sessionCtx.Database.GetURI())
-	if err != nil {
-		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
+	var connectionOptions *db.RedisConnectionOptions
+
+	if sessionCtx.Database.IsElastiCache() {
+		elasticOptions := sessionCtx.Database.GetAWS().Elasticache
+		host, port, err := net.SplitHostPort(sessionCtx.Database.GetURI())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var connectionMode db.RedisConnectionMode
+
+		switch elasticOptions.Mode {
+		case types.AWSRedis_MODE_SINGLE:
+			connectionMode = db.Standalone
+		case types.AWSRedis_MODE_CLUSTER:
+			connectionMode = db.Cluster
+		default:
+			return nil, trace.BadParameter("unknown AWS Redis connection mode: %s", elasticOptions.Mode)
+		}
+
+		connectionOptions = &db.RedisConnectionOptions{
+			Mode: connectionMode,
+			Host: host,
+			Port: port,
+		}
+	} else {
+		connectionOptions, err = db.ParseRedisAddress(sessionCtx.Database.GetURI())
+		if err != nil {
+			return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
+		}
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
