@@ -21,7 +21,8 @@ export type KeyboardShortcutType =
   | 'tab-previous'
   | 'tab-next'
   | 'focus-global-search'
-  | 'toggle-connections';
+  | 'toggle-connections'
+  | 'toggle-clusters';
 
 export type KeyboardShortcutsConfig = Record<KeyboardShortcutType, string>;
 
@@ -43,7 +44,8 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'tab-previous': 'Control-Shift-Tab',
         'tab-next': 'Control-Tab',
         'focus-global-search': 'F1',
-        'toggle-connections': 'Command-O'
+        'toggle-connections': 'Command-O',
+        'toggle-clusters': 'Command-E',
       };
 
       const linuxShortcuts: KeyboardShortcutsConfig = {
@@ -61,7 +63,8 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'tab-previous': 'Ctrl-PageUp',
         'tab-next': 'Ctrl-PageDown',
         'focus-global-search': 'F1',
-        'toggle-connections': 'Ctrl-O'
+        'toggle-connections': 'Ctrl-O',
+        'toggle-clusters': 'Ctrl-E',
       };
 
       switch (platform) {

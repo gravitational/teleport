@@ -1,9 +1,17 @@
-import React, { createContext, FC, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  FC,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 export type RunActiveItemHandler = () => void;
 
 export const KeyboardArrowsNavigationContext = createContext<{
   activeIndex: number;
+  setActiveIndex(index: number): void;
   addItem(index: number, onRunActiveItem: RunActiveItemHandler): void;
   removeItem(index: number): void;
 }>(null);
@@ -16,29 +24,34 @@ enum KeyboardArrowNavigationKeys {
 
 export const KeyboardArrowsNavigation: FC = props => {
   const [items, setItems] = useState<RunActiveItemHandler[]>([]);
-  const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
 
-  function addItem(index: number, onRunActiveItem: RunActiveItemHandler): void {
-    setItems(prevItems => {
-      const newItems = [...prevItems];
-      if (newItems[index] === onRunActiveItem) {
-        throw new Error(
-          'Tried to override an index with the same `onRunActiveItem()` callback.'
-        );
-      }
-      newItems[index] = onRunActiveItem;
-      return newItems;
-    });
-  }
+  const addItem = useCallback(
+    (index: number, onRun: RunActiveItemHandler): void => {
+      setItems(prevItems => {
+        const newItems = [...prevItems];
+        if (newItems[index] === onRun) {
+          throw new Error(
+            'Tried to override an index with the same `onRun()` callback.'
+          );
+        }
+        newItems[index] = onRun;
+        return newItems;
+      });
+    },
+    [setItems]
+  );
 
-  function removeItem(index: number): void {
-    setItems(prevItems => {
-      const newItems = [...prevItems];
-      newItems[index] = undefined;
-      return newItems;
-    });
-    setActiveIndex(0);
-  }
+  const removeItem = useCallback(
+    (index: number): void => {
+      setItems(prevItems => {
+        const newItems = [...prevItems];
+        newItems[index] = undefined;
+        return newItems;
+      });
+    },
+    [setItems, setActiveIndex]
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -55,7 +68,7 @@ export const KeyboardArrowsNavigation: FC = props => {
           setActiveIndex(getPreviousIndex(items, activeIndex));
           break;
         case 'Enter':
-          items[activeIndex]();
+          items[activeIndex]?.();
       }
     };
 
@@ -63,10 +76,18 @@ export const KeyboardArrowsNavigation: FC = props => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [items, setActiveIndex, activeIndex]);
 
+  const value = useMemo(
+    () => ({
+      addItem,
+      removeItem,
+      activeIndex,
+      setActiveIndex,
+    }),
+    [addItem, removeItem, activeIndex, setActiveIndex]
+  );
+
   return (
-    <KeyboardArrowsNavigationContext.Provider
-      value={{ addItem, removeItem, activeIndex }}
-    >
+    <KeyboardArrowsNavigationContext.Provider value={value}>
       {props.children}
     </KeyboardArrowsNavigationContext.Provider>
   );

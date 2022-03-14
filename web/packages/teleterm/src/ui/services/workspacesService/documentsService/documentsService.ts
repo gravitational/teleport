@@ -16,14 +16,15 @@ limitations under the License.
 
 import { unique } from 'teleterm/ui/utils/uid';
 import {
-  DocumentTshKube,
-  Document,
-  DocumentGateway,
-  DocumentTshNode,
+  CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
+  Document,
   DocumentCluster,
+  DocumentGateway,
+  DocumentTshKube,
+  DocumentTshNode,
 } from './types';
-import { routing, paths } from 'teleterm/ui/uri';
+import { paths, routing } from 'teleterm/ui/uri';
 
 export class DocumentsService {
   constructor(
@@ -31,7 +32,6 @@ export class DocumentsService {
     private setState: (
       draftState: (draft: { documents: Document[]; location: string }) => void
     ) => void,
-    private clusterUri: string
   ) {}
 
   open(docUri: string) {
@@ -46,12 +46,12 @@ export class DocumentsService {
     this.setLocation(docUri);
   }
 
-  createClusterDocument(): DocumentCluster {
+  createClusterDocument(opts: CreateClusterDocumentOpts): DocumentCluster {
     const uri = routing.getDocUri({ docId: unique() });
-    const clusterName = routing.parseClusterName(this.clusterUri);
+    const clusterName = routing.parseClusterName(opts.clusterUri);
     return {
       uri,
-      clusterUri: this.clusterUri,
+      clusterUri: opts.clusterUri,
       title: clusterName,
       kind: 'doc.cluster',
     };

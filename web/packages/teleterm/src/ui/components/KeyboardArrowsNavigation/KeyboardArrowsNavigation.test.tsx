@@ -1,7 +1,35 @@
-import React, { useCallback } from 'react';
-import { fireEvent, render } from 'design/utils/testing';
+import React, {
+  forwardRef,
+  ReactNode,
+  useCallback,
+  useImperativeHandle,
+} from 'react';
+import { act, fireEvent, render } from 'design/utils/testing';
 import { KeyboardArrowsNavigation } from './KeyboardArrowsNavigation';
-import { useKeyboardArrowsNavigation } from './useKeyboardArrowsNavigation';
+import {
+  useKeyboardArrowsNavigation,
+  useKeyboardArrowsNavigationStateUpdate,
+} from './useKeyboardArrowsNavigation';
+
+function createTextItem(index: number, isActive: boolean) {
+  return `Index: ${index} active ${isActive.toString()}`;
+}
+
+function getAllItemsText(activeIndex: number, length: number) {
+  return Array.from(new Array(length))
+    .fill(0)
+    .map((_, index) => createTextItem(index, index === activeIndex))
+    .join('');
+}
+
+function TestItem(props: { index: number }) {
+  const { isActive } = useKeyboardArrowsNavigation({
+    index: props.index,
+    onRun: useCallback(() => {}, []),
+  });
+
+  return <>{createTextItem(props.index, isActive)}</>;
+}
 
 test('context should render provided children', () => {
   const { getByText } = render(
@@ -13,27 +41,17 @@ test('context should render provided children', () => {
   expect(getByText('Children')).toBeVisible();
 });
 
-describe('should go through navigation items', () => {
-  function createTextItem(index: number, isActive: boolean) {
-    return `Index: ${index} active ${isActive.toString()}`;
-  }
+test('none of items is active by default', () => {
+  const { container } = render(
+    <KeyboardArrowsNavigation>
+      <TestItem index={0} />
+    </KeyboardArrowsNavigation>
+  );
 
-  function TestItem(props: { index: number }) {
-    const { isActive } = useKeyboardArrowsNavigation({
-      index: props.index,
-      onRunActiveItem: useCallback(() => {}, []),
-    });
+  expect(container).toHaveTextContent(getAllItemsText(-1, 1));
+});
 
-    return <>{createTextItem(props.index, isActive)}</>;
-  }
-
-  function getAllItemsText(activeIndex: number, length: number) {
-    return Array.from(new Array(length))
-      .fill(0)
-      .map((_, index) => createTextItem(index, index === activeIndex))
-      .join('');
-  }
-
+describe('go through navigation items', () => {
   test('in down direction', () => {
     const { container } = render(
       <KeyboardArrowsNavigation>
@@ -43,6 +61,7 @@ describe('should go through navigation items', () => {
       </KeyboardArrowsNavigation>
     );
 
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
 
     fireEvent.keyDown(window, { key: 'ArrowDown' });
@@ -64,6 +83,7 @@ describe('should go through navigation items', () => {
       </KeyboardArrowsNavigation>
     );
 
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
 
     fireEvent.keyDown(window, { key: 'ArrowUp' });
@@ -77,13 +97,13 @@ describe('should go through navigation items', () => {
   });
 });
 
-test('should fire action on active item when Enter is pressed', () => {
+test('fire action on active item when Enter is pressed', () => {
   const firstItemCallback = jest.fn();
 
   function TestItem(props: { index: number; onRunActiveItem(): void }) {
     useKeyboardArrowsNavigation({
       index: props.index,
-      onRunActiveItem: props.onRunActiveItem,
+      onRun: props.onRunActiveItem,
     });
 
     return <>Test item</>;
@@ -94,6 +114,36 @@ test('should fire action on active item when Enter is pressed', () => {
       <TestItem index={0} onRunActiveItem={firstItemCallback} />
     </KeyboardArrowsNavigation>
   );
+
+  fireEvent.keyDown(window, { key: 'ArrowDown' });
   fireEvent.keyDown(window, { key: 'Enter' });
   expect(firstItemCallback).toHaveBeenCalledWith();
+});
+
+test('activeIndex can be changed manually', () => {
+  const Container = forwardRef<any, { children: ReactNode }>(
+    (props, forwardedRef) => {
+      const { setActiveIndex } = useKeyboardArrowsNavigationStateUpdate();
+
+      useImperativeHandle(forwardedRef, () => ({
+        setActiveIndex,
+      }));
+
+      return <>{props.children}</>;
+    }
+  );
+
+  const ref = React.createRef<any>();
+
+  const { container } = render(
+    <KeyboardArrowsNavigation>
+      <Container ref={ref}>
+        <TestItem index={0} />
+        <TestItem index={1} />
+      </Container>
+    </KeyboardArrowsNavigation>
+  );
+
+  act(() => ref.current.setActiveIndex(1));
+  expect(container).toHaveTextContent(getAllItemsText(1, 2));
 });

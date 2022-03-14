@@ -108,7 +108,7 @@ const commands = {
       if (doc) {
         documentsService.open(doc.uri);
       } else {
-        const newDoc = documentsService.createClusterDocument();
+        const newDoc = documentsService.createClusterDocument({ clusterUri });
         documentsService.add(newDoc);
         documentsService.open(newDoc.uri);
       }

@@ -14,20 +14,17 @@ export const ListItem = styled.li`
   font-weight: ${props => props.theme.regular};
   font-family: ${props => props.theme.font};
   color: ${props => props.theme.colors.text.primary};
-  height: 36px;
+  height: 34px;
   background: inherit;
   border: none;
   border-radius: 4px;
 
   background: ${props =>
-    props.isActive ? props.theme.colors.primary.light : null};
-
-  &:hover {
-    background: ${props => props.theme.colors.primary.light};
-  }
+          props.isActive ? 'rgba(255, 255, 255, 0.05)' : null};
 
   &:focus,
   &:hover {
+    background: rgba(255, 255, 255, 0.05);
     color: ${props => props.theme.colors.primary.contrastText};
   }
 `;

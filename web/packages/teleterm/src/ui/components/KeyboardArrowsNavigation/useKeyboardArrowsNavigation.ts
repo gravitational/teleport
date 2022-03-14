@@ -1,21 +1,21 @@
-import React, { useEffect } from 'react';
+import { useContext, useEffect } from 'react';
 import {
   KeyboardArrowsNavigationContext,
   RunActiveItemHandler,
 } from './KeyboardArrowsNavigation';
 
 /**
- * onRunActiveItem must be memoized
+ * onRun must be memoized
  */
 
 export function useKeyboardArrowsNavigation({
   index,
-  onRunActiveItem,
+  onRun,
 }: {
   index: number;
-  onRunActiveItem: RunActiveItemHandler;
+  onRun: RunActiveItemHandler;
 }) {
-  const navigationContext = React.useContext(KeyboardArrowsNavigationContext);
+  const navigationContext = useContext(KeyboardArrowsNavigationContext);
 
   if (!navigationContext) {
     throw new Error(
@@ -24,12 +24,18 @@ export function useKeyboardArrowsNavigation({
   }
 
   useEffect(() => {
-    navigationContext.addItem(index, onRunActiveItem);
+    navigationContext.addItem(index, onRun);
 
     return () => navigationContext.removeItem(index);
-  }, [index, onRunActiveItem]);
+  }, [index, onRun, navigationContext.addItem, navigationContext.removeItem]);
 
   return {
     isActive: index === navigationContext.activeIndex,
   };
+}
+
+export function useKeyboardArrowsNavigationStateUpdate() {
+  const { setActiveIndex } = useContext(KeyboardArrowsNavigationContext);
+
+  return { setActiveIndex };
 }

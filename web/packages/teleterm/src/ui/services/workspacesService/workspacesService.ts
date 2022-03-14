@@ -34,6 +34,10 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     super();
   }
 
+  getActiveWorkspace(): Workspace | undefined {
+    return this.state.workspaces[this.state.rootClusterUri];
+  }
+
   getRootClusterUri(): string | undefined {
     return this.state.rootClusterUri;
   }
@@ -59,6 +63,15 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     }));
   }
 
+  setWorkspaceLocalClusterUri(
+    clusterUri: string,
+    localClusterUri: string
+  ): void {
+    this.setState(draftState => {
+      draftState.workspaces[clusterUri].localClusterUri = localClusterUri;
+    });
+  }
+
   getWorkspaceDocumentService(
     clusterUri: string
   ): DocumentsService | undefined {
@@ -72,8 +85,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           newState =>
             this.setState(draftState => {
               newState(draftState.workspaces[clusterUri]);
-            }),
-          clusterUri
+            })
         )
       );
     }
@@ -97,7 +109,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           const persistedWorkspace =
             this.statePersistenceService.getWorkspaces().workspaces[clusterUri];
           draftState.workspaces[clusterUri] = {
-            localClusterUri: persistedWorkspace?.localClusterUri,
+            localClusterUri: persistedWorkspace?.localClusterUri || clusterUri,
             location: persistedWorkspace?.location,
             documents: persistedWorkspace?.documents || [],
           };

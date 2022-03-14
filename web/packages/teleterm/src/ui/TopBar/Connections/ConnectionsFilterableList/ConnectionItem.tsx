@@ -22,7 +22,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
   const color = !offline ? 'text.primary' : 'text.placeholder';
   const { isActive } = useKeyboardArrowsNavigation({
     index: props.index,
-    onRunActiveItem: props.onActivate,
+    onRun: props.onActivate,
   });
 
   const actionIcons = {

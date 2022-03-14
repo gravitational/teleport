@@ -105,6 +105,13 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     getActiveWorkspaceDocumentService() {
       return docsService;
     },
+    getActiveWorkspace() {
+      return {
+        localClusterUri: 'test_uri',
+        documents: [],
+        location: ''
+      }
+    },
     useState: jest.fn(),
     state: {
       workspaces: {},

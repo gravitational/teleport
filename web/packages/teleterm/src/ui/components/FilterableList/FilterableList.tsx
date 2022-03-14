@@ -8,6 +8,8 @@ interface FilterableListProps<T> {
   placeholder?: string;
 
   Node(props: { item: T; index: number }): ReactNode;
+
+  onFilterChange?(filter: string): void;
 }
 
 const maxItemsToShow = 10;
@@ -26,7 +28,11 @@ export function FilterableList<T>(props: FilterableListProps<T>) {
     <>
       <DarkInput
         role="searchbox"
-        onChange={e => setSearchValue(e.target.value)}
+        onChange={e => {
+          const { value } = e.target;
+          props.onFilterChange?.(value);
+          setSearchValue(value);
+        }}
         placeholder={props.placeholder}
         autoFocus={true}
       />

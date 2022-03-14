@@ -21,20 +21,23 @@ import {
 } from 'teleterm/ui/services/keyboardShortcuts';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
+import { useNewTabOpener } from 'teleterm/ui/TabHost/useNewTabOpener';
 
 export function useTabShortcuts() {
   const { workspacesService } = useAppContext();
   workspacesService.useState();
   const documentService = workspacesService.getActiveWorkspaceDocumentService();
+  const { openClusterTab } = useNewTabOpener();
   const tabsShortcuts = useMemo(
-    () => buildTabsShortcuts(documentService),
+    () => buildTabsShortcuts(documentService, openClusterTab),
     [documentService]
   );
   useKeyboardShortcuts(tabsShortcuts);
 }
 
 function buildTabsShortcuts(
-  documentService: DocumentsService
+  documentService: DocumentsService,
+  openClusterTab: () => void
 ): KeyboardShortcutHandlers {
   const handleTabIndex = (index: number) => () => {
     const docs = documentService.getDocuments();
@@ -46,12 +49,6 @@ function buildTabsShortcuts(
   const handleActiveTabClose = () => {
     const { uri } = documentService.getActive();
     documentService.close(uri);
-  };
-
-  const handleNewTabOpen = () => {
-    const doc = documentService.createClusterDocument();
-    documentService.add(doc);
-    documentService.open(doc.uri);
   };
 
   const handleTabSwitch = (direction: 'previous' | 'next') => () => {
@@ -79,6 +76,6 @@ function buildTabsShortcuts(
     'tab-close': handleActiveTabClose,
     'tab-previous': handleTabSwitch('previous'),
     'tab-next': handleTabSwitch('next'),
-    'tab-new': handleNewTabOpen,
+    'tab-new': openClusterTab,
   };
 }

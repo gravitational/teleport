@@ -80,7 +80,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
       return {
         documents,
         location: undefined,
-        localClusterUri: undefined,
+        localClusterUri: 'test_uri',
       };
     },
     // @ts-expect-error - using mocks

@@ -18,8 +18,7 @@ function createService(mockDocks: Document[]): DocumentsService {
   store.state = { documents: [], location: undefined };
   const service = new DocumentsService(
     () => store.state,
-    draftState => store.setState(draftState),
-    'test_uri'
+    draftState => store.setState(draftState)
   );
   mockDocks.forEach(d => service.add(d));
 
