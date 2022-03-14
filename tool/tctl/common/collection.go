@@ -41,7 +41,8 @@ type ResourceCollection interface {
 }
 
 type roleCollection struct {
-	roles []types.Role
+	roles   []types.Role
+	verbose bool
 }
 
 func (r *roleCollection) resources() (res []types.Resource) {
@@ -52,17 +53,26 @@ func (r *roleCollection) resources() (res []types.Resource) {
 }
 
 func (r *roleCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Role", "Allowed to login as", "Node Labels", "Access to resources"})
+	var rows [][]string
 	for _, r := range r.roles {
 		if r.GetName() == constants.DefaultImplicitRole {
 			continue
 		}
-		t.AddRow([]string{
+		rows = append(rows, []string{
 			r.GetMetadata().Name,
 			strings.Join(r.GetLogins(types.Allow), ","),
 			printNodeLabels(r.GetNodeLabels(types.Allow)),
 			printActions(r.GetRules(types.Allow))})
 	}
+
+	headers := []string{"Role", "Allowed to login as", "Node Labels", "Access to resources"}
+	var t asciitable.Table
+	if r.verbose {
+		t = asciitable.MakeTableWithRows(headers, rows)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Access to resources")
+	}
+
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
