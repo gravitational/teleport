@@ -1,0 +1,1124 @@
+matches snapshot and tests for annotations.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: helm-lint
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      annotations:
+        kubernetes.io/config: test-annotation
+        kubernetes.io/config-different: 2
+      name: RELEASE-NAME
+matches snapshot for acme-off.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-cluster-name
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-cluster-name
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-cluster-name
+        proxy_service:
+          public_addr: 'test-cluster-name:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for acme-on.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-acme-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-acme-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-acme-cluster
+        proxy_service:
+          public_addr: 'test-acme-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          acme:
+            enabled: true
+            email: test@email.com
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for acme-uri-staging.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-acme-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-acme-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-acme-cluster
+        proxy_service:
+          public_addr: 'test-acme-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          acme:
+            enabled: true
+            email: test@email.com
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for affinity.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: firestore
+            project_id: gcpproj-123456
+            collection_name: test-teleport-firestore-storage-collection
+            credentials_path: /etc/teleport-secrets/gcp-credentials.json
+            audit_events_uri: ['firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json']
+            audit_sessions_uri: "gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
+        auth_service:
+          enabled: true
+          cluster_name: test-gcp-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-gcp-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-gcp-cluster
+        proxy_service:
+          public_addr: 'test-gcp-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for aws-ha-acme.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: dynamodb
+            region: us-west-2
+            table_name: test-dynamodb-backend-table
+            audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
+            audit_sessions_uri: s3://test-s3-session-storage-bucket
+            continuous_backups: false
+        auth_service:
+          enabled: true
+          cluster_name: test-aws-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-aws-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-aws-cluster
+          labels:
+            env: aws
+        proxy_service:
+          public_addr: 'test-aws-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          https_keypairs:
+          - key_file: /etc/teleport-tls/tls.key
+            cert_file: /etc/teleport-tls/tls.crt
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for aws-ha-antiaffinity.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: dynamodb
+            region: us-west-2
+            table_name: test-dynamodb-backend-table
+            audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
+            audit_sessions_uri: s3://test-s3-session-storage-bucket
+            continuous_backups: false
+        auth_service:
+          enabled: true
+          cluster_name: test-aws-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-aws-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-aws-cluster
+          labels:
+            env: aws
+        proxy_service:
+          public_addr: 'test-aws-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for aws-ha-log.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: DEBUG
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: dynamodb
+            region: us-west-2
+            table_name: test-dynamodb-backend-table
+            audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table', 'stdout://']
+            audit_sessions_uri: s3://test-s3-session-storage-bucket
+            continuous_backups: false
+        auth_service:
+          enabled: true
+          cluster_name: test-aws-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-aws-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-aws-cluster
+          labels:
+            env: aws
+        proxy_service:
+          public_addr: 'test-aws-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          https_keypairs:
+          - key_file: /etc/teleport-tls/tls.key
+            cert_file: /etc/teleport-tls/tls.crt
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for aws-ha.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: dynamodb
+            region: us-west-2
+            table_name: test-dynamodb-backend-table
+            audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
+            audit_sessions_uri: s3://test-s3-session-storage-bucket
+            continuous_backups: false
+        auth_service:
+          enabled: true
+          cluster_name: test-aws-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-aws-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-aws-cluster
+          labels:
+            env: aws
+        proxy_service:
+          public_addr: 'test-aws-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for aws.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: dynamodb
+            region: us-west-2
+            table_name: test-dynamodb-backend-table
+            audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
+            audit_sessions_uri: s3://test-s3-session-storage-bucket
+            continuous_backups: false
+        auth_service:
+          enabled: true
+          cluster_name: test-aws-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-aws-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-aws-cluster
+          labels:
+            env: aws
+        proxy_service:
+          public_addr: 'test-aws-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          acme:
+            enabled: true
+            email: test@email.com
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for gcp-ha-acme.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: firestore
+            project_id: gcpproj-123456
+            collection_name: test-teleport-firestore-storage-collection
+            credentials_path: /etc/teleport-secrets/gcp-credentials.json
+            audit_events_uri: ['firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json']
+            audit_sessions_uri: "gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
+        auth_service:
+          enabled: true
+          cluster_name: test-gcp-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-gcp-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-gcp-cluster
+          labels:
+            env: gcp
+        proxy_service:
+          public_addr: 'test-gcp-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          https_keypairs:
+          - key_file: /etc/teleport-tls/tls.key
+            cert_file: /etc/teleport-tls/tls.crt
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for gcp-ha-antiaffinity.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: firestore
+            project_id: gcpproj-123456
+            collection_name: test-teleport-firestore-storage-collection
+            credentials_path: /etc/teleport-secrets/gcp-credentials.json
+            audit_events_uri: ['firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json']
+            audit_sessions_uri: "gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
+        auth_service:
+          enabled: true
+          cluster_name: test-gcp-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-gcp-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-gcp-cluster
+          labels:
+            env: gcp
+        proxy_service:
+          public_addr: 'test-gcp-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for gcp-ha-log.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: DEBUG
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: firestore
+            project_id: gcpproj-123456
+            collection_name: test-teleport-firestore-storage-collection
+            credentials_path: /etc/teleport-secrets/gcp-credentials.json
+            audit_events_uri: ['firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json', 'stdout://']
+            audit_sessions_uri: "gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
+        auth_service:
+          enabled: true
+          cluster_name: test-gcp-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-gcp-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-gcp-cluster
+          labels:
+            env: gcp
+        proxy_service:
+          public_addr: 'test-gcp-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          https_keypairs:
+          - key_file: /etc/teleport-tls/tls.key
+            cert_file: /etc/teleport-tls/tls.crt
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for gcp.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: firestore
+            project_id: gcpproj-123456
+            collection_name: test-teleport-firestore-storage-collection
+            credentials_path: /etc/teleport-secrets/gcp-credentials.json
+            audit_events_uri: ['firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json']
+            audit_sessions_uri: "gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
+        auth_service:
+          enabled: true
+          cluster_name: test-gcp-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-gcp-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-gcp-cluster
+          labels:
+            env: gcp
+        proxy_service:
+          public_addr: 'test-gcp-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          acme:
+            enabled: true
+            email: test@email.com
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for initcontainers.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: helm-lint
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for kube-cluster-name.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-aws-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-aws-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-kube-cluster
+        proxy_service:
+          public_addr: 'test-aws-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for log-basic.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: json
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-log-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-log-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-log-cluster
+        proxy_service:
+          public_addr: 'test-log-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for log-extra.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: DEBUG
+            output: /var/lib/teleport/test.log
+            format:
+              output: json
+              extra_fields: ["level","timestamp","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-log-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-log-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-log-cluster
+        proxy_service:
+          public_addr: 'test-log-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for log-legacy.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: DEBUG
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-log-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-log-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-log-cluster
+        proxy_service:
+          public_addr: 'test-log-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for priority-class-name.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: helm-lint
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for proxy-listener-mode.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        version: v2
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-proxy-listener-mode
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-proxy-listener-mode
+          proxy_listener_mode: multiplex
+        kubernetes_service:
+          enabled: true
+          kube_cluster_name: test-proxy-listener-mode
+        proxy_service:
+          public_addr: 'test-proxy-listener-mode:443'
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for resources.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: helm-lint
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for service.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: helm-lint
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for standalone-customsize.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-standalone-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-standalone-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-standalone-cluster
+          labels:
+            env: standalone
+        proxy_service:
+          public_addr: 'test-standalone-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          acme:
+            enabled: true
+            email: test@email.com
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for standalone-existingpvc.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-standalone-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-standalone-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-standalone-cluster
+          labels:
+            env: standalone
+        proxy_service:
+          public_addr: 'test-standalone-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          acme:
+            enabled: true
+            email: test@email.com
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for tolerations.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: dynamodb
+            region: us-west-2
+            table_name: test-dynamodb-backend-table
+            audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
+            audit_sessions_uri: s3://test-s3-session-storage-bucket
+            continuous_backups: false
+        auth_service:
+          enabled: true
+          cluster_name: test-aws-cluster
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-aws-cluster
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-aws-cluster
+        proxy_service:
+          public_addr: 'test-aws-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for version-override.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-cluster-name
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: test-cluster-name
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-cluster-name
+          labels:
+            env: test
+            version: 5.2.1
+        proxy_service:
+          public_addr: 'test-cluster-name:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for volumes.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: helm-lint
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+matches snapshot for webauthn.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: on
+            webauthn:
+              rp_id: helm-lint
+              attestation_allowed_cas:
+                - /etc/ssl/certs/ca-certificates.crt
+              attestation_denied_cas:
+                - /etc/ssl/certs/ca-certificates.crt
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
