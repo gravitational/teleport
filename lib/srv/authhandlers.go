@@ -318,7 +318,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 
 	// check if the user has permission to log into the node.
 	switch {
-	case h.c.Component == teleport.ComponentForwardingNode:
+	case h.c.Component == teleport.ComponentForwardingNode, conn.User() == teleport.SSHSessionJoinPrincipal:
 		err = h.canLoginWithoutRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
 	default:
 		err = h.canLoginWithRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
