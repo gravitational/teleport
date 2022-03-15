@@ -5,11 +5,11 @@ description: Recording and Playing Back Teleport Desktop Access Sessions.
 
 Teleport Desktop Access supports recording and playback of desktop sessions.
 
-# Disabling session recording
+## Disabling session recording
 
 Session recording is enabled by default, and can be disabled in one of two ways:
 
-## Disable session recording at the cluster level
+### Disable session recording at the cluster level
 
 To disable session recording at the cluster level, edit your `teleport.yaml`
 configuration file.
@@ -30,7 +30,7 @@ The `session_recording` property can also be configured dynamically by using
 `tctl` to edit the cluster's `session_recording_config` resource. This is the
 required approach for Teleport Cloud users.
 
-## Disable session recording via RBAC
+### Disable session recording via RBAC
 
 Teleport's RBAC system allows more fine-grained control over which sessions are
 recorded. By default, desktop session recording is enabled. To disable desktop
@@ -50,10 +50,10 @@ spec:
 
 Because recording can be important for auditing and compliance concerns, the
 presence of a single role with recording enabled will result in the session
-being recorded. In other words, _all_ of the roles applied to a user must
+being recorded. In other words, *all* of the roles applied to a user must
 explicitly disable recording to prevent the session from being recorded.
 
-# Recording
+## Recording
 
 When a desktop session is active, Teleport will indicate whether the session is
 being recorded in the menu bar at the top of the screen.
@@ -62,7 +62,7 @@ being recorded in the menu bar at the top of the screen.
     /* screenshots for recording, not recording */
 }
 
-# Playback
+## Playback
 
 Recorded sessions can be viewed in the *Session Recordings* page. Desktop
 recordings show a desktop icon in the first column to distinguish them from
