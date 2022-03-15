@@ -581,8 +581,8 @@ type Auth struct {
 	// RoutingStrategy configures the routing strategy to nodes.
 	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
 
-	// ProxyPeering configures proxy to proxy communication.
-	ProxyPeering types.ProxyPeering `yaml:"proxy_peering,omitempty"`
+	// TunnelStrategy configures the tunnel strategy used by the cluster.
+	TunnelStrategy types.TunnelStrategyConfig `yaml:"tunnel_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.

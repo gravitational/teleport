@@ -2637,7 +2637,12 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		listeners.db.mongo = listener
 	}
 
-	if !cfg.Proxy.DisableReverseTunnel && networkingConfig.GetProxyPeering() == types.ProxyPeering_Enabled {
+	tunnelStrategy, err := networkingConfig.GetTunnelStrategyType()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {
 		addr, err := peerAddr(&process.Config.Proxy.PeerAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)

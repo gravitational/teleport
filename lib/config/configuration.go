@@ -573,6 +573,15 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
+	tunnelStrategy, err := fc.Auth.TunnelStrategy.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = cfg.Auth.NetworkingConfig.SetTunnelStrategy(tunnelStrategy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Set cluster networking configuration from file configuration.
 	cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
@@ -583,7 +592,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
-		ProxyPeering:             fc.Auth.ProxyPeering,
+		TunnelStrategy:           tunnelStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)

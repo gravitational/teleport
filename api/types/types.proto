@@ -923,16 +923,39 @@ message ClusterNetworkingConfigSpecV2 {
     // RoutingStrategy determines the strategy used to route to nodes.
     RoutingStrategy RoutingStrategy = 8 [ (gogoproto.jsontag) = "routing_strategy,omitempty" ];
 
-    // ProxyPeeringMode determines if proxy peering is enabled in the cluster.
-    ProxyPeering ProxyPeering = 9 [ (gogoproto.jsontag) = "proxy_peering,omitempty" ];
+    // TunnelStrategy determines the tunnel strategy used in the cluster.
+    oneof TunnelStrategy {
+        AgentMeshTunnelStrategy AgentMesh = 9 [
+            (gogoproto.jsontag) = "tunnel_strategy,omitempty",
+            (gogoproto.moretags) = "yaml:\"tunnel_strategy,omitempty\""
+        ];
+        ProxyPeeringTunnelStrategy ProxyPeering = 10 [
+            (gogoproto.jsontag) = "tunnel_strategy,omitempty",
+            (gogoproto.moretags) = "yaml:\"tunnel_strategy,omitempty\""
+        ];
+    }
 }
 
-// ProxyPeeringMode represents the cluster proxy peering mode.
-enum ProxyPeering {
-    // Disabled is set if proxy peering is disabled.
-    Disabled = 0;
-    // Enabled is set if proxy peering is enabled.
-    Enabled = 1;
+// AgentMeshTunnelStrategy requires reverse tunnels to dial every proxy.
+message AgentMeshTunnelStrategy {
+    string Type = 1 [
+        (gogoproto.jsontag) = "type,omitempty",
+        (gogoproto.moretags) = "yaml:\"type,omitempty\"",
+        (gogoproto.casttype) = "TunnelStrategyType"
+    ];
+}
+
+// ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
+message ProxyPeeringTunnelStrategy {
+    string Type = 1 [
+        (gogoproto.jsontag) = "type,omitempty",
+        (gogoproto.moretags) = "yaml:\"type,omitempty\"",
+        (gogoproto.casttype) = "TunnelStrategyType"
+    ];
+    int64 AgentConnectionCount = 2 [
+        (gogoproto.jsontag) = "agent_connection_count,omitempty",
+        (gogoproto.moretags) = "yaml:\"agent_connection_count,omitempty\""
+    ];
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.

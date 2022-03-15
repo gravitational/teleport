@@ -110,7 +110,6 @@ teleport:
 auth_service:
   enabled: yes
   listen_addr: 10.5.5.1:3025
-  proxy_peering: enabled
   cluster_name: magadan
   tokens:
   - "proxy,node:xxx"

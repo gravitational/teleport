@@ -26,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -654,7 +655,10 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "magadan", cfg.Auth.ClusterName.GetClusterName())
 	require.True(t, cfg.Auth.Preference.GetAllowLocalAuth())
 	require.Equal(t, "10.10.10.1", cfg.AdvertiseIP)
-	require.Equal(t, types.ProxyPeering_Enabled, cfg.Auth.NetworkingConfig.GetProxyPeering())
+	tunnelStrategyType, err := cfg.Auth.NetworkingConfig.GetTunnelStrategyType()
+	require.NoError(t, err)
+	require.Equal(t, types.AgentMesh, tunnelStrategyType)
+	require.Equal(t, types.DefaultAgentMeshTunnelStrategy(), cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy())
 
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
@@ -875,6 +879,81 @@ func TestBackendDefaults(t *testing.T) {
      data_dir: /var/lib/teleport
 `)
 	require.False(t, cfg.Proxy.Kube.Enabled)
+}
+
+func TestTunnelStrategy(t *testing.T) {
+	tests := []struct {
+		desc           string
+		config         string
+		applyErr       require.ErrorAssertionFunc
+		tunnelStrategy interface{}
+	}{
+		{
+			desc: "Ensure default is used when no tunnel strategy is given",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+			}, "\n"),
+			applyErr:       require.NoError,
+			tunnelStrategy: types.DefaultAgentMeshTunnelStrategy(),
+		},
+		{
+			desc: "Ensure default parameters are used for proxy peering strategy",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  tunnel_strategy:",
+				"    type: proxy_peering",
+			}, "\n"),
+			applyErr:       require.NoError,
+			tunnelStrategy: types.DefaultProxyPeeringTunnelStrategy(),
+		},
+		{
+			desc: "Ensure proxy peering strategy parameters are set",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  tunnel_strategy:",
+				"    type: proxy_peering",
+				"    agent_connection_count: 2",
+			}, "\n"),
+			applyErr: require.NoError,
+			tunnelStrategy: &types.ProxyPeeringTunnelStrategy{
+				Type:                 types.ProxyPeering,
+				AgentConnectionCount: 2,
+			},
+		},
+		{
+			desc: "Ensure tunnel strategy cannot take unknown parameters",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  tunnel_strategy:",
+				"    type: agent_mesh",
+				"    agent_connection_count: 2",
+			}, "\n"),
+			applyErr:       require.Error,
+			tunnelStrategy: types.DefaultAgentMeshTunnelStrategy(),
+		},
+	}
+
+	for _, tc := range tests {
+		conf, err := ReadConfig(bytes.NewBufferString(tc.config))
+		require.NoError(t, err, tc.desc)
+
+		cfg := service.MakeDefaultConfig()
+		err = ApplyFileConfig(conf, cfg)
+		tc.applyErr(t, err, tc.desc)
+
+		var actualStrategy interface{}
+		if cfg.Auth.NetworkingConfig == nil {
+		} else if s := cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy(); s != nil {
+			actualStrategy = s
+		} else if s := cfg.Auth.NetworkingConfig.GetProxyPeeringTunnelStrategy(); s != nil {
+			actualStrategy = s
+		}
+		require.Equal(t, tc.tunnelStrategy, actualStrategy, tc.desc)
+	}
 }
 
 // TestParseKey ensures that keys are parsed correctly if they are in

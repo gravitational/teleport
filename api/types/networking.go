@@ -89,11 +89,17 @@ type ClusterNetworkingConfig interface {
 	// SetRoutingStrategy sets the routing strategy setting.
 	SetRoutingStrategy(strategy RoutingStrategy)
 
-	// GetProxyPeering gets the proxy peering setting.
-	GetProxyPeering() ProxyPeering
+	// GetTunnelStrategy gets the tunnel strategy.
+	GetTunnelStrategyType() (TunnelStrategyType, error)
 
-	// SetProxyPeering sets the proxy peering setting.
-	SetProxyPeering(peering ProxyPeering)
+	// GetAgentMeshTunnelStrategy gets the war dial tunnel strategy.
+	GetAgentMeshTunnelStrategy() *AgentMeshTunnelStrategy
+
+	// GetProxyPeeringTunnelStrategy gets the proxy peering tunnel strategy.
+	GetProxyPeeringTunnelStrategy() *ProxyPeeringTunnelStrategy
+
+	// SetTunnelStrategy sets the tunnel strategy.
+	SetTunnelStrategy(TunnelStrategy) error
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -284,14 +290,40 @@ func (c *ClusterNetworkingConfigV2) SetRoutingStrategy(strategy RoutingStrategy)
 	c.Spec.RoutingStrategy = strategy
 }
 
-// GetProxyPeering gets the proxy peering setting.
-func (c *ClusterNetworkingConfigV2) GetProxyPeering() ProxyPeering {
-	return c.Spec.ProxyPeering
+// GetTunnelStrategy gets the tunnel strategy type.
+func (c *ClusterNetworkingConfigV2) GetTunnelStrategyType() (TunnelStrategyType, error) {
+	switch c.Spec.TunnelStrategy.(type) {
+	case *ClusterNetworkingConfigSpecV2_AgentMesh:
+		return AgentMesh, nil
+	case *ClusterNetworkingConfigSpecV2_ProxyPeering:
+		return ProxyPeering, nil
+	}
+
+	return "", trace.BadParameter("unknown tunnel strategy type: %T", c.Spec.TunnelStrategy)
 }
 
-// SetProxyPeering sets the proxy peering setting.
-func (c *ClusterNetworkingConfigV2) SetProxyPeering(peering ProxyPeering) {
-	c.Spec.ProxyPeering = peering
+// GetAgentMeshTunnelStrategy gets the war dial tunnel strategy.
+func (c *ClusterNetworkingConfigV2) GetAgentMeshTunnelStrategy() *AgentMeshTunnelStrategy {
+	return c.Spec.GetAgentMesh()
+}
+
+// GetProxyPeeringTunnelStrategy gets the proxy peering tunnel strategy.
+func (c *ClusterNetworkingConfigV2) GetProxyPeeringTunnelStrategy() *ProxyPeeringTunnelStrategy {
+	return c.Spec.GetProxyPeering()
+}
+
+// SetTunnelStrategy sets the tunnel strategy.
+func (c *ClusterNetworkingConfigV2) SetTunnelStrategy(strategy TunnelStrategy) error {
+	switch strategy.(type) {
+	case *ClusterNetworkingConfigSpecV2_AgentMesh:
+	case *ClusterNetworkingConfigSpecV2_ProxyPeering:
+	default:
+		return trace.BadParameter("unknown tunnel strategy: %T", strategy)
+	}
+
+	c.Spec.TunnelStrategy = strategy
+
+	return nil
 }
 
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
@@ -312,6 +344,13 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	}
 	if c.Spec.KeepAliveCountMax == 0 {
 		c.Spec.KeepAliveCountMax = int64(defaults.KeepAliveCountMax)
+	}
+
+	if c.Spec.TunnelStrategy == nil {
+		err := c.SetTunnelStrategy(DefaultTunnelStrategy())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -364,33 +403,6 @@ func (s *RoutingStrategy) UnmarshalYAML(unmarshal func(interface{}) error) error
 
 	available := make([]string, 0, len(RoutingStrategy_value))
 	for k := range RoutingStrategy_value {
-		available = append(available, strings.ToLower(k))
-	}
-	return trace.BadParameter(
-		"routing strategy must be one of %s; got %q", strings.Join(available, ","), stringVar)
-}
-
-// MarshalYAML defines how proxy peering should be marshalled to a string
-func (s ProxyPeering) MarshalYAML() (interface{}, error) {
-	return strings.ToLower(s.String()), nil
-}
-
-// UnmarshalYAML unmarshalls proxy peering from YAML value.
-func (s *ProxyPeering) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var stringVar string
-	if err := unmarshal(&stringVar); err != nil {
-		return trace.Wrap(err)
-	}
-
-	for k, v := range ProxyPeering_value {
-		if strings.EqualFold(k, stringVar) {
-			*s = ProxyPeering(v)
-			return nil
-		}
-	}
-
-	available := make([]string, 0, len(ProxyPeering_value))
-	for k := range ProxyPeering_value {
 		available = append(available, strings.ToLower(k))
 	}
 	return trace.BadParameter(
