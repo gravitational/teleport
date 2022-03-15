@@ -27,7 +27,8 @@ service ProxyService {
 message Frame {
     oneof Message {
         DialRequest DialRequest = 1;
-        Data Data = 2;
+        ConnectionEstablished ConnectionEstablished = 2;
+        Data Data = 3;
     }
 }
 
@@ -55,3 +56,6 @@ message NetAddr {
 
 // Data contains the raw bytes of a connection.
 message Data { bytes Bytes = 1; }
+
+// ConnectionEstablished signals to the client a connection to the node has been established.
+message ConnectionEstablished {}

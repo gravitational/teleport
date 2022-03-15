@@ -79,9 +79,16 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.Wrap(err)
 	}
 
+	err = stream.Send(&proto.Frame{
+		Message: &proto.Frame_ConnectionEstablished{},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	streamConn := newStreamConn(stream, source, destination)
 	go func() {
-		err := streamConn.start()
+		err := streamConn.run()
 		log.WithError(err).Debug("Stream connection exited.")
 	}()
 

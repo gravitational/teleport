@@ -67,7 +67,7 @@ func newStreamConn(stream Stream, src net.Addr, dst net.Addr) *streamConn {
 }
 
 // start begins copying data between the grpc stream and internal pipe.
-func (c *streamConn) start() error {
+func (c *streamConn) run() error {
 	var (
 		sendErr    error
 		receiveErr error
