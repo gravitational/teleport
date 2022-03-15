@@ -53,24 +53,23 @@ func MakeHeadlessTable(columnCount int) Table {
 	}
 }
 
-// MakeTable creates a new instance of the table with given column names.
-func MakeTable(headers []string) Table {
+// MakeTable creates a new instance of the table with given column
+// names. Optionally rows to be added to the table may be included.
+func MakeTable(headers []string, rows ...[]string) Table {
 	t := MakeHeadlessTable(len(headers))
 	for i := range t.columns {
 		t.columns[i].Title = headers[i]
 		t.columns[i].width = len(headers[i])
 	}
-	return t
-}
-
-func MakeTableWithRows(headers []string, rows [][]string) Table {
-	t := MakeTable(headers)
 	for _, row := range rows {
 		t.AddRow(row)
 	}
 	return t
 }
 
+// MakeTableWithTruncatedColumn creates a table where the column
+// matching truncatedColumn will be shortened to account for terminal
+// width.
 func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) Table {
 	width, _, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {

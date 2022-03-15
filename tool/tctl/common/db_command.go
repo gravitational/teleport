@@ -58,7 +58,7 @@ func (c *DBCommand) Initialize(app *kingpin.Application, config *service.Config)
 
 	db := app.Command("db", "Operate on databases registered with the cluster.")
 	c.dbList = db.Command("ls", "List all databases registered with the cluster.")
-	c.dbList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default("text").StringVar(&c.format)
+	c.dbList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.dbList.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.dbList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.dbList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
