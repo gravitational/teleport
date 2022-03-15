@@ -510,7 +510,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := a.GetCertAuthority(types.CertAuthID{
+	ca, err := a.GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)

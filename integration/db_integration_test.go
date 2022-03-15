@@ -528,7 +528,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p.setupUsersAndRoles(t)
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := p.leaf.cluster.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+	ca, err := p.leaf.cluster.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: p.root.cluster.Secrets.SiteName,
 	}, false)
