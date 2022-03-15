@@ -474,6 +474,33 @@ func TestAuthenticate(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:               "local user, no deny",
+			user:               auth.LocalUser{},
+			roleKubeGroups:     []string{},
+			roleKubeUsers:      []string{"kube-user-a"},
+			roleDenyKubeGroups: []string{},
+			routeToCluster:     "local",
+			haveKubeCreds:      true,
+			tunnel:             tun,
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
+
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"kube-user-a"}),
+				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
