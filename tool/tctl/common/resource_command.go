@@ -976,7 +976,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if rc.ref.SubKind == "" && rc.ref.Name == "" {
 			var allAuthorities []types.CertAuthority
 			for _, caType := range types.CertAuthTypes {
-				authorities, err := client.GetCertAuthorities(caType, rc.withSecrets)
+				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -985,7 +985,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return &authorityCollection{cas: allAuthorities}, nil
 		}
 		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
-		authority, err := client.GetCertAuthority(id, rc.withSecrets)
+		authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
