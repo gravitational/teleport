@@ -462,7 +462,7 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-ci test-api test-go test-rust test-helm
+test: test-sh test-helm test-ci test-api test-go test-rust
 
 # Runs bot Go tests.
 #
