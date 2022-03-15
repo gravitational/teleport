@@ -190,7 +190,7 @@ func pipeConn(ctx context.Context, src net.Conn, dst net.Conn) (int64, int64, er
 		o              sync.Once
 	)
 
-	errC := make(chan error)
+	errC := make(chan error, 1)
 	cleanup := func(err error) {
 		o.Do(func() {
 			src.Close()
