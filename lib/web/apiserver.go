@@ -351,8 +351,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// token generation
+	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+
 	// add Node token generation
-	h.POST("/webapi/nodes/token", h.WithAuth(h.createScriptJoinTokenHandle))
+	// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
+	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
+	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
 	// web context
@@ -807,12 +812,13 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		ServerVersion: teleport.Version,
 	}
 
+	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
 	if connectorName == constants.Local {
-		as, err := localSettings(cap)
+		response.Auth, err = localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.Auth = as
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -820,6 +826,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = oidcSettings(oidcConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -827,6 +834,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = samlSettings(samlConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -834,6 +842,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = githubSettings(githubConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 

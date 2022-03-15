@@ -118,6 +118,7 @@ func testACL(directory string, ownerUser *user.User, opts *botfs.ACLOptions) err
 		}
 	}()
 
+	//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 	if err := botfs.ConfigureACL(testFile, ownerUser, opts); err != nil {
 		return trace.Wrap(err)
 	}
@@ -153,6 +154,9 @@ type ensurePermissionsParams struct {
 func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) error {
 	path := filepath.Join(params.dirPath, key)
 
+	//nolint:staticcheck // this entirely innocuous line generates "related
+	// information" lints for a false positive staticcheck lint relating to
+	// nop function implementations in fs_other.go.
 	stat, err := os.Stat(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -240,7 +244,9 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 		// Note that we rely on VerifyACL to return some error if permissions
 		// are incorrect.
 
+		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		err = botfs.VerifyACL(path, params.aclOptions)
+		//nolint:staticcheck
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			if verboseLogging {
 				log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)
