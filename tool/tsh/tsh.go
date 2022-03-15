@@ -353,8 +353,6 @@ const (
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
 	proxyDefaultResolutionTimeout = 2 * time.Second
-
-	teleportNamespace = "teleport.dev"
 )
 
 // cliOption is used in tests to inject/override configuration within Run
@@ -1455,7 +1453,7 @@ func sortedLabels(labels map[string]string) string {
 	var namespaced []string
 	var result []string
 	for key, val := range labels {
-		if strings.HasPrefix(key, teleportNamespace+"/") {
+		if strings.HasPrefix(key, types.TeleportNamespace+"/") {
 			teleportNamespaced = append(teleportNamespaced, key)
 			continue
 		}
