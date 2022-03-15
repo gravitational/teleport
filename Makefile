@@ -480,6 +480,11 @@ test-helm:
 	helm unittest examples/chart/teleport-cluster
 	helm unittest examples/chart/teleport-kube-agent
 
+.PHONY: update-helm-snapshots
+update-helm-snapshots:
+	helm unittest -u examples/chart/teleport-cluster
+	helm unittest -u examples/chart/teleport-kube-agent
+
 #
 # Runs all Go tests except integration, called by CI/CD.
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
