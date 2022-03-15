@@ -1,13 +1,11 @@
 ---
-title: Teleport Metrics
-description: How to set up Prometheus to monitor Teleport
-h1: Metrics
+title: Teleport Diagnostics
+description: How to use Teleport's health, readiness, profiling, and monitoring endpoints.
 ---
 
-## Teleport diagnostics
-
-Teleport provides HTTP endpoints for monitoring purposes. They are disabled
-by default, but you can enable them using the `--diag-addr` flag to `teleport start`:
+Teleport provides HTTP endpoints for monitoring purposes. They are disabled by
+default, but you can enable them using the `--diag-addr` flag when running
+`teleport start`:
 
 ```code
 $ sudo teleport start --diag-addr=127.0.0.1:3000
@@ -15,15 +13,15 @@ $ sudo teleport start --diag-addr=127.0.0.1:3000
 
 Now you can collect monitoring information from several endpoints.
 
-### `/healthz`
+## `/healthz`
 
 The `http://127.0.0.1:3000/healthz` endpoint responds with a body of
-`{"status":"ok"}` and a HTTP 200 OK status code if the process is running.
+`{"status":"ok"}` and an HTTP 200 OK status code if the process is running.
 
 This is a simple check, suitable for determining if the Teleport process is
 still running.
 
-### `/readyz`
+## `/readyz`
 
 The `http://127.0.0.1:3000/readyz` endpoint is similar to `/healthz`, but its
 response includes information about the state of the process.
@@ -33,6 +31,24 @@ The response body is a JSON object of the form:
 ```
 { "status": "a status message here"}
 ```
+
+### `/readyz` and heartbeats
+
+If a Teleport component fails to execute its heartbeat procedure, it will enter
+a degraded state. Teleport will begin recovering from this state when a
+heartbeat completes successfully.
+
+Teleport heartbeats run every 5 seconds. This means that depending on the timing
+of heartbeats, it can take 10-20 seconds after connectivity is restored for
+`/readyz` to start reporting healthy again.
+
+The first successful heartbeat will transition Teleport into a recovering state.
+
+A second consecutive successful heartbeat will cause Teleport to transition to
+the OK state, so long as at least 10 seconds have elapsed since the
+first successful heartbeat.
+
+### Status codes
 
 The status code of the response can be one of:
 
@@ -45,31 +61,13 @@ The status code of the response can be one of:
 The same state information is also available via the `process_state` metric
 under the `/metrics` endpoint.
 
-<Admonition type="note" title="Recovery">
-If a Teleport compoment fails to exeucte its heartbeat procedure, it will enter
-a degraded state (HTTP 503). Teleport will begin recovering from this state when
-a heartbeat completes succesfully.
-
-- the first successful heartbeat will transition Teleport into a recovering
-  state (HTTP 400)
-- a second consective successful heartbeat will cause Teleport to transition to
-  the OK state (HTTP 200), so long as at least 10 seconds have elapsed since the
-  first succesful heartbeat
-
-Teleport heartbeats run every 5 seconds. This means that depending on the timing
-of heartbeats, it can take 10-20 seconds after connectivity is restored for
-`/readyz` to start reporting healthy again.
-</Admonition>
-
-This check is suitable for determining if Teleport is operating correctly.
-
-### `/debug/pprof`
+## `/debug/pprof`
 
 The `http://127.0.0.1:3000/debug/pprof/` endpoint is Go's standard pprof
 profiler. This endpoint is only available if the `--debug` (or `-d`) flag is
 supplied (in addition to `--diag-addr`).
 
-### `/metrics`
+## `/metrics`
 
 The `http://127.0.0.1:3000/metrics` endpoint serves the internal metrics
 Teleport is tracking. It is compatible with
