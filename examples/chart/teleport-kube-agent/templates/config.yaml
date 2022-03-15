@@ -1,4 +1,14 @@
 {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
+{{- if .Values.teleportVersionOverride -}}
+  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride -}}
+{{- else -}}
+  {{- $_ := set . "teleportVersion" .Chart.Version -}}
+{{- end -}}
+{{- if .Values.replicaCount -}}
+  {{- $_ := set . "replicaCount" .Values.replicaCount -}}
+{{- else -}}
+  {{- $_ := set . "replicaCount" .Values.highAvailability.replicaCount -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

@@ -3,11 +3,6 @@
 # in the statefulset.yaml file.
 #
 {{- if not .Values.storage.enabled }}
-{{- if .Values.teleportVersionOverride }}
-  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
-{{- else }}
-  {{- $_ := set . "teleportVersion" .Chart.Version }}
-{{- end }}
 {{- if .Values.replicaCount }}
   {{- $_ := set . "replicaCount" .Values.replicaCount }}
 {{- else }}

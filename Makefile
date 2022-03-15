@@ -478,6 +478,7 @@ $(TEST_LOG_DIR):
 .PHONY: test-helm
 test-helm:
 	helm unittest examples/chart/teleport-cluster
+	helm unittest examples/chart/teleport-kube-agent
 
 #
 # Runs all Go tests except integration, called by CI/CD.
