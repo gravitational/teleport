@@ -48,7 +48,7 @@ func (c *KubeCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	kube := app.Command("kube", "Operate on registered kubernetes clusters.")
 	c.kubeList = kube.Command("ls", "List all kubernetes clusters registered with the cluster.")
-	c.kubeList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default("text").StringVar(&c.format)
+	c.kubeList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.kubeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 

@@ -49,7 +49,7 @@ func (c *DesktopCommand) Initialize(app *kingpin.Application, config *service.Co
 
 	desktop := app.Command("desktops", "Operate on registered desktops.")
 	c.desktopList = desktop.Command("ls", "List all desktops registered with the cluster.")
-	c.desktopList.Flag("format", "Output format, 'text', 'json' or 'yaml'").Default("text").StringVar(&c.format)
+	c.desktopList.Flag("format", "Output format, 'text', 'json' or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.desktopList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 
