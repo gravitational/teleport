@@ -351,8 +351,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// token generation
+	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+
 	// add Node token generation
-	h.POST("/webapi/nodes/token", h.WithAuth(h.createScriptJoinTokenHandle))
+	// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
+	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
+	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
 	// web context
