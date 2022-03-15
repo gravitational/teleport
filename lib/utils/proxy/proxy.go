@@ -59,9 +59,10 @@ func (d directDial) dialALPNWithDeadline(network string, addr string, config *ss
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conf := d.tlsConfig.Clone()
-	conf.ServerName = address.Host()
-	conf.InsecureSkipVerify = d.insecure
+	conf, err := d.getTLSConfig(address)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	tlsConn, err := tls.DialWithDialer(dialer, network, addr, conf)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,6 +88,17 @@ type directDial struct {
 	tlsConfig *tls.Config
 }
 
+// getTLSConfig configures the dialers TLS config for a specified address.
+func (d directDial) getTLSConfig(addr *utils.NetAddr) (*tls.Config, error) {
+	if d.tlsConfig == nil {
+		return nil, trace.BadParameter("TLS config was nil")
+	}
+	tlsConfig := d.tlsConfig.Clone()
+	tlsConfig.ServerName = addr.Host()
+	tlsConfig.InsecureSkipVerify = d.insecure
+	return tlsConfig, nil
+}
+
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	if d.tlsRoutingEnabled {
@@ -110,9 +122,10 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		conf := d.tlsConfig.Clone()
-		conf.ServerName = addr.Host()
-		conf.InsecureSkipVerify = d.insecure
+		conf, err := d.getTLSConfig(addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		tlsConn, err := tls.Dial("tcp", address, conf)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -137,6 +150,17 @@ type proxyDial struct {
 	tlsConfig *tls.Config
 }
 
+// getTLSConfig configures the dialers TLS config for a specified address.
+func (d proxyDial) getTLSConfig(addr *utils.NetAddr) (*tls.Config, error) {
+	if d.tlsConfig == nil {
+		return nil, trace.BadParameter("TLS config was nil")
+	}
+	tlsConfig := d.tlsConfig.Clone()
+	tlsConfig.ServerName = addr.Host()
+	tlsConfig.InsecureSkipVerify = d.insecure
+	return tlsConfig, nil
+}
+
 // DialTimeout acts like Dial but takes a timeout.
 func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	// Build a proxy connection first.
@@ -155,9 +179,10 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		conf := d.tlsConfig.Clone()
-		conf.ServerName = address.Host()
-		conf.InsecureSkipVerify = d.insecure
+		conf, err := d.getTLSConfig(address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		conn = tls.Client(conn, conf)
 	}
 	return conn, nil
@@ -179,9 +204,10 @@ func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		conf := d.tlsConfig.Clone()
-		conf.ServerName = address.Host()
-		conf.InsecureSkipVerify = d.insecure
+		conf, err := d.getTLSConfig(address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		pconn = tls.Client(pconn, conf)
 	}
 
