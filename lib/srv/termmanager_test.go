@@ -20,22 +20,9 @@ import (
 	"io"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/stretchr/testify/require"
 )
-
-func TestAtomicAlign(t *testing.T) {
-	m := NewTermManager()
-
-	verifyAlign := func(field *uint64) {
-		addr := uintptr(unsafe.Pointer(field))
-		require.True(t, addr%8 == 0, "field %v is not 8-byte aligned", field)
-	}
-
-	verifyAlign(&m.countWritten)
-	verifyAlign(&m.countRead)
-}
 
 func TestCTRLCPassthrough(t *testing.T) {
 	m := NewTermManager()
