@@ -77,7 +77,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.1.0
 	github.com/sethvargo/go-diceware v0.2.1
 	github.com/siddontang/go-mysql v1.1.0
-	github.com/sirupsen/logrus v1.8.1-0.20210219125412-f104497f2b21
+	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4
 	github.com/vulcand/predicate v1.1.0
