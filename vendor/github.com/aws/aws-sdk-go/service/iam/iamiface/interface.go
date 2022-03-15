@@ -562,6 +562,9 @@ type IAMAPI interface {
 	ListUserTagsWithContext(aws.Context, *iam.ListUserTagsInput, ...request.Option) (*iam.ListUserTagsOutput, error)
 	ListUserTagsRequest(*iam.ListUserTagsInput) (*request.Request, *iam.ListUserTagsOutput)
 
+	ListUserTagsPages(*iam.ListUserTagsInput, func(*iam.ListUserTagsOutput, bool) bool) error
+	ListUserTagsPagesWithContext(aws.Context, *iam.ListUserTagsInput, func(*iam.ListUserTagsOutput, bool) bool, ...request.Option) error
+
 	ListUsers(*iam.ListUsersInput) (*iam.ListUsersOutput, error)
 	ListUsersWithContext(aws.Context, *iam.ListUsersInput, ...request.Option) (*iam.ListUsersOutput, error)
 	ListUsersRequest(*iam.ListUsersInput) (*request.Request, *iam.ListUsersOutput)

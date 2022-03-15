@@ -58,12 +58,7 @@ func (c *RDS) AddRoleToDBClusterRequest(input *AddRoleToDBClusterInput) (req *re
 
 // AddRoleToDBCluster API operation for Amazon Relational Database Service.
 //
-// Associates an Identity and Access Management (IAM) role from an Amazon Aurora
-// DB cluster. For more information, see Authorizing Amazon Aurora MySQL to
-// Access Other AWS Services on Your Behalf (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Integrating.Authorizing.html)
-// in the Amazon Aurora User Guide.
-//
-// This action only applies to Aurora DB clusters.
+// Associates an Identity and Access Management (IAM) role with a DB cluster.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -154,9 +149,12 @@ func (c *RDS) AddRoleToDBInstanceRequest(input *AddRoleToDBInstanceInput) (req *
 
 // AddRoleToDBInstance API operation for Amazon Relational Database Service.
 //
-// Associates an AWS Identity and Access Management (IAM) role with a DB instance.
+// Associates an Amazon Web Services Identity and Access Management (IAM) role
+// with a DB instance.
 //
 // To add a role to a DB instance, the status of the DB instance must be available.
+//
+// This command doesn't apply to RDS Custom.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -177,8 +175,8 @@ func (c *RDS) AddRoleToDBInstanceRequest(input *AddRoleToDBInstanceInput) (req *
 //   The DB instance isn't in a valid state.
 //
 //   * ErrCodeDBInstanceRoleQuotaExceededFault "DBInstanceRoleQuotaExceeded"
-//   You can't associate any more AWS Identity and Access Management (IAM) roles
-//   with the DB instance because the quota has been reached.
+//   You can't associate any more Amazon Web Services Identity and Access Management
+//   (IAM) roles with the DB instance because the quota has been reached.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/AddRoleToDBInstance
 func (c *RDS) AddRoleToDBInstance(input *AddRoleToDBInstanceInput) (*AddRoleToDBInstanceOutput, error) {
@@ -354,12 +352,12 @@ func (c *RDS) AddTagsToResourceRequest(input *AddTagsToResourceInput) (req *requ
 //   DBSnapshotIdentifier doesn't refer to an existing DB snapshot.
 //
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBProxyTargetGroupNotFoundFault "DBProxyTargetGroupNotFoundFault"
-//   The specified target group isn't available for a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified target group isn't available for a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/AddTagsToResource
 func (c *RDS) AddTagsToResource(input *AddTagsToResourceInput) (*AddTagsToResourceOutput, error) {
@@ -517,13 +515,14 @@ func (c *RDS) AuthorizeDBSecurityGroupIngressRequest(input *AuthorizeDBSecurityG
 // First, EC2 or VPC security groups can be added to the DBSecurityGroup if
 // the application using the database is running on EC2 or VPC instances. Second,
 // IP ranges are available if the application accessing your database is running
-// on the Internet. Required parameters for this API are one of CIDR range,
+// on the internet. Required parameters for this API are one of CIDR range,
 // EC2SecurityGroupId for VPC, or (EC2SecurityGroupOwnerId and either EC2SecurityGroupName
 // or EC2SecurityGroupId for non-VPC).
 //
-// You can't authorize ingress from an EC2 security group in one AWS Region
-// to an Amazon RDS DB instance in another. You can't authorize ingress from
-// a VPC security group in one VPC to an Amazon RDS DB instance in another.
+// You can't authorize ingress from an EC2 security group in one Amazon Web
+// Services Region to an Amazon RDS DB instance in another. You can't authorize
+// ingress from a VPC security group in one VPC to an Amazon RDS DB instance
+// in another.
 //
 // For an overview of CIDR ranges, go to the Wikipedia Tutorial (http://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing).
 //
@@ -787,8 +786,6 @@ func (c *RDS) CopyDBClusterParameterGroupRequest(input *CopyDBClusterParameterGr
 //
 // Copies the specified DB cluster parameter group.
 //
-// This action only applies to Aurora DB clusters.
-//
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
 // the error.
@@ -878,63 +875,69 @@ func (c *RDS) CopyDBClusterSnapshotRequest(input *CopyDBClusterSnapshotInput) (r
 // To copy a DB cluster snapshot from a shared manual DB cluster snapshot, SourceDBClusterSnapshotIdentifier
 // must be the Amazon Resource Name (ARN) of the shared DB cluster snapshot.
 //
-// You can copy an encrypted DB cluster snapshot from another AWS Region. In
-// that case, the AWS Region where you call the CopyDBClusterSnapshot action
-// is the destination AWS Region for the encrypted DB cluster snapshot to be
-// copied to. To copy an encrypted DB cluster snapshot from another AWS Region,
-// you must provide the following values:
+// You can copy an encrypted DB cluster snapshot from another Amazon Web Services
+// Region. In that case, the Amazon Web Services Region where you call the CopyDBClusterSnapshot
+// action is the destination Amazon Web Services Region for the encrypted DB
+// cluster snapshot to be copied to. To copy an encrypted DB cluster snapshot
+// from another Amazon Web Services Region, you must provide the following values:
 //
-//    * KmsKeyId - The AWS Key Management System (AWS KMS) key identifier for
-//    the key to use to encrypt the copy of the DB cluster snapshot in the destination
-//    AWS Region.
+//    * KmsKeyId - The Amazon Web Services Key Management System (Amazon Web
+//    Services KMS) key identifier for the key to use to encrypt the copy of
+//    the DB cluster snapshot in the destination Amazon Web Services Region.
 //
 //    * PreSignedUrl - A URL that contains a Signature Version 4 signed request
-//    for the CopyDBClusterSnapshot action to be called in the source AWS Region
-//    where the DB cluster snapshot is copied from. The pre-signed URL must
-//    be a valid request for the CopyDBClusterSnapshot API action that can be
-//    executed in the source AWS Region that contains the encrypted DB cluster
-//    snapshot to be copied. The pre-signed URL request must contain the following
-//    parameter values: KmsKeyId - The AWS KMS key identifier for the customer
-//    master key (CMK) to use to encrypt the copy of the DB cluster snapshot
-//    in the destination AWS Region. This is the same identifier for both the
-//    CopyDBClusterSnapshot action that is called in the destination AWS Region,
-//    and the action contained in the pre-signed URL. DestinationRegion - The
-//    name of the AWS Region that the DB cluster snapshot is to be created in.
-//    SourceDBClusterSnapshotIdentifier - The DB cluster snapshot identifier
-//    for the encrypted DB cluster snapshot to be copied. This identifier must
-//    be in the Amazon Resource Name (ARN) format for the source AWS Region.
-//    For example, if you are copying an encrypted DB cluster snapshot from
-//    the us-west-2 AWS Region, then your SourceDBClusterSnapshotIdentifier
+//    for the CopyDBClusterSnapshot action to be called in the source Amazon
+//    Web Services Region where the DB cluster snapshot is copied from. The
+//    pre-signed URL must be a valid request for the CopyDBClusterSnapshot API
+//    action that can be executed in the source Amazon Web Services Region that
+//    contains the encrypted DB cluster snapshot to be copied. The pre-signed
+//    URL request must contain the following parameter values: KmsKeyId - The
+//    Amazon Web Services KMS key identifier for the KMS key to use to encrypt
+//    the copy of the DB cluster snapshot in the destination Amazon Web Services
+//    Region. This is the same identifier for both the CopyDBClusterSnapshot
+//    action that is called in the destination Amazon Web Services Region, and
+//    the action contained in the pre-signed URL. DestinationRegion - The name
+//    of the Amazon Web Services Region that the DB cluster snapshot is to be
+//    created in. SourceDBClusterSnapshotIdentifier - The DB cluster snapshot
+//    identifier for the encrypted DB cluster snapshot to be copied. This identifier
+//    must be in the Amazon Resource Name (ARN) format for the source Amazon
+//    Web Services Region. For example, if you are copying an encrypted DB cluster
+//    snapshot from the us-west-2 Amazon Web Services Region, then your SourceDBClusterSnapshotIdentifier
 //    looks like the following example: arn:aws:rds:us-west-2:123456789012:cluster-snapshot:aurora-cluster1-snapshot-20161115.
 //    To learn how to generate a Signature Version 4 signed request, see Authenticating
-//    Requests: Using Query Parameters (AWS Signature Version 4) (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
+//    Requests: Using Query Parameters (Amazon Web Services Signature Version
+//    4) (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
 //    and Signature Version 4 Signing Process (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html).
-//    If you are using an AWS SDK tool or the AWS CLI, you can specify SourceRegion
-//    (or --source-region for the AWS CLI) instead of specifying PreSignedUrl
+//    If you are using an Amazon Web Services SDK tool or the CLI, you can specify
+//    SourceRegion (or --source-region for the CLI) instead of specifying PreSignedUrl
 //    manually. Specifying SourceRegion autogenerates a pre-signed URL that
 //    is a valid request for the operation that can be executed in the source
-//    AWS Region.
+//    Amazon Web Services Region.
 //
 //    * TargetDBClusterSnapshotIdentifier - The identifier for the new copy
-//    of the DB cluster snapshot in the destination AWS Region.
+//    of the DB cluster snapshot in the destination Amazon Web Services Region.
 //
 //    * SourceDBClusterSnapshotIdentifier - The DB cluster snapshot identifier
 //    for the encrypted DB cluster snapshot to be copied. This identifier must
-//    be in the ARN format for the source AWS Region and is the same value as
-//    the SourceDBClusterSnapshotIdentifier in the pre-signed URL.
+//    be in the ARN format for the source Amazon Web Services Region and is
+//    the same value as the SourceDBClusterSnapshotIdentifier in the pre-signed
+//    URL.
 //
 // To cancel the copy operation once it is in progress, delete the target DB
 // cluster snapshot identified by TargetDBClusterSnapshotIdentifier while that
 // DB cluster snapshot is in "copying" status.
 //
-// For more information on copying encrypted DB cluster snapshots from one AWS
-// Region to another, see Copying a Snapshot (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_CopySnapshot.html)
+// For more information on copying encrypted Amazon Aurora DB cluster snapshots
+// from one Amazon Web Services Region to another, see Copying a Snapshot (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_CopySnapshot.html)
 // in the Amazon Aurora User Guide.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -960,7 +963,7 @@ func (c *RDS) CopyDBClusterSnapshotRequest(input *CopyDBClusterSnapshotInput) (r
 //   The request would result in the user exceeding the allowed number of DB snapshots.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/CopyDBClusterSnapshot
 func (c *RDS) CopyDBClusterSnapshot(input *CopyDBClusterSnapshotInput) (*CopyDBClusterSnapshotOutput, error) {
@@ -1117,9 +1120,12 @@ func (c *RDS) CopyDBSnapshotRequest(input *CopyDBSnapshotInput) (req *request.Re
 // Copies the specified DB snapshot. The source DB snapshot must be in the available
 // state.
 //
-// You can copy a snapshot from one AWS Region to another. In that case, the
-// AWS Region where you call the CopyDBSnapshot action is the destination AWS
-// Region for the DB snapshot copy.
+// You can copy a snapshot from one Amazon Web Services Region to another. In
+// that case, the Amazon Web Services Region where you call the CopyDBSnapshot
+// action is the destination Amazon Web Services Region for the DB snapshot
+// copy.
+//
+// This command doesn't apply to RDS Custom.
 //
 // For more information about copying snapshots, see Copying a DB Snapshot (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_CopySnapshot.html#USER_CopyDBSnapshot)
 // in the Amazon RDS User Guide.
@@ -1145,7 +1151,7 @@ func (c *RDS) CopyDBSnapshotRequest(input *CopyDBSnapshotInput) (req *request.Re
 //   The request would result in the user exceeding the allowed number of DB snapshots.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeCustomAvailabilityZoneNotFoundFault "CustomAvailabilityZoneNotFound"
 //   CustomAvailabilityZoneId doesn't refer to an existing custom Availability
@@ -1234,7 +1240,7 @@ func (c *RDS) CopyOptionGroupRequest(input *CopyOptionGroupInput) (req *request.
 //   The specified option group could not be found.
 //
 //   * ErrCodeOptionGroupQuotaExceededFault "OptionGroupQuotaExceededFault"
-//   The quota of 20 option groups was exceeded for this AWS account.
+//   The quota of 20 option groups was exceeded for this Amazon Web Services account.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/CopyOptionGroup
 func (c *RDS) CopyOptionGroup(input *CopyOptionGroupInput) (*CopyOptionGroupOutput, error) {
@@ -1326,7 +1332,7 @@ func (c *RDS) CreateCustomAvailabilityZoneRequest(input *CreateCustomAvailabilit
 //   You have exceeded the maximum number of custom Availability Zones.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/CreateCustomAvailabilityZone
 func (c *RDS) CreateCustomAvailabilityZone(input *CreateCustomAvailabilityZoneInput) (*CreateCustomAvailabilityZoneOutput, error) {
@@ -1345,6 +1351,129 @@ func (c *RDS) CreateCustomAvailabilityZone(input *CreateCustomAvailabilityZoneIn
 // for more information on using Contexts.
 func (c *RDS) CreateCustomAvailabilityZoneWithContext(ctx aws.Context, input *CreateCustomAvailabilityZoneInput, opts ...request.Option) (*CreateCustomAvailabilityZoneOutput, error) {
 	req, out := c.CreateCustomAvailabilityZoneRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opCreateCustomDBEngineVersion = "CreateCustomDBEngineVersion"
+
+// CreateCustomDBEngineVersionRequest generates a "aws/request.Request" representing the
+// client's request for the CreateCustomDBEngineVersion operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See CreateCustomDBEngineVersion for more information on using the CreateCustomDBEngineVersion
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the CreateCustomDBEngineVersionRequest method.
+//    req, resp := client.CreateCustomDBEngineVersionRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/CreateCustomDBEngineVersion
+func (c *RDS) CreateCustomDBEngineVersionRequest(input *CreateCustomDBEngineVersionInput) (req *request.Request, output *CreateCustomDBEngineVersionOutput) {
+	op := &request.Operation{
+		Name:       opCreateCustomDBEngineVersion,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &CreateCustomDBEngineVersionInput{}
+	}
+
+	output = &CreateCustomDBEngineVersionOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// CreateCustomDBEngineVersion API operation for Amazon Relational Database Service.
+//
+// Creates a custom DB engine version (CEV). A CEV is a binary volume snapshot
+// of a database engine and specific AMI. The supported engines are the following:
+//
+//    * Oracle Database 12.1 Enterprise Edition with the January 2021 or later
+//    RU/RUR
+//
+//    * Oracle Database 19c Enterprise Edition with the January 2021 or later
+//    RU/RUR
+//
+// Amazon RDS, which is a fully managed service, supplies the Amazon Machine
+// Image (AMI) and database software. The Amazon RDS database software is preinstalled,
+// so you need only select a DB engine and version, and create your database.
+// With Amazon RDS Custom for Oracle, you upload your database installation
+// files in Amazon S3.
+//
+// When you create a custom engine version, you specify the files in a JSON
+// document called a CEV manifest. This document describes installation .zip
+// files stored in Amazon S3. RDS Custom creates your CEV from the installation
+// files that you provided. This service model is called Bring Your Own Media
+// (BYOM).
+//
+// Creation takes approximately two hours. If creation fails, RDS Custom issues
+// RDS-EVENT-0196 with the message Creation failed for custom engine version,
+// and includes details about the failure. For example, the event prints missing
+// files.
+//
+// After you create the CEV, it is available for use. You can create multiple
+// CEVs, and create multiple RDS Custom instances from any CEV. You can also
+// change the status of a CEV to make it available or inactive.
+//
+// The MediaImport service that imports files from Amazon S3 to create CEVs
+// isn't integrated with Amazon Web Services CloudTrail. If you turn on data
+// logging for Amazon RDS in CloudTrail, calls to the CreateCustomDbEngineVersion
+// event aren't logged. However, you might see calls from the API gateway that
+// accesses your Amazon S3 bucket. These calls originate from the MediaImport
+// service for the CreateCustomDbEngineVersion event.
+//
+// For more information, see Creating a CEV (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-cev.html#custom-cev.create)
+// in the Amazon RDS User Guide.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Relational Database Service's
+// API operation CreateCustomDBEngineVersion for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeCustomDBEngineVersionAlreadyExistsFault "CustomDBEngineVersionAlreadyExistsFault"
+//   A CEV with the specified name already exists.
+//
+//   * ErrCodeCustomDBEngineVersionQuotaExceededFault "CustomDBEngineVersionQuotaExceededFault"
+//   You have exceeded your CEV quota.
+//
+//   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
+//   An error occurred accessing an Amazon Web Services KMS key.
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/CreateCustomDBEngineVersion
+func (c *RDS) CreateCustomDBEngineVersion(input *CreateCustomDBEngineVersionInput) (*CreateCustomDBEngineVersionOutput, error) {
+	req, out := c.CreateCustomDBEngineVersionRequest(input)
+	return out, req.Send()
+}
+
+// CreateCustomDBEngineVersionWithContext is the same as CreateCustomDBEngineVersion with the addition of
+// the ability to pass a context and additional request options.
+//
+// See CreateCustomDBEngineVersion for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *RDS) CreateCustomDBEngineVersionWithContext(ctx aws.Context, input *CreateCustomDBEngineVersionInput, opts ...request.Option) (*CreateCustomDBEngineVersionOutput, error) {
+	req, out := c.CreateCustomDBEngineVersionRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -1394,17 +1523,20 @@ func (c *RDS) CreateDBClusterRequest(input *CreateDBClusterInput) (req *request.
 
 // CreateDBCluster API operation for Amazon Relational Database Service.
 //
-// Creates a new Amazon Aurora DB cluster.
+// Creates a new Amazon Aurora DB cluster or Multi-AZ DB cluster.
 //
-// You can use the ReplicationSourceIdentifier parameter to create the DB cluster
-// as a read replica of another DB cluster or Amazon RDS MySQL DB instance.
-// For cross-region replication where the DB cluster identified by ReplicationSourceIdentifier
-// is encrypted, you must also specify the PreSignedUrl parameter.
+// You can use the ReplicationSourceIdentifier parameter to create an Amazon
+// Aurora DB cluster as a read replica of another DB cluster or Amazon RDS MySQL
+// or PostgreSQL DB instance. For cross-Region replication where the DB cluster
+// identified by ReplicationSourceIdentifier is encrypted, also specify the
+// PreSignedUrl parameter.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1455,7 +1587,7 @@ func (c *RDS) CreateDBClusterRequest(input *CreateDBClusterInput) (req *request.
 //   group.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeDBClusterNotFoundFault "DBClusterNotFoundFault"
 //   DBClusterIdentifier doesn't refer to an existing DB cluster.
@@ -1651,9 +1783,14 @@ func (c *RDS) CreateDBClusterParameterGroupRequest(input *CreateDBClusterParamet
 // values for any of the parameters, you must modify the group after creating
 // it using ModifyDBClusterParameterGroup. Once you've created a DB cluster
 // parameter group, you need to associate it with your DB cluster using ModifyDBCluster.
-// When you associate a new DB cluster parameter group with a running DB cluster,
-// you need to reboot the DB instances in the DB cluster without failover for
+//
+// When you associate a new DB cluster parameter group with a running Aurora
+// DB cluster, reboot the DB instances in the DB cluster without failover for
 // the new DB cluster parameter group and associated settings to take effect.
+//
+// When you associate a new DB cluster parameter group with a running Multi-AZ
+// DB cluster, reboot the DB cluster without failover for the new DB cluster
+// parameter group and associated settings to take effect.
 //
 // After you create a DB cluster parameter group, you should wait at least 5
 // minutes before creating your first DB cluster that uses that DB cluster parameter
@@ -1667,10 +1804,12 @@ func (c *RDS) CreateDBClusterParameterGroupRequest(input *CreateDBClusterParamet
 // action to verify that your DB cluster parameter group has been created or
 // modified.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1753,11 +1892,14 @@ func (c *RDS) CreateDBClusterSnapshotRequest(input *CreateDBClusterSnapshotInput
 
 // CreateDBClusterSnapshot API operation for Amazon Relational Database Service.
 //
-// Creates a snapshot of a DB cluster. For more information on Amazon Aurora,
-// see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// Creates a snapshot of a DB cluster.
+//
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1916,7 +2058,7 @@ func (c *RDS) CreateDBInstanceRequest(input *CreateDBInstanceInput) (req *reques
 //   your behalf.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeDomainNotFoundFault "DomainNotFoundFault"
 //   Domain doesn't refer to an existing Active Directory domain.
@@ -2071,7 +2213,7 @@ func (c *RDS) CreateDBInstanceReadReplicaRequest(input *CreateDBInstanceReadRepl
 //   Storage of the StorageType specified can't be associated with the DB instance.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeDomainNotFoundFault "DomainNotFoundFault"
 //   Domain doesn't refer to an existing Active Directory domain.
@@ -2152,6 +2294,8 @@ func (c *RDS) CreateDBParameterGroupRequest(input *CreateDBParameterGroupInput) 
 // a new DB parameter group with a running DB instance, you need to reboot the
 // DB instance without failover for the new DB parameter group and associated
 // settings to take effect.
+//
+// This command doesn't apply to RDS Custom.
 //
 // After you create a DB parameter group, you should wait at least 5 minutes
 // before creating your first DB instance that uses that DB parameter group
@@ -2259,13 +2403,13 @@ func (c *RDS) CreateDBProxyRequest(input *CreateDBProxyInput) (req *request.Requ
 //   The requested subnet is invalid, or multiple subnets were requested that
 //   are not all in a common VPC.
 //
-//   * ErrCodeDBProxyAlreadyExistsFault "DBProxyTargetExistsFault"
-//   The specified proxy name must be unique for all proxies owned by your AWS
-//   account in the specified AWS Region.
+//   * ErrCodeDBProxyAlreadyExistsFault "DBProxyAlreadyExistsFault"
+//   The specified proxy name must be unique for all proxies owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBProxyQuotaExceededFault "DBProxyQuotaExceededFault"
-//   Your AWS account already has the maximum number of proxies in the specified
-//   AWS Region.
+//   Your Amazon Web Services account already has the maximum number of proxies
+//   in the specified Amazon Web Services Region.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/CreateDBProxy
 func (c *RDS) CreateDBProxy(input *CreateDBProxyInput) (*CreateDBProxyOutput, error) {
@@ -2284,6 +2428,104 @@ func (c *RDS) CreateDBProxy(input *CreateDBProxyInput) (*CreateDBProxyOutput, er
 // for more information on using Contexts.
 func (c *RDS) CreateDBProxyWithContext(ctx aws.Context, input *CreateDBProxyInput, opts ...request.Option) (*CreateDBProxyOutput, error) {
 	req, out := c.CreateDBProxyRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opCreateDBProxyEndpoint = "CreateDBProxyEndpoint"
+
+// CreateDBProxyEndpointRequest generates a "aws/request.Request" representing the
+// client's request for the CreateDBProxyEndpoint operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See CreateDBProxyEndpoint for more information on using the CreateDBProxyEndpoint
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the CreateDBProxyEndpointRequest method.
+//    req, resp := client.CreateDBProxyEndpointRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/CreateDBProxyEndpoint
+func (c *RDS) CreateDBProxyEndpointRequest(input *CreateDBProxyEndpointInput) (req *request.Request, output *CreateDBProxyEndpointOutput) {
+	op := &request.Operation{
+		Name:       opCreateDBProxyEndpoint,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &CreateDBProxyEndpointInput{}
+	}
+
+	output = &CreateDBProxyEndpointOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// CreateDBProxyEndpoint API operation for Amazon Relational Database Service.
+//
+// Creates a DBProxyEndpoint. Only applies to proxies that are associated with
+// Aurora DB clusters. You can use DB proxy endpoints to specify read/write
+// or read-only access to the DB cluster. You can also use DB proxy endpoints
+// to access a DB proxy through a different VPC than the proxy's default VPC.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Relational Database Service's
+// API operation CreateDBProxyEndpoint for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeInvalidSubnet "InvalidSubnet"
+//   The requested subnet is invalid, or multiple subnets were requested that
+//   are not all in a common VPC.
+//
+//   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
+//
+//   * ErrCodeDBProxyEndpointAlreadyExistsFault "DBProxyEndpointAlreadyExistsFault"
+//   The specified DB proxy endpoint name must be unique for all DB proxy endpoints
+//   owned by your Amazon Web Services account in the specified Amazon Web Services
+//   Region.
+//
+//   * ErrCodeDBProxyEndpointQuotaExceededFault "DBProxyEndpointQuotaExceededFault"
+//   The DB proxy already has the maximum number of endpoints.
+//
+//   * ErrCodeInvalidDBProxyStateFault "InvalidDBProxyStateFault"
+//   The requested operation can't be performed while the proxy is in this state.
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/CreateDBProxyEndpoint
+func (c *RDS) CreateDBProxyEndpoint(input *CreateDBProxyEndpointInput) (*CreateDBProxyEndpointOutput, error) {
+	req, out := c.CreateDBProxyEndpointRequest(input)
+	return out, req.Send()
+}
+
+// CreateDBProxyEndpointWithContext is the same as CreateDBProxyEndpoint with the addition of
+// the ability to pass a context and additional request options.
+//
+// See CreateDBProxyEndpoint for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *RDS) CreateDBProxyEndpointWithContext(ctx aws.Context, input *CreateDBProxyEndpointInput, opts ...request.Option) (*CreateDBProxyEndpointOutput, error) {
+	req, out := c.CreateDBProxyEndpointRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -2514,7 +2756,7 @@ func (c *RDS) CreateDBSubnetGroupRequest(input *CreateDBSubnetGroupInput) (req *
 // CreateDBSubnetGroup API operation for Amazon Relational Database Service.
 //
 // Creates a new DB subnet group. DB subnet groups must contain at least one
-// subnet in at least two AZs in the AWS Region.
+// subnet in at least two AZs in the Amazon Web Services Region.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2622,12 +2864,12 @@ func (c *RDS) CreateEventSubscriptionRequest(input *CreateEventSubscriptionInput
 // = Availability, Backup.
 //
 // If you specify both the SourceType and SourceIds, such as SourceType = db-instance
-// and SourceIdentifier = myDBInstance1, you are notified of all the db-instance
-// events for the specified source. If you specify a SourceType but do not specify
-// a SourceIdentifier, you receive notice of the events for that source type
-// for all your RDS sources. If you don't specify either the SourceType or the
-// SourceIdentifier, you are notified of events generated from all RDS sources
-// belonging to your customer account.
+// and SourceIds = myDBInstance1, you are notified of all the db-instance events
+// for the specified source. If you specify a SourceType but do not specify
+// SourceIds, you receive notice of the events for that source type for all
+// your RDS sources. If you don't specify either the SourceType or the SourceIds,
+// you are notified of events generated from all RDS sources belonging to your
+// customer account.
 //
 // RDS event notification is only available for unencrypted SNS topics. If you
 // specify an encrypted SNS topic, event notifications aren't sent for the topic.
@@ -2647,7 +2889,7 @@ func (c *RDS) CreateEventSubscriptionRequest(input *CreateEventSubscriptionInput
 //   The supplied subscription name already exists.
 //
 //   * ErrCodeSNSInvalidTopicFault "SNSInvalidTopic"
-//   SNS has responded that there is a problem with the SND topic specified.
+//   SNS has responded that there is a problem with the SNS topic specified.
 //
 //   * ErrCodeSNSNoAuthorizationFault "SNSNoAuthorization"
 //   You do not have permission to publish to the SNS topic ARN.
@@ -2727,10 +2969,11 @@ func (c *RDS) CreateGlobalClusterRequest(input *CreateGlobalClusterInput) (req *
 
 // CreateGlobalCluster API operation for Amazon Relational Database Service.
 //
-// Creates an Aurora global database spread across multiple AWS Regions. The
-// global database contains a single primary cluster with read-write capability,
-// and a read-only secondary cluster that receives data from the primary cluster
-// through high-speed replication performed by the Aurora storage subsystem.
+// Creates an Aurora global database spread across multiple Amazon Web Services
+// Regions. The global database contains a single primary cluster with read-write
+// capability, and a read-only secondary cluster that receives data from the
+// primary cluster through high-speed replication performed by the Aurora storage
+// subsystem.
 //
 // You can create a global database that is initially empty, and then add a
 // primary cluster and a secondary cluster to it. Or you can specify an existing
@@ -2829,6 +3072,8 @@ func (c *RDS) CreateOptionGroupRequest(input *CreateOptionGroupInput) (req *requ
 //
 // Creates a new option group. You can create up to 20 option groups.
 //
+// This command doesn't apply to RDS Custom.
+//
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
 // the error.
@@ -2841,7 +3086,7 @@ func (c *RDS) CreateOptionGroupRequest(input *CreateOptionGroupInput) (req *requ
 //   The option group you are trying to create already exists.
 //
 //   * ErrCodeOptionGroupQuotaExceededFault "OptionGroupQuotaExceededFault"
-//   The quota of 20 option groups was exceeded for this AWS account.
+//   The quota of 20 option groups was exceeded for this Amazon Web Services account.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/CreateOptionGroup
 func (c *RDS) CreateOptionGroup(input *CreateOptionGroupInput) (*CreateOptionGroupOutput, error) {
@@ -2930,7 +3175,7 @@ func (c *RDS) DeleteCustomAvailabilityZoneRequest(input *DeleteCustomAvailabilit
 //   Zone identifier.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/DeleteCustomAvailabilityZone
 func (c *RDS) DeleteCustomAvailabilityZone(input *DeleteCustomAvailabilityZoneInput) (*DeleteCustomAvailabilityZoneOutput, error) {
@@ -2949,6 +3194,107 @@ func (c *RDS) DeleteCustomAvailabilityZone(input *DeleteCustomAvailabilityZoneIn
 // for more information on using Contexts.
 func (c *RDS) DeleteCustomAvailabilityZoneWithContext(ctx aws.Context, input *DeleteCustomAvailabilityZoneInput, opts ...request.Option) (*DeleteCustomAvailabilityZoneOutput, error) {
 	req, out := c.DeleteCustomAvailabilityZoneRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opDeleteCustomDBEngineVersion = "DeleteCustomDBEngineVersion"
+
+// DeleteCustomDBEngineVersionRequest generates a "aws/request.Request" representing the
+// client's request for the DeleteCustomDBEngineVersion operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See DeleteCustomDBEngineVersion for more information on using the DeleteCustomDBEngineVersion
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the DeleteCustomDBEngineVersionRequest method.
+//    req, resp := client.DeleteCustomDBEngineVersionRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/DeleteCustomDBEngineVersion
+func (c *RDS) DeleteCustomDBEngineVersionRequest(input *DeleteCustomDBEngineVersionInput) (req *request.Request, output *DeleteCustomDBEngineVersionOutput) {
+	op := &request.Operation{
+		Name:       opDeleteCustomDBEngineVersion,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &DeleteCustomDBEngineVersionInput{}
+	}
+
+	output = &DeleteCustomDBEngineVersionOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// DeleteCustomDBEngineVersion API operation for Amazon Relational Database Service.
+//
+// Deletes a custom engine version. To run this command, make sure you meet
+// the following prerequisites:
+//
+//    * The CEV must not be the default for RDS Custom. If it is, change the
+//    default before running this command.
+//
+//    * The CEV must not be associated with an RDS Custom DB instance, RDS Custom
+//    instance snapshot, or automated backup of your RDS Custom instance.
+//
+// Typically, deletion takes a few minutes.
+//
+// The MediaImport service that imports files from Amazon S3 to create CEVs
+// isn't integrated with Amazon Web Services CloudTrail. If you turn on data
+// logging for Amazon RDS in CloudTrail, calls to the DeleteCustomDbEngineVersion
+// event aren't logged. However, you might see calls from the API gateway that
+// accesses your Amazon S3 bucket. These calls originate from the MediaImport
+// service for the DeleteCustomDbEngineVersion event.
+//
+// For more information, see Deleting a CEV (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-cev.html#custom-cev.delete)
+// in the Amazon RDS User Guide.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Relational Database Service's
+// API operation DeleteCustomDBEngineVersion for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeCustomDBEngineVersionNotFoundFault "CustomDBEngineVersionNotFoundFault"
+//   The specified CEV was not found.
+//
+//   * ErrCodeInvalidCustomDBEngineVersionStateFault "InvalidCustomDBEngineVersionStateFault"
+//   You can't delete the CEV.
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/DeleteCustomDBEngineVersion
+func (c *RDS) DeleteCustomDBEngineVersion(input *DeleteCustomDBEngineVersionInput) (*DeleteCustomDBEngineVersionOutput, error) {
+	req, out := c.DeleteCustomDBEngineVersionRequest(input)
+	return out, req.Send()
+}
+
+// DeleteCustomDBEngineVersionWithContext is the same as DeleteCustomDBEngineVersion with the addition of
+// the ability to pass a context and additional request options.
+//
+// See DeleteCustomDBEngineVersion for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *RDS) DeleteCustomDBEngineVersionWithContext(ctx aws.Context, input *DeleteCustomDBEngineVersionInput, opts ...request.Option) (*DeleteCustomDBEngineVersionOutput, error) {
+	req, out := c.DeleteCustomDBEngineVersionRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -3003,10 +3349,12 @@ func (c *RDS) DeleteDBClusterRequest(input *DeleteDBClusterInput) (req *request.
 // and can't be recovered. Manual DB cluster snapshots of the specified DB cluster
 // are not deleted.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3189,10 +3537,12 @@ func (c *RDS) DeleteDBClusterParameterGroupRequest(input *DeleteDBClusterParamet
 // Deletes a specified DB cluster parameter group. The DB cluster parameter
 // group to be deleted can't be associated with any DB clusters.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3281,10 +3631,12 @@ func (c *RDS) DeleteDBClusterSnapshotRequest(input *DeleteDBClusterSnapshotInput
 //
 // The DB cluster snapshot must be in the available state to be deleted.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3656,7 +4008,7 @@ func (c *RDS) DeleteDBProxyRequest(input *DeleteDBProxyInput) (req *request.Requ
 
 // DeleteDBProxy API operation for Amazon Relational Database Service.
 //
-// Deletes an existing proxy.
+// Deletes an existing DB proxy.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3667,8 +4019,8 @@ func (c *RDS) DeleteDBProxyRequest(input *DeleteDBProxyInput) (req *request.Requ
 //
 // Returned Error Codes:
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeInvalidDBProxyStateFault "InvalidDBProxyStateFault"
 //   The requested operation can't be performed while the proxy is in this state.
@@ -3690,6 +4042,92 @@ func (c *RDS) DeleteDBProxy(input *DeleteDBProxyInput) (*DeleteDBProxyOutput, er
 // for more information on using Contexts.
 func (c *RDS) DeleteDBProxyWithContext(ctx aws.Context, input *DeleteDBProxyInput, opts ...request.Option) (*DeleteDBProxyOutput, error) {
 	req, out := c.DeleteDBProxyRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opDeleteDBProxyEndpoint = "DeleteDBProxyEndpoint"
+
+// DeleteDBProxyEndpointRequest generates a "aws/request.Request" representing the
+// client's request for the DeleteDBProxyEndpoint operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See DeleteDBProxyEndpoint for more information on using the DeleteDBProxyEndpoint
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the DeleteDBProxyEndpointRequest method.
+//    req, resp := client.DeleteDBProxyEndpointRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/DeleteDBProxyEndpoint
+func (c *RDS) DeleteDBProxyEndpointRequest(input *DeleteDBProxyEndpointInput) (req *request.Request, output *DeleteDBProxyEndpointOutput) {
+	op := &request.Operation{
+		Name:       opDeleteDBProxyEndpoint,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &DeleteDBProxyEndpointInput{}
+	}
+
+	output = &DeleteDBProxyEndpointOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// DeleteDBProxyEndpoint API operation for Amazon Relational Database Service.
+//
+// Deletes a DBProxyEndpoint. Doing so removes the ability to access the DB
+// proxy using the endpoint that you defined. The endpoint that you delete might
+// have provided capabilities such as read/write or read-only operations, or
+// using a different VPC than the DB proxy's default VPC.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Relational Database Service's
+// API operation DeleteDBProxyEndpoint for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeDBProxyEndpointNotFoundFault "DBProxyEndpointNotFoundFault"
+//   The DB proxy endpoint doesn't exist.
+//
+//   * ErrCodeInvalidDBProxyEndpointStateFault "InvalidDBProxyEndpointStateFault"
+//   You can't perform this operation while the DB proxy endpoint is in a particular
+//   state.
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/DeleteDBProxyEndpoint
+func (c *RDS) DeleteDBProxyEndpoint(input *DeleteDBProxyEndpointInput) (*DeleteDBProxyEndpointOutput, error) {
+	req, out := c.DeleteDBProxyEndpointRequest(input)
+	return out, req.Send()
+}
+
+// DeleteDBProxyEndpointWithContext is the same as DeleteDBProxyEndpoint with the addition of
+// the ability to pass a context and additional request options.
+//
+// See DeleteDBProxyEndpoint for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *RDS) DeleteDBProxyEndpointWithContext(ctx aws.Context, input *DeleteDBProxyEndpointInput, opts ...request.Option) (*DeleteDBProxyEndpointOutput, error) {
+	req, out := c.DeleteDBProxyEndpointRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -4344,15 +4782,16 @@ func (c *RDS) DeregisterDBProxyTargetsRequest(input *DeregisterDBProxyTargetsInp
 // Returned Error Codes:
 //   * ErrCodeDBProxyTargetNotFoundFault "DBProxyTargetNotFoundFault"
 //   The specified RDS DB instance or Aurora DB cluster isn't available for a
-//   proxy owned by your AWS account in the specified AWS Region.
+//   proxy owned by your Amazon Web Services account in the specified Amazon Web
+//   Services Region.
 //
 //   * ErrCodeDBProxyTargetGroupNotFoundFault "DBProxyTargetGroupNotFoundFault"
-//   The specified target group isn't available for a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified target group isn't available for a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeInvalidDBProxyStateFault "InvalidDBProxyStateFault"
 //   The requested operation can't be performed while the proxy is in this state.
@@ -4508,7 +4947,8 @@ func (c *RDS) DescribeCertificatesRequest(input *DescribeCertificatesInput) (req
 
 // DescribeCertificates API operation for Amazon Relational Database Service.
 //
-// Lists the set of CA certificates provided by Amazon RDS for this AWS account.
+// Lists the set of CA certificates provided by Amazon RDS for this Amazon Web
+// Services account.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4791,7 +5231,7 @@ func (c *RDS) DescribeDBClusterBacktracksRequest(input *DescribeDBClusterBacktra
 //
 // Returns information about backtracks for a DB cluster.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
 // This action only applies to Aurora MySQL DB clusters.
@@ -5077,10 +5517,12 @@ func (c *RDS) DescribeDBClusterParameterGroupsRequest(input *DescribeDBClusterPa
 // parameter is specified, the list will contain only the description of the
 // specified DB cluster parameter group.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5220,10 +5662,12 @@ func (c *RDS) DescribeDBClusterParametersRequest(input *DescribeDBClusterParamet
 // Returns the detailed parameter list for a particular DB cluster parameter
 // group.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5357,17 +5801,16 @@ func (c *RDS) DescribeDBClusterSnapshotAttributesRequest(input *DescribeDBCluste
 // Returns a list of DB cluster snapshot attribute names and values for a manual
 // DB cluster snapshot.
 //
-// When sharing snapshots with other AWS accounts, DescribeDBClusterSnapshotAttributes
-// returns the restore attribute and a list of IDs for the AWS accounts that
-// are authorized to copy or restore the manual DB cluster snapshot. If all
-// is included in the list of values for the restore attribute, then the manual
-// DB cluster snapshot is public and can be copied or restored by all AWS accounts.
+// When sharing snapshots with other Amazon Web Services accounts, DescribeDBClusterSnapshotAttributes
+// returns the restore attribute and a list of IDs for the Amazon Web Services
+// accounts that are authorized to copy or restore the manual DB cluster snapshot.
+// If all is included in the list of values for the restore attribute, then
+// the manual DB cluster snapshot is public and can be copied or restored by
+// all Amazon Web Services accounts.
 //
-// To add or remove access for an AWS account to copy or restore a manual DB
-// cluster snapshot, or to make the manual DB cluster snapshot public or private,
-// use the ModifyDBClusterSnapshotAttribute API action.
-//
-// This action only applies to Aurora DB clusters.
+// To add or remove access for an Amazon Web Services account to copy or restore
+// a manual DB cluster snapshot, or to make the manual DB cluster snapshot public
+// or private, use the ModifyDBClusterSnapshotAttribute API action.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5455,10 +5898,13 @@ func (c *RDS) DescribeDBClusterSnapshotsRequest(input *DescribeDBClusterSnapshot
 // Returns information about DB cluster snapshots. This API action supports
 // pagination.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5595,11 +6041,16 @@ func (c *RDS) DescribeDBClustersRequest(input *DescribeDBClustersInput) (req *re
 
 // DescribeDBClusters API operation for Amazon Relational Database Service.
 //
-// Returns information about provisioned Aurora DB clusters. This API supports
-// pagination.
+// Returns information about Amazon Aurora DB clusters and Multi-AZ DB clusters.
+// This API supports pagination.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
+//
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // This operation can also return information for Amazon Neptune DB instances
 // and Amazon DocumentDB instances.
@@ -6156,6 +6607,8 @@ func (c *RDS) DescribeDBLogFilesRequest(input *DescribeDBLogFilesInput) (req *re
 //
 // Returns a list of DB log files for the DB instance.
 //
+// This command doesn't apply to RDS Custom.
+//
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
 // the error.
@@ -6578,8 +7031,8 @@ func (c *RDS) DescribeDBProxiesRequest(input *DescribeDBProxiesInput) (req *requ
 //
 // Returned Error Codes:
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/DescribeDBProxies
 func (c *RDS) DescribeDBProxies(input *DescribeDBProxiesInput) (*DescribeDBProxiesOutput, error) {
@@ -6655,6 +7108,147 @@ func (c *RDS) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *Describe
 	return p.Err()
 }
 
+const opDescribeDBProxyEndpoints = "DescribeDBProxyEndpoints"
+
+// DescribeDBProxyEndpointsRequest generates a "aws/request.Request" representing the
+// client's request for the DescribeDBProxyEndpoints operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See DescribeDBProxyEndpoints for more information on using the DescribeDBProxyEndpoints
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the DescribeDBProxyEndpointsRequest method.
+//    req, resp := client.DescribeDBProxyEndpointsRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/DescribeDBProxyEndpoints
+func (c *RDS) DescribeDBProxyEndpointsRequest(input *DescribeDBProxyEndpointsInput) (req *request.Request, output *DescribeDBProxyEndpointsOutput) {
+	op := &request.Operation{
+		Name:       opDescribeDBProxyEndpoints,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+		Paginator: &request.Paginator{
+			InputTokens:     []string{"Marker"},
+			OutputTokens:    []string{"Marker"},
+			LimitToken:      "MaxRecords",
+			TruncationToken: "",
+		},
+	}
+
+	if input == nil {
+		input = &DescribeDBProxyEndpointsInput{}
+	}
+
+	output = &DescribeDBProxyEndpointsOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// DescribeDBProxyEndpoints API operation for Amazon Relational Database Service.
+//
+// Returns information about DB proxy endpoints.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Relational Database Service's
+// API operation DescribeDBProxyEndpoints for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
+//
+//   * ErrCodeDBProxyEndpointNotFoundFault "DBProxyEndpointNotFoundFault"
+//   The DB proxy endpoint doesn't exist.
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/DescribeDBProxyEndpoints
+func (c *RDS) DescribeDBProxyEndpoints(input *DescribeDBProxyEndpointsInput) (*DescribeDBProxyEndpointsOutput, error) {
+	req, out := c.DescribeDBProxyEndpointsRequest(input)
+	return out, req.Send()
+}
+
+// DescribeDBProxyEndpointsWithContext is the same as DescribeDBProxyEndpoints with the addition of
+// the ability to pass a context and additional request options.
+//
+// See DescribeDBProxyEndpoints for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *RDS) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *DescribeDBProxyEndpointsInput, opts ...request.Option) (*DescribeDBProxyEndpointsOutput, error) {
+	req, out := c.DescribeDBProxyEndpointsRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+// DescribeDBProxyEndpointsPages iterates over the pages of a DescribeDBProxyEndpoints operation,
+// calling the "fn" function with the response data for each page. To stop
+// iterating, return false from the fn function.
+//
+// See DescribeDBProxyEndpoints method for more information on how to use this operation.
+//
+// Note: This operation can generate multiple requests to a service.
+//
+//    // Example iterating over at most 3 pages of a DescribeDBProxyEndpoints operation.
+//    pageNum := 0
+//    err := client.DescribeDBProxyEndpointsPages(params,
+//        func(page *rds.DescribeDBProxyEndpointsOutput, lastPage bool) bool {
+//            pageNum++
+//            fmt.Println(page)
+//            return pageNum <= 3
+//        })
+//
+func (c *RDS) DescribeDBProxyEndpointsPages(input *DescribeDBProxyEndpointsInput, fn func(*DescribeDBProxyEndpointsOutput, bool) bool) error {
+	return c.DescribeDBProxyEndpointsPagesWithContext(aws.BackgroundContext(), input, fn)
+}
+
+// DescribeDBProxyEndpointsPagesWithContext same as DescribeDBProxyEndpointsPages except
+// it takes a Context and allows setting request options on the pages.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *RDS) DescribeDBProxyEndpointsPagesWithContext(ctx aws.Context, input *DescribeDBProxyEndpointsInput, fn func(*DescribeDBProxyEndpointsOutput, bool) bool, opts ...request.Option) error {
+	p := request.Pagination{
+		NewRequest: func() (*request.Request, error) {
+			var inCpy *DescribeDBProxyEndpointsInput
+			if input != nil {
+				tmp := *input
+				inCpy = &tmp
+			}
+			req, _ := c.DescribeDBProxyEndpointsRequest(inCpy)
+			req.SetContext(ctx)
+			req.ApplyOptions(opts...)
+			return req, nil
+		},
+	}
+
+	for p.Next() {
+		if !fn(p.Page().(*DescribeDBProxyEndpointsOutput), !p.HasNextPage()) {
+			break
+		}
+	}
+
+	return p.Err()
+}
+
 const opDescribeDBProxyTargetGroups = "DescribeDBProxyTargetGroups"
 
 // DescribeDBProxyTargetGroupsRequest generates a "aws/request.Request" representing the
@@ -6717,12 +7311,12 @@ func (c *RDS) DescribeDBProxyTargetGroupsRequest(input *DescribeDBProxyTargetGro
 //
 // Returned Error Codes:
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBProxyTargetGroupNotFoundFault "DBProxyTargetGroupNotFoundFault"
-//   The specified target group isn't available for a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified target group isn't available for a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeInvalidDBProxyStateFault "InvalidDBProxyStateFault"
 //   The requested operation can't be performed while the proxy is in this state.
@@ -6862,16 +7456,17 @@ func (c *RDS) DescribeDBProxyTargetsRequest(input *DescribeDBProxyTargetsInput) 
 //
 // Returned Error Codes:
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBProxyTargetNotFoundFault "DBProxyTargetNotFoundFault"
 //   The specified RDS DB instance or Aurora DB cluster isn't available for a
-//   proxy owned by your AWS account in the specified AWS Region.
+//   proxy owned by your Amazon Web Services account in the specified Amazon Web
+//   Services Region.
 //
 //   * ErrCodeDBProxyTargetGroupNotFoundFault "DBProxyTargetGroupNotFoundFault"
-//   The specified target group isn't available for a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified target group isn't available for a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeInvalidDBProxyStateFault "InvalidDBProxyStateFault"
 //   The requested operation can't be performed while the proxy is in this state.
@@ -7136,15 +7731,16 @@ func (c *RDS) DescribeDBSnapshotAttributesRequest(input *DescribeDBSnapshotAttri
 // Returns a list of DB snapshot attribute names and values for a manual DB
 // snapshot.
 //
-// When sharing snapshots with other AWS accounts, DescribeDBSnapshotAttributes
-// returns the restore attribute and a list of IDs for the AWS accounts that
-// are authorized to copy or restore the manual DB snapshot. If all is included
-// in the list of values for the restore attribute, then the manual DB snapshot
-// is public and can be copied or restored by all AWS accounts.
+// When sharing snapshots with other Amazon Web Services accounts, DescribeDBSnapshotAttributes
+// returns the restore attribute and a list of IDs for the Amazon Web Services
+// accounts that are authorized to copy or restore the manual DB snapshot. If
+// all is included in the list of values for the restore attribute, then the
+// manual DB snapshot is public and can be copied or restored by all Amazon
+// Web Services accounts.
 //
-// To add or remove access for an AWS account to copy or restore a manual DB
-// snapshot, or to make the manual DB snapshot public or private, use the ModifyDBSnapshotAttribute
-// API action.
+// To add or remove access for an Amazon Web Services account to copy or restore
+// a manual DB snapshot, or to make the manual DB snapshot public or private,
+// use the ModifyDBSnapshotAttribute API action.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7503,7 +8099,7 @@ func (c *RDS) DescribeEngineDefaultClusterParametersRequest(input *DescribeEngin
 // Returns the default engine and system parameter information for the cluster
 // database engine.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -7712,9 +8308,10 @@ func (c *RDS) DescribeEventCategoriesRequest(input *DescribeEventCategoriesInput
 // DescribeEventCategories API operation for Amazon Relational Database Service.
 //
 // Displays a list of categories for all event source types, or, if specified,
-// for a specified source type. You can see a list of the event categories and
-// source types in Events (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.html)
-// in the Amazon RDS User Guide.
+// for a specified source type. You can also see this list in the "Amazon RDS
+// event categories and event messages" section of the Amazon RDS User Guide
+// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html)
+// or the Amazon Aurora User Guide (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html).
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7936,12 +8533,12 @@ func (c *RDS) DescribeEventsRequest(input *DescribeEventsInput) (req *request.Re
 // DescribeEvents API operation for Amazon Relational Database Service.
 //
 // Returns events related to DB instances, DB clusters, DB parameter groups,
-// DB security groups, DB snapshots, and DB cluster snapshots for the past 14
-// days. Events specific to a particular DB instances, DB clusters, DB parameter
-// groups, DB security groups, DB snapshots, and DB cluster snapshots group
-// can be obtained by providing the name as a parameter.
+// DB security groups, DB snapshots, DB cluster snapshots, and RDS Proxies for
+// the past 14 days. Events specific to a particular DB instance, DB cluster,
+// DB parameter group, DB security group, DB snapshot, DB cluster snapshot group,
+// or RDS Proxy can be obtained by providing the name as a parameter.
 //
-// By default, the past hour of events are returned.
+// By default, RDS returns events that were generated in the past hour.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -8214,7 +8811,7 @@ func (c *RDS) DescribeGlobalClustersRequest(input *DescribeGlobalClustersInput) 
 // Returns information about Aurora global database clusters. This API supports
 // pagination.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
 // This action only applies to Aurora DB clusters.
@@ -8762,7 +9359,8 @@ func (c *RDS) DescribeOrderableDBInstanceOptionsRequest(input *DescribeOrderable
 
 // DescribeOrderableDBInstanceOptions API operation for Amazon Relational Database Service.
 //
-// Returns a list of orderable DB instance options for the specified engine.
+// Returns a list of orderable DB instance options for the specified DB engine,
+// DB engine version, and DB instance class.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -9307,9 +9905,9 @@ func (c *RDS) DescribeSourceRegionsRequest(input *DescribeSourceRegionsInput) (r
 
 // DescribeSourceRegions API operation for Amazon Relational Database Service.
 //
-// Returns a list of the source AWS Regions where the current AWS Region can
-// create a read replica, copy a DB snapshot from, or replicate automated backups
-// from. This API action supports pagination.
+// Returns a list of the source Amazon Web Services Regions where the current
+// Amazon Web Services Region can create a read replica, copy a DB snapshot
+// from, or replicate automated backups from. This API action supports pagination.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -9439,6 +10037,8 @@ func (c *RDS) DescribeValidDBInstanceModificationsRequest(input *DescribeValidDB
 // you can make to your DB instance. You can use this information when you call
 // ModifyDBInstance.
 //
+// This command doesn't apply to RDS Custom.
+//
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
 // the error.
@@ -9526,6 +10126,8 @@ func (c *RDS) DownloadDBLogFilePortionRequest(input *DownloadDBLogFilePortionInp
 // DownloadDBLogFilePortion API operation for Amazon Relational Database Service.
 //
 // Downloads all or a portion of the specified log file, up to 1 MB in size.
+//
+// This command doesn't apply to RDS Custom.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -9661,20 +10263,31 @@ func (c *RDS) FailoverDBClusterRequest(input *FailoverDBClusterInput) (req *requ
 //
 // Forces a failover for a DB cluster.
 //
-// A failover for a DB cluster promotes one of the Aurora Replicas (read-only
-// instances) in the DB cluster to be the primary instance (the cluster writer).
+// For an Aurora DB cluster, failover for a DB cluster promotes one of the Aurora
+// Replicas (read-only instances) in the DB cluster to be the primary DB instance
+// (the cluster writer).
 //
-// Amazon Aurora will automatically fail over to an Aurora Replica, if one exists,
-// when the primary instance fails. You can force a failover when you want to
-// simulate a failure of a primary instance for testing. Because each instance
-// in a DB cluster has its own endpoint address, you will need to clean up and
-// re-establish any existing connections that use those endpoint addresses when
-// the failover is complete.
+// For a Multi-AZ DB cluster, failover for a DB cluster promotes one of the
+// readable standby DB instances (read-only instances) in the DB cluster to
+// be the primary DB instance (the cluster writer).
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// An Amazon Aurora DB cluster automatically fails over to an Aurora Replica,
+// if one exists, when the primary DB instance fails. A Multi-AZ DB cluster
+// automatically fails over to a readbable standby DB instance when the primary
+// DB instance fails.
+//
+// To simulate a failure of a primary instance for testing, you can force a
+// failover. Because each instance in a DB cluster has its own endpoint address,
+// make sure to clean up and re-establish any existing connections that use
+// those endpoint addresses when the failover is complete.
+//
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -9769,7 +10382,7 @@ func (c *RDS) FailoverGlobalClusterRequest(input *FailoverGlobalClusterInput) (r
 // the Aurora global database.
 //
 // For more information about failing over an Amazon Aurora global database,
-// see Managed planned failover for Amazon Aurora global databases (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database-disaster-recovery.managed-failover)
+// see Managed planned failover for Amazon Aurora global databases (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database-disaster-recovery.html#aurora-global-database-disaster-recovery.managed-failover)
 // in the Amazon Aurora User Guide.
 //
 // This action applies to GlobalCluster (Aurora global databases) only. Use
@@ -9973,12 +10586,12 @@ func (c *RDS) ListTagsForResourceRequest(input *ListTagsForResourceInput) (req *
 //   DBClusterIdentifier doesn't refer to an existing DB cluster.
 //
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBProxyTargetGroupNotFoundFault "DBProxyTargetGroupNotFoundFault"
-//   The specified target group isn't available for a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified target group isn't available for a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/ListTagsForResource
 func (c *RDS) ListTagsForResource(input *ListTagsForResourceInput) (*ListTagsForResourceOutput, error) {
@@ -10059,12 +10672,12 @@ func (c *RDS) ModifyCertificatesRequest(input *ModifyCertificatesInput) (req *re
 //
 //    * You already migrated your applications to support the latest certificate
 //    authority (CA) certificate, but the new CA certificate is not yet the
-//    RDS default CA certificate for the specified AWS Region.
+//    RDS default CA certificate for the specified Amazon Web Services Region.
 //
 //    * RDS has already moved to a new default CA certificate for the specified
-//    AWS Region, but you are still in the process of supporting the new CA
-//    certificate. In this case, you temporarily need additional time to finish
-//    your application changes.
+//    Amazon Web Services Region, but you are still in the process of supporting
+//    the new CA certificate. In this case, you temporarily need additional
+//    time to finish your application changes.
 //
 // For more information about rotating your SSL/TLS certificate for RDS DB engines,
 // see Rotating Your SSL/TLS Certificate (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html)
@@ -10172,7 +10785,7 @@ func (c *RDS) ModifyCurrentDBClusterCapacityRequest(input *ModifyCurrentDBCluste
 // Aurora Serverless (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.how-it-works.html#aurora-serverless.how-it-works.auto-scaling)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// This action only applies to Aurora Serverless DB clusters.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -10209,6 +10822,99 @@ func (c *RDS) ModifyCurrentDBClusterCapacity(input *ModifyCurrentDBClusterCapaci
 // for more information on using Contexts.
 func (c *RDS) ModifyCurrentDBClusterCapacityWithContext(ctx aws.Context, input *ModifyCurrentDBClusterCapacityInput, opts ...request.Option) (*ModifyCurrentDBClusterCapacityOutput, error) {
 	req, out := c.ModifyCurrentDBClusterCapacityRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opModifyCustomDBEngineVersion = "ModifyCustomDBEngineVersion"
+
+// ModifyCustomDBEngineVersionRequest generates a "aws/request.Request" representing the
+// client's request for the ModifyCustomDBEngineVersion operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See ModifyCustomDBEngineVersion for more information on using the ModifyCustomDBEngineVersion
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the ModifyCustomDBEngineVersionRequest method.
+//    req, resp := client.ModifyCustomDBEngineVersionRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/ModifyCustomDBEngineVersion
+func (c *RDS) ModifyCustomDBEngineVersionRequest(input *ModifyCustomDBEngineVersionInput) (req *request.Request, output *ModifyCustomDBEngineVersionOutput) {
+	op := &request.Operation{
+		Name:       opModifyCustomDBEngineVersion,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &ModifyCustomDBEngineVersionInput{}
+	}
+
+	output = &ModifyCustomDBEngineVersionOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// ModifyCustomDBEngineVersion API operation for Amazon Relational Database Service.
+//
+// Modifies the status of a custom engine version (CEV). You can find CEVs to
+// modify by calling DescribeDBEngineVersions.
+//
+// The MediaImport service that imports files from Amazon S3 to create CEVs
+// isn't integrated with Amazon Web Services CloudTrail. If you turn on data
+// logging for Amazon RDS in CloudTrail, calls to the ModifyCustomDbEngineVersion
+// event aren't logged. However, you might see calls from the API gateway that
+// accesses your Amazon S3 bucket. These calls originate from the MediaImport
+// service for the ModifyCustomDbEngineVersion event.
+//
+// For more information, see Modifying CEV status (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-cev.html#custom-cev.modify)
+// in the Amazon RDS User Guide.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Relational Database Service's
+// API operation ModifyCustomDBEngineVersion for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeCustomDBEngineVersionNotFoundFault "CustomDBEngineVersionNotFoundFault"
+//   The specified CEV was not found.
+//
+//   * ErrCodeInvalidCustomDBEngineVersionStateFault "InvalidCustomDBEngineVersionStateFault"
+//   You can't delete the CEV.
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/ModifyCustomDBEngineVersion
+func (c *RDS) ModifyCustomDBEngineVersion(input *ModifyCustomDBEngineVersionInput) (*ModifyCustomDBEngineVersionOutput, error) {
+	req, out := c.ModifyCustomDBEngineVersionRequest(input)
+	return out, req.Send()
+}
+
+// ModifyCustomDBEngineVersionWithContext is the same as ModifyCustomDBEngineVersion with the addition of
+// the ability to pass a context and additional request options.
+//
+// See ModifyCustomDBEngineVersion for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *RDS) ModifyCustomDBEngineVersionWithContext(ctx aws.Context, input *ModifyCustomDBEngineVersionInput, opts ...request.Option) (*ModifyCustomDBEngineVersionOutput, error) {
+	req, out := c.ModifyCustomDBEngineVersionRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -10258,13 +10964,17 @@ func (c *RDS) ModifyDBClusterRequest(input *ModifyDBClusterInput) (req *request.
 
 // ModifyDBCluster API operation for Amazon Relational Database Service.
 //
-// Modify a setting for an Amazon Aurora DB cluster. You can change one or more
-// database configuration parameters by specifying these parameters and the
-// new values in the request. For more information on Amazon Aurora, see What
-// Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// Modify the settings for an Amazon Aurora DB cluster or a Multi-AZ DB cluster.
+// You can change one or more settings by specifying these parameters and the
+// new values in the request.
+//
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -10478,13 +11188,6 @@ func (c *RDS) ModifyDBClusterParameterGroupRequest(input *ModifyDBClusterParamet
 // one parameter, submit a list of the following: ParameterName, ParameterValue,
 // and ApplyMethod. A maximum of 20 parameters can be modified in a single request.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
-// in the Amazon Aurora User Guide.
-//
-// Changes to dynamic parameters are applied immediately. Changes to static
-// parameters require a reboot without failover to the DB cluster associated
-// with the parameter group before the change can take effect.
-//
 // After you create a DB cluster parameter group, you should wait at least 5
 // minutes before creating your first DB cluster that uses that DB cluster parameter
 // group as the default parameter group. This allows Amazon RDS to fully complete
@@ -10502,7 +11205,13 @@ func (c *RDS) ModifyDBClusterParameterGroupRequest(input *ModifyDBClusterParamet
 // and retry any transactions that were active when the parameter changes took
 // effect.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// in the Amazon Aurora User Guide.
+//
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -10589,25 +11298,26 @@ func (c *RDS) ModifyDBClusterSnapshotAttributeRequest(input *ModifyDBClusterSnap
 // Adds an attribute and values to, or removes an attribute and values from,
 // a manual DB cluster snapshot.
 //
-// To share a manual DB cluster snapshot with other AWS accounts, specify restore
-// as the AttributeName and use the ValuesToAdd parameter to add a list of IDs
-// of the AWS accounts that are authorized to restore the manual DB cluster
-// snapshot. Use the value all to make the manual DB cluster snapshot public,
-// which means that it can be copied or restored by all AWS accounts.
+// To share a manual DB cluster snapshot with other Amazon Web Services accounts,
+// specify restore as the AttributeName and use the ValuesToAdd parameter to
+// add a list of IDs of the Amazon Web Services accounts that are authorized
+// to restore the manual DB cluster snapshot. Use the value all to make the
+// manual DB cluster snapshot public, which means that it can be copied or restored
+// by all Amazon Web Services accounts.
 //
 // Don't add the all value for any manual DB cluster snapshots that contain
-// private information that you don't want available to all AWS accounts.
+// private information that you don't want available to all Amazon Web Services
+// accounts.
 //
 // If a manual DB cluster snapshot is encrypted, it can be shared, but only
-// by specifying a list of authorized AWS account IDs for the ValuesToAdd parameter.
-// You can't use all as a value for that parameter in this case.
+// by specifying a list of authorized Amazon Web Services account IDs for the
+// ValuesToAdd parameter. You can't use all as a value for that parameter in
+// this case.
 //
-// To view which AWS accounts have access to copy or restore a manual DB cluster
-// snapshot, or whether a manual DB cluster snapshot is public or private, use
-// the DescribeDBClusterSnapshotAttributes API action. The accounts are returned
-// as values for the restore attribute.
-//
-// This action only applies to Aurora DB clusters.
+// To view which Amazon Web Services accounts have access to copy or restore
+// a manual DB cluster snapshot, or whether a manual DB cluster snapshot is
+// public or private, use the DescribeDBClusterSnapshotAttributes API action.
+// The accounts are returned as values for the restore attribute.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -10764,7 +11474,7 @@ func (c *RDS) ModifyDBInstanceRequest(input *ModifyDBInstanceInput) (req *reques
 //   * ErrCodeBackupPolicyNotFoundFault "BackupPolicyNotFoundFault"
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeInvalidDBClusterStateFault "InvalidDBClusterStateFault"
 //   The requested operation can't be performed while the cluster is in this state.
@@ -10838,10 +11548,6 @@ func (c *RDS) ModifyDBParameterGroupRequest(input *ModifyDBParameterGroupInput) 
 // Modifies the parameters of a DB parameter group. To modify more than one
 // parameter, submit a list of the following: ParameterName, ParameterValue,
 // and ApplyMethod. A maximum of 20 parameters can be modified in a single request.
-//
-// Changes to dynamic parameters are applied immediately. Changes to static
-// parameters require a reboot without failover to the DB instance associated
-// with the parameter group before the change can take effect.
 //
 // After you modify a DB parameter group, you should wait at least 5 minutes
 // before creating your first DB instance that uses that DB parameter group
@@ -10947,12 +11653,12 @@ func (c *RDS) ModifyDBProxyRequest(input *ModifyDBProxyInput) (req *request.Requ
 //
 // Returned Error Codes:
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
-//   * ErrCodeDBProxyAlreadyExistsFault "DBProxyTargetExistsFault"
-//   The specified proxy name must be unique for all proxies owned by your AWS
-//   account in the specified AWS Region.
+//   * ErrCodeDBProxyAlreadyExistsFault "DBProxyAlreadyExistsFault"
+//   The specified proxy name must be unique for all proxies owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeInvalidDBProxyStateFault "InvalidDBProxyStateFault"
 //   The requested operation can't be performed while the proxy is in this state.
@@ -10974,6 +11680,97 @@ func (c *RDS) ModifyDBProxy(input *ModifyDBProxyInput) (*ModifyDBProxyOutput, er
 // for more information on using Contexts.
 func (c *RDS) ModifyDBProxyWithContext(ctx aws.Context, input *ModifyDBProxyInput, opts ...request.Option) (*ModifyDBProxyOutput, error) {
 	req, out := c.ModifyDBProxyRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opModifyDBProxyEndpoint = "ModifyDBProxyEndpoint"
+
+// ModifyDBProxyEndpointRequest generates a "aws/request.Request" representing the
+// client's request for the ModifyDBProxyEndpoint operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See ModifyDBProxyEndpoint for more information on using the ModifyDBProxyEndpoint
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the ModifyDBProxyEndpointRequest method.
+//    req, resp := client.ModifyDBProxyEndpointRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/ModifyDBProxyEndpoint
+func (c *RDS) ModifyDBProxyEndpointRequest(input *ModifyDBProxyEndpointInput) (req *request.Request, output *ModifyDBProxyEndpointOutput) {
+	op := &request.Operation{
+		Name:       opModifyDBProxyEndpoint,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &ModifyDBProxyEndpointInput{}
+	}
+
+	output = &ModifyDBProxyEndpointOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// ModifyDBProxyEndpoint API operation for Amazon Relational Database Service.
+//
+// Changes the settings for an existing DB proxy endpoint.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Relational Database Service's
+// API operation ModifyDBProxyEndpoint for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeDBProxyEndpointNotFoundFault "DBProxyEndpointNotFoundFault"
+//   The DB proxy endpoint doesn't exist.
+//
+//   * ErrCodeDBProxyEndpointAlreadyExistsFault "DBProxyEndpointAlreadyExistsFault"
+//   The specified DB proxy endpoint name must be unique for all DB proxy endpoints
+//   owned by your Amazon Web Services account in the specified Amazon Web Services
+//   Region.
+//
+//   * ErrCodeInvalidDBProxyEndpointStateFault "InvalidDBProxyEndpointStateFault"
+//   You can't perform this operation while the DB proxy endpoint is in a particular
+//   state.
+//
+//   * ErrCodeInvalidDBProxyStateFault "InvalidDBProxyStateFault"
+//   The requested operation can't be performed while the proxy is in this state.
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/ModifyDBProxyEndpoint
+func (c *RDS) ModifyDBProxyEndpoint(input *ModifyDBProxyEndpointInput) (*ModifyDBProxyEndpointOutput, error) {
+	req, out := c.ModifyDBProxyEndpointRequest(input)
+	return out, req.Send()
+}
+
+// ModifyDBProxyEndpointWithContext is the same as ModifyDBProxyEndpoint with the addition of
+// the ability to pass a context and additional request options.
+//
+// See ModifyDBProxyEndpoint for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *RDS) ModifyDBProxyEndpointWithContext(ctx aws.Context, input *ModifyDBProxyEndpointInput, opts ...request.Option) (*ModifyDBProxyEndpointOutput, error) {
+	req, out := c.ModifyDBProxyEndpointRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -11034,12 +11831,12 @@ func (c *RDS) ModifyDBProxyTargetGroupRequest(input *ModifyDBProxyTargetGroupInp
 //
 // Returned Error Codes:
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBProxyTargetGroupNotFoundFault "DBProxyTargetGroupNotFoundFault"
-//   The specified target group isn't available for a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified target group isn't available for a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeInvalidDBProxyStateFault "InvalidDBProxyStateFault"
 //   The requested operation can't be performed while the proxy is in this state.
@@ -11113,7 +11910,8 @@ func (c *RDS) ModifyDBSnapshotRequest(input *ModifyDBSnapshotInput) (req *reques
 // Updates a manual DB snapshot with a new engine version. The snapshot can
 // be encrypted or unencrypted, but not shared or public.
 //
-// Amazon RDS supports upgrading DB snapshots for MySQL, Oracle, and PostgreSQL.
+// Amazon RDS supports upgrading DB snapshots for MySQL, PostgreSQL, and Oracle.
+// This command doesn't apply to RDS Custom.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -11195,22 +11993,24 @@ func (c *RDS) ModifyDBSnapshotAttributeRequest(input *ModifyDBSnapshotAttributeI
 // Adds an attribute and values to, or removes an attribute and values from,
 // a manual DB snapshot.
 //
-// To share a manual DB snapshot with other AWS accounts, specify restore as
-// the AttributeName and use the ValuesToAdd parameter to add a list of IDs
-// of the AWS accounts that are authorized to restore the manual DB snapshot.
-// Uses the value all to make the manual DB snapshot public, which means it
-// can be copied or restored by all AWS accounts.
+// To share a manual DB snapshot with other Amazon Web Services accounts, specify
+// restore as the AttributeName and use the ValuesToAdd parameter to add a list
+// of IDs of the Amazon Web Services accounts that are authorized to restore
+// the manual DB snapshot. Uses the value all to make the manual DB snapshot
+// public, which means it can be copied or restored by all Amazon Web Services
+// accounts.
 //
 // Don't add the all value for any manual DB snapshots that contain private
-// information that you don't want available to all AWS accounts.
+// information that you don't want available to all Amazon Web Services accounts.
 //
 // If the manual DB snapshot is encrypted, it can be shared, but only by specifying
-// a list of authorized AWS account IDs for the ValuesToAdd parameter. You can't
-// use all as a value for that parameter in this case.
+// a list of authorized Amazon Web Services account IDs for the ValuesToAdd
+// parameter. You can't use all as a value for that parameter in this case.
 //
-// To view which AWS accounts have access to copy or restore a manual DB snapshot,
-// or whether a manual DB snapshot public or private, use the DescribeDBSnapshotAttributes
-// API action. The accounts are returned as values for the restore attribute.
+// To view which Amazon Web Services accounts have access to copy or restore
+// a manual DB snapshot, or whether a manual DB snapshot public or private,
+// use the DescribeDBSnapshotAttributes API action. The accounts are returned
+// as values for the restore attribute.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -11297,7 +12097,7 @@ func (c *RDS) ModifyDBSubnetGroupRequest(input *ModifyDBSubnetGroupInput) (req *
 // ModifyDBSubnetGroup API operation for Amazon Relational Database Service.
 //
 // Modifies an existing DB subnet group. DB subnet groups must contain at least
-// one subnet in at least two AZs in the AWS Region.
+// one subnet in at least two AZs in the Amazon Web Services Region.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -11415,7 +12215,7 @@ func (c *RDS) ModifyEventSubscriptionRequest(input *ModifyEventSubscriptionInput
 //   The subscription name does not exist.
 //
 //   * ErrCodeSNSInvalidTopicFault "SNSInvalidTopic"
-//   SNS has responded that there is a problem with the SND topic specified.
+//   SNS has responded that there is a problem with the SNS topic specified.
 //
 //   * ErrCodeSNSNoAuthorizationFault "SNSNoAuthorization"
 //   You do not have permission to publish to the SNS topic ARN.
@@ -11495,7 +12295,7 @@ func (c *RDS) ModifyGlobalClusterRequest(input *ModifyGlobalClusterInput) (req *
 // Modify a setting for an Amazon Aurora global cluster. You can change one
 // or more database configuration parameters by specifying these parameters
 // and the new values in the request. For more information on Amazon Aurora,
-// see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
 // This action only applies to Aurora DB clusters.
@@ -11681,7 +12481,8 @@ func (c *RDS) PromoteReadReplicaRequest(input *PromoteReadReplicaInput) (req *re
 //    backup window so that daily backups do not interfere with read replica
 //    promotion.
 //
-//    * This command doesn't apply to Aurora MySQL and Aurora PostgreSQL.
+//    * This command doesn't apply to Aurora MySQL, Aurora PostgreSQL, or RDS
+//    Custom.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -11764,8 +12565,6 @@ func (c *RDS) PromoteReadReplicaDBClusterRequest(input *PromoteReadReplicaDBClus
 // PromoteReadReplicaDBCluster API operation for Amazon Relational Database Service.
 //
 // Promotes a read replica DB cluster to a standalone DB cluster.
-//
-// This action only applies to Aurora DB clusters.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -11888,6 +12687,104 @@ func (c *RDS) PurchaseReservedDBInstancesOfferingWithContext(ctx aws.Context, in
 	return out, req.Send()
 }
 
+const opRebootDBCluster = "RebootDBCluster"
+
+// RebootDBClusterRequest generates a "aws/request.Request" representing the
+// client's request for the RebootDBCluster operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See RebootDBCluster for more information on using the RebootDBCluster
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the RebootDBClusterRequest method.
+//    req, resp := client.RebootDBClusterRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/RebootDBCluster
+func (c *RDS) RebootDBClusterRequest(input *RebootDBClusterInput) (req *request.Request, output *RebootDBClusterOutput) {
+	op := &request.Operation{
+		Name:       opRebootDBCluster,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &RebootDBClusterInput{}
+	}
+
+	output = &RebootDBClusterOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// RebootDBCluster API operation for Amazon Relational Database Service.
+//
+// You might need to reboot your DB cluster, usually for maintenance reasons.
+// For example, if you make certain modifications, or if you change the DB cluster
+// parameter group associated with the DB cluster, reboot the DB cluster for
+// the changes to take effect.
+//
+// Rebooting a DB cluster restarts the database engine service. Rebooting a
+// DB cluster results in a momentary outage, during which the DB cluster status
+// is set to rebooting.
+//
+// Use this operation only for a non-Aurora Multi-AZ DB cluster.
+//
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Relational Database Service's
+// API operation RebootDBCluster for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeDBClusterNotFoundFault "DBClusterNotFoundFault"
+//   DBClusterIdentifier doesn't refer to an existing DB cluster.
+//
+//   * ErrCodeInvalidDBClusterStateFault "InvalidDBClusterStateFault"
+//   The requested operation can't be performed while the cluster is in this state.
+//
+//   * ErrCodeInvalidDBInstanceStateFault "InvalidDBInstanceState"
+//   The DB instance isn't in a valid state.
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/RebootDBCluster
+func (c *RDS) RebootDBCluster(input *RebootDBClusterInput) (*RebootDBClusterOutput, error) {
+	req, out := c.RebootDBClusterRequest(input)
+	return out, req.Send()
+}
+
+// RebootDBClusterWithContext is the same as RebootDBCluster with the addition of
+// the ability to pass a context and additional request options.
+//
+// See RebootDBCluster for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *RDS) RebootDBClusterWithContext(ctx aws.Context, input *RebootDBClusterInput, opts ...request.Option) (*RebootDBClusterOutput, error) {
+	req, out := c.RebootDBClusterRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
 const opRebootDBInstance = "RebootDBInstance"
 
 // RebootDBInstanceRequest generates a "aws/request.Request" representing the
@@ -11943,6 +12840,8 @@ func (c *RDS) RebootDBInstanceRequest(input *RebootDBInstanceInput) (req *reques
 //
 // For more information about rebooting, see Rebooting a DB Instance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RebootInstance.html)
 // in the Amazon RDS User Guide.
+//
+// This command doesn't apply to RDS Custom.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -12035,12 +12934,12 @@ func (c *RDS) RegisterDBProxyTargetsRequest(input *RegisterDBProxyTargetsInput) 
 //
 // Returned Error Codes:
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBProxyTargetGroupNotFoundFault "DBProxyTargetGroupNotFoundFault"
-//   The specified target group isn't available for a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified target group isn't available for a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBClusterNotFoundFault "DBClusterNotFoundFault"
 //   DBClusterIdentifier doesn't refer to an existing DB cluster.
@@ -12135,7 +13034,7 @@ func (c *RDS) RemoveFromGlobalClusterRequest(input *RemoveFromGlobalClusterInput
 // Detaches an Aurora secondary cluster from an Aurora global database cluster.
 // The cluster becomes a standalone cluster with read-write capability instead
 // of being read-only and receiving data from a primary cluster in a different
-// region.
+// Region.
 //
 // This action only applies to Aurora DB clusters.
 //
@@ -12225,12 +13124,16 @@ func (c *RDS) RemoveRoleFromDBClusterRequest(input *RemoveRoleFromDBClusterInput
 
 // RemoveRoleFromDBCluster API operation for Amazon Relational Database Service.
 //
-// Disassociates an AWS Identity and Access Management (IAM) role from an Amazon
-// Aurora DB cluster. For more information, see Authorizing Amazon Aurora MySQL
-// to Access Other AWS Services on Your Behalf (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Integrating.Authorizing.html)
+// Removes the asssociation of an Amazon Web Services Identity and Access Management
+// (IAM) role from a DB cluster.
+//
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -12317,8 +13220,8 @@ func (c *RDS) RemoveRoleFromDBInstanceRequest(input *RemoveRoleFromDBInstanceInp
 
 // RemoveRoleFromDBInstance API operation for Amazon Relational Database Service.
 //
-// Disassociates an AWS Identity and Access Management (IAM) role from a DB
-// instance.
+// Disassociates an Amazon Web Services Identity and Access Management (IAM)
+// role from a DB instance.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -12511,12 +13414,12 @@ func (c *RDS) RemoveTagsFromResourceRequest(input *RemoveTagsFromResourceInput) 
 //   DBClusterIdentifier doesn't refer to an existing DB cluster.
 //
 //   * ErrCodeDBProxyNotFoundFault "DBProxyNotFoundFault"
-//   The specified proxy name doesn't correspond to a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified proxy name doesn't correspond to a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 //   * ErrCodeDBProxyTargetGroupNotFoundFault "DBProxyTargetGroupNotFoundFault"
-//   The specified target group isn't available for a proxy owned by your AWS
-//   account in the specified AWS Region.
+//   The specified target group isn't available for a proxy owned by your Amazon
+//   Web Services account in the specified Amazon Web Services Region.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/RemoveTagsFromResource
 func (c *RDS) RemoveTagsFromResource(input *RemoveTagsFromResourceInput) (*RemoveTagsFromResourceOutput, error) {
@@ -12595,10 +13498,13 @@ func (c *RDS) ResetDBClusterParameterGroupRequest(input *ResetDBClusterParameter
 // for every DB instance in your DB cluster that you want the updated static
 // parameter to apply to.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -12784,7 +13690,7 @@ func (c *RDS) RestoreDBClusterFromS3Request(input *RestoreDBClusterFromS3Input) 
 // cluster in DBClusterIdentifier. You can create DB instances only after the
 // RestoreDBClusterFromS3 action has completed and the DB cluster is available.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora, see What is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
 // This action only applies to Aurora DB clusters. The source DB engine must
@@ -12836,7 +13742,7 @@ func (c *RDS) RestoreDBClusterFromS3Request(input *RestoreDBClusterFromS3Input) 
 //   group.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeDBClusterNotFoundFault "DBClusterNotFoundFault"
 //   DBClusterIdentifier doesn't refer to an existing DB cluster.
@@ -12915,8 +13821,7 @@ func (c *RDS) RestoreDBClusterFromSnapshotRequest(input *RestoreDBClusterFromSna
 
 // RestoreDBClusterFromSnapshot API operation for Amazon Relational Database Service.
 //
-// Creates a new DB cluster from a DB snapshot or DB cluster snapshot. This
-// action only applies to Aurora DB clusters.
+// Creates a new DB cluster from a DB snapshot or DB cluster snapshot.
 //
 // The target DB cluster is created from the source snapshot with a default
 // configuration. If you don't specify a security group, the new DB cluster
@@ -12928,10 +13833,13 @@ func (c *RDS) RestoreDBClusterFromSnapshotRequest(input *RestoreDBClusterFromSna
 // cluster in DBClusterIdentifier. You can create DB instances only after the
 // RestoreDBClusterFromSnapshot action has completed and the DB cluster is available.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -12997,7 +13905,7 @@ func (c *RDS) RestoreDBClusterFromSnapshotRequest(input *RestoreDBClusterFromSna
 //   The specified option group could not be found.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeDomainNotFoundFault "DomainNotFoundFault"
 //   Domain doesn't refer to an existing Active Directory domain.
@@ -13078,17 +13986,20 @@ func (c *RDS) RestoreDBClusterToPointInTimeRequest(input *RestoreDBClusterToPoin
 // same configuration as the original DB cluster, except that the new DB cluster
 // is created with the default DB security group.
 //
-// This action only restores the DB cluster, not the DB instances for that DB
-// cluster. You must invoke the CreateDBInstance action to create DB instances
-// for the restored DB cluster, specifying the identifier of the restored DB
-// cluster in DBClusterIdentifier. You can create DB instances only after the
-// RestoreDBClusterToPointInTime action has completed and the DB cluster is
-// available.
+// For Aurora, this action only restores the DB cluster, not the DB instances
+// for that DB cluster. You must invoke the CreateDBInstance action to create
+// DB instances for the restored DB cluster, specifying the identifier of the
+// restored DB cluster in DBClusterIdentifier. You can create DB instances only
+// after the RestoreDBClusterToPointInTime action has completed and the DB cluster
+// is available.
 //
-// For more information on Amazon Aurora, see What Is Amazon Aurora? (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
 // in the Amazon Aurora User Guide.
 //
-// This action only applies to Aurora DB clusters.
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -13143,7 +14054,7 @@ func (c *RDS) RestoreDBClusterToPointInTimeRequest(input *RestoreDBClusterToPoin
 //   because of users' change.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeOptionGroupNotFoundFault "OptionGroupNotFoundFault"
 //   The specified option group could not be found.
@@ -13311,7 +14222,7 @@ func (c *RDS) RestoreDBInstanceFromDBSnapshotRequest(input *RestoreDBInstanceFro
 //   your behalf.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeDBSecurityGroupNotFoundFault "DBSecurityGroupNotFound"
 //   DBSecurityGroupName doesn't refer to an existing DB security group.
@@ -13398,6 +14309,8 @@ func (c *RDS) RestoreDBInstanceFromS3Request(input *RestoreDBInstanceFromS3Input
 // (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/MySQL.Procedural.Importing.html)
 // in the Amazon RDS User Guide.
 //
+// This command doesn't apply to RDS Custom.
+//
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
 // the error.
@@ -13463,7 +14376,7 @@ func (c *RDS) RestoreDBInstanceFromS3Request(input *RestoreDBInstanceFromS3Input
 //   your behalf.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeBackupPolicyNotFoundFault "BackupPolicyNotFoundFault"
 //
@@ -13616,7 +14529,7 @@ func (c *RDS) RestoreDBInstanceToPointInTimeRequest(input *RestoreDBInstanceToPo
 //   your behalf.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeDBSecurityGroupNotFoundFault "DBSecurityGroupNotFound"
 //   DBSecurityGroupName doesn't refer to an existing DB security group.
@@ -13699,7 +14612,7 @@ func (c *RDS) RevokeDBSecurityGroupIngressRequest(input *RevokeDBSecurityGroupIn
 // RevokeDBSecurityGroupIngress API operation for Amazon Relational Database Service.
 //
 // Revokes ingress from a DBSecurityGroup for previously authorized IP ranges
-// or EC2 or VPC Security Groups. Required parameters for this API are one of
+// or EC2 or VPC security groups. Required parameters for this API are one of
 // CIDRIP, EC2SecurityGroupId for VPC, or (EC2SecurityGroupOwnerId and either
 // EC2SecurityGroupName or EC2SecurityGroupId).
 //
@@ -13818,7 +14731,7 @@ func (c *RDS) StartActivityStreamRequest(input *StartActivityStreamInput) (req *
 //   DBInstanceIdentifier doesn't refer to an existing DB instance.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/StartActivityStream
 func (c *RDS) StartActivityStream(input *StartActivityStreamInput) (*StartActivityStreamOutput, error) {
@@ -13886,8 +14799,8 @@ func (c *RDS) StartDBClusterRequest(input *StartDBClusterInput) (req *request.Re
 
 // StartDBCluster API operation for Amazon Relational Database Service.
 //
-// Starts an Amazon Aurora DB cluster that was stopped using the AWS console,
-// the stop-db-cluster AWS CLI command, or the StopDBCluster action.
+// Starts an Amazon Aurora DB cluster that was stopped using the Amazon Web
+// Services console, the stop-db-cluster CLI command, or the StopDBCluster action.
 //
 // For more information, see Stopping and Starting an Aurora Cluster (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-cluster-stop-start.html)
 // in the Amazon Aurora User Guide.
@@ -13977,15 +14890,15 @@ func (c *RDS) StartDBInstanceRequest(input *StartDBInstanceInput) (req *request.
 
 // StartDBInstance API operation for Amazon Relational Database Service.
 //
-// Starts an Amazon RDS DB instance that was stopped using the AWS console,
-// the stop-db-instance AWS CLI command, or the StopDBInstance action.
+// Starts an Amazon RDS DB instance that was stopped using the Amazon Web Services
+// console, the stop-db-instance CLI command, or the StopDBInstance action.
 //
 // For more information, see Starting an Amazon RDS DB instance That Was Previously
 // Stopped (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_StartInstance.html)
 // in the Amazon RDS User Guide.
 //
-// This command doesn't apply to Aurora MySQL and Aurora PostgreSQL. For Aurora
-// DB clusters, use StartDBCluster instead.
+// This command doesn't apply to RDS Custom, Aurora MySQL, and Aurora PostgreSQL.
+// For Aurora DB clusters, use StartDBCluster instead.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -14034,7 +14947,7 @@ func (c *RDS) StartDBInstanceRequest(input *StartDBInstanceInput) (req *request.
 //   your behalf.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/rds-2014-10-31/StartDBInstance
 func (c *RDS) StartDBInstance(input *StartDBInstanceInput) (*StartDBInstanceOutput, error) {
@@ -14102,10 +15015,13 @@ func (c *RDS) StartDBInstanceAutomatedBackupsReplicationRequest(input *StartDBIn
 
 // StartDBInstanceAutomatedBackupsReplication API operation for Amazon Relational Database Service.
 //
-// Enables replication of automated backups to a different AWS Region.
+// Enables replication of automated backups to a different Amazon Web Services
+// Region.
 //
-// For more information, see Replicating Automated Backups to Another AWS Region
-// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReplicateBackups.html)
+// This command doesn't apply to RDS Custom.
+//
+// For more information, see Replicating Automated Backups to Another Amazon
+// Web Services Region (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReplicateBackups.html)
 // in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -14123,7 +15039,7 @@ func (c *RDS) StartDBInstanceAutomatedBackupsReplicationRequest(input *StartDBIn
 //   The DB instance isn't in a valid state.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeDBInstanceAutomatedBackupQuotaExceededFault "DBInstanceAutomatedBackupQuotaExceeded"
 //   The quota for retained automated backups was exceeded. This prevents you
@@ -14202,6 +15118,8 @@ func (c *RDS) StartExportTaskRequest(input *StartExportTaskInput) (req *request.
 // Starts an export of a snapshot to Amazon S3. The provided IAM role must have
 // access to the S3 bucket.
 //
+// This command doesn't apply to RDS Custom.
+//
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
 // the error.
@@ -14234,7 +15152,7 @@ func (c *RDS) StartExportTaskRequest(input *StartExportTaskInput) (req *request.
 //   The export is invalid for exporting to an Amazon S3 bucket.
 //
 //   * ErrCodeKMSKeyNotAccessibleFault "KMSKeyNotAccessibleFault"
-//   An error occurred accessing an AWS KMS key.
+//   An error occurred accessing an Amazon Web Services KMS key.
 //
 //   * ErrCodeInvalidExportSourceStateFault "InvalidExportSourceState"
 //   The state of the export snapshot is invalid for exporting to an Amazon S3
@@ -14306,8 +15224,9 @@ func (c *RDS) StopActivityStreamRequest(input *StopActivityStreamInput) (req *re
 
 // StopActivityStream API operation for Amazon Relational Database Service.
 //
-// Stops a database activity stream that was started using the AWS console,
-// the start-activity-stream AWS CLI command, or the StartActivityStream action.
+// Stops a database activity stream that was started using the Amazon Web Services
+// console, the start-activity-stream CLI command, or the StartActivityStream
+// action.
 //
 // For more information, see Database Activity Streams (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/DBActivityStreams.html)
 // in the Amazon Aurora User Guide.
@@ -14503,8 +15422,8 @@ func (c *RDS) StopDBInstanceRequest(input *StopDBInstanceInput) (req *request.Re
 // (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_StopInstance.html)
 // in the Amazon RDS User Guide.
 //
-// This command doesn't apply to Aurora MySQL and Aurora PostgreSQL. For Aurora
-// clusters, use StopDBCluster instead.
+// This command doesn't apply to RDS Custom, Aurora MySQL, and Aurora PostgreSQL.
+// For Aurora clusters, use StopDBCluster instead.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -14597,8 +15516,10 @@ func (c *RDS) StopDBInstanceAutomatedBackupsReplicationRequest(input *StopDBInst
 //
 // Stops automated backup replication for a DB instance.
 //
-// For more information, see Replicating Automated Backups to Another AWS Region
-// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReplicateBackups.html)
+// This command doesn't apply to RDS Custom.
+//
+// For more information, see Replicating Automated Backups to Another Amazon
+// Web Services Region (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReplicateBackups.html)
 // in the Amazon RDS User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -14637,7 +15558,7 @@ func (c *RDS) StopDBInstanceAutomatedBackupsReplicationWithContext(ctx aws.Conte
 	return out, req.Send()
 }
 
-// Describes a quota for an AWS account.
+// Describes a quota for an Amazon Web Services account.
 //
 // The following are account quotas:
 //
@@ -14658,10 +15579,11 @@ func (c *RDS) StopDBInstanceAutomatedBackupsReplicationWithContext(ctx aws.Conte
 //    per account, excluding default parameter groups. The used value is the
 //    count of nondefault DB cluster parameter groups in the account.
 //
-//    * DBClusterRoles - The number of associated AWS Identity and Access Management
-//    (IAM) roles per DB cluster. The used value is the highest number of associated
-//    IAM roles for a DB cluster in the account. Other DB clusters in the account
-//    might have a lower number of associated IAM roles.
+//    * DBClusterRoles - The number of associated Amazon Web Services Identity
+//    and Access Management (IAM) roles per DB cluster. The used value is the
+//    highest number of associated IAM roles for a DB cluster in the account.
+//    Other DB clusters in the account might have a lower number of associated
+//    IAM roles.
 //
 //    * DBClusters - The number of DB clusters per account. The used value is
 //    the count of DB clusters in the account.
@@ -14722,7 +15644,7 @@ func (c *RDS) StopDBInstanceAutomatedBackupsReplicationWithContext(ctx aws.Conte
 type AccountQuota struct {
 	_ struct{} `type:"structure"`
 
-	// The name of the Amazon RDS quota for this AWS account.
+	// The name of the Amazon RDS quota for this Amazon Web Services account.
 	AccountQuotaName *string `type:"string"`
 
 	// The maximum allowed value for the quota.
@@ -14732,12 +15654,20 @@ type AccountQuota struct {
 	Used *int64 `type:"long"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccountQuota) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AccountQuota) GoString() string {
 	return s.String()
 }
@@ -14769,22 +15699,30 @@ type AddRoleToDBClusterInput struct {
 	DBClusterIdentifier *string `type:"string" required:"true"`
 
 	// The name of the feature for the DB cluster that the IAM role is to be associated
-	// with. For the list of supported feature names, see DBEngineVersion.
+	// with. For information about supported feature names, see DBEngineVersion.
 	FeatureName *string `type:"string"`
 
 	// The Amazon Resource Name (ARN) of the IAM role to associate with the Aurora
-	// DB cluster, for example, arn:aws:iam::123456789012:role/AuroraAccessRole.
+	// DB cluster, for example arn:aws:iam::123456789012:role/AuroraAccessRole.
 	//
 	// RoleArn is a required field
 	RoleArn *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -14827,12 +15765,20 @@ type AddRoleToDBClusterOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -14846,7 +15792,7 @@ type AddRoleToDBInstanceInput struct {
 	DBInstanceIdentifier *string `type:"string" required:"true"`
 
 	// The name of the feature for the DB instance that the IAM role is to be associated
-	// with. For the list of supported feature names, see DBEngineVersion.
+	// with. For information about supported feature names, see DBEngineVersion.
 	//
 	// FeatureName is a required field
 	FeatureName *string `type:"string" required:"true"`
@@ -14858,12 +15804,20 @@ type AddRoleToDBInstanceInput struct {
 	RoleArn *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToDBInstanceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToDBInstanceInput) GoString() string {
 	return s.String()
 }
@@ -14909,12 +15863,20 @@ type AddRoleToDBInstanceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToDBInstanceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddRoleToDBInstanceOutput) GoString() string {
 	return s.String()
 }
@@ -14944,6 +15906,8 @@ type AddSourceIdentifierToSubscriptionInput struct {
 	//    * If the source type is a DB cluster snapshot, a DBClusterSnapshotIdentifier
 	//    value must be supplied.
 	//
+	//    * If the source type is an RDS Proxy, a DBProxyName value must be supplied.
+	//
 	// SourceIdentifier is a required field
 	SourceIdentifier *string `type:"string" required:"true"`
 
@@ -14954,12 +15918,20 @@ type AddSourceIdentifierToSubscriptionInput struct {
 	SubscriptionName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddSourceIdentifierToSubscriptionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddSourceIdentifierToSubscriptionInput) GoString() string {
 	return s.String()
 }
@@ -15000,12 +15972,20 @@ type AddSourceIdentifierToSubscriptionOutput struct {
 	EventSubscription *EventSubscription `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddSourceIdentifierToSubscriptionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddSourceIdentifierToSubscriptionOutput) GoString() string {
 	return s.String()
 }
@@ -15032,12 +16012,20 @@ type AddTagsToResourceInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddTagsToResourceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddTagsToResourceInput) GoString() string {
 	return s.String()
 }
@@ -15074,12 +16062,20 @@ type AddTagsToResourceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddTagsToResourceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AddTagsToResourceOutput) GoString() string {
 	return s.String()
 }
@@ -15117,12 +16113,20 @@ type ApplyPendingMaintenanceActionInput struct {
 	ResourceIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ApplyPendingMaintenanceActionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ApplyPendingMaintenanceActionInput) GoString() string {
 	return s.String()
 }
@@ -15171,12 +16175,20 @@ type ApplyPendingMaintenanceActionOutput struct {
 	ResourcePendingMaintenanceActions *ResourcePendingMaintenanceActions `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ApplyPendingMaintenanceActionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ApplyPendingMaintenanceActionOutput) GoString() string {
 	return s.String()
 }
@@ -15208,20 +16220,28 @@ type AuthorizeDBSecurityGroupIngressInput struct {
 	// either EC2SecurityGroupName or EC2SecurityGroupId must be provided.
 	EC2SecurityGroupName *string `type:"string"`
 
-	// AWS account number of the owner of the EC2 security group specified in the
-	// EC2SecurityGroupName parameter. The AWS access key ID isn't an acceptable
-	// value. For VPC DB security groups, EC2SecurityGroupId must be provided. Otherwise,
-	// EC2SecurityGroupOwnerId and either EC2SecurityGroupName or EC2SecurityGroupId
-	// must be provided.
+	// Amazon Web Services account number of the owner of the EC2 security group
+	// specified in the EC2SecurityGroupName parameter. The Amazon Web Services
+	// access key ID isn't an acceptable value. For VPC DB security groups, EC2SecurityGroupId
+	// must be provided. Otherwise, EC2SecurityGroupOwnerId and either EC2SecurityGroupName
+	// or EC2SecurityGroupId must be provided.
 	EC2SecurityGroupOwnerId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AuthorizeDBSecurityGroupIngressInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AuthorizeDBSecurityGroupIngressInput) GoString() string {
 	return s.String()
 }
@@ -15279,12 +16299,20 @@ type AuthorizeDBSecurityGroupIngressOutput struct {
 	DBSecurityGroup *DBSecurityGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AuthorizeDBSecurityGroupIngressOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AuthorizeDBSecurityGroupIngressOutput) GoString() string {
 	return s.String()
 }
@@ -15306,12 +16334,20 @@ type AvailabilityZone struct {
 	Name *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AvailabilityZone) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AvailabilityZone) GoString() string {
 	return s.String()
 }
@@ -15341,12 +16377,20 @@ type AvailableProcessorFeature struct {
 	Name *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AvailableProcessorFeature) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s AvailableProcessorFeature) GoString() string {
 	return s.String()
 }
@@ -15419,12 +16463,20 @@ type BacktrackDBClusterInput struct {
 	UseEarliestTimeOnPointInTimeUnavailable *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s BacktrackDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s BacktrackDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -15506,12 +16558,20 @@ type BacktrackDBClusterOutput struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s BacktrackDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s BacktrackDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -15561,12 +16621,20 @@ type CancelExportTaskInput struct {
 	ExportTaskIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CancelExportTaskInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CancelExportTaskInput) GoString() string {
 	return s.String()
 }
@@ -15621,11 +16689,10 @@ type CancelExportTaskOutput struct {
 	// a snapshot.
 	IamRoleArn *string `type:"string"`
 
-	// The key identifier of the AWS KMS customer master key (CMK) that is used
-	// to encrypt the snapshot when it's exported to Amazon S3. The AWS KMS CMK
-	// identifier is its key ARN, key ID, alias ARN, or alias name. The IAM role
-	// used for the snapshot export must have encryption and decryption permissions
-	// to use this AWS KMS CMK.
+	// The key identifier of the Amazon Web Services KMS key that is used to encrypt
+	// the snapshot when it's exported to Amazon S3. The KMS key identifier is its
+	// key ARN, key ID, alias ARN, or alias name. The IAM role used for the snapshot
+	// export must have encryption and decryption permissions to use this KMS key.
 	KmsKeyId *string `type:"string"`
 
 	// The progress of the snapshot export task as a percentage.
@@ -15660,12 +16727,20 @@ type CancelExportTaskOutput struct {
 	WarningMessage *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CancelExportTaskOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CancelExportTaskOutput) GoString() string {
 	return s.String()
 }
@@ -15760,7 +16835,7 @@ func (s *CancelExportTaskOutput) SetWarningMessage(v string) *CancelExportTaskOu
 	return s
 }
 
-// A CA certificate for an AWS account.
+// A CA certificate for an Amazon Web Services account.
 type Certificate struct {
 	_ struct{} `type:"structure"`
 
@@ -15790,12 +16865,20 @@ type Certificate struct {
 	ValidTill *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Certificate) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Certificate) GoString() string {
 	return s.String()
 }
@@ -15859,12 +16942,20 @@ type CharacterSet struct {
 	CharacterSetName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CharacterSet) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CharacterSet) GoString() string {
 	return s.String()
 }
@@ -15905,12 +16996,20 @@ type CloudwatchLogsExportConfiguration struct {
 	EnableLogTypes []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CloudwatchLogsExportConfiguration) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CloudwatchLogsExportConfiguration) GoString() string {
 	return s.String()
 }
@@ -15938,8 +17037,8 @@ type ClusterPendingModifiedValues struct {
 	// The database engine version.
 	EngineVersion *string `type:"string"`
 
-	// A value that indicates whether mapping of AWS Identity and Access Management
-	// (IAM) accounts to database accounts is enabled.
+	// A value that indicates whether mapping of Amazon Web Services Identity and
+	// Access Management (IAM) accounts to database accounts is enabled.
 	IAMDatabaseAuthenticationEnabled *bool `type:"boolean"`
 
 	// The master credentials for the DB cluster.
@@ -15950,12 +17049,20 @@ type ClusterPendingModifiedValues struct {
 	PendingCloudwatchLogsExports *PendingCloudwatchLogsExports `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ClusterPendingModifiedValues) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ClusterPendingModifiedValues) GoString() string {
 	return s.String()
 }
@@ -16014,8 +17121,8 @@ type ConnectionPoolConfiguration struct {
 	InitQuery *string `type:"string"`
 
 	// The maximum size of the connection pool for each target in a target group.
-	// For Aurora MySQL, it is expressed as a percentage of the max_connections
-	// setting for the RDS DB instance or Aurora DB cluster used by the target group.
+	// The value is expressed as a percentage of the max_connections setting for
+	// the RDS DB instance or Aurora DB cluster used by the target group.
 	//
 	// Default: 100
 	//
@@ -16023,11 +17130,11 @@ type ConnectionPoolConfiguration struct {
 	MaxConnectionsPercent *int64 `type:"integer"`
 
 	// Controls how actively the proxy closes idle database connections in the connection
-	// pool. A high value enables the proxy to leave a high percentage of idle connections
-	// open. A low value causes the proxy to close idle client connections and return
-	// the underlying database connections to the connection pool. For Aurora MySQL,
-	// it is expressed as a percentage of the max_connections setting for the RDS
-	// DB instance or Aurora DB cluster used by the target group.
+	// pool. The value is expressed as a percentage of the max_connections setting
+	// for the RDS DB instance or Aurora DB cluster used by the target group. With
+	// a high value, the proxy leaves a high percentage of idle database connections
+	// open. A low value causes the proxy to close more idle connections and return
+	// them to the database.
 	//
 	// Default: 50
 	//
@@ -16043,12 +17150,20 @@ type ConnectionPoolConfiguration struct {
 	SessionPinningFilters []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ConnectionPoolConfiguration) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ConnectionPoolConfiguration) GoString() string {
 	return s.String()
 }
@@ -16102,16 +17217,16 @@ type ConnectionPoolConfigurationInfo struct {
 	InitQuery *string `type:"string"`
 
 	// The maximum size of the connection pool for each target in a target group.
-	// For Aurora MySQL, it is expressed as a percentage of the max_connections
-	// setting for the RDS DB instance or Aurora DB cluster used by the target group.
+	// The value is expressed as a percentage of the max_connections setting for
+	// the RDS DB instance or Aurora DB cluster used by the target group.
 	MaxConnectionsPercent *int64 `type:"integer"`
 
 	// Controls how actively the proxy closes idle database connections in the connection
-	// pool. A high value enables the proxy to leave a high percentage of idle connections
-	// open. A low value causes the proxy to close idle client connections and return
-	// the underlying database connections to the connection pool. For Aurora MySQL,
-	// it is expressed as a percentage of the max_connections setting for the RDS
-	// DB instance or Aurora DB cluster used by the target group.
+	// pool. The value is expressed as a percentage of the max_connections setting
+	// for the RDS DB instance or Aurora DB cluster used by the target group. With
+	// a high value, the proxy leaves a high percentage of idle database connections
+	// open. A low value causes the proxy to close more idle connections and return
+	// them to the database.
 	MaxIdleConnectionsPercent *int64 `type:"integer"`
 
 	// Each item in the list represents a class of SQL operations that normally
@@ -16122,12 +17237,20 @@ type ConnectionPoolConfigurationInfo struct {
 	SessionPinningFilters []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ConnectionPoolConfigurationInfo) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ConnectionPoolConfigurationInfo) GoString() string {
 	return s.String()
 }
@@ -16204,12 +17327,20 @@ type CopyDBClusterParameterGroupInput struct {
 	TargetDBClusterParameterGroupIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBClusterParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBClusterParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -16267,12 +17398,20 @@ type CopyDBClusterParameterGroupOutput struct {
 	DBClusterParameterGroup *DBClusterParameterGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBClusterParameterGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBClusterParameterGroupOutput) GoString() string {
 	return s.String()
 }
@@ -16293,81 +17432,85 @@ type CopyDBClusterSnapshotInput struct {
 	// DestinationRegion is used for presigning the request to a given region.
 	DestinationRegion *string `type:"string"`
 
-	// The AWS KMS key identifier for an encrypted DB cluster snapshot. The AWS
-	// KMS key identifier is the key ARN, key ID, alias ARN, or alias name for the
-	// AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier for an encrypted DB cluster snapshot.
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the Amazon Web Services KMS key.
 	//
-	// If you copy an encrypted DB cluster snapshot from your AWS account, you can
-	// specify a value for KmsKeyId to encrypt the copy with a new AWS KMS CMK.
-	// If you don't specify a value for KmsKeyId, then the copy of the DB cluster
-	// snapshot is encrypted with the same AWS KMS key as the source DB cluster
-	// snapshot.
+	// If you copy an encrypted DB cluster snapshot from your Amazon Web Services
+	// account, you can specify a value for KmsKeyId to encrypt the copy with a
+	// new KMS key. If you don't specify a value for KmsKeyId, then the copy of
+	// the DB cluster snapshot is encrypted with the same KMS key as the source
+	// DB cluster snapshot.
 	//
 	// If you copy an encrypted DB cluster snapshot that is shared from another
-	// AWS account, then you must specify a value for KmsKeyId.
+	// Amazon Web Services account, then you must specify a value for KmsKeyId.
 	//
-	// To copy an encrypted DB cluster snapshot to another AWS Region, you must
-	// set KmsKeyId to the AWS KMS key identifier you want to use to encrypt the
-	// copy of the DB cluster snapshot in the destination AWS Region. AWS KMS CMKs
-	// are specific to the AWS Region that they are created in, and you can't use
-	// CMKs from one AWS Region in another AWS Region.
+	// To copy an encrypted DB cluster snapshot to another Amazon Web Services Region,
+	// you must set KmsKeyId to the Amazon Web Services KMS key identifier you want
+	// to use to encrypt the copy of the DB cluster snapshot in the destination
+	// Amazon Web Services Region. KMS keys are specific to the Amazon Web Services
+	// Region that they are created in, and you can't use KMS keys from one Amazon
+	// Web Services Region in another Amazon Web Services Region.
 	//
 	// If you copy an unencrypted DB cluster snapshot and specify a value for the
 	// KmsKeyId parameter, an error is returned.
 	KmsKeyId *string `type:"string"`
 
 	// The URL that contains a Signature Version 4 signed request for the CopyDBClusterSnapshot
-	// API action in the AWS Region that contains the source DB cluster snapshot
-	// to copy. The PreSignedUrl parameter must be used when copying an encrypted
-	// DB cluster snapshot from another AWS Region. Don't specify PreSignedUrl when
-	// you are copying an encrypted DB cluster snapshot in the same AWS Region.
+	// API action in the Amazon Web Services Region that contains the source DB
+	// cluster snapshot to copy. The PreSignedUrl parameter must be used when copying
+	// an encrypted DB cluster snapshot from another Amazon Web Services Region.
+	// Don't specify PreSignedUrl when you are copying an encrypted DB cluster snapshot
+	// in the same Amazon Web Services Region.
 	//
 	// The pre-signed URL must be a valid request for the CopyDBClusterSnapshot
-	// API action that can be executed in the source AWS Region that contains the
-	// encrypted DB cluster snapshot to be copied. The pre-signed URL request must
-	// contain the following parameter values:
+	// API action that can be executed in the source Amazon Web Services Region
+	// that contains the encrypted DB cluster snapshot to be copied. The pre-signed
+	// URL request must contain the following parameter values:
 	//
-	//    * KmsKeyId - The AWS KMS key identifier for the customer master key (CMK)
+	//    * KmsKeyId - The Amazon Web Services KMS key identifier for the KMS key
 	//    to use to encrypt the copy of the DB cluster snapshot in the destination
-	//    AWS Region. This is the same identifier for both the CopyDBClusterSnapshot
-	//    action that is called in the destination AWS Region, and the action contained
-	//    in the pre-signed URL.
+	//    Amazon Web Services Region. This is the same identifier for both the CopyDBClusterSnapshot
+	//    action that is called in the destination Amazon Web Services Region, and
+	//    the action contained in the pre-signed URL.
 	//
-	//    * DestinationRegion - The name of the AWS Region that the DB cluster snapshot
-	//    is to be created in.
+	//    * DestinationRegion - The name of the Amazon Web Services Region that
+	//    the DB cluster snapshot is to be created in.
 	//
 	//    * SourceDBClusterSnapshotIdentifier - The DB cluster snapshot identifier
 	//    for the encrypted DB cluster snapshot to be copied. This identifier must
-	//    be in the Amazon Resource Name (ARN) format for the source AWS Region.
-	//    For example, if you are copying an encrypted DB cluster snapshot from
-	//    the us-west-2 AWS Region, then your SourceDBClusterSnapshotIdentifier
+	//    be in the Amazon Resource Name (ARN) format for the source Amazon Web
+	//    Services Region. For example, if you are copying an encrypted DB cluster
+	//    snapshot from the us-west-2 Amazon Web Services Region, then your SourceDBClusterSnapshotIdentifier
 	//    looks like the following example: arn:aws:rds:us-west-2:123456789012:cluster-snapshot:aurora-cluster1-snapshot-20161115.
 	//
 	// To learn how to generate a Signature Version 4 signed request, see Authenticating
-	// Requests: Using Query Parameters (AWS Signature Version 4) (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
+	// Requests: Using Query Parameters (Amazon Web Services Signature Version 4)
+	// (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
 	// and Signature Version 4 Signing Process (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html).
 	//
-	// If you are using an AWS SDK tool or the AWS CLI, you can specify SourceRegion
-	// (or --source-region for the AWS CLI) instead of specifying PreSignedUrl manually.
-	// Specifying SourceRegion autogenerates a pre-signed URL that is a valid request
-	// for the operation that can be executed in the source AWS Region.
+	// If you are using an Amazon Web Services SDK tool or the CLI, you can specify
+	// SourceRegion (or --source-region for the CLI) instead of specifying PreSignedUrl
+	// manually. Specifying SourceRegion autogenerates a pre-signed URL that is
+	// a valid request for the operation that can be executed in the source Amazon
+	// Web Services Region.
 	PreSignedUrl *string `type:"string"`
 
 	// The identifier of the DB cluster snapshot to copy. This parameter isn't case-sensitive.
 	//
-	// You can't copy an encrypted, shared DB cluster snapshot from one AWS Region
-	// to another.
+	// You can't copy an encrypted, shared DB cluster snapshot from one Amazon Web
+	// Services Region to another.
 	//
 	// Constraints:
 	//
 	//    * Must specify a valid system snapshot in the "available" state.
 	//
-	//    * If the source snapshot is in the same AWS Region as the copy, specify
-	//    a valid DB snapshot identifier.
+	//    * If the source snapshot is in the same Amazon Web Services Region as
+	//    the copy, specify a valid DB snapshot identifier.
 	//
-	//    * If the source snapshot is in a different AWS Region than the copy, specify
-	//    a valid DB cluster snapshot ARN. For more information, go to Copying Snapshots
-	//    Across AWS Regions (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_CopySnapshot.html#USER_CopySnapshot.AcrossRegions)
+	//    * If the source snapshot is in a different Amazon Web Services Region
+	//    than the copy, specify a valid DB cluster snapshot ARN. For more information,
+	//    go to Copying Snapshots Across Amazon Web Services Regions (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_CopySnapshot.html#USER_CopySnapshot.AcrossRegions)
 	//    in the Amazon Aurora User Guide.
 	//
 	// Example: my-cluster-snapshot1
@@ -16401,12 +17544,20 @@ type CopyDBClusterSnapshotInput struct {
 	TargetDBClusterSnapshotIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBClusterSnapshotInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBClusterSnapshotInput) GoString() string {
 	return s.String()
 }
@@ -16485,12 +17636,20 @@ type CopyDBClusterSnapshotOutput struct {
 	DBClusterSnapshot *DBClusterSnapshot `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBClusterSnapshotOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBClusterSnapshotOutput) GoString() string {
 	return s.String()
 }
@@ -16542,12 +17701,20 @@ type CopyDBParameterGroupInput struct {
 	TargetDBParameterGroupIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -16605,12 +17772,20 @@ type CopyDBParameterGroupOutput struct {
 	DBParameterGroup *DBParameterGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBParameterGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBParameterGroupOutput) GoString() string {
 	return s.String()
 }
@@ -16631,94 +17806,103 @@ type CopyDBSnapshotInput struct {
 	// DestinationRegion is used for presigning the request to a given region.
 	DestinationRegion *string `type:"string"`
 
-	// The AWS KMS key identifier for an encrypted DB snapshot. The AWS KMS key
-	// identifier is the key ARN, key ID, alias ARN, or alias name for the AWS KMS
-	// customer master key (CMK).
+	// The Amazon Web Services KMS key identifier for an encrypted DB snapshot.
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	//
-	// If you copy an encrypted DB snapshot from your AWS account, you can specify
-	// a value for this parameter to encrypt the copy with a new AWS KMS CMK. If
-	// you don't specify a value for this parameter, then the copy of the DB snapshot
-	// is encrypted with the same AWS KMS key as the source DB snapshot.
+	// If you copy an encrypted DB snapshot from your Amazon Web Services account,
+	// you can specify a value for this parameter to encrypt the copy with a new
+	// KMS key. If you don't specify a value for this parameter, then the copy of
+	// the DB snapshot is encrypted with the same Amazon Web Services KMS key as
+	// the source DB snapshot.
 	//
-	// If you copy an encrypted DB snapshot that is shared from another AWS account,
-	// then you must specify a value for this parameter.
+	// If you copy an encrypted DB snapshot that is shared from another Amazon Web
+	// Services account, then you must specify a value for this parameter.
 	//
 	// If you specify this parameter when you copy an unencrypted snapshot, the
 	// copy is encrypted.
 	//
-	// If you copy an encrypted snapshot to a different AWS Region, then you must
-	// specify a AWS KMS key identifier for the destination AWS Region. AWS KMS
-	// CMKs are specific to the AWS Region that they are created in, and you can't
-	// use CMKs from one AWS Region in another AWS Region.
+	// If you copy an encrypted snapshot to a different Amazon Web Services Region,
+	// then you must specify an Amazon Web Services KMS key identifier for the destination
+	// Amazon Web Services Region. KMS keys are specific to the Amazon Web Services
+	// Region that they are created in, and you can't use KMS keys from one Amazon
+	// Web Services Region in another Amazon Web Services Region.
 	KmsKeyId *string `type:"string"`
 
 	// The name of an option group to associate with the copy of the snapshot.
 	//
-	// Specify this option if you are copying a snapshot from one AWS Region to
-	// another, and your DB instance uses a nondefault option group. If your source
-	// DB instance uses Transparent Data Encryption for Oracle or Microsoft SQL
-	// Server, you must specify this option when copying across AWS Regions. For
-	// more information, see Option group considerations (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_CopySnapshot.html#USER_CopySnapshot.Options)
+	// Specify this option if you are copying a snapshot from one Amazon Web Services
+	// Region to another, and your DB instance uses a nondefault option group. If
+	// your source DB instance uses Transparent Data Encryption for Oracle or Microsoft
+	// SQL Server, you must specify this option when copying across Amazon Web Services
+	// Regions. For more information, see Option group considerations (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_CopySnapshot.html#USER_CopySnapshot.Options)
 	// in the Amazon RDS User Guide.
 	OptionGroupName *string `type:"string"`
 
 	// The URL that contains a Signature Version 4 signed request for the CopyDBSnapshot
-	// API action in the source AWS Region that contains the source DB snapshot
-	// to copy.
+	// API action in the source Amazon Web Services Region that contains the source
+	// DB snapshot to copy.
 	//
 	// You must specify this parameter when you copy an encrypted DB snapshot from
-	// another AWS Region by using the Amazon RDS API. Don't specify PreSignedUrl
-	// when you are copying an encrypted DB snapshot in the same AWS Region.
+	// another Amazon Web Services Region by using the Amazon RDS API. Don't specify
+	// PreSignedUrl when you are copying an encrypted DB snapshot in the same Amazon
+	// Web Services Region.
 	//
 	// The presigned URL must be a valid request for the CopyDBSnapshot API action
-	// that can be executed in the source AWS Region that contains the encrypted
-	// DB snapshot to be copied. The presigned URL request must contain the following
-	// parameter values:
+	// that can be executed in the source Amazon Web Services Region that contains
+	// the encrypted DB snapshot to be copied. The presigned URL request must contain
+	// the following parameter values:
 	//
-	//    * DestinationRegion - The AWS Region that the encrypted DB snapshot is
-	//    copied to. This AWS Region is the same one where the CopyDBSnapshot action
-	//    is called that contains this presigned URL. For example, if you copy an
-	//    encrypted DB snapshot from the us-west-2 AWS Region to the us-east-1 AWS
-	//    Region, then you call the CopyDBSnapshot action in the us-east-1 AWS Region
-	//    and provide a presigned URL that contains a call to the CopyDBSnapshot
-	//    action in the us-west-2 AWS Region. For this example, the DestinationRegion
-	//    in the presigned URL must be set to the us-east-1 AWS Region.
+	//    * DestinationRegion - The Amazon Web Services Region that the encrypted
+	//    DB snapshot is copied to. This Amazon Web Services Region is the same
+	//    one where the CopyDBSnapshot action is called that contains this presigned
+	//    URL. For example, if you copy an encrypted DB snapshot from the us-west-2
+	//    Amazon Web Services Region to the us-east-1 Amazon Web Services Region,
+	//    then you call the CopyDBSnapshot action in the us-east-1 Amazon Web Services
+	//    Region and provide a presigned URL that contains a call to the CopyDBSnapshot
+	//    action in the us-west-2 Amazon Web Services Region. For this example,
+	//    the DestinationRegion in the presigned URL must be set to the us-east-1
+	//    Amazon Web Services Region.
 	//
-	//    * KmsKeyId - The AWS KMS key identifier for the customer master key (CMK)
-	//    to use to encrypt the copy of the DB snapshot in the destination AWS Region.
-	//    This is the same identifier for both the CopyDBSnapshot action that is
-	//    called in the destination AWS Region, and the action contained in the
-	//    presigned URL.
+	//    * KmsKeyId - The Amazon Web Services KMS key identifier for the KMS key
+	//    to use to encrypt the copy of the DB snapshot in the destination Amazon
+	//    Web Services Region. This is the same identifier for both the CopyDBSnapshot
+	//    action that is called in the destination Amazon Web Services Region, and
+	//    the action contained in the presigned URL.
 	//
 	//    * SourceDBSnapshotIdentifier - The DB snapshot identifier for the encrypted
 	//    snapshot to be copied. This identifier must be in the Amazon Resource
-	//    Name (ARN) format for the source AWS Region. For example, if you are copying
-	//    an encrypted DB snapshot from the us-west-2 AWS Region, then your SourceDBSnapshotIdentifier
-	//    looks like the following example: arn:aws:rds:us-west-2:123456789012:snapshot:mysql-instance1-snapshot-20161115.
+	//    Name (ARN) format for the source Amazon Web Services Region. For example,
+	//    if you are copying an encrypted DB snapshot from the us-west-2 Amazon
+	//    Web Services Region, then your SourceDBSnapshotIdentifier looks like the
+	//    following example: arn:aws:rds:us-west-2:123456789012:snapshot:mysql-instance1-snapshot-20161115.
 	//
 	// To learn how to generate a Signature Version 4 signed request, see Authenticating
-	// Requests: Using Query Parameters (AWS Signature Version 4) (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
+	// Requests: Using Query Parameters (Amazon Web Services Signature Version 4)
+	// (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
 	// and Signature Version 4 Signing Process (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html).
 	//
-	// If you are using an AWS SDK tool or the AWS CLI, you can specify SourceRegion
-	// (or --source-region for the AWS CLI) instead of specifying PreSignedUrl manually.
-	// Specifying SourceRegion autogenerates a pre-signed URL that is a valid request
-	// for the operation that can be executed in the source AWS Region.
+	// If you are using an Amazon Web Services SDK tool or the CLI, you can specify
+	// SourceRegion (or --source-region for the CLI) instead of specifying PreSignedUrl
+	// manually. Specifying SourceRegion autogenerates a pre-signed URL that is
+	// a valid request for the operation that can be executed in the source Amazon
+	// Web Services Region.
 	PreSignedUrl *string `type:"string"`
 
 	// The identifier for the source DB snapshot.
 	//
-	// If the source snapshot is in the same AWS Region as the copy, specify a valid
-	// DB snapshot identifier. For example, you might specify rds:mysql-instance1-snapshot-20130805.
+	// If the source snapshot is in the same Amazon Web Services Region as the copy,
+	// specify a valid DB snapshot identifier. For example, you might specify rds:mysql-instance1-snapshot-20130805.
 	//
-	// If the source snapshot is in a different AWS Region than the copy, specify
-	// a valid DB snapshot ARN. For example, you might specify arn:aws:rds:us-west-2:123456789012:snapshot:mysql-instance1-snapshot-20130805.
+	// If the source snapshot is in a different Amazon Web Services Region than
+	// the copy, specify a valid DB snapshot ARN. For example, you might specify
+	// arn:aws:rds:us-west-2:123456789012:snapshot:mysql-instance1-snapshot-20130805.
 	//
 	// If you are copying from a shared manual DB snapshot, this parameter must
 	// be the Amazon Resource Name (ARN) of the shared DB snapshot.
 	//
 	// If you are copying an encrypted snapshot this parameter must be in the ARN
-	// format for the source AWS Region, and must match the SourceDBSnapshotIdentifier
+	// format for the source Amazon Web Services Region, and must match the SourceDBSnapshotIdentifier
 	// in the PreSignedUrl parameter.
 	//
 	// Constraints:
@@ -16764,12 +17948,20 @@ type CopyDBSnapshotInput struct {
 	TargetDBSnapshotIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBSnapshotInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBSnapshotInput) GoString() string {
 	return s.String()
 }
@@ -16859,12 +18051,20 @@ type CopyDBSnapshotOutput struct {
 	DBSnapshot *DBSnapshot `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBSnapshotOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyDBSnapshotOutput) GoString() string {
 	return s.String()
 }
@@ -16914,12 +18114,20 @@ type CopyOptionGroupInput struct {
 	TargetOptionGroupIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyOptionGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyOptionGroupInput) GoString() string {
 	return s.String()
 }
@@ -16973,12 +18181,20 @@ type CopyOptionGroupOutput struct {
 	OptionGroup *OptionGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyOptionGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CopyOptionGroupOutput) GoString() string {
 	return s.String()
 }
@@ -17014,12 +18230,20 @@ type CreateCustomAvailabilityZoneInput struct {
 	VpnTunnelOriginatorIP *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateCustomAvailabilityZoneInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateCustomAvailabilityZoneInput) GoString() string {
 	return s.String()
 }
@@ -17072,12 +18296,20 @@ type CreateCustomAvailabilityZoneOutput struct {
 	CustomAvailabilityZone *CustomAvailabilityZone `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateCustomAvailabilityZoneOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateCustomAvailabilityZoneOutput) GoString() string {
 	return s.String()
 }
@@ -17085,6 +18317,489 @@ func (s CreateCustomAvailabilityZoneOutput) GoString() string {
 // SetCustomAvailabilityZone sets the CustomAvailabilityZone field's value.
 func (s *CreateCustomAvailabilityZoneOutput) SetCustomAvailabilityZone(v *CustomAvailabilityZone) *CreateCustomAvailabilityZoneOutput {
 	s.CustomAvailabilityZone = v
+	return s
+}
+
+type CreateCustomDBEngineVersionInput struct {
+	_ struct{} `type:"structure"`
+
+	// The name of an Amazon S3 bucket that contains database installation files
+	// for your CEV. For example, a valid bucket name is my-custom-installation-files.
+	//
+	// DatabaseInstallationFilesS3BucketName is a required field
+	DatabaseInstallationFilesS3BucketName *string `min:"3" type:"string" required:"true"`
+
+	// The Amazon S3 directory that contains the database installation files for
+	// your CEV. For example, a valid bucket name is 123456789012/cev1. If this
+	// setting isn't specified, no prefix is assumed.
+	DatabaseInstallationFilesS3Prefix *string `min:"1" type:"string"`
+
+	// An optional description of your CEV.
+	Description *string `min:"1" type:"string"`
+
+	// The database engine to use for your custom engine version (CEV). The only
+	// supported value is custom-oracle-ee.
+	//
+	// Engine is a required field
+	Engine *string `min:"1" type:"string" required:"true"`
+
+	// The name of your CEV. The name format is 19.customized_string . For example,
+	// a valid name is 19.my_cev1. This setting is required for RDS Custom for Oracle,
+	// but optional for Amazon RDS. The combination of Engine and EngineVersion
+	// is unique per customer per Region.
+	//
+	// EngineVersion is a required field
+	EngineVersion *string `min:"1" type:"string" required:"true"`
+
+	// The Amazon Web Services KMS key identifier for an encrypted CEV. A symmetric
+	// KMS key is required for RDS Custom, but optional for Amazon RDS.
+	//
+	// If you have an existing symmetric KMS key in your account, you can use it
+	// with RDS Custom. No further action is necessary. If you don't already have
+	// a symmetric KMS key in your account, follow the instructions in Creating
+	// symmetric KMS keys (https://docs.aws.amazon.com/kms/latest/developerguide/create-keys.html#create-symmetric-cmk)
+	// in the Amazon Web Services Key Management Service Developer Guide.
+	//
+	// You can choose the same symmetric key when you create a CEV and a DB instance,
+	// or choose different keys.
+	//
+	// KMSKeyId is a required field
+	KMSKeyId *string `min:"1" type:"string" required:"true"`
+
+	// The CEV manifest, which is a JSON document that describes the installation
+	// .zip files stored in Amazon S3. Specify the name/value pairs in a file or
+	// a quoted string. RDS Custom applies the patches in the order in which they
+	// are listed.
+	//
+	// The following JSON fields are valid:
+	//
+	// MediaImportTemplateVersion
+	//
+	// Version of the CEV manifest. The date is in the format YYYY-MM-DD.
+	//
+	// databaseInstallationFileNames
+	//
+	// Ordered list of installation files for the CEV.
+	//
+	// opatchFileNames
+	//
+	// Ordered list of OPatch installers used for the Oracle DB engine.
+	//
+	// psuRuPatchFileNames
+	//
+	// The PSU and RU patches for this CEV.
+	//
+	// OtherPatchFileNames
+	//
+	// The patches that are not in the list of PSU and RU patches. Amazon RDS applies
+	// these patches after applying the PSU and RU patches.
+	//
+	// For more information, see Creating the CEV manifest (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-cev.html#custom-cev.preparing.manifest)
+	// in the Amazon RDS User Guide.
+	//
+	// Manifest is a required field
+	Manifest *string `min:"1" type:"string" required:"true"`
+
+	// A list of tags. For more information, see Tagging Amazon RDS Resources (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html)
+	// in the Amazon RDS User Guide.
+	Tags []*Tag `locationNameList:"Tag" type:"list"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s CreateCustomDBEngineVersionInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s CreateCustomDBEngineVersionInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *CreateCustomDBEngineVersionInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "CreateCustomDBEngineVersionInput"}
+	if s.DatabaseInstallationFilesS3BucketName == nil {
+		invalidParams.Add(request.NewErrParamRequired("DatabaseInstallationFilesS3BucketName"))
+	}
+	if s.DatabaseInstallationFilesS3BucketName != nil && len(*s.DatabaseInstallationFilesS3BucketName) < 3 {
+		invalidParams.Add(request.NewErrParamMinLen("DatabaseInstallationFilesS3BucketName", 3))
+	}
+	if s.DatabaseInstallationFilesS3Prefix != nil && len(*s.DatabaseInstallationFilesS3Prefix) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("DatabaseInstallationFilesS3Prefix", 1))
+	}
+	if s.Description != nil && len(*s.Description) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Description", 1))
+	}
+	if s.Engine == nil {
+		invalidParams.Add(request.NewErrParamRequired("Engine"))
+	}
+	if s.Engine != nil && len(*s.Engine) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Engine", 1))
+	}
+	if s.EngineVersion == nil {
+		invalidParams.Add(request.NewErrParamRequired("EngineVersion"))
+	}
+	if s.EngineVersion != nil && len(*s.EngineVersion) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("EngineVersion", 1))
+	}
+	if s.KMSKeyId == nil {
+		invalidParams.Add(request.NewErrParamRequired("KMSKeyId"))
+	}
+	if s.KMSKeyId != nil && len(*s.KMSKeyId) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("KMSKeyId", 1))
+	}
+	if s.Manifest == nil {
+		invalidParams.Add(request.NewErrParamRequired("Manifest"))
+	}
+	if s.Manifest != nil && len(*s.Manifest) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Manifest", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDatabaseInstallationFilesS3BucketName sets the DatabaseInstallationFilesS3BucketName field's value.
+func (s *CreateCustomDBEngineVersionInput) SetDatabaseInstallationFilesS3BucketName(v string) *CreateCustomDBEngineVersionInput {
+	s.DatabaseInstallationFilesS3BucketName = &v
+	return s
+}
+
+// SetDatabaseInstallationFilesS3Prefix sets the DatabaseInstallationFilesS3Prefix field's value.
+func (s *CreateCustomDBEngineVersionInput) SetDatabaseInstallationFilesS3Prefix(v string) *CreateCustomDBEngineVersionInput {
+	s.DatabaseInstallationFilesS3Prefix = &v
+	return s
+}
+
+// SetDescription sets the Description field's value.
+func (s *CreateCustomDBEngineVersionInput) SetDescription(v string) *CreateCustomDBEngineVersionInput {
+	s.Description = &v
+	return s
+}
+
+// SetEngine sets the Engine field's value.
+func (s *CreateCustomDBEngineVersionInput) SetEngine(v string) *CreateCustomDBEngineVersionInput {
+	s.Engine = &v
+	return s
+}
+
+// SetEngineVersion sets the EngineVersion field's value.
+func (s *CreateCustomDBEngineVersionInput) SetEngineVersion(v string) *CreateCustomDBEngineVersionInput {
+	s.EngineVersion = &v
+	return s
+}
+
+// SetKMSKeyId sets the KMSKeyId field's value.
+func (s *CreateCustomDBEngineVersionInput) SetKMSKeyId(v string) *CreateCustomDBEngineVersionInput {
+	s.KMSKeyId = &v
+	return s
+}
+
+// SetManifest sets the Manifest field's value.
+func (s *CreateCustomDBEngineVersionInput) SetManifest(v string) *CreateCustomDBEngineVersionInput {
+	s.Manifest = &v
+	return s
+}
+
+// SetTags sets the Tags field's value.
+func (s *CreateCustomDBEngineVersionInput) SetTags(v []*Tag) *CreateCustomDBEngineVersionInput {
+	s.Tags = v
+	return s
+}
+
+// This data type is used as a response element in the action DescribeDBEngineVersions.
+type CreateCustomDBEngineVersionOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The creation time of the DB engine version.
+	CreateTime *time.Time `type:"timestamp"`
+
+	// The description of the database engine.
+	DBEngineDescription *string `type:"string"`
+
+	// The ARN of the custom engine version.
+	DBEngineVersionArn *string `type:"string"`
+
+	// The description of the database engine version.
+	DBEngineVersionDescription *string `type:"string"`
+
+	// The name of the DB parameter group family for the database engine.
+	DBParameterGroupFamily *string `type:"string"`
+
+	// The name of the Amazon S3 bucket that contains your database installation
+	// files.
+	DatabaseInstallationFilesS3BucketName *string `type:"string"`
+
+	// The Amazon S3 directory that contains the database installation files. If
+	// not specified, then no prefix is assumed.
+	DatabaseInstallationFilesS3Prefix *string `type:"string"`
+
+	// The default character set for new instances of this engine version, if the
+	// CharacterSetName parameter of the CreateDBInstance API isn't specified.
+	DefaultCharacterSet *CharacterSet `type:"structure"`
+
+	// The name of the database engine.
+	Engine *string `type:"string"`
+
+	// The version number of the database engine.
+	EngineVersion *string `type:"string"`
+
+	// The types of logs that the database engine has available for export to CloudWatch
+	// Logs.
+	ExportableLogTypes []*string `type:"list"`
+
+	// The Amazon Web Services KMS key identifier for an encrypted CEV. This parameter
+	// is required for RDS Custom, but optional for Amazon RDS.
+	KMSKeyId *string `type:"string"`
+
+	// The major engine version of the CEV.
+	MajorEngineVersion *string `type:"string"`
+
+	// The status of the DB engine version, either available or deprecated.
+	Status *string `type:"string"`
+
+	// A list of the character sets supported by this engine for the CharacterSetName
+	// parameter of the CreateDBInstance operation.
+	SupportedCharacterSets []*CharacterSet `locationNameList:"CharacterSet" type:"list"`
+
+	// A list of the supported DB engine modes.
+	SupportedEngineModes []*string `type:"list"`
+
+	// A list of features supported by the DB engine.
+	//
+	// The supported features vary by DB engine and DB engine version.
+	//
+	// To determine the supported features for a specific DB engine and DB engine
+	// version using the CLI, use the following command:
+	//
+	// aws rds describe-db-engine-versions --engine <engine_name> --engine-version
+	// <engine_version>
+	//
+	// For example, to determine the supported features for RDS for PostgreSQL version
+	// 13.3 using the CLI, use the following command:
+	//
+	// aws rds describe-db-engine-versions --engine postgres --engine-version 13.3
+	//
+	// The supported features are listed under SupportedFeatureNames in the output.
+	SupportedFeatureNames []*string `type:"list"`
+
+	// A list of the character sets supported by the Oracle DB engine for the NcharCharacterSetName
+	// parameter of the CreateDBInstance operation.
+	SupportedNcharCharacterSets []*CharacterSet `locationNameList:"CharacterSet" type:"list"`
+
+	// A list of the time zones supported by this engine for the Timezone parameter
+	// of the CreateDBInstance action.
+	SupportedTimezones []*Timezone `locationNameList:"Timezone" type:"list"`
+
+	// A value that indicates whether the engine version supports Babelfish for
+	// Aurora PostgreSQL.
+	SupportsBabelfish *bool `type:"boolean"`
+
+	// A value that indicates whether you can use Aurora global databases with a
+	// specific DB engine version.
+	SupportsGlobalDatabases *bool `type:"boolean"`
+
+	// A value that indicates whether the engine version supports exporting the
+	// log types specified by ExportableLogTypes to CloudWatch Logs.
+	SupportsLogExportsToCloudwatchLogs *bool `type:"boolean"`
+
+	// A value that indicates whether you can use Aurora parallel query with a specific
+	// DB engine version.
+	SupportsParallelQuery *bool `type:"boolean"`
+
+	// Indicates whether the database engine version supports read replicas.
+	SupportsReadReplica *bool `type:"boolean"`
+
+	// A list of tags. For more information, see Tagging Amazon RDS Resources (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html)
+	// in the Amazon RDS User Guide.
+	TagList []*Tag `locationNameList:"Tag" type:"list"`
+
+	// A list of engine versions that this database engine version can be upgraded
+	// to.
+	ValidUpgradeTarget []*UpgradeTarget `locationNameList:"UpgradeTarget" type:"list"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s CreateCustomDBEngineVersionOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s CreateCustomDBEngineVersionOutput) GoString() string {
+	return s.String()
+}
+
+// SetCreateTime sets the CreateTime field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetCreateTime(v time.Time) *CreateCustomDBEngineVersionOutput {
+	s.CreateTime = &v
+	return s
+}
+
+// SetDBEngineDescription sets the DBEngineDescription field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetDBEngineDescription(v string) *CreateCustomDBEngineVersionOutput {
+	s.DBEngineDescription = &v
+	return s
+}
+
+// SetDBEngineVersionArn sets the DBEngineVersionArn field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetDBEngineVersionArn(v string) *CreateCustomDBEngineVersionOutput {
+	s.DBEngineVersionArn = &v
+	return s
+}
+
+// SetDBEngineVersionDescription sets the DBEngineVersionDescription field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetDBEngineVersionDescription(v string) *CreateCustomDBEngineVersionOutput {
+	s.DBEngineVersionDescription = &v
+	return s
+}
+
+// SetDBParameterGroupFamily sets the DBParameterGroupFamily field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetDBParameterGroupFamily(v string) *CreateCustomDBEngineVersionOutput {
+	s.DBParameterGroupFamily = &v
+	return s
+}
+
+// SetDatabaseInstallationFilesS3BucketName sets the DatabaseInstallationFilesS3BucketName field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetDatabaseInstallationFilesS3BucketName(v string) *CreateCustomDBEngineVersionOutput {
+	s.DatabaseInstallationFilesS3BucketName = &v
+	return s
+}
+
+// SetDatabaseInstallationFilesS3Prefix sets the DatabaseInstallationFilesS3Prefix field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetDatabaseInstallationFilesS3Prefix(v string) *CreateCustomDBEngineVersionOutput {
+	s.DatabaseInstallationFilesS3Prefix = &v
+	return s
+}
+
+// SetDefaultCharacterSet sets the DefaultCharacterSet field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetDefaultCharacterSet(v *CharacterSet) *CreateCustomDBEngineVersionOutput {
+	s.DefaultCharacterSet = v
+	return s
+}
+
+// SetEngine sets the Engine field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetEngine(v string) *CreateCustomDBEngineVersionOutput {
+	s.Engine = &v
+	return s
+}
+
+// SetEngineVersion sets the EngineVersion field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetEngineVersion(v string) *CreateCustomDBEngineVersionOutput {
+	s.EngineVersion = &v
+	return s
+}
+
+// SetExportableLogTypes sets the ExportableLogTypes field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetExportableLogTypes(v []*string) *CreateCustomDBEngineVersionOutput {
+	s.ExportableLogTypes = v
+	return s
+}
+
+// SetKMSKeyId sets the KMSKeyId field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetKMSKeyId(v string) *CreateCustomDBEngineVersionOutput {
+	s.KMSKeyId = &v
+	return s
+}
+
+// SetMajorEngineVersion sets the MajorEngineVersion field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetMajorEngineVersion(v string) *CreateCustomDBEngineVersionOutput {
+	s.MajorEngineVersion = &v
+	return s
+}
+
+// SetStatus sets the Status field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetStatus(v string) *CreateCustomDBEngineVersionOutput {
+	s.Status = &v
+	return s
+}
+
+// SetSupportedCharacterSets sets the SupportedCharacterSets field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportedCharacterSets(v []*CharacterSet) *CreateCustomDBEngineVersionOutput {
+	s.SupportedCharacterSets = v
+	return s
+}
+
+// SetSupportedEngineModes sets the SupportedEngineModes field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportedEngineModes(v []*string) *CreateCustomDBEngineVersionOutput {
+	s.SupportedEngineModes = v
+	return s
+}
+
+// SetSupportedFeatureNames sets the SupportedFeatureNames field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportedFeatureNames(v []*string) *CreateCustomDBEngineVersionOutput {
+	s.SupportedFeatureNames = v
+	return s
+}
+
+// SetSupportedNcharCharacterSets sets the SupportedNcharCharacterSets field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportedNcharCharacterSets(v []*CharacterSet) *CreateCustomDBEngineVersionOutput {
+	s.SupportedNcharCharacterSets = v
+	return s
+}
+
+// SetSupportedTimezones sets the SupportedTimezones field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportedTimezones(v []*Timezone) *CreateCustomDBEngineVersionOutput {
+	s.SupportedTimezones = v
+	return s
+}
+
+// SetSupportsBabelfish sets the SupportsBabelfish field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportsBabelfish(v bool) *CreateCustomDBEngineVersionOutput {
+	s.SupportsBabelfish = &v
+	return s
+}
+
+// SetSupportsGlobalDatabases sets the SupportsGlobalDatabases field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportsGlobalDatabases(v bool) *CreateCustomDBEngineVersionOutput {
+	s.SupportsGlobalDatabases = &v
+	return s
+}
+
+// SetSupportsLogExportsToCloudwatchLogs sets the SupportsLogExportsToCloudwatchLogs field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportsLogExportsToCloudwatchLogs(v bool) *CreateCustomDBEngineVersionOutput {
+	s.SupportsLogExportsToCloudwatchLogs = &v
+	return s
+}
+
+// SetSupportsParallelQuery sets the SupportsParallelQuery field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportsParallelQuery(v bool) *CreateCustomDBEngineVersionOutput {
+	s.SupportsParallelQuery = &v
+	return s
+}
+
+// SetSupportsReadReplica sets the SupportsReadReplica field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetSupportsReadReplica(v bool) *CreateCustomDBEngineVersionOutput {
+	s.SupportsReadReplica = &v
+	return s
+}
+
+// SetTagList sets the TagList field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetTagList(v []*Tag) *CreateCustomDBEngineVersionOutput {
+	s.TagList = v
+	return s
+}
+
+// SetValidUpgradeTarget sets the ValidUpgradeTarget field's value.
+func (s *CreateCustomDBEngineVersionOutput) SetValidUpgradeTarget(v []*UpgradeTarget) *CreateCustomDBEngineVersionOutput {
+	s.ValidUpgradeTarget = v
 	return s
 }
 
@@ -17103,14 +18818,14 @@ type CreateDBClusterEndpointInput struct {
 	// DBClusterIdentifier is a required field
 	DBClusterIdentifier *string `type:"string" required:"true"`
 
-	// The type of the endpoint. One of: READER, WRITER, ANY.
+	// The type of the endpoint, one of: READER, WRITER, ANY.
 	//
 	// EndpointType is a required field
 	EndpointType *string `type:"string" required:"true"`
 
 	// List of DB instance identifiers that aren't part of the custom endpoint group.
-	// All other eligible instances are reachable through the custom endpoint. Only
-	// relevant if the list of static members is empty.
+	// All other eligible instances are reachable through the custom endpoint. This
+	// parameter is relevant only if the list of static members is empty.
 	ExcludedMembers []*string `type:"list"`
 
 	// List of DB instance identifiers that are part of the custom endpoint group.
@@ -17120,12 +18835,20 @@ type CreateDBClusterEndpointInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterEndpointInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterEndpointInput) GoString() string {
 	return s.String()
 }
@@ -17241,12 +18964,20 @@ type CreateDBClusterEndpointOutput struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterEndpointOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterEndpointOutput) GoString() string {
 	return s.String()
 }
@@ -17314,16 +19045,33 @@ func (s *CreateDBClusterEndpointOutput) SetStatus(v string) *CreateDBClusterEndp
 type CreateDBClusterInput struct {
 	_ struct{} `type:"structure"`
 
-	// A list of Availability Zones (AZs) where instances in the DB cluster can
-	// be created. For information on AWS Regions and Availability Zones, see Choosing
-	// the Regions and Availability Zones (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Concepts.RegionsAndAvailabilityZones.html)
+	// The amount of storage in gibibytes (GiB) to allocate to each DB instance
+	// in the Multi-AZ DB cluster.
+	//
+	// This setting is required to create a Multi-AZ DB cluster.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	AllocatedStorage *int64 `type:"integer"`
+
+	// A value that indicates whether minor engine upgrades are applied automatically
+	// to the DB cluster during the maintenance window. By default, minor engine
+	// upgrades are applied automatically.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	AutoMinorVersionUpgrade *bool `type:"boolean"`
+
+	// A list of Availability Zones (AZs) where DB instances in the DB cluster can
+	// be created.
+	//
+	// For information on Amazon Web Services Regions and Availability Zones, see
+	// Choosing the Regions and Availability Zones (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Concepts.RegionsAndAvailabilityZones.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	AvailabilityZones []*string `locationNameList:"AvailabilityZone" type:"list"`
 
 	// The target backtrack window, in seconds. To disable backtracking, set this
 	// value to 0.
-	//
-	// Currently, Backtrack is only supported for Aurora MySQL DB clusters.
 	//
 	// Default: 0
 	//
@@ -17331,6 +19079,8 @@ type CreateDBClusterInput struct {
 	//
 	//    * If specified, this value must be set to a number from 0 to 259,200 (72
 	//    hours).
+	//
+	// Valid for: Aurora MySQL DB clusters only
 	BacktrackWindow *int64 `type:"long"`
 
 	// The number of days for which automated backups are retained.
@@ -17340,14 +19090,20 @@ type CreateDBClusterInput struct {
 	// Constraints:
 	//
 	//    * Must be a value from 1 to 35
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	BackupRetentionPeriod *int64 `type:"integer"`
 
 	// A value that indicates that the DB cluster should be associated with the
 	// specified CharacterSet.
+	//
+	// Valid for: Aurora DB clusters only
 	CharacterSetName *string `type:"string"`
 
 	// A value that indicates whether to copy all tags from the DB cluster to snapshots
 	// of the DB cluster. The default is not to copy them.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
 	// The DB cluster identifier. This parameter is stored as a lowercase string.
@@ -17362,8 +19118,23 @@ type CreateDBClusterInput struct {
 	//
 	// Example: my-cluster1
 	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	//
 	// DBClusterIdentifier is a required field
 	DBClusterIdentifier *string `type:"string" required:"true"`
+
+	// The compute and memory capacity of each DB instance in the Multi-AZ DB cluster,
+	// for example db.m6g.xlarge. Not all DB instance classes are available in all
+	// Amazon Web Services Regions, or for all database engines.
+	//
+	// For the full list of DB instance classes and availability for your engine,
+	// see DB instance class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// in the Amazon RDS User Guide.
+	//
+	// This setting is required to create a Multi-AZ DB cluster.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	DBClusterInstanceClass *string `type:"string"`
 
 	// The name of the DB cluster parameter group to associate with this DB cluster.
 	// If you do not specify a value, then the default DB cluster parameter group
@@ -17373,24 +19144,34 @@ type CreateDBClusterInput struct {
 	//
 	//    * If supplied, must match the name of an existing DB cluster parameter
 	//    group.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DBClusterParameterGroupName *string `type:"string"`
 
 	// A DB subnet group to associate with this DB cluster.
 	//
+	// This setting is required to create a Multi-AZ DB cluster.
+	//
 	// Constraints: Must match the name of an existing DBSubnetGroup. Must not be
 	// default.
 	//
-	// Example: mySubnetgroup
+	// Example: mydbsubnetgroup
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DBSubnetGroupName *string `type:"string"`
 
 	// The name for your database of up to 64 alphanumeric characters. If you do
 	// not provide a name, Amazon RDS doesn't create a database in the DB cluster
 	// you are creating.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DatabaseName *string `type:"string"`
 
 	// A value that indicates whether the DB cluster has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled.
+	// deletion protection isn't enabled.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DeletionProtection *bool `type:"boolean"`
 
 	// DestinationRegion is used for presigning the request to a given region.
@@ -17398,20 +19179,31 @@ type CreateDBClusterInput struct {
 
 	// The Active Directory directory ID to create the DB cluster in.
 	//
-	// For Amazon Aurora DB clusters, Amazon RDS can use Kerberos Authentication
-	// to authenticate users that connect to the DB cluster. For more information,
-	// see Kerberos Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/kerberos-authentication.html)
+	// For Amazon Aurora DB clusters, Amazon RDS can use Kerberos authentication
+	// to authenticate users that connect to the DB cluster.
+	//
+	// For more information, see Kerberos authentication (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/kerberos-authentication.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	Domain *string `type:"string"`
 
 	// Specify the name of the IAM role to be used when making API calls to the
 	// Directory Service.
+	//
+	// Valid for: Aurora DB clusters only
 	DomainIAMRoleName *string `type:"string"`
 
 	// The list of log types that need to be enabled for exporting to CloudWatch
-	// Logs. The values in the list depend on the DB engine being used. For more
-	// information, see Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
-	// in the Amazon Aurora User Guide.
+	// Logs. The values in the list depend on the DB engine being used.
+	//
+	// RDS for MySQL
+	//
+	// Possible values are error, general, and slowquery.
+	//
+	// RDS for PostgreSQL
+	//
+	// Possible values are postgresql and upgrade.
 	//
 	// Aurora MySQL
 	//
@@ -17420,6 +19212,16 @@ type CreateDBClusterInput struct {
 	// Aurora PostgreSQL
 	//
 	// Possible value is postgresql.
+	//
+	// For more information about exporting CloudWatch Logs for Amazon RDS, see
+	// Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// in the Amazon Relational Database Service User Guide.
+	//
+	// For more information about exporting CloudWatch Logs for Amazon Aurora, see
+	// Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	EnableCloudwatchLogsExports []*string `type:"list"`
 
 	// A value that indicates whether to enable this DB cluster to forward write
@@ -17433,6 +19235,8 @@ type CreateDBClusterInput struct {
 	// are replicated back to this cluster. For the primary DB cluster of an Aurora
 	// global database, this value is used immediately if the primary is demoted
 	// by the FailoverGlobalCluster API operation, but it does nothing until then.
+	//
+	// Valid for: Aurora DB clusters only
 	EnableGlobalWriteForwarding *bool `type:"boolean"`
 
 	// A value that indicates whether to enable the HTTP endpoint for an Aurora
@@ -17444,19 +19248,44 @@ type CreateDBClusterInput struct {
 	//
 	// For more information, see Using the Data API for Aurora Serverless (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	EnableHttpEndpoint *bool `type:"boolean"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
 	//
 	// For more information, see IAM Database Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	EnableIAMDatabaseAuthentication *bool `type:"boolean"`
+
+	// A value that indicates whether to turn on Performance Insights for the DB
+	// cluster.
+	//
+	// For more information, see Using Amazon Performance Insights (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PerfInsights.html)
+	// in the Amazon RDS User Guide.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	EnablePerformanceInsights *bool `type:"boolean"`
 
 	// The name of the database engine to be used for this DB cluster.
 	//
-	// Valid Values: aurora (for MySQL 5.6-compatible Aurora), aurora-mysql (for
-	// MySQL 5.7-compatible Aurora), and aurora-postgresql
+	// Valid Values:
+	//
+	//    * aurora (for MySQL 5.6-compatible Aurora)
+	//
+	//    * aurora-mysql (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
+	//
+	//    * aurora-postgresql
+	//
+	//    * mysql
+	//
+	//    * postgres
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	//
 	// Engine is a required field
 	Engine *string `type:"string" required:"true"`
@@ -17486,65 +19315,115 @@ type CreateDBClusterInput struct {
 	//    * Limitations of Aurora Global Databases (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html#aurora-global-database.limitations)
 	//
 	//    * Limitations of Multi-Master Clusters (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-multi-master.html#aurora-multi-master-limitations)
+	//
+	// Valid for: Aurora DB clusters only
 	EngineMode *string `type:"string"`
 
 	// The version number of the database engine to use.
 	//
-	// To list all of the available engine versions for aurora (for MySQL 5.6-compatible
-	// Aurora), use the following command:
+	// To list all of the available engine versions for MySQL 5.6-compatible Aurora,
+	// use the following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora --query "DBEngineVersions[].EngineVersion"
 	//
-	// To list all of the available engine versions for aurora-mysql (for MySQL
-	// 5.7-compatible Aurora), use the following command:
+	// To list all of the available engine versions for MySQL 5.7-compatible and
+	// MySQL 8.0-compatible Aurora, use the following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora-mysql --query "DBEngineVersions[].EngineVersion"
 	//
-	// To list all of the available engine versions for aurora-postgresql, use the
+	// To list all of the available engine versions for Aurora PostgreSQL, use the
 	// following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora-postgresql --query "DBEngineVersions[].EngineVersion"
 	//
+	// To list all of the available engine versions for RDS for MySQL, use the following
+	// command:
+	//
+	// aws rds describe-db-engine-versions --engine mysql --query "DBEngineVersions[].EngineVersion"
+	//
+	// To list all of the available engine versions for RDS for PostgreSQL, use
+	// the following command:
+	//
+	// aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[].EngineVersion"
+	//
 	// Aurora MySQL
 	//
-	// Example: 5.6.10a, 5.6.mysql_aurora.1.19.2, 5.7.12, 5.7.mysql_aurora.2.04.5
+	// For information, see MySQL on Amazon RDS Versions (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.html)
+	// in the Amazon Aurora User Guide.
 	//
 	// Aurora PostgreSQL
 	//
-	// Example: 9.6.3, 10.7
+	// For information, see Amazon Aurora PostgreSQL releases and engine versions
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraPostgreSQL.Updates.20180305.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// MySQL
+	//
+	// For information, see MySQL on Amazon RDS Versions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_MySQL.html#MySQL.Concepts.VersionMgmt)
+	// in the Amazon RDS User Guide.
+	//
+	// PostgreSQL
+	//
+	// For information, see Amazon RDS for PostgreSQL versions and extensions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html#PostgreSQL.Concepts)
+	// in the Amazon RDS User Guide.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	EngineVersion *string `type:"string"`
 
 	// The global cluster ID of an Aurora cluster that becomes the primary cluster
 	// in the new global database cluster.
+	//
+	// Valid for: Aurora DB clusters only
 	GlobalClusterIdentifier *string `type:"string"`
 
-	// The AWS KMS key identifier for an encrypted DB cluster.
+	// The amount of Provisioned IOPS (input/output operations per second) to be
+	// initially allocated for each DB instance in the Multi-AZ DB cluster.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK). To use a CMK in a different AWS
-	// account, specify the key ARN or alias ARN.
+	// For information about valid Iops values, see Amazon RDS Provisioned IOPS
+	// storage to improve performance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html#USER_PIOPS)
+	// in the Amazon RDS User Guide.
 	//
-	// When a CMK isn't specified in KmsKeyId:
+	// This setting is required to create a Multi-AZ DB cluster.
+	//
+	// Constraints: Must be a multiple between .5 and 50 of the storage amount for
+	// the DB cluster.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	Iops *int64 `type:"integer"`
+
+	// The Amazon Web Services KMS key identifier for an encrypted DB cluster.
+	//
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key. To use a KMS key in a different Amazon
+	// Web Services account, specify the key ARN or alias ARN.
+	//
+	// When a KMS key isn't specified in KmsKeyId:
 	//
 	//    * If ReplicationSourceIdentifier identifies an encrypted source, then
-	//    Amazon RDS will use the CMK used to encrypt the source. Otherwise, Amazon
-	//    RDS will use your default CMK.
+	//    Amazon RDS will use the KMS key used to encrypt the source. Otherwise,
+	//    Amazon RDS will use your default KMS key.
 	//
 	//    * If the StorageEncrypted parameter is enabled and ReplicationSourceIdentifier
-	//    isn't specified, then Amazon RDS will use your default CMK.
+	//    isn't specified, then Amazon RDS will use your default KMS key.
 	//
-	// There is a default CMK for your AWS account. Your AWS account has a different
-	// default CMK for each AWS Region.
+	// There is a default KMS key for your Amazon Web Services account. Your Amazon
+	// Web Services account has a different default KMS key for each Amazon Web
+	// Services Region.
 	//
-	// If you create a read replica of an encrypted DB cluster in another AWS Region,
-	// you must set KmsKeyId to a AWS KMS key identifier that is valid in the destination
-	// AWS Region. This CMK is used to encrypt the read replica in that AWS Region.
+	// If you create a read replica of an encrypted DB cluster in another Amazon
+	// Web Services Region, you must set KmsKeyId to a KMS key identifier that is
+	// valid in the destination Amazon Web Services Region. This KMS key is used
+	// to encrypt the read replica in that Amazon Web Services Region.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	KmsKeyId *string `type:"string"`
 
 	// The password for the master database user. This password can contain any
 	// printable ASCII character except "/", """, or "@".
 	//
 	// Constraints: Must contain from 8 to 41 characters.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	MasterUserPassword *string `type:"string"`
 
 	// The name of the master user for the DB cluster.
@@ -17556,62 +19435,124 @@ type CreateDBClusterInput struct {
 	//    * First character must be a letter.
 	//
 	//    * Can't be a reserved word for the chosen database engine.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	MasterUsername *string `type:"string"`
+
+	// The interval, in seconds, between points when Enhanced Monitoring metrics
+	// are collected for the DB cluster. To turn off collecting Enhanced Monitoring
+	// metrics, specify 0. The default is 0.
+	//
+	// If MonitoringRoleArn is specified, also set MonitoringInterval to a value
+	// other than 0.
+	//
+	// Valid Values: 0, 1, 5, 10, 15, 30, 60
+	//
+	// Valid for: Multi-AZ DB clusters only
+	MonitoringInterval *int64 `type:"integer"`
+
+	// The Amazon Resource Name (ARN) for the IAM role that permits RDS to send
+	// Enhanced Monitoring metrics to Amazon CloudWatch Logs. An example is arn:aws:iam:123456789012:role/emaccess.
+	// For information on creating a monitoring role, see Setting up and enabling
+	// Enhanced Monitoring (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Monitoring.OS.html#USER_Monitoring.OS.Enabling)
+	// in the Amazon RDS User Guide.
+	//
+	// If MonitoringInterval is set to a value other than 0, supply a MonitoringRoleArn
+	// value.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	MonitoringRoleArn *string `type:"string"`
 
 	// A value that indicates that the DB cluster should be associated with the
 	// specified option group.
 	//
-	// Permanent options can't be removed from an option group. The option group
-	// can't be removed from a DB cluster once it is associated with a DB cluster.
+	// DB clusters are associated with a default option group that can't be modified.
 	OptionGroupName *string `type:"string"`
+
+	// The Amazon Web Services KMS key identifier for encryption of Performance
+	// Insights data.
+	//
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
+	//
+	// If you don't specify a value for PerformanceInsightsKMSKeyId, then Amazon
+	// RDS uses your default KMS key. There is a default KMS key for your Amazon
+	// Web Services account. Your Amazon Web Services account has a different default
+	// KMS key for each Amazon Web Services Region.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	PerformanceInsightsKMSKeyId *string `type:"string"`
+
+	// The amount of time, in days, to retain Performance Insights data. Valid values
+	// are 7 or 731 (2 years).
+	//
+	// Valid for: Multi-AZ DB clusters only
+	PerformanceInsightsRetentionPeriod *int64 `type:"integer"`
 
 	// The port number on which the instances in the DB cluster accept connections.
 	//
-	// Default: 3306 if engine is set as aurora or 5432 if set to aurora-postgresql.
+	// RDS for MySQL and Aurora MySQL
+	//
+	// Default: 3306
+	//
+	// Valid values: 1150-65535
+	//
+	// RDS for PostgreSQL and Aurora PostgreSQL
+	//
+	// Default: 5432
+	//
+	// Valid values: 1150-65535
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	Port *int64 `type:"integer"`
 
 	// A URL that contains a Signature Version 4 signed request for the CreateDBCluster
-	// action to be called in the source AWS Region where the DB cluster is replicated
-	// from. You only need to specify PreSignedUrl when you are performing cross-region
-	// replication from an encrypted DB cluster.
+	// action to be called in the source Amazon Web Services Region where the DB
+	// cluster is replicated from. Specify PreSignedUrl only when you are performing
+	// cross-Region replication from an encrypted DB cluster.
 	//
 	// The pre-signed URL must be a valid request for the CreateDBCluster API action
-	// that can be executed in the source AWS Region that contains the encrypted
-	// DB cluster to be copied.
+	// that can be executed in the source Amazon Web Services Region that contains
+	// the encrypted DB cluster to be copied.
 	//
 	// The pre-signed URL request must contain the following parameter values:
 	//
-	//    * KmsKeyId - The AWS KMS key identifier for the key to use to encrypt
-	//    the copy of the DB cluster in the destination AWS Region. This should
-	//    refer to the same AWS KMS CMK for both the CreateDBCluster action that
-	//    is called in the destination AWS Region, and the action contained in the
-	//    pre-signed URL.
+	//    * KmsKeyId - The Amazon Web Services KMS key identifier for the KMS key
+	//    to use to encrypt the copy of the DB cluster in the destination Amazon
+	//    Web Services Region. This should refer to the same KMS key for both the
+	//    CreateDBCluster action that is called in the destination Amazon Web Services
+	//    Region, and the action contained in the pre-signed URL.
 	//
-	//    * DestinationRegion - The name of the AWS Region that Aurora read replica
-	//    will be created in.
+	//    * DestinationRegion - The name of the Amazon Web Services Region that
+	//    Aurora read replica will be created in.
 	//
 	//    * ReplicationSourceIdentifier - The DB cluster identifier for the encrypted
 	//    DB cluster to be copied. This identifier must be in the Amazon Resource
-	//    Name (ARN) format for the source AWS Region. For example, if you are copying
-	//    an encrypted DB cluster from the us-west-2 AWS Region, then your ReplicationSourceIdentifier
-	//    would look like Example: arn:aws:rds:us-west-2:123456789012:cluster:aurora-cluster1.
+	//    Name (ARN) format for the source Amazon Web Services Region. For example,
+	//    if you are copying an encrypted DB cluster from the us-west-2 Amazon Web
+	//    Services Region, then your ReplicationSourceIdentifier would look like
+	//    Example: arn:aws:rds:us-west-2:123456789012:cluster:aurora-cluster1.
 	//
 	// To learn how to generate a Signature Version 4 signed request, see Authenticating
-	// Requests: Using Query Parameters (AWS Signature Version 4) (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
+	// Requests: Using Query Parameters (Amazon Web Services Signature Version 4)
+	// (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
 	// and Signature Version 4 Signing Process (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html).
 	//
-	// If you are using an AWS SDK tool or the AWS CLI, you can specify SourceRegion
-	// (or --source-region for the AWS CLI) instead of specifying PreSignedUrl manually.
-	// Specifying SourceRegion autogenerates a pre-signed URL that is a valid request
-	// for the operation that can be executed in the source AWS Region.
+	// If you are using an Amazon Web Services SDK tool or the CLI, you can specify
+	// SourceRegion (or --source-region for the CLI) instead of specifying PreSignedUrl
+	// manually. Specifying SourceRegion autogenerates a pre-signed URL that is
+	// a valid request for the operation that can be executed in the source Amazon
+	// Web Services Region.
+	//
+	// Valid for: Aurora DB clusters only
 	PreSignedUrl *string `type:"string"`
 
 	// The daily time range during which automated backups are created if automated
 	// backups are enabled using the BackupRetentionPeriod parameter.
 	//
 	// The default is a 30-minute window selected at random from an 8-hour block
-	// of time for each AWS Region. To see the time blocks available, see Adjusting
-	// the Preferred DB Cluster Maintenance Window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow.Aurora)
+	// of time for each Amazon Web Services Region. To view the time blocks available,
+	// see Backup window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Managing.Backups.html#Aurora.Managing.Backups.BackupWindow)
 	// in the Amazon Aurora User Guide.
 	//
 	// Constraints:
@@ -17623,6 +19564,8 @@ type CreateDBClusterInput struct {
 	//    * Must not conflict with the preferred maintenance window.
 	//
 	//    * Must be at least 30 minutes.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	PreferredBackupWindow *string `type:"string"`
 
 	// The weekly time range during which system maintenance can occur, in Universal
@@ -17631,22 +19574,64 @@ type CreateDBClusterInput struct {
 	// Format: ddd:hh24:mi-ddd:hh24:mi
 	//
 	// The default is a 30-minute window selected at random from an 8-hour block
-	// of time for each AWS Region, occurring on a random day of the week. To see
-	// the time blocks available, see Adjusting the Preferred DB Cluster Maintenance
-	// Window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow.Aurora)
+	// of time for each Amazon Web Services Region, occurring on a random day of
+	// the week. To see the time blocks available, see Adjusting the Preferred DB
+	// Cluster Maintenance Window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow.Aurora)
 	// in the Amazon Aurora User Guide.
 	//
 	// Valid Days: Mon, Tue, Wed, Thu, Fri, Sat, Sun.
 	//
 	// Constraints: Minimum 30-minute window.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	PreferredMaintenanceWindow *string `type:"string"`
+
+	// A value that indicates whether the DB cluster is publicly accessible.
+	//
+	// When the DB cluster is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB cluster's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB cluster's VPC. Access to the DB cluster is ultimately controlled
+	// by the security group it uses. That public access isn't permitted if the
+	// security group assigned to the DB cluster doesn't permit it.
+	//
+	// When the DB cluster isn't publicly accessible, it is an internal DB cluster
+	// with a DNS name that resolves to a private IP address.
+	//
+	// Default: The default behavior varies depending on whether DBSubnetGroupName
+	// is specified.
+	//
+	// If DBSubnetGroupName isn't specified, and PubliclyAccessible isn't specified,
+	// the following applies:
+	//
+	//    * If the default VPC in the target Region doesn’t have an internet gateway
+	//    attached to it, the DB cluster is private.
+	//
+	//    * If the default VPC in the target Region has an internet gateway attached
+	//    to it, the DB cluster is public.
+	//
+	// If DBSubnetGroupName is specified, and PubliclyAccessible isn't specified,
+	// the following applies:
+	//
+	//    * If the subnets are part of a VPC that doesn’t have an internet gateway
+	//    attached to it, the DB cluster is private.
+	//
+	//    * If the subnets are part of a VPC that has an internet gateway attached
+	//    to it, the DB cluster is public.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	PubliclyAccessible *bool `type:"boolean"`
 
 	// The Amazon Resource Name (ARN) of the source DB instance or DB cluster if
 	// this DB cluster is created as a read replica.
+	//
+	// Valid for: Aurora DB clusters only
 	ReplicationSourceIdentifier *string `type:"string"`
 
 	// For DB clusters in serverless DB engine mode, the scaling properties of the
 	// DB cluster.
+	//
+	// Valid for: Aurora DB clusters only
 	ScalingConfiguration *ScalingConfiguration `type:"structure"`
 
 	// SourceRegion is the source region where the resource exists. This is not
@@ -17655,21 +19640,48 @@ type CreateDBClusterInput struct {
 	SourceRegion *string `type:"string" ignore:"true"`
 
 	// A value that indicates whether the DB cluster is encrypted.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	StorageEncrypted *bool `type:"boolean"`
 
+	// Specifies the storage type to be associated with the DB cluster.
+	//
+	// This setting is required to create a Multi-AZ DB cluster.
+	//
+	// Valid values: io1
+	//
+	// When specified, a value for the Iops parameter is required.
+	//
+	// Default: io1
+	//
+	// Valid for: Multi-AZ DB clusters only
+	StorageType *string `type:"string"`
+
 	// Tags to assign to the DB cluster.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 
 	// A list of EC2 VPC security groups to associate with this DB cluster.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -17688,6 +19700,18 @@ func (s *CreateDBClusterInput) Validate() error {
 		return invalidParams
 	}
 	return nil
+}
+
+// SetAllocatedStorage sets the AllocatedStorage field's value.
+func (s *CreateDBClusterInput) SetAllocatedStorage(v int64) *CreateDBClusterInput {
+	s.AllocatedStorage = &v
+	return s
+}
+
+// SetAutoMinorVersionUpgrade sets the AutoMinorVersionUpgrade field's value.
+func (s *CreateDBClusterInput) SetAutoMinorVersionUpgrade(v bool) *CreateDBClusterInput {
+	s.AutoMinorVersionUpgrade = &v
+	return s
 }
 
 // SetAvailabilityZones sets the AvailabilityZones field's value.
@@ -17723,6 +19747,12 @@ func (s *CreateDBClusterInput) SetCopyTagsToSnapshot(v bool) *CreateDBClusterInp
 // SetDBClusterIdentifier sets the DBClusterIdentifier field's value.
 func (s *CreateDBClusterInput) SetDBClusterIdentifier(v string) *CreateDBClusterInput {
 	s.DBClusterIdentifier = &v
+	return s
+}
+
+// SetDBClusterInstanceClass sets the DBClusterInstanceClass field's value.
+func (s *CreateDBClusterInput) SetDBClusterInstanceClass(v string) *CreateDBClusterInput {
+	s.DBClusterInstanceClass = &v
 	return s
 }
 
@@ -17792,6 +19822,12 @@ func (s *CreateDBClusterInput) SetEnableIAMDatabaseAuthentication(v bool) *Creat
 	return s
 }
 
+// SetEnablePerformanceInsights sets the EnablePerformanceInsights field's value.
+func (s *CreateDBClusterInput) SetEnablePerformanceInsights(v bool) *CreateDBClusterInput {
+	s.EnablePerformanceInsights = &v
+	return s
+}
+
 // SetEngine sets the Engine field's value.
 func (s *CreateDBClusterInput) SetEngine(v string) *CreateDBClusterInput {
 	s.Engine = &v
@@ -17816,6 +19852,12 @@ func (s *CreateDBClusterInput) SetGlobalClusterIdentifier(v string) *CreateDBClu
 	return s
 }
 
+// SetIops sets the Iops field's value.
+func (s *CreateDBClusterInput) SetIops(v int64) *CreateDBClusterInput {
+	s.Iops = &v
+	return s
+}
+
 // SetKmsKeyId sets the KmsKeyId field's value.
 func (s *CreateDBClusterInput) SetKmsKeyId(v string) *CreateDBClusterInput {
 	s.KmsKeyId = &v
@@ -17834,9 +19876,33 @@ func (s *CreateDBClusterInput) SetMasterUsername(v string) *CreateDBClusterInput
 	return s
 }
 
+// SetMonitoringInterval sets the MonitoringInterval field's value.
+func (s *CreateDBClusterInput) SetMonitoringInterval(v int64) *CreateDBClusterInput {
+	s.MonitoringInterval = &v
+	return s
+}
+
+// SetMonitoringRoleArn sets the MonitoringRoleArn field's value.
+func (s *CreateDBClusterInput) SetMonitoringRoleArn(v string) *CreateDBClusterInput {
+	s.MonitoringRoleArn = &v
+	return s
+}
+
 // SetOptionGroupName sets the OptionGroupName field's value.
 func (s *CreateDBClusterInput) SetOptionGroupName(v string) *CreateDBClusterInput {
 	s.OptionGroupName = &v
+	return s
+}
+
+// SetPerformanceInsightsKMSKeyId sets the PerformanceInsightsKMSKeyId field's value.
+func (s *CreateDBClusterInput) SetPerformanceInsightsKMSKeyId(v string) *CreateDBClusterInput {
+	s.PerformanceInsightsKMSKeyId = &v
+	return s
+}
+
+// SetPerformanceInsightsRetentionPeriod sets the PerformanceInsightsRetentionPeriod field's value.
+func (s *CreateDBClusterInput) SetPerformanceInsightsRetentionPeriod(v int64) *CreateDBClusterInput {
+	s.PerformanceInsightsRetentionPeriod = &v
 	return s
 }
 
@@ -17864,6 +19930,12 @@ func (s *CreateDBClusterInput) SetPreferredMaintenanceWindow(v string) *CreateDB
 	return s
 }
 
+// SetPubliclyAccessible sets the PubliclyAccessible field's value.
+func (s *CreateDBClusterInput) SetPubliclyAccessible(v bool) *CreateDBClusterInput {
+	s.PubliclyAccessible = &v
+	return s
+}
+
 // SetReplicationSourceIdentifier sets the ReplicationSourceIdentifier field's value.
 func (s *CreateDBClusterInput) SetReplicationSourceIdentifier(v string) *CreateDBClusterInput {
 	s.ReplicationSourceIdentifier = &v
@@ -17888,6 +19960,12 @@ func (s *CreateDBClusterInput) SetStorageEncrypted(v bool) *CreateDBClusterInput
 	return s
 }
 
+// SetStorageType sets the StorageType field's value.
+func (s *CreateDBClusterInput) SetStorageType(v string) *CreateDBClusterInput {
+	s.StorageType = &v
+	return s
+}
+
 // SetTags sets the Tags field's value.
 func (s *CreateDBClusterInput) SetTags(v []*Tag) *CreateDBClusterInput {
 	s.Tags = v
@@ -17903,19 +19981,41 @@ func (s *CreateDBClusterInput) SetVpcSecurityGroupIds(v []*string) *CreateDBClus
 type CreateDBClusterOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -17933,7 +20033,7 @@ type CreateDBClusterParameterGroupInput struct {
 	//
 	// Constraints:
 	//
-	//    * Must match the name of an existing DB cluster parameter group.
+	//    * Must not match the name of an existing DB cluster parameter group.
 	//
 	// This value is stored as a lowercase string.
 	//
@@ -17947,11 +20047,45 @@ type CreateDBClusterParameterGroupInput struct {
 	//
 	// Aurora MySQL
 	//
-	// Example: aurora5.6, aurora-mysql5.7
+	// Example: aurora5.6, aurora-mysql5.7, aurora-mysql8.0
 	//
 	// Aurora PostgreSQL
 	//
 	// Example: aurora-postgresql9.6
+	//
+	// RDS for MySQL
+	//
+	// Example: mysql8.0
+	//
+	// RDS for PostgreSQL
+	//
+	// Example: postgres12
+	//
+	// To list all of the available parameter group families for a DB engine, use
+	// the following command:
+	//
+	// aws rds describe-db-engine-versions --query "DBEngineVersions[].DBParameterGroupFamily"
+	// --engine <engine>
+	//
+	// For example, to list all of the available parameter group families for the
+	// Aurora PostgreSQL DB engine, use the following command:
+	//
+	// aws rds describe-db-engine-versions --query "DBEngineVersions[].DBParameterGroupFamily"
+	// --engine aurora-postgresql
+	//
+	// The output contains duplicates.
+	//
+	// The following are the valid DB engine values:
+	//
+	//    * aurora (for MySQL 5.6-compatible Aurora)
+	//
+	//    * aurora-mysql (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
+	//
+	//    * aurora-postgresql
+	//
+	//    * mysql
+	//
+	//    * postgres
 	//
 	// DBParameterGroupFamily is a required field
 	DBParameterGroupFamily *string `type:"string" required:"true"`
@@ -17965,12 +20099,20 @@ type CreateDBClusterParameterGroupInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -18028,12 +20170,20 @@ type CreateDBClusterParameterGroupOutput struct {
 	DBClusterParameterGroup *DBClusterParameterGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterParameterGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterParameterGroupOutput) GoString() string {
 	return s.String()
 }
@@ -18079,12 +20229,20 @@ type CreateDBClusterSnapshotInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterSnapshotInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterSnapshotInput) GoString() string {
 	return s.String()
 }
@@ -18133,12 +20291,20 @@ type CreateDBClusterSnapshotOutput struct {
 	DBClusterSnapshot *DBClusterSnapshot `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterSnapshotOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBClusterSnapshotOutput) GoString() string {
 	return s.String()
 }
@@ -18152,7 +20318,7 @@ func (s *CreateDBClusterSnapshotOutput) SetDBClusterSnapshot(v *DBClusterSnapsho
 type CreateDBInstanceInput struct {
 	_ struct{} `type:"structure"`
 
-	// The amount of storage (in gibibytes) to allocate for the DB instance.
+	// The amount of storage in gibibytes (GiB) to allocate for the DB instance.
 	//
 	// Type: Integer
 	//
@@ -18161,6 +20327,16 @@ type CreateDBInstanceInput struct {
 	// Not applicable. Aurora cluster volumes automatically grow as the amount of
 	// data in your database increases, though you are only charged for the space
 	// that you use in an Aurora cluster volume.
+	//
+	// Amazon RDS Custom
+	//
+	// Constraints to the amount of storage for each storage type are the following:
+	//
+	//    * General Purpose (SSD) storage (gp2): Must be an integer from 40 to 65536
+	//    for RDS Custom for Oracle, 16384 for RDS Custom for SQL Server.
+	//
+	//    * Provisioned IOPS storage (io1): Must be an integer from 40 to 65536
+	//    for RDS Custom for Oracle, 16384 for RDS Custom for SQL Server.
 	//
 	// MySQL
 	//
@@ -18207,35 +20383,42 @@ type CreateDBInstanceInput struct {
 	// Constraints to the amount of storage for each storage type are the following:
 	//
 	//    * General Purpose (SSD) storage (gp2): Enterprise and Standard editions:
-	//    Must be an integer from 200 to 16384. Web and Express editions: Must be
+	//    Must be an integer from 20 to 16384. Web and Express editions: Must be
 	//    an integer from 20 to 16384.
 	//
 	//    * Provisioned IOPS storage (io1): Enterprise and Standard editions: Must
-	//    be an integer from 200 to 16384. Web and Express editions: Must be an
+	//    be an integer from 100 to 16384. Web and Express editions: Must be an
 	//    integer from 100 to 16384.
 	//
 	//    * Magnetic storage (standard): Enterprise and Standard editions: Must
-	//    be an integer from 200 to 1024. Web and Express editions: Must be an integer
+	//    be an integer from 20 to 1024. Web and Express editions: Must be an integer
 	//    from 20 to 1024.
 	AllocatedStorage *int64 `type:"integer"`
 
 	// A value that indicates whether minor engine upgrades are applied automatically
 	// to the DB instance during the maintenance window. By default, minor engine
 	// upgrades are applied automatically.
+	//
+	// If you create an RDS Custom DB instance, you must set AutoMinorVersionUpgrade
+	// to false.
 	AutoMinorVersionUpgrade *bool `type:"boolean"`
 
 	// The Availability Zone (AZ) where the database will be created. For information
-	// on AWS Regions and Availability Zones, see Regions and Availability Zones
-	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html).
+	// on Amazon Web Services Regions and Availability Zones, see Regions and Availability
+	// Zones (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html).
 	//
-	// Default: A random, system-chosen Availability Zone in the endpoint's AWS
-	// Region.
+	// Amazon Aurora
+	//
+	// Not applicable. Availability Zones are managed by the DB cluster.
+	//
+	// Default: A random, system-chosen Availability Zone in the endpoint's Amazon
+	// Web Services Region.
 	//
 	// Example: us-east-1d
 	//
 	// Constraint: The AvailabilityZone parameter can't be specified if the DB instance
 	// is a Multi-AZ deployment. The specified Availability Zone must be in the
-	// same AWS Region as the current endpoint.
+	// same Amazon Web Services Region as the current endpoint.
 	//
 	// If you're creating a DB instance in an RDS on VMware environment, specify
 	// the identifier of the custom Availability Zone to create the DB instance
@@ -18261,10 +20444,25 @@ type CreateDBInstanceInput struct {
 	//    * Must be a value from 0 to 35
 	//
 	//    * Can't be set to 0 if the DB instance is a source to read replicas
+	//
+	//    * Can't be set to 0 or 35 for an RDS Custom for Oracle DB instance
 	BackupRetentionPeriod *int64 `type:"integer"`
 
-	// For supported engines, indicates that the DB instance should be associated
-	// with the specified CharacterSet.
+	// Specifies where automated backups and manual snapshots are stored.
+	//
+	// Possible values are outposts (Amazon Web Services Outposts) and region (Amazon
+	// Web Services Region). The default is region.
+	//
+	// For more information, see Working with Amazon RDS on Amazon Web Services
+	// Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// in the Amazon RDS User Guide.
+	BackupTarget *string `type:"string"`
+
+	// For supported engines, this value indicates that the DB instance should be
+	// associated with the specified CharacterSet.
+	//
+	// This setting doesn't apply to RDS Custom. However, if you need to change
+	// the character set, you can change it on the database itself.
 	//
 	// Amazon Aurora
 	//
@@ -18281,13 +20479,33 @@ type CreateDBInstanceInput struct {
 	// this value for an Aurora DB instance has no effect on the DB cluster setting.
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
+	// The instance profile associated with the underlying Amazon EC2 instance of
+	// an RDS Custom DB instance. The instance profile must meet the following requirements:
+	//
+	//    * The profile must exist in your account.
+	//
+	//    * The profile must have an IAM role that Amazon EC2 has permissions to
+	//    assume.
+	//
+	//    * The instance profile name and the associated IAM role name must start
+	//    with the prefix AWSRDSCustom.
+	//
+	// For the list of permissions required for the IAM role, see Configure IAM
+	// and your VPC (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-setup-orcl.html#custom-setup-orcl.iam-vpc)
+	// in the Amazon Relational Database Service User Guide.
+	//
+	// This setting is required for RDS Custom.
+	CustomIamInstanceProfile *string `type:"string"`
+
 	// The identifier of the DB cluster that the instance will belong to.
+	//
+	// This setting doesn't apply to RDS Custom.
 	DBClusterIdentifier *string `type:"string"`
 
-	// The compute and memory capacity of the DB instance, for example, db.m4.large.
-	// Not all DB instance classes are available in all AWS Regions, or for all
-	// database engines. For the full list of DB instance classes, and availability
-	// for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// The compute and memory capacity of the DB instance, for example db.m4.large.
+	// Not all DB instance classes are available in all Amazon Web Services Regions,
+	// or for all database engines. For the full list of DB instance classes, and
+	// availability for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
 	// in the Amazon RDS User Guide.
 	//
 	// DBInstanceClass is a required field
@@ -18366,6 +20584,25 @@ type CreateDBInstanceInput struct {
 	//
 	//    * Can't be longer than 8 characters
 	//
+	// Amazon RDS Custom for Oracle
+	//
+	// The Oracle System ID (SID) of the created RDS Custom DB instance. If you
+	// don't specify a value, the default value is ORCL.
+	//
+	// Default: ORCL
+	//
+	// Constraints:
+	//
+	//    * It must contain 1 to 8 alphanumeric characters.
+	//
+	//    * It must contain a letter.
+	//
+	//    * It can't be a word reserved by the database engine.
+	//
+	// Amazon RDS Custom for SQL Server
+	//
+	// Not applicable. Must be null.
+	//
 	// SQL Server
 	//
 	// Not applicable. Must be null.
@@ -18403,6 +20640,8 @@ type CreateDBInstanceInput struct {
 	// you do not specify a value, then the default DB parameter group for the specified
 	// DB engine and version is used.
 	//
+	// This setting doesn't apply to RDS Custom.
+	//
 	// Constraints:
 	//
 	//    * Must be 1 to 255 letters, numbers, or hyphens.
@@ -18419,12 +20658,15 @@ type CreateDBInstanceInput struct {
 
 	// A DB subnet group to associate with this DB instance.
 	//
-	// If there is no DB subnet group, then it is a non-VPC DB instance.
+	// Constraints: Must match the name of an existing DBSubnetGroup. Must not be
+	// default.
+	//
+	// Example: mydbsubnetgroup
 	DBSubnetGroupName *string `type:"string"`
 
 	// A value that indicates whether the DB instance has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled. For more information, see Deleting a DB
+	// deletion protection isn't enabled. For more information, see Deleting a DB
 	// Instance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_DeleteInstance.html).
 	//
 	// Amazon Aurora
@@ -18441,20 +20683,28 @@ type CreateDBInstanceInput struct {
 	//
 	// For more information, see Kerberos Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/kerberos-authentication.html)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	Domain *string `type:"string"`
 
 	// Specify the name of the IAM role to be used when making API calls to the
 	// Directory Service.
+	//
+	// This setting doesn't apply to RDS Custom.
 	DomainIAMRoleName *string `type:"string"`
 
 	// The list of log types that need to be enabled for exporting to CloudWatch
-	// Logs. The values in the list depend on the DB engine being used. For more
-	// information, see Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// Logs. The values in the list depend on the DB engine. For more information,
+	// see Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
 	// in the Amazon Relational Database Service User Guide.
 	//
 	// Amazon Aurora
 	//
 	// Not applicable. CloudWatch Logs exports are managed by the DB cluster.
+	//
+	// RDS Custom
+	//
+	// Not applicable.
 	//
 	// MariaDB
 	//
@@ -18486,18 +20736,20 @@ type CreateDBInstanceInput struct {
 	// its virtual private cloud (VPC) on your local network.
 	//
 	// For more information about RDS on Outposts, see Working with Amazon RDS on
-	// AWS Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// Amazon Web Services Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
 	// in the Amazon RDS User Guide.
 	//
 	// For more information about CoIPs, see Customer-owned IP addresses (https://docs.aws.amazon.com/outposts/latest/userguide/outposts-networking-components.html#ip-addressing)
-	// in the AWS Outposts User Guide.
+	// in the Amazon Web Services Outposts User Guide.
 	EnableCustomerOwnedIp *bool `type:"boolean"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
 	//
-	// This setting doesn't apply to Amazon Aurora. Mapping AWS IAM accounts to
-	// database accounts is managed by the DB cluster.
+	// This setting doesn't apply to RDS Custom or Amazon Aurora. In Aurora, mapping
+	// Amazon Web Services IAM accounts to database accounts is managed by the DB
+	// cluster.
 	//
 	// For more information, see IAM Database Authentication for MySQL and PostgreSQL
 	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
@@ -18505,23 +20757,31 @@ type CreateDBInstanceInput struct {
 	EnableIAMDatabaseAuthentication *bool `type:"boolean"`
 
 	// A value that indicates whether to enable Performance Insights for the DB
-	// instance.
-	//
-	// For more information, see Using Amazon Performance Insights (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PerfInsights.html)
+	// instance. For more information, see Using Amazon Performance Insights (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PerfInsights.html)
 	// in the Amazon Relational Database Service User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	EnablePerformanceInsights *bool `type:"boolean"`
 
 	// The name of the database engine to be used for this instance.
 	//
-	// Not every database engine is available for every AWS Region.
+	// Not every database engine is available for every Amazon Web Services Region.
 	//
 	// Valid Values:
 	//
 	//    * aurora (for MySQL 5.6-compatible Aurora)
 	//
-	//    * aurora-mysql (for MySQL 5.7-compatible Aurora)
+	//    * aurora-mysql (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
 	//
 	//    * aurora-postgresql
+	//
+	//    * custom-oracle-ee (for RDS Custom for Oracle instances)
+	//
+	//    * custom-sqlserver-ee (for RDS Custom for SQL Server instances)
+	//
+	//    * custom-sqlserver-se (for RDS Custom for SQL Server instances)
+	//
+	//    * custom-sqlserver-web (for RDS Custom for SQL Server instances)
 	//
 	//    * mariadb
 	//
@@ -18529,11 +20789,11 @@ type CreateDBInstanceInput struct {
 	//
 	//    * oracle-ee
 	//
+	//    * oracle-ee-cdb
+	//
 	//    * oracle-se2
 	//
-	//    * oracle-se1
-	//
-	//    * oracle-se
+	//    * oracle-se2-cdb
 	//
 	//    * postgres
 	//
@@ -18554,42 +20814,55 @@ type CreateDBInstanceInput struct {
 	//
 	// The following are the database engines and links to information about the
 	// major and minor versions that are available with Amazon RDS. Not every database
-	// engine is available for every AWS Region.
+	// engine is available for every Amazon Web Services Region.
 	//
 	// Amazon Aurora
 	//
 	// Not applicable. The version number of the database engine to be used by the
 	// DB instance is managed by the DB cluster.
 	//
+	// Amazon RDS Custom for Oracle
+	//
+	// A custom engine version (CEV) that you have previously created. This setting
+	// is required for RDS Custom for Oracle. The CEV name has the following format:
+	// 19.customized_string . An example identifier is 19.my_cev1. For more information,
+	// see Creating an RDS Custom for Oracle DB instance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-creating.html#custom-creating.create)
+	// in the Amazon RDS User Guide..
+	//
+	// Amazon RDS Custom for SQL Server
+	//
+	// See RDS Custom for SQL Server general requirements (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-reqs-limits.html#custom-reqs-limits.reqsMS)
+	// in the Amazon RDS User Guide.
+	//
 	// MariaDB
 	//
-	// See MariaDB on Amazon RDS Versions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_MariaDB.html#MariaDB.Concepts.VersionMgmt)
+	// For information, see MariaDB on Amazon RDS Versions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_MariaDB.html#MariaDB.Concepts.VersionMgmt)
 	// in the Amazon RDS User Guide.
 	//
 	// Microsoft SQL Server
 	//
-	// See Microsoft SQL Server Versions on Amazon RDS (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_SQLServer.html#SQLServer.Concepts.General.VersionSupport)
+	// For information, see Microsoft SQL Server Versions on Amazon RDS (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_SQLServer.html#SQLServer.Concepts.General.VersionSupport)
 	// in the Amazon RDS User Guide.
 	//
 	// MySQL
 	//
-	// See MySQL on Amazon RDS Versions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_MySQL.html#MySQL.Concepts.VersionMgmt)
+	// For information, see MySQL on Amazon RDS Versions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_MySQL.html#MySQL.Concepts.VersionMgmt)
 	// in the Amazon RDS User Guide.
 	//
 	// Oracle
 	//
-	// See Oracle Database Engine Release Notes (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.PatchComposition.html)
+	// For information, see Oracle Database Engine Release Notes (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.PatchComposition.html)
 	// in the Amazon RDS User Guide.
 	//
 	// PostgreSQL
 	//
-	// See Amazon RDS for PostgreSQL versions and extensions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html#PostgreSQL.Concepts)
+	// For information, see Amazon RDS for PostgreSQL versions and extensions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html#PostgreSQL.Concepts)
 	// in the Amazon RDS User Guide.
 	EngineVersion *string `type:"string"`
 
 	// The amount of Provisioned IOPS (input/output operations per second) to be
 	// initially allocated for the DB instance. For information about valid Iops
-	// values, see Amazon RDS Provisioned IOPS Storage to Improve Performance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html#USER_PIOPS)
+	// values, see Amazon RDS Provisioned IOPS storage to improve performance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html#USER_PIOPS)
 	// in the Amazon RDS User Guide.
 	//
 	// Constraints: For MariaDB, MySQL, Oracle, and PostgreSQL DB instances, must
@@ -18598,26 +20871,35 @@ type CreateDBInstanceInput struct {
 	// amount for the DB instance.
 	Iops *int64 `type:"integer"`
 
-	// The AWS KMS key identifier for an encrypted DB instance.
+	// The Amazon Web Services KMS key identifier for an encrypted DB instance.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK). To use a CMK in a different AWS
-	// account, specify the key ARN or alias ARN.
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key. To use a KMS key in a different Amazon
+	// Web Services account, specify the key ARN or alias ARN.
 	//
 	// Amazon Aurora
 	//
-	// Not applicable. The AWS KMS key identifier is managed by the DB cluster.
-	// For more information, see CreateDBCluster.
+	// Not applicable. The Amazon Web Services KMS key identifier is managed by
+	// the DB cluster. For more information, see CreateDBCluster.
 	//
 	// If StorageEncrypted is enabled, and you do not specify a value for the KmsKeyId
-	// parameter, then Amazon RDS uses your default CMK. There is a default CMK
-	// for your AWS account. Your AWS account has a different default CMK for each
-	// AWS Region.
+	// parameter, then Amazon RDS uses your default KMS key. There is a default
+	// KMS key for your Amazon Web Services account. Your Amazon Web Services account
+	// has a different default KMS key for each Amazon Web Services Region.
+	//
+	// Amazon RDS Custom
+	//
+	// A KMS key is required for RDS Custom instances. For most RDS engines, if
+	// you leave this parameter empty while enabling StorageEncrypted, the engine
+	// uses the default KMS key. However, RDS Custom doesn't use the default key
+	// when this parameter is empty. You must explicitly specify a key.
 	KmsKeyId *string `type:"string"`
 
 	// License model information for this DB instance.
 	//
 	// Valid values: license-included | bring-your-own-license | general-public-license
+	//
+	// This setting doesn't apply to RDS Custom.
 	LicenseModel *string `type:"string"`
 
 	// The password for the master user. The password can include any printable
@@ -18654,100 +20936,64 @@ type CreateDBInstanceInput struct {
 	//
 	// Not applicable. The name for the master user is managed by the DB cluster.
 	//
-	// MariaDB
+	// Amazon RDS
 	//
 	// Constraints:
 	//
-	//    * Required for MariaDB.
+	//    * Required.
 	//
-	//    * Must be 1 to 16 letters or numbers.
-	//
-	//    * Can't be a reserved word for the chosen database engine.
-	//
-	// Microsoft SQL Server
-	//
-	// Constraints:
-	//
-	//    * Required for SQL Server.
-	//
-	//    * Must be 1 to 128 letters or numbers.
-	//
-	//    * The first character must be a letter.
-	//
-	//    * Can't be a reserved word for the chosen database engine.
-	//
-	// MySQL
-	//
-	// Constraints:
-	//
-	//    * Required for MySQL.
-	//
-	//    * Must be 1 to 16 letters or numbers.
-	//
-	//    * First character must be a letter.
-	//
-	//    * Can't be a reserved word for the chosen database engine.
-	//
-	// Oracle
-	//
-	// Constraints:
-	//
-	//    * Required for Oracle.
-	//
-	//    * Must be 1 to 30 letters or numbers.
-	//
-	//    * First character must be a letter.
-	//
-	//    * Can't be a reserved word for the chosen database engine.
-	//
-	// PostgreSQL
-	//
-	// Constraints:
-	//
-	//    * Required for PostgreSQL.
-	//
-	//    * Must be 1 to 63 letters or numbers.
+	//    * Must be 1 to 16 letters, numbers, or underscores.
 	//
 	//    * First character must be a letter.
 	//
 	//    * Can't be a reserved word for the chosen database engine.
 	MasterUsername *string `type:"string"`
 
-	// The upper limit to which Amazon RDS can automatically scale the storage of
-	// the DB instance.
+	// The upper limit in gibibytes (GiB) to which Amazon RDS can automatically
+	// scale the storage of the DB instance.
 	//
 	// For more information about this setting, including limitations that apply
 	// to it, see Managing capacity automatically with Amazon RDS storage autoscaling
 	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIOPS.StorageTypes.html#USER_PIOPS.Autoscaling)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	MaxAllocatedStorage *int64 `type:"integer"`
 
 	// The interval, in seconds, between points when Enhanced Monitoring metrics
-	// are collected for the DB instance. To disable collecting Enhanced Monitoring
+	// are collected for the DB instance. To disable collection of Enhanced Monitoring
 	// metrics, specify 0. The default is 0.
 	//
-	// If MonitoringRoleArn is specified, then you must also set MonitoringInterval
-	// to a value other than 0.
+	// If MonitoringRoleArn is specified, then you must set MonitoringInterval to
+	// a value other than 0.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Valid Values: 0, 1, 5, 10, 15, 30, 60
 	MonitoringInterval *int64 `type:"integer"`
 
 	// The ARN for the IAM role that permits RDS to send enhanced monitoring metrics
 	// to Amazon CloudWatch Logs. For example, arn:aws:iam:123456789012:role/emaccess.
-	// For information on creating a monitoring role, go to Setting Up and Enabling
+	// For information on creating a monitoring role, see Setting Up and Enabling
 	// Enhanced Monitoring (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Monitoring.OS.html#USER_Monitoring.OS.Enabling)
 	// in the Amazon RDS User Guide.
 	//
 	// If MonitoringInterval is set to a value other than 0, then you must supply
 	// a MonitoringRoleArn value.
+	//
+	// This setting doesn't apply to RDS Custom.
 	MonitoringRoleArn *string `type:"string"`
 
 	// A value that indicates whether the DB instance is a Multi-AZ deployment.
 	// You can't set the AvailabilityZone parameter if the DB instance is a Multi-AZ
 	// deployment.
+	//
+	// This setting doesn't apply to RDS Custom.
 	MultiAZ *bool `type:"boolean"`
 
 	// The name of the NCHAR character set for the Oracle DB instance.
+	//
+	// This parameter doesn't apply to RDS Custom.
 	NcharCharacterSetName *string `type:"string"`
 
 	// A value that indicates that the DB instance should be associated with the
@@ -18755,21 +21001,29 @@ type CreateDBInstanceInput struct {
 	//
 	// Permanent options, such as the TDE option for Oracle Advanced Security TDE,
 	// can't be removed from an option group. Also, that option group can't be removed
-	// from a DB instance once it is associated with a DB instance
+	// from a DB instance after it is associated with a DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	OptionGroupName *string `type:"string"`
 
-	// The AWS KMS key identifier for encryption of Performance Insights data.
+	// The Amazon Web Services KMS key identifier for encryption of Performance
+	// Insights data.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	//
 	// If you do not specify a value for PerformanceInsightsKMSKeyId, then Amazon
-	// RDS uses your default CMK. There is a default CMK for your AWS account. Your
-	// AWS account has a different default CMK for each AWS Region.
+	// RDS uses your default KMS key. There is a default KMS key for your Amazon
+	// Web Services account. Your Amazon Web Services account has a different default
+	// KMS key for each Amazon Web Services Region.
+	//
+	// This setting doesn't apply to RDS Custom.
 	PerformanceInsightsKMSKeyId *string `type:"string"`
 
 	// The amount of time, in days, to retain Performance Insights data. Valid values
 	// are 7 or 731 (2 years).
+	//
+	// This setting doesn't apply to RDS Custom.
 	PerformanceInsightsRetentionPeriod *int64 `type:"integer"`
 
 	// The port number on which the database accepts connections.
@@ -18821,19 +21075,16 @@ type CreateDBInstanceInput struct {
 	Port *int64 `type:"integer"`
 
 	// The daily time range during which automated backups are created if automated
-	// backups are enabled, using the BackupRetentionPeriod parameter. For more
-	// information, see The Backup Window (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html#USER_WorkingWithAutomatedBackups.BackupWindow)
+	// backups are enabled, using the BackupRetentionPeriod parameter. The default
+	// is a 30-minute window selected at random from an 8-hour block of time for
+	// each Amazon Web Services Region. For more information, see Backup window
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html#USER_WorkingWithAutomatedBackups.BackupWindow)
 	// in the Amazon RDS User Guide.
 	//
 	// Amazon Aurora
 	//
 	// Not applicable. The daily time range for creating automated backups is managed
 	// by the DB cluster.
-	//
-	// The default is a 30-minute window selected at random from an 8-hour block
-	// of time for each AWS Region. To see the time blocks available, see Adjusting
-	// the Preferred DB Instance Maintenance Window (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow)
-	// in the Amazon RDS User Guide.
 	//
 	// Constraints:
 	//
@@ -18853,7 +21104,8 @@ type CreateDBInstanceInput struct {
 	// Format: ddd:hh24:mi-ddd:hh24:mi
 	//
 	// The default is a 30-minute window selected at random from an 8-hour block
-	// of time for each AWS Region, occurring on a random day of the week.
+	// of time for each Amazon Web Services Region, occurring on a random day of
+	// the week.
 	//
 	// Valid Days: Mon, Tue, Wed, Thu, Fri, Sat, Sun.
 	//
@@ -18862,12 +21114,16 @@ type CreateDBInstanceInput struct {
 
 	// The number of CPU cores and the number of threads per core for the DB instance
 	// class of the DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	ProcessorFeatures []*ProcessorFeature `locationNameList:"ProcessorFeature" type:"list"`
 
 	// A value that specifies the order in which an Aurora Replica is promoted to
 	// the primary instance after a failure of the existing primary instance. For
 	// more information, see Fault Tolerance for an Aurora DB Cluster (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Managing.Backups.html#Aurora.Managing.FaultTolerance)
 	// in the Amazon Aurora User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Default: 1
 	//
@@ -18876,12 +21132,12 @@ type CreateDBInstanceInput struct {
 
 	// A value that indicates whether the DB instance is publicly accessible.
 	//
-	// When the DB instance is publicly accessible, its DNS endpoint resolves to
-	// the private IP address from within the DB instance's VPC, and to the public
-	// IP address from outside of the DB instance's VPC. Access to the DB instance
-	// is ultimately controlled by the security group it uses, and that public access
-	// is not permitted if the security group assigned to the DB instance doesn't
-	// permit it.
+	// When the DB instance is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB instance's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB instance's VPC. Access to the DB instance is ultimately controlled
+	// by the security group it uses. That public access is not permitted if the
+	// security group assigned to the DB instance doesn't permit it.
 	//
 	// When the DB instance isn't publicly accessible, it is an internal DB instance
 	// with a DNS name that resolves to a private IP address.
@@ -18892,24 +21148,27 @@ type CreateDBInstanceInput struct {
 	// If DBSubnetGroupName isn't specified, and PubliclyAccessible isn't specified,
 	// the following applies:
 	//
-	//    * If the default VPC in the target region doesn’t have an Internet gateway
+	//    * If the default VPC in the target Region doesn’t have an internet gateway
 	//    attached to it, the DB instance is private.
 	//
-	//    * If the default VPC in the target region has an Internet gateway attached
+	//    * If the default VPC in the target Region has an internet gateway attached
 	//    to it, the DB instance is public.
 	//
 	// If DBSubnetGroupName is specified, and PubliclyAccessible isn't specified,
 	// the following applies:
 	//
-	//    * If the subnets are part of a VPC that doesn’t have an Internet gateway
+	//    * If the subnets are part of a VPC that doesn’t have an internet gateway
 	//    attached to it, the DB instance is private.
 	//
-	//    * If the subnets are part of a VPC that has an Internet gateway attached
+	//    * If the subnets are part of a VPC that has an internet gateway attached
 	//    to it, the DB instance is public.
 	PubliclyAccessible *bool `type:"boolean"`
 
 	// A value that indicates whether the DB instance is encrypted. By default,
 	// it isn't encrypted.
+	//
+	// For RDS Custom instances, either set this parameter to true or leave it unset.
+	// If you set this parameter to false, RDS reports an error.
 	//
 	// Amazon Aurora
 	//
@@ -18929,10 +21188,14 @@ type CreateDBInstanceInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 
 	// The ARN from the key store with which to associate the instance for TDE encryption.
+	//
+	// This setting doesn't apply to RDS Custom.
 	TdeCredentialArn *string `type:"string"`
 
 	// The password for the given ARN from the key store in order to access the
 	// device.
+	//
+	// This setting doesn't apply to RDS Custom.
 	TdeCredentialPassword *string `type:"string"`
 
 	// The time zone of the DB instance. The time zone parameter is currently supported
@@ -18950,12 +21213,20 @@ type CreateDBInstanceInput struct {
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBInstanceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBInstanceInput) GoString() string {
 	return s.String()
 }
@@ -19003,6 +21274,12 @@ func (s *CreateDBInstanceInput) SetBackupRetentionPeriod(v int64) *CreateDBInsta
 	return s
 }
 
+// SetBackupTarget sets the BackupTarget field's value.
+func (s *CreateDBInstanceInput) SetBackupTarget(v string) *CreateDBInstanceInput {
+	s.BackupTarget = &v
+	return s
+}
+
 // SetCharacterSetName sets the CharacterSetName field's value.
 func (s *CreateDBInstanceInput) SetCharacterSetName(v string) *CreateDBInstanceInput {
 	s.CharacterSetName = &v
@@ -19012,6 +21289,12 @@ func (s *CreateDBInstanceInput) SetCharacterSetName(v string) *CreateDBInstanceI
 // SetCopyTagsToSnapshot sets the CopyTagsToSnapshot field's value.
 func (s *CreateDBInstanceInput) SetCopyTagsToSnapshot(v bool) *CreateDBInstanceInput {
 	s.CopyTagsToSnapshot = &v
+	return s
+}
+
+// SetCustomIamInstanceProfile sets the CustomIamInstanceProfile field's value.
+func (s *CreateDBInstanceInput) SetCustomIamInstanceProfile(v string) *CreateDBInstanceInput {
+	s.CustomIamInstanceProfile = &v
 	return s
 }
 
@@ -19272,16 +21555,27 @@ type CreateDBInstanceOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBInstanceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBInstanceOutput) GoString() string {
 	return s.String()
 }
@@ -19298,13 +21592,15 @@ type CreateDBInstanceReadReplicaInput struct {
 	// A value that indicates whether minor engine upgrades are applied automatically
 	// to the read replica during the maintenance window.
 	//
+	// This setting doesn't apply to RDS Custom.
+	//
 	// Default: Inherits from the source DB instance
 	AutoMinorVersionUpgrade *bool `type:"boolean"`
 
 	// The Availability Zone (AZ) where the read replica will be created.
 	//
-	// Default: A random, system-chosen Availability Zone in the endpoint's AWS
-	// Region.
+	// Default: A random, system-chosen Availability Zone in the endpoint's Amazon
+	// Web Services Region.
 	//
 	// Example: us-east-1d
 	AvailabilityZone *string `type:"string"`
@@ -19313,10 +21609,28 @@ type CreateDBInstanceReadReplicaInput struct {
 	// snapshots of the read replica. By default, tags are not copied.
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
-	// The compute and memory capacity of the read replica, for example, db.m4.large.
-	// Not all DB instance classes are available in all AWS Regions, or for all
-	// database engines. For the full list of DB instance classes, and availability
-	// for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// The instance profile associated with the underlying Amazon EC2 instance of
+	// an RDS Custom DB instance. The instance profile must meet the following requirements:
+	//
+	//    * The profile must exist in your account.
+	//
+	//    * The profile must have an IAM role that Amazon EC2 has permissions to
+	//    assume.
+	//
+	//    * The instance profile name and the associated IAM role name must start
+	//    with the prefix AWSRDSCustom.
+	//
+	// For the list of permissions required for the IAM role, see Configure IAM
+	// and your VPC (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-setup-orcl.html#custom-setup-orcl.iam-vpc)
+	// in the Amazon Relational Database Service User Guide.
+	//
+	// This setting is required for RDS Custom.
+	CustomIamInstanceProfile *string `type:"string"`
+
+	// The compute and memory capacity of the read replica, for example db.m4.large.
+	// Not all DB instance classes are available in all Amazon Web Services Regions,
+	// or for all database engines. For the full list of DB instance classes, and
+	// availability for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
 	// in the Amazon RDS User Guide.
 	//
 	// Default: Inherits from the source DB instance.
@@ -19332,12 +21646,12 @@ type CreateDBInstanceReadReplicaInput struct {
 	// The name of the DB parameter group to associate with this DB instance.
 	//
 	// If you do not specify a value for DBParameterGroupName, then Amazon RDS uses
-	// the DBParameterGroup of source DB instance for a same region read replica,
-	// or the default DBParameterGroup for the specified DB engine for a cross region
+	// the DBParameterGroup of source DB instance for a same Region read replica,
+	// or the default DBParameterGroup for the specified DB engine for a cross-Region
 	// read replica.
 	//
-	// Currently, specifying a parameter group for this operation is only supported
-	// for Oracle DB instances.
+	// Specifying a parameter group for this operation is only supported for Oracle
+	// DB instances. It isn't supported for RDS Custom.
 	//
 	// Constraints:
 	//
@@ -19355,24 +21669,25 @@ type CreateDBInstanceReadReplicaInput struct {
 	// Constraints:
 	//
 	//    * Can only be specified if the source DB instance identifier specifies
-	//    a DB instance in another AWS Region.
+	//    a DB instance in another Amazon Web Services Region.
 	//
 	//    * If supplied, must match the name of an existing DBSubnetGroup.
 	//
-	//    * The specified DB subnet group must be in the same AWS Region in which
-	//    the operation is running.
+	//    * The specified DB subnet group must be in the same Amazon Web Services
+	//    Region in which the operation is running.
 	//
-	//    * All read replicas in one AWS Region that are created from the same source
-	//    DB instance must either:> Specify DB subnet groups from the same VPC.
-	//    All these read replicas are created in the same VPC. Not specify a DB
-	//    subnet group. All these read replicas are created outside of any VPC.
+	//    * All read replicas in one Amazon Web Services Region that are created
+	//    from the same source DB instance must either:> Specify DB subnet groups
+	//    from the same VPC. All these read replicas are created in the same VPC.
+	//    Not specify a DB subnet group. All these read replicas are created outside
+	//    of any VPC.
 	//
-	// Example: mySubnetgroup
+	// Example: mydbsubnetgroup
 	DBSubnetGroupName *string `type:"string"`
 
 	// A value that indicates whether the DB instance has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled. For more information, see Deleting a DB
+	// deletion protection isn't enabled. For more information, see Deleting a DB
 	// Instance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_DeleteInstance.html).
 	DeletionProtection *bool `type:"boolean"`
 
@@ -19385,24 +21700,33 @@ type CreateDBInstanceReadReplicaInput struct {
 	//
 	// For more information, see Kerberos Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/kerberos-authentication.html)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	Domain *string `type:"string"`
 
 	// Specify the name of the IAM role to be used when making API calls to the
 	// Directory Service.
+	//
+	// This setting doesn't apply to RDS Custom.
 	DomainIAMRoleName *string `type:"string"`
 
 	// The list of logs that the new DB instance is to export to CloudWatch Logs.
 	// The values in the list depend on the DB engine being used. For more information,
 	// see Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	EnableCloudwatchLogsExports []*string `type:"list"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
 	//
 	// For more information about IAM database authentication, see IAM Database
 	// Authentication for MySQL and PostgreSQL (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	EnableIAMDatabaseAuthentication *bool `type:"boolean"`
 
 	// A value that indicates whether to enable Performance Insights for the read
@@ -19410,32 +21734,38 @@ type CreateDBInstanceReadReplicaInput struct {
 	//
 	// For more information, see Using Amazon Performance Insights (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PerfInsights.html)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	EnablePerformanceInsights *bool `type:"boolean"`
 
 	// The amount of Provisioned IOPS (input/output operations per second) to be
 	// initially allocated for the DB instance.
 	Iops *int64 `type:"integer"`
 
-	// The AWS KMS key identifier for an encrypted read replica.
+	// The Amazon Web Services KMS key identifier for an encrypted read replica.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS CMK.
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	//
-	// If you create an encrypted read replica in the same AWS Region as the source
-	// DB instance, then do not specify a value for this parameter. A read replica
-	// in the same Region is always encrypted with the same AWS KMS CMK as the source
-	// DB instance.
+	// If you create an encrypted read replica in the same Amazon Web Services Region
+	// as the source DB instance, then do not specify a value for this parameter.
+	// A read replica in the same Amazon Web Services Region is always encrypted
+	// with the same KMS key as the source DB instance.
 	//
-	// If you create an encrypted read replica in a different AWS Region, then you
-	// must specify a AWS KMS key identifier for the destination AWS Region. AWS
-	// KMS CMKs are specific to the AWS Region that they are created in, and you
-	// can't use CMKs from one AWS Region in another AWS Region.
+	// If you create an encrypted read replica in a different Amazon Web Services
+	// Region, then you must specify a KMS key identifier for the destination Amazon
+	// Web Services Region. KMS keys are specific to the Amazon Web Services Region
+	// that they are created in, and you can't use KMS keys from one Amazon Web
+	// Services Region in another Amazon Web Services Region.
 	//
 	// You can't create an encrypted read replica from an unencrypted DB instance.
+	//
+	// This setting doesn't apply to RDS Custom, which uses the same KMS key as
+	// the primary replica.
 	KmsKeyId *string `type:"string"`
 
-	// The upper limit to which Amazon RDS can automatically scale the storage of
-	// the DB instance.
+	// The upper limit in gibibytes (GiB) to which Amazon RDS can automatically
+	// scale the storage of the DB instance.
 	//
 	// For more information about this setting, including limitations that apply
 	// to it, see Managing capacity automatically with Amazon RDS storage autoscaling
@@ -19450,6 +21780,8 @@ type CreateDBInstanceReadReplicaInput struct {
 	// If MonitoringRoleArn is specified, then you must also set MonitoringInterval
 	// to a value other than 0.
 	//
+	// This setting doesn't apply to RDS Custom.
+	//
 	// Valid Values: 0, 1, 5, 10, 15, 30, 60
 	MonitoringInterval *int64 `type:"integer"`
 
@@ -19461,6 +21793,8 @@ type CreateDBInstanceReadReplicaInput struct {
 	//
 	// If MonitoringInterval is set to a value other than 0, then you must supply
 	// a MonitoringRoleArn value.
+	//
+	// This setting doesn't apply to RDS Custom.
 	MonitoringRoleArn *string `type:"string"`
 
 	// A value that indicates whether the read replica is in a Multi-AZ deployment.
@@ -19469,6 +21803,8 @@ type CreateDBInstanceReadReplicaInput struct {
 	// of your replica in another Availability Zone for failover support for the
 	// replica. Creating your read replica as a Multi-AZ DB instance is independent
 	// of whether the source database is a Multi-AZ DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	MultiAZ *bool `type:"boolean"`
 
 	// The option group the DB instance is associated with. If omitted, the option
@@ -19476,20 +21812,28 @@ type CreateDBInstanceReadReplicaInput struct {
 	//
 	// For SQL Server, you must use the option group associated with the source
 	// instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	OptionGroupName *string `type:"string"`
 
-	// The AWS KMS key identifier for encryption of Performance Insights data.
+	// The Amazon Web Services KMS key identifier for encryption of Performance
+	// Insights data.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	//
 	// If you do not specify a value for PerformanceInsightsKMSKeyId, then Amazon
-	// RDS uses your default CMK. There is a default CMK for your AWS account. Your
-	// AWS account has a different default CMK for each AWS Region.
+	// RDS uses your default KMS key. There is a default KMS key for your Amazon
+	// Web Services account. Your Amazon Web Services account has a different default
+	// KMS key for each Amazon Web Services Region.
+	//
+	// This setting doesn't apply to RDS Custom.
 	PerformanceInsightsKMSKeyId *string `type:"string"`
 
 	// The amount of time, in days, to retain Performance Insights data. Valid values
 	// are 7 or 731 (2 years).
+	//
+	// This setting doesn't apply to RDS Custom.
 	PerformanceInsightsRetentionPeriod *int64 `type:"integer"`
 
 	// The port number that the DB instance uses for connections.
@@ -19500,64 +21844,75 @@ type CreateDBInstanceReadReplicaInput struct {
 	Port *int64 `type:"integer"`
 
 	// The URL that contains a Signature Version 4 signed request for the CreateDBInstanceReadReplica
-	// API action in the source AWS Region that contains the source DB instance.
+	// API action in the source Amazon Web Services Region that contains the source
+	// DB instance.
 	//
 	// You must specify this parameter when you create an encrypted read replica
-	// from another AWS Region by using the Amazon RDS API. Don't specify PreSignedUrl
-	// when you are creating an encrypted read replica in the same AWS Region.
+	// from another Amazon Web Services Region by using the Amazon RDS API. Don't
+	// specify PreSignedUrl when you are creating an encrypted read replica in the
+	// same Amazon Web Services Region.
 	//
 	// The presigned URL must be a valid request for the CreateDBInstanceReadReplica
-	// API action that can be executed in the source AWS Region that contains the
-	// encrypted source DB instance. The presigned URL request must contain the
-	// following parameter values:
+	// API action that can be executed in the source Amazon Web Services Region
+	// that contains the encrypted source DB instance. The presigned URL request
+	// must contain the following parameter values:
 	//
-	//    * DestinationRegion - The AWS Region that the encrypted read replica is
-	//    created in. This AWS Region is the same one where the CreateDBInstanceReadReplica
-	//    action is called that contains this presigned URL. For example, if you
-	//    create an encrypted DB instance in the us-west-1 AWS Region, from a source
-	//    DB instance in the us-east-2 AWS Region, then you call the CreateDBInstanceReadReplica
-	//    action in the us-east-1 AWS Region and provide a presigned URL that contains
-	//    a call to the CreateDBInstanceReadReplica action in the us-west-2 AWS
-	//    Region. For this example, the DestinationRegion in the presigned URL must
-	//    be set to the us-east-1 AWS Region.
+	//    * DestinationRegion - The Amazon Web Services Region that the encrypted
+	//    read replica is created in. This Amazon Web Services Region is the same
+	//    one where the CreateDBInstanceReadReplica action is called that contains
+	//    this presigned URL. For example, if you create an encrypted DB instance
+	//    in the us-west-1 Amazon Web Services Region, from a source DB instance
+	//    in the us-east-2 Amazon Web Services Region, then you call the CreateDBInstanceReadReplica
+	//    action in the us-east-1 Amazon Web Services Region and provide a presigned
+	//    URL that contains a call to the CreateDBInstanceReadReplica action in
+	//    the us-west-2 Amazon Web Services Region. For this example, the DestinationRegion
+	//    in the presigned URL must be set to the us-east-1 Amazon Web Services
+	//    Region.
 	//
-	//    * KmsKeyId - The AWS KMS key identifier for the key to use to encrypt
-	//    the read replica in the destination AWS Region. This is the same identifier
-	//    for both the CreateDBInstanceReadReplica action that is called in the
-	//    destination AWS Region, and the action contained in the presigned URL.
+	//    * KmsKeyId - The Amazon Web Services KMS key identifier for the key to
+	//    use to encrypt the read replica in the destination Amazon Web Services
+	//    Region. This is the same identifier for both the CreateDBInstanceReadReplica
+	//    action that is called in the destination Amazon Web Services Region, and
+	//    the action contained in the presigned URL.
 	//
 	//    * SourceDBInstanceIdentifier - The DB instance identifier for the encrypted
 	//    DB instance to be replicated. This identifier must be in the Amazon Resource
-	//    Name (ARN) format for the source AWS Region. For example, if you are creating
-	//    an encrypted read replica from a DB instance in the us-west-2 AWS Region,
-	//    then your SourceDBInstanceIdentifier looks like the following example:
-	//    arn:aws:rds:us-west-2:123456789012:instance:mysql-instance1-20161115.
+	//    Name (ARN) format for the source Amazon Web Services Region. For example,
+	//    if you are creating an encrypted read replica from a DB instance in the
+	//    us-west-2 Amazon Web Services Region, then your SourceDBInstanceIdentifier
+	//    looks like the following example: arn:aws:rds:us-west-2:123456789012:instance:mysql-instance1-20161115.
 	//
 	// To learn how to generate a Signature Version 4 signed request, see Authenticating
-	// Requests: Using Query Parameters (AWS Signature Version 4) (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
+	// Requests: Using Query Parameters (Amazon Web Services Signature Version 4)
+	// (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html)
 	// and Signature Version 4 Signing Process (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html).
 	//
-	// If you are using an AWS SDK tool or the AWS CLI, you can specify SourceRegion
-	// (or --source-region for the AWS CLI) instead of specifying PreSignedUrl manually.
-	// Specifying SourceRegion autogenerates a presigned URL that is a valid request
-	// for the operation that can be executed in the source AWS Region.
+	// If you are using an Amazon Web Services SDK tool or the CLI, you can specify
+	// SourceRegion (or --source-region for the CLI) instead of specifying PreSignedUrl
+	// manually. Specifying SourceRegion autogenerates a presigned URL that is a
+	// valid request for the operation that can be executed in the source Amazon
+	// Web Services Region.
 	//
 	// SourceRegion isn't supported for SQL Server, because SQL Server on Amazon
-	// RDS doesn't support cross-region read replicas.
+	// RDS doesn't support cross-Region read replicas.
+	//
+	// This setting doesn't apply to RDS Custom.
 	PreSignedUrl *string `type:"string"`
 
 	// The number of CPU cores and the number of threads per core for the DB instance
 	// class of the DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	ProcessorFeatures []*ProcessorFeature `locationNameList:"ProcessorFeature" type:"list"`
 
 	// A value that indicates whether the DB instance is publicly accessible.
 	//
-	// When the DB instance is publicly accessible, its DNS endpoint resolves to
-	// the private IP address from within the DB instance's VPC, and to the public
-	// IP address from outside of the DB instance's VPC. Access to the DB instance
-	// is ultimately controlled by the security group it uses, and that public access
-	// is not permitted if the security group assigned to the DB instance doesn't
-	// permit it.
+	// When the DB cluster is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB cluster's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB cluster's VPC. Access to the DB cluster is ultimately controlled
+	// by the security group it uses. That public access isn't permitted if the
+	// security group assigned to the DB cluster doesn't permit it.
 	//
 	// When the DB instance isn't publicly accessible, it is an internal DB instance
 	// with a DNS name that resolves to a private IP address.
@@ -19569,16 +21924,20 @@ type CreateDBInstanceReadReplicaInput struct {
 	//
 	// This parameter is only supported for Oracle DB instances.
 	//
-	// Mounted DB replicas are included in Oracle Enterprise Edition. The main use
-	// case for mounted replicas is cross-Region disaster recovery. The primary
-	// database doesn't use Active Data Guard to transmit information to the mounted
-	// replica. Because it doesn't accept user connections, a mounted replica can't
-	// serve a read-only workload.
+	// Mounted DB replicas are included in Oracle Database Enterprise Edition. The
+	// main use case for mounted replicas is cross-Region disaster recovery. The
+	// primary database doesn't use Active Data Guard to transmit information to
+	// the mounted replica. Because it doesn't accept user connections, a mounted
+	// replica can't serve a read-only workload.
 	//
 	// You can create a combination of mounted and read-only DB replicas for the
 	// same primary DB instance. For more information, see Working with Oracle Read
 	// Replicas for Amazon RDS (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-read-replicas.html)
 	// in the Amazon RDS User Guide.
+	//
+	// For RDS Custom, you must specify this parameter and set it to mounted. The
+	// value won't be set by default. After replica creation, you can manage the
+	// open mode manually.
 	ReplicaMode *string `type:"string" enum:"ReplicaMode"`
 
 	// The identifier of the DB instance that will act as the source for the read
@@ -19601,19 +21960,19 @@ type CreateDBInstanceReadReplicaInput struct {
 	//    in the Amazon RDS User Guide.
 	//
 	//    * Can specify a PostgreSQL DB instance only if the source is running PostgreSQL
-	//    9.3.5 or later (9.4.7 and higher for cross-region replication).
+	//    9.3.5 or later (9.4.7 and higher for cross-Region replication).
 	//
 	//    * The specified DB instance must have automatic backups enabled, that
 	//    is, its backup retention period must be greater than 0.
 	//
-	//    * If the source DB instance is in the same AWS Region as the read replica,
-	//    specify a valid DB instance identifier.
+	//    * If the source DB instance is in the same Amazon Web Services Region
+	//    as the read replica, specify a valid DB instance identifier.
 	//
-	//    * If the source DB instance is in a different AWS Region from the read
-	//    replica, specify a valid DB instance ARN. For more information, see Constructing
-	//    an ARN for Amazon RDS (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.ARN.html#USER_Tagging.ARN.Constructing)
-	//    in the Amazon RDS User Guide. This doesn't apply to SQL Server, which
-	//    doesn't support cross-region replicas.
+	//    * If the source DB instance is in a different Amazon Web Services Region
+	//    from the read replica, specify a valid DB instance ARN. For more information,
+	//    see Constructing an ARN for Amazon RDS (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.ARN.html#USER_Tagging.ARN.Constructing)
+	//    in the Amazon RDS User Guide. This doesn't apply to SQL Server or RDS
+	//    Custom, which don't support cross-Region replicas.
 	//
 	// SourceDBInstanceIdentifier is a required field
 	SourceDBInstanceIdentifier *string `type:"string" required:"true"`
@@ -19638,20 +21997,32 @@ type CreateDBInstanceReadReplicaInput struct {
 
 	// A value that indicates whether the DB instance class of the DB instance uses
 	// its default processor features.
+	//
+	// This setting doesn't apply to RDS Custom.
 	UseDefaultProcessorFeatures *bool `type:"boolean"`
 
-	// A list of EC2 VPC security groups to associate with the read replica.
+	// A list of Amazon EC2 VPC security groups to associate with the read replica.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Default: The default EC2 VPC security group for the DB subnet group's VPC.
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBInstanceReadReplicaInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBInstanceReadReplicaInput) GoString() string {
 	return s.String()
 }
@@ -19687,6 +22058,12 @@ func (s *CreateDBInstanceReadReplicaInput) SetAvailabilityZone(v string) *Create
 // SetCopyTagsToSnapshot sets the CopyTagsToSnapshot field's value.
 func (s *CreateDBInstanceReadReplicaInput) SetCopyTagsToSnapshot(v bool) *CreateDBInstanceReadReplicaInput {
 	s.CopyTagsToSnapshot = &v
+	return s
+}
+
+// SetCustomIamInstanceProfile sets the CustomIamInstanceProfile field's value.
+func (s *CreateDBInstanceReadReplicaInput) SetCustomIamInstanceProfile(v string) *CreateDBInstanceReadReplicaInput {
+	s.CustomIamInstanceProfile = &v
 	return s
 }
 
@@ -19881,16 +22258,27 @@ type CreateDBInstanceReadReplicaOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBInstanceReadReplicaOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBInstanceReadReplicaOutput) GoString() string {
 	return s.String()
 }
@@ -19909,12 +22297,49 @@ type CreateDBParameterGroupInput struct {
 	// to a DB instance running a database engine and engine version compatible
 	// with that DB parameter group family.
 	//
-	// To list all of the available parameter group families, use the following
-	// command:
+	// To list all of the available parameter group families for a DB engine, use
+	// the following command:
 	//
 	// aws rds describe-db-engine-versions --query "DBEngineVersions[].DBParameterGroupFamily"
+	// --engine <engine>
+	//
+	// For example, to list all of the available parameter group families for the
+	// MySQL DB engine, use the following command:
+	//
+	// aws rds describe-db-engine-versions --query "DBEngineVersions[].DBParameterGroupFamily"
+	// --engine mysql
 	//
 	// The output contains duplicates.
+	//
+	// The following are the valid DB engine values:
+	//
+	//    * aurora (for MySQL 5.6-compatible Aurora)
+	//
+	//    * aurora-mysql (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
+	//
+	//    * aurora-postgresql
+	//
+	//    * mariadb
+	//
+	//    * mysql
+	//
+	//    * oracle-ee
+	//
+	//    * oracle-ee-cdb
+	//
+	//    * oracle-se2
+	//
+	//    * oracle-se2-cdb
+	//
+	//    * postgres
+	//
+	//    * sqlserver-ee
+	//
+	//    * sqlserver-se
+	//
+	//    * sqlserver-ex
+	//
+	//    * sqlserver-web
 	//
 	// DBParameterGroupFamily is a required field
 	DBParameterGroupFamily *string `type:"string" required:"true"`
@@ -19943,12 +22368,20 @@ type CreateDBParameterGroupInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -20006,12 +22439,20 @@ type CreateDBParameterGroupOutput struct {
 	DBParameterGroup *DBParameterGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBParameterGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBParameterGroupOutput) GoString() string {
 	return s.String()
 }
@@ -20019,6 +22460,151 @@ func (s CreateDBParameterGroupOutput) GoString() string {
 // SetDBParameterGroup sets the DBParameterGroup field's value.
 func (s *CreateDBParameterGroupOutput) SetDBParameterGroup(v *DBParameterGroup) *CreateDBParameterGroupOutput {
 	s.DBParameterGroup = v
+	return s
+}
+
+type CreateDBProxyEndpointInput struct {
+	_ struct{} `type:"structure"`
+
+	// The name of the DB proxy endpoint to create.
+	//
+	// DBProxyEndpointName is a required field
+	DBProxyEndpointName *string `min:"1" type:"string" required:"true"`
+
+	// The name of the DB proxy associated with the DB proxy endpoint that you create.
+	//
+	// DBProxyName is a required field
+	DBProxyName *string `min:"1" type:"string" required:"true"`
+
+	// A list of tags. For more information, see Tagging Amazon RDS Resources (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html)
+	// in the Amazon RDS User Guide.
+	Tags []*Tag `locationNameList:"Tag" type:"list"`
+
+	// A value that indicates whether the DB proxy endpoint can be used for read/write
+	// or read-only operations. The default is READ_WRITE.
+	TargetRole *string `type:"string" enum:"DBProxyEndpointTargetRole"`
+
+	// The VPC security group IDs for the DB proxy endpoint that you create. You
+	// can specify a different set of security group IDs than for the original DB
+	// proxy. The default is the default security group for the VPC.
+	VpcSecurityGroupIds []*string `type:"list"`
+
+	// The VPC subnet IDs for the DB proxy endpoint that you create. You can specify
+	// a different set of subnet IDs than for the original DB proxy.
+	//
+	// VpcSubnetIds is a required field
+	VpcSubnetIds []*string `type:"list" required:"true"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s CreateDBProxyEndpointInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s CreateDBProxyEndpointInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *CreateDBProxyEndpointInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "CreateDBProxyEndpointInput"}
+	if s.DBProxyEndpointName == nil {
+		invalidParams.Add(request.NewErrParamRequired("DBProxyEndpointName"))
+	}
+	if s.DBProxyEndpointName != nil && len(*s.DBProxyEndpointName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("DBProxyEndpointName", 1))
+	}
+	if s.DBProxyName == nil {
+		invalidParams.Add(request.NewErrParamRequired("DBProxyName"))
+	}
+	if s.DBProxyName != nil && len(*s.DBProxyName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("DBProxyName", 1))
+	}
+	if s.VpcSubnetIds == nil {
+		invalidParams.Add(request.NewErrParamRequired("VpcSubnetIds"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDBProxyEndpointName sets the DBProxyEndpointName field's value.
+func (s *CreateDBProxyEndpointInput) SetDBProxyEndpointName(v string) *CreateDBProxyEndpointInput {
+	s.DBProxyEndpointName = &v
+	return s
+}
+
+// SetDBProxyName sets the DBProxyName field's value.
+func (s *CreateDBProxyEndpointInput) SetDBProxyName(v string) *CreateDBProxyEndpointInput {
+	s.DBProxyName = &v
+	return s
+}
+
+// SetTags sets the Tags field's value.
+func (s *CreateDBProxyEndpointInput) SetTags(v []*Tag) *CreateDBProxyEndpointInput {
+	s.Tags = v
+	return s
+}
+
+// SetTargetRole sets the TargetRole field's value.
+func (s *CreateDBProxyEndpointInput) SetTargetRole(v string) *CreateDBProxyEndpointInput {
+	s.TargetRole = &v
+	return s
+}
+
+// SetVpcSecurityGroupIds sets the VpcSecurityGroupIds field's value.
+func (s *CreateDBProxyEndpointInput) SetVpcSecurityGroupIds(v []*string) *CreateDBProxyEndpointInput {
+	s.VpcSecurityGroupIds = v
+	return s
+}
+
+// SetVpcSubnetIds sets the VpcSubnetIds field's value.
+func (s *CreateDBProxyEndpointInput) SetVpcSubnetIds(v []*string) *CreateDBProxyEndpointInput {
+	s.VpcSubnetIds = v
+	return s
+}
+
+type CreateDBProxyEndpointOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The DBProxyEndpoint object that is created by the API operation. The DB proxy
+	// endpoint that you create might provide capabilities such as read/write or
+	// read-only operations, or using a different VPC than the proxy's default VPC.
+	DBProxyEndpoint *DBProxyEndpoint `type:"structure"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s CreateDBProxyEndpointOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s CreateDBProxyEndpointOutput) GoString() string {
+	return s.String()
+}
+
+// SetDBProxyEndpoint sets the DBProxyEndpoint field's value.
+func (s *CreateDBProxyEndpointOutput) SetDBProxyEndpoint(v *DBProxyEndpoint) *CreateDBProxyEndpointOutput {
+	s.DBProxyEndpoint = v
 	return s
 }
 
@@ -20031,9 +22617,10 @@ type CreateDBProxyInput struct {
 	Auth []*UserAuthConfig `type:"list" required:"true"`
 
 	// The identifier for the proxy. This name must be unique for all proxies owned
-	// by your AWS account in the specified AWS Region. An identifier must begin
-	// with a letter and must contain only ASCII letters, digits, and hyphens; it
-	// can't end with a hyphen or contain two consecutive hyphens.
+	// by your Amazon Web Services account in the specified Amazon Web Services
+	// Region. An identifier must begin with a letter and must contain only ASCII
+	// letters, digits, and hyphens; it can't end with a hyphen or contain two consecutive
+	// hyphens.
 	//
 	// DBProxyName is a required field
 	DBProxyName *string `type:"string" required:"true"`
@@ -20066,7 +22653,7 @@ type CreateDBProxyInput struct {
 	RequireTLS *bool `type:"boolean"`
 
 	// The Amazon Resource Name (ARN) of the IAM role that the proxy uses to access
-	// secrets in AWS Secrets Manager.
+	// secrets in Amazon Web Services Secrets Manager.
 	//
 	// RoleArn is a required field
 	RoleArn *string `type:"string" required:"true"`
@@ -20084,12 +22671,20 @@ type CreateDBProxyInput struct {
 	VpcSubnetIds []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBProxyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBProxyInput) GoString() string {
 	return s.String()
 }
@@ -20186,12 +22781,20 @@ type CreateDBProxyOutput struct {
 	DBProxy *DBProxy `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBProxyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBProxyOutput) GoString() string {
 	return s.String()
 }
@@ -20231,12 +22834,20 @@ type CreateDBSecurityGroupInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSecurityGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSecurityGroupInput) GoString() string {
 	return s.String()
 }
@@ -20285,12 +22896,20 @@ type CreateDBSecurityGroupOutput struct {
 	DBSecurityGroup *DBSecurityGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSecurityGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSecurityGroupOutput) GoString() string {
 	return s.String()
 }
@@ -20335,12 +22954,20 @@ type CreateDBSnapshotInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSnapshotInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSnapshotInput) GoString() string {
 	return s.String()
 }
@@ -20388,12 +23015,20 @@ type CreateDBSnapshotOutput struct {
 	DBSnapshot *DBSnapshot `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSnapshotOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSnapshotOutput) GoString() string {
 	return s.String()
 }
@@ -20414,10 +23049,16 @@ type CreateDBSubnetGroupInput struct {
 
 	// The name for the DB subnet group. This value is stored as a lowercase string.
 	//
-	// Constraints: Must contain no more than 255 letters, numbers, periods, underscores,
-	// spaces, or hyphens. Must not be default.
+	// Constraints:
 	//
-	// Example: mySubnetgroup
+	//    * Must contain no more than 255 letters, numbers, periods, underscores,
+	//    spaces, or hyphens.
+	//
+	//    * Must not be default.
+	//
+	//    * First character must be a letter.
+	//
+	// Example: mydbsubnetgroup
 	//
 	// DBSubnetGroupName is a required field
 	DBSubnetGroupName *string `type:"string" required:"true"`
@@ -20431,12 +23072,20 @@ type CreateDBSubnetGroupInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSubnetGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSubnetGroupInput) GoString() string {
 	return s.String()
 }
@@ -20494,12 +23143,20 @@ type CreateDBSubnetGroupOutput struct {
 	DBSubnetGroup *DBSubnetGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSubnetGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateDBSubnetGroupOutput) GoString() string {
 	return s.String()
 }
@@ -20520,8 +23177,10 @@ type CreateEventSubscriptionInput struct {
 
 	// A list of event categories for a particular source type (SourceType) that
 	// you want to subscribe to. You can see a list of the categories for a given
-	// source type in Events (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.html)
-	// in the Amazon RDS User Guide or by using the DescribeEventCategories operation.
+	// source type in the "Amazon RDS event categories and event messages" section
+	// of the Amazon RDS User Guide (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Events.Messages.html)
+	// or the Amazon Aurora User Guide (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_Events.Messages.html).
+	// You can also see this list by using the DescribeEventCategories operation.
 	EventCategories []*string `locationNameList:"EventCategory" type:"list"`
 
 	// The Amazon Resource Name (ARN) of the SNS topic created for event notification.
@@ -20538,7 +23197,7 @@ type CreateEventSubscriptionInput struct {
 	//
 	// Constraints:
 	//
-	//    * If a SourceIds value is supplied, SourceType must also be provided.
+	//    * If SourceIds are supplied, SourceType must also be provided.
 	//
 	//    * If the source type is a DB instance, a DBInstanceIdentifier value must
 	//    be supplied.
@@ -20557,14 +23216,17 @@ type CreateEventSubscriptionInput struct {
 	//
 	//    * If the source type is a DB cluster snapshot, a DBClusterSnapshotIdentifier
 	//    value must be supplied.
+	//
+	//    * If the source type is an RDS Proxy, a DBProxyName value must be supplied.
 	SourceIds []*string `locationNameList:"SourceId" type:"list"`
 
 	// The type of source that is generating the events. For example, if you want
 	// to be notified of events generated by a DB instance, you set this parameter
-	// to db-instance. If this value isn't specified, all events are returned.
+	// to db-instance. For RDS Proxy events, specify db-proxy. If this value isn't
+	// specified, all events are returned.
 	//
 	// Valid values: db-instance | db-cluster | db-parameter-group | db-security-group
-	// | db-snapshot | db-cluster-snapshot
+	// | db-snapshot | db-cluster-snapshot | db-proxy
 	SourceType *string `type:"string"`
 
 	// The name of the subscription.
@@ -20579,12 +23241,20 @@ type CreateEventSubscriptionInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateEventSubscriptionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateEventSubscriptionInput) GoString() string {
 	return s.String()
 }
@@ -20655,12 +23325,20 @@ type CreateEventSubscriptionOutput struct {
 	EventSubscription *EventSubscription `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateEventSubscriptionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateEventSubscriptionOutput) GoString() string {
 	return s.String()
 }
@@ -20700,12 +23378,20 @@ type CreateGlobalClusterInput struct {
 	StorageEncrypted *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateGlobalClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateGlobalClusterInput) GoString() string {
 	return s.String()
 }
@@ -20759,12 +23445,20 @@ type CreateGlobalClusterOutput struct {
 	GlobalCluster *GlobalCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateGlobalClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateGlobalClusterOutput) GoString() string {
 	return s.String()
 }
@@ -20789,11 +23483,11 @@ type CreateOptionGroupInput struct {
 	//
 	//    * oracle-ee
 	//
+	//    * oracle-ee-cdb
+	//
 	//    * oracle-se2
 	//
-	//    * oracle-se1
-	//
-	//    * oracle-se
+	//    * oracle-se2-cdb
 	//
 	//    * postgres
 	//
@@ -20838,12 +23532,20 @@ type CreateOptionGroupInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateOptionGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateOptionGroupInput) GoString() string {
 	return s.String()
 }
@@ -20906,12 +23608,20 @@ type CreateOptionGroupOutput struct {
 	OptionGroup *OptionGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateOptionGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CreateOptionGroupOutput) GoString() string {
 	return s.String()
 }
@@ -20942,16 +23652,24 @@ type CustomAvailabilityZone struct {
 	CustomAvailabilityZoneStatus *string `type:"string"`
 
 	// Information about the virtual private network (VPN) between the VMware vSphere
-	// cluster and the AWS website.
+	// cluster and the Amazon Web Services website.
 	VpnDetails *VpnDetails `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CustomAvailabilityZone) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s CustomAvailabilityZone) GoString() string {
 	return s.String()
 }
@@ -20980,10 +23698,24 @@ func (s *CustomAvailabilityZone) SetVpnDetails(v *VpnDetails) *CustomAvailabilit
 	return s
 }
 
-// Contains the details of an Amazon Aurora DB cluster.
+// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 //
-// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-// and StartDBCluster actions.
+// For an Amazon Aurora DB cluster, this data type is used as a response element
+// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+//
+// For a Multi-AZ DB cluster, this data type is used as a response element in
+// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+//
+// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+// in the Amazon Aurora User Guide.
+//
+// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+// in the Amazon RDS User Guide.
 type DBCluster struct {
 	_ struct{} `type:"structure"`
 
@@ -20991,11 +23723,11 @@ type DBCluster struct {
 	// stream.
 	ActivityStreamKinesisStreamName *string `type:"string"`
 
-	// The AWS KMS key identifier used for encrypting messages in the database activity
-	// stream.
+	// The Amazon Web Services KMS key identifier used for encrypting messages in
+	// the database activity stream.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	ActivityStreamKmsKeyId *string `type:"string"`
 
 	// The mode of the database activity stream. Database events such as a change
@@ -21012,11 +23744,19 @@ type DBCluster struct {
 	// instead automatically adjusts as needed.
 	AllocatedStorage *int64 `type:"integer"`
 
-	// Provides a list of the AWS Identity and Access Management (IAM) roles that
-	// are associated with the DB cluster. IAM roles that are associated with a
-	// DB cluster grant permission for the DB cluster to access other AWS services
-	// on your behalf.
+	// Provides a list of the Amazon Web Services Identity and Access Management
+	// (IAM) roles that are associated with the DB cluster. IAM roles that are associated
+	// with a DB cluster grant permission for the DB cluster to access other Amazon
+	// Web Services on your behalf.
 	AssociatedRoles []*DBClusterRole `locationNameList:"DBClusterRole" type:"list"`
+
+	// A value that indicates that minor version patches are applied automatically.
+	//
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	AutoMinorVersionUpgrade *bool `type:"boolean"`
+
+	// The time when a stopped DB cluster is restarted automatically.
+	AutomaticRestartTime *time.Time `type:"timestamp"`
 
 	// Provides the list of Availability Zones (AZs) where instances in the DB cluster
 	// can be created.
@@ -21056,7 +23796,7 @@ type DBCluster struct {
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
 	// Specifies whether the DB cluster is a clone of a DB cluster owned by a different
-	// AWS account.
+	// Amazon Web Services account.
 	CrossAccountClone *bool `type:"boolean"`
 
 	// Identifies all custom endpoints associated with the cluster.
@@ -21068,6 +23808,11 @@ type DBCluster struct {
 	// Contains a user-supplied DB cluster identifier. This identifier is the unique
 	// key that identifies a DB cluster.
 	DBClusterIdentifier *string `type:"string"`
+
+	// The name of the compute and memory capacity class of the DB instance.
+	//
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	DBClusterInstanceClass *string `type:"string"`
 
 	// Provides the list of instances that make up the DB cluster.
 	DBClusterMembers []*DBClusterMember `locationNameList:"DBClusterMember" type:"list"`
@@ -21087,9 +23832,9 @@ type DBCluster struct {
 	// same name is returned for the life of the DB cluster.
 	DatabaseName *string `type:"string"`
 
-	// The AWS Region-unique, immutable identifier for the DB cluster. This identifier
-	// is found in AWS CloudTrail log entries whenever the AWS KMS CMK for the DB
-	// cluster is accessed.
+	// The Amazon Web Services Region-unique, immutable identifier for the DB cluster.
+	// This identifier is found in Amazon Web Services CloudTrail log entries whenever
+	// the KMS key for the DB cluster is accessed.
 	DbClusterResourceId *string `type:"string"`
 
 	// Indicates if the DB cluster has deletion protection enabled. The database
@@ -21154,15 +23899,20 @@ type DBCluster struct {
 	// in the Amazon Aurora User Guide.
 	HttpEndpointEnabled *bool `type:"boolean"`
 
-	// A value that indicates whether the mapping of AWS Identity and Access Management
-	// (IAM) accounts to database accounts is enabled.
+	// A value that indicates whether the mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts is enabled.
 	IAMDatabaseAuthenticationEnabled *bool `type:"boolean"`
 
-	// If StorageEncrypted is enabled, the AWS KMS key identifier for the encrypted
-	// DB cluster.
+	// The Provisioned IOPS (I/O operations per second) value.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	Iops *int64 `type:"integer"`
+
+	// If StorageEncrypted is enabled, the Amazon Web Services KMS key identifier
+	// for the encrypted DB cluster.
+	//
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	KmsKeyId *string `type:"string"`
 
 	// Specifies the latest time to which a database can be restored with point-in-time
@@ -21171,6 +23921,18 @@ type DBCluster struct {
 
 	// Contains the master username for the DB cluster.
 	MasterUsername *string `type:"string"`
+
+	// The interval, in seconds, between points when Enhanced Monitoring metrics
+	// are collected for the DB cluster.
+	//
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	MonitoringInterval *int64 `type:"integer"`
+
+	// The ARN for the IAM role that permits RDS to send Enhanced Monitoring metrics
+	// to Amazon CloudWatch Logs.
+	//
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	MonitoringRoleArn *string `type:"string"`
 
 	// Specifies whether the DB cluster has instances in multiple Availability Zones.
 	MultiAZ *bool `type:"boolean"`
@@ -21183,6 +23945,27 @@ type DBCluster struct {
 	// Specifies the progress of the operation as a percentage.
 	PercentProgress *string `type:"string"`
 
+	// True if Performance Insights is enabled for the DB cluster, and otherwise
+	// false.
+	//
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	PerformanceInsightsEnabled *bool `type:"boolean"`
+
+	// The Amazon Web Services KMS key identifier for encryption of Performance
+	// Insights data.
+	//
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
+	//
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	PerformanceInsightsKMSKeyId *string `type:"string"`
+
+	// The amount of time, in days, to retain Performance Insights data. Valid values
+	// are 7 or 731 (2 years).
+	//
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	PerformanceInsightsRetentionPeriod *int64 `type:"integer"`
+
 	// Specifies the port that the database engine is listening on.
 	Port *int64 `type:"integer"`
 
@@ -21193,6 +23976,23 @@ type DBCluster struct {
 	// Specifies the weekly time range during which system maintenance can occur,
 	// in Universal Coordinated Time (UTC).
 	PreferredMaintenanceWindow *string `type:"string"`
+
+	// Specifies the accessibility options for the DB instance.
+	//
+	// When the DB instance is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB instance's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB instance's VPC. Access to the DB instance is ultimately controlled
+	// by the security group it uses. That public access is not permitted if the
+	// security group assigned to the DB instance doesn't permit it.
+	//
+	// When the DB instance isn't publicly accessible, it is an internal DB instance
+	// with a DNS name that resolves to a private IP address.
+	//
+	// For more information, see CreateDBInstance.
+	//
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	PubliclyAccessible *bool `type:"boolean"`
 
 	// Contains one or more identifiers of the read replicas associated with this
 	// DB cluster.
@@ -21228,6 +24028,11 @@ type DBCluster struct {
 	// Specifies whether the DB cluster is encrypted.
 	StorageEncrypted *bool `type:"boolean"`
 
+	// The storage type associated with the DB cluster.
+	//
+	// This setting is only for non-Aurora Multi-AZ DB clusters.
+	StorageType *string `type:"string"`
+
 	// A list of tags. For more information, see Tagging Amazon RDS Resources (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html)
 	// in the Amazon RDS User Guide.
 	TagList []*Tag `locationNameList:"Tag" type:"list"`
@@ -21236,12 +24041,20 @@ type DBCluster struct {
 	VpcSecurityGroups []*VpcSecurityGroupMembership `locationNameList:"VpcSecurityGroupMembership" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBCluster) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBCluster) GoString() string {
 	return s.String()
 }
@@ -21279,6 +24092,18 @@ func (s *DBCluster) SetAllocatedStorage(v int64) *DBCluster {
 // SetAssociatedRoles sets the AssociatedRoles field's value.
 func (s *DBCluster) SetAssociatedRoles(v []*DBClusterRole) *DBCluster {
 	s.AssociatedRoles = v
+	return s
+}
+
+// SetAutoMinorVersionUpgrade sets the AutoMinorVersionUpgrade field's value.
+func (s *DBCluster) SetAutoMinorVersionUpgrade(v bool) *DBCluster {
+	s.AutoMinorVersionUpgrade = &v
+	return s
+}
+
+// SetAutomaticRestartTime sets the AutomaticRestartTime field's value.
+func (s *DBCluster) SetAutomaticRestartTime(v time.Time) *DBCluster {
+	s.AutomaticRestartTime = &v
 	return s
 }
 
@@ -21357,6 +24182,12 @@ func (s *DBCluster) SetDBClusterArn(v string) *DBCluster {
 // SetDBClusterIdentifier sets the DBClusterIdentifier field's value.
 func (s *DBCluster) SetDBClusterIdentifier(v string) *DBCluster {
 	s.DBClusterIdentifier = &v
+	return s
+}
+
+// SetDBClusterInstanceClass sets the DBClusterInstanceClass field's value.
+func (s *DBCluster) SetDBClusterInstanceClass(v string) *DBCluster {
+	s.DBClusterInstanceClass = &v
 	return s
 }
 
@@ -21480,6 +24311,12 @@ func (s *DBCluster) SetIAMDatabaseAuthenticationEnabled(v bool) *DBCluster {
 	return s
 }
 
+// SetIops sets the Iops field's value.
+func (s *DBCluster) SetIops(v int64) *DBCluster {
+	s.Iops = &v
+	return s
+}
+
 // SetKmsKeyId sets the KmsKeyId field's value.
 func (s *DBCluster) SetKmsKeyId(v string) *DBCluster {
 	s.KmsKeyId = &v
@@ -21495,6 +24332,18 @@ func (s *DBCluster) SetLatestRestorableTime(v time.Time) *DBCluster {
 // SetMasterUsername sets the MasterUsername field's value.
 func (s *DBCluster) SetMasterUsername(v string) *DBCluster {
 	s.MasterUsername = &v
+	return s
+}
+
+// SetMonitoringInterval sets the MonitoringInterval field's value.
+func (s *DBCluster) SetMonitoringInterval(v int64) *DBCluster {
+	s.MonitoringInterval = &v
+	return s
+}
+
+// SetMonitoringRoleArn sets the MonitoringRoleArn field's value.
+func (s *DBCluster) SetMonitoringRoleArn(v string) *DBCluster {
+	s.MonitoringRoleArn = &v
 	return s
 }
 
@@ -21516,6 +24365,24 @@ func (s *DBCluster) SetPercentProgress(v string) *DBCluster {
 	return s
 }
 
+// SetPerformanceInsightsEnabled sets the PerformanceInsightsEnabled field's value.
+func (s *DBCluster) SetPerformanceInsightsEnabled(v bool) *DBCluster {
+	s.PerformanceInsightsEnabled = &v
+	return s
+}
+
+// SetPerformanceInsightsKMSKeyId sets the PerformanceInsightsKMSKeyId field's value.
+func (s *DBCluster) SetPerformanceInsightsKMSKeyId(v string) *DBCluster {
+	s.PerformanceInsightsKMSKeyId = &v
+	return s
+}
+
+// SetPerformanceInsightsRetentionPeriod sets the PerformanceInsightsRetentionPeriod field's value.
+func (s *DBCluster) SetPerformanceInsightsRetentionPeriod(v int64) *DBCluster {
+	s.PerformanceInsightsRetentionPeriod = &v
+	return s
+}
+
 // SetPort sets the Port field's value.
 func (s *DBCluster) SetPort(v int64) *DBCluster {
 	s.Port = &v
@@ -21531,6 +24398,12 @@ func (s *DBCluster) SetPreferredBackupWindow(v string) *DBCluster {
 // SetPreferredMaintenanceWindow sets the PreferredMaintenanceWindow field's value.
 func (s *DBCluster) SetPreferredMaintenanceWindow(v string) *DBCluster {
 	s.PreferredMaintenanceWindow = &v
+	return s
+}
+
+// SetPubliclyAccessible sets the PubliclyAccessible field's value.
+func (s *DBCluster) SetPubliclyAccessible(v bool) *DBCluster {
+	s.PubliclyAccessible = &v
 	return s
 }
 
@@ -21567,6 +24440,12 @@ func (s *DBCluster) SetStatus(v string) *DBCluster {
 // SetStorageEncrypted sets the StorageEncrypted field's value.
 func (s *DBCluster) SetStorageEncrypted(v bool) *DBCluster {
 	s.StorageEncrypted = &v
+	return s
+}
+
+// SetStorageType sets the StorageType field's value.
+func (s *DBCluster) SetStorageType(v string) *DBCluster {
+	s.StorageType = &v
 	return s
 }
 
@@ -21638,12 +24517,20 @@ type DBClusterEndpoint struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterEndpoint) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterEndpoint) GoString() string {
 	return s.String()
 }
@@ -21730,12 +24617,20 @@ type DBClusterMember struct {
 	PromotionTier *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterMember) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterMember) GoString() string {
 	return s.String()
 }
@@ -21775,12 +24670,20 @@ type DBClusterOptionGroupStatus struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterOptionGroupStatus) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterOptionGroupStatus) GoString() string {
 	return s.String()
 }
@@ -21819,12 +24722,20 @@ type DBClusterParameterGroup struct {
 	Description *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterParameterGroup) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterParameterGroup) GoString() string {
 	return s.String()
 }
@@ -21870,12 +24781,20 @@ type DBClusterParameterGroupNameMessage struct {
 	DBClusterParameterGroupName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterParameterGroupNameMessage) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterParameterGroupNameMessage) GoString() string {
 	return s.String()
 }
@@ -21886,13 +24805,14 @@ func (s *DBClusterParameterGroupNameMessage) SetDBClusterParameterGroupName(v st
 	return s
 }
 
-// Describes an AWS Identity and Access Management (IAM) role that is associated
-// with a DB cluster.
+// Describes an Amazon Web Services Identity and Access Management (IAM) role
+// that is associated with a DB cluster.
 type DBClusterRole struct {
 	_ struct{} `type:"structure"`
 
-	// The name of the feature associated with the AWS Identity and Access Management
-	// (IAM) role. For the list of supported feature names, see DBEngineVersion.
+	// The name of the feature associated with the Amazon Web Services Identity
+	// and Access Management (IAM) role. For information about supported feature
+	// names, see DBEngineVersion.
 	FeatureName *string `type:"string"`
 
 	// The Amazon Resource Name (ARN) of the IAM role that is associated with the
@@ -21903,22 +24823,30 @@ type DBClusterRole struct {
 	// The Status property returns one of the following values:
 	//
 	//    * ACTIVE - the IAM role ARN is associated with the DB cluster and can
-	//    be used to access other AWS services on your behalf.
+	//    be used to access other Amazon Web Services on your behalf.
 	//
 	//    * PENDING - the IAM role ARN is being associated with the DB cluster.
 	//
 	//    * INVALID - the IAM role ARN is associated with the DB cluster, but the
-	//    DB cluster is unable to assume the IAM role in order to access other AWS
-	//    services on your behalf.
+	//    DB cluster is unable to assume the IAM role in order to access other Amazon
+	//    Web Services on your behalf.
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterRole) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterRole) GoString() string {
 	return s.String()
 }
@@ -21978,15 +24906,15 @@ type DBClusterSnapshot struct {
 	// Provides the version of the database engine for this DB cluster snapshot.
 	EngineVersion *string `type:"string"`
 
-	// True if mapping of AWS Identity and Access Management (IAM) accounts to database
-	// accounts is enabled, and otherwise false.
+	// True if mapping of Amazon Web Services Identity and Access Management (IAM)
+	// accounts to database accounts is enabled, and otherwise false.
 	IAMDatabaseAuthenticationEnabled *bool `type:"boolean"`
 
-	// If StorageEncrypted is true, the AWS KMS key identifier for the encrypted
-	// DB cluster snapshot.
+	// If StorageEncrypted is true, the Amazon Web Services KMS key identifier for
+	// the encrypted DB cluster snapshot.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	KmsKeyId *string `type:"string"`
 
 	// Provides the license model information for this DB cluster snapshot.
@@ -22014,7 +24942,14 @@ type DBClusterSnapshot struct {
 	// a null value.
 	SourceDBClusterSnapshotArn *string `type:"string"`
 
-	// Specifies the status of this DB cluster snapshot.
+	// Specifies the status of this DB cluster snapshot. Valid statuses are the
+	// following:
+	//
+	//    * available
+	//
+	//    * copying
+	//
+	//    * creating
 	Status *string `type:"string"`
 
 	// Specifies whether the DB cluster snapshot is encrypted.
@@ -22028,12 +24963,20 @@ type DBClusterSnapshot struct {
 	VpcId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterSnapshot) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterSnapshot) GoString() string {
 	return s.String()
 }
@@ -22172,35 +25115,43 @@ func (s *DBClusterSnapshot) SetVpcId(v string) *DBClusterSnapshot {
 
 // Contains the name and values of a manual DB cluster snapshot attribute.
 //
-// Manual DB cluster snapshot attributes are used to authorize other AWS accounts
-// to restore a manual DB cluster snapshot. For more information, see the ModifyDBClusterSnapshotAttribute
-// API action.
+// Manual DB cluster snapshot attributes are used to authorize other Amazon
+// Web Services accounts to restore a manual DB cluster snapshot. For more information,
+// see the ModifyDBClusterSnapshotAttribute API action.
 type DBClusterSnapshotAttribute struct {
 	_ struct{} `type:"structure"`
 
 	// The name of the manual DB cluster snapshot attribute.
 	//
-	// The attribute named restore refers to the list of AWS accounts that have
-	// permission to copy or restore the manual DB cluster snapshot. For more information,
-	// see the ModifyDBClusterSnapshotAttribute API action.
+	// The attribute named restore refers to the list of Amazon Web Services accounts
+	// that have permission to copy or restore the manual DB cluster snapshot. For
+	// more information, see the ModifyDBClusterSnapshotAttribute API action.
 	AttributeName *string `type:"string"`
 
 	// The value(s) for the manual DB cluster snapshot attribute.
 	//
 	// If the AttributeName field is set to restore, then this element returns a
-	// list of IDs of the AWS accounts that are authorized to copy or restore the
-	// manual DB cluster snapshot. If a value of all is in the list, then the manual
-	// DB cluster snapshot is public and available for any AWS account to copy or
-	// restore.
+	// list of IDs of the Amazon Web Services accounts that are authorized to copy
+	// or restore the manual DB cluster snapshot. If a value of all is in the list,
+	// then the manual DB cluster snapshot is public and available for any Amazon
+	// Web Services account to copy or restore.
 	AttributeValues []*string `locationNameList:"AttributeValue" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterSnapshotAttribute) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterSnapshotAttribute) GoString() string {
 	return s.String()
 }
@@ -22220,9 +25171,9 @@ func (s *DBClusterSnapshotAttribute) SetAttributeValues(v []*string) *DBClusterS
 // Contains the results of a successful call to the DescribeDBClusterSnapshotAttributes
 // API action.
 //
-// Manual DB cluster snapshot attributes are used to authorize other AWS accounts
-// to copy or restore a manual DB cluster snapshot. For more information, see
-// the ModifyDBClusterSnapshotAttribute API action.
+// Manual DB cluster snapshot attributes are used to authorize other Amazon
+// Web Services accounts to copy or restore a manual DB cluster snapshot. For
+// more information, see the ModifyDBClusterSnapshotAttribute API action.
 type DBClusterSnapshotAttributesResult struct {
 	_ struct{} `type:"structure"`
 
@@ -22234,12 +25185,20 @@ type DBClusterSnapshotAttributesResult struct {
 	DBClusterSnapshotIdentifier *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterSnapshotAttributesResult) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBClusterSnapshotAttributesResult) GoString() string {
 	return s.String()
 }
@@ -22260,14 +25219,28 @@ func (s *DBClusterSnapshotAttributesResult) SetDBClusterSnapshotIdentifier(v str
 type DBEngineVersion struct {
 	_ struct{} `type:"structure"`
 
+	// The creation time of the DB engine version.
+	CreateTime *time.Time `type:"timestamp"`
+
 	// The description of the database engine.
 	DBEngineDescription *string `type:"string"`
+
+	// The ARN of the custom engine version.
+	DBEngineVersionArn *string `type:"string"`
 
 	// The description of the database engine version.
 	DBEngineVersionDescription *string `type:"string"`
 
 	// The name of the DB parameter group family for the database engine.
 	DBParameterGroupFamily *string `type:"string"`
+
+	// The name of the Amazon S3 bucket that contains your database installation
+	// files.
+	DatabaseInstallationFilesS3BucketName *string `type:"string"`
+
+	// The Amazon S3 directory that contains the database installation files. If
+	// not specified, then no prefix is assumed.
+	DatabaseInstallationFilesS3Prefix *string `type:"string"`
 
 	// The default character set for new instances of this engine version, if the
 	// CharacterSetName parameter of the CreateDBInstance API isn't specified.
@@ -22283,6 +25256,13 @@ type DBEngineVersion struct {
 	// Logs.
 	ExportableLogTypes []*string `type:"list"`
 
+	// The Amazon Web Services KMS key identifier for an encrypted CEV. This parameter
+	// is required for RDS Custom, but optional for Amazon RDS.
+	KMSKeyId *string `type:"string"`
+
+	// The major engine version of the CEV.
+	MajorEngineVersion *string `type:"string"`
+
 	// The status of the DB engine version, either available or deprecated.
 	Status *string `type:"string"`
 
@@ -22293,10 +25273,22 @@ type DBEngineVersion struct {
 	// A list of the supported DB engine modes.
 	SupportedEngineModes []*string `type:"list"`
 
-	// A list of features supported by the DB engine. Supported feature names include
-	// the following.
+	// A list of features supported by the DB engine.
 	//
-	//    * s3Import
+	// The supported features vary by DB engine and DB engine version.
+	//
+	// To determine the supported features for a specific DB engine and DB engine
+	// version using the CLI, use the following command:
+	//
+	// aws rds describe-db-engine-versions --engine <engine_name> --engine-version
+	// <engine_version>
+	//
+	// For example, to determine the supported features for RDS for PostgreSQL version
+	// 13.3 using the CLI, use the following command:
+	//
+	// aws rds describe-db-engine-versions --engine postgres --engine-version 13.3
+	//
+	// The supported features are listed under SupportedFeatureNames in the output.
 	SupportedFeatureNames []*string `type:"list"`
 
 	// A list of the character sets supported by the Oracle DB engine for the NcharCharacterSetName
@@ -22306,6 +25298,10 @@ type DBEngineVersion struct {
 	// A list of the time zones supported by this engine for the Timezone parameter
 	// of the CreateDBInstance action.
 	SupportedTimezones []*Timezone `locationNameList:"Timezone" type:"list"`
+
+	// A value that indicates whether the engine version supports Babelfish for
+	// Aurora PostgreSQL.
+	SupportsBabelfish *bool `type:"boolean"`
 
 	// A value that indicates whether you can use Aurora global databases with a
 	// specific DB engine version.
@@ -22322,24 +25318,48 @@ type DBEngineVersion struct {
 	// Indicates whether the database engine version supports read replicas.
 	SupportsReadReplica *bool `type:"boolean"`
 
+	// A list of tags. For more information, see Tagging Amazon RDS Resources (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html)
+	// in the Amazon RDS User Guide.
+	TagList []*Tag `locationNameList:"Tag" type:"list"`
+
 	// A list of engine versions that this database engine version can be upgraded
 	// to.
 	ValidUpgradeTarget []*UpgradeTarget `locationNameList:"UpgradeTarget" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBEngineVersion) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBEngineVersion) GoString() string {
 	return s.String()
+}
+
+// SetCreateTime sets the CreateTime field's value.
+func (s *DBEngineVersion) SetCreateTime(v time.Time) *DBEngineVersion {
+	s.CreateTime = &v
+	return s
 }
 
 // SetDBEngineDescription sets the DBEngineDescription field's value.
 func (s *DBEngineVersion) SetDBEngineDescription(v string) *DBEngineVersion {
 	s.DBEngineDescription = &v
+	return s
+}
+
+// SetDBEngineVersionArn sets the DBEngineVersionArn field's value.
+func (s *DBEngineVersion) SetDBEngineVersionArn(v string) *DBEngineVersion {
+	s.DBEngineVersionArn = &v
 	return s
 }
 
@@ -22352,6 +25372,18 @@ func (s *DBEngineVersion) SetDBEngineVersionDescription(v string) *DBEngineVersi
 // SetDBParameterGroupFamily sets the DBParameterGroupFamily field's value.
 func (s *DBEngineVersion) SetDBParameterGroupFamily(v string) *DBEngineVersion {
 	s.DBParameterGroupFamily = &v
+	return s
+}
+
+// SetDatabaseInstallationFilesS3BucketName sets the DatabaseInstallationFilesS3BucketName field's value.
+func (s *DBEngineVersion) SetDatabaseInstallationFilesS3BucketName(v string) *DBEngineVersion {
+	s.DatabaseInstallationFilesS3BucketName = &v
+	return s
+}
+
+// SetDatabaseInstallationFilesS3Prefix sets the DatabaseInstallationFilesS3Prefix field's value.
+func (s *DBEngineVersion) SetDatabaseInstallationFilesS3Prefix(v string) *DBEngineVersion {
+	s.DatabaseInstallationFilesS3Prefix = &v
 	return s
 }
 
@@ -22376,6 +25408,18 @@ func (s *DBEngineVersion) SetEngineVersion(v string) *DBEngineVersion {
 // SetExportableLogTypes sets the ExportableLogTypes field's value.
 func (s *DBEngineVersion) SetExportableLogTypes(v []*string) *DBEngineVersion {
 	s.ExportableLogTypes = v
+	return s
+}
+
+// SetKMSKeyId sets the KMSKeyId field's value.
+func (s *DBEngineVersion) SetKMSKeyId(v string) *DBEngineVersion {
+	s.KMSKeyId = &v
+	return s
+}
+
+// SetMajorEngineVersion sets the MajorEngineVersion field's value.
+func (s *DBEngineVersion) SetMajorEngineVersion(v string) *DBEngineVersion {
+	s.MajorEngineVersion = &v
 	return s
 }
 
@@ -22415,6 +25459,12 @@ func (s *DBEngineVersion) SetSupportedTimezones(v []*Timezone) *DBEngineVersion 
 	return s
 }
 
+// SetSupportsBabelfish sets the SupportsBabelfish field's value.
+func (s *DBEngineVersion) SetSupportsBabelfish(v bool) *DBEngineVersion {
+	s.SupportsBabelfish = &v
+	return s
+}
+
 // SetSupportsGlobalDatabases sets the SupportsGlobalDatabases field's value.
 func (s *DBEngineVersion) SetSupportsGlobalDatabases(v bool) *DBEngineVersion {
 	s.SupportsGlobalDatabases = &v
@@ -22439,6 +25489,12 @@ func (s *DBEngineVersion) SetSupportsReadReplica(v bool) *DBEngineVersion {
 	return s
 }
 
+// SetTagList sets the TagList field's value.
+func (s *DBEngineVersion) SetTagList(v []*Tag) *DBEngineVersion {
+	s.TagList = v
+	return s
+}
+
 // SetValidUpgradeTarget sets the ValidUpgradeTarget field's value.
 func (s *DBEngineVersion) SetValidUpgradeTarget(v []*UpgradeTarget) *DBEngineVersion {
 	s.ValidUpgradeTarget = v
@@ -22447,28 +25503,65 @@ func (s *DBEngineVersion) SetValidUpgradeTarget(v []*UpgradeTarget) *DBEngineVer
 
 // Contains the details of an Amazon RDS DB instance.
 //
-// This data type is used as a response element in the DescribeDBInstances action.
+// This data type is used as a response element in the operations CreateDBInstance,
+// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 type DBInstance struct {
 	_ struct{} `type:"structure"`
 
-	// Specifies the allocated storage size specified in gibibytes.
+	// Indicates whether engine-native audit fields are included in the database
+	// activity stream.
+	ActivityStreamEngineNativeAuditFieldsIncluded *bool `type:"boolean"`
+
+	// The name of the Amazon Kinesis data stream used for the database activity
+	// stream.
+	ActivityStreamKinesisStreamName *string `type:"string"`
+
+	// The Amazon Web Services KMS key identifier used for encrypting messages in
+	// the database activity stream. The Amazon Web Services KMS key identifier
+	// is the key ARN, key ID, alias ARN, or alias name for the KMS key.
+	ActivityStreamKmsKeyId *string `type:"string"`
+
+	// The mode of the database activity stream. Database events such as a change
+	// or access generate an activity stream event. RDS for Oracle always handles
+	// these events asynchronously.
+	ActivityStreamMode *string `type:"string" enum:"ActivityStreamMode"`
+
+	// The status of the database activity stream.
+	ActivityStreamStatus *string `type:"string" enum:"ActivityStreamStatus"`
+
+	// Specifies the allocated storage size specified in gibibytes (GiB).
 	AllocatedStorage *int64 `type:"integer"`
 
-	// The AWS Identity and Access Management (IAM) roles associated with the DB
-	// instance.
+	// The Amazon Web Services Identity and Access Management (IAM) roles associated
+	// with the DB instance.
 	AssociatedRoles []*DBInstanceRole `locationNameList:"DBInstanceRole" type:"list"`
 
 	// A value that indicates that minor version patches are applied automatically.
 	AutoMinorVersionUpgrade *bool `type:"boolean"`
 
+	// The time when a stopped DB instance is restarted automatically.
+	AutomaticRestartTime *time.Time `type:"timestamp"`
+
+	// The automation mode of the RDS Custom DB instance: full or all paused. If
+	// full, the DB instance automates monitoring and instance recovery. If all
+	// paused, the instance pauses automation for the duration set by --resume-full-automation-mode-minutes.
+	AutomationMode *string `type:"string" enum:"AutomationMode"`
+
 	// Specifies the name of the Availability Zone the DB instance is located in.
 	AvailabilityZone *string `type:"string"`
 
-	// The Amazon Resource Name (ARN) of the recovery point in AWS Backup.
+	// The Amazon Resource Name (ARN) of the recovery point in Amazon Web Services
+	// Backup.
 	AwsBackupRecoveryPointArn *string `type:"string"`
 
 	// Specifies the number of days for which automatic DB snapshots are retained.
 	BackupRetentionPeriod *int64 `type:"integer"`
+
+	// Specifies where automated backups and manual snapshots are stored: Amazon
+	// Web Services Outposts or the Amazon Web Services Region.
+	BackupTarget *string `type:"string"`
 
 	// The identifier of the CA certificate for this DB instance.
 	CACertificateIdentifier *string `type:"string"`
@@ -22487,6 +25580,22 @@ type DBInstance struct {
 	// For more information, see DBCluster.
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
+	// The instance profile associated with the underlying Amazon EC2 instance of
+	// an RDS Custom DB instance. The instance profile must meet the following requirements:
+	//
+	//    * The profile must exist in your account.
+	//
+	//    * The profile must have an IAM role that Amazon EC2 has permissions to
+	//    assume.
+	//
+	//    * The instance profile name and the associated IAM role name must start
+	//    with the prefix AWSRDSCustom.
+	//
+	// For the list of permissions required for the IAM role, see Configure IAM
+	// and your VPC (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-setup-orcl.html#custom-setup-orcl.iam-vpc)
+	// in the Amazon Relational Database Service User Guide.
+	CustomIamInstanceProfile *string `type:"string"`
+
 	// Specifies whether a customer-owned IP address (CoIP) is enabled for an RDS
 	// on Outposts DB instance.
 	//
@@ -22496,11 +25605,11 @@ type DBInstance struct {
 	// its virtual private cloud (VPC) on your local network.
 	//
 	// For more information about RDS on Outposts, see Working with Amazon RDS on
-	// AWS Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// Amazon Web Services Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
 	// in the Amazon RDS User Guide.
 	//
 	// For more information about CoIPs, see Customer-owned IP addresses (https://docs.aws.amazon.com/outposts/latest/userguide/outposts-networking-components.html#ip-addressing)
-	// in the AWS Outposts User Guide.
+	// in the Amazon Web Services Outposts User Guide.
 	CustomerOwnedIpEnabled *bool `type:"boolean"`
 
 	// If the DB instance is a member of a DB cluster, contains the name of the
@@ -22522,7 +25631,8 @@ type DBInstance struct {
 
 	// Specifies the current state of this database.
 	//
-	// For information about DB instance statuses, see DB Instance Status (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Overview.DBInstance.Status.html)
+	// For information about DB instance statuses, see Viewing DB instance status
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html#Overview.DBInstance.Status)
 	// in the Amazon RDS User Guide.
 	DBInstanceStatus *string `type:"string"`
 
@@ -22558,9 +25668,9 @@ type DBInstance struct {
 	// part of a DB cluster, this can be a different port than the DB cluster port.
 	DbInstancePort *int64 `type:"integer"`
 
-	// The AWS Region-unique, immutable identifier for the DB instance. This identifier
-	// is found in AWS CloudTrail log entries whenever the AWS KMS customer master
-	// key (CMK) for the DB instance is accessed.
+	// The Amazon Web Services Region-unique, immutable identifier for the DB instance.
+	// This identifier is found in Amazon Web Services CloudTrail log entries whenever
+	// the Amazon Web Services KMS key for the DB instance is accessed.
 	DbiResourceId *string `type:"string"`
 
 	// Indicates if the DB instance has deletion protection enabled. The database
@@ -22580,6 +25690,8 @@ type DBInstance struct {
 	EnabledCloudwatchLogsExports []*string `type:"list"`
 
 	// Specifies the connection endpoint.
+	//
+	// The endpoint might not be shown for instances whose status is creating.
 	Endpoint *Endpoint `type:"structure"`
 
 	// The name of the database engine to be used for this DB instance.
@@ -22592,8 +25704,8 @@ type DBInstance struct {
 	// receives the Enhanced Monitoring metrics data for the DB instance.
 	EnhancedMonitoringResourceArn *string `type:"string"`
 
-	// True if mapping of AWS Identity and Access Management (IAM) accounts to database
-	// accounts is enabled, and otherwise false.
+	// True if mapping of Amazon Web Services Identity and Access Management (IAM)
+	// accounts to database accounts is enabled, and otherwise false.
 	//
 	// IAM database authentication can be enabled for the following database engines
 	//
@@ -22611,18 +25723,19 @@ type DBInstance struct {
 	// Specifies the Provisioned IOPS (I/O operations per second) value.
 	Iops *int64 `type:"integer"`
 
-	// If StorageEncrypted is true, the AWS KMS key identifier for the encrypted
-	// DB instance.
+	// If StorageEncrypted is true, the Amazon Web Services KMS key identifier for
+	// the encrypted DB instance.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	KmsKeyId *string `type:"string"`
 
 	// Specifies the latest time to which a database can be restored with point-in-time
 	// restore.
 	LatestRestorableTime *time.Time `type:"timestamp"`
 
-	// License model information for this DB instance.
+	// License model information for this DB instance. This setting doesn't apply
+	// to RDS Custom.
 	LicenseModel *string `type:"string"`
 
 	// Specifies the listener connection endpoint for SQL Server Always On.
@@ -22631,8 +25744,8 @@ type DBInstance struct {
 	// Contains the master username for the DB instance.
 	MasterUsername *string `type:"string"`
 
-	// The upper limit to which Amazon RDS can automatically scale the storage of
-	// the DB instance.
+	// The upper limit in gibibytes (GiB) to which Amazon RDS can automatically
+	// scale the storage of the DB instance.
 	MaxAllocatedStorage *int64 `type:"integer"`
 
 	// The interval, in seconds, between points when Enhanced Monitoring metrics
@@ -22643,7 +25756,8 @@ type DBInstance struct {
 	// to Amazon CloudWatch Logs.
 	MonitoringRoleArn *string `type:"string"`
 
-	// Specifies if the DB instance is a Multi-AZ deployment.
+	// Specifies if the DB instance is a Multi-AZ deployment. This setting doesn't
+	// apply to RDS Custom.
 	MultiAZ *bool `type:"boolean"`
 
 	// The name of the NCHAR character set for the Oracle DB instance. This character
@@ -22663,10 +25777,11 @@ type DBInstance struct {
 	// false.
 	PerformanceInsightsEnabled *bool `type:"boolean"`
 
-	// The AWS KMS key identifier for encryption of Performance Insights data.
+	// The Amazon Web Services KMS key identifier for encryption of Performance
+	// Insights data.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	PerformanceInsightsKMSKeyId *string `type:"string"`
 
 	// The amount of time, in days, to retain Performance Insights data. Valid values
@@ -22693,12 +25808,12 @@ type DBInstance struct {
 
 	// Specifies the accessibility options for the DB instance.
 	//
-	// When the DB instance is publicly accessible, its DNS endpoint resolves to
-	// the private IP address from within the DB instance's VPC, and to the public
-	// IP address from outside of the DB instance's VPC. Access to the DB instance
-	// is ultimately controlled by the security group it uses, and that public access
-	// is not permitted if the security group assigned to the DB instance doesn't
-	// permit it.
+	// When the DB cluster is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB cluster's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB cluster's VPC. Access to the DB cluster is ultimately controlled
+	// by the security group it uses. That public access isn't permitted if the
+	// security group assigned to the DB cluster doesn't permit it.
 	//
 	// When the DB instance isn't publicly accessible, it is an internal DB instance
 	// with a DNS name that resolves to a private IP address.
@@ -22708,9 +25823,9 @@ type DBInstance struct {
 
 	// Contains one or more identifiers of Aurora DB clusters to which the RDS DB
 	// instance is replicated as a read replica. For example, when you create an
-	// Aurora read replica of an RDS MySQL DB instance, the Aurora MySQL DB cluster
-	// for the Aurora read replica is shown. This output does not contain information
-	// about cross region Aurora read replicas.
+	// Aurora read replica of an RDS for MySQL DB instance, the Aurora MySQL DB
+	// cluster for the Aurora read replica is shown. This output doesn't contain
+	// information about cross-Region Aurora read replicas.
 	//
 	// Currently, each RDS DB instance can have only one Aurora read replica.
 	ReadReplicaDBClusterIdentifiers []*string `locationNameList:"ReadReplicaDBClusterIdentifier" type:"list"`
@@ -22729,6 +25844,11 @@ type DBInstance struct {
 	//
 	// This attribute is only supported in RDS for Oracle.
 	ReplicaMode *string `type:"string" enum:"ReplicaMode"`
+
+	// The number of minutes to pause the automation. When the time period ends,
+	// RDS Custom resumes full automation. The minimum value is 60 (default). The
+	// maximum value is 1,440.
+	ResumeFullAutomationModeTime *time.Time `type:"timestamp"`
 
 	// If present, specifies the name of the secondary Availability Zone for a DB
 	// instance with multi-AZ support.
@@ -22762,14 +25882,52 @@ type DBInstance struct {
 	VpcSecurityGroups []*VpcSecurityGroupMembership `locationNameList:"VpcSecurityGroupMembership" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstance) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstance) GoString() string {
 	return s.String()
+}
+
+// SetActivityStreamEngineNativeAuditFieldsIncluded sets the ActivityStreamEngineNativeAuditFieldsIncluded field's value.
+func (s *DBInstance) SetActivityStreamEngineNativeAuditFieldsIncluded(v bool) *DBInstance {
+	s.ActivityStreamEngineNativeAuditFieldsIncluded = &v
+	return s
+}
+
+// SetActivityStreamKinesisStreamName sets the ActivityStreamKinesisStreamName field's value.
+func (s *DBInstance) SetActivityStreamKinesisStreamName(v string) *DBInstance {
+	s.ActivityStreamKinesisStreamName = &v
+	return s
+}
+
+// SetActivityStreamKmsKeyId sets the ActivityStreamKmsKeyId field's value.
+func (s *DBInstance) SetActivityStreamKmsKeyId(v string) *DBInstance {
+	s.ActivityStreamKmsKeyId = &v
+	return s
+}
+
+// SetActivityStreamMode sets the ActivityStreamMode field's value.
+func (s *DBInstance) SetActivityStreamMode(v string) *DBInstance {
+	s.ActivityStreamMode = &v
+	return s
+}
+
+// SetActivityStreamStatus sets the ActivityStreamStatus field's value.
+func (s *DBInstance) SetActivityStreamStatus(v string) *DBInstance {
+	s.ActivityStreamStatus = &v
+	return s
 }
 
 // SetAllocatedStorage sets the AllocatedStorage field's value.
@@ -22787,6 +25945,18 @@ func (s *DBInstance) SetAssociatedRoles(v []*DBInstanceRole) *DBInstance {
 // SetAutoMinorVersionUpgrade sets the AutoMinorVersionUpgrade field's value.
 func (s *DBInstance) SetAutoMinorVersionUpgrade(v bool) *DBInstance {
 	s.AutoMinorVersionUpgrade = &v
+	return s
+}
+
+// SetAutomaticRestartTime sets the AutomaticRestartTime field's value.
+func (s *DBInstance) SetAutomaticRestartTime(v time.Time) *DBInstance {
+	s.AutomaticRestartTime = &v
+	return s
+}
+
+// SetAutomationMode sets the AutomationMode field's value.
+func (s *DBInstance) SetAutomationMode(v string) *DBInstance {
+	s.AutomationMode = &v
 	return s
 }
 
@@ -22808,6 +25978,12 @@ func (s *DBInstance) SetBackupRetentionPeriod(v int64) *DBInstance {
 	return s
 }
 
+// SetBackupTarget sets the BackupTarget field's value.
+func (s *DBInstance) SetBackupTarget(v string) *DBInstance {
+	s.BackupTarget = &v
+	return s
+}
+
 // SetCACertificateIdentifier sets the CACertificateIdentifier field's value.
 func (s *DBInstance) SetCACertificateIdentifier(v string) *DBInstance {
 	s.CACertificateIdentifier = &v
@@ -22823,6 +25999,12 @@ func (s *DBInstance) SetCharacterSetName(v string) *DBInstance {
 // SetCopyTagsToSnapshot sets the CopyTagsToSnapshot field's value.
 func (s *DBInstance) SetCopyTagsToSnapshot(v bool) *DBInstance {
 	s.CopyTagsToSnapshot = &v
+	return s
+}
+
+// SetCustomIamInstanceProfile sets the CustomIamInstanceProfile field's value.
+func (s *DBInstance) SetCustomIamInstanceProfile(v string) *DBInstance {
+	s.CustomIamInstanceProfile = &v
 	return s
 }
 
@@ -23108,6 +26290,12 @@ func (s *DBInstance) SetReplicaMode(v string) *DBInstance {
 	return s
 }
 
+// SetResumeFullAutomationModeTime sets the ResumeFullAutomationModeTime field's value.
+func (s *DBInstance) SetResumeFullAutomationModeTime(v time.Time) *DBInstance {
+	s.ResumeFullAutomationModeTime = &v
+	return s
+}
+
 // SetSecondaryAvailabilityZone sets the SecondaryAvailabilityZone field's value.
 func (s *DBInstance) SetSecondaryAvailabilityZone(v string) *DBInstance {
 	s.SecondaryAvailabilityZone = &v
@@ -23166,12 +26354,16 @@ type DBInstanceAutomatedBackup struct {
 	AllocatedStorage *int64 `type:"integer"`
 
 	// The Availability Zone that the automated backup was created in. For information
-	// on AWS Regions and Availability Zones, see Regions and Availability Zones
-	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html).
+	// on Amazon Web Services Regions and Availability Zones, see Regions and Availability
+	// Zones (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html).
 	AvailabilityZone *string `type:"string"`
 
 	// The retention period for the automated backups.
 	BackupRetentionPeriod *int64 `type:"integer"`
+
+	// Specifies where automated backups are stored: Amazon Web Services Outposts
+	// or the Amazon Web Services Region.
+	BackupTarget *string `type:"string"`
 
 	// The Amazon Resource Name (ARN) for the automated backups.
 	DBInstanceArn *string `type:"string"`
@@ -23179,8 +26371,8 @@ type DBInstanceAutomatedBackup struct {
 	// The Amazon Resource Name (ARN) for the replicated automated backups.
 	DBInstanceAutomatedBackupsArn *string `type:"string"`
 
-	// The list of replications to different AWS Regions associated with the automated
-	// backup.
+	// The list of replications to different Amazon Web Services Regions associated
+	// with the automated backup.
 	DBInstanceAutomatedBackupsReplications []*DBInstanceAutomatedBackupsReplication `locationNameList:"DBInstanceAutomatedBackupsReplication" type:"list"`
 
 	// The customer id of the instance that is/was associated with the automated
@@ -23188,7 +26380,7 @@ type DBInstanceAutomatedBackup struct {
 	DBInstanceIdentifier *string `type:"string"`
 
 	// The identifier for the source DB instance, which can't be changed and which
-	// is unique to an AWS Region.
+	// is unique to an Amazon Web Services Region.
 	DbiResourceId *string `type:"string"`
 
 	// Specifies whether the automated backup is encrypted.
@@ -23200,8 +26392,8 @@ type DBInstanceAutomatedBackup struct {
 	// The version of the database engine for the automated backup.
 	EngineVersion *string `type:"string"`
 
-	// True if mapping of AWS Identity and Access Management (IAM) accounts to database
-	// accounts is enabled, and otherwise false.
+	// True if mapping of Amazon Web Services Identity and Access Management (IAM)
+	// accounts to database accounts is enabled, and otherwise false.
 	IAMDatabaseAuthenticationEnabled *bool `type:"boolean"`
 
 	// Provides the date and time that the DB instance was created.
@@ -23210,10 +26402,10 @@ type DBInstanceAutomatedBackup struct {
 	// The IOPS (I/O operations per second) value for the automated backup.
 	Iops *int64 `type:"integer"`
 
-	// The AWS KMS key ID for an automated backup.
+	// The Amazon Web Services KMS key ID for an automated backup.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	KmsKeyId *string `type:"string"`
 
 	// License model information for the automated backup.
@@ -23233,7 +26425,7 @@ type DBInstanceAutomatedBackup struct {
 	// Valid Values: 1150-65535
 	Port *int64 `type:"integer"`
 
-	// The AWS Region associated with the automated backup.
+	// The Amazon Web Services Region associated with the automated backup.
 	Region *string `type:"string"`
 
 	// Earliest and latest time an instance can be restored to.
@@ -23265,12 +26457,20 @@ type DBInstanceAutomatedBackup struct {
 	VpcId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstanceAutomatedBackup) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstanceAutomatedBackup) GoString() string {
 	return s.String()
 }
@@ -23290,6 +26490,12 @@ func (s *DBInstanceAutomatedBackup) SetAvailabilityZone(v string) *DBInstanceAut
 // SetBackupRetentionPeriod sets the BackupRetentionPeriod field's value.
 func (s *DBInstanceAutomatedBackup) SetBackupRetentionPeriod(v int64) *DBInstanceAutomatedBackup {
 	s.BackupRetentionPeriod = &v
+	return s
+}
+
+// SetBackupTarget sets the BackupTarget field's value.
+func (s *DBInstanceAutomatedBackup) SetBackupTarget(v string) *DBInstanceAutomatedBackup {
+	s.BackupTarget = &v
 	return s
 }
 
@@ -23431,8 +26637,9 @@ func (s *DBInstanceAutomatedBackup) SetVpcId(v string) *DBInstanceAutomatedBacku
 	return s
 }
 
-// Automated backups of a DB instance replicated to another AWS Region. They
-// consist of system backups, transaction logs, and database instance properties.
+// Automated backups of a DB instance replicated to another Amazon Web Services
+// Region. They consist of system backups, transaction logs, and database instance
+// properties.
 type DBInstanceAutomatedBackupsReplication struct {
 	_ struct{} `type:"structure"`
 
@@ -23440,12 +26647,20 @@ type DBInstanceAutomatedBackupsReplication struct {
 	DBInstanceAutomatedBackupsArn *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstanceAutomatedBackupsReplication) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstanceAutomatedBackupsReplication) GoString() string {
 	return s.String()
 }
@@ -23456,13 +26671,14 @@ func (s *DBInstanceAutomatedBackupsReplication) SetDBInstanceAutomatedBackupsArn
 	return s
 }
 
-// Describes an AWS Identity and Access Management (IAM) role that is associated
-// with a DB instance.
+// Describes an Amazon Web Services Identity and Access Management (IAM) role
+// that is associated with a DB instance.
 type DBInstanceRole struct {
 	_ struct{} `type:"structure"`
 
-	// The name of the feature associated with the AWS Identity and Access Management
-	// (IAM) role. For the list of supported feature names, see DBEngineVersion.
+	// The name of the feature associated with the Amazon Web Services Identity
+	// and Access Management (IAM) role. For information about supported feature
+	// names, see DBEngineVersion.
 	FeatureName *string `type:"string"`
 
 	// The Amazon Resource Name (ARN) of the IAM role that is associated with the
@@ -23473,22 +26689,30 @@ type DBInstanceRole struct {
 	// The Status property returns one of the following values:
 	//
 	//    * ACTIVE - the IAM role ARN is associated with the DB instance and can
-	//    be used to access other AWS services on your behalf.
+	//    be used to access other Amazon Web Services services on your behalf.
 	//
 	//    * PENDING - the IAM role ARN is being associated with the DB instance.
 	//
 	//    * INVALID - the IAM role ARN is associated with the DB instance, but the
 	//    DB instance is unable to assume the IAM role in order to access other
-	//    AWS services on your behalf.
+	//    Amazon Web Services services on your behalf.
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstanceRole) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstanceRole) GoString() string {
 	return s.String()
 }
@@ -23532,12 +26756,20 @@ type DBInstanceStatusInfo struct {
 	StatusType *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstanceStatusInfo) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBInstanceStatusInfo) GoString() string {
 	return s.String()
 }
@@ -23587,12 +26819,20 @@ type DBParameterGroup struct {
 	Description *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBParameterGroup) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBParameterGroup) GoString() string {
 	return s.String()
 }
@@ -23630,12 +26870,20 @@ type DBParameterGroupNameMessage struct {
 	DBParameterGroupName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBParameterGroupNameMessage) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBParameterGroupNameMessage) GoString() string {
 	return s.String()
 }
@@ -23671,12 +26919,20 @@ type DBParameterGroupStatus struct {
 	ParameterApplyStatus *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBParameterGroupStatus) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBParameterGroupStatus) GoString() string {
 	return s.String()
 }
@@ -23710,7 +26966,8 @@ type DBProxy struct {
 	DBProxyArn *string `type:"string"`
 
 	// The identifier for the proxy. This name must be unique for all proxies owned
-	// by your AWS account in the specified AWS Region.
+	// by your Amazon Web Services account in the specified Amazon Web Services
+	// Region.
 	DBProxyName *string `type:"string"`
 
 	// Whether the proxy includes detailed information about SQL statements in its
@@ -23722,8 +26979,8 @@ type DBProxy struct {
 	// in the logs.
 	DebugLogging *bool `type:"boolean"`
 
-	// The endpoint that you can use to connect to the proxy. You include the endpoint
-	// value in the connection string for a database client application.
+	// The endpoint that you can use to connect to the DB proxy. You include the
+	// endpoint value in the connection string for a database client application.
 	Endpoint *string `type:"string"`
 
 	// The engine family applies to MySQL and PostgreSQL for both RDS and Aurora.
@@ -23755,6 +27012,9 @@ type DBProxy struct {
 	// The date and time when the proxy was last updated.
 	UpdatedDate *time.Time `type:"timestamp"`
 
+	// Provides the VPC ID of the DB proxy.
+	VpcId *string `type:"string"`
+
 	// Provides a list of VPC security groups that the proxy belongs to.
 	VpcSecurityGroupIds []*string `type:"list"`
 
@@ -23762,12 +27022,20 @@ type DBProxy struct {
 	VpcSubnetIds []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBProxy) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBProxy) GoString() string {
 	return s.String()
 }
@@ -23844,6 +27112,12 @@ func (s *DBProxy) SetUpdatedDate(v time.Time) *DBProxy {
 	return s
 }
 
+// SetVpcId sets the VpcId field's value.
+func (s *DBProxy) SetVpcId(v string) *DBProxy {
+	s.VpcId = &v
+	return s
+}
+
 // SetVpcSecurityGroupIds sets the VpcSecurityGroupIds field's value.
 func (s *DBProxy) SetVpcSecurityGroupIds(v []*string) *DBProxy {
 	s.VpcSecurityGroupIds = v
@@ -23852,6 +27126,146 @@ func (s *DBProxy) SetVpcSecurityGroupIds(v []*string) *DBProxy {
 
 // SetVpcSubnetIds sets the VpcSubnetIds field's value.
 func (s *DBProxy) SetVpcSubnetIds(v []*string) *DBProxy {
+	s.VpcSubnetIds = v
+	return s
+}
+
+// The data structure representing an endpoint associated with a DB proxy. RDS
+// automatically creates one endpoint for each DB proxy. For Aurora DB clusters,
+// you can associate additional endpoints with the same DB proxy. These endpoints
+// can be read/write or read-only. They can also reside in different VPCs than
+// the associated DB proxy.
+//
+// This data type is used as a response element in the DescribeDBProxyEndpoints
+// operation.
+type DBProxyEndpoint struct {
+	_ struct{} `type:"structure"`
+
+	// The date and time when the DB proxy endpoint was first created.
+	CreatedDate *time.Time `type:"timestamp"`
+
+	// The Amazon Resource Name (ARN) for the DB proxy endpoint.
+	DBProxyEndpointArn *string `type:"string"`
+
+	// The name for the DB proxy endpoint. An identifier must begin with a letter
+	// and must contain only ASCII letters, digits, and hyphens; it can't end with
+	// a hyphen or contain two consecutive hyphens.
+	DBProxyEndpointName *string `type:"string"`
+
+	// The identifier for the DB proxy that is associated with this DB proxy endpoint.
+	DBProxyName *string `type:"string"`
+
+	// The endpoint that you can use to connect to the DB proxy. You include the
+	// endpoint value in the connection string for a database client application.
+	Endpoint *string `type:"string"`
+
+	// A value that indicates whether this endpoint is the default endpoint for
+	// the associated DB proxy. Default DB proxy endpoints always have read/write
+	// capability. Other endpoints that you associate with the DB proxy can be either
+	// read/write or read-only.
+	IsDefault *bool `type:"boolean"`
+
+	// The current status of this DB proxy endpoint. A status of available means
+	// the endpoint is ready to handle requests. Other values indicate that you
+	// must wait for the endpoint to be ready, or take some action to resolve an
+	// issue.
+	Status *string `type:"string" enum:"DBProxyEndpointStatus"`
+
+	// A value that indicates whether the DB proxy endpoint can be used for read/write
+	// or read-only operations.
+	TargetRole *string `type:"string" enum:"DBProxyEndpointTargetRole"`
+
+	// Provides the VPC ID of the DB proxy endpoint.
+	VpcId *string `type:"string"`
+
+	// Provides a list of VPC security groups that the DB proxy endpoint belongs
+	// to.
+	VpcSecurityGroupIds []*string `type:"list"`
+
+	// The EC2 subnet IDs for the DB proxy endpoint.
+	VpcSubnetIds []*string `type:"list"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DBProxyEndpoint) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DBProxyEndpoint) GoString() string {
+	return s.String()
+}
+
+// SetCreatedDate sets the CreatedDate field's value.
+func (s *DBProxyEndpoint) SetCreatedDate(v time.Time) *DBProxyEndpoint {
+	s.CreatedDate = &v
+	return s
+}
+
+// SetDBProxyEndpointArn sets the DBProxyEndpointArn field's value.
+func (s *DBProxyEndpoint) SetDBProxyEndpointArn(v string) *DBProxyEndpoint {
+	s.DBProxyEndpointArn = &v
+	return s
+}
+
+// SetDBProxyEndpointName sets the DBProxyEndpointName field's value.
+func (s *DBProxyEndpoint) SetDBProxyEndpointName(v string) *DBProxyEndpoint {
+	s.DBProxyEndpointName = &v
+	return s
+}
+
+// SetDBProxyName sets the DBProxyName field's value.
+func (s *DBProxyEndpoint) SetDBProxyName(v string) *DBProxyEndpoint {
+	s.DBProxyName = &v
+	return s
+}
+
+// SetEndpoint sets the Endpoint field's value.
+func (s *DBProxyEndpoint) SetEndpoint(v string) *DBProxyEndpoint {
+	s.Endpoint = &v
+	return s
+}
+
+// SetIsDefault sets the IsDefault field's value.
+func (s *DBProxyEndpoint) SetIsDefault(v bool) *DBProxyEndpoint {
+	s.IsDefault = &v
+	return s
+}
+
+// SetStatus sets the Status field's value.
+func (s *DBProxyEndpoint) SetStatus(v string) *DBProxyEndpoint {
+	s.Status = &v
+	return s
+}
+
+// SetTargetRole sets the TargetRole field's value.
+func (s *DBProxyEndpoint) SetTargetRole(v string) *DBProxyEndpoint {
+	s.TargetRole = &v
+	return s
+}
+
+// SetVpcId sets the VpcId field's value.
+func (s *DBProxyEndpoint) SetVpcId(v string) *DBProxyEndpoint {
+	s.VpcId = &v
+	return s
+}
+
+// SetVpcSecurityGroupIds sets the VpcSecurityGroupIds field's value.
+func (s *DBProxyEndpoint) SetVpcSecurityGroupIds(v []*string) *DBProxyEndpoint {
+	s.VpcSecurityGroupIds = v
+	return s
+}
+
+// SetVpcSubnetIds sets the VpcSubnetIds field's value.
+func (s *DBProxyEndpoint) SetVpcSubnetIds(v []*string) *DBProxyEndpoint {
 	s.VpcSubnetIds = v
 	return s
 }
@@ -23876,6 +27290,10 @@ type DBProxyTarget struct {
 	// for an RDS DB instance, or the cluster identifier for an Aurora DB cluster.
 	RdsResourceId *string `type:"string"`
 
+	// A value that indicates whether the target of the proxy can be used for read/write
+	// or read-only operations.
+	Role *string `type:"string" enum:"TargetRole"`
+
 	// The Amazon Resource Name (ARN) for the RDS DB instance or Aurora DB cluster.
 	TargetArn *string `type:"string"`
 
@@ -23891,12 +27309,20 @@ type DBProxyTarget struct {
 	Type *string `type:"string" enum:"TargetType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBProxyTarget) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBProxyTarget) GoString() string {
 	return s.String()
 }
@@ -23916,6 +27342,12 @@ func (s *DBProxyTarget) SetPort(v int64) *DBProxyTarget {
 // SetRdsResourceId sets the RdsResourceId field's value.
 func (s *DBProxyTarget) SetRdsResourceId(v string) *DBProxyTarget {
 	s.RdsResourceId = &v
+	return s
+}
+
+// SetRole sets the Role field's value.
+func (s *DBProxyTarget) SetRole(v string) *DBProxyTarget {
+	s.Role = &v
 	return s
 }
 
@@ -23977,19 +27409,28 @@ type DBProxyTargetGroup struct {
 	TargetGroupArn *string `type:"string"`
 
 	// The identifier for the target group. This name must be unique for all target
-	// groups owned by your AWS account in the specified AWS Region.
+	// groups owned by your Amazon Web Services account in the specified Amazon
+	// Web Services Region.
 	TargetGroupName *string `type:"string"`
 
 	// The date and time when the target group was last updated.
 	UpdatedDate *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBProxyTargetGroup) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBProxyTargetGroup) GoString() string {
 	return s.String()
 }
@@ -24064,19 +27505,28 @@ type DBSecurityGroup struct {
 	// Contains a list of IPRange elements.
 	IPRanges []*IPRange `locationNameList:"IPRange" type:"list"`
 
-	// Provides the AWS ID of the owner of a specific DB security group.
+	// Provides the Amazon Web Services ID of the owner of a specific DB security
+	// group.
 	OwnerId *string `type:"string"`
 
 	// Provides the VpcId of the DB security group.
 	VpcId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSecurityGroup) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSecurityGroup) GoString() string {
 	return s.String()
 }
@@ -24142,12 +27592,20 @@ type DBSecurityGroupMembership struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSecurityGroupMembership) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSecurityGroupMembership) GoString() string {
 	return s.String()
 }
@@ -24188,7 +27646,7 @@ type DBSnapshot struct {
 	DBSnapshotIdentifier *string `type:"string"`
 
 	// The identifier for the source DB instance, which can't be changed and which
-	// is unique to an AWS Region.
+	// is unique to an Amazon Web Services Region.
 	DbiResourceId *string `type:"string"`
 
 	// Specifies whether the DB snapshot is encrypted.
@@ -24200,8 +27658,8 @@ type DBSnapshot struct {
 	// Specifies the version of the database engine.
 	EngineVersion *string `type:"string"`
 
-	// True if mapping of AWS Identity and Access Management (IAM) accounts to database
-	// accounts is enabled, and otherwise false.
+	// True if mapping of Amazon Web Services Identity and Access Management (IAM)
+	// accounts to database accounts is enabled, and otherwise false.
 	IAMDatabaseAuthenticationEnabled *bool `type:"boolean"`
 
 	// Specifies the time in Coordinated Universal Time (UTC) when the DB instance,
@@ -24212,10 +27670,11 @@ type DBSnapshot struct {
 	// instance at the time of the snapshot.
 	Iops *int64 `type:"integer"`
 
-	// If Encrypted is true, the AWS KMS key identifier for the encrypted DB snapshot.
+	// If Encrypted is true, the Amazon Web Services KMS key identifier for the
+	// encrypted DB snapshot.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	KmsKeyId *string `type:"string"`
 
 	// License model information for the restored DB instance.
@@ -24226,6 +27685,10 @@ type DBSnapshot struct {
 
 	// Provides the option group name for the DB snapshot.
 	OptionGroupName *string `type:"string"`
+
+	// Specifies the time of the CreateDBSnapshot operation in Coordinated Universal
+	// Time (UTC). Doesn't change when the snapshot is copied.
+	OriginalSnapshotCreateTime *time.Time `type:"timestamp"`
 
 	// The percentage of the estimated data that has been transferred.
 	PercentProgress *int64 `type:"integer"`
@@ -24239,16 +27702,23 @@ type DBSnapshot struct {
 	ProcessorFeatures []*ProcessorFeature `locationNameList:"ProcessorFeature" type:"list"`
 
 	// Specifies when the snapshot was taken in Coordinated Universal Time (UTC).
+	// Changes for the copy when the snapshot is copied.
 	SnapshotCreateTime *time.Time `type:"timestamp"`
+
+	// Specifies where manual snapshots are stored: Amazon Web Services Outposts
+	// or the Amazon Web Services Region.
+	SnapshotTarget *string `type:"string"`
 
 	// Provides the type of the DB snapshot.
 	SnapshotType *string `type:"string"`
 
 	// The DB snapshot Amazon Resource Name (ARN) that the DB snapshot was copied
-	// from. It only has value in case of cross-customer or cross-region copy.
+	// from. It only has a value in the case of a cross-account or cross-Region
+	// copy.
 	SourceDBSnapshotIdentifier *string `type:"string"`
 
-	// The AWS Region that the DB snapshot was created in or copied from.
+	// The Amazon Web Services Region that the DB snapshot was created in or copied
+	// from.
 	SourceRegion *string `type:"string"`
 
 	// Specifies the status of this DB snapshot.
@@ -24273,12 +27743,20 @@ type DBSnapshot struct {
 	VpcId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSnapshot) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSnapshot) GoString() string {
 	return s.String()
 }
@@ -24379,6 +27857,12 @@ func (s *DBSnapshot) SetOptionGroupName(v string) *DBSnapshot {
 	return s
 }
 
+// SetOriginalSnapshotCreateTime sets the OriginalSnapshotCreateTime field's value.
+func (s *DBSnapshot) SetOriginalSnapshotCreateTime(v time.Time) *DBSnapshot {
+	s.OriginalSnapshotCreateTime = &v
+	return s
+}
+
 // SetPercentProgress sets the PercentProgress field's value.
 func (s *DBSnapshot) SetPercentProgress(v int64) *DBSnapshot {
 	s.PercentProgress = &v
@@ -24400,6 +27884,12 @@ func (s *DBSnapshot) SetProcessorFeatures(v []*ProcessorFeature) *DBSnapshot {
 // SetSnapshotCreateTime sets the SnapshotCreateTime field's value.
 func (s *DBSnapshot) SetSnapshotCreateTime(v time.Time) *DBSnapshot {
 	s.SnapshotCreateTime = &v
+	return s
+}
+
+// SetSnapshotTarget sets the SnapshotTarget field's value.
+func (s *DBSnapshot) SetSnapshotTarget(v string) *DBSnapshot {
+	s.SnapshotTarget = &v
 	return s
 }
 
@@ -24459,34 +27949,43 @@ func (s *DBSnapshot) SetVpcId(v string) *DBSnapshot {
 
 // Contains the name and values of a manual DB snapshot attribute
 //
-// Manual DB snapshot attributes are used to authorize other AWS accounts to
-// restore a manual DB snapshot. For more information, see the ModifyDBSnapshotAttribute
+// Manual DB snapshot attributes are used to authorize other Amazon Web Services
+// accounts to restore a manual DB snapshot. For more information, see the ModifyDBSnapshotAttribute
 // API.
 type DBSnapshotAttribute struct {
 	_ struct{} `type:"structure"`
 
 	// The name of the manual DB snapshot attribute.
 	//
-	// The attribute named restore refers to the list of AWS accounts that have
-	// permission to copy or restore the manual DB cluster snapshot. For more information,
-	// see the ModifyDBSnapshotAttribute API action.
+	// The attribute named restore refers to the list of Amazon Web Services accounts
+	// that have permission to copy or restore the manual DB cluster snapshot. For
+	// more information, see the ModifyDBSnapshotAttribute API action.
 	AttributeName *string `type:"string"`
 
 	// The value or values for the manual DB snapshot attribute.
 	//
 	// If the AttributeName field is set to restore, then this element returns a
-	// list of IDs of the AWS accounts that are authorized to copy or restore the
-	// manual DB snapshot. If a value of all is in the list, then the manual DB
-	// snapshot is public and available for any AWS account to copy or restore.
+	// list of IDs of the Amazon Web Services accounts that are authorized to copy
+	// or restore the manual DB snapshot. If a value of all is in the list, then
+	// the manual DB snapshot is public and available for any Amazon Web Services
+	// account to copy or restore.
 	AttributeValues []*string `locationNameList:"AttributeValue" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSnapshotAttribute) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSnapshotAttribute) GoString() string {
 	return s.String()
 }
@@ -24506,9 +28005,9 @@ func (s *DBSnapshotAttribute) SetAttributeValues(v []*string) *DBSnapshotAttribu
 // Contains the results of a successful call to the DescribeDBSnapshotAttributes
 // API action.
 //
-// Manual DB snapshot attributes are used to authorize other AWS accounts to
-// copy or restore a manual DB snapshot. For more information, see the ModifyDBSnapshotAttribute
-// API action.
+// Manual DB snapshot attributes are used to authorize other Amazon Web Services
+// accounts to copy or restore a manual DB snapshot. For more information, see
+// the ModifyDBSnapshotAttribute API action.
 type DBSnapshotAttributesResult struct {
 	_ struct{} `type:"structure"`
 
@@ -24519,12 +28018,20 @@ type DBSnapshotAttributesResult struct {
 	DBSnapshotIdentifier *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSnapshotAttributesResult) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSnapshotAttributesResult) GoString() string {
 	return s.String()
 }
@@ -24567,12 +28074,20 @@ type DBSubnetGroup struct {
 	VpcId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSubnetGroup) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DBSubnetGroup) GoString() string {
 	return s.String()
 }
@@ -24622,12 +28137,20 @@ type DeleteCustomAvailabilityZoneInput struct {
 	CustomAvailabilityZoneId *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteCustomAvailabilityZoneInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteCustomAvailabilityZoneInput) GoString() string {
 	return s.String()
 }
@@ -24662,12 +28185,20 @@ type DeleteCustomAvailabilityZoneOutput struct {
 	CustomAvailabilityZone *CustomAvailabilityZone `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteCustomAvailabilityZoneOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteCustomAvailabilityZoneOutput) GoString() string {
 	return s.String()
 }
@@ -24675,6 +28206,360 @@ func (s DeleteCustomAvailabilityZoneOutput) GoString() string {
 // SetCustomAvailabilityZone sets the CustomAvailabilityZone field's value.
 func (s *DeleteCustomAvailabilityZoneOutput) SetCustomAvailabilityZone(v *CustomAvailabilityZone) *DeleteCustomAvailabilityZoneOutput {
 	s.CustomAvailabilityZone = v
+	return s
+}
+
+type DeleteCustomDBEngineVersionInput struct {
+	_ struct{} `type:"structure"`
+
+	// The database engine. The only supported engine is custom-oracle-ee.
+	//
+	// Engine is a required field
+	Engine *string `min:"1" type:"string" required:"true"`
+
+	// The custom engine version (CEV) for your DB instance. This option is required
+	// for RDS Custom, but optional for Amazon RDS. The combination of Engine and
+	// EngineVersion is unique per customer per Amazon Web Services Region.
+	//
+	// EngineVersion is a required field
+	EngineVersion *string `min:"1" type:"string" required:"true"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteCustomDBEngineVersionInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteCustomDBEngineVersionInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *DeleteCustomDBEngineVersionInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "DeleteCustomDBEngineVersionInput"}
+	if s.Engine == nil {
+		invalidParams.Add(request.NewErrParamRequired("Engine"))
+	}
+	if s.Engine != nil && len(*s.Engine) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Engine", 1))
+	}
+	if s.EngineVersion == nil {
+		invalidParams.Add(request.NewErrParamRequired("EngineVersion"))
+	}
+	if s.EngineVersion != nil && len(*s.EngineVersion) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("EngineVersion", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetEngine sets the Engine field's value.
+func (s *DeleteCustomDBEngineVersionInput) SetEngine(v string) *DeleteCustomDBEngineVersionInput {
+	s.Engine = &v
+	return s
+}
+
+// SetEngineVersion sets the EngineVersion field's value.
+func (s *DeleteCustomDBEngineVersionInput) SetEngineVersion(v string) *DeleteCustomDBEngineVersionInput {
+	s.EngineVersion = &v
+	return s
+}
+
+// This data type is used as a response element in the action DescribeDBEngineVersions.
+type DeleteCustomDBEngineVersionOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The creation time of the DB engine version.
+	CreateTime *time.Time `type:"timestamp"`
+
+	// The description of the database engine.
+	DBEngineDescription *string `type:"string"`
+
+	// The ARN of the custom engine version.
+	DBEngineVersionArn *string `type:"string"`
+
+	// The description of the database engine version.
+	DBEngineVersionDescription *string `type:"string"`
+
+	// The name of the DB parameter group family for the database engine.
+	DBParameterGroupFamily *string `type:"string"`
+
+	// The name of the Amazon S3 bucket that contains your database installation
+	// files.
+	DatabaseInstallationFilesS3BucketName *string `type:"string"`
+
+	// The Amazon S3 directory that contains the database installation files. If
+	// not specified, then no prefix is assumed.
+	DatabaseInstallationFilesS3Prefix *string `type:"string"`
+
+	// The default character set for new instances of this engine version, if the
+	// CharacterSetName parameter of the CreateDBInstance API isn't specified.
+	DefaultCharacterSet *CharacterSet `type:"structure"`
+
+	// The name of the database engine.
+	Engine *string `type:"string"`
+
+	// The version number of the database engine.
+	EngineVersion *string `type:"string"`
+
+	// The types of logs that the database engine has available for export to CloudWatch
+	// Logs.
+	ExportableLogTypes []*string `type:"list"`
+
+	// The Amazon Web Services KMS key identifier for an encrypted CEV. This parameter
+	// is required for RDS Custom, but optional for Amazon RDS.
+	KMSKeyId *string `type:"string"`
+
+	// The major engine version of the CEV.
+	MajorEngineVersion *string `type:"string"`
+
+	// The status of the DB engine version, either available or deprecated.
+	Status *string `type:"string"`
+
+	// A list of the character sets supported by this engine for the CharacterSetName
+	// parameter of the CreateDBInstance operation.
+	SupportedCharacterSets []*CharacterSet `locationNameList:"CharacterSet" type:"list"`
+
+	// A list of the supported DB engine modes.
+	SupportedEngineModes []*string `type:"list"`
+
+	// A list of features supported by the DB engine.
+	//
+	// The supported features vary by DB engine and DB engine version.
+	//
+	// To determine the supported features for a specific DB engine and DB engine
+	// version using the CLI, use the following command:
+	//
+	// aws rds describe-db-engine-versions --engine <engine_name> --engine-version
+	// <engine_version>
+	//
+	// For example, to determine the supported features for RDS for PostgreSQL version
+	// 13.3 using the CLI, use the following command:
+	//
+	// aws rds describe-db-engine-versions --engine postgres --engine-version 13.3
+	//
+	// The supported features are listed under SupportedFeatureNames in the output.
+	SupportedFeatureNames []*string `type:"list"`
+
+	// A list of the character sets supported by the Oracle DB engine for the NcharCharacterSetName
+	// parameter of the CreateDBInstance operation.
+	SupportedNcharCharacterSets []*CharacterSet `locationNameList:"CharacterSet" type:"list"`
+
+	// A list of the time zones supported by this engine for the Timezone parameter
+	// of the CreateDBInstance action.
+	SupportedTimezones []*Timezone `locationNameList:"Timezone" type:"list"`
+
+	// A value that indicates whether the engine version supports Babelfish for
+	// Aurora PostgreSQL.
+	SupportsBabelfish *bool `type:"boolean"`
+
+	// A value that indicates whether you can use Aurora global databases with a
+	// specific DB engine version.
+	SupportsGlobalDatabases *bool `type:"boolean"`
+
+	// A value that indicates whether the engine version supports exporting the
+	// log types specified by ExportableLogTypes to CloudWatch Logs.
+	SupportsLogExportsToCloudwatchLogs *bool `type:"boolean"`
+
+	// A value that indicates whether you can use Aurora parallel query with a specific
+	// DB engine version.
+	SupportsParallelQuery *bool `type:"boolean"`
+
+	// Indicates whether the database engine version supports read replicas.
+	SupportsReadReplica *bool `type:"boolean"`
+
+	// A list of tags. For more information, see Tagging Amazon RDS Resources (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html)
+	// in the Amazon RDS User Guide.
+	TagList []*Tag `locationNameList:"Tag" type:"list"`
+
+	// A list of engine versions that this database engine version can be upgraded
+	// to.
+	ValidUpgradeTarget []*UpgradeTarget `locationNameList:"UpgradeTarget" type:"list"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteCustomDBEngineVersionOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteCustomDBEngineVersionOutput) GoString() string {
+	return s.String()
+}
+
+// SetCreateTime sets the CreateTime field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetCreateTime(v time.Time) *DeleteCustomDBEngineVersionOutput {
+	s.CreateTime = &v
+	return s
+}
+
+// SetDBEngineDescription sets the DBEngineDescription field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetDBEngineDescription(v string) *DeleteCustomDBEngineVersionOutput {
+	s.DBEngineDescription = &v
+	return s
+}
+
+// SetDBEngineVersionArn sets the DBEngineVersionArn field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetDBEngineVersionArn(v string) *DeleteCustomDBEngineVersionOutput {
+	s.DBEngineVersionArn = &v
+	return s
+}
+
+// SetDBEngineVersionDescription sets the DBEngineVersionDescription field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetDBEngineVersionDescription(v string) *DeleteCustomDBEngineVersionOutput {
+	s.DBEngineVersionDescription = &v
+	return s
+}
+
+// SetDBParameterGroupFamily sets the DBParameterGroupFamily field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetDBParameterGroupFamily(v string) *DeleteCustomDBEngineVersionOutput {
+	s.DBParameterGroupFamily = &v
+	return s
+}
+
+// SetDatabaseInstallationFilesS3BucketName sets the DatabaseInstallationFilesS3BucketName field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetDatabaseInstallationFilesS3BucketName(v string) *DeleteCustomDBEngineVersionOutput {
+	s.DatabaseInstallationFilesS3BucketName = &v
+	return s
+}
+
+// SetDatabaseInstallationFilesS3Prefix sets the DatabaseInstallationFilesS3Prefix field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetDatabaseInstallationFilesS3Prefix(v string) *DeleteCustomDBEngineVersionOutput {
+	s.DatabaseInstallationFilesS3Prefix = &v
+	return s
+}
+
+// SetDefaultCharacterSet sets the DefaultCharacterSet field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetDefaultCharacterSet(v *CharacterSet) *DeleteCustomDBEngineVersionOutput {
+	s.DefaultCharacterSet = v
+	return s
+}
+
+// SetEngine sets the Engine field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetEngine(v string) *DeleteCustomDBEngineVersionOutput {
+	s.Engine = &v
+	return s
+}
+
+// SetEngineVersion sets the EngineVersion field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetEngineVersion(v string) *DeleteCustomDBEngineVersionOutput {
+	s.EngineVersion = &v
+	return s
+}
+
+// SetExportableLogTypes sets the ExportableLogTypes field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetExportableLogTypes(v []*string) *DeleteCustomDBEngineVersionOutput {
+	s.ExportableLogTypes = v
+	return s
+}
+
+// SetKMSKeyId sets the KMSKeyId field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetKMSKeyId(v string) *DeleteCustomDBEngineVersionOutput {
+	s.KMSKeyId = &v
+	return s
+}
+
+// SetMajorEngineVersion sets the MajorEngineVersion field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetMajorEngineVersion(v string) *DeleteCustomDBEngineVersionOutput {
+	s.MajorEngineVersion = &v
+	return s
+}
+
+// SetStatus sets the Status field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetStatus(v string) *DeleteCustomDBEngineVersionOutput {
+	s.Status = &v
+	return s
+}
+
+// SetSupportedCharacterSets sets the SupportedCharacterSets field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportedCharacterSets(v []*CharacterSet) *DeleteCustomDBEngineVersionOutput {
+	s.SupportedCharacterSets = v
+	return s
+}
+
+// SetSupportedEngineModes sets the SupportedEngineModes field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportedEngineModes(v []*string) *DeleteCustomDBEngineVersionOutput {
+	s.SupportedEngineModes = v
+	return s
+}
+
+// SetSupportedFeatureNames sets the SupportedFeatureNames field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportedFeatureNames(v []*string) *DeleteCustomDBEngineVersionOutput {
+	s.SupportedFeatureNames = v
+	return s
+}
+
+// SetSupportedNcharCharacterSets sets the SupportedNcharCharacterSets field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportedNcharCharacterSets(v []*CharacterSet) *DeleteCustomDBEngineVersionOutput {
+	s.SupportedNcharCharacterSets = v
+	return s
+}
+
+// SetSupportedTimezones sets the SupportedTimezones field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportedTimezones(v []*Timezone) *DeleteCustomDBEngineVersionOutput {
+	s.SupportedTimezones = v
+	return s
+}
+
+// SetSupportsBabelfish sets the SupportsBabelfish field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportsBabelfish(v bool) *DeleteCustomDBEngineVersionOutput {
+	s.SupportsBabelfish = &v
+	return s
+}
+
+// SetSupportsGlobalDatabases sets the SupportsGlobalDatabases field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportsGlobalDatabases(v bool) *DeleteCustomDBEngineVersionOutput {
+	s.SupportsGlobalDatabases = &v
+	return s
+}
+
+// SetSupportsLogExportsToCloudwatchLogs sets the SupportsLogExportsToCloudwatchLogs field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportsLogExportsToCloudwatchLogs(v bool) *DeleteCustomDBEngineVersionOutput {
+	s.SupportsLogExportsToCloudwatchLogs = &v
+	return s
+}
+
+// SetSupportsParallelQuery sets the SupportsParallelQuery field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportsParallelQuery(v bool) *DeleteCustomDBEngineVersionOutput {
+	s.SupportsParallelQuery = &v
+	return s
+}
+
+// SetSupportsReadReplica sets the SupportsReadReplica field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetSupportsReadReplica(v bool) *DeleteCustomDBEngineVersionOutput {
+	s.SupportsReadReplica = &v
+	return s
+}
+
+// SetTagList sets the TagList field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetTagList(v []*Tag) *DeleteCustomDBEngineVersionOutput {
+	s.TagList = v
+	return s
+}
+
+// SetValidUpgradeTarget sets the ValidUpgradeTarget field's value.
+func (s *DeleteCustomDBEngineVersionOutput) SetValidUpgradeTarget(v []*UpgradeTarget) *DeleteCustomDBEngineVersionOutput {
+	s.ValidUpgradeTarget = v
 	return s
 }
 
@@ -24688,12 +28573,20 @@ type DeleteDBClusterEndpointInput struct {
 	DBClusterEndpointIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterEndpointInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterEndpointInput) GoString() string {
 	return s.String()
 }
@@ -24773,12 +28666,20 @@ type DeleteDBClusterEndpointOutput struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterEndpointOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterEndpointOutput) GoString() string {
 	return s.String()
 }
@@ -24882,12 +28783,20 @@ type DeleteDBClusterInput struct {
 	SkipFinalSnapshot *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -24926,19 +28835,41 @@ func (s *DeleteDBClusterInput) SetSkipFinalSnapshot(v bool) *DeleteDBClusterInpu
 type DeleteDBClusterOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -24966,12 +28897,20 @@ type DeleteDBClusterParameterGroupInput struct {
 	DBClusterParameterGroupName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -24999,12 +28938,20 @@ type DeleteDBClusterParameterGroupOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterParameterGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterParameterGroupOutput) GoString() string {
 	return s.String()
 }
@@ -25021,12 +28968,20 @@ type DeleteDBClusterSnapshotInput struct {
 	DBClusterSnapshotIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterSnapshotInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterSnapshotInput) GoString() string {
 	return s.String()
 }
@@ -25060,12 +29015,20 @@ type DeleteDBClusterSnapshotOutput struct {
 	DBClusterSnapshot *DBClusterSnapshot `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterSnapshotOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBClusterSnapshotOutput) GoString() string {
 	return s.String()
 }
@@ -25082,19 +29045,29 @@ type DeleteDBInstanceAutomatedBackupInput struct {
 
 	// The Amazon Resource Name (ARN) of the automated backups to delete, for example,
 	// arn:aws:rds:us-east-1:123456789012:auto-backup:ab-L2IJCEXJP7XQ7HOJ4SIEXAMPLE.
+	//
+	// This setting doesn't apply to RDS Custom.
 	DBInstanceAutomatedBackupsArn *string `type:"string"`
 
 	// The identifier for the source DB instance, which can't be changed and which
-	// is unique to an AWS Region.
+	// is unique to an Amazon Web Services Region.
 	DbiResourceId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBInstanceAutomatedBackupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBInstanceAutomatedBackupInput) GoString() string {
 	return s.String()
 }
@@ -25120,12 +29093,20 @@ type DeleteDBInstanceAutomatedBackupOutput struct {
 	DBInstanceAutomatedBackup *DBInstanceAutomatedBackup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBInstanceAutomatedBackupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBInstanceAutomatedBackupOutput) GoString() string {
 	return s.String()
 }
@@ -25157,8 +29138,10 @@ type DeleteDBInstanceInput struct {
 	// The DBSnapshotIdentifier of the new DBSnapshot created when the SkipFinalSnapshot
 	// parameter is disabled.
 	//
-	// Specifying this parameter and also specifying to skip final DB snapshot creation
-	// in SkipFinalShapshot results in an error.
+	// If you enable this parameter and also enable SkipFinalShapshot, the command
+	// results in an error.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Constraints:
 	//
@@ -25172,26 +29155,39 @@ type DeleteDBInstanceInput struct {
 	FinalDBSnapshotIdentifier *string `type:"string"`
 
 	// A value that indicates whether to skip the creation of a final DB snapshot
-	// before the DB instance is deleted. If skip is specified, no DB snapshot is
-	// created. If skip isn't specified, a DB snapshot is created before the DB
-	// instance is deleted. By default, skip isn't specified, and the DB snapshot
-	// is created.
+	// before deleting the instance. If you enable this parameter, RDS doesn't create
+	// a DB snapshot. If you don't enable this parameter, RDS creates a DB snapshot
+	// before the DB instance is deleted. By default, skip isn't enabled, and the
+	// DB snapshot is created.
 	//
-	// When a DB instance is in a failure state and has a status of 'failed', 'incompatible-restore',
-	// or 'incompatible-network', it can only be deleted when skip is specified.
+	// If you don't enable this parameter, you must specify the FinalDBSnapshotIdentifier
+	// parameter.
 	//
-	// Specify skip when deleting a read replica.
+	// When a DB instance is in a failure state and has a status of failed, incompatible-restore,
+	// or incompatible-network, RDS can delete the instance only if you enable this
+	// parameter.
 	//
-	// The FinalDBSnapshotIdentifier parameter must be specified if skip isn't specified.
+	// If you delete a read replica or an RDS Custom instance, you must enable this
+	// setting.
+	//
+	// This setting is required for RDS Custom.
 	SkipFinalSnapshot *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBInstanceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBInstanceInput) GoString() string {
 	return s.String()
 }
@@ -25238,16 +29234,27 @@ type DeleteDBInstanceOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBInstanceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBInstanceOutput) GoString() string {
 	return s.String()
 }
@@ -25275,12 +29282,20 @@ type DeleteDBParameterGroupInput struct {
 	DBParameterGroupName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -25308,14 +29323,103 @@ type DeleteDBParameterGroupOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBParameterGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBParameterGroupOutput) GoString() string {
 	return s.String()
+}
+
+type DeleteDBProxyEndpointInput struct {
+	_ struct{} `type:"structure"`
+
+	// The name of the DB proxy endpoint to delete.
+	//
+	// DBProxyEndpointName is a required field
+	DBProxyEndpointName *string `min:"1" type:"string" required:"true"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteDBProxyEndpointInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteDBProxyEndpointInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *DeleteDBProxyEndpointInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "DeleteDBProxyEndpointInput"}
+	if s.DBProxyEndpointName == nil {
+		invalidParams.Add(request.NewErrParamRequired("DBProxyEndpointName"))
+	}
+	if s.DBProxyEndpointName != nil && len(*s.DBProxyEndpointName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("DBProxyEndpointName", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDBProxyEndpointName sets the DBProxyEndpointName field's value.
+func (s *DeleteDBProxyEndpointInput) SetDBProxyEndpointName(v string) *DeleteDBProxyEndpointInput {
+	s.DBProxyEndpointName = &v
+	return s
+}
+
+type DeleteDBProxyEndpointOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The data structure representing the details of the DB proxy endpoint that
+	// you delete.
+	DBProxyEndpoint *DBProxyEndpoint `type:"structure"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteDBProxyEndpointOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteDBProxyEndpointOutput) GoString() string {
+	return s.String()
+}
+
+// SetDBProxyEndpoint sets the DBProxyEndpoint field's value.
+func (s *DeleteDBProxyEndpointOutput) SetDBProxyEndpoint(v *DBProxyEndpoint) *DeleteDBProxyEndpointOutput {
+	s.DBProxyEndpoint = v
+	return s
 }
 
 type DeleteDBProxyInput struct {
@@ -25327,12 +29431,20 @@ type DeleteDBProxyInput struct {
 	DBProxyName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBProxyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBProxyInput) GoString() string {
 	return s.String()
 }
@@ -25363,12 +29475,20 @@ type DeleteDBProxyOutput struct {
 	DBProxy *DBProxy `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBProxyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBProxyOutput) GoString() string {
 	return s.String()
 }
@@ -25400,12 +29520,20 @@ type DeleteDBSecurityGroupInput struct {
 	DBSecurityGroupName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSecurityGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSecurityGroupInput) GoString() string {
 	return s.String()
 }
@@ -25433,12 +29561,20 @@ type DeleteDBSecurityGroupOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSecurityGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSecurityGroupOutput) GoString() string {
 	return s.String()
 }
@@ -25455,12 +29591,20 @@ type DeleteDBSnapshotInput struct {
 	DBSnapshotIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSnapshotInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSnapshotInput) GoString() string {
 	return s.String()
 }
@@ -25493,12 +29637,20 @@ type DeleteDBSnapshotOutput struct {
 	DBSnapshot *DBSnapshot `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSnapshotOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSnapshotOutput) GoString() string {
 	return s.String()
 }
@@ -25516,23 +29668,29 @@ type DeleteDBSubnetGroupInput struct {
 	//
 	// You can't delete the default subnet group.
 	//
-	// Constraints:
-	//
 	// Constraints: Must match the name of an existing DBSubnetGroup. Must not be
 	// default.
 	//
-	// Example: mySubnetgroup
+	// Example: mydbsubnetgroup
 	//
 	// DBSubnetGroupName is a required field
 	DBSubnetGroupName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSubnetGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSubnetGroupInput) GoString() string {
 	return s.String()
 }
@@ -25560,12 +29718,20 @@ type DeleteDBSubnetGroupOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSubnetGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteDBSubnetGroupOutput) GoString() string {
 	return s.String()
 }
@@ -25579,12 +29745,20 @@ type DeleteEventSubscriptionInput struct {
 	SubscriptionName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteEventSubscriptionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteEventSubscriptionInput) GoString() string {
 	return s.String()
 }
@@ -25616,12 +29790,20 @@ type DeleteEventSubscriptionOutput struct {
 	EventSubscription *EventSubscription `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteEventSubscriptionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteEventSubscriptionOutput) GoString() string {
 	return s.String()
 }
@@ -25641,12 +29823,20 @@ type DeleteGlobalClusterInput struct {
 	GlobalClusterIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGlobalClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGlobalClusterInput) GoString() string {
 	return s.String()
 }
@@ -25677,12 +29867,20 @@ type DeleteGlobalClusterOutput struct {
 	GlobalCluster *GlobalCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGlobalClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteGlobalClusterOutput) GoString() string {
 	return s.String()
 }
@@ -25702,12 +29900,20 @@ type DeleteInstallationMediaInput struct {
 	InstallationMediaId *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteInstallationMediaInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteInstallationMediaInput) GoString() string {
 	return s.String()
 }
@@ -25762,12 +29968,20 @@ type DeleteInstallationMediaOutput struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteInstallationMediaOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteInstallationMediaOutput) GoString() string {
 	return s.String()
 }
@@ -25831,12 +30045,20 @@ type DeleteOptionGroupInput struct {
 	OptionGroupName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteOptionGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteOptionGroupInput) GoString() string {
 	return s.String()
 }
@@ -25864,12 +30086,20 @@ type DeleteOptionGroupOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteOptionGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeleteOptionGroupOutput) GoString() string {
 	return s.String()
 }
@@ -25892,12 +30122,20 @@ type DeregisterDBProxyTargetsInput struct {
 	TargetGroupName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeregisterDBProxyTargetsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeregisterDBProxyTargetsInput) GoString() string {
 	return s.String()
 }
@@ -25943,12 +30181,20 @@ type DeregisterDBProxyTargetsOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeregisterDBProxyTargetsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DeregisterDBProxyTargetsOutput) GoString() string {
 	return s.String()
 }
@@ -25957,12 +30203,20 @@ type DescribeAccountAttributesInput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeAccountAttributesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeAccountAttributesInput) GoString() string {
 	return s.String()
 }
@@ -25976,12 +30230,20 @@ type DescribeAccountAttributesOutput struct {
 	AccountQuotas []*AccountQuota `locationNameList:"AccountQuota" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeAccountAttributesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeAccountAttributesOutput) GoString() string {
 	return s.String()
 }
@@ -26022,12 +30284,20 @@ type DescribeCertificatesInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeCertificatesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeCertificatesInput) GoString() string {
 	return s.String()
 }
@@ -26080,7 +30350,7 @@ func (s *DescribeCertificatesInput) SetMaxRecords(v int64) *DescribeCertificates
 type DescribeCertificatesOutput struct {
 	_ struct{} `type:"structure"`
 
-	// The list of Certificate objects for the AWS account.
+	// The list of Certificate objects for the Amazon Web Services account.
 	Certificates []*Certificate `locationNameList:"Certificate" type:"list"`
 
 	// An optional pagination token provided by a previous DescribeCertificates
@@ -26089,12 +30359,20 @@ type DescribeCertificatesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeCertificatesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeCertificatesOutput) GoString() string {
 	return s.String()
 }
@@ -26136,12 +30414,20 @@ type DescribeCustomAvailabilityZonesInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeCustomAvailabilityZonesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeCustomAvailabilityZonesInput) GoString() string {
 	return s.String()
 }
@@ -26193,7 +30479,7 @@ func (s *DescribeCustomAvailabilityZonesInput) SetMaxRecords(v int64) *DescribeC
 type DescribeCustomAvailabilityZonesOutput struct {
 	_ struct{} `type:"structure"`
 
-	// The list of CustomAvailabilityZone objects for the AWS account.
+	// The list of CustomAvailabilityZone objects for the Amazon Web Services account.
 	CustomAvailabilityZones []*CustomAvailabilityZone `locationNameList:"CustomAvailabilityZone" type:"list"`
 
 	// An optional pagination token provided by a previous DescribeCustomAvailabilityZones
@@ -26202,12 +30488,20 @@ type DescribeCustomAvailabilityZonesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeCustomAvailabilityZonesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeCustomAvailabilityZonesOutput) GoString() string {
 	return s.String()
 }
@@ -26282,12 +30576,20 @@ type DescribeDBClusterBacktracksInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterBacktracksInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterBacktracksInput) GoString() string {
 	return s.String()
 }
@@ -26358,12 +30660,20 @@ type DescribeDBClusterBacktracksOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterBacktracksOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterBacktracksOutput) GoString() string {
 	return s.String()
 }
@@ -26415,12 +30725,20 @@ type DescribeDBClusterEndpointsInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterEndpointsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterEndpointsInput) GoString() string {
 	return s.String()
 }
@@ -26488,12 +30806,20 @@ type DescribeDBClusterEndpointsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterEndpointsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterEndpointsOutput) GoString() string {
 	return s.String()
 }
@@ -26538,12 +30864,20 @@ type DescribeDBClusterParameterGroupsInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterParameterGroupsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterParameterGroupsInput) GoString() string {
 	return s.String()
 }
@@ -26604,12 +30938,20 @@ type DescribeDBClusterParameterGroupsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterParameterGroupsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterParameterGroupsOutput) GoString() string {
 	return s.String()
 }
@@ -26661,12 +31003,20 @@ type DescribeDBClusterParametersInput struct {
 	Source *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterParametersInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterParametersInput) GoString() string {
 	return s.String()
 }
@@ -26738,12 +31088,20 @@ type DescribeDBClusterParametersOutput struct {
 	Parameters []*Parameter `locationNameList:"Parameter" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterParametersOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterParametersOutput) GoString() string {
 	return s.String()
 }
@@ -26769,12 +31127,20 @@ type DescribeDBClusterSnapshotAttributesInput struct {
 	DBClusterSnapshotIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterSnapshotAttributesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterSnapshotAttributesInput) GoString() string {
 	return s.String()
 }
@@ -26804,18 +31170,26 @@ type DescribeDBClusterSnapshotAttributesOutput struct {
 	// Contains the results of a successful call to the DescribeDBClusterSnapshotAttributes
 	// API action.
 	//
-	// Manual DB cluster snapshot attributes are used to authorize other AWS accounts
-	// to copy or restore a manual DB cluster snapshot. For more information, see
-	// the ModifyDBClusterSnapshotAttribute API action.
+	// Manual DB cluster snapshot attributes are used to authorize other Amazon
+	// Web Services accounts to copy or restore a manual DB cluster snapshot. For
+	// more information, see the ModifyDBClusterSnapshotAttribute API action.
 	DBClusterSnapshotAttributesResult *DBClusterSnapshotAttributesResult `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterSnapshotAttributesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterSnapshotAttributesOutput) GoString() string {
 	return s.String()
 }
@@ -26865,19 +31239,21 @@ type DescribeDBClusterSnapshotsInput struct {
 	Filters []*Filter `locationNameList:"Filter" type:"list"`
 
 	// A value that indicates whether to include manual DB cluster snapshots that
-	// are public and can be copied or restored by any AWS account. By default,
-	// the public snapshots are not included.
+	// are public and can be copied or restored by any Amazon Web Services account.
+	// By default, the public snapshots are not included.
 	//
 	// You can share a manual DB cluster snapshot as public by using the ModifyDBClusterSnapshotAttribute
 	// API action.
 	IncludePublic *bool `type:"boolean"`
 
 	// A value that indicates whether to include shared manual DB cluster snapshots
-	// from other AWS accounts that this AWS account has been given permission to
-	// copy or restore. By default, these snapshots are not included.
+	// from other Amazon Web Services accounts that this Amazon Web Services account
+	// has been given permission to copy or restore. By default, these snapshots
+	// are not included.
 	//
-	// You can give an AWS account permission to restore a manual DB cluster snapshot
-	// from another AWS account by the ModifyDBClusterSnapshotAttribute API action.
+	// You can give an Amazon Web Services account permission to restore a manual
+	// DB cluster snapshot from another Amazon Web Services account by the ModifyDBClusterSnapshotAttribute
+	// API action.
 	IncludeShared *bool `type:"boolean"`
 
 	// An optional pagination token provided by a previous DescribeDBClusterSnapshots
@@ -26898,13 +31274,13 @@ type DescribeDBClusterSnapshotsInput struct {
 	// following values:
 	//
 	//    * automated - Return all DB cluster snapshots that have been automatically
-	//    taken by Amazon RDS for my AWS account.
+	//    taken by Amazon RDS for my Amazon Web Services account.
 	//
 	//    * manual - Return all DB cluster snapshots that have been taken by my
-	//    AWS account.
+	//    Amazon Web Services account.
 	//
 	//    * shared - Return all manual DB cluster snapshots that have been shared
-	//    to my AWS account.
+	//    to my Amazon Web Services account.
 	//
 	//    * public - Return all DB cluster snapshots that have been marked as public.
 	//
@@ -26921,12 +31297,20 @@ type DescribeDBClusterSnapshotsInput struct {
 	SnapshotType *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterSnapshotsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterSnapshotsInput) GoString() string {
 	return s.String()
 }
@@ -27013,12 +31397,20 @@ type DescribeDBClusterSnapshotsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterSnapshotsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClusterSnapshotsOutput) GoString() string {
 	return s.String()
 }
@@ -27051,13 +31443,23 @@ type DescribeDBClustersInput struct {
 	//
 	// Supported filters:
 	//
+	//    * clone-group-id - Accepts clone group identifiers. The results list only
+	//    includes information about the DB clusters associated with these clone
+	//    groups.
+	//
 	//    * db-cluster-id - Accepts DB cluster identifiers and DB cluster Amazon
-	//    Resource Names (ARNs). The results list will only include information
-	//    about the DB clusters identified by these ARNs.
+	//    Resource Names (ARNs). The results list only includes information about
+	//    the DB clusters identified by these ARNs.
+	//
+	//    * domain - Accepts Active Directory directory IDs. The results list only
+	//    includes information about the DB clusters associated with these domains.
+	//
+	//    * engine - Accepts engine names. The results list only includes information
+	//    about the DB clusters for these engines.
 	Filters []*Filter `locationNameList:"Filter" type:"list"`
 
 	// Optional Boolean parameter that specifies whether the output includes information
-	// about clusters shared from other AWS accounts.
+	// about clusters shared from other Amazon Web Services accounts.
 	IncludeShared *bool `type:"boolean"`
 
 	// An optional pagination token provided by a previous DescribeDBClusters request.
@@ -27075,12 +31477,20 @@ type DescribeDBClustersInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClustersInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClustersInput) GoString() string {
 	return s.String()
 }
@@ -27147,12 +31557,20 @@ type DescribeDBClustersOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClustersOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBClustersOutput) GoString() string {
 	return s.String()
 }
@@ -27189,7 +31607,7 @@ type DescribeDBEngineVersionsInput struct {
 	//
 	//    * aurora (for MySQL 5.6-compatible Aurora)
 	//
-	//    * aurora-mysql (for MySQL 5.7-compatible Aurora)
+	//    * aurora-mysql (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
 	//
 	//    * aurora-postgresql
 	//
@@ -27199,11 +31617,11 @@ type DescribeDBEngineVersionsInput struct {
 	//
 	//    * oracle-ee
 	//
+	//    * oracle-ee-cdb
+	//
 	//    * oracle-se2
 	//
-	//    * oracle-se1
-	//
-	//    * oracle-se
+	//    * oracle-se2-cdb
 	//
 	//    * postgres
 	//
@@ -27221,7 +31639,28 @@ type DescribeDBEngineVersionsInput struct {
 	// Example: 5.1.49
 	EngineVersion *string `type:"string"`
 
-	// This parameter isn't currently supported.
+	// A filter that specifies one or more DB engine versions to describe.
+	//
+	// Supported filters:
+	//
+	//    * db-parameter-group-family - Accepts parameter groups family names. The
+	//    results list only includes information about the DB engine versions for
+	//    these parameter group families.
+	//
+	//    * engine - Accepts engine names. The results list only includes information
+	//    about the DB engine versions for these engines.
+	//
+	//    * engine-mode - Accepts DB engine modes. The results list only includes
+	//    information about the DB engine versions for these engine modes. Valid
+	//    DB engine modes are the following: global multimaster parallelquery provisioned
+	//    serverless
+	//
+	//    * engine-version - Accepts engine versions. The results list only includes
+	//    information about the DB engine versions for these engine versions.
+	//
+	//    * status - Accepts engine version statuses. The results list only includes
+	//    information about the DB engine versions for these statuses. Valid statuses
+	//    are the following: available deprecated
 	Filters []*Filter `locationNameList:"Filter" type:"list"`
 
 	// A value that indicates whether to include engine versions that aren't available
@@ -27234,6 +31673,9 @@ type DescribeDBEngineVersionsInput struct {
 	// If this parameter is enabled and the requested engine supports the CharacterSetName
 	// parameter for CreateDBInstance, the response includes a list of supported
 	// character sets for each engine version.
+	//
+	// For RDS Custom, the default is not to list supported character sets. If you
+	// set ListSupportedCharacterSets to true, RDS Custom returns no results.
 	ListSupportedCharacterSets *bool `type:"boolean"`
 
 	// A value that indicates whether to list the supported time zones for each
@@ -27242,6 +31684,9 @@ type DescribeDBEngineVersionsInput struct {
 	// If this parameter is enabled and the requested engine supports the TimeZone
 	// parameter for CreateDBInstance, the response includes a list of supported
 	// time zones for each engine version.
+	//
+	// For RDS Custom, the default is not to list supported time zones. If you set
+	// ListSupportedTimezones to true, RDS Custom returns no results.
 	ListSupportedTimezones *bool `type:"boolean"`
 
 	// An optional pagination token provided by a previous request. If this parameter
@@ -27259,12 +31704,20 @@ type DescribeDBEngineVersionsInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBEngineVersionsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBEngineVersionsInput) GoString() string {
 	return s.String()
 }
@@ -27363,12 +31816,20 @@ type DescribeDBEngineVersionsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBEngineVersionsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBEngineVersionsOutput) GoString() string {
 	return s.String()
 }
@@ -27391,6 +31852,8 @@ type DescribeDBInstanceAutomatedBackupsInput struct {
 
 	// The Amazon Resource Name (ARN) of the replicated automated backups, for example,
 	// arn:aws:rds:us-east-1:123456789012:auto-backup:ab-L2IJCEXJP7XQ7HOJ4SIEXAMPLE.
+	//
+	// This setting doesn't apply to RDS Custom.
 	DBInstanceAutomatedBackupsArn *string `type:"string"`
 
 	// (Optional) The user-supplied instance identifier. If this parameter is specified,
@@ -27434,12 +31897,20 @@ type DescribeDBInstanceAutomatedBackupsInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBInstanceAutomatedBackupsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBInstanceAutomatedBackupsInput) GoString() string {
 	return s.String()
 }
@@ -27514,12 +31985,20 @@ type DescribeDBInstanceAutomatedBackupsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBInstanceAutomatedBackupsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBInstanceAutomatedBackupsOutput) GoString() string {
 	return s.String()
 }
@@ -27552,23 +32031,21 @@ type DescribeDBInstancesInput struct {
 	// Supported filters:
 	//
 	//    * db-cluster-id - Accepts DB cluster identifiers and DB cluster Amazon
-	//    Resource Names (ARNs). The results list will only include information
-	//    about the DB instances associated with the DB clusters identified by these
-	//    ARNs.
+	//    Resource Names (ARNs). The results list only includes information about
+	//    the DB instances associated with the DB clusters identified by these ARNs.
 	//
 	//    * db-instance-id - Accepts DB instance identifiers and DB instance Amazon
-	//    Resource Names (ARNs). The results list will only include information
-	//    about the DB instances identified by these ARNs.
+	//    Resource Names (ARNs). The results list only includes information about
+	//    the DB instances identified by these ARNs.
 	//
 	//    * dbi-resource-id - Accepts DB instance resource identifiers. The results
 	//    list will only include information about the DB instances identified by
 	//    these DB instance resource identifiers.
 	//
-	//    * domain - Accepts Active Directory directory IDs. The results list will
-	//    only include information about the DB instances associated with these
-	//    domains.
+	//    * domain - Accepts Active Directory directory IDs. The results list only
+	//    includes information about the DB instances associated with these domains.
 	//
-	//    * engine - Accepts engine names. The results list will only include information
+	//    * engine - Accepts engine names. The results list only includes information
 	//    about the DB instances for these engines.
 	Filters []*Filter `locationNameList:"Filter" type:"list"`
 
@@ -27587,12 +32064,20 @@ type DescribeDBInstancesInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBInstancesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBInstancesInput) GoString() string {
 	return s.String()
 }
@@ -27655,12 +32140,20 @@ type DescribeDBInstancesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBInstancesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBInstancesOutput) GoString() string {
 	return s.String()
 }
@@ -27691,12 +32184,20 @@ type DescribeDBLogFilesDetails struct {
 	Size *int64 `type:"long"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBLogFilesDetails) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBLogFilesDetails) GoString() string {
 	return s.String()
 }
@@ -27757,12 +32258,20 @@ type DescribeDBLogFilesInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBLogFilesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBLogFilesInput) GoString() string {
 	return s.String()
 }
@@ -27843,12 +32352,20 @@ type DescribeDBLogFilesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBLogFilesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBLogFilesOutput) GoString() string {
 	return s.String()
 }
@@ -27893,12 +32410,20 @@ type DescribeDBParameterGroupsInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBParameterGroupsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBParameterGroupsInput) GoString() string {
 	return s.String()
 }
@@ -27961,12 +32486,20 @@ type DescribeDBParameterGroupsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBParameterGroupsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBParameterGroupsOutput) GoString() string {
 	return s.String()
 }
@@ -28020,12 +32553,20 @@ type DescribeDBParametersInput struct {
 	Source *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBParametersInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBParametersInput) GoString() string {
 	return s.String()
 }
@@ -28097,12 +32638,20 @@ type DescribeDBParametersOutput struct {
 	Parameters []*Parameter `locationNameList:"Parameter" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBParametersOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBParametersOutput) GoString() string {
 	return s.String()
 }
@@ -28122,7 +32671,9 @@ func (s *DescribeDBParametersOutput) SetParameters(v []*Parameter) *DescribeDBPa
 type DescribeDBProxiesInput struct {
 	_ struct{} `type:"structure"`
 
-	// The name of the DB proxy.
+	// The name of the DB proxy. If you omit this parameter, the output includes
+	// information about all DB proxies owned by your Amazon Web Services account
+	// ID.
 	DBProxyName *string `type:"string"`
 
 	// This parameter is not currently supported.
@@ -28143,12 +32694,20 @@ type DescribeDBProxiesInput struct {
 	MaxRecords *int64 `min:"20" type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxiesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxiesInput) GoString() string {
 	return s.String()
 }
@@ -28212,12 +32771,20 @@ type DescribeDBProxiesOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxiesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxiesOutput) GoString() string {
 	return s.String()
 }
@@ -28230,6 +32797,156 @@ func (s *DescribeDBProxiesOutput) SetDBProxies(v []*DBProxy) *DescribeDBProxiesO
 
 // SetMarker sets the Marker field's value.
 func (s *DescribeDBProxiesOutput) SetMarker(v string) *DescribeDBProxiesOutput {
+	s.Marker = &v
+	return s
+}
+
+type DescribeDBProxyEndpointsInput struct {
+	_ struct{} `type:"structure"`
+
+	// The name of a DB proxy endpoint to describe. If you omit this parameter,
+	// the output includes information about all DB proxy endpoints associated with
+	// the specified proxy.
+	DBProxyEndpointName *string `min:"1" type:"string"`
+
+	// The name of the DB proxy whose endpoints you want to describe. If you omit
+	// this parameter, the output includes information about all DB proxy endpoints
+	// associated with all your DB proxies.
+	DBProxyName *string `min:"1" type:"string"`
+
+	// This parameter is not currently supported.
+	Filters []*Filter `locationNameList:"Filter" type:"list"`
+
+	// An optional pagination token provided by a previous request. If this parameter
+	// is specified, the response includes only records beyond the marker, up to
+	// the value specified by MaxRecords.
+	Marker *string `type:"string"`
+
+	// The maximum number of records to include in the response. If more records
+	// exist than the specified MaxRecords value, a pagination token called a marker
+	// is included in the response so that the remaining results can be retrieved.
+	//
+	// Default: 100
+	//
+	// Constraints: Minimum 20, maximum 100.
+	MaxRecords *int64 `min:"20" type:"integer"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeDBProxyEndpointsInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeDBProxyEndpointsInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *DescribeDBProxyEndpointsInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "DescribeDBProxyEndpointsInput"}
+	if s.DBProxyEndpointName != nil && len(*s.DBProxyEndpointName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("DBProxyEndpointName", 1))
+	}
+	if s.DBProxyName != nil && len(*s.DBProxyName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("DBProxyName", 1))
+	}
+	if s.MaxRecords != nil && *s.MaxRecords < 20 {
+		invalidParams.Add(request.NewErrParamMinValue("MaxRecords", 20))
+	}
+	if s.Filters != nil {
+		for i, v := range s.Filters {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "Filters", i), err.(request.ErrInvalidParams))
+			}
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDBProxyEndpointName sets the DBProxyEndpointName field's value.
+func (s *DescribeDBProxyEndpointsInput) SetDBProxyEndpointName(v string) *DescribeDBProxyEndpointsInput {
+	s.DBProxyEndpointName = &v
+	return s
+}
+
+// SetDBProxyName sets the DBProxyName field's value.
+func (s *DescribeDBProxyEndpointsInput) SetDBProxyName(v string) *DescribeDBProxyEndpointsInput {
+	s.DBProxyName = &v
+	return s
+}
+
+// SetFilters sets the Filters field's value.
+func (s *DescribeDBProxyEndpointsInput) SetFilters(v []*Filter) *DescribeDBProxyEndpointsInput {
+	s.Filters = v
+	return s
+}
+
+// SetMarker sets the Marker field's value.
+func (s *DescribeDBProxyEndpointsInput) SetMarker(v string) *DescribeDBProxyEndpointsInput {
+	s.Marker = &v
+	return s
+}
+
+// SetMaxRecords sets the MaxRecords field's value.
+func (s *DescribeDBProxyEndpointsInput) SetMaxRecords(v int64) *DescribeDBProxyEndpointsInput {
+	s.MaxRecords = &v
+	return s
+}
+
+type DescribeDBProxyEndpointsOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The list of ProxyEndpoint objects returned by the API operation.
+	DBProxyEndpoints []*DBProxyEndpoint `type:"list"`
+
+	// An optional pagination token provided by a previous request. If this parameter
+	// is specified, the response includes only records beyond the marker, up to
+	// the value specified by MaxRecords.
+	Marker *string `type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeDBProxyEndpointsOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeDBProxyEndpointsOutput) GoString() string {
+	return s.String()
+}
+
+// SetDBProxyEndpoints sets the DBProxyEndpoints field's value.
+func (s *DescribeDBProxyEndpointsOutput) SetDBProxyEndpoints(v []*DBProxyEndpoint) *DescribeDBProxyEndpointsOutput {
+	s.DBProxyEndpoints = v
+	return s
+}
+
+// SetMarker sets the Marker field's value.
+func (s *DescribeDBProxyEndpointsOutput) SetMarker(v string) *DescribeDBProxyEndpointsOutput {
 	s.Marker = &v
 	return s
 }
@@ -28263,12 +32980,20 @@ type DescribeDBProxyTargetGroupsInput struct {
 	TargetGroupName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxyTargetGroupsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxyTargetGroupsInput) GoString() string {
 	return s.String()
 }
@@ -28342,12 +33067,20 @@ type DescribeDBProxyTargetGroupsOutput struct {
 	TargetGroups []*DBProxyTargetGroup `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxyTargetGroupsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxyTargetGroupsOutput) GoString() string {
 	return s.String()
 }
@@ -28393,12 +33126,20 @@ type DescribeDBProxyTargetsInput struct {
 	TargetGroupName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxyTargetsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxyTargetsInput) GoString() string {
 	return s.String()
 }
@@ -28472,12 +33213,20 @@ type DescribeDBProxyTargetsOutput struct {
 	Targets []*DBProxyTarget `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxyTargetsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBProxyTargetsOutput) GoString() string {
 	return s.String()
 }
@@ -28518,12 +33267,20 @@ type DescribeDBSecurityGroupsInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSecurityGroupsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSecurityGroupsInput) GoString() string {
 	return s.String()
 }
@@ -28586,12 +33343,20 @@ type DescribeDBSecurityGroupsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSecurityGroupsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSecurityGroupsOutput) GoString() string {
 	return s.String()
 }
@@ -28617,12 +33382,20 @@ type DescribeDBSnapshotAttributesInput struct {
 	DBSnapshotIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSnapshotAttributesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSnapshotAttributesInput) GoString() string {
 	return s.String()
 }
@@ -28652,18 +33425,26 @@ type DescribeDBSnapshotAttributesOutput struct {
 	// Contains the results of a successful call to the DescribeDBSnapshotAttributes
 	// API action.
 	//
-	// Manual DB snapshot attributes are used to authorize other AWS accounts to
-	// copy or restore a manual DB snapshot. For more information, see the ModifyDBSnapshotAttribute
-	// API action.
+	// Manual DB snapshot attributes are used to authorize other Amazon Web Services
+	// accounts to copy or restore a manual DB snapshot. For more information, see
+	// the ModifyDBSnapshotAttribute API action.
 	DBSnapshotAttributesResult *DBSnapshotAttributesResult `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSnapshotAttributesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSnapshotAttributesOutput) GoString() string {
 	return s.String()
 }
@@ -28718,19 +33499,25 @@ type DescribeDBSnapshotsInput struct {
 	Filters []*Filter `locationNameList:"Filter" type:"list"`
 
 	// A value that indicates whether to include manual DB cluster snapshots that
-	// are public and can be copied or restored by any AWS account. By default,
-	// the public snapshots are not included.
+	// are public and can be copied or restored by any Amazon Web Services account.
+	// By default, the public snapshots are not included.
 	//
 	// You can share a manual DB snapshot as public by using the ModifyDBSnapshotAttribute
 	// API.
+	//
+	// This setting doesn't apply to RDS Custom.
 	IncludePublic *bool `type:"boolean"`
 
 	// A value that indicates whether to include shared manual DB cluster snapshots
-	// from other AWS accounts that this AWS account has been given permission to
-	// copy or restore. By default, these snapshots are not included.
+	// from other Amazon Web Services accounts that this Amazon Web Services account
+	// has been given permission to copy or restore. By default, these snapshots
+	// are not included.
 	//
-	// You can give an AWS account permission to restore a manual DB snapshot from
-	// another AWS account by using the ModifyDBSnapshotAttribute API action.
+	// You can give an Amazon Web Services account permission to restore a manual
+	// DB snapshot from another Amazon Web Services account by using the ModifyDBSnapshotAttribute
+	// API action.
+	//
+	// This setting doesn't apply to RDS Custom.
 	IncludeShared *bool `type:"boolean"`
 
 	// An optional pagination token provided by a previous DescribeDBSnapshots request.
@@ -28751,18 +33538,19 @@ type DescribeDBSnapshotsInput struct {
 	// values:
 	//
 	//    * automated - Return all DB snapshots that have been automatically taken
-	//    by Amazon RDS for my AWS account.
+	//    by Amazon RDS for my Amazon Web Services account.
 	//
-	//    * manual - Return all DB snapshots that have been taken by my AWS account.
+	//    * manual - Return all DB snapshots that have been taken by my Amazon Web
+	//    Services account.
 	//
 	//    * shared - Return all manual DB snapshots that have been shared to my
-	//    AWS account.
+	//    Amazon Web Services account.
 	//
 	//    * public - Return all DB snapshots that have been marked as public.
 	//
-	//    * awsbackup - Return the DB snapshots managed by the AWS Backup service.
-	//    For information about AWS Backup, see the AWS Backup Developer Guide.
-	//    (https://docs.aws.amazon.com/aws-backup/latest/devguide/whatisbackup.html)
+	//    * awsbackup - Return the DB snapshots managed by the Amazon Web Services
+	//    Backup service. For information about Amazon Web Services Backup, see
+	//    the Amazon Web Services Backup Developer Guide. (https://docs.aws.amazon.com/aws-backup/latest/devguide/whatisbackup.html)
 	//    The awsbackup type does not apply to Aurora.
 	//
 	// If you don't specify a SnapshotType value, then both automated and manual
@@ -28778,12 +33566,20 @@ type DescribeDBSnapshotsInput struct {
 	SnapshotType *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSnapshotsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSnapshotsInput) GoString() string {
 	return s.String()
 }
@@ -28876,12 +33672,20 @@ type DescribeDBSnapshotsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSnapshotsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSnapshotsOutput) GoString() string {
 	return s.String()
 }
@@ -28922,12 +33726,20 @@ type DescribeDBSubnetGroupsInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSubnetGroupsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSubnetGroupsInput) GoString() string {
 	return s.String()
 }
@@ -28990,12 +33802,20 @@ type DescribeDBSubnetGroupsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSubnetGroupsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeDBSubnetGroupsOutput) GoString() string {
 	return s.String()
 }
@@ -29039,12 +33859,20 @@ type DescribeEngineDefaultClusterParametersInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEngineDefaultClusterParametersInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEngineDefaultClusterParametersInput) GoString() string {
 	return s.String()
 }
@@ -29104,12 +33932,20 @@ type DescribeEngineDefaultClusterParametersOutput struct {
 	EngineDefaults *EngineDefaults `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEngineDefaultClusterParametersOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEngineDefaultClusterParametersOutput) GoString() string {
 	return s.String()
 }
@@ -29146,12 +33982,20 @@ type DescribeEngineDefaultParametersInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEngineDefaultParametersInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEngineDefaultParametersInput) GoString() string {
 	return s.String()
 }
@@ -29211,12 +34055,20 @@ type DescribeEngineDefaultParametersOutput struct {
 	EngineDefaults *EngineDefaults `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEngineDefaultParametersOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEngineDefaultParametersOutput) GoString() string {
 	return s.String()
 }
@@ -29233,19 +34085,28 @@ type DescribeEventCategoriesInput struct {
 	// This parameter isn't currently supported.
 	Filters []*Filter `locationNameList:"Filter" type:"list"`
 
-	// The type of source that is generating the events.
+	// The type of source that is generating the events. For RDS Proxy events, specify
+	// db-proxy.
 	//
 	// Valid values: db-instance | db-cluster | db-parameter-group | db-security-group
-	// | db-snapshot | db-cluster-snapshot
+	// | db-snapshot | db-cluster-snapshot | db-proxy
 	SourceType *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventCategoriesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventCategoriesInput) GoString() string {
 	return s.String()
 }
@@ -29290,12 +34151,20 @@ type DescribeEventCategoriesOutput struct {
 	EventCategoriesMapList []*EventCategoriesMap `locationNameList:"EventCategoriesMap" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventCategoriesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventCategoriesOutput) GoString() string {
 	return s.String()
 }
@@ -29330,12 +34199,20 @@ type DescribeEventSubscriptionsInput struct {
 	SubscriptionName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventSubscriptionsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventSubscriptionsInput) GoString() string {
 	return s.String()
 }
@@ -29397,12 +34274,20 @@ type DescribeEventSubscriptionsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventSubscriptionsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventSubscriptionsOutput) GoString() string {
 	return s.String()
 }
@@ -29480,6 +34365,8 @@ type DescribeEventsInput struct {
 	//    * If the source type is a DB cluster snapshot, a DBClusterSnapshotIdentifier
 	//    value must be supplied.
 	//
+	//    * If the source type is an RDS Proxy, a DBProxyName value must be supplied.
+	//
 	//    * Can't end with a hyphen or contain two consecutive hyphens.
 	SourceIdentifier *string `type:"string"`
 
@@ -29495,12 +34382,20 @@ type DescribeEventsInput struct {
 	StartTime *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventsInput) GoString() string {
 	return s.String()
 }
@@ -29592,12 +34487,20 @@ type DescribeEventsOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeEventsOutput) GoString() string {
 	return s.String()
 }
@@ -29633,8 +34536,8 @@ type DescribeExportTasksInput struct {
 	//    * source-arn - The Amazon Resource Name (ARN) of the snapshot exported
 	//    to Amazon S3
 	//
-	//    * status - The status of the export task. Must be lowercase, for example,
-	//    complete.
+	//    * status - The status of the export task. Must be lowercase. Valid statuses
+	//    are the following: canceled canceling complete failed in_progress starting
 	Filters []*Filter `locationNameList:"Filter" type:"list"`
 
 	// An optional pagination token provided by a previous DescribeExportTasks request.
@@ -29656,12 +34559,20 @@ type DescribeExportTasksInput struct {
 	SourceArn *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeExportTasksInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeExportTasksInput) GoString() string {
 	return s.String()
 }
@@ -29731,12 +34642,20 @@ type DescribeExportTasksOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeExportTasksOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeExportTasksOutput) GoString() string {
 	return s.String()
 }
@@ -29756,13 +34675,7 @@ func (s *DescribeExportTasksOutput) SetMarker(v string) *DescribeExportTasksOutp
 type DescribeGlobalClustersInput struct {
 	_ struct{} `type:"structure"`
 
-	// A filter that specifies one or more global DB clusters to describe.
-	//
-	// Supported filters:
-	//
-	//    * db-cluster-id - Accepts DB cluster identifiers and DB cluster Amazon
-	//    Resource Names (ARNs). The results list will only include information
-	//    about the DB clusters identified by these ARNs.
+	// This parameter isn't currently supported.
 	Filters []*Filter `locationNameList:"Filter" type:"list"`
 
 	// The user-supplied DB cluster identifier. If this parameter is specified,
@@ -29789,12 +34702,20 @@ type DescribeGlobalClustersInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeGlobalClustersInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeGlobalClustersInput) GoString() string {
 	return s.String()
 }
@@ -29855,12 +34776,20 @@ type DescribeGlobalClustersOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeGlobalClustersOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeGlobalClustersOutput) GoString() string {
 	return s.String()
 }
@@ -29906,12 +34835,20 @@ type DescribeInstallationMediaInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeInstallationMediaInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeInstallationMediaInput) GoString() string {
 	return s.String()
 }
@@ -29963,7 +34900,7 @@ func (s *DescribeInstallationMediaInput) SetMaxRecords(v int64) *DescribeInstall
 type DescribeInstallationMediaOutput struct {
 	_ struct{} `type:"structure"`
 
-	// The list of InstallationMedia objects for the AWS account.
+	// The list of InstallationMedia objects for the Amazon Web Services account.
 	InstallationMedia []*InstallationMedia `locationNameList:"InstallationMedia" type:"list"`
 
 	// An optional pagination token provided by a previous DescribeInstallationMedia
@@ -29972,12 +34909,20 @@ type DescribeInstallationMediaOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeInstallationMediaOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeInstallationMediaOutput) GoString() string {
 	return s.String()
 }
@@ -30007,11 +34952,11 @@ type DescribeOptionGroupOptionsInput struct {
 	//
 	//    * oracle-ee
 	//
+	//    * oracle-ee-cdb
+	//
 	//    * oracle-se2
 	//
-	//    * oracle-se1
-	//
-	//    * oracle-se
+	//    * oracle-se2-cdb
 	//
 	//    * postgres
 	//
@@ -30048,12 +34993,20 @@ type DescribeOptionGroupOptionsInput struct {
 	MaxRecords *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOptionGroupOptionsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOptionGroupOptionsInput) GoString() string {
 	return s.String()
 }
@@ -30123,12 +35076,20 @@ type DescribeOptionGroupOptionsOutput struct {
 	OptionGroupOptions []*OptionGroupOption `locationNameList:"OptionGroupOption" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOptionGroupOptionsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOptionGroupOptionsOutput) GoString() string {
 	return s.String()
 }
@@ -30159,11 +35120,11 @@ type DescribeOptionGroupsInput struct {
 	//
 	//    * oracle-ee
 	//
+	//    * oracle-ee-cdb
+	//
 	//    * oracle-se2
 	//
-	//    * oracle-se1
-	//
-	//    * oracle-se
+	//    * oracle-se2-cdb
 	//
 	//    * postgres
 	//
@@ -30203,12 +35164,20 @@ type DescribeOptionGroupsInput struct {
 	OptionGroupName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOptionGroupsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOptionGroupsInput) GoString() string {
 	return s.String()
 }
@@ -30282,12 +35251,20 @@ type DescribeOptionGroupsOutput struct {
 	OptionGroupsList []*OptionGroup `locationNameList:"OptionGroup" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOptionGroupsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOptionGroupsOutput) GoString() string {
 	return s.String()
 }
@@ -30310,8 +35287,10 @@ type DescribeOrderableDBInstanceOptionsInput struct {
 	// The Availability Zone group associated with a Local Zone. Specify this parameter
 	// to retrieve available offerings for the Local Zones in the group.
 	//
-	// Omit this parameter to show the available offerings in the specified AWS
-	// Region.
+	// Omit this parameter to show the available offerings in the specified Amazon
+	// Web Services Region.
+	//
+	// This setting doesn't apply to RDS Custom.
 	AvailabilityZoneGroup *string `type:"string"`
 
 	// The DB instance class filter value. Specify this parameter to show only the
@@ -30324,7 +35303,7 @@ type DescribeOrderableDBInstanceOptionsInput struct {
 	//
 	//    * aurora (for MySQL 5.6-compatible Aurora)
 	//
-	//    * aurora-mysql (for MySQL 5.7-compatible Aurora)
+	//    * aurora-mysql (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
 	//
 	//    * aurora-postgresql
 	//
@@ -30334,11 +35313,11 @@ type DescribeOrderableDBInstanceOptionsInput struct {
 	//
 	//    * oracle-ee
 	//
+	//    * oracle-ee-cdb
+	//
 	//    * oracle-se2
 	//
-	//    * oracle-se1
-	//
-	//    * oracle-se
+	//    * oracle-se2-cdb
 	//
 	//    * postgres
 	//
@@ -30362,6 +35341,8 @@ type DescribeOrderableDBInstanceOptionsInput struct {
 
 	// The license model filter value. Specify this parameter to show only the available
 	// offerings matching the specified license model.
+	//
+	// RDS Custom supports only the BYOL licensing model.
 	LicenseModel *string `type:"string"`
 
 	// An optional pagination token provided by a previous DescribeOrderableDBInstanceOptions
@@ -30378,16 +35359,28 @@ type DescribeOrderableDBInstanceOptionsInput struct {
 	// Constraints: Minimum 20, maximum 100.
 	MaxRecords *int64 `type:"integer"`
 
-	// A value that indicates whether to show only VPC or non-VPC offerings.
+	// A value that indicates whether to show only VPC or non-VPC offerings. RDS
+	// Custom supports only VPC offerings.
+	//
+	// RDS Custom supports only VPC offerings. If you describe non-VPC offerings
+	// for RDS Custom, the output shows VPC offerings.
 	Vpc *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOrderableDBInstanceOptionsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOrderableDBInstanceOptionsInput) GoString() string {
 	return s.String()
 }
@@ -30484,12 +35477,20 @@ type DescribeOrderableDBInstanceOptionsOutput struct {
 	OrderableDBInstanceOptions []*OrderableDBInstanceOption `locationNameList:"OrderableDBInstanceOption" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOrderableDBInstanceOptionsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeOrderableDBInstanceOptionsOutput) GoString() string {
 	return s.String()
 }
@@ -30515,12 +35516,12 @@ type DescribePendingMaintenanceActionsInput struct {
 	// Supported filters:
 	//
 	//    * db-cluster-id - Accepts DB cluster identifiers and DB cluster Amazon
-	//    Resource Names (ARNs). The results list will only include pending maintenance
+	//    Resource Names (ARNs). The results list only includes pending maintenance
 	//    actions for the DB clusters identified by these ARNs.
 	//
 	//    * db-instance-id - Accepts DB instance identifiers and DB instance ARNs.
-	//    The results list will only include pending maintenance actions for the
-	//    DB instances identified by these ARNs.
+	//    The results list only includes pending maintenance actions for the DB
+	//    instances identified by these ARNs.
 	Filters []*Filter `locationNameList:"Filter" type:"list"`
 
 	// An optional pagination token provided by a previous DescribePendingMaintenanceActions
@@ -30541,12 +35542,20 @@ type DescribePendingMaintenanceActionsInput struct {
 	ResourceIdentifier *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribePendingMaintenanceActionsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribePendingMaintenanceActionsInput) GoString() string {
 	return s.String()
 }
@@ -30608,12 +35617,20 @@ type DescribePendingMaintenanceActionsOutput struct {
 	PendingMaintenanceActions []*ResourcePendingMaintenanceActions `locationNameList:"ResourcePendingMaintenanceActions" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribePendingMaintenanceActionsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribePendingMaintenanceActionsOutput) GoString() string {
 	return s.String()
 }
@@ -30649,8 +35666,8 @@ type DescribeReservedDBInstancesInput struct {
 	// The lease identifier filter value. Specify this parameter to show only the
 	// reservation that matches the specified lease ID.
 	//
-	// AWS Support might request the lease ID for an issue related to a reserved
-	// DB instance.
+	// Amazon Web Services Support might request the lease ID for an issue related
+	// to a reserved DB instance.
 	LeaseId *string `type:"string"`
 
 	// An optional pagination token provided by a previous request. If this parameter
@@ -30690,12 +35707,20 @@ type DescribeReservedDBInstancesInput struct {
 	ReservedDBInstancesOfferingId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeReservedDBInstancesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeReservedDBInstancesInput) GoString() string {
 	return s.String()
 }
@@ -30839,12 +35864,20 @@ type DescribeReservedDBInstancesOfferingsInput struct {
 	ReservedDBInstancesOfferingId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeReservedDBInstancesOfferingsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeReservedDBInstancesOfferingsInput) GoString() string {
 	return s.String()
 }
@@ -30937,12 +35970,20 @@ type DescribeReservedDBInstancesOfferingsOutput struct {
 	ReservedDBInstancesOfferings []*ReservedDBInstancesOffering `locationNameList:"ReservedDBInstancesOffering" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeReservedDBInstancesOfferingsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeReservedDBInstancesOfferingsOutput) GoString() string {
 	return s.String()
 }
@@ -30973,12 +36014,20 @@ type DescribeReservedDBInstancesOutput struct {
 	ReservedDBInstances []*ReservedDBInstance `locationNameList:"ReservedDBInstance" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeReservedDBInstancesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeReservedDBInstancesOutput) GoString() string {
 	return s.String()
 }
@@ -31015,20 +36064,28 @@ type DescribeSourceRegionsInput struct {
 	// Constraints: Minimum 20, maximum 100.
 	MaxRecords *int64 `type:"integer"`
 
-	// The source AWS Region name. For example, us-east-1.
+	// The source Amazon Web Services Region name. For example, us-east-1.
 	//
 	// Constraints:
 	//
-	//    * Must specify a valid AWS Region name.
+	//    * Must specify a valid Amazon Web Services Region name.
 	RegionName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeSourceRegionsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeSourceRegionsInput) GoString() string {
 	return s.String()
 }
@@ -31087,17 +36144,26 @@ type DescribeSourceRegionsOutput struct {
 	// the value specified by MaxRecords.
 	Marker *string `type:"string"`
 
-	// A list of SourceRegion instances that contains each source AWS Region that
-	// the current AWS Region can get a read replica or a DB snapshot from.
+	// A list of SourceRegion instances that contains each source Amazon Web Services
+	// Region that the current Amazon Web Services Region can get a read replica
+	// or a DB snapshot from.
 	SourceRegions []*SourceRegion `locationNameList:"SourceRegion" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeSourceRegionsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeSourceRegionsOutput) GoString() string {
 	return s.String()
 }
@@ -31123,12 +36189,20 @@ type DescribeValidDBInstanceModificationsInput struct {
 	DBInstanceIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeValidDBInstanceModificationsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeValidDBInstanceModificationsInput) GoString() string {
 	return s.String()
 }
@@ -31161,12 +36235,20 @@ type DescribeValidDBInstanceModificationsOutput struct {
 	ValidDBInstanceModificationsMessage *ValidDBInstanceModificationsMessage `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeValidDBInstanceModificationsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DescribeValidDBInstanceModificationsOutput) GoString() string {
 	return s.String()
 }
@@ -31197,12 +36279,20 @@ type DomainMembership struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DomainMembership) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DomainMembership) GoString() string {
 	return s.String()
 }
@@ -31242,12 +36332,20 @@ type DoubleRange struct {
 	To *float64 `type:"double"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DoubleRange) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DoubleRange) GoString() string {
 	return s.String()
 }
@@ -31312,12 +36410,20 @@ type DownloadDBLogFilePortionInput struct {
 	NumberOfLines *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DownloadDBLogFilePortionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DownloadDBLogFilePortionInput) GoString() string {
 	return s.String()
 }
@@ -31376,12 +36482,20 @@ type DownloadDBLogFilePortionOutput struct {
 	Marker *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DownloadDBLogFilePortionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s DownloadDBLogFilePortionOutput) GoString() string {
 	return s.String()
 }
@@ -31420,8 +36534,8 @@ type EC2SecurityGroup struct {
 	// Specifies the name of the EC2 security group.
 	EC2SecurityGroupName *string `type:"string"`
 
-	// Specifies the AWS ID of the owner of the EC2 security group specified in
-	// the EC2SecurityGroupName field.
+	// Specifies the Amazon Web Services ID of the owner of the EC2 security group
+	// specified in the EC2SecurityGroupName field.
 	EC2SecurityGroupOwnerId *string `type:"string"`
 
 	// Provides the status of the EC2 security group. Status can be "authorizing",
@@ -31429,12 +36543,20 @@ type EC2SecurityGroup struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EC2SecurityGroup) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EC2SecurityGroup) GoString() string {
 	return s.String()
 }
@@ -31488,12 +36610,20 @@ type Endpoint struct {
 	Port *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Endpoint) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Endpoint) GoString() string {
 	return s.String()
 }
@@ -31534,12 +36664,20 @@ type EngineDefaults struct {
 	Parameters []*Parameter `locationNameList:"Parameter" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EngineDefaults) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EngineDefaults) GoString() string {
 	return s.String()
 }
@@ -31585,12 +36723,20 @@ type Event struct {
 	SourceType *string `type:"string" enum:"SourceType"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Event) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Event) GoString() string {
 	return s.String()
 }
@@ -31643,12 +36789,20 @@ type EventCategoriesMap struct {
 	SourceType *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EventCategoriesMap) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EventCategoriesMap) GoString() string {
 	return s.String()
 }
@@ -31673,7 +36827,8 @@ type EventSubscription struct {
 	// The RDS event notification subscription Id.
 	CustSubscriptionId *string `type:"string"`
 
-	// The AWS customer account associated with the RDS event notification subscription.
+	// The Amazon Web Services customer account associated with the RDS event notification
+	// subscription.
 	CustomerAwsId *string `type:"string"`
 
 	// A Boolean value indicating if the subscription is enabled. True indicates
@@ -31711,12 +36866,20 @@ type EventSubscription struct {
 	SubscriptionCreationTime *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EventSubscription) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s EventSubscription) GoString() string {
 	return s.String()
 }
@@ -31812,11 +36975,10 @@ type ExportTask struct {
 	// a snapshot.
 	IamRoleArn *string `type:"string"`
 
-	// The key identifier of the AWS KMS customer master key (CMK) that is used
-	// to encrypt the snapshot when it's exported to Amazon S3. The AWS KMS CMK
-	// identifier is its key ARN, key ID, alias ARN, or alias name. The IAM role
-	// used for the snapshot export must have encryption and decryption permissions
-	// to use this AWS KMS CMK.
+	// The key identifier of the Amazon Web Services KMS key that is used to encrypt
+	// the snapshot when it's exported to Amazon S3. The KMS key identifier is its
+	// key ARN, key ID, alias ARN, or alias name. The IAM role used for the snapshot
+	// export must have encryption and decryption permissions to use this KMS key.
 	KmsKeyId *string `type:"string"`
 
 	// The progress of the snapshot export task as a percentage.
@@ -31851,12 +37013,20 @@ type ExportTask struct {
 	WarningMessage *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ExportTask) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ExportTask) GoString() string {
 	return s.String()
 }
@@ -31963,19 +37133,29 @@ type FailoverDBClusterInput struct {
 	// DBClusterIdentifier is a required field
 	DBClusterIdentifier *string `type:"string" required:"true"`
 
-	// The name of the instance to promote to the primary instance.
+	// The name of the DB instance to promote to the primary DB instance.
 	//
-	// You must specify the instance identifier for an Aurora Replica in the DB
-	// cluster. For example, mydbcluster-replica1.
+	// Specify the DB instance identifier for an Aurora Replica or a Multi-AZ readable
+	// standby in the DB cluster, for example mydbcluster-replica1.
+	//
+	// This setting isn't supported for RDS for MySQL Multi-AZ DB clusters.
 	TargetDBInstanceIdentifier *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -32008,19 +37188,41 @@ func (s *FailoverDBClusterInput) SetTargetDBInstanceIdentifier(v string) *Failov
 type FailoverDBClusterOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -32050,18 +37252,26 @@ type FailoverGlobalClusterInput struct {
 	// Identifier of the secondary Aurora DB cluster that you want to promote to
 	// primary for the Aurora global database (GlobalCluster.) Use the Amazon Resource
 	// Name (ARN) for the identifier so that Aurora can locate the cluster in its
-	// AWS Region.
+	// Amazon Web Services Region.
 	//
 	// TargetDbClusterIdentifier is a required field
 	TargetDbClusterIdentifier *string `min:"1" type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverGlobalClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverGlobalClusterInput) GoString() string {
 	return s.String()
 }
@@ -32107,12 +37317,20 @@ type FailoverGlobalClusterOutput struct {
 	GlobalCluster *GlobalCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverGlobalClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverGlobalClusterOutput) GoString() string {
 	return s.String()
 }
@@ -32156,12 +37374,20 @@ type FailoverState struct {
 	ToDbClusterArn *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverState) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s FailoverState) GoString() string {
 	return s.String()
 }
@@ -32216,12 +37442,20 @@ type Filter struct {
 	Values []*string `locationNameList:"Value" type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Filter) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Filter) GoString() string {
 	return s.String()
 }
@@ -32287,9 +37521,10 @@ type GlobalCluster struct {
 	// cluster. Currently limited to 1 item.
 	GlobalClusterMembers []*GlobalClusterMember `locationNameList:"GlobalClusterMember" type:"list"`
 
-	// The AWS Region-unique, immutable identifier for the global database cluster.
-	// This identifier is found in AWS CloudTrail log entries whenever the AWS KMS
-	// customer master key (CMK) for the DB cluster is accessed.
+	// The Amazon Web Services Region-unique, immutable identifier for the global
+	// database cluster. This identifier is found in Amazon Web Services CloudTrail
+	// log entries whenever the Amazon Web Services KMS key for the DB cluster is
+	// accessed.
 	GlobalClusterResourceId *string `type:"string"`
 
 	// Specifies the current state of this global database cluster.
@@ -32299,12 +37534,20 @@ type GlobalCluster struct {
 	StorageEncrypted *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GlobalCluster) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GlobalCluster) GoString() string {
 	return s.String()
 }
@@ -32396,12 +37639,20 @@ type GlobalClusterMember struct {
 	Readers []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GlobalClusterMember) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s GlobalClusterMember) GoString() string {
 	return s.String()
 }
@@ -32443,12 +37694,20 @@ type IPRange struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s IPRange) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s IPRange) GoString() string {
 	return s.String()
 }
@@ -32524,12 +37783,20 @@ type ImportInstallationMediaInput struct {
 	OSInstallationMediaPath *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ImportInstallationMediaInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ImportInstallationMediaInput) GoString() string {
 	return s.String()
 }
@@ -32620,12 +37887,20 @@ type ImportInstallationMediaOutput struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ImportInstallationMediaOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ImportInstallationMediaOutput) GoString() string {
 	return s.String()
 }
@@ -32709,12 +37984,20 @@ type InstallationMedia struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s InstallationMedia) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s InstallationMedia) GoString() string {
 	return s.String()
 }
@@ -32777,12 +38060,20 @@ type InstallationMediaFailureCause struct {
 	Message *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s InstallationMediaFailureCause) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s InstallationMediaFailureCause) GoString() string {
 	return s.String()
 }
@@ -32808,12 +38099,20 @@ type ListTagsForResourceInput struct {
 	ResourceName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListTagsForResourceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListTagsForResourceInput) GoString() string {
 	return s.String()
 }
@@ -32860,12 +38159,20 @@ type ListTagsForResourceOutput struct {
 	TagList []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListTagsForResourceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ListTagsForResourceOutput) GoString() string {
 	return s.String()
 }
@@ -32888,12 +38195,20 @@ type MinimumEngineVersionPerAllowedValue struct {
 	MinimumEngineVersion *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s MinimumEngineVersionPerAllowedValue) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s MinimumEngineVersionPerAllowedValue) GoString() string {
 	return s.String()
 }
@@ -32915,7 +38230,7 @@ type ModifyCertificatesInput struct {
 
 	// The new default certificate identifier to override the current one with.
 	//
-	// To determine the valid values, use the describe-certificates AWS CLI command
+	// To determine the valid values, use the describe-certificates CLI command
 	// or the DescribeCertificates API operation.
 	CertificateIdentifier *string `type:"string"`
 
@@ -32924,12 +38239,20 @@ type ModifyCertificatesInput struct {
 	RemoveCustomerOverride *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyCertificatesInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyCertificatesInput) GoString() string {
 	return s.String()
 }
@@ -32949,16 +38272,24 @@ func (s *ModifyCertificatesInput) SetRemoveCustomerOverride(v bool) *ModifyCerti
 type ModifyCertificatesOutput struct {
 	_ struct{} `type:"structure"`
 
-	// A CA certificate for an AWS account.
+	// A CA certificate for an Amazon Web Services account.
 	Certificate *Certificate `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyCertificatesOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyCertificatesOutput) GoString() string {
 	return s.String()
 }
@@ -33000,7 +38331,7 @@ type ModifyCurrentDBClusterCapacityInput struct {
 	// point to perform seamless scaling before enforcing the timeout action. The
 	// default is 300.
 	//
-	//    * Value must be from 10 through 600.
+	// Specify a value between 10 and 600 seconds.
 	SecondsBeforeTimeout *int64 `type:"integer"`
 
 	// The action to take when the timeout is reached, either ForceApplyCapacityChange
@@ -33014,12 +38345,20 @@ type ModifyCurrentDBClusterCapacityInput struct {
 	TimeoutAction *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyCurrentDBClusterCapacityInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyCurrentDBClusterCapacityInput) GoString() string {
 	return s.String()
 }
@@ -33083,12 +38422,20 @@ type ModifyCurrentDBClusterCapacityOutput struct {
 	TimeoutAction *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyCurrentDBClusterCapacityOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyCurrentDBClusterCapacityOutput) GoString() string {
 	return s.String()
 }
@@ -33123,6 +38470,397 @@ func (s *ModifyCurrentDBClusterCapacityOutput) SetTimeoutAction(v string) *Modif
 	return s
 }
 
+type ModifyCustomDBEngineVersionInput struct {
+	_ struct{} `type:"structure"`
+
+	// An optional description of your CEV.
+	Description *string `min:"1" type:"string"`
+
+	// The DB engine. The only supported value is custom-oracle-ee.
+	//
+	// Engine is a required field
+	Engine *string `min:"1" type:"string" required:"true"`
+
+	// The custom engine version (CEV) that you want to modify. This option is required
+	// for RDS Custom for Oracle, but optional for Amazon RDS. The combination of
+	// Engine and EngineVersion is unique per customer per Amazon Web Services Region.
+	//
+	// EngineVersion is a required field
+	EngineVersion *string `min:"1" type:"string" required:"true"`
+
+	// The availability status to be assigned to the CEV. Valid values are as follows:
+	//
+	// available
+	//
+	// You can use this CEV to create a new RDS Custom DB instance.
+	//
+	// inactive
+	//
+	// You can create a new RDS Custom instance by restoring a DB snapshot with
+	// this CEV. You can't patch or create new instances with this CEV.
+	//
+	// You can change any status to any status. A typical reason to change status
+	// is to prevent the accidental use of a CEV, or to make a deprecated CEV eligible
+	// for use again. For example, you might change the status of your CEV from
+	// available to inactive, and from inactive back to available. To change the
+	// availability status of the CEV, it must not currently be in use by an RDS
+	// Custom instance, snapshot, or automated backup.
+	Status *string `type:"string" enum:"CustomEngineVersionStatus"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ModifyCustomDBEngineVersionInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ModifyCustomDBEngineVersionInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *ModifyCustomDBEngineVersionInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "ModifyCustomDBEngineVersionInput"}
+	if s.Description != nil && len(*s.Description) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Description", 1))
+	}
+	if s.Engine == nil {
+		invalidParams.Add(request.NewErrParamRequired("Engine"))
+	}
+	if s.Engine != nil && len(*s.Engine) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Engine", 1))
+	}
+	if s.EngineVersion == nil {
+		invalidParams.Add(request.NewErrParamRequired("EngineVersion"))
+	}
+	if s.EngineVersion != nil && len(*s.EngineVersion) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("EngineVersion", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDescription sets the Description field's value.
+func (s *ModifyCustomDBEngineVersionInput) SetDescription(v string) *ModifyCustomDBEngineVersionInput {
+	s.Description = &v
+	return s
+}
+
+// SetEngine sets the Engine field's value.
+func (s *ModifyCustomDBEngineVersionInput) SetEngine(v string) *ModifyCustomDBEngineVersionInput {
+	s.Engine = &v
+	return s
+}
+
+// SetEngineVersion sets the EngineVersion field's value.
+func (s *ModifyCustomDBEngineVersionInput) SetEngineVersion(v string) *ModifyCustomDBEngineVersionInput {
+	s.EngineVersion = &v
+	return s
+}
+
+// SetStatus sets the Status field's value.
+func (s *ModifyCustomDBEngineVersionInput) SetStatus(v string) *ModifyCustomDBEngineVersionInput {
+	s.Status = &v
+	return s
+}
+
+// This data type is used as a response element in the action DescribeDBEngineVersions.
+type ModifyCustomDBEngineVersionOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The creation time of the DB engine version.
+	CreateTime *time.Time `type:"timestamp"`
+
+	// The description of the database engine.
+	DBEngineDescription *string `type:"string"`
+
+	// The ARN of the custom engine version.
+	DBEngineVersionArn *string `type:"string"`
+
+	// The description of the database engine version.
+	DBEngineVersionDescription *string `type:"string"`
+
+	// The name of the DB parameter group family for the database engine.
+	DBParameterGroupFamily *string `type:"string"`
+
+	// The name of the Amazon S3 bucket that contains your database installation
+	// files.
+	DatabaseInstallationFilesS3BucketName *string `type:"string"`
+
+	// The Amazon S3 directory that contains the database installation files. If
+	// not specified, then no prefix is assumed.
+	DatabaseInstallationFilesS3Prefix *string `type:"string"`
+
+	// The default character set for new instances of this engine version, if the
+	// CharacterSetName parameter of the CreateDBInstance API isn't specified.
+	DefaultCharacterSet *CharacterSet `type:"structure"`
+
+	// The name of the database engine.
+	Engine *string `type:"string"`
+
+	// The version number of the database engine.
+	EngineVersion *string `type:"string"`
+
+	// The types of logs that the database engine has available for export to CloudWatch
+	// Logs.
+	ExportableLogTypes []*string `type:"list"`
+
+	// The Amazon Web Services KMS key identifier for an encrypted CEV. This parameter
+	// is required for RDS Custom, but optional for Amazon RDS.
+	KMSKeyId *string `type:"string"`
+
+	// The major engine version of the CEV.
+	MajorEngineVersion *string `type:"string"`
+
+	// The status of the DB engine version, either available or deprecated.
+	Status *string `type:"string"`
+
+	// A list of the character sets supported by this engine for the CharacterSetName
+	// parameter of the CreateDBInstance operation.
+	SupportedCharacterSets []*CharacterSet `locationNameList:"CharacterSet" type:"list"`
+
+	// A list of the supported DB engine modes.
+	SupportedEngineModes []*string `type:"list"`
+
+	// A list of features supported by the DB engine.
+	//
+	// The supported features vary by DB engine and DB engine version.
+	//
+	// To determine the supported features for a specific DB engine and DB engine
+	// version using the CLI, use the following command:
+	//
+	// aws rds describe-db-engine-versions --engine <engine_name> --engine-version
+	// <engine_version>
+	//
+	// For example, to determine the supported features for RDS for PostgreSQL version
+	// 13.3 using the CLI, use the following command:
+	//
+	// aws rds describe-db-engine-versions --engine postgres --engine-version 13.3
+	//
+	// The supported features are listed under SupportedFeatureNames in the output.
+	SupportedFeatureNames []*string `type:"list"`
+
+	// A list of the character sets supported by the Oracle DB engine for the NcharCharacterSetName
+	// parameter of the CreateDBInstance operation.
+	SupportedNcharCharacterSets []*CharacterSet `locationNameList:"CharacterSet" type:"list"`
+
+	// A list of the time zones supported by this engine for the Timezone parameter
+	// of the CreateDBInstance action.
+	SupportedTimezones []*Timezone `locationNameList:"Timezone" type:"list"`
+
+	// A value that indicates whether the engine version supports Babelfish for
+	// Aurora PostgreSQL.
+	SupportsBabelfish *bool `type:"boolean"`
+
+	// A value that indicates whether you can use Aurora global databases with a
+	// specific DB engine version.
+	SupportsGlobalDatabases *bool `type:"boolean"`
+
+	// A value that indicates whether the engine version supports exporting the
+	// log types specified by ExportableLogTypes to CloudWatch Logs.
+	SupportsLogExportsToCloudwatchLogs *bool `type:"boolean"`
+
+	// A value that indicates whether you can use Aurora parallel query with a specific
+	// DB engine version.
+	SupportsParallelQuery *bool `type:"boolean"`
+
+	// Indicates whether the database engine version supports read replicas.
+	SupportsReadReplica *bool `type:"boolean"`
+
+	// A list of tags. For more information, see Tagging Amazon RDS Resources (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html)
+	// in the Amazon RDS User Guide.
+	TagList []*Tag `locationNameList:"Tag" type:"list"`
+
+	// A list of engine versions that this database engine version can be upgraded
+	// to.
+	ValidUpgradeTarget []*UpgradeTarget `locationNameList:"UpgradeTarget" type:"list"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ModifyCustomDBEngineVersionOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ModifyCustomDBEngineVersionOutput) GoString() string {
+	return s.String()
+}
+
+// SetCreateTime sets the CreateTime field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetCreateTime(v time.Time) *ModifyCustomDBEngineVersionOutput {
+	s.CreateTime = &v
+	return s
+}
+
+// SetDBEngineDescription sets the DBEngineDescription field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetDBEngineDescription(v string) *ModifyCustomDBEngineVersionOutput {
+	s.DBEngineDescription = &v
+	return s
+}
+
+// SetDBEngineVersionArn sets the DBEngineVersionArn field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetDBEngineVersionArn(v string) *ModifyCustomDBEngineVersionOutput {
+	s.DBEngineVersionArn = &v
+	return s
+}
+
+// SetDBEngineVersionDescription sets the DBEngineVersionDescription field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetDBEngineVersionDescription(v string) *ModifyCustomDBEngineVersionOutput {
+	s.DBEngineVersionDescription = &v
+	return s
+}
+
+// SetDBParameterGroupFamily sets the DBParameterGroupFamily field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetDBParameterGroupFamily(v string) *ModifyCustomDBEngineVersionOutput {
+	s.DBParameterGroupFamily = &v
+	return s
+}
+
+// SetDatabaseInstallationFilesS3BucketName sets the DatabaseInstallationFilesS3BucketName field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetDatabaseInstallationFilesS3BucketName(v string) *ModifyCustomDBEngineVersionOutput {
+	s.DatabaseInstallationFilesS3BucketName = &v
+	return s
+}
+
+// SetDatabaseInstallationFilesS3Prefix sets the DatabaseInstallationFilesS3Prefix field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetDatabaseInstallationFilesS3Prefix(v string) *ModifyCustomDBEngineVersionOutput {
+	s.DatabaseInstallationFilesS3Prefix = &v
+	return s
+}
+
+// SetDefaultCharacterSet sets the DefaultCharacterSet field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetDefaultCharacterSet(v *CharacterSet) *ModifyCustomDBEngineVersionOutput {
+	s.DefaultCharacterSet = v
+	return s
+}
+
+// SetEngine sets the Engine field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetEngine(v string) *ModifyCustomDBEngineVersionOutput {
+	s.Engine = &v
+	return s
+}
+
+// SetEngineVersion sets the EngineVersion field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetEngineVersion(v string) *ModifyCustomDBEngineVersionOutput {
+	s.EngineVersion = &v
+	return s
+}
+
+// SetExportableLogTypes sets the ExportableLogTypes field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetExportableLogTypes(v []*string) *ModifyCustomDBEngineVersionOutput {
+	s.ExportableLogTypes = v
+	return s
+}
+
+// SetKMSKeyId sets the KMSKeyId field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetKMSKeyId(v string) *ModifyCustomDBEngineVersionOutput {
+	s.KMSKeyId = &v
+	return s
+}
+
+// SetMajorEngineVersion sets the MajorEngineVersion field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetMajorEngineVersion(v string) *ModifyCustomDBEngineVersionOutput {
+	s.MajorEngineVersion = &v
+	return s
+}
+
+// SetStatus sets the Status field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetStatus(v string) *ModifyCustomDBEngineVersionOutput {
+	s.Status = &v
+	return s
+}
+
+// SetSupportedCharacterSets sets the SupportedCharacterSets field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportedCharacterSets(v []*CharacterSet) *ModifyCustomDBEngineVersionOutput {
+	s.SupportedCharacterSets = v
+	return s
+}
+
+// SetSupportedEngineModes sets the SupportedEngineModes field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportedEngineModes(v []*string) *ModifyCustomDBEngineVersionOutput {
+	s.SupportedEngineModes = v
+	return s
+}
+
+// SetSupportedFeatureNames sets the SupportedFeatureNames field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportedFeatureNames(v []*string) *ModifyCustomDBEngineVersionOutput {
+	s.SupportedFeatureNames = v
+	return s
+}
+
+// SetSupportedNcharCharacterSets sets the SupportedNcharCharacterSets field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportedNcharCharacterSets(v []*CharacterSet) *ModifyCustomDBEngineVersionOutput {
+	s.SupportedNcharCharacterSets = v
+	return s
+}
+
+// SetSupportedTimezones sets the SupportedTimezones field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportedTimezones(v []*Timezone) *ModifyCustomDBEngineVersionOutput {
+	s.SupportedTimezones = v
+	return s
+}
+
+// SetSupportsBabelfish sets the SupportsBabelfish field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportsBabelfish(v bool) *ModifyCustomDBEngineVersionOutput {
+	s.SupportsBabelfish = &v
+	return s
+}
+
+// SetSupportsGlobalDatabases sets the SupportsGlobalDatabases field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportsGlobalDatabases(v bool) *ModifyCustomDBEngineVersionOutput {
+	s.SupportsGlobalDatabases = &v
+	return s
+}
+
+// SetSupportsLogExportsToCloudwatchLogs sets the SupportsLogExportsToCloudwatchLogs field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportsLogExportsToCloudwatchLogs(v bool) *ModifyCustomDBEngineVersionOutput {
+	s.SupportsLogExportsToCloudwatchLogs = &v
+	return s
+}
+
+// SetSupportsParallelQuery sets the SupportsParallelQuery field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportsParallelQuery(v bool) *ModifyCustomDBEngineVersionOutput {
+	s.SupportsParallelQuery = &v
+	return s
+}
+
+// SetSupportsReadReplica sets the SupportsReadReplica field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetSupportsReadReplica(v bool) *ModifyCustomDBEngineVersionOutput {
+	s.SupportsReadReplica = &v
+	return s
+}
+
+// SetTagList sets the TagList field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetTagList(v []*Tag) *ModifyCustomDBEngineVersionOutput {
+	s.TagList = v
+	return s
+}
+
+// SetValidUpgradeTarget sets the ValidUpgradeTarget field's value.
+func (s *ModifyCustomDBEngineVersionOutput) SetValidUpgradeTarget(v []*UpgradeTarget) *ModifyCustomDBEngineVersionOutput {
+	s.ValidUpgradeTarget = v
+	return s
+}
+
 type ModifyDBClusterEndpointInput struct {
 	_ struct{} `type:"structure"`
 
@@ -33144,12 +38882,20 @@ type ModifyDBClusterEndpointInput struct {
 	StaticMembers []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterEndpointInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterEndpointInput) GoString() string {
 	return s.String()
 }
@@ -33247,12 +38993,20 @@ type ModifyDBClusterEndpointOutput struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterEndpointOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterEndpointOutput) GoString() string {
 	return s.String()
 }
@@ -33320,11 +39074,21 @@ func (s *ModifyDBClusterEndpointOutput) SetStatus(v string) *ModifyDBClusterEndp
 type ModifyDBClusterInput struct {
 	_ struct{} `type:"structure"`
 
+	// The amount of storage in gibibytes (GiB) to allocate to each DB instance
+	// in the Multi-AZ DB cluster.
+	//
+	// Type: Integer
+	//
+	// Valid for: Multi-AZ DB clusters only
+	AllocatedStorage *int64 `type:"integer"`
+
 	// A value that indicates whether major version upgrades are allowed.
 	//
 	// Constraints: You must allow major version upgrades when specifying a value
 	// for the EngineVersion parameter that is a different major version than the
 	// DB cluster's current version.
+	//
+	// Valid for: Aurora DB clusters only
 	AllowMajorVersionUpgrade *bool `type:"boolean"`
 
 	// A value that indicates whether the modifications in this request and any
@@ -33341,12 +39105,19 @@ type ModifyDBClusterInput struct {
 	// of the value of the ApplyImmediately parameter.
 	//
 	// By default, this parameter is disabled.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	ApplyImmediately *bool `type:"boolean"`
+
+	// A value that indicates whether minor engine upgrades are applied automatically
+	// to the DB cluster during the maintenance window. By default, minor engine
+	// upgrades are applied automatically.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	AutoMinorVersionUpgrade *bool `type:"boolean"`
 
 	// The target backtrack window, in seconds. To disable backtracking, set this
 	// value to 0.
-	//
-	// Currently, Backtrack is only supported for Aurora MySQL DB clusters.
 	//
 	// Default: 0
 	//
@@ -33354,24 +39125,57 @@ type ModifyDBClusterInput struct {
 	//
 	//    * If specified, this value must be set to a number from 0 to 259,200 (72
 	//    hours).
+	//
+	// Valid for: Aurora MySQL DB clusters only
 	BacktrackWindow *int64 `type:"long"`
 
-	// The number of days for which automated backups are retained. You must specify
-	// a minimum value of 1.
+	// The number of days for which automated backups are retained. Specify a minimum
+	// value of 1.
 	//
 	// Default: 1
 	//
 	// Constraints:
 	//
 	//    * Must be a value from 1 to 35
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	BackupRetentionPeriod *int64 `type:"integer"`
 
 	// The configuration setting for the log types to be enabled for export to CloudWatch
-	// Logs for a specific DB cluster.
+	// Logs for a specific DB cluster. The values in the list depend on the DB engine
+	// being used.
+	//
+	// RDS for MySQL
+	//
+	// Possible values are error, general, and slowquery.
+	//
+	// RDS for PostgreSQL
+	//
+	// Possible values are postgresql and upgrade.
+	//
+	// Aurora MySQL
+	//
+	// Possible values are audit, error, general, and slowquery.
+	//
+	// Aurora PostgreSQL
+	//
+	// Possible value is postgresql.
+	//
+	// For more information about exporting CloudWatch Logs for Amazon RDS, see
+	// Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// in the Amazon Relational Database Service User Guide.
+	//
+	// For more information about exporting CloudWatch Logs for Amazon Aurora, see
+	// Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	CloudwatchLogsExportConfiguration *CloudwatchLogsExportConfiguration `type:"structure"`
 
 	// A value that indicates whether to copy all tags from the DB cluster to snapshots
 	// of the DB cluster. The default is not to copy them.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
 	// The DB cluster identifier for the cluster being modified. This parameter
@@ -33380,17 +39184,32 @@ type ModifyDBClusterInput struct {
 	// Constraints: This identifier must match the identifier of an existing DB
 	// cluster.
 	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	//
 	// DBClusterIdentifier is a required field
 	DBClusterIdentifier *string `type:"string" required:"true"`
 
+	// The compute and memory capacity of each DB instance in the Multi-AZ DB cluster,
+	// for example db.m6g.xlarge. Not all DB instance classes are available in all
+	// Amazon Web Services Regions, or for all database engines.
+	//
+	// For the full list of DB instance classes and availability for your engine,
+	// see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// in the Amazon RDS User Guide.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	DBClusterInstanceClass *string `type:"string"`
+
 	// The name of the DB cluster parameter group to use for the DB cluster.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DBClusterParameterGroupName *string `type:"string"`
 
 	// The name of the DB parameter group to apply to all instances of the DB cluster.
 	//
 	// When you apply a parameter group using the DBInstanceParameterGroupName parameter,
-	// the DB cluster isn't rebooted automatically. Also, parameter changes aren't
-	// applied during the next maintenance window but instead are applied immediately.
+	// the DB cluster isn't rebooted automatically. Also, parameter changes are
+	// applied immediately rather than during the next maintenance window.
 	//
 	// Default: The existing name setting
 	//
@@ -33399,13 +39218,17 @@ type ModifyDBClusterInput struct {
 	//    * The DB parameter group must be in the same DB parameter group family
 	//    as this DB cluster.
 	//
-	//    * The DBInstanceParameterGroupName parameter is only valid in combination
-	//    with the AllowMajorVersionUpgrade parameter.
+	//    * The DBInstanceParameterGroupName parameter is valid in combination with
+	//    the AllowMajorVersionUpgrade parameter for a major version upgrade only.
+	//
+	// Valid for: Aurora DB clusters only
 	DBInstanceParameterGroupName *string `type:"string"`
 
 	// A value that indicates whether the DB cluster has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled.
+	// deletion protection isn't enabled.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DeletionProtection *bool `type:"boolean"`
 
 	// The Active Directory directory ID to move the DB cluster to. Specify none
@@ -33414,10 +39237,14 @@ type ModifyDBClusterInput struct {
 	//
 	// For more information, see Kerberos Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/kerberos-authentication.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	Domain *string `type:"string"`
 
 	// Specify the name of the IAM role to be used when making API calls to the
 	// Directory Service.
+	//
+	// Valid for: Aurora DB clusters only
 	DomainIAMRoleName *string `type:"string"`
 
 	// A value that indicates whether to enable this DB cluster to forward write
@@ -33431,6 +39258,8 @@ type ModifyDBClusterInput struct {
 	// are replicated back to this cluster. For the primary DB cluster of an Aurora
 	// global database, this value is used immediately if the primary is demoted
 	// by the FailoverGlobalCluster API operation, but it does nothing until then.
+	//
+	// Valid for: Aurora DB clusters only
 	EnableGlobalWriteForwarding *bool `type:"boolean"`
 
 	// A value that indicates whether to enable the HTTP endpoint for an Aurora
@@ -33442,40 +39271,105 @@ type ModifyDBClusterInput struct {
 	//
 	// For more information, see Using the Data API for Aurora Serverless (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	EnableHttpEndpoint *bool `type:"boolean"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
 	//
 	// For more information, see IAM Database Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	EnableIAMDatabaseAuthentication *bool `type:"boolean"`
+
+	// A value that indicates whether to turn on Performance Insights for the DB
+	// cluster.
+	//
+	// For more information, see Using Amazon Performance Insights (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PerfInsights.html)
+	// in the Amazon RDS User Guide.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	EnablePerformanceInsights *bool `type:"boolean"`
 
 	// The version number of the database engine to which you want to upgrade. Changing
 	// this parameter results in an outage. The change is applied during the next
 	// maintenance window unless ApplyImmediately is enabled.
 	//
-	// To list all of the available engine versions for aurora (for MySQL 5.6-compatible
-	// Aurora), use the following command:
+	// To list all of the available engine versions for MySQL 5.6-compatible Aurora,
+	// use the following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora --query "DBEngineVersions[].EngineVersion"
 	//
-	// To list all of the available engine versions for aurora-mysql (for MySQL
-	// 5.7-compatible Aurora), use the following command:
+	// To list all of the available engine versions for MySQL 5.7-compatible and
+	// MySQL 8.0-compatible Aurora, use the following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora-mysql --query "DBEngineVersions[].EngineVersion"
 	//
-	// To list all of the available engine versions for aurora-postgresql, use the
+	// To list all of the available engine versions for Aurora PostgreSQL, use the
 	// following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora-postgresql --query "DBEngineVersions[].EngineVersion"
+	//
+	// To list all of the available engine versions for RDS for MySQL, use the following
+	// command:
+	//
+	// aws rds describe-db-engine-versions --engine mysql --query "DBEngineVersions[].EngineVersion"
+	//
+	// To list all of the available engine versions for RDS for PostgreSQL, use
+	// the following command:
+	//
+	// aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[].EngineVersion"
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	EngineVersion *string `type:"string"`
+
+	// The amount of Provisioned IOPS (input/output operations per second) to be
+	// initially allocated for each DB instance in the Multi-AZ DB cluster.
+	//
+	// For information about valid Iops values, see Amazon RDS Provisioned IOPS
+	// Storage to Improve Performance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html#USER_PIOPS)
+	// in the Amazon RDS User Guide.
+	//
+	// Constraints: Must be a multiple between .5 and 50 of the storage amount for
+	// the DB cluster.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	Iops *int64 `type:"integer"`
 
 	// The new password for the master database user. This password can contain
 	// any printable ASCII character except "/", """, or "@".
 	//
 	// Constraints: Must contain from 8 to 41 characters.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	MasterUserPassword *string `type:"string"`
+
+	// The interval, in seconds, between points when Enhanced Monitoring metrics
+	// are collected for the DB cluster. To turn off collecting Enhanced Monitoring
+	// metrics, specify 0. The default is 0.
+	//
+	// If MonitoringRoleArn is specified, also set MonitoringInterval to a value
+	// other than 0.
+	//
+	// Valid Values: 0, 1, 5, 10, 15, 30, 60
+	//
+	// Valid for: Multi-AZ DB clusters only
+	MonitoringInterval *int64 `type:"integer"`
+
+	// The Amazon Resource Name (ARN) for the IAM role that permits RDS to send
+	// Enhanced Monitoring metrics to Amazon CloudWatch Logs. An example is arn:aws:iam:123456789012:role/emaccess.
+	// For information on creating a monitoring role, see To create an IAM role
+	// for Amazon RDS Enhanced Monitoring (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Monitoring.html#USER_Monitoring.OS.IAMRole)
+	// in the Amazon RDS User Guide.
+	//
+	// If MonitoringInterval is set to a value other than 0, supply a MonitoringRoleArn
+	// value.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	MonitoringRoleArn *string `type:"string"`
 
 	// The new DB cluster identifier for the DB cluster when renaming a DB cluster.
 	// This value is stored as a lowercase string.
@@ -33489,33 +39383,51 @@ type ModifyDBClusterInput struct {
 	//    * Can't end with a hyphen or contain two consecutive hyphens
 	//
 	// Example: my-cluster2
+	//
+	// Valid for: Aurora DB clusters only
 	NewDBClusterIdentifier *string `type:"string"`
 
 	// A value that indicates that the DB cluster should be associated with the
-	// specified option group. Changing this parameter doesn't result in an outage
-	// except in the following case, and the change is applied during the next maintenance
-	// window unless the ApplyImmediately is enabled for this request. If the parameter
-	// change results in an option group that enables OEM, this change can cause
-	// a brief (sub-second) period during which new connections are rejected but
-	// existing connections are not interrupted.
+	// specified option group.
 	//
-	// Permanent options can't be removed from an option group. The option group
-	// can't be removed from a DB cluster once it is associated with a DB cluster.
+	// DB clusters are associated with a default option group that can't be modified.
 	OptionGroupName *string `type:"string"`
+
+	// The Amazon Web Services KMS key identifier for encryption of Performance
+	// Insights data.
+	//
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
+	//
+	// If you don't specify a value for PerformanceInsightsKMSKeyId, then Amazon
+	// RDS uses your default KMS key. There is a default KMS key for your Amazon
+	// Web Services account. Your Amazon Web Services account has a different default
+	// KMS key for each Amazon Web Services Region.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	PerformanceInsightsKMSKeyId *string `type:"string"`
+
+	// The amount of time, in days, to retain Performance Insights data. Valid values
+	// are 7 or 731 (2 years).
+	//
+	// Valid for: Multi-AZ DB clusters only
+	PerformanceInsightsRetentionPeriod *int64 `type:"integer"`
 
 	// The port number on which the DB cluster accepts connections.
 	//
 	// Constraints: Value must be 1150-65535
 	//
 	// Default: The same port as the original DB cluster.
+	//
+	// Valid for: Aurora DB clusters only
 	Port *int64 `type:"integer"`
 
 	// The daily time range during which automated backups are created if automated
 	// backups are enabled, using the BackupRetentionPeriod parameter.
 	//
 	// The default is a 30-minute window selected at random from an 8-hour block
-	// of time for each AWS Region. To see the time blocks available, see Adjusting
-	// the Preferred DB Cluster Maintenance Window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow.Aurora)
+	// of time for each Amazon Web Services Region. To view the time blocks available,
+	// see Backup window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Managing.Backups.html#Aurora.Managing.Backups.BackupWindow)
 	// in the Amazon Aurora User Guide.
 	//
 	// Constraints:
@@ -33527,6 +39439,8 @@ type ModifyDBClusterInput struct {
 	//    * Must not conflict with the preferred maintenance window.
 	//
 	//    * Must be at least 30 minutes.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	PreferredBackupWindow *string `type:"string"`
 
 	// The weekly time range during which system maintenance can occur, in Universal
@@ -33535,30 +39449,55 @@ type ModifyDBClusterInput struct {
 	// Format: ddd:hh24:mi-ddd:hh24:mi
 	//
 	// The default is a 30-minute window selected at random from an 8-hour block
-	// of time for each AWS Region, occurring on a random day of the week. To see
-	// the time blocks available, see Adjusting the Preferred DB Cluster Maintenance
-	// Window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow.Aurora)
+	// of time for each Amazon Web Services Region, occurring on a random day of
+	// the week. To see the time blocks available, see Adjusting the Preferred DB
+	// Cluster Maintenance Window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow.Aurora)
 	// in the Amazon Aurora User Guide.
 	//
 	// Valid Days: Mon, Tue, Wed, Thu, Fri, Sat, Sun.
 	//
 	// Constraints: Minimum 30-minute window.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	PreferredMaintenanceWindow *string `type:"string"`
 
 	// The scaling properties of the DB cluster. You can only modify scaling properties
 	// for DB clusters in serverless DB engine mode.
+	//
+	// Valid for: Aurora DB clusters only
 	ScalingConfiguration *ScalingConfiguration `type:"structure"`
 
+	// Specifies the storage type to be associated with the DB cluster.
+	//
+	// Valid values: io1
+	//
+	// When specified, a value for the Iops parameter is required.
+	//
+	// Default: io1
+	//
+	// Valid for: Multi-AZ DB clusters only
+	StorageType *string `type:"string"`
+
 	// A list of VPC security groups that the DB cluster will belong to.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -33576,6 +39515,12 @@ func (s *ModifyDBClusterInput) Validate() error {
 	return nil
 }
 
+// SetAllocatedStorage sets the AllocatedStorage field's value.
+func (s *ModifyDBClusterInput) SetAllocatedStorage(v int64) *ModifyDBClusterInput {
+	s.AllocatedStorage = &v
+	return s
+}
+
 // SetAllowMajorVersionUpgrade sets the AllowMajorVersionUpgrade field's value.
 func (s *ModifyDBClusterInput) SetAllowMajorVersionUpgrade(v bool) *ModifyDBClusterInput {
 	s.AllowMajorVersionUpgrade = &v
@@ -33585,6 +39530,12 @@ func (s *ModifyDBClusterInput) SetAllowMajorVersionUpgrade(v bool) *ModifyDBClus
 // SetApplyImmediately sets the ApplyImmediately field's value.
 func (s *ModifyDBClusterInput) SetApplyImmediately(v bool) *ModifyDBClusterInput {
 	s.ApplyImmediately = &v
+	return s
+}
+
+// SetAutoMinorVersionUpgrade sets the AutoMinorVersionUpgrade field's value.
+func (s *ModifyDBClusterInput) SetAutoMinorVersionUpgrade(v bool) *ModifyDBClusterInput {
+	s.AutoMinorVersionUpgrade = &v
 	return s
 }
 
@@ -33615,6 +39566,12 @@ func (s *ModifyDBClusterInput) SetCopyTagsToSnapshot(v bool) *ModifyDBClusterInp
 // SetDBClusterIdentifier sets the DBClusterIdentifier field's value.
 func (s *ModifyDBClusterInput) SetDBClusterIdentifier(v string) *ModifyDBClusterInput {
 	s.DBClusterIdentifier = &v
+	return s
+}
+
+// SetDBClusterInstanceClass sets the DBClusterInstanceClass field's value.
+func (s *ModifyDBClusterInput) SetDBClusterInstanceClass(v string) *ModifyDBClusterInput {
+	s.DBClusterInstanceClass = &v
 	return s
 }
 
@@ -33666,15 +39623,39 @@ func (s *ModifyDBClusterInput) SetEnableIAMDatabaseAuthentication(v bool) *Modif
 	return s
 }
 
+// SetEnablePerformanceInsights sets the EnablePerformanceInsights field's value.
+func (s *ModifyDBClusterInput) SetEnablePerformanceInsights(v bool) *ModifyDBClusterInput {
+	s.EnablePerformanceInsights = &v
+	return s
+}
+
 // SetEngineVersion sets the EngineVersion field's value.
 func (s *ModifyDBClusterInput) SetEngineVersion(v string) *ModifyDBClusterInput {
 	s.EngineVersion = &v
 	return s
 }
 
+// SetIops sets the Iops field's value.
+func (s *ModifyDBClusterInput) SetIops(v int64) *ModifyDBClusterInput {
+	s.Iops = &v
+	return s
+}
+
 // SetMasterUserPassword sets the MasterUserPassword field's value.
 func (s *ModifyDBClusterInput) SetMasterUserPassword(v string) *ModifyDBClusterInput {
 	s.MasterUserPassword = &v
+	return s
+}
+
+// SetMonitoringInterval sets the MonitoringInterval field's value.
+func (s *ModifyDBClusterInput) SetMonitoringInterval(v int64) *ModifyDBClusterInput {
+	s.MonitoringInterval = &v
+	return s
+}
+
+// SetMonitoringRoleArn sets the MonitoringRoleArn field's value.
+func (s *ModifyDBClusterInput) SetMonitoringRoleArn(v string) *ModifyDBClusterInput {
+	s.MonitoringRoleArn = &v
 	return s
 }
 
@@ -33687,6 +39668,18 @@ func (s *ModifyDBClusterInput) SetNewDBClusterIdentifier(v string) *ModifyDBClus
 // SetOptionGroupName sets the OptionGroupName field's value.
 func (s *ModifyDBClusterInput) SetOptionGroupName(v string) *ModifyDBClusterInput {
 	s.OptionGroupName = &v
+	return s
+}
+
+// SetPerformanceInsightsKMSKeyId sets the PerformanceInsightsKMSKeyId field's value.
+func (s *ModifyDBClusterInput) SetPerformanceInsightsKMSKeyId(v string) *ModifyDBClusterInput {
+	s.PerformanceInsightsKMSKeyId = &v
+	return s
+}
+
+// SetPerformanceInsightsRetentionPeriod sets the PerformanceInsightsRetentionPeriod field's value.
+func (s *ModifyDBClusterInput) SetPerformanceInsightsRetentionPeriod(v int64) *ModifyDBClusterInput {
+	s.PerformanceInsightsRetentionPeriod = &v
 	return s
 }
 
@@ -33714,6 +39707,12 @@ func (s *ModifyDBClusterInput) SetScalingConfiguration(v *ScalingConfiguration) 
 	return s
 }
 
+// SetStorageType sets the StorageType field's value.
+func (s *ModifyDBClusterInput) SetStorageType(v string) *ModifyDBClusterInput {
+	s.StorageType = &v
+	return s
+}
+
 // SetVpcSecurityGroupIds sets the VpcSecurityGroupIds field's value.
 func (s *ModifyDBClusterInput) SetVpcSecurityGroupIds(v []*string) *ModifyDBClusterInput {
 	s.VpcSecurityGroupIds = v
@@ -33723,19 +39722,41 @@ func (s *ModifyDBClusterInput) SetVpcSecurityGroupIds(v []*string) *ModifyDBClus
 type ModifyDBClusterOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -33756,16 +39777,35 @@ type ModifyDBClusterParameterGroupInput struct {
 
 	// A list of parameters in the DB cluster parameter group to modify.
 	//
+	// Valid Values (for the application method): immediate | pending-reboot
+	//
+	// You can use the immediate value with dynamic parameters only. You can use
+	// the pending-reboot value for both dynamic and static parameters.
+	//
+	// When the application method is immediate, changes to dynamic parameters are
+	// applied immediately to the DB clusters associated with the parameter group.
+	// When the application method is pending-reboot, changes to dynamic and static
+	// parameters are applied after a reboot without failover to the DB clusters
+	// associated with the parameter group.
+	//
 	// Parameters is a required field
 	Parameters []*Parameter `locationNameList:"Parameter" type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -33803,8 +39843,8 @@ type ModifyDBClusterSnapshotAttributeInput struct {
 
 	// The name of the DB cluster snapshot attribute to modify.
 	//
-	// To manage authorization for other AWS accounts to copy or restore a manual
-	// DB cluster snapshot, set this value to restore.
+	// To manage authorization for other Amazon Web Services accounts to copy or
+	// restore a manual DB cluster snapshot, set this value to restore.
 	//
 	// To view the list of attributes available to modify, use the DescribeDBClusterSnapshotAttributes
 	// API action.
@@ -33820,31 +39860,41 @@ type ModifyDBClusterSnapshotAttributeInput struct {
 	// A list of DB cluster snapshot attributes to add to the attribute specified
 	// by AttributeName.
 	//
-	// To authorize other AWS accounts to copy or restore a manual DB cluster snapshot,
-	// set this list to include one or more AWS account IDs, or all to make the
-	// manual DB cluster snapshot restorable by any AWS account. Do not add the
-	// all value for any manual DB cluster snapshots that contain private information
-	// that you don't want available to all AWS accounts.
+	// To authorize other Amazon Web Services accounts to copy or restore a manual
+	// DB cluster snapshot, set this list to include one or more Amazon Web Services
+	// account IDs, or all to make the manual DB cluster snapshot restorable by
+	// any Amazon Web Services account. Do not add the all value for any manual
+	// DB cluster snapshots that contain private information that you don't want
+	// available to all Amazon Web Services accounts.
 	ValuesToAdd []*string `locationNameList:"AttributeValue" type:"list"`
 
 	// A list of DB cluster snapshot attributes to remove from the attribute specified
 	// by AttributeName.
 	//
-	// To remove authorization for other AWS accounts to copy or restore a manual
-	// DB cluster snapshot, set this list to include one or more AWS account identifiers,
-	// or all to remove authorization for any AWS account to copy or restore the
-	// DB cluster snapshot. If you specify all, an AWS account whose account ID
-	// is explicitly added to the restore attribute can still copy or restore a
-	// manual DB cluster snapshot.
+	// To remove authorization for other Amazon Web Services accounts to copy or
+	// restore a manual DB cluster snapshot, set this list to include one or more
+	// Amazon Web Services account identifiers, or all to remove authorization for
+	// any Amazon Web Services account to copy or restore the DB cluster snapshot.
+	// If you specify all, an Amazon Web Services account whose account ID is explicitly
+	// added to the restore attribute can still copy or restore a manual DB cluster
+	// snapshot.
 	ValuesToRemove []*string `locationNameList:"AttributeValue" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterSnapshotAttributeInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterSnapshotAttributeInput) GoString() string {
 	return s.String()
 }
@@ -33895,18 +39945,26 @@ type ModifyDBClusterSnapshotAttributeOutput struct {
 	// Contains the results of a successful call to the DescribeDBClusterSnapshotAttributes
 	// API action.
 	//
-	// Manual DB cluster snapshot attributes are used to authorize other AWS accounts
-	// to copy or restore a manual DB cluster snapshot. For more information, see
-	// the ModifyDBClusterSnapshotAttribute API action.
+	// Manual DB cluster snapshot attributes are used to authorize other Amazon
+	// Web Services accounts to copy or restore a manual DB cluster snapshot. For
+	// more information, see the ModifyDBClusterSnapshotAttribute API action.
 	DBClusterSnapshotAttributesResult *DBClusterSnapshotAttributesResult `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterSnapshotAttributeOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBClusterSnapshotAttributeOutput) GoString() string {
 	return s.String()
 }
@@ -33920,7 +39978,7 @@ func (s *ModifyDBClusterSnapshotAttributeOutput) SetDBClusterSnapshotAttributesR
 type ModifyDBInstanceInput struct {
 	_ struct{} `type:"structure"`
 
-	// The new amount of storage (in gibibytes) to allocate for the DB instance.
+	// The new amount of storage in gibibytes (GiB) to allocate for the DB instance.
 	//
 	// For MariaDB, MySQL, Oracle, and PostgreSQL, the value supplied must be at
 	// least 10% greater than the current value. Values that are not at least 10%
@@ -33933,6 +39991,8 @@ type ModifyDBInstanceInput struct {
 	// A value that indicates whether major version upgrades are allowed. Changing
 	// this parameter doesn't result in an outage and the change is asynchronously
 	// applied as soon as possible.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Constraints: Major version upgrades must be allowed when specifying a value
 	// for the EngineVersion parameter that is a different major version than the
@@ -33948,31 +40008,50 @@ type ModifyDBInstanceInput struct {
 	// the next maintenance window. Some parameter changes can cause an outage and
 	// are applied on the next call to RebootDBInstance, or the next failure reboot.
 	// Review the table of parameters in Modifying a DB Instance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Overview.DBInstance.Modifying.html)
-	// in the Amazon RDS User Guide. to see the impact of enabling or disabling
-	// ApplyImmediately for each modified parameter and to determine when the changes
-	// are applied.
+	// in the Amazon RDS User Guide to see the impact of enabling or disabling ApplyImmediately
+	// for each modified parameter and to determine when the changes are applied.
 	ApplyImmediately *bool `type:"boolean"`
 
 	// A value that indicates whether minor version upgrades are applied automatically
-	// to the DB instance during the maintenance window. Changing this parameter
-	// doesn't result in an outage except in the following case and the change is
-	// asynchronously applied as soon as possible. An outage results if this parameter
-	// is enabled during the maintenance window, and a newer minor version is available,
-	// and RDS has enabled auto patching for that engine version.
+	// to the DB instance during the maintenance window. An outage occurs when all
+	// the following conditions are met:
+	//
+	//    * The automatic upgrade is enabled for the maintenance window.
+	//
+	//    * A newer minor version is available.
+	//
+	//    * RDS has enabled automatic patching for the engine version.
+	//
+	// If any of the preceding conditions isn't met, RDS applies the change as soon
+	// as possible and doesn't cause an outage.
+	//
+	// For an RDS Custom DB instance, set AutoMinorVersionUpgrade to false. Otherwise,
+	// the operation returns an error.
 	AutoMinorVersionUpgrade *bool `type:"boolean"`
 
-	// The Amazon Resource Name (ARN) of the recovery point in AWS Backup.
+	// The automation mode of the RDS Custom DB instance: full or all paused. If
+	// full, the DB instance automates monitoring and instance recovery. If all
+	// paused, the instance pauses automation for the duration set by ResumeFullAutomationModeMinutes.
+	AutomationMode *string `type:"string" enum:"AutomationMode"`
+
+	// The Amazon Resource Name (ARN) of the recovery point in Amazon Web Services
+	// Backup.
+	//
+	// This setting doesn't apply to RDS Custom.
 	AwsBackupRecoveryPointArn *string `min:"43" type:"string"`
 
 	// The number of days to retain automated backups. Setting this parameter to
 	// a positive number enables backups. Setting this parameter to 0 disables automated
 	// backups.
 	//
-	// Changing this parameter can result in an outage if you change from 0 to a
-	// non-zero value or from a non-zero value to 0. These changes are applied during
-	// the next maintenance window unless the ApplyImmediately parameter is enabled
-	// for this request. If you change the parameter from one non-zero value to
-	// another non-zero value, the change is asynchronously applied as soon as possible.
+	// Enabling and disabling backups can result in a brief I/O suspension that
+	// lasts from a few seconds to a few minutes, depending on the size and class
+	// of your DB instance.
+	//
+	// These changes are applied during the next maintenance window unless the ApplyImmediately
+	// parameter is enabled for this request. If you change the parameter from one
+	// non-zero value to another non-zero value, the change is asynchronously applied
+	// as soon as possible.
 	//
 	// Amazon Aurora
 	//
@@ -33983,18 +40062,20 @@ type ModifyDBInstanceInput struct {
 	//
 	// Constraints:
 	//
-	//    * Must be a value from 0 to 35
+	//    * It must be a value from 0 to 35. It can't be set to 0 if the DB instance
+	//    is a source to read replicas. It can't be set to 0 or 35 for an RDS Custom
+	//    for Oracle DB instance.
 	//
-	//    * Can be specified for a MySQL read replica only if the source is running
-	//    MySQL 5.6 or later
+	//    * It can be specified for a MySQL read replica only if the source is running
+	//    MySQL 5.6 or later.
 	//
-	//    * Can be specified for a PostgreSQL read replica only if the source is
-	//    running PostgreSQL 9.3.5
-	//
-	//    * Can't be set to 0 if the DB instance is a source to read replicas
+	//    * It can be specified for a PostgreSQL read replica only if the source
+	//    is running PostgreSQL 9.3.5.
 	BackupRetentionPeriod *int64 `type:"integer"`
 
-	// Indicates the certificate that needs to be associated with the instance.
+	// Specifies the certificate to associate with the DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	CACertificateIdentifier *string `type:"string"`
 
 	// A value that indicates whether the DB instance is restarted when you rotate
@@ -34016,6 +40097,8 @@ type ModifyDBInstanceInput struct {
 	//    * For more information about rotating your SSL/TLS certificate for Aurora
 	//    DB engines, see Rotating Your SSL/TLS Certificate (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.SSL-certificate-rotation.html)
 	//    in the Amazon Aurora User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	CertificateRotationRestart *bool `type:"boolean"`
 
 	// The configuration setting for the log types to be enabled for export to CloudWatch
@@ -34024,6 +40107,8 @@ type ModifyDBInstanceInput struct {
 	// A change to the CloudwatchLogsExportConfiguration parameter is always applied
 	// to the DB instance immediately. Therefore, the ApplyImmediately parameter
 	// has no effect.
+	//
+	// This setting doesn't apply to RDS Custom.
 	CloudwatchLogsExportConfiguration *CloudwatchLogsExportConfiguration `type:"structure"`
 
 	// A value that indicates whether to copy all tags from the DB instance to snapshots
@@ -34036,15 +40121,17 @@ type ModifyDBInstanceInput struct {
 	// For more information, see ModifyDBCluster.
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
-	// The new compute and memory capacity of the DB instance, for example, db.m4.large.
-	// Not all DB instance classes are available in all AWS Regions, or for all
-	// database engines. For the full list of DB instance classes, and availability
-	// for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// The new compute and memory capacity of the DB instance, for example db.m4.large.
+	// Not all DB instance classes are available in all Amazon Web Services Regions,
+	// or for all database engines. For the full list of DB instance classes, and
+	// availability for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
 	// in the Amazon RDS User Guide.
 	//
 	// If you modify the DB instance class, an outage occurs during the change.
 	// The change is applied during the next maintenance window, unless ApplyImmediately
 	// is enabled for this request.
+	//
+	// This setting doesn't apply to RDS Custom for Oracle.
 	//
 	// Default: Uses existing setting
 	DBInstanceClass *string `type:"string"`
@@ -34058,17 +40145,22 @@ type ModifyDBInstanceInput struct {
 	// DBInstanceIdentifier is a required field
 	DBInstanceIdentifier *string `type:"string" required:"true"`
 
-	// The name of the DB parameter group to apply to the DB instance. Changing
-	// this setting doesn't result in an outage. The parameter group name itself
-	// is changed immediately, but the actual parameter changes are not applied
+	// The name of the DB parameter group to apply to the DB instance.
+	//
+	// Changing this setting doesn't result in an outage. The parameter group name
+	// itself is changed immediately, but the actual parameter changes are not applied
 	// until you reboot the instance without failover. In this case, the DB instance
-	// isn't rebooted automatically and the parameter changes isn't applied during
-	// the next maintenance window.
+	// isn't rebooted automatically, and the parameter changes aren't applied during
+	// the next maintenance window. However, if you modify dynamic parameters in
+	// the newly associated DB parameter group, these changes are applied immediately
+	// without a reboot.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Default: Uses existing setting
 	//
 	// Constraints: The DB parameter group must be in the same DB parameter group
-	// family as this DB instance.
+	// family as the DB instance.
 	DBParameterGroupName *string `type:"string"`
 
 	// The port number on which the database accepts connections.
@@ -34076,8 +40168,10 @@ type ModifyDBInstanceInput struct {
 	// The value of the DBPortNumber parameter must not match any of the port values
 	// specified for options in the option group for the DB instance.
 	//
-	// Your database will restart when you change the DBPortNumber value regardless
-	// of the value of the ApplyImmediately parameter.
+	// If you change the DBPortNumber value, your database restarts regardless of
+	// the value of the ApplyImmediately parameter.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// MySQL
 	//
@@ -34123,6 +40217,8 @@ type ModifyDBInstanceInput struct {
 	// setting doesn't result in an outage and the change is asynchronously applied
 	// as soon as possible.
 	//
+	// This setting doesn't apply to RDS Custom.
+	//
 	// Constraints:
 	//
 	//    * If supplied, must match existing DBSecurityGroups.
@@ -34137,27 +40233,33 @@ type ModifyDBInstanceInput struct {
 	// Changing the subnet group causes an outage during the change. The change
 	// is applied during the next maintenance window, unless you enable ApplyImmediately.
 	//
+	// This parameter doesn't apply to RDS Custom.
+	//
 	// Constraints: If supplied, must match the name of an existing DBSubnetGroup.
 	//
-	// Example: mySubnetGroup
+	// Example: mydbsubnetgroup
 	DBSubnetGroupName *string `type:"string"`
 
 	// A value that indicates whether the DB instance has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled. For more information, see Deleting a DB
+	// deletion protection isn't enabled. For more information, see Deleting a DB
 	// Instance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_DeleteInstance.html).
 	DeletionProtection *bool `type:"boolean"`
 
 	// The Active Directory directory ID to move the DB instance to. Specify none
-	// to remove the instance from its current domain. The domain must be created
-	// prior to this operation. Currently, only MySQL, Microsoft SQL Server, Oracle,
-	// and PostgreSQL DB instances can be created in an Active Directory Domain.
+	// to remove the instance from its current domain. You must create the domain
+	// before this operation. Currently, you can create only MySQL, Microsoft SQL
+	// Server, Oracle, and PostgreSQL DB instances in an Active Directory Domain.
 	//
 	// For more information, see Kerberos Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/kerberos-authentication.html)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	Domain *string `type:"string"`
 
 	// The name of the IAM role to use when making API calls to the Directory Service.
+	//
+	// This setting doesn't apply to RDS Custom.
 	DomainIAMRoleName *string `type:"string"`
 
 	// A value that indicates whether to enable a customer-owned IP address (CoIP)
@@ -34169,22 +40271,25 @@ type ModifyDBInstanceInput struct {
 	// its virtual private cloud (VPC) on your local network.
 	//
 	// For more information about RDS on Outposts, see Working with Amazon RDS on
-	// AWS Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// Amazon Web Services Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
 	// in the Amazon RDS User Guide.
 	//
 	// For more information about CoIPs, see Customer-owned IP addresses (https://docs.aws.amazon.com/outposts/latest/userguide/outposts-networking-components.html#ip-addressing)
-	// in the AWS Outposts User Guide.
+	// in the Amazon Web Services Outposts User Guide.
 	EnableCustomerOwnedIp *bool `type:"boolean"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
 	//
-	// This setting doesn't apply to Amazon Aurora. Mapping AWS IAM accounts to
-	// database accounts is managed by the DB cluster.
+	// This setting doesn't apply to Amazon Aurora. Mapping Amazon Web Services
+	// IAM accounts to database accounts is managed by the DB cluster.
 	//
 	// For more information about IAM database authentication, see IAM Database
 	// Authentication for MySQL and PostgreSQL (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	EnableIAMDatabaseAuthentication *bool `type:"boolean"`
 
 	// A value that indicates whether to enable Performance Insights for the DB
@@ -34192,6 +40297,8 @@ type ModifyDBInstanceInput struct {
 	//
 	// For more information, see Using Amazon Performance Insights (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PerfInsights.html)
 	// in the Amazon Relational Database Service User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	EnablePerformanceInsights *bool `type:"boolean"`
 
 	// The version number of the database engine to upgrade to. Changing this parameter
@@ -34206,6 +40313,9 @@ type ModifyDBInstanceInput struct {
 	// If you specify only a major version, Amazon RDS will update the DB instance
 	// to the default minor version if the current minor version is lower. For information
 	// about valid engine versions, see CreateDBInstance, or call DescribeDBEngineVersions.
+	//
+	// In RDS Custom for Oracle, this parameter is supported for read replicas only
+	// if they are in the PATCH_DB_FAILURE lifecycle.
 	EngineVersion *string `type:"string"`
 
 	// The new Provisioned IOPS (I/O operations per second) value for the RDS instance.
@@ -34239,6 +40349,8 @@ type ModifyDBInstanceInput struct {
 
 	// The license model for the DB instance.
 	//
+	// This setting doesn't apply to RDS Custom.
+	//
 	// Valid values: license-included | bring-your-own-license | general-public-license
 	LicenseModel *string `type:"string"`
 
@@ -34249,6 +40361,8 @@ type ModifyDBInstanceInput struct {
 	// applied as soon as possible. Between the time of the request and the completion
 	// of the request, the MasterUserPassword element exists in the PendingModifiedValues
 	// element of the operation response.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Amazon Aurora
 	//
@@ -34282,39 +40396,47 @@ type ModifyDBInstanceInput struct {
 	// This includes restoring privileges that might have been accidentally revoked.
 	MasterUserPassword *string `type:"string"`
 
-	// The upper limit to which Amazon RDS can automatically scale the storage of
-	// the DB instance.
+	// The upper limit in gibibytes (GiB) to which Amazon RDS can automatically
+	// scale the storage of the DB instance.
 	//
 	// For more information about this setting, including limitations that apply
 	// to it, see Managing capacity automatically with Amazon RDS storage autoscaling
 	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIOPS.StorageTypes.html#USER_PIOPS.Autoscaling)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	MaxAllocatedStorage *int64 `type:"integer"`
 
 	// The interval, in seconds, between points when Enhanced Monitoring metrics
 	// are collected for the DB instance. To disable collecting Enhanced Monitoring
-	// metrics, specify 0. The default is 0.
+	// metrics, specify 0, which is the default.
 	//
-	// If MonitoringRoleArn is specified, then you must also set MonitoringInterval
-	// to a value other than 0.
+	// If MonitoringRoleArn is specified, set MonitoringInterval to a value other
+	// than 0.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Valid Values: 0, 1, 5, 10, 15, 30, 60
 	MonitoringInterval *int64 `type:"integer"`
 
 	// The ARN for the IAM role that permits RDS to send enhanced monitoring metrics
 	// to Amazon CloudWatch Logs. For example, arn:aws:iam:123456789012:role/emaccess.
-	// For information on creating a monitoring role, go to To create an IAM role
+	// For information on creating a monitoring role, see To create an IAM role
 	// for Amazon RDS Enhanced Monitoring (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Monitoring.html#USER_Monitoring.OS.IAMRole)
 	// in the Amazon RDS User Guide.
 	//
-	// If MonitoringInterval is set to a value other than 0, then you must supply
-	// a MonitoringRoleArn value.
+	// If MonitoringInterval is set to a value other than 0, supply a MonitoringRoleArn
+	// value.
+	//
+	// This setting doesn't apply to RDS Custom.
 	MonitoringRoleArn *string `type:"string"`
 
 	// A value that indicates whether the DB instance is a Multi-AZ deployment.
-	// Changing this parameter doesn't result in an outage and the change is applied
+	// Changing this parameter doesn't result in an outage. The change is applied
 	// during the next maintenance window unless the ApplyImmediately parameter
 	// is enabled for this request.
+	//
+	// This setting doesn't apply to RDS Custom.
 	MultiAZ *bool `type:"boolean"`
 
 	// The new DB instance identifier for the DB instance when renaming a DB instance.
@@ -34322,6 +40444,8 @@ type ModifyDBInstanceInput struct {
 	// if you enable ApplyImmediately, or will occur during the next maintenance
 	// window if you disable Apply Immediately. This value is stored as a lowercase
 	// string.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Constraints:
 	//
@@ -34335,36 +40459,50 @@ type ModifyDBInstanceInput struct {
 	NewDBInstanceIdentifier *string `type:"string"`
 
 	// A value that indicates the DB instance should be associated with the specified
-	// option group. Changing this parameter doesn't result in an outage except
-	// in the following case and the change is applied during the next maintenance
-	// window unless the ApplyImmediately parameter is enabled for this request.
-	// If the parameter change results in an option group that enables OEM, this
-	// change can cause a brief (sub-second) period during which new connections
-	// are rejected but existing connections are not interrupted.
+	// option group.
+	//
+	// Changing this parameter doesn't result in an outage, with one exception.
+	// If the parameter change results in an option group that enables OEM, it can
+	// cause a brief period, lasting less than a second, during which new connections
+	// are rejected but existing connections aren't interrupted.
+	//
+	// The change is applied during the next maintenance window unless the ApplyImmediately
+	// parameter is enabled for this request.
 	//
 	// Permanent options, such as the TDE option for Oracle Advanced Security TDE,
 	// can't be removed from an option group, and that option group can't be removed
-	// from a DB instance once it is associated with a DB instance
+	// from a DB instance after it is associated with a DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	OptionGroupName *string `type:"string"`
 
-	// The AWS KMS key identifier for encryption of Performance Insights data.
+	// The Amazon Web Services KMS key identifier for encryption of Performance
+	// Insights data.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	//
 	// If you do not specify a value for PerformanceInsightsKMSKeyId, then Amazon
-	// RDS uses your default CMK. There is a default CMK for your AWS account. Your
-	// AWS account has a different default CMK for each AWS Region.
+	// RDS uses your default KMS key. There is a default KMS key for your Amazon
+	// Web Services account. Your Amazon Web Services account has a different default
+	// KMS key for each Amazon Web Services Region.
+	//
+	// This setting doesn't apply to RDS Custom.
 	PerformanceInsightsKMSKeyId *string `type:"string"`
 
 	// The amount of time, in days, to retain Performance Insights data. Valid values
 	// are 7 or 731 (2 years).
+	//
+	// This setting doesn't apply to RDS Custom.
 	PerformanceInsightsRetentionPeriod *int64 `type:"integer"`
 
 	// The daily time range during which automated backups are created if automated
 	// backups are enabled, as determined by the BackupRetentionPeriod parameter.
 	// Changing this parameter doesn't result in an outage and the change is asynchronously
-	// applied as soon as possible.
+	// applied as soon as possible. The default is a 30-minute window selected at
+	// random from an 8-hour block of time for each Amazon Web Services Region.
+	// For more information, see Backup window (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html#USER_WorkingWithAutomatedBackups.BackupWindow)
+	// in the Amazon RDS User Guide.
 	//
 	// Amazon Aurora
 	//
@@ -34391,6 +40529,9 @@ type ModifyDBInstanceInput struct {
 	// to the current time, there must be at least 30 minutes between the current
 	// time and end of the window to ensure pending changes are applied.
 	//
+	// For more information, see Amazon RDS Maintenance Window (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_UpgradeDBInstance.Maintenance.html#Concepts.DBMaintenance)
+	// in the Amazon RDS User Guide.
+	//
 	// Default: Uses existing setting
 	//
 	// Format: ddd:hh24:mi-ddd:hh24:mi
@@ -34402,12 +40543,16 @@ type ModifyDBInstanceInput struct {
 
 	// The number of CPU cores and the number of threads per core for the DB instance
 	// class of the DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	ProcessorFeatures []*ProcessorFeature `locationNameList:"ProcessorFeature" type:"list"`
 
 	// A value that specifies the order in which an Aurora Replica is promoted to
 	// the primary instance after a failure of the existing primary instance. For
 	// more information, see Fault Tolerance for an Aurora DB Cluster (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Managing.Backups.html#Aurora.Managing.FaultTolerance)
 	// in the Amazon Aurora User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Default: 1
 	//
@@ -34416,12 +40561,12 @@ type ModifyDBInstanceInput struct {
 
 	// A value that indicates whether the DB instance is publicly accessible.
 	//
-	// When the DB instance is publicly accessible, its DNS endpoint resolves to
-	// the private IP address from within the DB instance's VPC, and to the public
-	// IP address from outside of the DB instance's VPC. Access to the DB instance
-	// is ultimately controlled by the security group it uses, and that public access
-	// is not permitted if the security group assigned to the DB instance doesn't
-	// permit it.
+	// When the DB cluster is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB cluster's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB cluster's VPC. Access to the DB cluster is ultimately controlled
+	// by the security group it uses. That public access isn't permitted if the
+	// security group assigned to the DB cluster doesn't permit it.
 	//
 	// When the DB instance isn't publicly accessible, it is an internal DB instance
 	// with a DNS name that resolves to a private IP address.
@@ -34446,7 +40591,14 @@ type ModifyDBInstanceInput struct {
 	// serve a read-only workload. For more information, see Working with Oracle
 	// Read Replicas for Amazon RDS (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-read-replicas.html)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	ReplicaMode *string `type:"string" enum:"ReplicaMode"`
+
+	// The number of minutes to pause the automation. When the time period ends,
+	// RDS Custom resumes full automation. The minimum value is 60 (default). The
+	// maximum value is 1,440.
+	ResumeFullAutomationModeMinutes *int64 `type:"integer"`
 
 	// Specifies the storage type to be associated with the DB instance.
 	//
@@ -34472,18 +40624,26 @@ type ModifyDBInstanceInput struct {
 	StorageType *string `type:"string"`
 
 	// The ARN from the key store with which to associate the instance for TDE encryption.
+	//
+	// This setting doesn't apply to RDS Custom.
 	TdeCredentialArn *string `type:"string"`
 
 	// The password for the given ARN from the key store in order to access the
 	// device.
+	//
+	// This setting doesn't apply to RDS Custom.
 	TdeCredentialPassword *string `type:"string"`
 
 	// A value that indicates whether the DB instance class of the DB instance uses
 	// its default processor features.
+	//
+	// This setting doesn't apply to RDS Custom.
 	UseDefaultProcessorFeatures *bool `type:"boolean"`
 
-	// A list of EC2 VPC security groups to authorize on this DB instance. This
-	// change is asynchronously applied as soon as possible.
+	// A list of Amazon EC2 VPC security groups to authorize on this DB instance.
+	// This change is asynchronously applied as soon as possible.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Amazon Aurora
 	//
@@ -34496,12 +40656,20 @@ type ModifyDBInstanceInput struct {
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBInstanceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBInstanceInput) GoString() string {
 	return s.String()
 }
@@ -34543,6 +40711,12 @@ func (s *ModifyDBInstanceInput) SetApplyImmediately(v bool) *ModifyDBInstanceInp
 // SetAutoMinorVersionUpgrade sets the AutoMinorVersionUpgrade field's value.
 func (s *ModifyDBInstanceInput) SetAutoMinorVersionUpgrade(v bool) *ModifyDBInstanceInput {
 	s.AutoMinorVersionUpgrade = &v
+	return s
+}
+
+// SetAutomationMode sets the AutomationMode field's value.
+func (s *ModifyDBInstanceInput) SetAutomationMode(v string) *ModifyDBInstanceInput {
+	s.AutomationMode = &v
 	return s
 }
 
@@ -34762,6 +40936,12 @@ func (s *ModifyDBInstanceInput) SetReplicaMode(v string) *ModifyDBInstanceInput 
 	return s
 }
 
+// SetResumeFullAutomationModeMinutes sets the ResumeFullAutomationModeMinutes field's value.
+func (s *ModifyDBInstanceInput) SetResumeFullAutomationModeMinutes(v int64) *ModifyDBInstanceInput {
+	s.ResumeFullAutomationModeMinutes = &v
+	return s
+}
+
 // SetStorageType sets the StorageType field's value.
 func (s *ModifyDBInstanceInput) SetStorageType(v string) *ModifyDBInstanceInput {
 	s.StorageType = &v
@@ -34797,16 +40977,27 @@ type ModifyDBInstanceOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBInstanceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBInstanceOutput) GoString() string {
 	return s.String()
 }
@@ -34829,27 +41020,48 @@ type ModifyDBParameterGroupInput struct {
 	// DBParameterGroupName is a required field
 	DBParameterGroupName *string `type:"string" required:"true"`
 
-	// An array of parameter names, values, and the apply method for the parameter
-	// update. At least one parameter name, value, and apply method must be supplied;
-	// later arguments are optional. A maximum of 20 parameters can be modified
-	// in a single request.
+	// An array of parameter names, values, and the application methods for the
+	// parameter update. At least one parameter name, value, and application method
+	// must be supplied; later arguments are optional. A maximum of 20 parameters
+	// can be modified in a single request.
 	//
 	// Valid Values (for the application method): immediate | pending-reboot
 	//
 	// You can use the immediate value with dynamic parameters only. You can use
-	// the pending-reboot value for both dynamic and static parameters, and changes
-	// are applied when you reboot the DB instance without failover.
+	// the pending-reboot value for both dynamic and static parameters.
+	//
+	// When the application method is immediate, changes to dynamic parameters are
+	// applied immediately to the DB instances associated with the parameter group.
+	//
+	// When the application method is pending-reboot, changes to dynamic and static
+	// parameters are applied after a reboot without failover to the DB instances
+	// associated with the parameter group.
+	//
+	// You can't use pending-reboot with dynamic parameters on RDS for SQL Server
+	// DB instances. Use immediate.
+	//
+	// For more information on modifying DB parameters, see Working with DB parameter
+	// groups (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithParamGroups.html)
+	// in the Amazon RDS User Guide.
 	//
 	// Parameters is a required field
 	Parameters []*Parameter `locationNameList:"Parameter" type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -34879,6 +41091,113 @@ func (s *ModifyDBParameterGroupInput) SetDBParameterGroupName(v string) *ModifyD
 // SetParameters sets the Parameters field's value.
 func (s *ModifyDBParameterGroupInput) SetParameters(v []*Parameter) *ModifyDBParameterGroupInput {
 	s.Parameters = v
+	return s
+}
+
+type ModifyDBProxyEndpointInput struct {
+	_ struct{} `type:"structure"`
+
+	// The name of the DB proxy sociated with the DB proxy endpoint that you want
+	// to modify.
+	//
+	// DBProxyEndpointName is a required field
+	DBProxyEndpointName *string `min:"1" type:"string" required:"true"`
+
+	// The new identifier for the DBProxyEndpoint. An identifier must begin with
+	// a letter and must contain only ASCII letters, digits, and hyphens; it can't
+	// end with a hyphen or contain two consecutive hyphens.
+	NewDBProxyEndpointName *string `min:"1" type:"string"`
+
+	// The VPC security group IDs for the DB proxy endpoint. When the DB proxy endpoint
+	// uses a different VPC than the original proxy, you also specify a different
+	// set of security group IDs than for the original proxy.
+	VpcSecurityGroupIds []*string `type:"list"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ModifyDBProxyEndpointInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ModifyDBProxyEndpointInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *ModifyDBProxyEndpointInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "ModifyDBProxyEndpointInput"}
+	if s.DBProxyEndpointName == nil {
+		invalidParams.Add(request.NewErrParamRequired("DBProxyEndpointName"))
+	}
+	if s.DBProxyEndpointName != nil && len(*s.DBProxyEndpointName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("DBProxyEndpointName", 1))
+	}
+	if s.NewDBProxyEndpointName != nil && len(*s.NewDBProxyEndpointName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("NewDBProxyEndpointName", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDBProxyEndpointName sets the DBProxyEndpointName field's value.
+func (s *ModifyDBProxyEndpointInput) SetDBProxyEndpointName(v string) *ModifyDBProxyEndpointInput {
+	s.DBProxyEndpointName = &v
+	return s
+}
+
+// SetNewDBProxyEndpointName sets the NewDBProxyEndpointName field's value.
+func (s *ModifyDBProxyEndpointInput) SetNewDBProxyEndpointName(v string) *ModifyDBProxyEndpointInput {
+	s.NewDBProxyEndpointName = &v
+	return s
+}
+
+// SetVpcSecurityGroupIds sets the VpcSecurityGroupIds field's value.
+func (s *ModifyDBProxyEndpointInput) SetVpcSecurityGroupIds(v []*string) *ModifyDBProxyEndpointInput {
+	s.VpcSecurityGroupIds = v
+	return s
+}
+
+type ModifyDBProxyEndpointOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The DBProxyEndpoint object representing the new settings for the DB proxy
+	// endpoint.
+	DBProxyEndpoint *DBProxyEndpoint `type:"structure"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ModifyDBProxyEndpointOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ModifyDBProxyEndpointOutput) GoString() string {
+	return s.String()
+}
+
+// SetDBProxyEndpoint sets the DBProxyEndpoint field's value.
+func (s *ModifyDBProxyEndpointOutput) SetDBProxyEndpoint(v *DBProxyEndpoint) *ModifyDBProxyEndpointOutput {
+	s.DBProxyEndpoint = v
 	return s
 }
 
@@ -34918,19 +41237,27 @@ type ModifyDBProxyInput struct {
 	RequireTLS *bool `type:"boolean"`
 
 	// The Amazon Resource Name (ARN) of the IAM role that the proxy uses to access
-	// secrets in AWS Secrets Manager.
+	// secrets in Amazon Web Services Secrets Manager.
 	RoleArn *string `type:"string"`
 
 	// The new list of security groups for the DBProxy.
 	SecurityGroups []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBProxyInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBProxyInput) GoString() string {
 	return s.String()
 }
@@ -35003,12 +41330,20 @@ type ModifyDBProxyOutput struct {
 	DBProxy *DBProxy `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBProxyOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBProxyOutput) GoString() string {
 	return s.String()
 }
@@ -35042,12 +41377,20 @@ type ModifyDBProxyTargetGroupInput struct {
 	TargetGroupName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBProxyTargetGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBProxyTargetGroupInput) GoString() string {
 	return s.String()
 }
@@ -35099,12 +41442,20 @@ type ModifyDBProxyTargetGroupOutput struct {
 	DBProxyTargetGroup *DBProxyTargetGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBProxyTargetGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBProxyTargetGroupOutput) GoString() string {
 	return s.String()
 }
@@ -35120,8 +41471,8 @@ type ModifyDBSnapshotAttributeInput struct {
 
 	// The name of the DB snapshot attribute to modify.
 	//
-	// To manage authorization for other AWS accounts to copy or restore a manual
-	// DB snapshot, set this value to restore.
+	// To manage authorization for other Amazon Web Services accounts to copy or
+	// restore a manual DB snapshot, set this value to restore.
 	//
 	// To view the list of attributes available to modify, use the DescribeDBSnapshotAttributes
 	// API action.
@@ -35136,30 +41487,40 @@ type ModifyDBSnapshotAttributeInput struct {
 
 	// A list of DB snapshot attributes to add to the attribute specified by AttributeName.
 	//
-	// To authorize other AWS accounts to copy or restore a manual snapshot, set
-	// this list to include one or more AWS account IDs, or all to make the manual
-	// DB snapshot restorable by any AWS account. Do not add the all value for any
-	// manual DB snapshots that contain private information that you don't want
-	// available to all AWS accounts.
+	// To authorize other Amazon Web Services accounts to copy or restore a manual
+	// snapshot, set this list to include one or more Amazon Web Services account
+	// IDs, or all to make the manual DB snapshot restorable by any Amazon Web Services
+	// account. Do not add the all value for any manual DB snapshots that contain
+	// private information that you don't want available to all Amazon Web Services
+	// accounts.
 	ValuesToAdd []*string `locationNameList:"AttributeValue" type:"list"`
 
 	// A list of DB snapshot attributes to remove from the attribute specified by
 	// AttributeName.
 	//
-	// To remove authorization for other AWS accounts to copy or restore a manual
-	// snapshot, set this list to include one or more AWS account identifiers, or
-	// all to remove authorization for any AWS account to copy or restore the DB
-	// snapshot. If you specify all, an AWS account whose account ID is explicitly
-	// added to the restore attribute can still copy or restore the manual DB snapshot.
+	// To remove authorization for other Amazon Web Services accounts to copy or
+	// restore a manual snapshot, set this list to include one or more Amazon Web
+	// Services account identifiers, or all to remove authorization for any Amazon
+	// Web Services account to copy or restore the DB snapshot. If you specify all,
+	// an Amazon Web Services account whose account ID is explicitly added to the
+	// restore attribute can still copy or restore the manual DB snapshot.
 	ValuesToRemove []*string `locationNameList:"AttributeValue" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSnapshotAttributeInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSnapshotAttributeInput) GoString() string {
 	return s.String()
 }
@@ -35210,18 +41571,26 @@ type ModifyDBSnapshotAttributeOutput struct {
 	// Contains the results of a successful call to the DescribeDBSnapshotAttributes
 	// API action.
 	//
-	// Manual DB snapshot attributes are used to authorize other AWS accounts to
-	// copy or restore a manual DB snapshot. For more information, see the ModifyDBSnapshotAttribute
-	// API action.
+	// Manual DB snapshot attributes are used to authorize other Amazon Web Services
+	// accounts to copy or restore a manual DB snapshot. For more information, see
+	// the ModifyDBSnapshotAttribute API action.
 	DBSnapshotAttributesResult *DBSnapshotAttributesResult `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSnapshotAttributeOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSnapshotAttributeOutput) GoString() string {
 	return s.String()
 }
@@ -35273,12 +41642,20 @@ type ModifyDBSnapshotInput struct {
 	OptionGroupName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSnapshotInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSnapshotInput) GoString() string {
 	return s.String()
 }
@@ -35323,12 +41700,20 @@ type ModifyDBSnapshotOutput struct {
 	DBSnapshot *DBSnapshot `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSnapshotOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSnapshotOutput) GoString() string {
 	return s.String()
 }
@@ -35351,7 +41736,7 @@ type ModifyDBSubnetGroupInput struct {
 	// Constraints: Must match the name of an existing DBSubnetGroup. Must not be
 	// default.
 	//
-	// Example: mySubnetgroup
+	// Example: mydbsubnetgroup
 	//
 	// DBSubnetGroupName is a required field
 	DBSubnetGroupName *string `type:"string" required:"true"`
@@ -35362,12 +41747,20 @@ type ModifyDBSubnetGroupInput struct {
 	SubnetIds []*string `locationNameList:"SubnetIdentifier" type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSubnetGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSubnetGroupInput) GoString() string {
 	return s.String()
 }
@@ -35416,12 +41809,20 @@ type ModifyDBSubnetGroupOutput struct {
 	DBSubnetGroup *DBSubnetGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSubnetGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyDBSubnetGroupOutput) GoString() string {
 	return s.String()
 }
@@ -35451,10 +41852,11 @@ type ModifyEventSubscriptionInput struct {
 
 	// The type of source that is generating the events. For example, if you want
 	// to be notified of events generated by a DB instance, you would set this parameter
-	// to db-instance. If this value isn't specified, all events are returned.
+	// to db-instance. For RDS Proxy events, specify db-proxy. If this value isn't
+	// specified, all events are returned.
 	//
 	// Valid values: db-instance | db-cluster | db-parameter-group | db-security-group
-	// | db-snapshot | db-cluster-snapshot
+	// | db-snapshot | db-cluster-snapshot | db-proxy
 	SourceType *string `type:"string"`
 
 	// The name of the RDS event notification subscription.
@@ -35463,12 +41865,20 @@ type ModifyEventSubscriptionInput struct {
 	SubscriptionName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyEventSubscriptionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyEventSubscriptionInput) GoString() string {
 	return s.String()
 }
@@ -35524,12 +41934,20 @@ type ModifyEventSubscriptionOutput struct {
 	EventSubscription *EventSubscription `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyEventSubscriptionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyEventSubscriptionOutput) GoString() string {
 	return s.String()
 }
@@ -35570,7 +41988,7 @@ type ModifyGlobalClusterInput struct {
 	// == `true`].[EngineVersion]'
 	//
 	// To list all of the available engine versions for aurora-mysql (for MySQL
-	// 5.7-compatible Aurora), use the following command:
+	// 5.7-compatible and MySQL 8.0-compatible Aurora), use the following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora-mysql --query '*[]|[?SupportsGlobalDatabases
 	// == `true`].[EngineVersion]'
@@ -35605,12 +42023,20 @@ type ModifyGlobalClusterInput struct {
 	NewGlobalClusterIdentifier *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyGlobalClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyGlobalClusterInput) GoString() string {
 	return s.String()
 }
@@ -35652,12 +42078,20 @@ type ModifyGlobalClusterOutput struct {
 	GlobalCluster *GlobalCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyGlobalClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyGlobalClusterOutput) GoString() string {
 	return s.String()
 }
@@ -35693,12 +42127,20 @@ type ModifyOptionGroupInput struct {
 	OptionsToRemove []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyOptionGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyOptionGroupInput) GoString() string {
 	return s.String()
 }
@@ -35756,12 +42198,20 @@ type ModifyOptionGroupOutput struct {
 	OptionGroup *OptionGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyOptionGroupOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ModifyOptionGroupOutput) GoString() string {
 	return s.String()
 }
@@ -35806,12 +42256,20 @@ type Option struct {
 	VpcSecurityGroupMemberships []*VpcSecurityGroupMembership `locationNameList:"VpcSecurityGroupMembership" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Option) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Option) GoString() string {
 	return s.String()
 }
@@ -35895,12 +42353,20 @@ type OptionConfiguration struct {
 	VpcSecurityGroupMemberships []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionConfiguration) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionConfiguration) GoString() string {
 	return s.String()
 }
@@ -35988,12 +42454,20 @@ type OptionGroup struct {
 	VpcId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionGroup) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionGroup) GoString() string {
 	return s.String()
 }
@@ -36059,12 +42533,20 @@ type OptionGroupMembership struct {
 	Status *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionGroupMembership) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionGroupMembership) GoString() string {
 	return s.String()
 }
@@ -36143,12 +42625,20 @@ type OptionGroupOption struct {
 	VpcOnly *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionGroupOption) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionGroupOption) GoString() string {
 	return s.String()
 }
@@ -36283,12 +42773,20 @@ type OptionGroupOptionSetting struct {
 	SettingName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionGroupOptionSetting) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionGroupOptionSetting) GoString() string {
 	return s.String()
 }
@@ -36377,12 +42875,20 @@ type OptionSetting struct {
 	Value *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionSetting) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionSetting) GoString() string {
 	return s.String()
 }
@@ -36453,12 +42959,20 @@ type OptionVersion struct {
 	Version *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionVersion) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OptionVersion) GoString() string {
 	return s.String()
 }
@@ -36527,8 +43041,8 @@ type OrderableDBInstanceOption struct {
 
 	// Whether a DB instance supports RDS on Outposts.
 	//
-	// For more information about RDS on Outposts, see Amazon RDS on AWS Outposts
-	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// For more information about RDS on Outposts, see Amazon RDS on Amazon Web
+	// Services Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
 	// in the Amazon RDS User Guide.
 	OutpostCapable *bool `type:"boolean"`
 
@@ -36538,8 +43052,21 @@ type OrderableDBInstanceOption struct {
 	// Indicates the storage type for a DB instance.
 	StorageType *string `type:"string"`
 
+	// The list of supported modes for Database Activity Streams. Aurora PostgreSQL
+	// returns the value [sync, async]. Aurora MySQL and RDS for Oracle return [async]
+	// only. If Database Activity Streams isn't supported, the return value is an
+	// empty list.
+	SupportedActivityStreamModes []*string `type:"list"`
+
 	// A list of the supported DB engine modes.
 	SupportedEngineModes []*string `type:"list"`
+
+	// Whether DB instances can be configured as a Multi-AZ DB cluster.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
+	SupportsClusters *bool `type:"boolean"`
 
 	// Indicates whether a DB instance supports Enhanced Monitoring at intervals
 	// from 1 to 60 seconds.
@@ -36572,12 +43099,20 @@ type OrderableDBInstanceOption struct {
 	Vpc *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OrderableDBInstanceOption) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s OrderableDBInstanceOption) GoString() string {
 	return s.String()
 }
@@ -36684,9 +43219,21 @@ func (s *OrderableDBInstanceOption) SetStorageType(v string) *OrderableDBInstanc
 	return s
 }
 
+// SetSupportedActivityStreamModes sets the SupportedActivityStreamModes field's value.
+func (s *OrderableDBInstanceOption) SetSupportedActivityStreamModes(v []*string) *OrderableDBInstanceOption {
+	s.SupportedActivityStreamModes = v
+	return s
+}
+
 // SetSupportedEngineModes sets the SupportedEngineModes field's value.
 func (s *OrderableDBInstanceOption) SetSupportedEngineModes(v []*string) *OrderableDBInstanceOption {
 	s.SupportedEngineModes = v
+	return s
+}
+
+// SetSupportsClusters sets the SupportsClusters field's value.
+func (s *OrderableDBInstanceOption) SetSupportsClusters(v bool) *OrderableDBInstanceOption {
+	s.SupportsClusters = &v
 	return s
 }
 
@@ -36746,8 +43293,8 @@ func (s *OrderableDBInstanceOption) SetVpc(v bool) *OrderableDBInstanceOption {
 
 // A data type that represents an Outpost.
 //
-// For more information about RDS on Outposts, see Amazon RDS on AWS Outposts
-// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+// For more information about RDS on Outposts, see Amazon RDS on Amazon Web
+// Services Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
 // in the Amazon RDS User Guide.
 type Outpost struct {
 	_ struct{} `type:"structure"`
@@ -36756,12 +43303,20 @@ type Outpost struct {
 	Arn *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Outpost) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Outpost) GoString() string {
 	return s.String()
 }
@@ -36816,12 +43371,20 @@ type Parameter struct {
 	SupportedEngineModes []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Parameter) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Parameter) GoString() string {
 	return s.String()
 }
@@ -36906,12 +43469,20 @@ type PendingCloudwatchLogsExports struct {
 	LogTypesToEnable []*string `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PendingCloudwatchLogsExports) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PendingCloudwatchLogsExports) GoString() string {
 	return s.String()
 }
@@ -36963,12 +43534,20 @@ type PendingMaintenanceAction struct {
 	OptInStatus *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PendingMaintenanceAction) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PendingMaintenanceAction) GoString() string {
 	return s.String()
 }
@@ -37014,8 +43593,13 @@ func (s *PendingMaintenanceAction) SetOptInStatus(v string) *PendingMaintenanceA
 type PendingModifiedValues struct {
 	_ struct{} `type:"structure"`
 
-	// The allocated storage size for the DB instance specified in gibibytes .
+	// The allocated storage size for the DB instance specified in gibibytes (GiB).
 	AllocatedStorage *int64 `type:"integer"`
+
+	// The automation mode of the RDS Custom DB instance: full or all-paused. If
+	// full, the DB instance automates monitoring and instance recovery. If all-paused,
+	// the instance pauses automation for the duration set by --resume-full-automation-mode-minutes.
+	AutomationMode *string `type:"string" enum:"AutomationMode"`
 
 	// The number of days for which automated backups are retained.
 	BackupRetentionPeriod *int64 `type:"integer"`
@@ -37035,8 +43619,8 @@ type PendingModifiedValues struct {
 	// The database engine version.
 	EngineVersion *string `type:"string"`
 
-	// Whether mapping of AWS Identity and Access Management (IAM) accounts to database
-	// accounts is enabled.
+	// Whether mapping of Amazon Web Services Identity and Access Management (IAM)
+	// accounts to database accounts is enabled.
 	IAMDatabaseAuthenticationEnabled *bool `type:"boolean"`
 
 	// The Provisioned IOPS value for the DB instance.
@@ -37065,16 +43649,29 @@ type PendingModifiedValues struct {
 	// class of the DB instance.
 	ProcessorFeatures []*ProcessorFeature `locationNameList:"ProcessorFeature" type:"list"`
 
+	// The number of minutes to pause the automation. When the time period ends,
+	// RDS Custom resumes full automation. The minimum value is 60 (default). The
+	// maximum value is 1,440.
+	ResumeFullAutomationModeTime *time.Time `type:"timestamp"`
+
 	// The storage type of the DB instance.
 	StorageType *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PendingModifiedValues) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PendingModifiedValues) GoString() string {
 	return s.String()
 }
@@ -37082,6 +43679,12 @@ func (s PendingModifiedValues) GoString() string {
 // SetAllocatedStorage sets the AllocatedStorage field's value.
 func (s *PendingModifiedValues) SetAllocatedStorage(v int64) *PendingModifiedValues {
 	s.AllocatedStorage = &v
+	return s
+}
+
+// SetAutomationMode sets the AutomationMode field's value.
+func (s *PendingModifiedValues) SetAutomationMode(v string) *PendingModifiedValues {
+	s.AutomationMode = &v
 	return s
 }
 
@@ -37169,6 +43772,12 @@ func (s *PendingModifiedValues) SetProcessorFeatures(v []*ProcessorFeature) *Pen
 	return s
 }
 
+// SetResumeFullAutomationModeTime sets the ResumeFullAutomationModeTime field's value.
+func (s *PendingModifiedValues) SetResumeFullAutomationModeTime(v time.Time) *PendingModifiedValues {
+	s.ResumeFullAutomationModeTime = &v
+	return s
+}
+
 // SetStorageType sets the StorageType field's value.
 func (s *PendingModifiedValues) SetStorageType(v string) *PendingModifiedValues {
 	s.StorageType = &v
@@ -37230,12 +43839,20 @@ type ProcessorFeature struct {
 	Value *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ProcessorFeature) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ProcessorFeature) GoString() string {
 	return s.String()
 }
@@ -37268,12 +43885,20 @@ type PromoteReadReplicaDBClusterInput struct {
 	DBClusterIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PromoteReadReplicaDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PromoteReadReplicaDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -37300,19 +43925,41 @@ func (s *PromoteReadReplicaDBClusterInput) SetDBClusterIdentifier(v string) *Pro
 type PromoteReadReplicaDBClusterOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PromoteReadReplicaDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PromoteReadReplicaDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -37354,8 +44001,8 @@ type PromoteReadReplicaInput struct {
 	// backups are enabled, using the BackupRetentionPeriod parameter.
 	//
 	// The default is a 30-minute window selected at random from an 8-hour block
-	// of time for each AWS Region. To see the time blocks available, see Adjusting
-	// the Preferred Maintenance Window (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/AdjustingTheMaintenanceWindow.html)
+	// of time for each Amazon Web Services Region. To see the time blocks available,
+	// see Adjusting the Preferred Maintenance Window (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/AdjustingTheMaintenanceWindow.html)
 	// in the Amazon RDS User Guide.
 	//
 	// Constraints:
@@ -37370,12 +44017,20 @@ type PromoteReadReplicaInput struct {
 	PreferredBackupWindow *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PromoteReadReplicaInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PromoteReadReplicaInput) GoString() string {
 	return s.String()
 }
@@ -37416,16 +44071,27 @@ type PromoteReadReplicaOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PromoteReadReplicaOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PromoteReadReplicaOutput) GoString() string {
 	return s.String()
 }
@@ -37461,12 +44127,20 @@ type PurchaseReservedDBInstancesOfferingInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PurchaseReservedDBInstancesOfferingInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PurchaseReservedDBInstancesOfferingInput) GoString() string {
 	return s.String()
 }
@@ -37516,12 +44190,20 @@ type PurchaseReservedDBInstancesOfferingOutput struct {
 	ReservedDBInstance *ReservedDBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PurchaseReservedDBInstancesOfferingOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s PurchaseReservedDBInstancesOfferingOutput) GoString() string {
 	return s.String()
 }
@@ -37549,12 +44231,20 @@ type Range struct {
 	To *int64 `type:"integer"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Range) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Range) GoString() string {
 	return s.String()
 }
@@ -37574,6 +44264,104 @@ func (s *Range) SetStep(v int64) *Range {
 // SetTo sets the To field's value.
 func (s *Range) SetTo(v int64) *Range {
 	s.To = &v
+	return s
+}
+
+type RebootDBClusterInput struct {
+	_ struct{} `type:"structure"`
+
+	// The DB cluster identifier. This parameter is stored as a lowercase string.
+	//
+	// Constraints:
+	//
+	//    * Must match the identifier of an existing DBCluster.
+	//
+	// DBClusterIdentifier is a required field
+	DBClusterIdentifier *string `type:"string" required:"true"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s RebootDBClusterInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s RebootDBClusterInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *RebootDBClusterInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "RebootDBClusterInput"}
+	if s.DBClusterIdentifier == nil {
+		invalidParams.Add(request.NewErrParamRequired("DBClusterIdentifier"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDBClusterIdentifier sets the DBClusterIdentifier field's value.
+func (s *RebootDBClusterInput) SetDBClusterIdentifier(v string) *RebootDBClusterInput {
+	s.DBClusterIdentifier = &v
+	return s
+}
+
+type RebootDBClusterOutput struct {
+	_ struct{} `type:"structure"`
+
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
+	//
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
+	DBCluster *DBCluster `type:"structure"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s RebootDBClusterOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s RebootDBClusterOutput) GoString() string {
+	return s.String()
+}
+
+// SetDBCluster sets the DBCluster field's value.
+func (s *RebootDBClusterOutput) SetDBCluster(v *DBCluster) *RebootDBClusterOutput {
+	s.DBCluster = v
 	return s
 }
 
@@ -37597,12 +44385,20 @@ type RebootDBInstanceInput struct {
 	ForceFailover *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RebootDBInstanceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RebootDBInstanceInput) GoString() string {
 	return s.String()
 }
@@ -37637,16 +44433,27 @@ type RebootDBInstanceOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RebootDBInstanceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RebootDBInstanceOutput) GoString() string {
 	return s.String()
 }
@@ -37669,12 +44476,20 @@ type RecurringCharge struct {
 	RecurringChargeFrequency *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RecurringCharge) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RecurringCharge) GoString() string {
 	return s.String()
 }
@@ -37709,12 +44524,20 @@ type RegisterDBProxyTargetsInput struct {
 	TargetGroupName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RegisterDBProxyTargetsInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RegisterDBProxyTargetsInput) GoString() string {
 	return s.String()
 }
@@ -37764,12 +44587,20 @@ type RegisterDBProxyTargetsOutput struct {
 	DBProxyTargets []*DBProxyTarget `type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RegisterDBProxyTargetsOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RegisterDBProxyTargetsOutput) GoString() string {
 	return s.String()
 }
@@ -37791,12 +44622,20 @@ type RemoveFromGlobalClusterInput struct {
 	GlobalClusterIdentifier *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveFromGlobalClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveFromGlobalClusterInput) GoString() string {
 	return s.String()
 }
@@ -37820,12 +44659,20 @@ type RemoveFromGlobalClusterOutput struct {
 	GlobalCluster *GlobalCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveFromGlobalClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveFromGlobalClusterOutput) GoString() string {
 	return s.String()
 }
@@ -37845,7 +44692,7 @@ type RemoveRoleFromDBClusterInput struct {
 	DBClusterIdentifier *string `type:"string" required:"true"`
 
 	// The name of the feature for the DB cluster that the IAM role is to be disassociated
-	// from. For the list of supported feature names, see DBEngineVersion.
+	// from. For information about supported feature names, see DBEngineVersion.
 	FeatureName *string `type:"string"`
 
 	// The Amazon Resource Name (ARN) of the IAM role to disassociate from the Aurora
@@ -37855,12 +44702,20 @@ type RemoveRoleFromDBClusterInput struct {
 	RoleArn *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -37903,12 +44758,20 @@ type RemoveRoleFromDBClusterOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -37922,7 +44785,7 @@ type RemoveRoleFromDBInstanceInput struct {
 	DBInstanceIdentifier *string `type:"string" required:"true"`
 
 	// The name of the feature for the DB instance that the IAM role is to be disassociated
-	// from. For the list of supported feature names, see DBEngineVersion.
+	// from. For information about supported feature names, see DBEngineVersion.
 	//
 	// FeatureName is a required field
 	FeatureName *string `type:"string" required:"true"`
@@ -37934,12 +44797,20 @@ type RemoveRoleFromDBInstanceInput struct {
 	RoleArn *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromDBInstanceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromDBInstanceInput) GoString() string {
 	return s.String()
 }
@@ -37985,12 +44856,20 @@ type RemoveRoleFromDBInstanceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromDBInstanceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveRoleFromDBInstanceOutput) GoString() string {
 	return s.String()
 }
@@ -38011,12 +44890,20 @@ type RemoveSourceIdentifierFromSubscriptionInput struct {
 	SubscriptionName *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveSourceIdentifierFromSubscriptionInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveSourceIdentifierFromSubscriptionInput) GoString() string {
 	return s.String()
 }
@@ -38057,12 +44944,20 @@ type RemoveSourceIdentifierFromSubscriptionOutput struct {
 	EventSubscription *EventSubscription `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveSourceIdentifierFromSubscriptionOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveSourceIdentifierFromSubscriptionOutput) GoString() string {
 	return s.String()
 }
@@ -38090,12 +44985,20 @@ type RemoveTagsFromResourceInput struct {
 	TagKeys []*string `type:"list" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveTagsFromResourceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveTagsFromResourceInput) GoString() string {
 	return s.String()
 }
@@ -38132,12 +45035,20 @@ type RemoveTagsFromResourceOutput struct {
 	_ struct{} `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveTagsFromResourceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RemoveTagsFromResourceOutput) GoString() string {
 	return s.String()
 }
@@ -38164,8 +45075,8 @@ type ReservedDBInstance struct {
 
 	// The unique identifier for the lease associated with the reserved DB instance.
 	//
-	// AWS Support might request the lease ID for an issue related to a reserved
-	// DB instance.
+	// Amazon Web Services Support might request the lease ID for an issue related
+	// to a reserved DB instance.
 	LeaseId *string `type:"string"`
 
 	// Indicates if the reservation applies to Multi-AZ deployments.
@@ -38199,12 +45110,20 @@ type ReservedDBInstance struct {
 	UsagePrice *float64 `type:"double"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ReservedDBInstance) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ReservedDBInstance) GoString() string {
 	return s.String()
 }
@@ -38341,12 +45260,20 @@ type ReservedDBInstancesOffering struct {
 	UsagePrice *float64 `type:"double"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ReservedDBInstancesOffering) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ReservedDBInstancesOffering) GoString() string {
 	return s.String()
 }
@@ -38430,12 +45357,20 @@ type ResetDBClusterParameterGroupInput struct {
 	ResetAllParameters *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResetDBClusterParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResetDBClusterParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -38515,12 +45450,20 @@ type ResetDBParameterGroupInput struct {
 	ResetAllParameters *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResetDBParameterGroupInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResetDBParameterGroupInput) GoString() string {
 	return s.String()
 }
@@ -38568,12 +45511,20 @@ type ResourcePendingMaintenanceActions struct {
 	ResourceIdentifier *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResourcePendingMaintenanceActions) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ResourcePendingMaintenanceActions) GoString() string {
 	return s.String()
 }
@@ -38656,7 +45607,7 @@ type RestoreDBClusterFromS3Input struct {
 	//
 	// Constraints: If supplied, must match the name of an existing DBSubnetGroup.
 	//
-	// Example: mySubnetgroup
+	// Example: mydbsubnetgroup
 	DBSubnetGroupName *string `type:"string"`
 
 	// The database name for the restored DB cluster.
@@ -38664,7 +45615,7 @@ type RestoreDBClusterFromS3Input struct {
 
 	// A value that indicates whether the DB cluster has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled.
+	// deletion protection isn't enabled.
 	DeletionProtection *bool `type:"boolean"`
 
 	// Specify the Active Directory directory ID to restore the DB cluster in. The
@@ -38681,13 +45632,24 @@ type RestoreDBClusterFromS3Input struct {
 	DomainIAMRoleName *string `type:"string"`
 
 	// The list of logs that the restored DB cluster is to export to CloudWatch
-	// Logs. The values in the list depend on the DB engine being used. For more
-	// information, see Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// Logs. The values in the list depend on the DB engine being used.
+	//
+	// Aurora MySQL
+	//
+	// Possible values are audit, error, general, and slowquery.
+	//
+	// Aurora PostgreSQL
+	//
+	// Possible value is postgresql.
+	//
+	// For more information about exporting CloudWatch Logs for Amazon Aurora, see
+	// Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
 	// in the Amazon Aurora User Guide.
 	EnableCloudwatchLogsExports []*string `type:"list"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
 	//
 	// For more information, see IAM Database Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.html)
 	// in the Amazon Aurora User Guide.
@@ -38696,7 +45658,7 @@ type RestoreDBClusterFromS3Input struct {
 	// The name of the database engine to be used for this DB cluster.
 	//
 	// Valid Values: aurora (for MySQL 5.6-compatible Aurora), aurora-mysql (for
-	// MySQL 5.7-compatible Aurora), and aurora-postgresql
+	// MySQL 5.7-compatible and MySQL 8.0-compatible Aurora), and aurora-postgresql
 	//
 	// Engine is a required field
 	Engine *string `type:"string" required:"true"`
@@ -38709,7 +45671,7 @@ type RestoreDBClusterFromS3Input struct {
 	// aws rds describe-db-engine-versions --engine aurora --query "DBEngineVersions[].EngineVersion"
 	//
 	// To list all of the available engine versions for aurora-mysql (for MySQL
-	// 5.7-compatible Aurora), use the following command:
+	// 5.7-compatible and MySQL 8.0-compatible Aurora), use the following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora-mysql --query "DBEngineVersions[].EngineVersion"
 	//
@@ -38720,23 +45682,25 @@ type RestoreDBClusterFromS3Input struct {
 	//
 	// Aurora MySQL
 	//
-	// Example: 5.6.10a, 5.6.mysql_aurora.1.19.2, 5.7.12, 5.7.mysql_aurora.2.04.5
+	// Example: 5.6.10a, 5.6.mysql_aurora.1.19.2, 5.7.12, 5.7.mysql_aurora.2.04.5,
+	// 8.0.mysql_aurora.3.01.0
 	//
 	// Aurora PostgreSQL
 	//
 	// Example: 9.6.3, 10.7
 	EngineVersion *string `type:"string"`
 
-	// The AWS KMS key identifier for an encrypted DB cluster.
+	// The Amazon Web Services KMS key identifier for an encrypted DB cluster.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK). To use a CMK in a different AWS
-	// account, specify the key ARN or alias ARN.
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key. To use a KMS key in a different Amazon
+	// Web Services account, specify the key ARN or alias ARN.
 	//
 	// If the StorageEncrypted parameter is enabled, and you do not specify a value
-	// for the KmsKeyId parameter, then Amazon RDS will use your default CMK. There
-	// is a default CMK for your AWS account. Your AWS account has a different default
-	// CMK for each AWS Region.
+	// for the KmsKeyId parameter, then Amazon RDS will use your default KMS key.
+	// There is a default KMS key for your Amazon Web Services account. Your Amazon
+	// Web Services account has a different default KMS key for each Amazon Web
+	// Services Region.
 	KmsKeyId *string `type:"string"`
 
 	// The password for the master database user. This password can contain any
@@ -38777,8 +45741,8 @@ type RestoreDBClusterFromS3Input struct {
 	// backups are enabled using the BackupRetentionPeriod parameter.
 	//
 	// The default is a 30-minute window selected at random from an 8-hour block
-	// of time for each AWS Region. To see the time blocks available, see Adjusting
-	// the Preferred Maintenance Window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow.Aurora)
+	// of time for each Amazon Web Services Region. To view the time blocks available,
+	// see Backup window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Managing.Backups.html#Aurora.Managing.Backups.BackupWindow)
 	// in the Amazon Aurora User Guide.
 	//
 	// Constraints:
@@ -38798,9 +45762,9 @@ type RestoreDBClusterFromS3Input struct {
 	// Format: ddd:hh24:mi-ddd:hh24:mi
 	//
 	// The default is a 30-minute window selected at random from an 8-hour block
-	// of time for each AWS Region, occurring on a random day of the week. To see
-	// the time blocks available, see Adjusting the Preferred Maintenance Window
-	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow.Aurora)
+	// of time for each Amazon Web Services Region, occurring on a random day of
+	// the week. To see the time blocks available, see Adjusting the Preferred Maintenance
+	// Window (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_UpgradeDBInstance.Maintenance.html#AdjustingTheMaintenanceWindow.Aurora)
 	// in the Amazon Aurora User Guide.
 	//
 	// Valid Days: Mon, Tue, Wed, Thu, Fri, Sat, Sun.
@@ -38814,9 +45778,9 @@ type RestoreDBClusterFromS3Input struct {
 	// S3BucketName is a required field
 	S3BucketName *string `type:"string" required:"true"`
 
-	// The Amazon Resource Name (ARN) of the AWS Identity and Access Management
-	// (IAM) role that authorizes Amazon RDS to access the Amazon S3 bucket on your
-	// behalf.
+	// The Amazon Resource Name (ARN) of the Amazon Web Services Identity and Access
+	// Management (IAM) role that authorizes Amazon RDS to access the Amazon S3
+	// bucket on your behalf.
 	//
 	// S3IngestionRoleArn is a required field
 	S3IngestionRoleArn *string `type:"string" required:"true"`
@@ -38855,12 +45819,20 @@ type RestoreDBClusterFromS3Input struct {
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterFromS3Input) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterFromS3Input) GoString() string {
 	return s.String()
 }
@@ -39088,19 +46060,41 @@ func (s *RestoreDBClusterFromS3Input) SetVpcSecurityGroupIds(v []*string) *Resto
 type RestoreDBClusterFromS3Output struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterFromS3Output) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterFromS3Output) GoString() string {
 	return s.String()
 }
@@ -39116,6 +46110,8 @@ type RestoreDBClusterFromSnapshotInput struct {
 
 	// Provides the list of Availability Zones (AZs) where instances in the restored
 	// DB cluster can be created.
+	//
+	// Valid for: Aurora DB clusters only
 	AvailabilityZones []*string `locationNameList:"AvailabilityZone" type:"list"`
 
 	// The target backtrack window, in seconds. To disable backtracking, set this
@@ -39129,10 +46125,14 @@ type RestoreDBClusterFromSnapshotInput struct {
 	//
 	//    * If specified, this value must be set to a number from 0 to 259,200 (72
 	//    hours).
+	//
+	// Valid for: Aurora DB clusters only
 	BacktrackWindow *int64 `type:"long"`
 
 	// A value that indicates whether to copy all tags from the restored DB cluster
 	// to snapshots of the restored DB cluster. The default is not to copy them.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
 	// The name of the DB cluster to create from the DB snapshot or DB cluster snapshot.
@@ -39148,8 +46148,21 @@ type RestoreDBClusterFromSnapshotInput struct {
 	//
 	// Example: my-snapshot-id
 	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	//
 	// DBClusterIdentifier is a required field
 	DBClusterIdentifier *string `type:"string" required:"true"`
+
+	// The compute and memory capacity of the each DB instance in the Multi-AZ DB
+	// cluster, for example db.m6g.xlarge. Not all DB instance classes are available
+	// in all Amazon Web Services Regions, or for all database engines.
+	//
+	// For the full list of DB instance classes, and availability for your engine,
+	// see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// in the Amazon RDS User Guide.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	DBClusterInstanceClass *string `type:"string"`
 
 	// The name of the DB cluster parameter group to associate with this DB cluster.
 	// If this argument is omitted, the default DB cluster parameter group for the
@@ -39165,21 +46178,29 @@ type RestoreDBClusterFromSnapshotInput struct {
 	//    * First character must be a letter.
 	//
 	//    * Can't end with a hyphen or contain two consecutive hyphens.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DBClusterParameterGroupName *string `type:"string"`
 
 	// The name of the DB subnet group to use for the new DB cluster.
 	//
 	// Constraints: If supplied, must match the name of an existing DB subnet group.
 	//
-	// Example: mySubnetgroup
+	// Example: mydbsubnetgroup
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DBSubnetGroupName *string `type:"string"`
 
 	// The database name for the restored DB cluster.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DatabaseName *string `type:"string"`
 
 	// A value that indicates whether the DB cluster has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled.
+	// deletion protection isn't enabled.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DeletionProtection *bool `type:"boolean"`
 
 	// Specify the Active Directory directory ID to restore the DB cluster in. The
@@ -39189,23 +46210,54 @@ type RestoreDBClusterFromSnapshotInput struct {
 	//
 	// For more information, see Kerberos Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/kerberos-authentication.html)
 	// in the Amazon RDS User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	Domain *string `type:"string"`
 
 	// Specify the name of the IAM role to be used when making API calls to the
 	// Directory Service.
+	//
+	// Valid for: Aurora DB clusters only
 	DomainIAMRoleName *string `type:"string"`
 
 	// The list of logs that the restored DB cluster is to export to Amazon CloudWatch
-	// Logs. The values in the list depend on the DB engine being used. For more
-	// information, see Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// Logs. The values in the list depend on the DB engine being used.
+	//
+	// RDS for MySQL
+	//
+	// Possible values are error, general, and slowquery.
+	//
+	// RDS for PostgreSQL
+	//
+	// Possible values are postgresql and upgrade.
+	//
+	// Aurora MySQL
+	//
+	// Possible values are audit, error, general, and slowquery.
+	//
+	// Aurora PostgreSQL
+	//
+	// Possible value is postgresql.
+	//
+	// For more information about exporting CloudWatch Logs for Amazon RDS, see
+	// Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// in the Amazon Relational Database Service User Guide.
+	//
+	// For more information about exporting CloudWatch Logs for Amazon Aurora, see
+	// Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	EnableCloudwatchLogsExports []*string `type:"list"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
 	//
 	// For more information, see IAM Database Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	EnableIAMDatabaseAuthentication *bool `type:"boolean"`
 
 	// The database engine to use for the new DB cluster.
@@ -39214,6 +46266,8 @@ type RestoreDBClusterFromSnapshotInput struct {
 	//
 	// Constraint: Must be compatible with the engine of the source
 	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	//
 	// Engine is a required field
 	Engine *string `type:"string" required:"true"`
 
@@ -39221,56 +46275,96 @@ type RestoreDBClusterFromSnapshotInput struct {
 	// global, or multimaster.
 	//
 	// For more information, see CreateDBCluster (https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_CreateDBCluster.html).
+	//
+	// Valid for: Aurora DB clusters only
 	EngineMode *string `type:"string"`
 
 	// The version of the database engine to use for the new DB cluster.
 	//
-	// To list all of the available engine versions for aurora (for MySQL 5.6-compatible
-	// Aurora), use the following command:
+	// To list all of the available engine versions for MySQL 5.6-compatible Aurora,
+	// use the following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora --query "DBEngineVersions[].EngineVersion"
 	//
-	// To list all of the available engine versions for aurora-mysql (for MySQL
-	// 5.7-compatible Aurora), use the following command:
+	// To list all of the available engine versions for MySQL 5.7-compatible and
+	// MySQL 8.0-compatible Aurora, use the following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora-mysql --query "DBEngineVersions[].EngineVersion"
 	//
-	// To list all of the available engine versions for aurora-postgresql, use the
+	// To list all of the available engine versions for Aurora PostgreSQL, use the
 	// following command:
 	//
 	// aws rds describe-db-engine-versions --engine aurora-postgresql --query "DBEngineVersions[].EngineVersion"
 	//
-	// If you aren't using the default engine version, then you must specify the
-	// engine version.
+	// To list all of the available engine versions for RDS for MySQL, use the following
+	// command:
+	//
+	// aws rds describe-db-engine-versions --engine mysql --query "DBEngineVersions[].EngineVersion"
+	//
+	// To list all of the available engine versions for RDS for PostgreSQL, use
+	// the following command:
+	//
+	// aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[].EngineVersion"
 	//
 	// Aurora MySQL
 	//
-	// Example: 5.6.10a, 5.6.mysql_aurora.1.19.2, 5.7.12, 5.7.mysql_aurora.2.04.5
+	// See MySQL on Amazon RDS Versions (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.html)
+	// in the Amazon Aurora User Guide.
 	//
 	// Aurora PostgreSQL
 	//
-	// Example: 9.6.3, 10.7
+	// See Amazon Aurora PostgreSQL releases and engine versions (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraPostgreSQL.Updates.20180305.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// MySQL
+	//
+	// See MySQL on Amazon RDS Versions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_MySQL.html#MySQL.Concepts.VersionMgmt)
+	// in the Amazon RDS User Guide.
+	//
+	// PostgreSQL
+	//
+	// See Amazon RDS for PostgreSQL versions and extensions (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_PostgreSQL.html#PostgreSQL.Concepts)
+	// in the Amazon RDS User Guide.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	EngineVersion *string `type:"string"`
 
-	// The AWS KMS key identifier to use when restoring an encrypted DB cluster
-	// from a DB snapshot or DB cluster snapshot.
+	// The amount of Provisioned IOPS (input/output operations per second) to be
+	// initially allocated for each DB instance in the Multi-AZ DB cluster.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK). To use a CMK in a different AWS
-	// account, specify the key ARN or alias ARN.
+	// For information about valid Iops values, see Amazon RDS Provisioned IOPS
+	// Storage to Improve Performance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html#USER_PIOPS)
+	// in the Amazon RDS User Guide.
+	//
+	// Constraints: Must be a multiple between .5 and 50 of the storage amount for
+	// the DB instance.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	Iops *int64 `type:"integer"`
+
+	// The Amazon Web Services KMS key identifier to use when restoring an encrypted
+	// DB cluster from a DB snapshot or DB cluster snapshot.
+	//
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key. To use a KMS key in a different Amazon
+	// Web Services account, specify the key ARN or alias ARN.
 	//
 	// When you don't specify a value for the KmsKeyId parameter, then the following
 	// occurs:
 	//
 	//    * If the DB snapshot or DB cluster snapshot in SnapshotIdentifier is encrypted,
-	//    then the restored DB cluster is encrypted using the AWS KMS CMK that was
-	//    used to encrypt the DB snapshot or DB cluster snapshot.
+	//    then the restored DB cluster is encrypted using the KMS key that was used
+	//    to encrypt the DB snapshot or DB cluster snapshot.
 	//
 	//    * If the DB snapshot or DB cluster snapshot in SnapshotIdentifier isn't
 	//    encrypted, then the restored DB cluster isn't encrypted.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	KmsKeyId *string `type:"string"`
 
 	// The name of the option group to use for the restored DB cluster.
+	//
+	// DB clusters are associated with a default option group that can't be modified.
 	OptionGroupName *string `type:"string"`
 
 	// The port number on which the new DB cluster accepts connections.
@@ -39278,10 +46372,50 @@ type RestoreDBClusterFromSnapshotInput struct {
 	// Constraints: This value must be 1150-65535
 	//
 	// Default: The same port as the original DB cluster.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	Port *int64 `type:"integer"`
+
+	// A value that indicates whether the DB cluster is publicly accessible.
+	//
+	// When the DB cluster is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB cluster's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB cluster's VPC. Access to the DB cluster is ultimately controlled
+	// by the security group it uses. That public access is not permitted if the
+	// security group assigned to the DB cluster doesn't permit it.
+	//
+	// When the DB cluster isn't publicly accessible, it is an internal DB cluster
+	// with a DNS name that resolves to a private IP address.
+	//
+	// Default: The default behavior varies depending on whether DBSubnetGroupName
+	// is specified.
+	//
+	// If DBSubnetGroupName isn't specified, and PubliclyAccessible isn't specified,
+	// the following applies:
+	//
+	//    * If the default VPC in the target Region doesn’t have an internet gateway
+	//    attached to it, the DB cluster is private.
+	//
+	//    * If the default VPC in the target Region has an internet gateway attached
+	//    to it, the DB cluster is public.
+	//
+	// If DBSubnetGroupName is specified, and PubliclyAccessible isn't specified,
+	// the following applies:
+	//
+	//    * If the subnets are part of a VPC that doesn’t have an internet gateway
+	//    attached to it, the DB cluster is private.
+	//
+	//    * If the subnets are part of a VPC that has an internet gateway attached
+	//    to it, the DB cluster is public.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	PubliclyAccessible *bool `type:"boolean"`
 
 	// For DB clusters in serverless DB engine mode, the scaling properties of the
 	// DB cluster.
+	//
+	// Valid for: Aurora DB clusters only
 	ScalingConfiguration *ScalingConfiguration `type:"structure"`
 
 	// The identifier for the DB snapshot or DB cluster snapshot to restore from.
@@ -39294,22 +46428,48 @@ type RestoreDBClusterFromSnapshotInput struct {
 	//
 	//    * Must match the identifier of an existing Snapshot.
 	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	//
 	// SnapshotIdentifier is a required field
 	SnapshotIdentifier *string `type:"string" required:"true"`
 
+	// Specifies the storage type to be associated with the each DB instance in
+	// the Multi-AZ DB cluster.
+	//
+	// Valid values: io1
+	//
+	// When specified, a value for the Iops parameter is required.
+	//
+	// Default: io1
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	StorageType *string `type:"string"`
+
 	// The tags to be assigned to the restored DB cluster.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 
 	// A list of VPC security groups that the new DB cluster will belong to.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterFromSnapshotInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterFromSnapshotInput) GoString() string {
 	return s.String()
 }
@@ -39354,6 +46514,12 @@ func (s *RestoreDBClusterFromSnapshotInput) SetCopyTagsToSnapshot(v bool) *Resto
 // SetDBClusterIdentifier sets the DBClusterIdentifier field's value.
 func (s *RestoreDBClusterFromSnapshotInput) SetDBClusterIdentifier(v string) *RestoreDBClusterFromSnapshotInput {
 	s.DBClusterIdentifier = &v
+	return s
+}
+
+// SetDBClusterInstanceClass sets the DBClusterInstanceClass field's value.
+func (s *RestoreDBClusterFromSnapshotInput) SetDBClusterInstanceClass(v string) *RestoreDBClusterFromSnapshotInput {
+	s.DBClusterInstanceClass = &v
 	return s
 }
 
@@ -39423,6 +46589,12 @@ func (s *RestoreDBClusterFromSnapshotInput) SetEngineVersion(v string) *RestoreD
 	return s
 }
 
+// SetIops sets the Iops field's value.
+func (s *RestoreDBClusterFromSnapshotInput) SetIops(v int64) *RestoreDBClusterFromSnapshotInput {
+	s.Iops = &v
+	return s
+}
+
 // SetKmsKeyId sets the KmsKeyId field's value.
 func (s *RestoreDBClusterFromSnapshotInput) SetKmsKeyId(v string) *RestoreDBClusterFromSnapshotInput {
 	s.KmsKeyId = &v
@@ -39441,6 +46613,12 @@ func (s *RestoreDBClusterFromSnapshotInput) SetPort(v int64) *RestoreDBClusterFr
 	return s
 }
 
+// SetPubliclyAccessible sets the PubliclyAccessible field's value.
+func (s *RestoreDBClusterFromSnapshotInput) SetPubliclyAccessible(v bool) *RestoreDBClusterFromSnapshotInput {
+	s.PubliclyAccessible = &v
+	return s
+}
+
 // SetScalingConfiguration sets the ScalingConfiguration field's value.
 func (s *RestoreDBClusterFromSnapshotInput) SetScalingConfiguration(v *ScalingConfiguration) *RestoreDBClusterFromSnapshotInput {
 	s.ScalingConfiguration = v
@@ -39450,6 +46628,12 @@ func (s *RestoreDBClusterFromSnapshotInput) SetScalingConfiguration(v *ScalingCo
 // SetSnapshotIdentifier sets the SnapshotIdentifier field's value.
 func (s *RestoreDBClusterFromSnapshotInput) SetSnapshotIdentifier(v string) *RestoreDBClusterFromSnapshotInput {
 	s.SnapshotIdentifier = &v
+	return s
+}
+
+// SetStorageType sets the StorageType field's value.
+func (s *RestoreDBClusterFromSnapshotInput) SetStorageType(v string) *RestoreDBClusterFromSnapshotInput {
+	s.StorageType = &v
 	return s
 }
 
@@ -39468,19 +46652,41 @@ func (s *RestoreDBClusterFromSnapshotInput) SetVpcSecurityGroupIds(v []*string) 
 type RestoreDBClusterFromSnapshotOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterFromSnapshotOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterFromSnapshotOutput) GoString() string {
 	return s.String()
 }
@@ -39497,18 +46703,20 @@ type RestoreDBClusterToPointInTimeInput struct {
 	// The target backtrack window, in seconds. To disable backtracking, set this
 	// value to 0.
 	//
-	// Currently, Backtrack is only supported for Aurora MySQL DB clusters.
-	//
 	// Default: 0
 	//
 	// Constraints:
 	//
 	//    * If specified, this value must be set to a number from 0 to 259,200 (72
 	//    hours).
+	//
+	// Valid for: Aurora MySQL DB clusters only
 	BacktrackWindow *int64 `type:"long"`
 
 	// A value that indicates whether to copy all tags from the restored DB cluster
 	// to snapshots of the restored DB cluster. The default is not to copy them.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
 	// The name of the new DB cluster to be created.
@@ -39521,8 +46729,21 @@ type RestoreDBClusterToPointInTimeInput struct {
 	//
 	//    * Can't end with a hyphen or contain two consecutive hyphens
 	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	//
 	// DBClusterIdentifier is a required field
 	DBClusterIdentifier *string `type:"string" required:"true"`
+
+	// The compute and memory capacity of the each DB instance in the Multi-AZ DB
+	// cluster, for example db.m6g.xlarge. Not all DB instance classes are available
+	// in all Amazon Web Services Regions, or for all database engines.
+	//
+	// For the full list of DB instance classes, and availability for your engine,
+	// see DB instance class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// in the Amazon RDS User Guide.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	DBClusterInstanceClass *string `type:"string"`
 
 	// The name of the DB cluster parameter group to associate with this DB cluster.
 	// If this argument is omitted, the default DB cluster parameter group for the
@@ -39538,18 +46759,24 @@ type RestoreDBClusterToPointInTimeInput struct {
 	//    * First character must be a letter.
 	//
 	//    * Can't end with a hyphen or contain two consecutive hyphens.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DBClusterParameterGroupName *string `type:"string"`
 
 	// The DB subnet group name to use for the new DB cluster.
 	//
 	// Constraints: If supplied, must match the name of an existing DBSubnetGroup.
 	//
-	// Example: mySubnetgroup
+	// Example: mydbsubnetgroup
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DBSubnetGroupName *string `type:"string"`
 
 	// A value that indicates whether the DB cluster has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled.
+	// deletion protection isn't enabled.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	DeletionProtection *bool `type:"boolean"`
 
 	// Specify the Active Directory directory ID to restore the DB cluster in. The
@@ -39559,51 +46786,109 @@ type RestoreDBClusterToPointInTimeInput struct {
 	// to authenticate users that connect to the DB cluster. For more information,
 	// see Kerberos Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/kerberos-authentication.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	Domain *string `type:"string"`
 
 	// Specify the name of the IAM role to be used when making API calls to the
 	// Directory Service.
+	//
+	// Valid for: Aurora DB clusters only
 	DomainIAMRoleName *string `type:"string"`
 
 	// The list of logs that the restored DB cluster is to export to CloudWatch
-	// Logs. The values in the list depend on the DB engine being used. For more
-	// information, see Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// Logs. The values in the list depend on the DB engine being used.
+	//
+	// RDS for MySQL
+	//
+	// Possible values are error, general, and slowquery.
+	//
+	// RDS for PostgreSQL
+	//
+	// Possible values are postgresql and upgrade.
+	//
+	// Aurora MySQL
+	//
+	// Possible values are audit, error, general, and slowquery.
+	//
+	// Aurora PostgreSQL
+	//
+	// Possible value is postgresql.
+	//
+	// For more information about exporting CloudWatch Logs for Amazon RDS, see
+	// Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
+	// in the Amazon Relational Database Service User Guide.
+	//
+	// For more information about exporting CloudWatch Logs for Amazon Aurora, see
+	// Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	EnableCloudwatchLogsExports []*string `type:"list"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
 	//
 	// For more information, see IAM Database Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.html)
 	// in the Amazon Aurora User Guide.
+	//
+	// Valid for: Aurora DB clusters only
 	EnableIAMDatabaseAuthentication *bool `type:"boolean"`
 
-	// The AWS KMS key identifier to use when restoring an encrypted DB cluster
-	// from an encrypted DB cluster.
+	// The engine mode of the new cluster. Specify provisioned or serverless, depending
+	// on the type of the cluster you are creating. You can create an Aurora Serverless
+	// clone from a provisioned cluster, or a provisioned clone from an Aurora Serverless
+	// cluster. To create a clone that is an Aurora Serverless cluster, the original
+	// cluster must be an Aurora Serverless cluster or an encrypted provisioned
+	// cluster.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK). To use a CMK in a different AWS
-	// account, specify the key ARN or alias ARN.
+	// Valid for: Aurora DB clusters only
+	EngineMode *string `type:"string"`
+
+	// The amount of Provisioned IOPS (input/output operations per second) to be
+	// initially allocated for each DB instance in the Multi-AZ DB cluster.
+	//
+	// For information about valid Iops values, see Amazon RDS Provisioned IOPS
+	// storage to improve performance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html#USER_PIOPS)
+	// in the Amazon RDS User Guide.
+	//
+	// Constraints: Must be a multiple between .5 and 50 of the storage amount for
+	// the DB instance.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	Iops *int64 `type:"integer"`
+
+	// The Amazon Web Services KMS key identifier to use when restoring an encrypted
+	// DB cluster from an encrypted DB cluster.
+	//
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key. To use a KMS key in a different Amazon
+	// Web Services account, specify the key ARN or alias ARN.
 	//
 	// You can restore to a new DB cluster and encrypt the new DB cluster with a
-	// AWS KMS CMK that is different than the AWS KMS key used to encrypt the source
-	// DB cluster. The new DB cluster is encrypted with the AWS KMS CMK identified
-	// by the KmsKeyId parameter.
+	// KMS key that is different from the KMS key used to encrypt the source DB
+	// cluster. The new DB cluster is encrypted with the KMS key identified by the
+	// KmsKeyId parameter.
 	//
 	// If you don't specify a value for the KmsKeyId parameter, then the following
 	// occurs:
 	//
 	//    * If the DB cluster is encrypted, then the restored DB cluster is encrypted
-	//    using the AWS KMS CMK that was used to encrypt the source DB cluster.
+	//    using the KMS key that was used to encrypt the source DB cluster.
 	//
 	//    * If the DB cluster isn't encrypted, then the restored DB cluster isn't
 	//    encrypted.
 	//
 	// If DBClusterIdentifier refers to a DB cluster that isn't encrypted, then
 	// the restore request is rejected.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	KmsKeyId *string `type:"string"`
 
 	// The name of the option group for the new DB cluster.
+	//
+	// DB clusters are associated with a default option group that can't be modified.
 	OptionGroupName *string `type:"string"`
 
 	// The port number on which the new DB cluster accepts connections.
@@ -39611,7 +46896,45 @@ type RestoreDBClusterToPointInTimeInput struct {
 	// Constraints: A value from 1150-65535.
 	//
 	// Default: The default port for the engine.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	Port *int64 `type:"integer"`
+
+	// A value that indicates whether the DB cluster is publicly accessible.
+	//
+	// When the DB cluster is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB cluster's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB cluster's VPC. Access to the DB cluster is ultimately controlled
+	// by the security group it uses. That public access is not permitted if the
+	// security group assigned to the DB cluster doesn't permit it.
+	//
+	// When the DB cluster isn't publicly accessible, it is an internal DB cluster
+	// with a DNS name that resolves to a private IP address.
+	//
+	// Default: The default behavior varies depending on whether DBSubnetGroupName
+	// is specified.
+	//
+	// If DBSubnetGroupName isn't specified, and PubliclyAccessible isn't specified,
+	// the following applies:
+	//
+	//    * If the default VPC in the target Region doesn’t have an internet gateway
+	//    attached to it, the DB cluster is private.
+	//
+	//    * If the default VPC in the target Region has an internet gateway attached
+	//    to it, the DB cluster is public.
+	//
+	// If DBSubnetGroupName is specified, and PubliclyAccessible isn't specified,
+	// the following applies:
+	//
+	//    * If the subnets are part of a VPC that doesn’t have an internet gateway
+	//    attached to it, the DB cluster is private.
+	//
+	//    * If the subnets are part of a VPC that has an internet gateway attached
+	//    to it, the DB cluster is public.
+	//
+	// Valid for: Multi-AZ DB clusters only
+	PubliclyAccessible *bool `type:"boolean"`
 
 	// The date and time to restore the DB cluster to.
 	//
@@ -39628,6 +46951,8 @@ type RestoreDBClusterToPointInTimeInput struct {
 	//    * Can't be specified if the RestoreType parameter is copy-on-write
 	//
 	// Example: 2015-03-07T23:45:00Z
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	RestoreToTime *time.Time `type:"timestamp"`
 
 	// The type of restore to be performed. You can specify one of the following
@@ -39644,7 +46969,15 @@ type RestoreDBClusterToPointInTimeInput struct {
 	//
 	// If you don't specify a RestoreType value, then the new DB cluster is restored
 	// as a full copy of the source DB cluster.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	RestoreType *string `type:"string"`
+
+	// For DB clusters in serverless DB engine mode, the scaling properties of the
+	// DB cluster.
+	//
+	// Valid for: Aurora DB clusters only
+	ScalingConfiguration *ScalingConfiguration `type:"structure"`
 
 	// The identifier of the source DB cluster from which to restore.
 	//
@@ -39652,8 +46985,22 @@ type RestoreDBClusterToPointInTimeInput struct {
 	//
 	//    * Must match the identifier of an existing DBCluster.
 	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
+	//
 	// SourceDBClusterIdentifier is a required field
 	SourceDBClusterIdentifier *string `type:"string" required:"true"`
+
+	// Specifies the storage type to be associated with the each DB instance in
+	// the Multi-AZ DB cluster.
+	//
+	// Valid values: io1
+	//
+	// When specified, a value for the Iops parameter is required.
+	//
+	// Default: io1
+	//
+	// Valid for: Multi-AZ DB clusters only
+	StorageType *string `type:"string"`
 
 	// A list of tags. For more information, see Tagging Amazon RDS Resources (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html)
 	// in the Amazon RDS User Guide.
@@ -39664,18 +47011,30 @@ type RestoreDBClusterToPointInTimeInput struct {
 	// backup time.
 	//
 	// Constraints: Can't be specified if RestoreToTime parameter is provided.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	UseLatestRestorableTime *bool `type:"boolean"`
 
 	// A list of VPC security groups that the new DB cluster belongs to.
+	//
+	// Valid for: Aurora DB clusters and Multi-AZ DB clusters
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterToPointInTimeInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterToPointInTimeInput) GoString() string {
 	return s.String()
 }
@@ -39711,6 +47070,12 @@ func (s *RestoreDBClusterToPointInTimeInput) SetCopyTagsToSnapshot(v bool) *Rest
 // SetDBClusterIdentifier sets the DBClusterIdentifier field's value.
 func (s *RestoreDBClusterToPointInTimeInput) SetDBClusterIdentifier(v string) *RestoreDBClusterToPointInTimeInput {
 	s.DBClusterIdentifier = &v
+	return s
+}
+
+// SetDBClusterInstanceClass sets the DBClusterInstanceClass field's value.
+func (s *RestoreDBClusterToPointInTimeInput) SetDBClusterInstanceClass(v string) *RestoreDBClusterToPointInTimeInput {
+	s.DBClusterInstanceClass = &v
 	return s
 }
 
@@ -39756,6 +47121,18 @@ func (s *RestoreDBClusterToPointInTimeInput) SetEnableIAMDatabaseAuthentication(
 	return s
 }
 
+// SetEngineMode sets the EngineMode field's value.
+func (s *RestoreDBClusterToPointInTimeInput) SetEngineMode(v string) *RestoreDBClusterToPointInTimeInput {
+	s.EngineMode = &v
+	return s
+}
+
+// SetIops sets the Iops field's value.
+func (s *RestoreDBClusterToPointInTimeInput) SetIops(v int64) *RestoreDBClusterToPointInTimeInput {
+	s.Iops = &v
+	return s
+}
+
 // SetKmsKeyId sets the KmsKeyId field's value.
 func (s *RestoreDBClusterToPointInTimeInput) SetKmsKeyId(v string) *RestoreDBClusterToPointInTimeInput {
 	s.KmsKeyId = &v
@@ -39774,6 +47151,12 @@ func (s *RestoreDBClusterToPointInTimeInput) SetPort(v int64) *RestoreDBClusterT
 	return s
 }
 
+// SetPubliclyAccessible sets the PubliclyAccessible field's value.
+func (s *RestoreDBClusterToPointInTimeInput) SetPubliclyAccessible(v bool) *RestoreDBClusterToPointInTimeInput {
+	s.PubliclyAccessible = &v
+	return s
+}
+
 // SetRestoreToTime sets the RestoreToTime field's value.
 func (s *RestoreDBClusterToPointInTimeInput) SetRestoreToTime(v time.Time) *RestoreDBClusterToPointInTimeInput {
 	s.RestoreToTime = &v
@@ -39786,9 +47169,21 @@ func (s *RestoreDBClusterToPointInTimeInput) SetRestoreType(v string) *RestoreDB
 	return s
 }
 
+// SetScalingConfiguration sets the ScalingConfiguration field's value.
+func (s *RestoreDBClusterToPointInTimeInput) SetScalingConfiguration(v *ScalingConfiguration) *RestoreDBClusterToPointInTimeInput {
+	s.ScalingConfiguration = v
+	return s
+}
+
 // SetSourceDBClusterIdentifier sets the SourceDBClusterIdentifier field's value.
 func (s *RestoreDBClusterToPointInTimeInput) SetSourceDBClusterIdentifier(v string) *RestoreDBClusterToPointInTimeInput {
 	s.SourceDBClusterIdentifier = &v
+	return s
+}
+
+// SetStorageType sets the StorageType field's value.
+func (s *RestoreDBClusterToPointInTimeInput) SetStorageType(v string) *RestoreDBClusterToPointInTimeInput {
+	s.StorageType = &v
 	return s
 }
 
@@ -39813,19 +47208,41 @@ func (s *RestoreDBClusterToPointInTimeInput) SetVpcSecurityGroupIds(v []*string)
 type RestoreDBClusterToPointInTimeOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterToPointInTimeOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBClusterToPointInTimeOutput) GoString() string {
 	return s.String()
 }
@@ -39841,6 +47258,8 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 
 	// A value that indicates whether minor version upgrades are applied automatically
 	// to the DB instance during the maintenance window.
+	//
+	// If you restore an RDS Custom DB instance, you must disable this parameter.
 	AutoMinorVersionUpgrade *bool `type:"boolean"`
 
 	// The Availability Zone (AZ) where the DB instance will be created.
@@ -39853,14 +47272,52 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 	// Example: us-east-1a
 	AvailabilityZone *string `type:"string"`
 
+	// Specifies where automated backups and manual snapshots are stored for the
+	// restored DB instance.
+	//
+	// Possible values are outposts (Amazon Web Services Outposts) and region (Amazon
+	// Web Services Region). The default is region.
+	//
+	// For more information, see Working with Amazon RDS on Amazon Web Services
+	// Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// in the Amazon RDS User Guide.
+	BackupTarget *string `type:"string"`
+
 	// A value that indicates whether to copy all tags from the restored DB instance
-	// to snapshots of the DB instance. By default, tags are not copied.
+	// to snapshots of the DB instance.
+	//
+	// In most cases, tags aren't copied by default. However, when you restore a
+	// DB instance from a DB snapshot, RDS checks whether you specify new tags.
+	// If yes, the new tags are added to the restored DB instance. If there are
+	// no new tags, RDS looks for the tags from the source DB instance for the DB
+	// snapshot, and then adds those tags to the restored DB instance.
+	//
+	// For more information, see Copying tags to DB instance snapshots (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Tagging.html#USER_Tagging.CopyTags)
+	// in the Amazon RDS User Guide.
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
-	// The compute and memory capacity of the Amazon RDS DB instance, for example,
-	// db.m4.large. Not all DB instance classes are available in all AWS Regions,
-	// or for all database engines. For the full list of DB instance classes, and
-	// availability for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// The instance profile associated with the underlying Amazon EC2 instance of
+	// an RDS Custom DB instance. The instance profile must meet the following requirements:
+	//
+	//    * The profile must exist in your account.
+	//
+	//    * The profile must have an IAM role that Amazon EC2 has permissions to
+	//    assume.
+	//
+	//    * The instance profile name and the associated IAM role name must start
+	//    with the prefix AWSRDSCustom.
+	//
+	// For the list of permissions required for the IAM role, see Configure IAM
+	// and your VPC (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-setup-orcl.html#custom-setup-orcl.iam-vpc)
+	// in the Amazon RDS User Guide.
+	//
+	// This setting is required for RDS Custom.
+	CustomIamInstanceProfile *string `type:"string"`
+
+	// The compute and memory capacity of the Amazon RDS DB instance, for example
+	// db.m4.large. Not all DB instance classes are available in all Amazon Web
+	// Services Regions, or for all database engines. For the full list of DB instance
+	// classes, and availability for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
 	// in the Amazon RDS User Guide.
 	//
 	// Default: The same DBInstanceClass as the original DB instance.
@@ -39885,12 +47342,15 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 	// The database name for the restored DB instance.
 	//
 	// This parameter doesn't apply to the MySQL, PostgreSQL, or MariaDB engines.
+	// It also doesn't apply to RDS Custom DB instances.
 	DBName *string `type:"string"`
 
 	// The name of the DB parameter group to associate with this DB instance.
 	//
-	// If you do not specify a value for DBParameterGroupName, then the default
-	// DBParameterGroup for the specified DB engine is used.
+	// If you don't specify a value for DBParameterGroupName, then RDS uses the
+	// default DBParameterGroup for the specified DB engine.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Constraints:
 	//
@@ -39919,32 +47379,38 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 	//
 	// Constraints: If supplied, must match the name of an existing DBSubnetGroup.
 	//
-	// Example: mySubnetgroup
+	// Example: mydbsubnetgroup
 	DBSubnetGroupName *string `type:"string"`
 
 	// A value that indicates whether the DB instance has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled. For more information, see Deleting a DB
+	// deletion protection isn't enabled. For more information, see Deleting a DB
 	// Instance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_DeleteInstance.html).
 	DeletionProtection *bool `type:"boolean"`
 
 	// Specify the Active Directory directory ID to restore the DB instance in.
-	// The domain must be created prior to this operation. Currently, only MySQL,
-	// Microsoft SQL Server, Oracle, and PostgreSQL DB instances can be created
-	// in an Active Directory Domain.
+	// The domain/ must be created prior to this operation. Currently, you can create
+	// only MySQL, Microsoft SQL Server, Oracle, and PostgreSQL DB instances in
+	// an Active Directory Domain.
 	//
 	// For more information, see Kerberos Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/kerberos-authentication.html)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	Domain *string `type:"string"`
 
 	// Specify the name of the IAM role to be used when making API calls to the
 	// Directory Service.
+	//
+	// This setting doesn't apply to RDS Custom.
 	DomainIAMRoleName *string `type:"string"`
 
 	// The list of logs that the restored DB instance is to export to CloudWatch
 	// Logs. The values in the list depend on the DB engine being used. For more
 	// information, see Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	EnableCloudwatchLogsExports []*string `type:"list"`
 
 	// A value that indicates whether to enable a customer-owned IP address (CoIP)
@@ -39955,23 +47421,30 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 	// provide lower latency for connections to the DB instance from outside of
 	// its virtual private cloud (VPC) on your local network.
 	//
+	// This setting doesn't apply to RDS Custom.
+	//
 	// For more information about RDS on Outposts, see Working with Amazon RDS on
-	// AWS Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// Amazon Web Services Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
 	// in the Amazon RDS User Guide.
 	//
 	// For more information about CoIPs, see Customer-owned IP addresses (https://docs.aws.amazon.com/outposts/latest/userguide/outposts-networking-components.html#ip-addressing)
-	// in the AWS Outposts User Guide.
+	// in the Amazon Web Services Outposts User Guide.
 	EnableCustomerOwnedIp *bool `type:"boolean"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// is disabled.
 	//
 	// For more information about IAM database authentication, see IAM Database
 	// Authentication for MySQL and PostgreSQL (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	EnableIAMDatabaseAuthentication *bool `type:"boolean"`
 
 	// The database engine to use for the new instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Default: The same as source
 	//
@@ -39986,11 +47459,11 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 	//
 	//    * oracle-ee
 	//
+	//    * oracle-ee-cdb
+	//
 	//    * oracle-se2
 	//
-	//    * oracle-se1
-	//
-	//    * oracle-se
+	//    * oracle-se2-cdb
 	//
 	//    * postgres
 	//
@@ -40020,12 +47493,16 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 
 	// License model information for the restored DB instance.
 	//
+	// This setting doesn't apply to RDS Custom.
+	//
 	// Default: Same as source.
 	//
 	// Valid values: license-included | bring-your-own-license | general-public-license
 	LicenseModel *string `type:"string"`
 
 	// A value that indicates whether the DB instance is a Multi-AZ deployment.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Constraint: You can't specify the AvailabilityZone parameter if the DB instance
 	// is a Multi-AZ deployment.
@@ -40035,7 +47512,9 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 	//
 	// Permanent options, such as the TDE option for Oracle Advanced Security TDE,
 	// can't be removed from an option group, and that option group can't be removed
-	// from a DB instance once it is associated with a DB instance
+	// from a DB instance after it is associated with a DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	OptionGroupName *string `type:"string"`
 
 	// The port number on which the database accepts connections.
@@ -40047,16 +47526,18 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 
 	// The number of CPU cores and the number of threads per core for the DB instance
 	// class of the DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	ProcessorFeatures []*ProcessorFeature `locationNameList:"ProcessorFeature" type:"list"`
 
 	// A value that indicates whether the DB instance is publicly accessible.
 	//
-	// When the DB instance is publicly accessible, its DNS endpoint resolves to
-	// the private IP address from within the DB instance's VPC, and to the public
-	// IP address from outside of the DB instance's VPC. Access to the DB instance
-	// is ultimately controlled by the security group it uses, and that public access
-	// is not permitted if the security group assigned to the DB instance doesn't
-	// permit it.
+	// When the DB instance is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB instance's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB instance's VPC. Access to the DB instance is ultimately controlled
+	// by the security group it uses. That public access is not permitted if the
+	// security group assigned to the DB instance doesn't permit it.
 	//
 	// When the DB instance isn't publicly accessible, it is an internal DB instance
 	// with a DNS name that resolves to a private IP address.
@@ -40078,14 +47559,20 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 	Tags []*Tag `locationNameList:"Tag" type:"list"`
 
 	// The ARN from the key store with which to associate the instance for TDE encryption.
+	//
+	// This setting doesn't apply to RDS Custom.
 	TdeCredentialArn *string `type:"string"`
 
 	// The password for the given ARN from the key store in order to access the
 	// device.
+	//
+	// This setting doesn't apply to RDS Custom.
 	TdeCredentialPassword *string `type:"string"`
 
 	// A value that indicates whether the DB instance class of the DB instance uses
 	// its default processor features.
+	//
+	// This setting doesn't apply to RDS Custom.
 	UseDefaultProcessorFeatures *bool `type:"boolean"`
 
 	// A list of EC2 VPC security groups to associate with this DB instance.
@@ -40094,12 +47581,20 @@ type RestoreDBInstanceFromDBSnapshotInput struct {
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceFromDBSnapshotInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceFromDBSnapshotInput) GoString() string {
 	return s.String()
 }
@@ -40132,9 +47627,21 @@ func (s *RestoreDBInstanceFromDBSnapshotInput) SetAvailabilityZone(v string) *Re
 	return s
 }
 
+// SetBackupTarget sets the BackupTarget field's value.
+func (s *RestoreDBInstanceFromDBSnapshotInput) SetBackupTarget(v string) *RestoreDBInstanceFromDBSnapshotInput {
+	s.BackupTarget = &v
+	return s
+}
+
 // SetCopyTagsToSnapshot sets the CopyTagsToSnapshot field's value.
 func (s *RestoreDBInstanceFromDBSnapshotInput) SetCopyTagsToSnapshot(v bool) *RestoreDBInstanceFromDBSnapshotInput {
 	s.CopyTagsToSnapshot = &v
+	return s
+}
+
+// SetCustomIamInstanceProfile sets the CustomIamInstanceProfile field's value.
+func (s *RestoreDBInstanceFromDBSnapshotInput) SetCustomIamInstanceProfile(v string) *RestoreDBInstanceFromDBSnapshotInput {
+	s.CustomIamInstanceProfile = &v
 	return s
 }
 
@@ -40299,16 +47806,27 @@ type RestoreDBInstanceFromDBSnapshotOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceFromDBSnapshotOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceFromDBSnapshotOutput) GoString() string {
 	return s.String()
 }
@@ -40336,18 +47854,18 @@ type RestoreDBInstanceFromS3Input struct {
 	AutoMinorVersionUpgrade *bool `type:"boolean"`
 
 	// The Availability Zone that the DB instance is created in. For information
-	// about AWS Regions and Availability Zones, see Regions and Availability Zones
-	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html)
+	// about Amazon Web Services Regions and Availability Zones, see Regions and
+	// Availability Zones (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html)
 	// in the Amazon RDS User Guide.
 	//
-	// Default: A random, system-chosen Availability Zone in the endpoint's AWS
-	// Region.
+	// Default: A random, system-chosen Availability Zone in the endpoint's Amazon
+	// Web Services Region.
 	//
 	// Example: us-east-1d
 	//
 	// Constraint: The AvailabilityZone parameter can't be specified if the DB instance
 	// is a Multi-AZ deployment. The specified Availability Zone must be in the
-	// same AWS Region as the current endpoint.
+	// same Amazon Web Services Region as the current endpoint.
 	AvailabilityZone *string `type:"string"`
 
 	// The number of days for which automated backups are retained. Setting this
@@ -40359,10 +47877,10 @@ type RestoreDBInstanceFromS3Input struct {
 	// of the DB instance. By default, tags are not copied.
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
-	// The compute and memory capacity of the DB instance, for example, db.m4.large.
-	// Not all DB instance classes are available in all AWS Regions, or for all
-	// database engines. For the full list of DB instance classes, and availability
-	// for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// The compute and memory capacity of the DB instance, for example db.m4.large.
+	// Not all DB instance classes are available in all Amazon Web Services Regions,
+	// or for all database engines. For the full list of DB instance classes, and
+	// availability for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
 	// in the Amazon RDS User Guide.
 	//
 	// Importing from Amazon S3 isn't supported on the db.t2.micro DB instance class.
@@ -40401,11 +47919,15 @@ type RestoreDBInstanceFromS3Input struct {
 	DBSecurityGroups []*string `locationNameList:"DBSecurityGroupName" type:"list"`
 
 	// A DB subnet group to associate with this DB instance.
+	//
+	// Constraints: If supplied, must match the name of an existing DBSubnetGroup.
+	//
+	// Example: mydbsubnetgroup
 	DBSubnetGroupName *string `type:"string"`
 
 	// A value that indicates whether the DB instance has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled. For more information, see Deleting a DB
+	// deletion protection isn't enabled. For more information, see Deleting a DB
 	// Instance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_DeleteInstance.html).
 	DeletionProtection *bool `type:"boolean"`
 
@@ -40415,8 +47937,9 @@ type RestoreDBInstanceFromS3Input struct {
 	// in the Amazon RDS User Guide.
 	EnableCloudwatchLogsExports []*string `type:"list"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
 	//
 	// For more information about IAM database authentication, see IAM Database
 	// Authentication for MySQL and PostgreSQL (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
@@ -40448,16 +47971,17 @@ type RestoreDBInstanceFromS3Input struct {
 	// in the Amazon RDS User Guide.
 	Iops *int64 `type:"integer"`
 
-	// The AWS KMS key identifier for an encrypted DB instance.
+	// The Amazon Web Services KMS key identifier for an encrypted DB instance.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK). To use a CMK in a different AWS
-	// account, specify the key ARN or alias ARN.
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key. To use a KMS key in a different Amazon
+	// Web Services account, specify the key ARN or alias ARN.
 	//
 	// If the StorageEncrypted parameter is enabled, and you do not specify a value
-	// for the KmsKeyId parameter, then Amazon RDS will use your default CMK. There
-	// is a default CMK for your AWS account. Your AWS account has a different default
-	// CMK for each AWS Region.
+	// for the KmsKeyId parameter, then Amazon RDS will use your default KMS key.
+	// There is a default KMS key for your Amazon Web Services account. Your Amazon
+	// Web Services account has a different default KMS key for each Amazon Web
+	// Services Region.
 	KmsKeyId *string `type:"string"`
 
 	// The license model for this DB instance. Use general-public-license.
@@ -40480,8 +48004,8 @@ type RestoreDBInstanceFromS3Input struct {
 	//    * Can't be a reserved word for the chosen database engine.
 	MasterUsername *string `type:"string"`
 
-	// The upper limit to which Amazon RDS can automatically scale the storage of
-	// the DB instance.
+	// The upper limit in gibibytes (GiB) to which Amazon RDS can automatically
+	// scale the storage of the DB instance.
 	//
 	// For more information about this setting, including limitations that apply
 	// to it, see Managing capacity automatically with Amazon RDS storage autoscaling
@@ -40521,14 +48045,16 @@ type RestoreDBInstanceFromS3Input struct {
 	// used.
 	OptionGroupName *string `type:"string"`
 
-	// The AWS KMS key identifier for encryption of Performance Insights data.
+	// The Amazon Web Services KMS key identifier for encryption of Performance
+	// Insights data.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	//
 	// If you do not specify a value for PerformanceInsightsKMSKeyId, then Amazon
-	// RDS uses your default CMK. There is a default CMK for your AWS account. Your
-	// AWS account has a different default CMK for each AWS Region.
+	// RDS uses your default KMS key. There is a default KMS key for your Amazon
+	// Web Services account. Your Amazon Web Services account has a different default
+	// KMS key for each Amazon Web Services Region.
 	PerformanceInsightsKMSKeyId *string `type:"string"`
 
 	// The amount of time, in days, to retain Performance Insights data. Valid values
@@ -40545,7 +48071,7 @@ type RestoreDBInstanceFromS3Input struct {
 	Port *int64 `type:"integer"`
 
 	// The time range each day during which automated backups are created if automated
-	// backups are enabled. For more information, see The Backup Window (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html#USER_WorkingWithAutomatedBackups.BackupWindow)
+	// backups are enabled. For more information, see Backup window (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html#USER_WorkingWithAutomatedBackups.BackupWindow)
 	// in the Amazon RDS User Guide.
 	//
 	// Constraints:
@@ -40583,12 +48109,12 @@ type RestoreDBInstanceFromS3Input struct {
 
 	// A value that indicates whether the DB instance is publicly accessible.
 	//
-	// When the DB instance is publicly accessible, its DNS endpoint resolves to
-	// the private IP address from within the DB instance's VPC, and to the public
-	// IP address from outside of the DB instance's VPC. Access to the DB instance
-	// is ultimately controlled by the security group it uses, and that public access
-	// is not permitted if the security group assigned to the DB instance doesn't
-	// permit it.
+	// When the DB instance is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB instance's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB instance's VPC. Access to the DB instance is ultimately controlled
+	// by the security group it uses. That public access is not permitted if the
+	// security group assigned to the DB instance doesn't permit it.
 	//
 	// When the DB instance isn't publicly accessible, it is an internal DB instance
 	// with a DNS name that resolves to a private IP address.
@@ -40601,8 +48127,8 @@ type RestoreDBInstanceFromS3Input struct {
 	// S3BucketName is a required field
 	S3BucketName *string `type:"string" required:"true"`
 
-	// An AWS Identity and Access Management (IAM) role to allow Amazon RDS to access
-	// your Amazon S3 bucket.
+	// An Amazon Web Services Identity and Access Management (IAM) role to allow
+	// Amazon RDS to access your Amazon S3 bucket.
 	//
 	// S3IngestionRoleArn is a required field
 	S3IngestionRoleArn *string `type:"string" required:"true"`
@@ -40651,12 +48177,20 @@ type RestoreDBInstanceFromS3Input struct {
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceFromS3Input) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceFromS3Input) GoString() string {
 	return s.String()
 }
@@ -40961,16 +48495,27 @@ type RestoreDBInstanceFromS3Output struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceFromS3Output) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceFromS3Output) GoString() string {
 	return s.String()
 }
@@ -40986,6 +48531,8 @@ type RestoreDBInstanceToPointInTimeInput struct {
 
 	// A value that indicates whether minor version upgrades are applied automatically
 	// to the DB instance during the maintenance window.
+	//
+	// This setting doesn't apply to RDS Custom.
 	AutoMinorVersionUpgrade *bool `type:"boolean"`
 
 	// The Availability Zone (AZ) where the DB instance will be created.
@@ -40998,14 +48545,43 @@ type RestoreDBInstanceToPointInTimeInput struct {
 	// Example: us-east-1a
 	AvailabilityZone *string `type:"string"`
 
+	// Specifies where automated backups and manual snapshots are stored for the
+	// restored DB instance.
+	//
+	// Possible values are outposts (Amazon Web Services Outposts) and region (Amazon
+	// Web Services Region). The default is region.
+	//
+	// For more information, see Working with Amazon RDS on Amazon Web Services
+	// Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// in the Amazon RDS User Guide.
+	BackupTarget *string `type:"string"`
+
 	// A value that indicates whether to copy all tags from the restored DB instance
 	// to snapshots of the DB instance. By default, tags are not copied.
 	CopyTagsToSnapshot *bool `type:"boolean"`
 
-	// The compute and memory capacity of the Amazon RDS DB instance, for example,
-	// db.m4.large. Not all DB instance classes are available in all AWS Regions,
-	// or for all database engines. For the full list of DB instance classes, and
-	// availability for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
+	// The instance profile associated with the underlying Amazon EC2 instance of
+	// an RDS Custom DB instance. The instance profile must meet the following requirements:
+	//
+	//    * The profile must exist in your account.
+	//
+	//    * The profile must have an IAM role that Amazon EC2 has permissions to
+	//    assume.
+	//
+	//    * The instance profile name and the associated IAM role name must start
+	//    with the prefix AWSRDSCustom.
+	//
+	// For the list of permissions required for the IAM role, see Configure IAM
+	// and your VPC (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/custom-setup-orcl.html#custom-setup-orcl.iam-vpc)
+	// in the Amazon Relational Database Service User Guide.
+	//
+	// This setting is required for RDS Custom.
+	CustomIamInstanceProfile *string `type:"string"`
+
+	// The compute and memory capacity of the Amazon RDS DB instance, for example
+	// db.m4.large. Not all DB instance classes are available in all Amazon Web
+	// Services Regions, or for all database engines. For the full list of DB instance
+	// classes, and availability for your engine, see DB Instance Class (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html)
 	// in the Amazon RDS User Guide.
 	//
 	// Default: The same DBInstanceClass as the original DB instance.
@@ -41013,13 +48589,16 @@ type RestoreDBInstanceToPointInTimeInput struct {
 
 	// The database name for the restored DB instance.
 	//
-	// This parameter isn't used for the MySQL or MariaDB engines.
+	// This parameter isn't supported for the MySQL or MariaDB engines. It also
+	// doesn't apply to RDS Custom.
 	DBName *string `type:"string"`
 
 	// The name of the DB parameter group to associate with this DB instance.
 	//
 	// If you do not specify a value for DBParameterGroupName, then the default
 	// DBParameterGroup for the specified DB engine is used.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Constraints:
 	//
@@ -41036,19 +48615,21 @@ type RestoreDBInstanceToPointInTimeInput struct {
 	//
 	// Constraints: If supplied, must match the name of an existing DBSubnetGroup.
 	//
-	// Example: mySubnetgroup
+	// Example: mydbsubnetgroup
 	DBSubnetGroupName *string `type:"string"`
 
 	// A value that indicates whether the DB instance has deletion protection enabled.
 	// The database can't be deleted when deletion protection is enabled. By default,
-	// deletion protection is disabled. For more information, see Deleting a DB
+	// deletion protection isn't enabled. For more information, see Deleting a DB
 	// Instance (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_DeleteInstance.html).
 	DeletionProtection *bool `type:"boolean"`
 
 	// Specify the Active Directory directory ID to restore the DB instance in.
-	// The domain must be created prior to this operation. Currently, only MySQL,
-	// Microsoft SQL Server, Oracle, and PostgreSQL DB instances can be created
+	// Create the domain before running this command. Currently, you can create
+	// only the MySQL, Microsoft SQL Server, Oracle, and PostgreSQL DB instances
 	// in an Active Directory Domain.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// For more information, see Kerberos Authentication (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/kerberos-authentication.html)
 	// in the Amazon RDS User Guide.
@@ -41056,12 +48637,16 @@ type RestoreDBInstanceToPointInTimeInput struct {
 
 	// Specify the name of the IAM role to be used when making API calls to the
 	// Directory Service.
+	//
+	// This setting doesn't apply to RDS Custom.
 	DomainIAMRoleName *string `type:"string"`
 
 	// The list of logs that the restored DB instance is to export to CloudWatch
 	// Logs. The values in the list depend on the DB engine being used. For more
 	// information, see Publishing Database Logs to Amazon CloudWatch Logs (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#USER_LogAccess.Procedural.UploadtoCloudWatch)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	EnableCloudwatchLogsExports []*string `type:"list"`
 
 	// A value that indicates whether to enable a customer-owned IP address (CoIP)
@@ -41072,16 +48657,21 @@ type RestoreDBInstanceToPointInTimeInput struct {
 	// provide lower latency for connections to the DB instance from outside of
 	// its virtual private cloud (VPC) on your local network.
 	//
+	// This setting doesn't apply to RDS Custom.
+	//
 	// For more information about RDS on Outposts, see Working with Amazon RDS on
-	// AWS Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// Amazon Web Services Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
 	// in the Amazon RDS User Guide.
 	//
 	// For more information about CoIPs, see Customer-owned IP addresses (https://docs.aws.amazon.com/outposts/latest/userguide/outposts-networking-components.html#ip-addressing)
-	// in the AWS Outposts User Guide.
+	// in the Amazon Web Services Outposts User Guide.
 	EnableCustomerOwnedIp *bool `type:"boolean"`
 
-	// A value that indicates whether to enable mapping of AWS Identity and Access
-	// Management (IAM) accounts to database accounts. By default, mapping is disabled.
+	// A value that indicates whether to enable mapping of Amazon Web Services Identity
+	// and Access Management (IAM) accounts to database accounts. By default, mapping
+	// isn't enabled.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// For more information about IAM database authentication, see IAM Database
 	// Authentication for MySQL and PostgreSQL (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
@@ -41089,6 +48679,8 @@ type RestoreDBInstanceToPointInTimeInput struct {
 	EnableIAMDatabaseAuthentication *bool `type:"boolean"`
 
 	// The database engine to use for the new instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Default: The same as source
 	//
@@ -41102,11 +48694,11 @@ type RestoreDBInstanceToPointInTimeInput struct {
 	//
 	//    * oracle-ee
 	//
+	//    * oracle-ee-cdb
+	//
 	//    * oracle-se2
 	//
-	//    * oracle-se1
-	//
-	//    * oracle-se
+	//    * oracle-se2-cdb
 	//
 	//    * postgres
 	//
@@ -41131,21 +48723,27 @@ type RestoreDBInstanceToPointInTimeInput struct {
 
 	// License model information for the restored DB instance.
 	//
+	// This setting doesn't apply to RDS Custom.
+	//
 	// Default: Same as source.
 	//
 	// Valid values: license-included | bring-your-own-license | general-public-license
 	LicenseModel *string `type:"string"`
 
-	// The upper limit to which Amazon RDS can automatically scale the storage of
-	// the DB instance.
+	// The upper limit in gibibytes (GiB) to which Amazon RDS can automatically
+	// scale the storage of the DB instance.
 	//
 	// For more information about this setting, including limitations that apply
 	// to it, see Managing capacity automatically with Amazon RDS storage autoscaling
 	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIOPS.StorageTypes.html#USER_PIOPS.Autoscaling)
 	// in the Amazon RDS User Guide.
+	//
+	// This setting doesn't apply to RDS Custom.
 	MaxAllocatedStorage *int64 `type:"integer"`
 
 	// A value that indicates whether the DB instance is a Multi-AZ deployment.
+	//
+	// This setting doesn't apply to RDS Custom.
 	//
 	// Constraint: You can't specify the AvailabilityZone parameter if the DB instance
 	// is a Multi-AZ deployment.
@@ -41155,7 +48753,9 @@ type RestoreDBInstanceToPointInTimeInput struct {
 	//
 	// Permanent options, such as the TDE option for Oracle Advanced Security TDE,
 	// can't be removed from an option group, and that option group can't be removed
-	// from a DB instance once it is associated with a DB instance
+	// from a DB instance after it is associated with a DB instance
+	//
+	// This setting doesn't apply to RDS Custom.
 	OptionGroupName *string `type:"string"`
 
 	// The port number on which the database accepts connections.
@@ -41167,16 +48767,18 @@ type RestoreDBInstanceToPointInTimeInput struct {
 
 	// The number of CPU cores and the number of threads per core for the DB instance
 	// class of the DB instance.
+	//
+	// This setting doesn't apply to RDS Custom.
 	ProcessorFeatures []*ProcessorFeature `locationNameList:"ProcessorFeature" type:"list"`
 
 	// A value that indicates whether the DB instance is publicly accessible.
 	//
-	// When the DB instance is publicly accessible, its DNS endpoint resolves to
-	// the private IP address from within the DB instance's VPC, and to the public
-	// IP address from outside of the DB instance's VPC. Access to the DB instance
-	// is ultimately controlled by the security group it uses, and that public access
-	// is not permitted if the security group assigned to the DB instance doesn't
-	// permit it.
+	// When the DB cluster is publicly accessible, its Domain Name System (DNS)
+	// endpoint resolves to the private IP address from within the DB cluster's
+	// virtual private cloud (VPC). It resolves to the public IP address from outside
+	// of the DB cluster's VPC. Access to the DB cluster is ultimately controlled
+	// by the security group it uses. That public access isn't permitted if the
+	// security group assigned to the DB cluster doesn't permit it.
 	//
 	// When the DB instance isn't publicly accessible, it is an internal DB instance
 	// with a DNS name that resolves to a private IP address.
@@ -41199,6 +48801,8 @@ type RestoreDBInstanceToPointInTimeInput struct {
 
 	// The Amazon Resource Name (ARN) of the replicated automated backups from which
 	// to restore, for example, arn:aws:rds:useast-1:123456789012:auto-backup:ab-L2IJCEXJP7XQ7HOJ4SIEXAMPLE.
+	//
+	// This setting doesn't apply to RDS Custom.
 	SourceDBInstanceAutomatedBackupsArn *string `type:"string"`
 
 	// The identifier of the source DB instance from which to restore.
@@ -41238,14 +48842,20 @@ type RestoreDBInstanceToPointInTimeInput struct {
 	TargetDBInstanceIdentifier *string `type:"string" required:"true"`
 
 	// The ARN from the key store with which to associate the instance for TDE encryption.
+	//
+	// This setting doesn't apply to RDS Custom.
 	TdeCredentialArn *string `type:"string"`
 
 	// The password for the given ARN from the key store in order to access the
 	// device.
+	//
+	// This setting doesn't apply to RDS Custom.
 	TdeCredentialPassword *string `type:"string"`
 
 	// A value that indicates whether the DB instance class of the DB instance uses
 	// its default processor features.
+	//
+	// This setting doesn't apply to RDS Custom.
 	UseDefaultProcessorFeatures *bool `type:"boolean"`
 
 	// A value that indicates whether the DB instance is restored from the latest
@@ -41261,12 +48871,20 @@ type RestoreDBInstanceToPointInTimeInput struct {
 	VpcSecurityGroupIds []*string `locationNameList:"VpcSecurityGroupId" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceToPointInTimeInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceToPointInTimeInput) GoString() string {
 	return s.String()
 }
@@ -41296,9 +48914,21 @@ func (s *RestoreDBInstanceToPointInTimeInput) SetAvailabilityZone(v string) *Res
 	return s
 }
 
+// SetBackupTarget sets the BackupTarget field's value.
+func (s *RestoreDBInstanceToPointInTimeInput) SetBackupTarget(v string) *RestoreDBInstanceToPointInTimeInput {
+	s.BackupTarget = &v
+	return s
+}
+
 // SetCopyTagsToSnapshot sets the CopyTagsToSnapshot field's value.
 func (s *RestoreDBInstanceToPointInTimeInput) SetCopyTagsToSnapshot(v bool) *RestoreDBInstanceToPointInTimeInput {
 	s.CopyTagsToSnapshot = &v
+	return s
+}
+
+// SetCustomIamInstanceProfile sets the CustomIamInstanceProfile field's value.
+func (s *RestoreDBInstanceToPointInTimeInput) SetCustomIamInstanceProfile(v string) *RestoreDBInstanceToPointInTimeInput {
+	s.CustomIamInstanceProfile = &v
 	return s
 }
 
@@ -41493,16 +49123,27 @@ type RestoreDBInstanceToPointInTimeOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceToPointInTimeOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreDBInstanceToPointInTimeOutput) GoString() string {
 	return s.String()
 }
@@ -41524,12 +49165,20 @@ type RestoreWindow struct {
 	LatestTime *time.Time `type:"timestamp"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreWindow) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RestoreWindow) GoString() string {
 	return s.String()
 }
@@ -41569,20 +49218,28 @@ type RevokeDBSecurityGroupIngressInput struct {
 	// and either EC2SecurityGroupName or EC2SecurityGroupId must be provided.
 	EC2SecurityGroupName *string `type:"string"`
 
-	// The AWS account number of the owner of the EC2 security group specified in
-	// the EC2SecurityGroupName parameter. The AWS access key ID isn't an acceptable
-	// value. For VPC DB security groups, EC2SecurityGroupId must be provided. Otherwise,
-	// EC2SecurityGroupOwnerId and either EC2SecurityGroupName or EC2SecurityGroupId
-	// must be provided.
+	// The Amazon Web Services account number of the owner of the EC2 security group
+	// specified in the EC2SecurityGroupName parameter. The Amazon Web Services
+	// access key ID isn't an acceptable value. For VPC DB security groups, EC2SecurityGroupId
+	// must be provided. Otherwise, EC2SecurityGroupOwnerId and either EC2SecurityGroupName
+	// or EC2SecurityGroupId must be provided.
 	EC2SecurityGroupOwnerId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RevokeDBSecurityGroupIngressInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RevokeDBSecurityGroupIngressInput) GoString() string {
 	return s.String()
 }
@@ -41640,12 +49297,20 @@ type RevokeDBSecurityGroupIngressOutput struct {
 	DBSecurityGroup *DBSecurityGroup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RevokeDBSecurityGroupIngressOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s RevokeDBSecurityGroupIngressOutput) GoString() string {
 	return s.String()
 }
@@ -41694,7 +49359,16 @@ type ScalingConfiguration struct {
 	// The minimum capacity must be less than or equal to the maximum capacity.
 	MinCapacity *int64 `type:"integer"`
 
+	// The amount of time, in seconds, that Aurora Serverless tries to find a scaling
+	// point to perform seamless scaling before enforcing the timeout action. The
+	// default is 300.
+	//
+	// Specify a value between 60 and 600 seconds.
+	SecondsBeforeTimeout *int64 `type:"integer"`
+
 	// The time, in seconds, before an Aurora DB cluster in serverless mode is paused.
+	//
+	// Specify a value between 300 and 86,400 seconds.
 	SecondsUntilAutoPause *int64 `type:"integer"`
 
 	// The action to take when the timeout is reached, either ForceApplyCapacityChange
@@ -41714,12 +49388,20 @@ type ScalingConfiguration struct {
 	TimeoutAction *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ScalingConfiguration) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ScalingConfiguration) GoString() string {
 	return s.String()
 }
@@ -41739,6 +49421,12 @@ func (s *ScalingConfiguration) SetMaxCapacity(v int64) *ScalingConfiguration {
 // SetMinCapacity sets the MinCapacity field's value.
 func (s *ScalingConfiguration) SetMinCapacity(v int64) *ScalingConfiguration {
 	s.MinCapacity = &v
+	return s
+}
+
+// SetSecondsBeforeTimeout sets the SecondsBeforeTimeout field's value.
+func (s *ScalingConfiguration) SetSecondsBeforeTimeout(v int64) *ScalingConfiguration {
+	s.SecondsBeforeTimeout = &v
 	return s
 }
 
@@ -41775,22 +49463,41 @@ type ScalingConfigurationInfo struct {
 	// The maximum capacity for the Aurora DB cluster in serverless DB engine mode.
 	MinCapacity *int64 `type:"integer"`
 
+	// The number of seconds before scaling times out. What happens when an attempted
+	// scaling action times out is determined by the TimeoutAction setting.
+	SecondsBeforeTimeout *int64 `type:"integer"`
+
 	// The remaining amount of time, in seconds, before the Aurora DB cluster in
 	// serverless mode is paused. A DB cluster can be paused only when it's idle
 	// (it has no connections).
 	SecondsUntilAutoPause *int64 `type:"integer"`
 
-	// The timeout action of a call to ModifyCurrentDBClusterCapacity, either ForceApplyCapacityChange
+	// The action that occurs when Aurora times out while attempting to change the
+	// capacity of an Aurora Serverless cluster. The value is either ForceApplyCapacityChange
 	// or RollbackCapacityChange.
+	//
+	// ForceApplyCapacityChange, the default, sets the capacity to the specified
+	// value as soon as possible.
+	//
+	// RollbackCapacityChange ignores the capacity change if a scaling point isn't
+	// found in the timeout period.
 	TimeoutAction *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ScalingConfigurationInfo) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ScalingConfigurationInfo) GoString() string {
 	return s.String()
 }
@@ -41813,6 +49520,12 @@ func (s *ScalingConfigurationInfo) SetMinCapacity(v int64) *ScalingConfiguration
 	return s
 }
 
+// SetSecondsBeforeTimeout sets the SecondsBeforeTimeout field's value.
+func (s *ScalingConfigurationInfo) SetSecondsBeforeTimeout(v int64) *ScalingConfigurationInfo {
+	s.SecondsBeforeTimeout = &v
+	return s
+}
+
 // SetSecondsUntilAutoPause sets the SecondsUntilAutoPause field's value.
 func (s *ScalingConfigurationInfo) SetSecondsUntilAutoPause(v int64) *ScalingConfigurationInfo {
 	s.SecondsUntilAutoPause = &v
@@ -41825,31 +49538,39 @@ func (s *ScalingConfigurationInfo) SetTimeoutAction(v string) *ScalingConfigurat
 	return s
 }
 
-// Contains an AWS Region name as the result of a successful call to the DescribeSourceRegions
-// action.
+// Contains an Amazon Web Services Region name as the result of a successful
+// call to the DescribeSourceRegions action.
 type SourceRegion struct {
 	_ struct{} `type:"structure"`
 
-	// The endpoint for the source AWS Region endpoint.
+	// The endpoint for the source Amazon Web Services Region endpoint.
 	Endpoint *string `type:"string"`
 
-	// The name of the source AWS Region.
+	// The name of the source Amazon Web Services Region.
 	RegionName *string `type:"string"`
 
-	// The status of the source AWS Region.
+	// The status of the source Amazon Web Services Region.
 	Status *string `type:"string"`
 
-	// Whether the source AWS Region supports replicating automated backups to the
-	// current AWS Region.
+	// Whether the source Amazon Web Services Region supports replicating automated
+	// backups to the current Amazon Web Services Region.
 	SupportsDBInstanceAutomatedBackupsReplication *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SourceRegion) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s SourceRegion) GoString() string {
 	return s.String()
 }
@@ -41885,9 +49606,14 @@ type StartActivityStreamInput struct {
 	// as possible, regardless of the maintenance window for the database.
 	ApplyImmediately *bool `type:"boolean"`
 
-	// The AWS KMS key identifier for encrypting messages in the database activity
-	// stream. The AWS KMS key identifier is the key ARN, key ID, alias ARN, or
-	// alias name for the AWS KMS customer master key (CMK).
+	// Specifies whether the database activity stream includes engine-native audit
+	// fields. This option only applies to an Oracle DB instance. By default, no
+	// engine-native audit fields are included.
+	EngineNativeAuditFieldsIncluded *bool `type:"boolean"`
+
+	// The Amazon Web Services KMS key identifier for encrypting messages in the
+	// database activity stream. The Amazon Web Services KMS key identifier is the
+	// key ARN, key ID, alias ARN, or alias name for the KMS key.
 	//
 	// KmsKeyId is a required field
 	KmsKeyId *string `type:"string" required:"true"`
@@ -41905,12 +49631,20 @@ type StartActivityStreamInput struct {
 	ResourceArn *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartActivityStreamInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartActivityStreamInput) GoString() string {
 	return s.String()
 }
@@ -41940,6 +49674,12 @@ func (s *StartActivityStreamInput) SetApplyImmediately(v bool) *StartActivityStr
 	return s
 }
 
+// SetEngineNativeAuditFieldsIncluded sets the EngineNativeAuditFieldsIncluded field's value.
+func (s *StartActivityStreamInput) SetEngineNativeAuditFieldsIncluded(v bool) *StartActivityStreamInput {
+	s.EngineNativeAuditFieldsIncluded = &v
+	return s
+}
+
 // SetKmsKeyId sets the KmsKeyId field's value.
 func (s *StartActivityStreamInput) SetKmsKeyId(v string) *StartActivityStreamInput {
 	s.KmsKeyId = &v
@@ -41965,12 +49705,16 @@ type StartActivityStreamOutput struct {
 	// as possible, regardless of the maintenance window for the database.
 	ApplyImmediately *bool `type:"boolean"`
 
+	// Indicates whether engine-native audit fields are included in the database
+	// activity stream.
+	EngineNativeAuditFieldsIncluded *bool `type:"boolean"`
+
 	// The name of the Amazon Kinesis data stream to be used for the database activity
 	// stream.
 	KinesisStreamName *string `type:"string"`
 
-	// The AWS KMS key identifier for encryption of messages in the database activity
-	// stream.
+	// The Amazon Web Services KMS key identifier for encryption of messages in
+	// the database activity stream.
 	KmsKeyId *string `type:"string"`
 
 	// The mode of the database activity stream.
@@ -41980,12 +49724,20 @@ type StartActivityStreamOutput struct {
 	Status *string `type:"string" enum:"ActivityStreamStatus"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartActivityStreamOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartActivityStreamOutput) GoString() string {
 	return s.String()
 }
@@ -41993,6 +49745,12 @@ func (s StartActivityStreamOutput) GoString() string {
 // SetApplyImmediately sets the ApplyImmediately field's value.
 func (s *StartActivityStreamOutput) SetApplyImmediately(v bool) *StartActivityStreamOutput {
 	s.ApplyImmediately = &v
+	return s
+}
+
+// SetEngineNativeAuditFieldsIncluded sets the EngineNativeAuditFieldsIncluded field's value.
+func (s *StartActivityStreamOutput) SetEngineNativeAuditFieldsIncluded(v bool) *StartActivityStreamOutput {
+	s.EngineNativeAuditFieldsIncluded = &v
 	return s
 }
 
@@ -42030,12 +49788,20 @@ type StartDBClusterInput struct {
 	DBClusterIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -42062,19 +49828,41 @@ func (s *StartDBClusterInput) SetDBClusterIdentifier(v string) *StartDBClusterIn
 type StartDBClusterOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -42094,16 +49882,17 @@ type StartDBInstanceAutomatedBackupsReplicationInput struct {
 	// DestinationRegion is used for presigning the request to a given region.
 	DestinationRegion *string `type:"string"`
 
-	// The AWS KMS key identifier for encryption of the replicated automated backups.
-	// The KMS key ID is the Amazon Resource Name (ARN) for the KMS encryption key
-	// in the destination AWS Region, for example, arn:aws:kms:us-east-1:123456789012:key/AKIAIOSFODNN7EXAMPLE.
+	// The Amazon Web Services KMS key identifier for encryption of the replicated
+	// automated backups. The KMS key ID is the Amazon Resource Name (ARN) for the
+	// KMS encryption key in the destination Amazon Web Services Region, for example,
+	// arn:aws:kms:us-east-1:123456789012:key/AKIAIOSFODNN7EXAMPLE.
 	KmsKeyId *string `type:"string"`
 
 	// A URL that contains a Signature Version 4 signed request for the StartDBInstanceAutomatedBackupsReplication
-	// action to be called in the AWS Region of the source DB instance. The presigned
-	// URL must be a valid request for the StartDBInstanceAutomatedBackupsReplication
-	// API action that can be executed in the AWS Region that contains the source
-	// DB instance.
+	// action to be called in the Amazon Web Services Region of the source DB instance.
+	// The presigned URL must be a valid request for the StartDBInstanceAutomatedBackupsReplication
+	// API action that can be executed in the Amazon Web Services Region that contains
+	// the source DB instance.
 	PreSignedUrl *string `type:"string"`
 
 	// The Amazon Resource Name (ARN) of the source DB instance for the replicated
@@ -42118,12 +49907,20 @@ type StartDBInstanceAutomatedBackupsReplicationInput struct {
 	SourceRegion *string `type:"string" ignore:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBInstanceAutomatedBackupsReplicationInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBInstanceAutomatedBackupsReplicationInput) GoString() string {
 	return s.String()
 }
@@ -42186,12 +49983,20 @@ type StartDBInstanceAutomatedBackupsReplicationOutput struct {
 	DBInstanceAutomatedBackup *DBInstanceAutomatedBackup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBInstanceAutomatedBackupsReplicationOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBInstanceAutomatedBackupsReplicationOutput) GoString() string {
 	return s.String()
 }
@@ -42211,12 +50016,20 @@ type StartDBInstanceInput struct {
 	DBInstanceIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBInstanceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBInstanceInput) GoString() string {
 	return s.String()
 }
@@ -42245,16 +50058,27 @@ type StartDBInstanceOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBInstanceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartDBInstanceOutput) GoString() string {
 	return s.String()
 }
@@ -42295,11 +50119,11 @@ type StartExportTaskInput struct {
 	// IamRoleArn is a required field
 	IamRoleArn *string `type:"string" required:"true"`
 
-	// The ID of the AWS KMS customer master key (CMK) to use to encrypt the snapshot
-	// exported to Amazon S3. The AWS KMS key identifier is the key ARN, key ID,
-	// alias ARN, or alias name for the AWS KMS customer master key (CMK). The caller
-	// of this operation must be authorized to execute the following operations.
-	// These can be set in the AWS KMS key policy:
+	// The ID of the Amazon Web Services KMS key to use to encrypt the snapshot
+	// exported to Amazon S3. The Amazon Web Services KMS key identifier is the
+	// key ARN, key ID, alias ARN, or alias name for the KMS key. The caller of
+	// this operation must be authorized to execute the following operations. These
+	// can be set in the Amazon Web Services KMS key policy:
 	//
 	//    * GrantOperation.Encrypt
 	//
@@ -42337,12 +50161,20 @@ type StartExportTaskInput struct {
 	SourceArn *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartExportTaskInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartExportTaskInput) GoString() string {
 	return s.String()
 }
@@ -42445,11 +50277,10 @@ type StartExportTaskOutput struct {
 	// a snapshot.
 	IamRoleArn *string `type:"string"`
 
-	// The key identifier of the AWS KMS customer master key (CMK) that is used
-	// to encrypt the snapshot when it's exported to Amazon S3. The AWS KMS CMK
-	// identifier is its key ARN, key ID, alias ARN, or alias name. The IAM role
-	// used for the snapshot export must have encryption and decryption permissions
-	// to use this AWS KMS CMK.
+	// The key identifier of the Amazon Web Services KMS key that is used to encrypt
+	// the snapshot when it's exported to Amazon S3. The KMS key identifier is its
+	// key ARN, key ID, alias ARN, or alias name. The IAM role used for the snapshot
+	// export must have encryption and decryption permissions to use this KMS key.
 	KmsKeyId *string `type:"string"`
 
 	// The progress of the snapshot export task as a percentage.
@@ -42484,12 +50315,20 @@ type StartExportTaskOutput struct {
 	WarningMessage *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartExportTaskOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StartExportTaskOutput) GoString() string {
 	return s.String()
 }
@@ -42598,12 +50437,20 @@ type StopActivityStreamInput struct {
 	ResourceArn *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopActivityStreamInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopActivityStreamInput) GoString() string {
 	return s.String()
 }
@@ -42640,23 +50487,31 @@ type StopActivityStreamOutput struct {
 	// stream.
 	KinesisStreamName *string `type:"string"`
 
-	// The AWS KMS key identifier used for encrypting messages in the database activity
-	// stream.
+	// The Amazon Web Services KMS key identifier used for encrypting messages in
+	// the database activity stream.
 	//
-	// The AWS KMS key identifier is the key ARN, key ID, alias ARN, or alias name
-	// for the AWS KMS customer master key (CMK).
+	// The Amazon Web Services KMS key identifier is the key ARN, key ID, alias
+	// ARN, or alias name for the KMS key.
 	KmsKeyId *string `type:"string"`
 
 	// The status of the database activity stream.
 	Status *string `type:"string" enum:"ActivityStreamStatus"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopActivityStreamOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopActivityStreamOutput) GoString() string {
 	return s.String()
 }
@@ -42689,12 +50544,20 @@ type StopDBClusterInput struct {
 	DBClusterIdentifier *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBClusterInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBClusterInput) GoString() string {
 	return s.String()
 }
@@ -42721,19 +50584,41 @@ func (s *StopDBClusterInput) SetDBClusterIdentifier(v string) *StopDBClusterInpu
 type StopDBClusterOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Contains the details of an Amazon Aurora DB cluster.
+	// Contains the details of an Amazon Aurora DB cluster or Multi-AZ DB cluster.
 	//
-	// This data type is used as a response element in the DescribeDBClusters, StopDBCluster,
-	// and StartDBCluster actions.
+	// For an Amazon Aurora DB cluster, this data type is used as a response element
+	// in the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, PromoteReadReplicaDBCluster, RestoreDBClusterFromS3, RestoreDBClusterFromSnapshot,
+	// RestoreDBClusterToPointInTime, StartDBCluster, and StopDBCluster.
+	//
+	// For a Multi-AZ DB cluster, this data type is used as a response element in
+	// the operations CreateDBCluster, DeleteDBCluster, DescribeDBClusters, FailoverDBCluster,
+	// ModifyDBCluster, RebootDBCluster, RestoreDBClusterFromSnapshot, and RestoreDBClusterToPointInTime.
+	//
+	// For more information on Amazon Aurora DB clusters, see What is Amazon Aurora?
+	// (https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html)
+	// in the Amazon Aurora User Guide.
+	//
+	// For more information on Multi-AZ DB clusters, see Multi-AZ deployments with
+	// two readable standby DB instances (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+	// in the Amazon RDS User Guide.
 	DBCluster *DBCluster `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBClusterOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBClusterOutput) GoString() string {
 	return s.String()
 }
@@ -42754,12 +50639,20 @@ type StopDBInstanceAutomatedBackupsReplicationInput struct {
 	SourceDBInstanceArn *string `type:"string" required:"true"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBInstanceAutomatedBackupsReplicationInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBInstanceAutomatedBackupsReplicationInput) GoString() string {
 	return s.String()
 }
@@ -42792,12 +50685,20 @@ type StopDBInstanceAutomatedBackupsReplicationOutput struct {
 	DBInstanceAutomatedBackup *DBInstanceAutomatedBackup `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBInstanceAutomatedBackupsReplicationOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBInstanceAutomatedBackupsReplicationOutput) GoString() string {
 	return s.String()
 }
@@ -42821,12 +50722,20 @@ type StopDBInstanceInput struct {
 	DBSnapshotIdentifier *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBInstanceInput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBInstanceInput) GoString() string {
 	return s.String()
 }
@@ -42861,16 +50770,27 @@ type StopDBInstanceOutput struct {
 
 	// Contains the details of an Amazon RDS DB instance.
 	//
-	// This data type is used as a response element in the DescribeDBInstances action.
+	// This data type is used as a response element in the operations CreateDBInstance,
+	// CreateDBInstanceReadReplica, DeleteDBInstance, DescribeDBInstances, ModifyDBInstance,
+	// PromoteReadReplica, RebootDBInstance, RestoreDBInstanceFromDBSnapshot, RestoreDBInstanceFromS3,
+	// RestoreDBInstanceToPointInTime, StartDBInstance, and StopDBInstance.
 	DBInstance *DBInstance `type:"structure"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBInstanceOutput) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s StopDBInstanceOutput) GoString() string {
 	return s.String()
 }
@@ -42897,8 +50817,8 @@ type Subnet struct {
 
 	// If the subnet is associated with an Outpost, this value specifies the Outpost.
 	//
-	// For more information about RDS on Outposts, see Amazon RDS on AWS Outposts
-	// (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
+	// For more information about RDS on Outposts, see Amazon RDS on Amazon Web
+	// Services Outposts (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-on-outposts.html)
 	// in the Amazon RDS User Guide.
 	SubnetOutpost *Outpost `type:"structure"`
 
@@ -42906,12 +50826,20 @@ type Subnet struct {
 	SubnetStatus *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Subnet) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Subnet) GoString() string {
 	return s.String()
 }
@@ -42945,24 +50873,32 @@ type Tag struct {
 	_ struct{} `type:"structure"`
 
 	// A key is the required name of the tag. The string value can be from 1 to
-	// 128 Unicode characters in length and can't be prefixed with "aws:" or "rds:".
+	// 128 Unicode characters in length and can't be prefixed with aws: or rds:.
 	// The string can only contain only the set of Unicode letters, digits, white-space,
 	// '_', '.', ':', '/', '=', '+', '-', '@' (Java regex: "^([\\p{L}\\p{Z}\\p{N}_.:/=+\\-@]*)$").
 	Key *string `type:"string"`
 
 	// A value is the optional value of the tag. The string value can be from 1
-	// to 256 Unicode characters in length and can't be prefixed with "aws:" or
-	// "rds:". The string can only contain only the set of Unicode letters, digits,
-	// white-space, '_', '.', ':', '/', '=', '+', '-', '@' (Java regex: "^([\\p{L}\\p{Z}\\p{N}_.:/=+\\-@]*)$").
+	// to 256 Unicode characters in length and can't be prefixed with aws: or rds:.
+	// The string can only contain only the set of Unicode letters, digits, white-space,
+	// '_', '.', ':', '/', '=', '+', '-', '@' (Java regex: "^([\\p{L}\\p{Z}\\p{N}_.:/=+\\-@]*)$").
 	Value *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Tag) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Tag) GoString() string {
 	return s.String()
 }
@@ -42998,12 +50934,20 @@ type TargetHealth struct {
 	State *string `type:"string" enum:"TargetState"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TargetHealth) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s TargetHealth) GoString() string {
 	return s.String()
 }
@@ -43036,12 +50980,20 @@ type Timezone struct {
 	TimezoneName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Timezone) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s Timezone) GoString() string {
 	return s.String()
 }
@@ -43076,6 +51028,10 @@ type UpgradeTarget struct {
 	// A list of the supported DB engine modes for the target engine version.
 	SupportedEngineModes []*string `type:"list"`
 
+	// A value that indicates whether you can use Babelfish for Aurora PostgreSQL
+	// with the target engine version.
+	SupportsBabelfish *bool `type:"boolean"`
+
 	// A value that indicates whether you can use Aurora global databases with the
 	// target engine version.
 	SupportsGlobalDatabases *bool `type:"boolean"`
@@ -43085,12 +51041,20 @@ type UpgradeTarget struct {
 	SupportsParallelQuery *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpgradeTarget) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UpgradeTarget) GoString() string {
 	return s.String()
 }
@@ -43131,6 +51095,12 @@ func (s *UpgradeTarget) SetSupportedEngineModes(v []*string) *UpgradeTarget {
 	return s
 }
 
+// SetSupportsBabelfish sets the SupportsBabelfish field's value.
+func (s *UpgradeTarget) SetSupportsBabelfish(v bool) *UpgradeTarget {
+	s.SupportsBabelfish = &v
+	return s
+}
+
 // SetSupportsGlobalDatabases sets the SupportsGlobalDatabases field's value.
 func (s *UpgradeTarget) SetSupportsGlobalDatabases(v bool) *UpgradeTarget {
 	s.SupportsGlobalDatabases = &v
@@ -43156,8 +51126,8 @@ type UserAuthConfig struct {
 	// log in as a specific database user.
 	Description *string `type:"string"`
 
-	// Whether to require or disallow AWS Identity and Access Management (IAM) authentication
-	// for connections to the proxy.
+	// Whether to require or disallow Amazon Web Services Identity and Access Management
+	// (IAM) authentication for connections to the proxy.
 	IAMAuth *string `type:"string" enum:"IAMAuthMode"`
 
 	// The Amazon Resource Name (ARN) representing the secret that the proxy uses
@@ -43169,12 +51139,20 @@ type UserAuthConfig struct {
 	UserName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UserAuthConfig) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UserAuthConfig) GoString() string {
 	return s.String()
 }
@@ -43222,8 +51200,8 @@ type UserAuthConfigInfo struct {
 	// log in as a specific database user.
 	Description *string `type:"string"`
 
-	// Whether to require or disallow AWS Identity and Access Management (IAM) authentication
-	// for connections to the proxy.
+	// Whether to require or disallow Amazon Web Services Identity and Access Management
+	// (IAM) authentication for connections to the proxy.
 	IAMAuth *string `type:"string" enum:"IAMAuthMode"`
 
 	// The Amazon Resource Name (ARN) representing the secret that the proxy uses
@@ -43235,12 +51213,20 @@ type UserAuthConfigInfo struct {
 	UserName *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UserAuthConfigInfo) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s UserAuthConfigInfo) GoString() string {
 	return s.String()
 }
@@ -43288,12 +51274,20 @@ type ValidDBInstanceModificationsMessage struct {
 	ValidProcessorFeatures []*AvailableProcessorFeature `locationNameList:"AvailableProcessorFeature" type:"list"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ValidDBInstanceModificationsMessage) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ValidDBInstanceModificationsMessage) GoString() string {
 	return s.String()
 }
@@ -43324,7 +51318,7 @@ type ValidStorageOptions struct {
 	// The valid range of provisioned IOPS. For example, 1000-20000.
 	ProvisionedIops []*Range `locationNameList:"Range" type:"list"`
 
-	// The valid range of storage in gibibytes. For example, 100 to 16384.
+	// The valid range of storage in gibibytes (GiB). For example, 100 to 16384.
 	StorageSize []*Range `locationNameList:"Range" type:"list"`
 
 	// The valid storage types for your DB instance. For example, gp2, io1.
@@ -43335,12 +51329,20 @@ type ValidStorageOptions struct {
 	SupportsStorageAutoscaling *bool `type:"boolean"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ValidStorageOptions) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s ValidStorageOptions) GoString() string {
 	return s.String()
 }
@@ -43387,12 +51389,20 @@ type VpcSecurityGroupMembership struct {
 	VpcSecurityGroupId *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s VpcSecurityGroupMembership) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s VpcSecurityGroupMembership) GoString() string {
 	return s.String()
 }
@@ -43410,14 +51420,15 @@ func (s *VpcSecurityGroupMembership) SetVpcSecurityGroupId(v string) *VpcSecurit
 }
 
 // Information about the virtual private network (VPN) between the VMware vSphere
-// cluster and the AWS website.
+// cluster and the Amazon Web Services website.
 //
 // For more information about RDS on VMware, see the RDS on VMware User Guide.
 // (https://docs.aws.amazon.com/AmazonRDS/latest/RDSonVMwareUserGuide/rds-on-vmware.html)
 type VpnDetails struct {
 	_ struct{} `type:"structure"`
 
-	// The IP address of network traffic from AWS to your on-premises data center.
+	// The IP address of network traffic from Amazon Web Services to your on-premises
+	// data center.
 	VpnGatewayIp *string `type:"string"`
 
 	// The ID of the VPN.
@@ -43427,6 +51438,10 @@ type VpnDetails struct {
 	VpnName *string `type:"string"`
 
 	// The preshared key (PSK) for the VPN.
+	//
+	// VpnPSK is a sensitive parameter and its value will be
+	// replaced with "sensitive" in string returned by VpnDetails's
+	// String and GoString methods.
 	VpnPSK *string `type:"string" sensitive:"true"`
 
 	// The state of the VPN.
@@ -43437,12 +51452,20 @@ type VpnDetails struct {
 	VpnTunnelOriginatorIP *string `type:"string"`
 }
 
-// String returns the string representation
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s VpnDetails) String() string {
 	return awsutil.Prettify(s)
 }
 
-// GoString returns the string representation
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
 func (s VpnDetails) GoString() string {
 	return s.String()
 }
@@ -43548,6 +51571,90 @@ const (
 func AuthScheme_Values() []string {
 	return []string{
 		AuthSchemeSecrets,
+	}
+}
+
+const (
+	// AutomationModeFull is a AutomationMode enum value
+	AutomationModeFull = "full"
+
+	// AutomationModeAllPaused is a AutomationMode enum value
+	AutomationModeAllPaused = "all-paused"
+)
+
+// AutomationMode_Values returns all elements of the AutomationMode enum
+func AutomationMode_Values() []string {
+	return []string{
+		AutomationModeFull,
+		AutomationModeAllPaused,
+	}
+}
+
+const (
+	// CustomEngineVersionStatusAvailable is a CustomEngineVersionStatus enum value
+	CustomEngineVersionStatusAvailable = "available"
+
+	// CustomEngineVersionStatusInactive is a CustomEngineVersionStatus enum value
+	CustomEngineVersionStatusInactive = "inactive"
+
+	// CustomEngineVersionStatusInactiveExceptRestore is a CustomEngineVersionStatus enum value
+	CustomEngineVersionStatusInactiveExceptRestore = "inactive-except-restore"
+)
+
+// CustomEngineVersionStatus_Values returns all elements of the CustomEngineVersionStatus enum
+func CustomEngineVersionStatus_Values() []string {
+	return []string{
+		CustomEngineVersionStatusAvailable,
+		CustomEngineVersionStatusInactive,
+		CustomEngineVersionStatusInactiveExceptRestore,
+	}
+}
+
+const (
+	// DBProxyEndpointStatusAvailable is a DBProxyEndpointStatus enum value
+	DBProxyEndpointStatusAvailable = "available"
+
+	// DBProxyEndpointStatusModifying is a DBProxyEndpointStatus enum value
+	DBProxyEndpointStatusModifying = "modifying"
+
+	// DBProxyEndpointStatusIncompatibleNetwork is a DBProxyEndpointStatus enum value
+	DBProxyEndpointStatusIncompatibleNetwork = "incompatible-network"
+
+	// DBProxyEndpointStatusInsufficientResourceLimits is a DBProxyEndpointStatus enum value
+	DBProxyEndpointStatusInsufficientResourceLimits = "insufficient-resource-limits"
+
+	// DBProxyEndpointStatusCreating is a DBProxyEndpointStatus enum value
+	DBProxyEndpointStatusCreating = "creating"
+
+	// DBProxyEndpointStatusDeleting is a DBProxyEndpointStatus enum value
+	DBProxyEndpointStatusDeleting = "deleting"
+)
+
+// DBProxyEndpointStatus_Values returns all elements of the DBProxyEndpointStatus enum
+func DBProxyEndpointStatus_Values() []string {
+	return []string{
+		DBProxyEndpointStatusAvailable,
+		DBProxyEndpointStatusModifying,
+		DBProxyEndpointStatusIncompatibleNetwork,
+		DBProxyEndpointStatusInsufficientResourceLimits,
+		DBProxyEndpointStatusCreating,
+		DBProxyEndpointStatusDeleting,
+	}
+}
+
+const (
+	// DBProxyEndpointTargetRoleReadWrite is a DBProxyEndpointTargetRole enum value
+	DBProxyEndpointTargetRoleReadWrite = "READ_WRITE"
+
+	// DBProxyEndpointTargetRoleReadOnly is a DBProxyEndpointTargetRole enum value
+	DBProxyEndpointTargetRoleReadOnly = "READ_ONLY"
+)
+
+// DBProxyEndpointTargetRole_Values returns all elements of the DBProxyEndpointTargetRole enum
+func DBProxyEndpointTargetRole_Values() []string {
+	return []string{
+		DBProxyEndpointTargetRoleReadWrite,
+		DBProxyEndpointTargetRoleReadOnly,
 	}
 }
 
@@ -43681,6 +51788,12 @@ const (
 
 	// SourceTypeDbClusterSnapshot is a SourceType enum value
 	SourceTypeDbClusterSnapshot = "db-cluster-snapshot"
+
+	// SourceTypeCustomEngineVersion is a SourceType enum value
+	SourceTypeCustomEngineVersion = "custom-engine-version"
+
+	// SourceTypeDbProxy is a SourceType enum value
+	SourceTypeDbProxy = "db-proxy"
 )
 
 // SourceType_Values returns all elements of the SourceType enum
@@ -43692,6 +51805,8 @@ func SourceType_Values() []string {
 		SourceTypeDbSnapshot,
 		SourceTypeDbCluster,
 		SourceTypeDbClusterSnapshot,
+		SourceTypeCustomEngineVersion,
+		SourceTypeDbProxy,
 	}
 }
 
@@ -43707,6 +51822,9 @@ const (
 
 	// TargetHealthReasonPendingProxyCapacity is a TargetHealthReason enum value
 	TargetHealthReasonPendingProxyCapacity = "PENDING_PROXY_CAPACITY"
+
+	// TargetHealthReasonInvalidReplicationState is a TargetHealthReason enum value
+	TargetHealthReasonInvalidReplicationState = "INVALID_REPLICATION_STATE"
 )
 
 // TargetHealthReason_Values returns all elements of the TargetHealthReason enum
@@ -43716,6 +51834,27 @@ func TargetHealthReason_Values() []string {
 		TargetHealthReasonConnectionFailed,
 		TargetHealthReasonAuthFailure,
 		TargetHealthReasonPendingProxyCapacity,
+		TargetHealthReasonInvalidReplicationState,
+	}
+}
+
+const (
+	// TargetRoleReadWrite is a TargetRole enum value
+	TargetRoleReadWrite = "READ_WRITE"
+
+	// TargetRoleReadOnly is a TargetRole enum value
+	TargetRoleReadOnly = "READ_ONLY"
+
+	// TargetRoleUnknown is a TargetRole enum value
+	TargetRoleUnknown = "UNKNOWN"
+)
+
+// TargetRole_Values returns all elements of the TargetRole enum
+func TargetRole_Values() []string {
+	return []string{
+		TargetRoleReadWrite,
+		TargetRoleReadOnly,
+		TargetRoleUnknown,
 	}
 }
 
