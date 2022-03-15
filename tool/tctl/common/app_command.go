@@ -58,7 +58,7 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	apps := app.Command("apps", "Operate on applications registered with the cluster.")
 	c.appsList = apps.Command("ls", "List all applications registered with the cluster.")
-	c.appsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default("text").StringVar(&c.format)
+	c.appsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.appsList.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.appsList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.appsList.Flag("query", queryHelp).StringVar(&c.predicateExpr)

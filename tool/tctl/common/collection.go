@@ -68,7 +68,7 @@ func (r *roleCollection) writeText(w io.Writer) error {
 	headers := []string{"Role", "Allowed to login as", "Node Labels", "Access to resources"}
 	var t asciitable.Table
 	if r.verbose {
-		t = asciitable.MakeTableWithRows(headers, rows)
+		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Access to resources")
 	}
@@ -138,19 +138,16 @@ func (s *serverCollection) resources() (r []types.Resource) {
 
 func (s *serverCollection) writeText(w io.Writer) error {
 	var rows [][]string
-	for _, s := range s.servers {
-		addr := s.GetPublicAddr()
-		if addr == "" {
-			addr = s.GetAddr()
-		}
+	for _, se := range s.servers {
+		labels := stripInternalTeleportLabels(s.verbose, se.GetAllLabels())
 		rows = append(rows, []string{
-			s.GetHostname(), s.GetName(), addr, s.LabelsString(), s.GetTeleportVersion(),
+			se.GetHostname(), se.GetName(), se.GetAddr(), labels, se.GetTeleportVersion(),
 		})
 	}
 	headers := []string{"Host", "UUID", "Public Address", "Labels", "Version"}
 	var t asciitable.Table
 	if s.verbose {
-		t = asciitable.MakeTableWithRows(headers, rows)
+		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 
@@ -161,6 +158,15 @@ func (s *serverCollection) writeText(w io.Writer) error {
 
 func (s *serverCollection) writeYaml(w io.Writer) error {
 	return utils.WriteYAML(w, s.servers)
+}
+
+func (s *serverCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(s.resources(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
 }
 
 type userCollection struct {
@@ -482,13 +488,14 @@ func (a *appServerCollection) writeText(w io.Writer) error {
 	var rows [][]string
 	for _, server := range a.servers {
 		app := server.GetApp()
+		labels := stripInternalTeleportLabels(a.verbose, app.GetAllLabels())
 		rows = append(rows, []string{
-			server.GetHostname(), app.GetName(), app.GetPublicAddr(), app.GetURI(), app.LabelsString(), server.GetTeleportVersion()})
+			server.GetHostname(), app.GetName(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion()})
 	}
 	var t asciitable.Table
 	headers := []string{"Host", "Name", "Public Address", "URI", "Labels", "Version"}
 	if a.verbose {
-		t = asciitable.MakeTableWithRows(headers, rows)
+		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
@@ -529,13 +536,14 @@ func (c *appCollection) resources() (r []types.Resource) {
 func (c *appCollection) writeText(w io.Writer) error {
 	var rows [][]string
 	for _, app := range c.apps {
+		labels := stripInternalTeleportLabels(c.verbose, app.GetAllLabels())
 		rows = append(rows, []string{
-			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), app.LabelsString(), app.GetVersion()})
+			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), labels, app.GetVersion()})
 	}
 	headers := []string{"Name", "Description", "URI", "Public Address", "Labels", "Version"}
 	var t asciitable.Table
 	if c.verbose {
-		t = asciitable.MakeTableWithRows(headers, rows)
+		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
@@ -645,19 +653,20 @@ func (c *databaseServerCollection) resources() (r []types.Resource) {
 func (c *databaseServerCollection) writeText(w io.Writer) error {
 	var rows [][]string
 	for _, server := range c.servers {
+		labels := stripInternalTeleportLabels(c.verbose, server.GetDatabase().GetAllLabels())
 		rows = append(rows, []string{
 			server.GetHostname(),
 			server.GetDatabase().GetName(),
 			server.GetDatabase().GetProtocol(),
 			server.GetDatabase().GetURI(),
-			server.GetDatabase().LabelsString(),
+			labels,
 			server.GetTeleportVersion(),
 		})
 	}
 	headers := []string{"Host", "Name", "Protocol", "URI", "Labels", "Version"}
 	var t asciitable.Table
 	if c.verbose {
-		t = asciitable.MakeTableWithRows(headers, rows)
+		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
@@ -697,14 +706,15 @@ func (c *databaseCollection) resources() (r []types.Resource) {
 func (c *databaseCollection) writeText(w io.Writer) error {
 	var rows [][]string
 	for _, database := range c.databases {
+		labels := stripInternalTeleportLabels(c.verbose, database.GetAllLabels())
 		rows = append(rows, []string{
-			database.GetName(), database.GetProtocol(), database.GetURI(), database.LabelsString(),
+			database.GetName(), database.GetProtocol(), database.GetURI(), labels,
 		})
 	}
 	headers := []string{"Name", "Protocol", "URI", "Labels"}
 	var t asciitable.Table
 	if c.verbose {
-		t = asciitable.MakeTableWithRows(headers, rows)
+		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
@@ -791,24 +801,29 @@ type windowsDesktopAndServiceCollection struct {
 	verbose  bool
 }
 
+func stripInternalTeleportLabels(verbose bool, labels map[string]string) string {
+	if verbose { // remove teleport.dev labels unless we're in verbose mode.
+		return types.LabelsAsString(labels, nil)
+	}
+	for key := range labels {
+		if strings.HasPrefix(key, types.TeleportNamespace+"/") {
+			delete(labels, key)
+		}
+	}
+	return types.LabelsAsString(labels, nil)
+}
+
 func (c *windowsDesktopAndServiceCollection) writeText(w io.Writer) error {
 	var rows [][]string
 	for _, d := range c.desktops {
-		labels := d.desktop.GetAllLabels()
-		if !c.verbose { // remove teleport.dev labels unless we're in verbose mode.
-			for key := range labels {
-				if strings.HasPrefix(key, types.TeleportNamespace) {
-					delete(labels, key)
-				}
-			}
-		}
+		labels := stripInternalTeleportLabels(c.verbose, d.desktop.GetAllLabels())
 		rows = append(rows, []string{d.service.GetHostname(), d.desktop.GetAddr(),
-			d.desktop.GetDomain(), types.LabelsAsString(labels, nil), d.service.GetTeleportVersion()})
+			d.desktop.GetDomain(), labels, d.service.GetTeleportVersion()})
 	}
 	headers := []string{"Host", "Address", "AD Domain", "Labels", "Version"}
 	var t asciitable.Table
 	if c.verbose {
-		t = asciitable.MakeTableWithRows(headers, rows)
+		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
@@ -860,9 +875,11 @@ func (c *kubeServerCollection) writeText(w io.Writer) error {
 	for _, server := range c.servers {
 		kubes := server.GetKubernetesClusters()
 		for _, kube := range kubes {
+			labels := stripInternalTeleportLabels(c.verbose,
+				types.CombineLabels(kube.StaticLabels, kube.DynamicLabels))
 			rows = append(rows, []string{
 				kube.Name,
-				types.LabelsAsString(kube.StaticLabels, kube.DynamicLabels),
+				labels,
 				server.GetTeleportVersion(),
 			})
 		}
@@ -870,7 +887,7 @@ func (c *kubeServerCollection) writeText(w io.Writer) error {
 	headers := []string{"Cluster", "Labels", "Version"}
 	var t asciitable.Table
 	if c.verbose {
-		t = asciitable.MakeTableWithRows(headers, rows)
+		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
