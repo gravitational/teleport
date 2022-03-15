@@ -45,7 +45,7 @@ type proxyCredentials struct {
 func (c *proxyCredentials) ServerHandshake(conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	conn, authInfo, err := c.TransportCredentials.ServerHandshake(conn)
 	if err != nil {
-		return conn, authInfo, err
+		return nil, nil, trace.Wrap(err)
 	}
 
 	err = checkProxyRole(authInfo)
@@ -60,7 +60,7 @@ func (c *proxyCredentials) ServerHandshake(conn net.Conn) (net.Conn, credentials
 func (c *proxyCredentials) ClientHandshake(ctx context.Context, laddr string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	conn, authInfo, err := c.TransportCredentials.ClientHandshake(ctx, laddr, conn)
 	if err != nil {
-		return conn, authInfo, err
+		return nil, nil, trace.Wrap(err)
 	}
 
 	err = checkProxyRole(authInfo)
