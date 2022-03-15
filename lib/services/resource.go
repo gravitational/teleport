@@ -487,6 +487,25 @@ func init() {
 		}
 		return rsc, nil
 	})
+
+	RegisterResourceMarshaler(types.KindRole, func(r types.Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(types.Role)
+		if !ok {
+			return nil, trace.BadParameter("expected Role, got %T", r)
+		}
+		raw, err := MarshalRole(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(types.KindRole, func(b []byte, opts ...MarshalOption) (types.Resource, error) {
+		rsc, err := UnmarshalRole(b, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
 }
 
 // MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError
