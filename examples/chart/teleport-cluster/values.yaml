@@ -263,3 +263,21 @@ priorityClassName: ""
 # Tolerations for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 tolerations: []
+
+# Database auto-discovery mode (AWS only)
+# Details of at least one awsDatabase discovery pattern to be discovered
+# and proxied. Example:
+# awsDatabases:
+# - types: ["rds"]
+#   regions: ["us-east-1"]
+#   tags:
+#     "environment": "production"
+awsDatabases: []
+
+# Manual database configuration mode
+# Details of at least one database to be proxied. Example:
+# databases:
+#  - name: aurora
+#    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
+#    protocol: "postgres"
+databases: []

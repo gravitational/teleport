@@ -4,6 +4,11 @@
 {{- if and (eq .Values.chartMode "standalone") (gt (int .Values.highAvailability.replicaCount) 1) }}
 {{- fail "Cannot enable multiple replicas in standalone mode, use a different chartMode which supports high availability - see README and docs" }}
 {{- end }}
+{{- if .Values.teleportVersionOverride }}
+  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
+{{- else }}
+  {{- $_ := set . "teleportVersion" .Chart.Version }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

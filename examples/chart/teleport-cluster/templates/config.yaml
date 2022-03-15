@@ -110,6 +110,48 @@ data:
         uri: {{ .Values.acmeURI }}
     {{- end }}
   {{- end }}
+    {{- /* specifying 'db_service' in a config file prior to Teleport 6 results in a parse error */ -}}
+    {{- if semverCompare ">=6" (.teleportVersion | toString) }}
+    db_service:
+      {{- if (or (.Values.awsDatabases) (.Values.databases)) }}
+      enabled: true
+      {{- if not (or (.Values.awsDatabases) (.Values.databases)) }}
+        {{- fail "'awsDatabases' and/or 'databases' is required in chart values when db role is enabled, see README" }}
+      {{- end }}
+      {{- if .Values.awsDatabases }}
+      aws:
+        {{- range $awsDb := .Values.awsDatabases }}
+          {{- if not (hasKey $awsDb "types") }}
+            {{- fail "'types' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $awsDb "regions") }}
+            {{- fail "'regions' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $awsDb "tags") }}
+            {{- fail "'tags' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
+          {{- end }}
+        {{- end }}
+        {{- toYaml .Values.awsDatabases | nindent 6 }}
+      {{- end }}
+      {{- if .Values.databases }}
+      databases:
+        {{- range $db := .Values.databases }}
+          {{- if not (hasKey $db "name") }}
+            {{- fail "'name' is required for all 'databases' in chart values when db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $db "uri") }}
+            {{- fail "'uri' is required for all 'databases' is required in chart values when db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $db "protocol") }}
+            {{- fail "'protocol' is required for all 'databases' in chart values when db role is enabled, see README" }}
+          {{- end }}
+        {{- end }}
+        {{- toYaml .Values.databases | nindent 6 }}
+      {{- end }}
+    {{- else }}
+      enabled: false
+    {{- end }}
+    {{- end }}
     ssh_service:
       enabled: false
 {{- end -}}
