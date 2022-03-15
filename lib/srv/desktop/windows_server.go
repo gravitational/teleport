@@ -163,6 +163,8 @@ type WindowsServiceConfig struct {
 	// Windows Desktops. If multiple filters are specified, they are ANDed
 	// together into a single search.
 	DiscoveryLDAPFilters []string
+	// Hostname of the windows desktop service
+	Hostname string
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -941,6 +943,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 		types.WindowsDesktopServiceSpecV3{
 			Addr:            s.cfg.Heartbeat.PublicAddr,
 			TeleportVersion: teleport.Version,
+			Hostname:        s.cfg.Hostname,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1028,7 +1031,7 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	// have to do it here.
 	//
 	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
-	ca, err := s.cfg.AccessPoint.GetCertAuthority(types.CertAuthID{
+	ca, err := s.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: s.clusterName,
 	}, false)
