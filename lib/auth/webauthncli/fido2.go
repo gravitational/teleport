@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
@@ -52,6 +53,15 @@ type FIDODevice interface {
 	// Credentials mirrors libfido2.Device.Credentials.
 	Credentials(rpID string, pin string) ([]*libfido2.Credential, error)
 
+	// MakeCredential mirrors libfido2.Device.MakeCredential.
+	MakeCredential(
+		clientDataHash []byte,
+		rp libfido2.RelyingParty,
+		user libfido2.User,
+		typ libfido2.CredentialType,
+		pin string,
+		opts *libfido2.MakeCredentialOpts) (*libfido2.Attestation, error)
+
 	// Assertion mirrors libfido2.Device.Assertion.
 	Assertion(
 		rpID string,
@@ -74,6 +84,16 @@ type LoginPrompt interface {
 	// PromptAdditionalTouch prompts the user for an additional security key
 	// touch.
 	// Additional touches may be required after PINs and during passwordless flows.
+	PromptAdditionalTouch() error
+}
+
+// RegisterPrompt is the user interface for FIDO2Register.
+type RegisterPrompt interface {
+	// PromptPIN prompts the user for their PIN.
+	PromptPIN() (string, error)
+	// PromptAdditionalTouch prompts the user for an additional security key
+	// touch.
+	// Additional touches may be required after PINs.
 	PromptAdditionalTouch() error
 }
 
@@ -313,6 +333,215 @@ func getMFACredentials(dev FIDODevice, pin, rpID, appID string, allowedCreds [][
 	}
 
 	return actualRPID, cID, nil
+}
+
+// FIDO2Register registers a new credential using available CTAP1 or CTAP2
+// devices.
+// It must be called with a context with timeout, otherwise it can run
+// indefinitely.
+func FIDO2Register(
+	ctx context.Context,
+	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
+) (*proto.MFARegisterResponse, error) {
+	switch {
+	case origin == "":
+		return nil, trace.BadParameter("origin required")
+	case cc == nil:
+		return nil, trace.BadParameter("credential creation required")
+	case prompt == nil:
+		return nil, trace.BadParameter("prompt required")
+	case len(cc.Response.Challenge) == 0:
+		return nil, trace.BadParameter("credential creation challenge required")
+	case cc.Response.RelyingParty.ID == "":
+		return nil, trace.BadParameter("credential creation relying party ID required")
+	}
+
+	rrk := cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
+	if rrk {
+		// Be more pedantic with resident keys, some of this info gets recorded with
+		// the credential.
+		switch {
+		case len(cc.Response.RelyingParty.Name) == 0:
+			return nil, trace.BadParameter("relying party name required for resident credential")
+		case len(cc.Response.User.Name) == 0:
+			return nil, trace.BadParameter("user name required for resident credential")
+		case len(cc.Response.User.DisplayName) == 0:
+			return nil, trace.BadParameter("user display name required for resident credential")
+		case len(cc.Response.User.ID) == 0:
+			return nil, trace.BadParameter("user ID required for resident credential")
+		}
+	}
+
+	// Can we create ES256 keys?
+	ok := false
+	for _, p := range cc.Response.Parameters {
+		if p.Type == protocol.PublicKeyCredentialType && p.Algorithm == webauthncose.AlgES256 {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return nil, trace.BadParameter("ES256 not allowed by credential parameters")
+	}
+
+	// Prepare challenge data for the device.
+	ccdJSON, err := json.Marshal(&CollectedClientData{
+		Type:      string(protocol.CreateCeremony),
+		Challenge: base64.RawURLEncoding.EncodeToString(cc.Response.Challenge),
+		Origin:    origin,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ccdHash := sha256.Sum256(ccdJSON)
+
+	rp := libfido2.RelyingParty{
+		ID:   cc.Response.RelyingParty.ID,
+		Name: cc.Response.RelyingParty.Name,
+	}
+	user := libfido2.User{
+		ID:          cc.Response.User.ID,
+		Name:        cc.Response.User.Name,
+		DisplayName: cc.Response.User.DisplayName,
+		Icon:        cc.Response.User.Icon,
+	}
+	plat := cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.Platform
+	uv := cc.Response.AuthenticatorSelection.UserVerification == protocol.VerificationRequired
+
+	excludeList := make([][]byte, len(cc.Response.CredentialExcludeList))
+	for i := range cc.Response.CredentialExcludeList {
+		excludeList[i] = cc.Response.CredentialExcludeList[i].CredentialID
+	}
+
+	// mu guards attestation from goroutines.
+	var mu sync.Mutex
+	var attestation *libfido2.Attestation
+
+	if err := runOnFIDO2Devices(
+		ctx, prompt, false, /* skipAdditionalPrompt */
+		/* filter */ func(dev FIDODevice, info *deviceInfo) (bool, error) {
+			switch {
+			case (plat && !info.plat) || (rrk && !info.rk) || (uv && !info.uvCapable()):
+				return false, nil
+			case len(excludeList) == 0:
+				return true, nil
+			}
+
+			// Does the device hold an excluded credential?
+			switch _, err := dev.Assertion(rp.ID, ccdHash[:], excludeList, "" /* pin */, &libfido2.AssertionOpts{
+				UP: libfido2.False,
+			}); {
+			case errors.Is(err, libfido2.ErrNoCredentials):
+				return true, nil
+			case err == nil:
+				return false, nil
+			default: // unexpected error
+				return false, trace.Wrap(err)
+			}
+		},
+		/* deviceCallback */ func(d FIDODevice, info *deviceInfo, pin string) error {
+			// TODO(codingllama): We may need to setup a PIN if rrk=true.
+			//  Do that as a response to specific MakeCredential failures.
+
+			opts := &libfido2.MakeCredentialOpts{}
+			if rrk {
+				opts.RK = libfido2.True
+			}
+			// Only set the "uv" bit if the authenticator supports built-in
+			// verification. PIN-enabled devices don't claim to support "uv", but they
+			// are capable of UV assertions.
+			// See
+			// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#getinfo-uv.
+			if uv && info.uv {
+				opts.UV = libfido2.True
+			}
+
+			resp, err := d.MakeCredential(ccdHash[:], rp, user, libfido2.ES256, pin, opts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			// Use the first successful attestation.
+			// In practice it is very unlikely we'd hit this twice.
+			mu.Lock()
+			if attestation == nil {
+				attestation = resp
+			}
+			mu.Unlock()
+			return nil
+		}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var rawAuthData []byte
+	if err := cbor.Unmarshal(attestation.AuthData, &rawAuthData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	format, attStatement, err := makeAttStatement(attestation)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	attObj := &protocol.AttestationObject{
+		RawAuthData:  rawAuthData,
+		Format:       format,
+		AttStatement: attStatement,
+	}
+	attestationCBOR, err := cbor.Marshal(attObj)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.MFARegisterResponse{
+		Response: &proto.MFARegisterResponse_Webauthn{
+			Webauthn: &wanpb.CredentialCreationResponse{
+				Type:  string(protocol.PublicKeyCredentialType),
+				RawId: attestation.CredentialID,
+				Response: &wanpb.AuthenticatorAttestationResponse{
+					ClientDataJson:    ccdJSON,
+					AttestationObject: attestationCBOR,
+				},
+			},
+		},
+	}, nil
+}
+
+func makeAttStatement(attestation *libfido2.Attestation) (string, map[string]interface{}, error) {
+	const fidoU2F = "fido-u2f"
+	const none = "none"
+	const packed = "packed"
+
+	// See https://www.w3.org/TR/webauthn-2/#sctn-defined-attestation-formats.
+	// The formats handled below are what we expect from the keys libfido2
+	// interacts with.
+	format := attestation.Format
+	switch format {
+	case fidoU2F, packed: // OK, continue below
+	case none:
+		return format, nil, nil
+	default:
+		log.Debugf(`FIDO2: Unsupported attestation format %q, using "none"`, format)
+		return none, nil, nil
+	}
+
+	sig := attestation.Sig
+	if len(sig) == 0 {
+		return "", nil, trace.BadParameter("attestation %q without signature", format)
+	}
+	cert := attestation.Cert
+	if len(cert) == 0 {
+		return "", nil, trace.BadParameter("attestation %q without certificate", format)
+	}
+
+	m := map[string]interface{}{
+		"sig": sig,
+		"x5c": []interface{}{cert},
+	}
+	if format == packed {
+		m["alg"] = int64(attestation.CredentialType)
+	}
+
+	return format, m, nil
 }
 
 type deviceWithInfo struct {
