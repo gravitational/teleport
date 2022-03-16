@@ -202,6 +202,7 @@ func (m *AgentPool) processSeekEvents() {
 				// Note that ownership of the lease is transferred to agent
 				// pool for the lifetime of the connection
 				if err := m.addAgent(lease); err != nil {
+					lease.Release()
 					m.log.WithError(err).Errorf("Failed to add agent.")
 				}
 			})
@@ -264,15 +265,6 @@ func (m *AgentPool) pollAndSyncAgents() {
 	}
 }
 
-// getReverseTunnelDetails gets the cached ReverseTunnelDetails obtained during the oldest cached agent.connect call.
-// This function should be called under a lock.
-func (m *AgentPool) getReverseTunnelDetails() *reverseTunnelDetails {
-	if len(m.agents) <= 0 {
-		return nil
-	}
-	return m.agents[0].reverseTunnelDetails
-}
-
 // addAgent adds a new agent to the pool. Note that ownership of the lease
 // transfers into the AgentPool, and will be released when the AgentPool
 // is done with it.
@@ -283,26 +275,24 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 	}
 
 	agent, err := NewAgent(AgentConfig{
-		Addr:                 *addr,
-		ClusterName:          m.cfg.Cluster,
-		Username:             m.cfg.HostUUID,
-		Signer:               m.cfg.HostSigner,
-		Client:               m.cfg.Client,
-		AccessPoint:          m.cfg.AccessPoint,
-		Context:              m.ctx,
-		KubeDialAddr:         m.cfg.KubeDialAddr,
-		Server:               m.cfg.Server,
-		ReverseTunnelServer:  m.cfg.ReverseTunnelServer,
-		LocalClusterName:     m.cfg.LocalCluster,
-		Component:            m.cfg.Component,
-		Tracker:              m.proxyTracker,
-		Lease:                lease,
-		FIPS:                 m.cfg.FIPS,
-		reverseTunnelDetails: m.getReverseTunnelDetails(),
+		Addr:                *addr,
+		ClusterName:         m.cfg.Cluster,
+		Username:            m.cfg.HostUUID,
+		Signer:              m.cfg.HostSigner,
+		Client:              m.cfg.Client,
+		AccessPoint:         m.cfg.AccessPoint,
+		Context:             m.ctx,
+		KubeDialAddr:        m.cfg.KubeDialAddr,
+		Server:              m.cfg.Server,
+		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
+		LocalClusterName:    m.cfg.LocalCluster,
+		Component:           m.cfg.Component,
+		Tracker:             m.proxyTracker,
+		Lease:               lease,
+		FIPS:                m.cfg.FIPS,
 	})
 	if err != nil {
 		// ensure that lease has been released; OK to call multiple times.
-		lease.Release()
 		return trace.Wrap(err)
 	}
 	m.log.Debugf("Adding %v.", agent)

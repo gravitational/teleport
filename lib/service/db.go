@@ -61,7 +61,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	tunnelAddrResolver := conn.TunnelProxyResolver()
 	if tunnelAddrResolver == nil {
-		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
+		tunnelAddrResolver = process.singleProcessModeResolver()
 	}
 
 	accessPoint, err := process.newLocalCache(conn.Client, cache.ForDatabases, []string{teleport.ComponentDatabase})

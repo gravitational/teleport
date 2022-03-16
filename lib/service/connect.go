@@ -20,13 +20,12 @@ import (
 	"crypto/tls"
 	"path/filepath"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+
 	"golang.org/x/crypto/ssh"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"

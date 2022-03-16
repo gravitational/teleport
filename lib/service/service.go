@@ -3074,12 +3074,11 @@ func (process *TeleportProcess) initApps() {
 		// If this process connected through the web proxy, it will discover the
 		// reverse tunnel address correctly and store it in the connector.
 		//
-		// If it was not, it is running in single process mode which is used for
 		// development and demos. In that case, wait until all dependencies (like
 		// auth and reverse tunnel server) are ready before starting.
 		tunnelAddrResolver := conn.TunnelProxyResolver()
 		if tunnelAddrResolver == nil {
-			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
+			tunnelAddrResolver = process.singleProcessModeResolver()
 
 			// Block and wait for all dependencies to start before starting.
 			log.Debugf("Waiting for application service dependencies to start.")
@@ -3476,9 +3475,9 @@ func (process *TeleportProcess) initDebugApp() {
 
 // singleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
-func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
+func (process *TeleportProcess) singleProcessModeResolver() reversetunnel.Resolver {
 	return func() (*utils.NetAddr, error) {
-		addr, ok := process.singleProcessMode(mode)
+		addr, ok := process.singleProcessMode()
 		if !ok {
 			return nil, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
 		}
@@ -3488,7 +3487,7 @@ func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListen
 
 // singleProcessMode returns true when running all components needed within
 // the same process. It's used for development and demo purposes.
-func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) (*utils.NetAddr, bool) {
+func (process *TeleportProcess) singleProcessMode() (*utils.NetAddr, bool) {
 	if !process.Config.Proxy.Enabled || !process.Config.Auth.Enabled {
 		return nil, false
 	}
