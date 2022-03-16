@@ -150,8 +150,9 @@ func FIDO2Login(
 	var username string
 	var usedAppID bool
 
+	skipAdditionalPrompt := passwordless
 	if err := runOnFIDO2Devices(
-		ctx, prompt, passwordless, /* skipAdditionalPrompt */
+		ctx, prompt, skipAdditionalPrompt,
 		/* filter */ func(dev FIDODevice, info *deviceInfo) (bool, error) {
 			switch {
 			case uv && !info.uvCapable():
@@ -163,7 +164,8 @@ func FIDO2Login(
 			}
 
 			// Does the device have a suitable credential?
-			if _, err := dev.Assertion(rpID, ccdHash[:], allowedCreds, "" /* pin */, &libfido2.AssertionOpts{
+			const pin = "" // not required to filter
+			if _, err := dev.Assertion(rpID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
 				UP: libfido2.False,
 			}); err == nil {
 				return true, nil
@@ -173,7 +175,7 @@ func FIDO2Login(
 			if appID == "" {
 				return false, nil
 			}
-			_, err = dev.Assertion(appID, ccdHash[:], allowedCreds, "" /* pin */, &libfido2.AssertionOpts{
+			_, err = dev.Assertion(appID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
 				UP: libfido2.False,
 			})
 			return err == nil, nil
@@ -417,8 +419,9 @@ func FIDO2Register(
 	var mu sync.Mutex
 	var attestation *libfido2.Attestation
 
+	const skipAdditionalPrompt = false
 	if err := runOnFIDO2Devices(
-		ctx, prompt, false, /* skipAdditionalPrompt */
+		ctx, prompt, skipAdditionalPrompt,
 		/* filter */ func(dev FIDODevice, info *deviceInfo) (bool, error) {
 			switch {
 			case (plat && !info.plat) || (rrk && !info.rk) || (uv && !info.uvCapable()):
@@ -428,7 +431,8 @@ func FIDO2Register(
 			}
 
 			// Does the device hold an excluded credential?
-			switch _, err := dev.Assertion(rp.ID, ccdHash[:], excludeList, "" /* pin */, &libfido2.AssertionOpts{
+			const pin = "" // not required to filter
+			switch _, err := dev.Assertion(rp.ID, ccdHash[:], excludeList, pin, &libfido2.AssertionOpts{
 				UP: libfido2.False,
 			}); {
 			case errors.Is(err, libfido2.ErrNoCredentials):
