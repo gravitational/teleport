@@ -4,12 +4,38 @@ package redshift
 
 const (
 
+	// ErrCodeAccessToClusterDeniedFault for service response error code
+	// "AccessToClusterDenied".
+	//
+	// You are not authorized to access the cluster.
+	ErrCodeAccessToClusterDeniedFault = "AccessToClusterDenied"
+
 	// ErrCodeAccessToSnapshotDeniedFault for service response error code
 	// "AccessToSnapshotDenied".
 	//
 	// The owner of the specified snapshot has not authorized your account to access
 	// the snapshot.
 	ErrCodeAccessToSnapshotDeniedFault = "AccessToSnapshotDenied"
+
+	// ErrCodeAuthenticationProfileAlreadyExistsFault for service response error code
+	// "AuthenticationProfileAlreadyExistsFault".
+	//
+	// The authentication profile already exists.
+	ErrCodeAuthenticationProfileAlreadyExistsFault = "AuthenticationProfileAlreadyExistsFault"
+
+	// ErrCodeAuthenticationProfileNotFoundFault for service response error code
+	// "AuthenticationProfileNotFoundFault".
+	//
+	// The authentication profile can't be found.
+	ErrCodeAuthenticationProfileNotFoundFault = "AuthenticationProfileNotFoundFault"
+
+	// ErrCodeAuthenticationProfileQuotaExceededFault for service response error code
+	// "AuthenticationProfileQuotaExceededFault".
+	//
+	// The size or number of authentication profiles has exceeded the quota. The
+	// maximum length of the JSON string and maximum number of authentication profiles
+	// is determined by a quota for your account.
+	ErrCodeAuthenticationProfileQuotaExceededFault = "AuthenticationProfileQuotaExceededFault"
 
 	// ErrCodeAuthorizationAlreadyExistsFault for service response error code
 	// "AuthorizationAlreadyExists".
@@ -192,6 +218,50 @@ const (
 	// temporarily unavailable. Wait 30 to 60 seconds and try again.
 	ErrCodeDependentServiceUnavailableFault = "DependentServiceUnavailableFault"
 
+	// ErrCodeEndpointAlreadyExistsFault for service response error code
+	// "EndpointAlreadyExists".
+	//
+	// The account already has a Redshift-managed VPC endpoint with the given identifier.
+	ErrCodeEndpointAlreadyExistsFault = "EndpointAlreadyExists"
+
+	// ErrCodeEndpointAuthorizationAlreadyExistsFault for service response error code
+	// "EndpointAuthorizationAlreadyExists".
+	//
+	// The authorization already exists for this endpoint.
+	ErrCodeEndpointAuthorizationAlreadyExistsFault = "EndpointAuthorizationAlreadyExists"
+
+	// ErrCodeEndpointAuthorizationNotFoundFault for service response error code
+	// "EndpointAuthorizationNotFound".
+	//
+	// The authorization for this endpoint can't be found.
+	ErrCodeEndpointAuthorizationNotFoundFault = "EndpointAuthorizationNotFound"
+
+	// ErrCodeEndpointAuthorizationsPerClusterLimitExceededFault for service response error code
+	// "EndpointAuthorizationsPerClusterLimitExceeded".
+	//
+	// The number of endpoint authorizations per cluster has exceeded its limit.
+	ErrCodeEndpointAuthorizationsPerClusterLimitExceededFault = "EndpointAuthorizationsPerClusterLimitExceeded"
+
+	// ErrCodeEndpointNotFoundFault for service response error code
+	// "EndpointNotFound".
+	//
+	// The endpoint name doesn't refer to an existing endpoint.
+	ErrCodeEndpointNotFoundFault = "EndpointNotFound"
+
+	// ErrCodeEndpointsPerAuthorizationLimitExceededFault for service response error code
+	// "EndpointsPerAuthorizationLimitExceeded".
+	//
+	// The number of Redshift-managed VPC endpoints per authorization has exceeded
+	// its limit.
+	ErrCodeEndpointsPerAuthorizationLimitExceededFault = "EndpointsPerAuthorizationLimitExceeded"
+
+	// ErrCodeEndpointsPerClusterLimitExceededFault for service response error code
+	// "EndpointsPerClusterLimitExceeded".
+	//
+	// The number of Redshift-managed VPC endpoints per cluster has exceeded its
+	// limit.
+	ErrCodeEndpointsPerClusterLimitExceededFault = "EndpointsPerClusterLimitExceeded"
+
 	// ErrCodeEventSubscriptionQuotaExceededFault for service response error code
 	// "EventSubscriptionQuotaExceeded".
 	//
@@ -269,6 +339,20 @@ const (
 	// bucket specified when enabling logging.
 	ErrCodeInsufficientS3BucketPolicyFault = "InsufficientS3BucketPolicyFault"
 
+	// ErrCodeInvalidAuthenticationProfileRequestFault for service response error code
+	// "InvalidAuthenticationProfileRequestFault".
+	//
+	// The authentication profile request is not valid. The profile name can't be
+	// null or empty. The authentication profile API operation must be available
+	// in the Amazon Web Services Region.
+	ErrCodeInvalidAuthenticationProfileRequestFault = "InvalidAuthenticationProfileRequestFault"
+
+	// ErrCodeInvalidAuthorizationStateFault for service response error code
+	// "InvalidAuthorizationState".
+	//
+	// The status of the authorization is not valid.
+	ErrCodeInvalidAuthorizationStateFault = "InvalidAuthorizationState"
+
 	// ErrCodeInvalidClusterParameterGroupStateFault for service response error code
 	// "InvalidClusterParameterGroupState".
 	//
@@ -320,11 +404,23 @@ const (
 	// The provided cluster track name is not valid.
 	ErrCodeInvalidClusterTrackFault = "InvalidClusterTrack"
 
+	// ErrCodeInvalidDataShareFault for service response error code
+	// "InvalidDataShareFault".
+	//
+	// There is an error with the datashare.
+	ErrCodeInvalidDataShareFault = "InvalidDataShareFault"
+
 	// ErrCodeInvalidElasticIpFault for service response error code
 	// "InvalidElasticIpFault".
 	//
 	// The Elastic IP (EIP) is invalid or cannot be found.
 	ErrCodeInvalidElasticIpFault = "InvalidElasticIpFault"
+
+	// ErrCodeInvalidEndpointStateFault for service response error code
+	// "InvalidEndpointState".
+	//
+	// The status of the endpoint is not valid.
+	ErrCodeInvalidEndpointStateFault = "InvalidEndpointState"
 
 	// ErrCodeInvalidHsmClientCertificateStateFault for service response error code
 	// "InvalidHsmClientCertificateStateFault".
@@ -339,6 +435,13 @@ const (
 	// The specified HSM configuration is not in the available state, or it is still
 	// in use by one or more Amazon Redshift clusters.
 	ErrCodeInvalidHsmConfigurationStateFault = "InvalidHsmConfigurationStateFault"
+
+	// ErrCodeInvalidNamespaceFault for service response error code
+	// "InvalidNamespaceFault".
+	//
+	// The namespace isn't valid because the namespace doesn't exist. Provide a
+	// valid namespace.
+	ErrCodeInvalidNamespaceFault = "InvalidNamespaceFault"
 
 	// ErrCodeInvalidReservedNodeStateFault for service response error code
 	// "InvalidReservedNodeState".
@@ -436,7 +539,7 @@ const (
 	// ErrCodeLimitExceededFault for service response error code
 	// "LimitExceededFault".
 	//
-	// The encryption key has exceeded its grant limit in AWS KMS.
+	// The encryption key has exceeded its grant limit in Amazon Web Services KMS.
 	ErrCodeLimitExceededFault = "LimitExceededFault"
 
 	// ErrCodeNumberOfNodesPerClusterLimitExceededFault for service response error code
@@ -454,6 +557,12 @@ const (
 	// in the Amazon Redshift Cluster Management Guide.
 	ErrCodeNumberOfNodesQuotaExceededFault = "NumberOfNodesQuotaExceeded"
 
+	// ErrCodePartnerNotFoundFault for service response error code
+	// "PartnerNotFound".
+	//
+	// The name of the partner was not found.
+	ErrCodePartnerNotFoundFault = "PartnerNotFound"
+
 	// ErrCodeReservedNodeAlreadyExistsFault for service response error code
 	// "ReservedNodeAlreadyExists".
 	//
@@ -465,6 +574,12 @@ const (
 	//
 	// Indicates that the reserved node has already been exchanged.
 	ErrCodeReservedNodeAlreadyMigratedFault = "ReservedNodeAlreadyMigrated"
+
+	// ErrCodeReservedNodeExchangeNotFoundFault for service response error code
+	// "ReservedNodeExchangeNotFond".
+	//
+	// The reserved-node exchange status wasn't found.
+	ErrCodeReservedNodeExchangeNotFoundFault = "ReservedNodeExchangeNotFond"
 
 	// ErrCodeReservedNodeNotFoundFault for service response error code
 	// "ReservedNodeNotFound".
@@ -583,8 +698,8 @@ const (
 	// ErrCodeSnapshotCopyGrantQuotaExceededFault for service response error code
 	// "SnapshotCopyGrantQuotaExceededFault".
 	//
-	// The AWS account has exceeded the maximum number of snapshot copy grants in
-	// this region.
+	// The Amazon Web Services account has exceeded the maximum number of snapshot
+	// copy grants in this region.
 	ErrCodeSnapshotCopyGrantQuotaExceededFault = "SnapshotCopyGrantQuotaExceededFault"
 
 	// ErrCodeSnapshotScheduleAlreadyExistsFault for service response error code
@@ -683,6 +798,12 @@ const (
 	//
 	// Your account is not authorized to perform the requested operation.
 	ErrCodeUnauthorizedOperation = "UnauthorizedOperation"
+
+	// ErrCodeUnauthorizedPartnerIntegrationFault for service response error code
+	// "UnauthorizedPartnerIntegration".
+	//
+	// The partner integration is not authorized.
+	ErrCodeUnauthorizedPartnerIntegrationFault = "UnauthorizedPartnerIntegration"
 
 	// ErrCodeUnknownSnapshotCopyRegionFault for service response error code
 	// "UnknownSnapshotCopyRegionFault".
