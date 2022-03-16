@@ -37,7 +37,8 @@ apps: []
 #  - name: aurora
 #    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
 #    protocol: "postgres"
-#    static_labels: {env: "prod"}
+#    static_labels:
+#      env: "prod"
 databases: []
 
 ################################################################
