@@ -266,4 +266,4 @@ tolerations: []
 
 # Timeouts for the readiness and liveness probes
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
-probeTimeout: 1
+probeTimeoutSeconds: 1
