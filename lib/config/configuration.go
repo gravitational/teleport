@@ -414,42 +414,22 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
-	logger := utils.NewLogger()
-	defaultLogger := log.StandardLogger() // DELETE this when global logger instance is no longer in use.
-	loggers := []*log.Logger{logger, defaultLogger}
-
-	setOutput := func(file *os.File) {
-		for _, l := range loggers {
-			l.SetOutput(file)
-		}
-	}
-
-	setLevel := func(level log.Level) {
-		for _, l := range loggers {
-			l.SetLevel(level)
-		}
-	}
-
-	setFormatter := func(formatter log.Formatter) {
-		for _, l := range loggers {
-			l.SetFormatter(formatter)
-		}
-	}
+	logger := log.StandardLogger()
 
 	switch loggerConfig.Output {
 	case "":
 		break // not set
 	case "stderr", "error", "2":
-		setOutput(os.Stderr)
-	case "stdout", "out", "1":
-		setOutput(os.Stdout)
+		logger.SetOutput(os.Stderr)
+		cfg.Console = io.Discard // disable console printing
+	case "stdoggerout", "out", "1":
+		logger.SetOutput(os.Stdout)
+		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
-		for _, l := range loggers {
-			err := utils.SwitchLoggerToSyslog(l)
-			if err != nil {
-				// this error will go to stderr
-				log.Errorf("Failed to switch logging to syslog: %v.", err)
-			}
+		err := utils.SwitchLoggerToSyslog(logger)
+		if err != nil {
+			// this error will go to stderr
+			log.Errorf("Failed to switch logging to syslog: %v.", err)
 		}
 	default:
 		// assume it's a file path:
@@ -457,18 +437,18 @@ func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err, "failed to create the log file")
 		}
-		setOutput(logFile)
+		logger.SetOutput(logFile)
 	}
 
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "", "info":
-		setLevel(log.InfoLevel)
+		logger.SetLevel(log.InfoLevel)
 	case "err", "error":
-		setLevel(log.ErrorLevel)
+		logger.SetLevel(log.ErrorLevel)
 	case teleport.DebugLevel:
-		setLevel(log.DebugLevel)
+		logger.SetLevel(log.DebugLevel)
 	case "warn", "warning":
-		setLevel(log.WarnLevel)
+		logger.SetLevel(log.WarnLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
@@ -486,7 +466,7 @@ func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 
-		setFormatter(formatter)
+		logger.SetFormatter(formatter)
 	case "json":
 		formatter := &utils.JSONFormatter{
 			ExtraFields: loggerConfig.Format.ExtraFields,
@@ -496,9 +476,8 @@ func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 
-		setFormatter(formatter)
-		cfg.Console = ioutil.Discard     // disable console printing
-		stdlog.SetOutput(ioutil.Discard) // disable the standard logger used by external dependencies
+		logger.SetFormatter(formatter)
+		stdlog.SetOutput(io.Discard) // disable the standard logger used by external dependencies
 		stdlog.SetFlags(0)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
