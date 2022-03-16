@@ -136,10 +136,9 @@ func TestTeleportMain(t *testing.T) {
 		require.Equal(t, "start", cmd)
 		require.Equal(t, len(bootstrapEntries), len(conf.Auth.Resources))
 		for i, entry := range bootstrapEntries {
-			t.Log(i)
-			require.Equal(t, entry.kind, conf.Auth.Resources[i].GetKind())
-			require.Equal(t, entry.name, conf.Auth.Resources[i].GetName())
-			require.NoError(t, conf.Auth.Resources[i].CheckAndSetDefaults())
+			require.Equal(t, entry.kind, conf.Auth.Resources[i].GetKind(), entry.fileName)
+			require.Equal(t, entry.name, conf.Auth.Resources[i].GetName(), entry.fileName)
+			require.NoError(t, conf.Auth.Resources[i].CheckAndSetDefaults(), entry.fileName)
 		}
 	})
 }
