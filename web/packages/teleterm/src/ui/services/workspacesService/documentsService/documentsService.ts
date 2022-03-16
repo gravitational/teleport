@@ -31,7 +31,7 @@ export class DocumentsService {
     private getState: () => { documents: Document[]; location: string },
     private setState: (
       draftState: (draft: { documents: Document[]; location: string }) => void
-    ) => void,
+    ) => void
   ) {}
 
   open(docUri: string) {
@@ -102,7 +102,7 @@ export class DocumentsService {
     };
   }
 
-  openNewTerminal() {
+  openNewTerminal(initCommand?: string) {
     const doc = ((): Document => {
       const activeDocument = this.getActive();
       switch (activeDocument.kind) {
@@ -110,10 +110,12 @@ export class DocumentsService {
           return {
             ...activeDocument,
             uri: routing.getDocUri({ docId: unique() }),
+            initCommand,
           };
         default:
           return {
             uri: routing.getDocUri({ docId: unique() }),
+            initCommand,
             title: 'Terminal',
             kind: 'doc.terminal_shell',
           };

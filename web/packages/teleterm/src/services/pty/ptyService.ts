@@ -67,6 +67,7 @@ function buildOptions(settings: RuntimeSettings, cmd: PtyCommand): PtyOptions {
         args: [],
         cwd: cmd.cwd,
         env,
+        initCommand: cmd.initCommand,
       };
 
     case 'pty.tsh-kube-login':

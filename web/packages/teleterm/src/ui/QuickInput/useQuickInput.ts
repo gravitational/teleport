@@ -19,7 +19,11 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
 
 export default function useQuickInput() {
-  const { quickInputService: serviceQuickInput } = useAppContext();
+  const { quickInputService: serviceQuickInput, workspacesService } =
+    useAppContext();
+  workspacesService.useState();
+  const documentsService =
+    workspacesService.getActiveWorkspaceDocumentService();
   const { visible, inputValue } = serviceQuickInput.useState();
   const [activeSuggestion, setActiveSuggestion] = React.useState(0);
   const autocompleteResult = React.useMemo(
@@ -44,6 +48,7 @@ export default function useQuickInput() {
 
   const onPickSuggestion = (index: number) => {
     if (!hasSuggestions) {
+      documentsService.openNewTerminal(inputValue);
       return;
     }
 

@@ -58,9 +58,19 @@ async function initState(
     docsService.update(doc.uri, { cwd, title: cwd });
   };
 
+  const removeInitCommand = () => {
+    if (doc.kind !== 'doc.terminal_shell') {
+      return;
+    }
+    // The initCommand has to be launched only once, not every time we recreate the document from
+    // the state.
+    docsService.update(doc.uri, { initCommand: undefined });
+  };
+
   ptyProcess.onOpen(() => {
     docsService.update(doc.uri, { status: 'connected' });
     refreshTitle();
+    removeInitCommand();
   });
 
   ptyProcess.onExit(() => {
@@ -92,6 +102,7 @@ function createCmd(doc: Doc): PtyCommand {
   return {
     kind: 'pty.shell',
     cwd: doc.cwd,
+    initCommand: doc.initCommand,
   };
 }
 

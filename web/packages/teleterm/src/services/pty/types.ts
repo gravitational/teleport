@@ -3,6 +3,7 @@ export type PtyOptions = {
   path: string;
   args: string[] | string;
   cwd?: string;
+  initCommand?: string;
 };
 
 export type PtyProcess = {
@@ -24,6 +25,7 @@ export type PtyServiceClient = {
 export type ShellCommand = {
   kind: 'pty.shell';
   cwd?: string;
+  initCommand?: string;
 };
 
 export type TshLoginCommand = {

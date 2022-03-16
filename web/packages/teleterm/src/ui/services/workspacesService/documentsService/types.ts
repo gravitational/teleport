@@ -67,6 +67,7 @@ export interface DocumentCluster extends DocumentBase {
 export interface DocumentPtySession extends DocumentBase {
   kind: 'doc.terminal_shell';
   cwd?: string;
+  initCommand?: string;
 }
 
 export type DocumentTerminal =
