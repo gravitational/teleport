@@ -11,6 +11,8 @@ const (
 	debPackage = "deb"
 )
 
+const releasesHost = "https://releases-staging.platform.teleport.sh"
+
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
 func tagCheckoutCommands(fips bool) []string {
 	commands := []string{
@@ -224,6 +226,16 @@ func tagPipeline(b buildType) pipeline {
 			target:      "teleport/tag/${DRONE_TAG##v}",
 			stripPrefix: "/go/artifacts/",
 		}),
+		{
+			Name:     "Register artifacts",
+			Image:    "docker",
+			Failure:  "ignore",
+			Commands: tagCreateReleaseAssetCommands(b),
+			Environment: map[string]value{
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+			},
+		},
 	}
 	return p
 }
@@ -261,6 +273,38 @@ func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 		commands = append(commands, fmt.Sprintf(`find build -maxdepth 1 -iname "teleport*.%s*" -print -exec cp {} /go/artifacts \;`, packageType))
 	}
 	commands = append(commands, fmt.Sprintf(`find e/build -maxdepth 1 -iname "teleport*.%s*" -print -exec cp {} /go/artifacts \;`, packageType))
+	return commands
+}
+
+// createReleaseAssetCommands generates a set of commands to create release & asset in release management service
+func tagCreateReleaseAssetCommands(b buildType) []string {
+	commands := []string{
+		`WORKSPACE_DIR=$${WORKSPACE_DIR:-/}`,
+		`VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")`,
+		fmt.Sprintf(`RELEASES_HOST='%v'`, releasesHost),
+		`echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"`,
+		`echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"`,
+		`trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT`,
+		`CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"`,
+		`which curl || apk add --no-cache curl`,
+		fmt.Sprintf(`cd "$WORKSPACE_DIR/go/artifacts"
+for file in $(find . -type f ! -iname '*.sha256'); do
+  # Skip files that are not results of this build
+  # (e.g. tarballs from which OS packages are made)
+  [ -f "$file.sha256" ] || continue
+
+  product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+  shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+  status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+  if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+    echo "curl HTTP status: $status_code"
+    cat $WORKSPACE_DIR/curl_out.txt
+    exit 1
+  fi
+  curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="%s" -F arch="%s" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+done`,
+			b.os, b.arch /* TODO: fips */),
+	}
 	return commands
 }
 
@@ -374,6 +418,16 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			target:      "teleport/tag/${DRONE_TAG##v}",
 			stripPrefix: "/go/artifacts/",
 		}),
+		{
+			Name:     "Register artifacts",
+			Image:    "docker",
+			Commands: tagCreateReleaseAssetCommands(b),
+			Failure:  "ignore",
+			Environment: map[string]value{
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+			},
+		},
 	}
 	return p
 }

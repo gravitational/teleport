@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
@@ -121,6 +122,8 @@ type Identity struct {
 	MFAVerified string
 	// ClientIP is an observed IP of the client that this Identity represents.
 	ClientIP string
+	// ActiveRequests is a list of UUIDs of active requests for this Identity.
+	ActiveRequests []string
 }
 
 // RouteToApp holds routing information for applications.
@@ -177,6 +180,51 @@ func (id *Identity) GetRouteToApp() (RouteToApp, error) {
 	}
 
 	return id.RouteToApp, nil
+}
+
+func (id *Identity) GetEventIdentity() events.Identity {
+	// leave a nil instead of a zero struct so the field doesn't appear when
+	// serialized as json
+	var routeToApp *events.RouteToApp
+	if id.RouteToApp != (RouteToApp{}) {
+		routeToApp = &events.RouteToApp{
+			Name:        id.RouteToApp.Name,
+			SessionID:   id.RouteToApp.SessionID,
+			PublicAddr:  id.RouteToApp.PublicAddr,
+			ClusterName: id.RouteToApp.ClusterName,
+		}
+	}
+	var routeToDatabase *events.RouteToDatabase
+	if id.RouteToDatabase != (RouteToDatabase{}) {
+		routeToDatabase = &events.RouteToDatabase{
+			ServiceName: id.RouteToDatabase.ServiceName,
+			Protocol:    id.RouteToDatabase.Protocol,
+			Username:    id.RouteToDatabase.Username,
+			Database:    id.RouteToDatabase.Database,
+		}
+	}
+
+	return events.Identity{
+		User:              id.Username,
+		Impersonator:      id.Impersonator,
+		Roles:             id.Groups,
+		Usage:             id.Usage,
+		Logins:            id.Principals,
+		KubernetesGroups:  id.KubernetesGroups,
+		KubernetesUsers:   id.KubernetesUsers,
+		Expires:           id.Expires,
+		RouteToCluster:    id.RouteToCluster,
+		KubernetesCluster: id.KubernetesCluster,
+		Traits:            id.Traits,
+		RouteToApp:        routeToApp,
+		TeleportCluster:   id.TeleportCluster,
+		RouteToDatabase:   routeToDatabase,
+		DatabaseNames:     id.DatabaseNames,
+		DatabaseUsers:     id.DatabaseUsers,
+		MFADeviceUUID:     id.MFAVerified,
+		ClientIP:          id.ClientIP,
+		AccessRequests:    id.ActiveRequests,
+	}
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -265,6 +313,10 @@ var (
 	// ImpersonatorASN1ExtensionOID is an extension OID used when encoding/decoding
 	// impersonator user
 	ImpersonatorASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 7}
+
+	// ActiveRequestsASN1ExtensionOID is an extension OID used when encoding/decoding
+	// active access requests into certificates.
+	ActiveRequestsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 8}
 )
 
 // Subject converts identity to X.509 subject name
@@ -422,6 +474,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	for _, activeRequest := range id.ActiveRequests {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ActiveRequestsASN1ExtensionOID,
+				Value: activeRequest,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -531,6 +591,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.Impersonator = val
 			}
+		case attr.Type.Equal(ActiveRequestsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.ActiveRequests = append(id.ActiveRequests, val)
+			}
 		}
 	}
 
@@ -545,6 +610,14 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 	return id, nil
+}
+
+func (id Identity) GetUserMetadata() events.UserMetadata {
+	return events.UserMetadata{
+		User:           id.Username,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
+	}
 }
 
 // CertificateRequest is a X.509 signing certificate request

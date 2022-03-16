@@ -370,11 +370,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		WithMFA:   ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 	}
 
-	userMeta := events.UserMetadata{
-		User:         ctx.Identity.TeleportUser,
-		Login:        ctx.Identity.Login,
-		Impersonator: ctx.Identity.Impersonator,
-	}
+	userMeta := ctx.Identity.GetUserMetadata()
 
 	connectionMeta := events.ConnectionMetadata{
 		RemoteAddr: ctx.ServerConn.RemoteAddr().String(),

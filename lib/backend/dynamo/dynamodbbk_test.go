@@ -20,6 +20,7 @@ package dynamo
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -53,6 +54,7 @@ func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
 			"poll_stream_period": 300 * time.Millisecond,
 		})
 	}
+
 	bk, err := newBackend()
 	c.Assert(err, check.IsNil)
 	s.bk = bk.(*Backend)
@@ -100,5 +102,9 @@ func (s *DynamoDBSuite) TestWatchersClose(c *check.C) {
 }
 
 func (s *DynamoDBSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
+}
+
+func (s *DynamoDBSuite) TestFetchLimit(c *check.C) {
+	s.suite.FetchLimit(c)
 }

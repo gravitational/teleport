@@ -76,6 +76,7 @@ type (
 	UserDelete                      = events.UserDelete
 	UserPasswordChange              = events.UserPasswordChange
 	AccessRequestCreate             = events.AccessRequestCreate
+	AccessRequestDelete             = events.AccessRequestDelete
 	PortForward                     = events.PortForward
 	X11Forward                      = events.X11Forward
 	CommandMetadata                 = events.CommandMetadata
@@ -143,5 +144,6 @@ type (
 	OneOf_AppSessionStart           = events.OneOf_AppSessionStart           //nolint
 	OneOf_AppSessionChunk           = events.OneOf_AppSessionChunk           //nolint
 	OneOf_AppSessionRequest         = events.OneOf_AppSessionRequest         //nolint
+	OneOf_AccessRequestDelete       = events.OneOf_AccessRequestDelete       //nolint
 	StreamStatus                    = events.StreamStatus
 )

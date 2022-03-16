@@ -7,6 +7,12 @@ ENV LANGUAGE=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     LC_CTYPE=en_US.UTF-8
 
+# forcibly update yum and curl manually (seems to fix compatibility with vault.centos.org).
+RUN curl -O https://vault.centos.org/6.10/updates/x86_64/Packages/yum-3.2.29-81.el6.centos.0.1.noarch.rpm && \
+    curl -O https://vault.centos.org/6.10/updates/x86_64/Packages/curl-7.19.7-54.el6_10.x86_64.rpm && \
+    curl -O https://vault.centos.org/6.10/updates/x86_64/Packages/libcurl-7.19.7-54.el6_10.x86_64.rpm && \
+    rpm -Uvh libcurl-7.19.7-54.el6_10.x86_64.rpm curl-7.19.7-54.el6_10.x86_64.rpm yum-3.2.29-81.el6.centos.0.1.noarch.rpm
+
 # Replace regular CentOS 6 mirror list with vault.centos.org, as CentOS 6 is EOL
 # and regular mirrors aren't hosted any more.
 RUN sed -i 's%^mirrorlist%#mirrorlist%g' /etc/yum.repos.d/* && \

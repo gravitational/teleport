@@ -1572,9 +1572,7 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: actx.Identity.GetIdentity().Username,
-		},
+		UserMetadata:      actx.Identity.GetIdentity().GetUserMetadata(),
 		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
 	}); err != nil {
 		return trail.ToGRPC(err)
@@ -1857,9 +1855,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 				Code:        events.MFADeviceDeleteEventCode,
 				ClusterName: clusterName.GetClusterName(),
 			},
-			UserMetadata: apievents.UserMetadata{
-				User: actx.Identity.GetIdentity().Username,
-			},
+			UserMetadata:      actx.Identity.GetIdentity().GetUserMetadata(),
 			MFADeviceMetadata: mfaDeviceEventMetadata(d),
 		}); err != nil {
 			return trail.ToGRPC(err)

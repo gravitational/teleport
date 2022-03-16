@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -817,10 +818,11 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			Username:    req.dbUser,
 			Database:    req.dbName,
 		},
-		DatabaseNames: dbNames,
-		DatabaseUsers: dbUsers,
-		MFAVerified:   req.mfaVerified,
-		ClientIP:      req.clientIP,
+		DatabaseNames:  dbNames,
+		DatabaseUsers:  dbUsers,
+		MFAVerified:    req.mfaVerified,
+		ClientIP:       req.clientIP,
+		ActiveRequests: req.activeRequests.AccessRequests,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -836,6 +838,20 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	eventIdentity := identity.GetEventIdentity()
+	eventIdentity.Expires = certRequest.NotAfter
+	if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+		Metadata: apievents.Metadata{
+			Type: events.CertificateCreateEvent,
+			Code: events.CertificateCreateCode,
+		},
+		CertificateType: events.CertificateTypeUser,
+		Identity:        &eventIdentity,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit certificate create event.")
+	}
+
 	return &certs{ssh: sshCert, tls: tlsCert}, nil
 }
 
@@ -913,9 +929,10 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (s
 		return nil, trace.Wrap(err)
 	}
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:   user,
-		Roles:  roles,
-		Traits: traits,
+		User:           user,
+		Roles:          roles,
+		Traits:         traits,
+		AccessRequests: identity.ActiveRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1020,6 +1037,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (s
 		return nil, trace.Wrap(err)
 	}
 
+	accessRequests := identity.ActiveRequests
 	if req.AccessRequestID != "" {
 		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(req.User, req.AccessRequestID)
 		if err != nil {
@@ -1028,6 +1046,7 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (s
 
 		roles = append(roles, newRoles...)
 		roles = utils.Deduplicate(roles)
+		accessRequests = utils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(requestExpiry) {
@@ -1057,14 +1076,16 @@ func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (s
 		// Set default roles and expiration.
 		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
 		roles = user.GetRoles()
+		accessRequests = nil
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(types.NewWebSessionRequest{
-		User:       req.User,
-		Roles:      roles,
-		Traits:     traits,
-		SessionTTL: sessionTTL,
+		User:           req.User,
+		Roles:          roles,
+		Traits:         traits,
+		SessionTTL:     sessionTTL,
+		AccessRequests: accessRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1195,7 +1216,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 		return "", trace.Wrap(err)
 	}
 
-	user := ClientUsername(ctx)
+	userMetadata := ClientUserMetadata(ctx)
 	for _, role := range req.Roles {
 		if role == teleport.RoleTrustedCluster {
 			if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterTokenCreate{
@@ -1203,10 +1224,7 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 					Type: events.TrustedClusterTokenCreateEvent,
 					Code: events.TrustedClusterTokenCreateCode,
 				},
-				UserMetadata: events.UserMetadata{
-					User:         user,
-					Impersonator: ClientImpersonator(ctx),
-				},
+				UserMetadata: userMetadata,
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
 			}
@@ -1663,11 +1681,12 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (services.WebSess
 		sessionTTL = checker.AdjustSessionTTL(defaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:      user,
-		ttl:       sessionTTL,
-		publicKey: pub,
-		checker:   checker,
-		traits:    req.Traits,
+		user:           user,
+		ttl:            sessionTTL,
+		publicKey:      pub,
+		checker:        checker,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1803,9 +1822,7 @@ func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
 			Type: events.RoleCreatedEvent,
 			Code: events.RoleCreatedCode,
 		},
-		UserMetadata: events.UserMetadata{
-			User: ClientUsername(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: events.ResourceMetadata{
 			Name: role.GetName(),
 		},
@@ -1853,10 +1870,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
 		},
-		UserMetadata: events.UserMetadata{
-			User:         req.GetUser(),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, req.GetUser()),
 		ResourceMetadata: events.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
@@ -1867,6 +1881,23 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
+	}
+	return nil
+}
+
+func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
+	if err := a.DynamicAccessExt.DeleteAccessRequest(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.emitter.EmitAuditEvent(ctx, &events.AccessRequestDelete{
+		Metadata: events.Metadata{
+			Type: events.AccessRequestDeleteEvent,
+			Code: events.AccessRequestDeleteCode,
+		},
+		UserMetadata: ClientUserMetadata(ctx),
+		RequestID:    name,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit access request delete event.")
 	}
 	return nil
 }

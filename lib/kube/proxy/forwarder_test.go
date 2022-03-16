@@ -151,7 +151,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
-
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
@@ -169,7 +175,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  false,
 			tunnel:         tun,
-
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
@@ -187,7 +199,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
-
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
@@ -205,7 +223,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "remote",
 			haveKubeCreds:  true,
 			tunnel:         tun,
-
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 			wantCtx: &authContext{
 				kubeUsers:  utils.StringsSet([]string{"user-a"}),
 				kubeGroups: utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
@@ -223,7 +247,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "remote",
 			haveKubeCreds:  false,
 			tunnel:         tun,
-
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 			wantCtx: &authContext{
 				kubeUsers:  utils.StringsSet([]string{"user-a"}),
 				kubeGroups: utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
@@ -241,7 +271,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "remote",
 			haveKubeCreds:  true,
 			tunnel:         tun,
-
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 			wantCtx: &authContext{
 				kubeUsers:  utils.StringsSet([]string{"user-a"}),
 				kubeGroups: utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
@@ -259,7 +295,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "remote",
 			haveKubeCreds:  true,
 			tunnel:         tun,
-
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 			wantErr:     true,
 			wantAuthErr: true,
 		},
@@ -271,6 +313,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
@@ -305,6 +354,13 @@ func TestAuthenticate(t *testing.T) {
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
 			haveKubeCreds:  true,
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
