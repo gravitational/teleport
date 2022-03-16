@@ -313,7 +313,7 @@ $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.
 
 ### tsh proxy app
 
-Starts a local TLS proxy for Application Access connections. 
+Starts a local TLS proxy for Application Access connections.
 You can use this proxy to connect to an application repeatedly after a single login to your Teleport cluster,
 which is especially useful for interacting with an application via a CLI.
 
@@ -337,7 +337,7 @@ $ tsh proxy app [<flags>] <app>
 These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
-#### Examples 
+#### Examples
 ```code
 $ tsh proxy app <app>
 
@@ -991,7 +991,7 @@ $ tctl tokens add --type=TYPE [<flags>]
 | - | - | - | - |
 | `--type` | none | `trusted_cluster`, `node`, `proxy` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
-| `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
+| `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
 
 #### [Global Flags](#tctl-global-flags)
 
