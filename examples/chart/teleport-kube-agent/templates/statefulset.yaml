@@ -3,6 +3,7 @@
 # in the deployment.yaml file.
 #
 {{- if .Values.storage.enabled }}
+{{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -12,7 +13,7 @@ metadata:
     app: {{ .Release.Name }}
 spec:
   serviceName: {{ .Release.Name }}
-  replicas: {{ .replicaCount }}
+  replicas: {{ $replicaCount }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -29,7 +30,7 @@ spec:
     spec:
       securityContext:
         fsGroup: 9807
-      {{- if or .Values.affinity (gt (int .replicaCount) 1) }}
+      {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
           {{- if .Values.highAvailability.requireAntiAffinity }}
@@ -47,7 +48,7 @@ spec:
                 values:
                 - {{ .Release.Name }}
             topologyKey: "kubernetes.io/hostname"
-        {{- else if gt (int .replicaCount) 1 }}
+        {{- else if gt (int $replicaCount) 1 }}
           preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 50
             podAffinityTerm:
@@ -101,7 +102,7 @@ spec:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
         {{- if .Values.imagePullPolicy }}
-        imagePullPolicy: {{ toYaml .Values.imagePullPolicy | indent 8 }}
+        imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"

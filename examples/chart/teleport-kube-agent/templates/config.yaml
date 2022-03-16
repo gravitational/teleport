@@ -4,11 +4,6 @@
 {{- else -}}
   {{- $_ := set . "teleportVersion" .Chart.Version -}}
 {{- end -}}
-{{- if .Values.replicaCount -}}
-  {{- $_ := set . "replicaCount" .Values.replicaCount -}}
-{{- else -}}
-  {{- $_ := set . "replicaCount" .Values.highAvailability.replicaCount -}}
-{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
