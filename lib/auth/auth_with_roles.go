@@ -215,7 +215,7 @@ func (a *ServerWithRoles) CreateCertAuthority(ca types.CertAuthority) error {
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
-func (a *ServerWithRoles) RotateCertAuthority(req RotateRequest) error {
+func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.authServer.clock); err != nil {
 		return trace.Wrap(err)
 	}
@@ -225,21 +225,21 @@ func (a *ServerWithRoles) RotateCertAuthority(req RotateRequest) error {
 	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.RotateCertAuthority(req)
+	return a.authServer.RotateCertAuthority(ctx, req)
 }
 
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is called by a remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
-func (a *ServerWithRoles) RotateExternalCertAuthority(ca types.CertAuthority) error {
+func (a *ServerWithRoles) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if ca == nil {
 		return trace.BadParameter("missing certificate authority")
 	}
-	ctx := &services.Context{User: a.context.User, Resource: ca}
-	if err := a.actionWithContext(ctx, apidefaults.Namespace, types.KindCertAuthority, types.VerbRotate); err != nil {
+	sctx := &services.Context{User: a.context.User, Resource: ca}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, types.VerbRotate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.RotateExternalCertAuthority(ca)
+	return a.authServer.RotateExternalCertAuthority(ctx, ca)
 }
 
 // UpsertCertAuthority updates existing cert authority or updates the existing one.
@@ -269,7 +269,7 @@ func (a *ServerWithRoles) CompareAndSwapCertAuthority(new, existing types.CertAu
 	return a.authServer.CompareAndSwapCertAuthority(new, existing)
 }
 
-func (a *ServerWithRoles) GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -281,10 +281,10 @@ func (a *ServerWithRoles) GetCertAuthorities(caType types.CertAuthType, loadKeys
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetCertAuthorities(caType, loadKeys, opts...)
+	return a.authServer.GetCertAuthorities(ctx, caType, loadKeys, opts...)
 }
 
-func (a *ServerWithRoles) GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,7 +293,7 @@ func (a *ServerWithRoles) GetCertAuthority(id types.CertAuthID, loadKeys bool, o
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetCertAuthority(id, loadKeys, opts...)
+	return a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
 }
 
 func (a *ServerWithRoles) GetDomainName() (string, error) {
@@ -1438,6 +1438,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// If the user is generating a certificate, the roles and traits come from the logged in identity.
 	if req.Username == a.context.User.GetName() {
 		roles, traits, err = services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
+		// we're going to extend the roles list based on the access requests, so
+		// we ensure that all the current requests are added to the new
+		// certificate (and are checked again)
+		req.AccessRequests = append(req.AccessRequests, a.context.Identity.GetIdentity().ActiveRequests...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1453,6 +1457,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	if len(req.AccessRequests) > 0 {
 		// add any applicable access request values.
+		req.AccessRequests = apiutils.Deduplicate(req.AccessRequests)
 		for _, reqID := range req.AccessRequests {
 			accessReq, err := services.GetAccessRequest(ctx, a.authServer, reqID)
 			if err != nil {
@@ -2956,7 +2961,7 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 
-	session, err := a.authServer.generateAppToken(req.Username, req.Roles, req.URI, req.Expires)
+	session, err := a.authServer.generateAppToken(ctx, req.Username, req.Roles, req.URI, req.Expires)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

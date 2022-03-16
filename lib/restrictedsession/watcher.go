@@ -38,8 +38,10 @@ func NewRestrictionsWatcher(cfg RestrictionsWatcherConfig) (*RestrictionsWatcher
 		return nil, trace.Wrap(err)
 	}
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: cfg.RetryPeriod / 10,
-		Max:  cfg.RetryPeriod,
+		First:  utils.HalfJitter(cfg.MaxRetryPeriod / 10),
+		Step:   cfg.MaxRetryPeriod / 5,
+		Max:    cfg.MaxRetryPeriod,
+		Jitter: utils.NewHalfJitter(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -74,8 +76,8 @@ type RestrictionsWatcher struct {
 
 // RestrictionsWatcherConfig configures restrictions watcher
 type RestrictionsWatcherConfig struct {
-	// RetryPeriod is a retry period on failed watchers
-	RetryPeriod time.Duration
+	// MaxRetryPeriod is the maximum retry period on failed watchers
+	MaxRetryPeriod time.Duration
 	// ReloadPeriod is a failed period on failed watches
 	ReloadPeriod time.Duration
 	// Client is used by changeset to monitor restrictions updates
@@ -96,8 +98,8 @@ func (cfg *RestrictionsWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.RestrictionsC == nil {
 		return trace.BadParameter("missing parameter RestrictionsC")
 	}
-	if cfg.RetryPeriod == 0 {
-		cfg.RetryPeriod = defaults.HighResPollingPeriod
+	if cfg.MaxRetryPeriod == 0 {
+		cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	}
 	if cfg.ReloadPeriod == 0 {
 		cfg.ReloadPeriod = defaults.LowResPollingPeriod

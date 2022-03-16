@@ -66,11 +66,12 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		return nil, trace.Wrap(err)
 	}
 	certs, err := s.generateUserCert(certRequest{
-		user:      user,
-		publicKey: publicKey,
-		checker:   checker,
-		ttl:       ttl,
-		traits:    traits,
+		user:           user,
+		publicKey:      publicKey,
+		checker:        checker,
+		ttl:            ttl,
+		traits:         traits,
+		activeRequests: services.RequestIDs{AccessRequests: identity.ActiveRequests},
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
@@ -155,13 +156,13 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 
 // generateAppToken generates an JWT token that will be passed along with every
 // application request.
-func (s *Server) generateAppToken(username string, roles []string, uri string, expires time.Time) (string, error) {
+func (s *Server) generateAppToken(ctx context.Context, username string, roles []string, uri string, expires time.Time) (string, error) {
 	// Get the clusters CA.
 	clusterName, err := s.GetDomainName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	ca, err := s.GetCertAuthority(types.CertAuthID{
+	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.JWTSigner,
 		DomainName: clusterName,
 	}, true)

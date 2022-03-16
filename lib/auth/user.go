@@ -63,10 +63,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         user.GetCreatedBy().User.Name,
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, user.GetCreatedBy().User.Name),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
@@ -98,10 +95,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
@@ -176,10 +170,7 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 			Type: events.UserDeleteEvent,
 			Code: events.UserDeleteCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: user,
 		},

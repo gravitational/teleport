@@ -5,6 +5,8 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 
+import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
+
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
@@ -52,6 +54,9 @@ message UserMetadata {
 
     // AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
     string AWSRoleARN = 4 [ (gogoproto.jsontag) = "aws_role_arn,omitempty" ];
+
+    // AccessRequests are the IDs of access requests created by the user
+    repeated string AccessRequests = 5 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
 }
 
 // Server is a server metadata
@@ -155,8 +160,10 @@ message SessionStart {
     // SessionRecording is the type of session recording.
     string SessionRecording = 10 [ (gogoproto.jsontag) = "session_recording,omitempty" ];
 
-    // AccessRequests are the IDs of access requests created by the user
-    repeated string AccessRequests = 11 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
+    // AccessRequests used to be here, it is now part of UserMetadata
+    reserved "AccessRequests";
+    reserved 11;
+    // reserved jsontag "access_requests"
 }
 
 // SessionJoin emitted when another user joins a session
@@ -671,6 +678,20 @@ message AccessRequestCreate {
     // ProposedState is the state proposed by a review (only used in the access_request.review event
     // variant).
     string ProposedState = 11 [ (gogoproto.jsontag) = "proposed_state,omitempty" ];
+}
+
+// AccessRequestDelete is emitted when an access request has been deleted.
+message AccessRequestDelete {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // RequestID is access request ID
+    string RequestID = 3 [ (gogoproto.jsontag) = "id" ];
 }
 
 // PortForward is emitted when a user requests port forwarding.
@@ -1350,6 +1371,19 @@ message LockDelete {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// CertificateCreate is emitted when a certificate is issued.
+message CertificateCreate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // CertificateType is the type of certificate that was just issued.
+    string CertificateType = 2 [ (gogoproto.jsontag) = "cert_type,omitempty" ];
+
+    // Identity is the identity associated with the certificate, as interpreted by Teleport.
+    Identity Identity = 3 [ (gogoproto.jsontag) = "identity" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1404,6 +1438,8 @@ message OneOf {
         events.BillingCardDelete BillingCardDelete = 48;
         events.LockCreate LockCreate = 49;
         events.LockDelete LockDelete = 50;
+        events.AccessRequestDelete AccessRequestDelete = 66;
+        events.CertificateCreate CertificateCreate = 68;
     }
 }
 
@@ -1433,4 +1469,97 @@ message SessionUpload {
 
     // URL is where the url the session event data upload is at
     string SessionURL = 5 [ (gogoproto.jsontag) = "url" ];
+}
+
+// Identity matches github.com/gravitational/teleport/lib/tlsca.Identity except
+// for RouteToApp and RouteToDatabase which are nullable and Traits which is
+// represented as a google.protobuf.Struct (still containing a map from string
+// to strings). Field names match other names already used in other events
+// rather than the field names in tlsca.Identity.
+message Identity {
+    // User is a username or name of the node connection
+    string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
+    // Impersonator is a username of a user impersonating this user
+    string Impersonator = 2 [ (gogoproto.jsontag) = "impersonator,omitempty" ];
+    // Roles is a list of groups (Teleport roles) encoded in the identity
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    // Usage is a list of usage restrictions encoded in the identity
+    repeated string Usage = 4 [ (gogoproto.jsontag) = "usage,omitempty" ];
+    // Logins is a list of Unix logins allowed.
+    repeated string Logins = 5 [ (gogoproto.jsontag) = "logins,omitempty" ];
+    // KubernetesGroups is a list of Kubernetes groups allowed
+    repeated string KubernetesGroups = 6 [ (gogoproto.jsontag) = "kubernetes_groups,omitempty" ];
+    // KubernetesUsers is a list of Kubernetes users allowed
+    repeated string KubernetesUsers = 7 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
+    // Expires specifies whenever the session will expire
+    google.protobuf.Timestamp Expires = 8 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
+    // RouteToCluster specifies the target cluster
+    // if present in the session
+    string RouteToCluster = 9 [ (gogoproto.jsontag) = "route_to_cluster,omitempty" ];
+    // KubernetesCluster specifies the target kubernetes cluster for TLS
+    // identities. This can be empty on older Teleport clients.
+    string KubernetesCluster = 10 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+    // Traits hold claim data used to populate a role at runtime.
+    wrappers.LabelValues Traits = 11 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "traits,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+    ];
+    // RouteToApp holds routing information for applications. Routing metadata
+    // allows Teleport web proxy to route HTTP requests to the appropriate
+    // cluster and Teleport application proxy within the cluster.
+    RouteToApp RouteToApp = 12 [ (gogoproto.jsontag) = "route_to_app,omitempty" ];
+    // TeleportCluster is the name of the teleport cluster that this identity
+    // originated from. For TLS certs this may not be the same as cert issuer,
+    // in case of multi-hop requests that originate from a remote cluster.
+    string TeleportCluster = 13 [ (gogoproto.jsontag) = "teleport_cluster,omitempty" ];
+    // RouteToDatabase contains routing information for databases.
+    RouteToDatabase RouteToDatabase = 14 [ (gogoproto.jsontag) = "route_to_database,omitempty" ];
+    // DatabaseNames is a list of allowed database names.
+    repeated string DatabaseNames = 15 [ (gogoproto.jsontag) = "database_names,omitempty" ];
+    // DatabaseUsers is a list of allowed database users.
+    repeated string DatabaseUsers = 16 [ (gogoproto.jsontag) = "database_users,omitempty" ];
+    // MFADeviceUUID is the UUID of an MFA device when this Identity was
+    // confirmed immediately after an MFA check.
+    string MFADeviceUUID = 17 [ (gogoproto.jsontag) = "mfa_device_uuid,omitempty" ];
+    // ClientIP is an observed IP of the client that this Identity represents.
+    string ClientIP = 18 [ (gogoproto.jsontag) = "client_ip,omitempty" ];
+    // AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
+    repeated string AWSRoleARNs = 19 [ (gogoproto.jsontag) = "aws_role_arns,omitempty" ];
+    // AccessRequests is a list of UUIDs of active requests for this Identity.
+    repeated string AccessRequests = 20 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
+    // DisallowReissue is a flag that, if set, instructs the auth server to
+    // deny any attempts to reissue new certificates while authenticated with
+    // this certificate.
+    bool DisallowReissue = 21 [ (gogoproto.jsontag) = "disallow_reissue,omitempty" ];
+}
+
+// RouteToApp contains parameters for application access certificate requests.
+message RouteToApp {
+    // Name is the application name certificate is being requested for.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // SessionID is the ID of the application session.
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
+    // PublicAddr is the application public address.
+    string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
+    // ClusterName is the cluster where the application resides.
+    string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
+    // AWSRoleARN is the AWS role to assume when accessing AWS API.
+    string AWSRoleARN = 5 [ (gogoproto.jsontag) = "aws_role_arn,omitempty" ];
+}
+
+// RouteToDatabase combines parameters for database service routing information.
+message RouteToDatabase {
+    // ServiceName is the Teleport database proxy service name the cert is for.
+    string ServiceName = 1 [ (gogoproto.jsontag) = "service_name" ];
+    // Protocol is the type of the database the cert is for.
+    string Protocol = 2 [ (gogoproto.jsontag) = "protocol" ];
+    // Username is an optional database username to embed.
+    string Username = 3 [ (gogoproto.jsontag) = "username,omitempty" ];
+    // Database is an optional database name to embed.
+    string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
 }

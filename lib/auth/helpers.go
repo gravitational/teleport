@@ -33,6 +33,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -328,9 +329,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentAuth,
-			Client:    srv.AuthServer,
-			Clock:     cfg.Clock,
+			Component:      teleport.ComponentAuth,
+			Client:         srv.AuthServer,
+			Clock:          cfg.Clock,
+			MaxRetryPeriod: defaults.HighResPollingPeriod,
 		},
 	})
 	if err != nil {
@@ -457,8 +459,8 @@ func (a *TestAuthServer) Clock() clockwork.Clock {
 }
 
 // Trust adds other server host certificate authority as trusted
-func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap types.RoleMap) error {
-	remoteCA, err := remote.AuthServer.GetCertAuthority(types.CertAuthID{
+func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, roleMap types.RoleMap) error {
+	remoteCA, err := remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: remote.ClusterName,
 	}, false)
@@ -469,7 +471,7 @@ func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap types.RoleMap) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	remoteCA, err = remote.AuthServer.GetCertAuthority(types.CertAuthID{
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: remote.ClusterName,
 	}, false)

@@ -195,6 +195,8 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
+	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
+	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -401,6 +403,12 @@ const (
 	LockCreatedEvent = "lock.created"
 	// LockDeletedEvent fires when a lock is deleted.
 	LockDeletedEvent = "lock.deleted"
+
+	// CertificateCreateEvent is emitted when a certificate is issued.
+	CertificateCreateEvent = "cert.create"
+
+	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
+	CertificateTypeUser = "user"
 )
 
 const (

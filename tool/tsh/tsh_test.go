@@ -974,6 +974,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 					TshBinaryPath: "/bin/tsh",
 					KubeClusters:  []string{"dev", "prod"},
 					SelectCluster: "dev",
+					Env:           make(map[string]string),
 				},
 			},
 		},
@@ -998,6 +999,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 					TshBinaryPath: "/bin/tsh",
 					KubeClusters:  []string{"dev", "prod"},
 					SelectCluster: "",
+					Env:           make(map[string]string),
 				},
 			},
 		},
@@ -1187,7 +1189,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		require.NoError(t, err)
 
 		// load CA cert
-		authority, err := authServer.GetCertAuthority(types.CertAuthID{
+		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: "localhost",
 		}, false)

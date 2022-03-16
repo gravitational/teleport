@@ -388,6 +388,8 @@ const (
 	AccessRequestUpdateCode = "T5001I"
 	// AccessRequestReviewCode is the access review application code.
 	AccessRequestReviewCode = "T5002I"
+	// AccessRequestDeleteCode is the access request deleted code.
+	AccessRequestDeleteCode = "T5003I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -424,4 +426,7 @@ const (
 	LockCreatedCode = "TLK00I"
 	// LockDeletedCode is the lock deleted event code.
 	LockDeletedCode = "TLK01I"
+
+	// CertificateCreateCode is the certificate issuance event code.
+	CertificateCreateCode = "TC000I"
 )

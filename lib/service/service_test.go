@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -353,6 +354,8 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"proxy-kube-public-2",
 			},
 			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
 				"*.proxy-public-1",
 				"*.proxy-public-2",
 				"*.proxy-kube-public-1",
@@ -366,7 +369,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"auth-public-1",
 				"auth-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleAdmin,
@@ -375,7 +381,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"auth-public-1",
 				"auth-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleNode,
@@ -399,7 +408,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"kube-public-1",
 				"kube-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleApp,
@@ -407,7 +419,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"global-hostname",
 				"global-uuid",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.SystemRole("unknown"),
@@ -449,4 +464,56 @@ func waitForStatus(diagAddr string, statusCodes ...int) error {
 			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCodes, lastStatus)
 		}
 	}
+}
+
+func TestTeleportProcess_reconnectToAuth(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	// Create and configure a default Teleport configuration.
+	cfg := MakeDefaultConfig()
+	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.Clock = clock
+	cfg.DataDir = t.TempDir()
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = true
+	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.ConnectFailureC = make(chan time.Duration, 5)
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c, err := process.reconnectToAuthService(types.RoleAdmin)
+		require.Equal(t, ErrTeleportExited, err)
+		require.Nil(t, c)
+	}()
+
+	step := cfg.MaxRetryPeriod / 5.0
+	for i := 0; i < 5; i++ {
+		// wait for connection to fail
+		select {
+		case duration := <-process.Config.ConnectFailureC:
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
+
+			// wait for connection to get to retry.After
+			clock.BlockUntil(1)
+
+			// add some extra to the duration to ensure the retry occurs
+			clock.Advance(cfg.MaxRetryPeriod)
+		case <-time.After(time.Minute):
+			t.Fatalf("timeout waiting for failure")
+		}
+	}
+
+	supervisor, ok := process.Supervisor.(*LocalSupervisor)
+	require.True(t, ok)
+	supervisor.signalExit()
+	wg.Wait()
 }

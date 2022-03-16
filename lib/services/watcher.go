@@ -52,8 +52,8 @@ type ResourceWatcherConfig struct {
 	Component string
 	// Log is a logger.
 	Log logrus.FieldLogger
-	// RetryPeriod is a retry period on failed watchers.
-	RetryPeriod time.Duration
+	// MaxRetryPeriod is the maximum retry period on failed watchers.
+	MaxRetryPeriod time.Duration
 	// RefetchPeriod is a period after which to explicitly refetch the resources.
 	// It is to protect against unexpected cache syncing issues.
 	RefetchPeriod time.Duration
@@ -64,6 +64,8 @@ type ResourceWatcherConfig struct {
 	// MaxStaleness is a maximum acceptable staleness for the locally maintained
 	// resources, zero implies no staleness detection.
 	MaxStaleness time.Duration
+	// ResetC is a channel to notify of internal watcher reset (used in tests).
+	ResetC chan time.Duration
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -74,8 +76,8 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.Log == nil {
 		cfg.Log = logrus.StandardLogger()
 	}
-	if cfg.RetryPeriod == 0 {
-		cfg.RetryPeriod = defaults.HighResPollingPeriod
+	if cfg.MaxRetryPeriod == 0 {
+		cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	}
 	if cfg.RefetchPeriod == 0 {
 		cfg.RefetchPeriod = defaults.LowResPollingPeriod
@@ -86,6 +88,9 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.Client == nil {
 		return trace.BadParameter("missing parameter Client")
 	}
+	if cfg.ResetC == nil {
+		cfg.ResetC = make(chan time.Duration, 1)
+	}
 	return nil
 }
 
@@ -94,9 +99,11 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step:  cfg.RetryPeriod / 10,
-		Max:   cfg.RetryPeriod,
-		Clock: cfg.Clock,
+		First:  utils.HalfJitter(cfg.MaxRetryPeriod / 10),
+		Step:   cfg.MaxRetryPeriod / 5,
+		Max:    cfg.MaxRetryPeriod,
+		Jitter: utils.NewHalfJitter(),
+		Clock:  cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -110,7 +117,6 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		cancel:                cancel,
 		retry:                 retry,
 		LoopC:                 make(chan struct{}),
-		ResetC:                make(chan struct{}),
 		StaleC:                make(chan struct{}, 1),
 	}
 	go p.runWatchLoop()
@@ -138,8 +144,7 @@ type resourceWatcher struct {
 	// LoopC is a channel to check whether the watch loop is running
 	// (used in tests).
 	LoopC chan struct{}
-	// ResetC is a channel to notify of internal watcher reset (used in tests).
-	ResetC chan struct{}
+
 	// StaleC is a channel that can trigger the condition of resource staleness
 	// (used in tests).
 	StaleC chan struct{}
@@ -174,7 +179,7 @@ func (p *resourceWatcher) hasStaleView() bool {
 // runWatchLoop runs a watch loop.
 func (p *resourceWatcher) runWatchLoop() {
 	for {
-		p.Log.WithField("retry", p.retry).Debug("Starting watch.")
+		p.Log.Debug("Starting watch.")
 		err := p.watch()
 
 		select {
@@ -183,8 +188,27 @@ func (p *resourceWatcher) runWatchLoop() {
 		default:
 		}
 
+		if err != nil && p.failureStartedAt.IsZero() {
+			// Note that failureStartedAt is zeroed in the watch routine immediately
+			// after the local resource set has been successfully updated.
+			p.failureStartedAt = p.Clock.Now()
+		}
+		if p.hasStaleView() {
+			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
+			p.collector.notifyStale()
+		}
+
+		// Used for testing that the watch routine has exited and is about
+		// to be restarted.
 		select {
-		case <-p.retry.After():
+		case p.ResetC <- p.retry.Duration():
+		default:
+		}
+
+		startedWaiting := p.Clock.Now()
+		select {
+		case t := <-p.retry.After():
+			p.Log.Debugf("Attempting to restart watch after waiting %v.", t.Sub(startedWaiting))
 			p.retry.Inc()
 		case <-p.ctx.Done():
 			p.Log.Debug("Closed, returning from watch loop.")
@@ -192,22 +216,10 @@ func (p *resourceWatcher) runWatchLoop() {
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
-			if p.failureStartedAt.IsZero() {
-				p.failureStartedAt = p.Clock.Now()
-			}
-			// failureStartedAt is zeroed in the watch routine immediately after
-			// the local resource set has been successfully updated.
+		} else {
+			p.Log.Debug("Triggering scheduled refetch.")
 		}
-		if p.hasStaleView() {
-			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
-			p.collector.notifyStale()
-		}
-		// Used for testing that the watch routine has exited and is about
-		// to be restarted.
-		select {
-		case p.ResetC <- struct{}{}:
-		default:
-		}
+
 	}
 }
 
@@ -640,4 +652,180 @@ func lockMapValues(lockMap map[string]types.Lock) []types.Lock {
 		locks = append(locks, lock)
 	}
 	return locks
+}
+
+// CertAuthorityWatcherConfig is a CertAuthorityWatcher configuration.
+type CertAuthorityWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// AuthorityGetter is responsible for fetching cert authority resources.
+	AuthorityGetter
+	// CertAuthorityC receives up-to-date list of all cert authority resources.
+	CertAuthorityC chan []types.CertAuthority
+	// WatchHostCA indicates that the watcher should monitor types.HostCA
+	WatchHostCA bool
+	// WatchUserCA indicates that the watcher should monitor types.UserCA
+	WatchUserCA bool
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.AuthorityGetter == nil {
+		getter, ok := cfg.Client.(AuthorityGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter AuthorityGetter and Client not usable as AuthorityGetter")
+		}
+		cfg.AuthorityGetter = getter
+	}
+	if cfg.CertAuthorityC == nil {
+		cfg.CertAuthorityC = make(chan []types.CertAuthority)
+	}
+	return nil
+}
+
+// NewCertAuthorityWatcher returns a new instance of CertAuthorityWatcher.
+func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig) (*CertAuthorityWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	collector := &caCollector{
+		CertAuthorityWatcherConfig: cfg,
+	}
+
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &CertAuthorityWatcher{watcher, collector}, nil
+}
+
+// CertAuthorityWatcher is built on top of resourceWatcher to monitor cert authority resources.
+type CertAuthorityWatcher struct {
+	*resourceWatcher
+	*caCollector
+}
+
+// caCollector accompanies resourceWatcher when monitoring cert authority resources.
+type caCollector struct {
+	CertAuthorityWatcherConfig
+	host map[string]types.CertAuthority
+	user map[string]types.CertAuthority
+	lock sync.RWMutex
+}
+
+// resourceKind specifies the resource kind to watch.
+func (c *caCollector) resourceKind() string {
+	return types.KindCertAuthority
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	var (
+		newHost map[string]types.CertAuthority
+		newUser map[string]types.CertAuthority
+	)
+
+	if c.WatchHostCA {
+		host, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.HostCA, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newHost = make(map[string]types.CertAuthority, len(host))
+		for _, ca := range host {
+			newHost[ca.GetName()] = ca
+		}
+	}
+
+	if c.WatchUserCA {
+		user, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.UserCA, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newUser = make(map[string]types.CertAuthority, len(user))
+		for _, ca := range user {
+			newUser[ca.GetName()] = ca
+		}
+	}
+
+	c.lock.Lock()
+	c.host = newHost
+	c.user = newUser
+	c.lock.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case c.CertAuthorityC <- casToSlice(newHost, newUser):
+	}
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindCertAuthority {
+		c.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		if c.WatchHostCA && event.Resource.GetSubKind() == string(types.HostCA) {
+			delete(c.host, event.Resource.GetName())
+		}
+		if c.WatchUserCA && event.Resource.GetSubKind() == string(types.UserCA) {
+			delete(c.user, event.Resource.GetName())
+		}
+
+		select {
+		case <-ctx.Done():
+		case c.CertAuthorityC <- casToSlice(c.host, c.user):
+		}
+	case types.OpPut:
+		ca, ok := event.Resource.(types.CertAuthority)
+		if !ok {
+			c.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+
+		if c.WatchHostCA && ca.GetType() == types.HostCA {
+			c.host[ca.GetName()] = ca
+		}
+		if c.WatchUserCA && ca.GetType() == types.UserCA {
+			c.user[ca.GetName()] = ca
+		}
+
+		select {
+		case <-ctx.Done():
+		case c.CertAuthorityC <- casToSlice(c.host, c.user):
+		}
+	default:
+		c.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+// GetCurrent returns the currently stored authorities.
+func (c *caCollector) GetCurrent() []types.CertAuthority {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return casToSlice(c.host, c.user)
+}
+
+func (c *caCollector) notifyStale() {}
+
+func casToSlice(host map[string]types.CertAuthority, user map[string]types.CertAuthority) []types.CertAuthority {
+	slice := make([]types.CertAuthority, 0, len(host)+len(user))
+	for _, ca := range host {
+		slice = append(slice, ca)
+	}
+	for _, ca := range user {
+		slice = append(slice, ca)
+	}
+	return slice
 }

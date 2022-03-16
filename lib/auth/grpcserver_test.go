@@ -39,6 +39,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -927,6 +928,95 @@ func TestIsMFARequired(t *testing.T) {
 			require.Equal(t, resp.Required, required)
 		})
 	}
+}
+
+func TestIsMFARequiredUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Enable MFA support.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		U2F: &types.U2F{
+			AppID:  "teleport",
+			Facets: []string{"teleport"},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().SetAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	// Register an SSH node.
+	node1 := &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      "node1",
+			Namespace: apidefaults.Namespace,
+			Labels:    map[string]string{"a": "b"},
+		},
+		Spec: types.ServerSpecV2{
+			Hostname: "node1",
+			Addr:     "localhost:3022",
+		},
+	}
+	_, err = srv.Auth().UpsertNode(ctx, node1)
+	require.NoError(t, err)
+
+	// Register another SSH node with a duplicate hostname.
+	node2 := &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      "node2",
+			Namespace: apidefaults.Namespace,
+			Labels:    map[string]string{"a": "c"},
+		},
+		Spec: types.ServerSpecV2{
+			Hostname: "node1",
+			Addr:     "localhost:3022",
+		},
+	}
+	_, err = srv.Auth().UpsertNode(ctx, node2)
+	require.NoError(t, err)
+
+	user, role, err := CreateUserAndRole(srv.Auth(), "alice", []string{"alice"})
+	require.NoError(t, err)
+
+	// Require MFA.
+	roleOpt := role.GetOptions()
+	roleOpt.RequireSessionMFA = true
+	role.SetOptions(roleOpt)
+	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"a": []string{"c"}})
+	err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Call the endpoint for an authorized login. The user is only authorized
+	// for the 2nd node, but should still be asked for MFA.
+	resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+			Login: "alice",
+			Node:  "node1",
+		}},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Required)
+
+	// Call the endpoint for an unauthorized login.
+	resp, err = cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+			Login: "bob",
+			Node:  "node1",
+		}},
+	})
+
+	// When unauthorized, expect a silent `false`.
+	require.NoError(t, err)
+	require.False(t, resp.Required)
 }
 
 func TestDeleteLastMFADevice(t *testing.T) {

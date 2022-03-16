@@ -18,23 +18,84 @@ package services_test
 
 import (
 	"context"
+	"crypto/x509/pkix"
+	"errors"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 )
+
+var _ types.Events = (*errorWatcher)(nil)
+
+type errorWatcher struct {
+}
+
+func (e errorWatcher) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
+	return nil, errors.New("watcher error")
+}
+
+var _ services.ProxyGetter = (*nopProxyGetter)(nil)
+
+type nopProxyGetter struct {
+}
+
+func (n nopProxyGetter) GetProxies() ([]types.Server, error) {
+	return nil, nil
+}
+
+func TestResourceWatcher_Backoff(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	w, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			Clock:          clock,
+			MaxRetryPeriod: defaults.MaxWatcherBackoff,
+			Client:         &errorWatcher{},
+			ResetC:         make(chan time.Duration, 5),
+		},
+		ProxyGetter: &nopProxyGetter{},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	step := w.MaxRetryPeriod / 5.0
+	for i := 0; i < 5; i++ {
+		// wait for watcher to reload
+		select {
+		case duration := <-w.ResetC:
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
+
+			// wait for watcher to get to retry.After
+			clock.BlockUntil(1)
+
+			// add some extra to the duration to ensure the retry occurs
+			clock.Advance(w.MaxRetryPeriod)
+		case <-time.After(time.Minute):
+			t.Fatalf("timeout waiting for reset")
+		}
+	}
+}
 
 func TestProxyWatcher(t *testing.T) {
 	t.Parallel()
@@ -54,8 +115,8 @@ func TestProxyWatcher(t *testing.T) {
 	presence := local.NewPresenceService(bk)
 	w, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Presence: presence,
 				Events:   local.NewEventsService(bk, nil),
@@ -147,8 +208,8 @@ func TestLockWatcher(t *testing.T) {
 	access := local.NewAccessService(bk)
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
 				Events: local.NewEventsService(bk, nil),
@@ -252,8 +313,8 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 	access := local.NewAccessService(bk)
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
 				Events: local.NewEventsService(bk, nil),
@@ -330,8 +391,8 @@ func TestLockWatcherStale(t *testing.T) {
 	events := &withUnreliability{Events: local.NewEventsService(bk, nil)}
 	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:   "test",
-			RetryPeriod: 200 * time.Millisecond,
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
 				Access: access,
 				Events: events,
@@ -341,10 +402,16 @@ func TestLockWatcherStale(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
+	select {
+	case <-w.LoopC:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop.")
+	}
 
 	// Subscribe to lock watcher updates.
 	target := types.LockTarget{Node: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 	sub, err := w.Subscribe(ctx, target)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sub.Close()) })
@@ -361,6 +428,7 @@ func TestLockWatcherStale(t *testing.T) {
 	case <-time.After(2 * time.Second):
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 
 	// Advance the clock to exceed LockMaxStaleness.
 	clock.Advance(defaults.LockMaxStaleness + time.Second)
@@ -369,7 +437,7 @@ func TestLockWatcherStale(t *testing.T) {
 		require.Equal(t, types.OpUnreliable, event.Type)
 	case <-sub.Done():
 		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for OpUnreliable.")
 	}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
@@ -401,7 +469,7 @@ ExpectPut:
 			break ExpectPut
 		case <-sub.Done():
 			t.Fatal("Lock watcher subscription has unexpectedly exited.")
-		case <-time.After(2 * time.Second):
+		case <-time.After(15 * time.Second):
 			t.Fatal("Timeout waiting for OpPut.")
 		}
 	}
@@ -441,4 +509,151 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.EquateEmpty())
+}
+
+func caDiff(ca1, ca2 types.CertAuthority) string {
+	return cmp.Diff(ca1, ca2,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.CertAuthoritySpecV2{}, "CheckingKeys", "TLSKeyPairs"),
+		cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
+		cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
+		cmpopts.EquateEmpty(),
+	)
+}
+
+func TestCertAuthorityWatcher(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Trust
+		types.Events
+	}
+
+	caService := local.NewCAService(bk)
+	w, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Trust:  caService,
+				Events: local.NewEventsService(bk, nil),
+			},
+		},
+		CertAuthorityC: make(chan []types.CertAuthority, 10),
+		WatchUserCA:    true,
+		WatchHostCA:    true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	nothingWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Trust:  caService,
+				Events: local.NewEventsService(bk, nil),
+			},
+		},
+		CertAuthorityC: make(chan []types.CertAuthority, 10),
+	})
+	require.NoError(t, err)
+	t.Cleanup(nothingWatcher.Close)
+
+	require.Empty(t, w.GetCurrent())
+	require.Empty(t, nothingWatcher.GetCurrent())
+
+	// Initially there are no cas so watcher should send an empty list.
+	select {
+	case changeset := <-w.CertAuthorityC:
+		require.Len(t, changeset, 0)
+		require.Empty(t, nothingWatcher.GetCurrent())
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add an authority.
+	ca1 := newCertAuthority(t, "ca1", types.HostCA)
+	require.NoError(t, caService.CreateCertAuthority(ca1))
+
+	// The first event is always the current list of apps.
+	select {
+	case changeset := <-w.CertAuthorityC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, caDiff(changeset[0], ca1))
+		require.Empty(t, nothingWatcher.GetCurrent())
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a second ca.
+	ca2 := newCertAuthority(t, "ca2", types.UserCA)
+	require.NoError(t, caService.CreateCertAuthority(ca2))
+
+	// Watcher should detect the ca list change.
+	select {
+	case changeset := <-w.CertAuthorityC:
+		require.Len(t, changeset, 2)
+		require.Empty(t, nothingWatcher.GetCurrent())
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+
+	// Delete the first ca.
+	require.NoError(t, caService.DeleteCertAuthority(ca1.GetID()))
+
+	// Watcher should detect the ca list change.
+	select {
+	case changeset := <-w.CertAuthorityC:
+		require.Len(t, changeset, 1)
+		require.Empty(t, caDiff(changeset[0], ca2))
+		require.Empty(t, nothingWatcher.GetCurrent())
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the update event.")
+	}
+}
+
+func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
+	ta := testauthority.New()
+	priv, pub, err := ta.GenerateKeyPair("")
+	require.NoError(t, err)
+
+	// CA for cluster1 with 1 key pair.
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: name}, nil, time.Minute)
+	require.NoError(t, err)
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caType,
+		ClusterName: name,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     priv,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      pub,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+		},
+		Roles:      nil,
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_256,
+	})
+	require.NoError(t, err)
+	return ca
 }

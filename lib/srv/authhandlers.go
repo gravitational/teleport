@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -169,11 +170,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardFailureCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login:        ctx.Identity.Login,
-				User:         ctx.Identity.TeleportUser,
-				Impersonator: ctx.Identity.Impersonator,
-			},
+			UserMetadata: ctx.Identity.GetUserMetadata(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 				RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
@@ -486,7 +483,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca types.CertAuthorit
 // Certificate Authority and returns it.
 func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.PublicKey) (types.CertAuthority, error) {
 	// get all certificate authorities for given type
-	cas, err := h.c.AccessPoint.GetCertAuthorities(caType, false)
+	cas, err := h.c.AccessPoint.GetCertAuthorities(context.TODO(), caType, false)
 	if err != nil {
 		h.log.Warnf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)

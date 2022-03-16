@@ -57,3 +57,29 @@ func TestStreams(t *testing.T) {
 		test.DownloadNotFound(t, handler)
 	})
 }
+
+func TestACL(t *testing.T) {
+	t.Parallel()
+	baseUrl := "s3://mybucket/path"
+	for _, tc := range []struct {
+		desc, acl string
+		isError   bool
+	}{
+		{"no ACL", "", false},
+		{"correct ACL", "bucket-owner-full-control", false},
+		{"incorrect ACL", "something-else", true},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			url, err := url.Parse(fmt.Sprintf("%s?acl=%s", baseUrl, tc.acl))
+			require.Nil(t, err)
+			conf := Config{}
+			err = conf.SetFromURL(url, "")
+			if tc.isError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.acl, conf.ACL)
+			}
+		})
+	}
+}

@@ -304,6 +304,12 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 	for _, kind := range watch.Kinds {
 		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
 	}
+
+	if clusterName, err := auth.GetClusterName(); err == nil {
+		// we might want to enforce a filter for older clients in certain conditions
+		maybeFilterCertAuthorityWatches(stream.Context(), clusterName.GetClusterName(), auth.Checker.RoleNames(), &servicesWatch)
+	}
+
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -331,6 +337,60 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		}
 	}
 }
+
+// maybeFilterCertAuthorityWatches will add filters to the CertAuthority
+// WatchKinds in the watch if the client is authenticated as just a `Node` with
+// no other roles and if the client is older than the cutoff version, and if the
+// WatchKind for KindCertAuthority is trivial, i.e. it's a WatchKind{Kind:
+// KindCertAuthority} with no other fields set. In any other case we will assume
+// that the client knows what it's doing and the cache watcher will still send
+// everything.
+//
+// DELETE IN 10.0, no supported clients should require this at that point
+func maybeFilterCertAuthorityWatches(ctx context.Context, clusterName string, roleNames []string, watch *types.Watch) {
+	if len(roleNames) != 1 || roleNames[0] != string(types.RoleNode) {
+		return
+	}
+
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		log.Debug("no client version found in grpc context")
+		return
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		log.WithError(err).Debugf("couldn't parse client version %q", clientVersionString)
+		return
+	}
+
+	// we treat the entire previous major version as "old" for this version
+	// check, even if there might have been backports; compliant clients will
+	// supply their own filter anyway
+	if !clientVersion.LessThan(certAuthorityFilterVersionCutoff) {
+		return
+	}
+
+	for i, k := range watch.Kinds {
+		if k.Kind != types.KindCertAuthority || !k.IsTrivial() {
+			continue
+		}
+
+		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
+		watch.Kinds[i].Filter = NodeCertAuthorityFilter(clusterName).IntoMap()
+	}
+}
+
+func NodeCertAuthorityFilter(clusterName string) types.CertAuthorityFilter {
+	return types.CertAuthorityFilter{
+		types.HostCA: clusterName,
+		types.UserCA: types.Wildcard,
+	}
+}
+
+// certAuthorityFilterVersionCutoff is the version starting from which we stop
+// injecting filters for CertAuthority watches in maybeFilterCertAuthorityWatches.
+var certAuthorityFilterVersionCutoff = *semver.New("9.0.0")
 
 // resourceLabel returns the label for the provided types.Event
 func resourceLabel(event types.Event) string {
@@ -1586,9 +1646,7 @@ func (g *GRPCServer) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) e
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: actx.Identity.GetIdentity().Username,
-		},
+		UserMetadata:      actx.Identity.GetIdentity().GetUserMetadata(),
 		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
 	}); err != nil {
 		return trace.Wrap(err)
@@ -1871,9 +1929,7 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 				Code:        events.MFADeviceDeleteEventCode,
 				ClusterName: clusterName.GetClusterName(),
 			},
-			UserMetadata: apievents.UserMetadata{
-				User: actx.Identity.GetIdentity().Username,
-			},
+			UserMetadata:      actx.Identity.GetIdentity().GetUserMetadata(),
 			MFADeviceMetadata: mfaDeviceEventMetadata(d),
 		}); err != nil {
 			return trace.Wrap(err)

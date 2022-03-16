@@ -217,6 +217,9 @@ func (t LockTarget) Match(lock Lock) bool {
 	if t.MFADevice != "" && lockTarget.MFADevice != t.MFADevice {
 		return false
 	}
+	if t.AccessRequest != "" && lockTarget.AccessRequest != t.AccessRequest {
+		return false
+	}
 	return true
 }
 
