@@ -1327,7 +1327,7 @@ tctl version
 
 ## Resource Filtering
 
-Both `tsh` and `tctl` allow you to filter node, app, db, and kube resources using the `--search` and `--query` flags.
+Both `tsh` and `tctl` allow you to filter `nodes`, `apps`, `db`, and `kube` resources using the `--search` and `--query` flags.
 
 The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
 
@@ -1341,8 +1341,6 @@ $ tsh ls --search=foo,bar labelKey1=labelValue1,labelKey2=labelValue2
 
 ### Filter Examples
 
-The example with filters, searches for nodes with labels with key `env` equal to `staging` and key `os` equal to `mac`.
-
 ```bash
 # List all nodes
 $ tsh ls
@@ -1353,7 +1351,8 @@ $ tsh ls env=staging,os=mac
 # List nodes using search keywords
 $ tsh ls --search=staging,mac
 
-# List nodes using predicate language
+# List nodes using predicate language. This query searches for nodes with labels
+# with key `env` equal to `staging` and key `os` equal to `mac`.
 $ tsh ls --query='labels.env == "staging" && equals(labels.os, "mac")'
 ```
 
