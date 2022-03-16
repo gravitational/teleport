@@ -19,15 +19,14 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
 
 export default function useQuickInput() {
-  const { quickInputService: serviceQuickInput, workspacesService } =
-    useAppContext();
+  const { quickInputService, workspacesService } = useAppContext();
   workspacesService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
-  const { visible, inputValue } = serviceQuickInput.useState();
+  const { visible, inputValue } = quickInputService.useState();
   const [activeSuggestion, setActiveSuggestion] = React.useState(0);
   const autocompleteResult = React.useMemo(
-    () => serviceQuickInput.getAutocompleteResult(inputValue),
+    () => quickInputService.getAutocompleteResult(inputValue),
     [inputValue]
   );
   const hasSuggestions =
@@ -35,7 +34,7 @@ export default function useQuickInput() {
 
   const onFocus = (e: any) => {
     if (e.relatedTarget) {
-      serviceQuickInput.lastFocused = new WeakRef(e.relatedTarget);
+      quickInputService.lastFocused = new WeakRef(e.relatedTarget);
     }
   };
 
@@ -55,7 +54,7 @@ export default function useQuickInput() {
     const suggestion = autocompleteResult.suggestions[index];
 
     setActiveSuggestion(index);
-    serviceQuickInput.pickSuggestion(
+    quickInputService.pickSuggestion(
       autocompleteResult.targetToken,
       suggestion
     );
@@ -67,15 +66,15 @@ export default function useQuickInput() {
     // If there are suggestions to show, the first onBack call should always just close the
     // suggestions and the second call should actually go back.
     if (visible && hasSuggestions) {
-      serviceQuickInput.hide();
+      quickInputService.hide();
     } else {
-      serviceQuickInput.goBack();
+      quickInputService.goBack();
     }
   };
 
   useKeyboardShortcuts({
     'focus-global-search': () => {
-      serviceQuickInput.show();
+      quickInputService.show();
     },
   });
 
@@ -100,9 +99,9 @@ export default function useQuickInput() {
     onBack,
     onEnter,
     onActiveSuggestion,
-    onInputChange: serviceQuickInput.setInputValue,
-    onHide: serviceQuickInput.hide,
-    onShow: serviceQuickInput.show,
+    onInputChange: quickInputService.setInputValue,
+    onHide: quickInputService.hide,
+    onShow: quickInputService.show,
   };
 }
 
