@@ -279,10 +279,6 @@
           "slug": "/server-access/guides/",
           "entries": [
             {
-              "title": "Ansible",
-              "slug": "/server-access/guides/ansible/"
-            },
-            {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
             },
@@ -451,6 +447,10 @@
               "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
             {
+              "title": "Self-Hosted Redis",
+              "slug": "/database-access/guides/redis/"
+            },
+            {
               "title": "SQL Server (Preview)",
               "slug": "/database-access/guides/sql-server-ad/"
             },
@@ -523,6 +523,30 @@
         {
           "title": "Troubleshooting",
           "slug": "/desktop-access/troubleshooting/"
+        }
+      ]
+    },
+    {
+      "icon": "wand",
+      "title": "Machine ID",
+      "entries": [
+        {
+          "title": "Introduction",
+          "slug": "/machine-id/introduction/"
+        },
+        {
+          "title": "Getting Started",
+          "slug": "/machine-id/getting-started/"
+        },
+        {
+          "title": "Guides",
+          "slug": "/machine-id/guides/",
+          "entries": [
+            {
+              "title": "Machine ID with Ansible",
+              "slug": "/machine-id/guides/ansible/"
+            }
+          ]
         }
       ]
     },

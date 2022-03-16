@@ -17,7 +17,6 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -67,11 +66,6 @@ type remoteConn struct {
 	// Used to make sure calling Close on the connection multiple times is safe.
 	closed int32
 
-	// closeContext and closeCancel are used to signal to any waiting goroutines
-	// that the remoteConn is now closed and to release any resources.
-	closeContext context.Context
-	closeCancel  context.CancelFunc
-
 	// clock is used to control time in tests.
 	clock clockwork.Clock
 
@@ -115,8 +109,6 @@ func newRemoteConn(cfg *connConfig) *remoteConn {
 		newProxiesC: make(chan []types.Server, 100),
 	}
 
-	c.closeContext, c.closeCancel = context.WithCancel(context.Background())
-
 	return c
 }
 
@@ -125,8 +117,6 @@ func (c *remoteConn) String() string {
 }
 
 func (c *remoteConn) Close() error {
-	defer c.closeCancel()
-
 	// If the connection has already been closed, return right away.
 	if !atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
 		return nil
