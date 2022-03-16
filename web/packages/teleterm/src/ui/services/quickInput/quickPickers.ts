@@ -42,9 +42,7 @@ export class QuickCommandPicker implements QuickInputPicker {
 
   // TODO(ravicious): Handle env vars.
   // TODO(ravicious): Take cursor position into account.
-  onPick(suggestion: SuggestionCmd) {
-    this.quickInputService.setInputValue(suggestion.token);
-  }
+  onPick(suggestion: SuggestionCmd) {}
 
   // TODO(ravicious): Handle env vars.
   getAutocompleteResult(rawInput: string): AutocompleteResult {

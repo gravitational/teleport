@@ -46,8 +46,8 @@ export default function useQuickInput() {
     setActiveSuggestion(index);
   };
 
-  const onPickSuggestion = (index: number) => {
-    if (!hasSuggestions) {
+  const onEnter = (index?: number) => {
+    if (!hasSuggestions || !visible) {
       documentsService.openNewTerminal(inputValue);
       return;
     }
@@ -62,8 +62,15 @@ export default function useQuickInput() {
   };
 
   const onBack = () => {
-    serviceQuickInput.goBack();
     setActiveSuggestion(0);
+
+    // If there are suggestions to show, the first onBack call should always just close the
+    // suggestions and the second call should actually go back.
+    if (visible && hasSuggestions) {
+      serviceQuickInput.hide();
+    } else {
+      serviceQuickInput.goBack();
+    }
   };
 
   useKeyboardShortcuts({
@@ -91,7 +98,7 @@ export default function useQuickInput() {
     inputValue,
     onFocus,
     onBack,
-    onPickSuggestion,
+    onEnter,
     onActiveSuggestion,
     onInputChange: serviceQuickInput.setInputValue,
     onHide: serviceQuickInput.hide,

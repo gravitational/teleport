@@ -132,8 +132,28 @@ export class QuickInputService extends Store<State> {
       insertedToken +
       inputValue.substring(targetToken.startIndex + targetToken.value.length);
 
+    // Keep the autocomplete visible if something was appended to the token. If nothing was appended
+    // to the token then we know that we don't have any further suggestions to show.
+    //
+    // Consider these situations:
+    //
+    // 1. You type "tsh s" and choose "tsh ssh" from suggestions. The input becomes "tsh ssh " and
+    // you see the autocomplete for the SSH login.
+    //
+    // 2. You type "tsh ssh roo" and choose "root" from suggestions. The input becomes "tsh ssh
+    // root@" and you see the autocomplete for the SSH host.
+    //
+    // 3. You type "tsh ssh root@foo" and choose "foobar" from suggestions. The input becomes "tsh
+    // ssh root@foobar". You don't see any further suggestions.
+    //
+    // In situation 3, it's crucial that we hide the autocomplete, as there might be other servers
+    // that match "foobar", but the user already made a conscious choice of picking a specific
+    // server.
+    const shouldRemainVisible = !!suggestion.appendToToken;
+
     this.setState({
       inputValue: newInputValue,
+      visible: shouldRemainVisible,
     });
   }
 
@@ -144,6 +164,9 @@ export class QuickInputService extends Store<State> {
   setInputValue = (value: string) => {
     this.setState({
       inputValue: value,
+      // Changing the input through the UI should always make the autocomplete box visible in case
+      // there are any suggestions.
+      visible: true,
     });
   };
 

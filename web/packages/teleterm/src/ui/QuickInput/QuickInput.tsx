@@ -93,7 +93,7 @@ export function QuickInput(props: State) {
         e.stopPropagation();
         e.preventDefault();
 
-        props.onPickSuggestion(activeSuggestion);
+        props.onEnter(activeSuggestion);
         return;
       case KeyEnum.ESC:
         props.onBack();
@@ -144,7 +144,7 @@ export function QuickInput(props: State) {
           ref={refList}
           items={autocompleteResult.suggestions}
           activeItem={activeSuggestion}
-          onPick={props.onPickSuggestion}
+          onPick={props.onEnter}
         />
       )}
     </Flex>
