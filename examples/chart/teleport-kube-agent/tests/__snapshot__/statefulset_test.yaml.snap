@@ -1,0 +1,2120 @@
+sets Pod annotations when specified:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 25941abd1272c0a5fd702c37a3bce1a919d8f2ecec3aa72f19ee3acb7c1eaa50
+            kubernetes.io/pod: test-annotation
+            kubernetes.io/pod-different: 4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should add insecureSkipProxyTLSVerify to args when set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            - --insecure
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should add volumeClaimTemplate for data volume when using StatefulSet:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should add volumeMount for data volume when using StatefulSet:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should expose diag port:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should have multiple replicas when replicaCount is set (using .replicaCount, deprecated):
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                      - RELEASE-NAME
+                  topologyKey: kubernetes.io/hostname
+                weight: 50
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should have multiple replicas when replicaCount is set (using highAvailability.replicaCount):
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                      - RELEASE-NAME
+                  topologyKey: kubernetes.io/hostname
+                weight: 50
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should have one replica when replicaCount is not set:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should mount extraVolumes and extraVolumeMounts:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 2c9e2e0426ef51303e16333b07163365428483c3916b061d1ce7a5355d58f778
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+            - mountPath: /path/to/mount
+              name: my-mount
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+          - name: my-mount
+            secret:
+              secretName: mySecret
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should not add emptyDir for data when using StatefulSet:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should provision initContainer correctly when set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 2c9e2e0426ef51303e16333b07163365428483c3916b061d1ce7a5355d58f778
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            resources:
+              limits:
+                cpu: 2
+                memory: 4Gi
+              requests:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          initContainers:
+          - args:
+            - echo test
+            image: alpine
+            name: teleport-init
+            resources:
+              limits:
+                cpu: 2
+                memory: 4Gi
+              requests:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set SecurityContext:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set affinity when set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 2c9e2e0426ef51303e16333b07163365428483c3916b061d1ce7a5355d58f778
+          labels:
+            app: RELEASE-NAME
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: gravitational.io/dedicated
+                    operator: In
+                    values:
+                    - teleport
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                      - teleport
+                  topologyKey: kubernetes.io/hostname
+                weight: 1
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set default serviceAccountName when not set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set image and tag correctly:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: e853ab9f90fe642bd0a1efb48b881e6da55d1ff9903c11e7713f30a4bdde2935
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:8.3.4
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set imagePullPolicy when set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: Always
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set nodeSelector if set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          nodeSelector:
+            gravitational.io/k8s-role: node
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set preferred affinity when more than one replica is used:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                      - RELEASE-NAME
+                  topologyKey: kubernetes.io/hostname
+                weight: 50
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set required affinity when highAvailability.requireAntiAffinity is set:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                    - RELEASE-NAME
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set resources when set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 2c9e2e0426ef51303e16333b07163365428483c3916b061d1ce7a5355d58f778
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            resources:
+              limits:
+                cpu: 2
+                memory: 4Gi
+              requests:
+                cpu: 1
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set serviceAccountName when set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 2c9e2e0426ef51303e16333b07163365428483c3916b061d1ce7a5355d58f778
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: teleport-kube-agent-sa
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2
+should set storage.requests when set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 256Mi
+          storageClassName: aws-gp2
+should set storage.storageClassName when set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 9df339832853cbe02d36960c7beff63e9f848aa56c8745a853dbd912d0f05be4
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: helm-lint-storage-class
+should set tolerations when set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 2c9e2e0426ef51303e16333b07163365428483c3916b061d1ce7a5355d58f778
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: RELEASE-NAME-teleport-data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          tolerations:
+          - effect: NoExecute
+            key: dedicated
+            operator: Equal
+            value: teleport
+          - effect: NoSchedule
+            key: dedicated
+            operator: Equal
+            value: teleport
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+      volumeClaimTemplates:
+      - metadata:
+          name: RELEASE-NAME-teleport-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 128Mi
+          storageClassName: aws-gp2

@@ -45,11 +45,23 @@ tests:
           value: 1
       - matchSnapshot: {}
 
-  - it: should have multiple replicas when replicaCount is set
+  - it: should have multiple replicas when replicaCount is set (using .replicaCount, deprecated)
     values:
       - ../.lint/backwards-compatibility.yaml
     set:
       replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - matchSnapshot: {}
+
+  - it: should have multiple replicas when replicaCount is set (using highAvailability.replicaCount)
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      highAvailability:
+        replicaCount: 3
     asserts:
       - equal:
           path: spec.replicas
@@ -68,8 +80,8 @@ tests:
     values:
       - ../.lint/backwards-compatibility.yaml
     set:
-      replicaCount: 2
       highAvailability:
+        replicaCount: 2
         requireAntiAffinity: true
     asserts:
       - isNotNull:
@@ -86,7 +98,8 @@ tests:
     values:
       - ../.lint/backwards-compatibility.yaml
     set:
-      replicaCount: 3
+      highAvailability:
+        replicaCount: 3
     asserts:
       - isNotNull:
           path: spec.template.spec.affinity
