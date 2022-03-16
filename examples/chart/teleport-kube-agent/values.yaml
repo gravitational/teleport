@@ -65,6 +65,7 @@ insecureSkipProxyTLSVerify: false
 
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
+# If anything is set under the "storage" key, this will be ignored.
 existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources
