@@ -82,6 +82,24 @@ func TestGetProxyAddress(t *testing.T) {
 			proxyAddr:  "",
 			targetAddr: "bla.example.com:1234",
 		},
+		{
+			info: "valid, no_proxy blocks matching port",
+			env: []env{
+				{name: "https_proxy", val: "proxy:9999"},
+				{name: "no_proxy", val: "example.com:1234"},
+			},
+			proxyAddr:  "",
+			targetAddr: "example.com:1234",
+		},
+		{
+			info: "valid, no_proxy matches host but not port",
+			env: []env{
+				{name: "https_proxy", val: "proxy:9999"},
+				{name: "no_proxy", val: "example.com:1234"},
+			},
+			proxyAddr:  "proxy:9999",
+			targetAddr: "example.com:5678",
+		},
 	}
 
 	for i, tt := range tests {
