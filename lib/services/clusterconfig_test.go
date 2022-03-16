@@ -18,7 +18,6 @@ package services
 
 import (
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
@@ -26,100 +25,7 @@ import (
 )
 
 type clusterConfig struct {
-}
-
-func (c clusterConfig) GetKind() string {
-	return ""
-}
-
-func (c clusterConfig) GetSubKind() string {
-	return ""
-}
-
-func (c clusterConfig) SetSubKind(s string) {}
-
-func (c clusterConfig) GetVersion() string {
-	return ""
-}
-
-func (c clusterConfig) GetName() string {
-	return ""
-}
-
-func (c clusterConfig) SetName(s string) {}
-
-func (c clusterConfig) Expiry() time.Time {
-	return time.Time{}
-}
-
-func (c clusterConfig) SetExpiry(time time.Time) {}
-
-func (c clusterConfig) GetMetadata() types.Metadata {
-	return types.Metadata{}
-}
-
-func (c clusterConfig) GetResourceID() int64 {
-	return 0
-}
-
-func (c clusterConfig) SetResourceID(i int64) {}
-
-func (c clusterConfig) CheckAndSetDefaults() error {
-	return nil
-}
-
-func (c clusterConfig) GetLegacyClusterID() string {
-	return ""
-}
-
-func (c clusterConfig) SetLegacyClusterID(s string) {}
-
-func (c clusterConfig) HasAuditConfig() bool {
-	return false
-}
-
-func (c clusterConfig) SetAuditConfig(config types.ClusterAuditConfig) error {
-	return nil
-}
-
-func (c clusterConfig) GetClusterAuditConfig() (types.ClusterAuditConfig, error) {
-	return nil, nil
-}
-
-func (c clusterConfig) HasNetworkingFields() bool {
-	return false
-}
-
-func (c clusterConfig) SetNetworkingFields(config types.ClusterNetworkingConfig) error {
-	return nil
-}
-
-func (c clusterConfig) GetClusterNetworkingConfig() (types.ClusterNetworkingConfig, error) {
-	return nil, nil
-}
-
-func (c clusterConfig) HasSessionRecordingFields() bool {
-	return false
-}
-
-func (c clusterConfig) SetSessionRecordingFields(config types.SessionRecordingConfig) error {
-	return nil
-}
-
-func (c clusterConfig) GetSessionRecordingConfig() (types.SessionRecordingConfig, error) {
-	return nil, nil
-}
-
-func (c clusterConfig) HasAuthFields() bool {
-	return false
-}
-
-func (c clusterConfig) SetAuthFields(preference types.AuthPreference) error {
-	return nil
-}
-
-func (c clusterConfig) Copy() types.ClusterConfig {
-	return c
+	types.ClusterConfig
 }
 
 func TestUpdateAuthPreferenceWithLegacyClusterConfig(t *testing.T) {
