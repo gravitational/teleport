@@ -29,6 +29,7 @@ func main() {
 		&common.AccessCommand{},
 		&common.KubeCommand{},
 		&common.DesktopCommand{},
+		&common.BotsCommand{},
 	}
 	common.Run(commands)
 }
