@@ -25,16 +25,9 @@ The `license_file` path can be either absolute or relative to the configured
 `data_dir`. If the license file path is not set, Teleport will look for the
 `license.pem` file in the configured `data_dir`.
 
-The Teleport l
-
-<Admonition
-  type="tip"
-  title="NOTE"
->
-  Only Auth Servers require the license. Proxies and Nodes that do not also have Auth role enabled do not need the license.  
+Only Auth Servers require the license. Proxies and Nodes that do not also have Auth role enabled do not need the license.  
     
-    Attempts to use unlicenced products will result in a error message and users will be unable to use those products.  Here is an example message if attempting to use database access and not included in the license.
-```bash
+Attempts to use unlicenced products will result in a error message and users will be unable to use those products.  Here is an example message if attempting to use database access and not included in the license.
+```code
 this Teleport cluster is not licensed for database access, please contact the cluster administrator
-```    
-</Admonition>
+```
