@@ -17,11 +17,11 @@ limitations under the License.
 package common
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -43,10 +43,26 @@ func TestTeleportMain(t *testing.T) {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
+	fixtureDir := t.TempDir()
 	// generate the fixture config file
-	configFile := filepath.Join(t.TempDir(), "teleport.yaml")
-	err = ioutil.WriteFile(configFile, []byte(YAMLConfig), 0660)
-	require.NoError(t, err)
+	configFile := filepath.Join(fixtureDir, "teleport.yaml")
+	require.NoError(t, os.WriteFile(configFile, []byte(configData), 0660))
+
+	// generate the fixture bootstrap file
+	bootstrapEntries := []struct{ fileName, kind, name string }{
+		{"role.yaml", types.KindRole, "role_name"},
+		{"github.yaml", types.KindGithubConnector, "github"},
+		{"user.yaml", types.KindRole, "user"},
+	}
+	var bootstrapData []byte
+	for _, entry := range bootstrapEntries {
+		data, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "resources", entry.fileName))
+		require.NoError(t, err)
+		bootstrapData = append(bootstrapData, data...)
+		bootstrapData = append(bootstrapData, "\n---\n"...)
+	}
+	bootstrapFile := filepath.Join(fixtureDir, "bootstrap.yaml")
+	require.NoError(t, os.WriteFile(bootstrapFile, bootstrapData, 0660))
 
 	// set defaults to test-mode (non-existing files&locations)
 	defaults.ConfigFilePath = "/tmp/teleport/etc/teleport.yaml"
@@ -111,6 +127,21 @@ func TestTeleportMain(t *testing.T) {
 		require.Equal(t, "10.5.5.5", conf.AdvertiseIP)
 		require.Equal(t, map[string]string{"a": "a1", "b": "b1"}, conf.SSH.Labels)
 	})
+
+	t.Run("Bootstrap", func(t *testing.T) {
+		_, cmd, conf := Run(Options{
+			Args:     []string{"start", "--bootstrap", bootstrapFile},
+			InitOnly: true,
+		})
+		require.Equal(t, "start", cmd)
+		require.Equal(t, len(bootstrapEntries), len(conf.Auth.Resources))
+		for i, entry := range bootstrapEntries {
+			t.Log(i)
+			require.Equal(t, entry.kind, conf.Auth.Resources[i].GetKind())
+			require.Equal(t, entry.name, conf.Auth.Resources[i].GetName())
+			require.NoError(t, conf.Auth.Resources[i].CheckAndSetDefaults())
+		}
+	})
 }
 
 func TestConfigure(t *testing.T) {
@@ -143,7 +174,7 @@ func TestConfigure(t *testing.T) {
 	})
 }
 
-const YAMLConfig = `
+const configData = `
 teleport:
   advertise_ip: 10.5.5.5
   nodename: hvostongo.example.org
