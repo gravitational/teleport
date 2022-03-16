@@ -308,7 +308,7 @@ func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
 
 // UpdateAppUsageTemplate updates usage template for kingpin applications by
 // pre-parsing the arguments then applying any changes to the usage template if
-// neccessary.
+// necessary.
 func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
 	// If ParseContext fails, kingpin will not show usage so there is no need
 	// to update anything here. See app.Parse for more details.
