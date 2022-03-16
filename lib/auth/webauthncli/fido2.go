@@ -566,8 +566,11 @@ func runOnFIDO2Devices(
 	}
 
 	dev, requiresPIN, err := selectDevice(ctx, devices, deviceCallback)
-	if err != nil || !requiresPIN {
+	switch {
+	case err != nil:
 		return trace.Wrap(err)
+	case !requiresPIN:
+		return nil
 	}
 
 	// Selected device requires PIN, let's use the prompt and run the callback
