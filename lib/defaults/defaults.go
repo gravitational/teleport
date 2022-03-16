@@ -665,12 +665,13 @@ const (
 )
 
 // The following are cryptographic primitives Teleport does not support in
-// it's default configuration.
+// its default configuration.
 const (
-	DiffieHellmanGroup14SHA1 = "diffie-hellman-group14-sha1"
-	DiffieHellmanGroup1SHA1  = "diffie-hellman-group1-sha1"
-	HMACSHA1                 = "hmac-sha1"
-	HMACSHA196               = "hmac-sha1-96"
+	DiffieHellmanGroup14SHA1   = "diffie-hellman-group14-sha1"
+	DiffieHellmanGroup14SHA256 = "diffie-hellman-group14-sha256"
+	DiffieHellmanGroup1SHA1    = "diffie-hellman-group1-sha1"
+	HMACSHA1                   = "hmac-sha1"
+	HMACSHA196                 = "hmac-sha1-96"
 )
 
 const (

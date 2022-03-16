@@ -43,57 +43,58 @@ func TestDefaultConfig(t *testing.T) {
 	localAuthAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3025"}
 
 	// data dir, hostname and auth server
-	require.Equal(t, config.DataDir, defaults.DataDir)
+	require.Equal(t, defaults.DataDir, config.DataDir)
 	if len(config.Hostname) < 2 {
 		t.Fatal("default hostname wasn't properly set")
 	}
 
 	// crypto settings
-	require.Equal(t, config.CipherSuites, utils.DefaultCipherSuites())
+	require.Equal(t, utils.DefaultCipherSuites(), config.CipherSuites)
 	// Unfortunately the below algos don't have exported constants in
 	// golang.org/x/crypto/ssh for us to use.
-	require.Equal(t, config.Ciphers, []string{
+	require.Equal(t, []string{
 		"aes128-gcm@openssh.com",
 		"chacha20-poly1305@openssh.com",
 		"aes128-ctr",
 		"aes192-ctr",
 		"aes256-ctr",
-	})
-	require.Equal(t, config.KEXAlgorithms, []string{
+	}, config.Ciphers)
+	require.Equal(t, []string{
+		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
 		"ecdh-sha2-nistp384",
 		"ecdh-sha2-nistp521",
-	})
-	require.Equal(t, config.MACAlgorithms, []string{
+	}, config.KEXAlgorithms)
+	require.Equal(t, []string{
 		"hmac-sha2-256-etm@openssh.com",
 		"hmac-sha2-256",
-	})
+	}, config.MACAlgorithms)
 	require.Nil(t, config.CASignatureAlgorithm)
 
 	// auth section
 	auth := config.Auth
-	require.Equal(t, auth.SSHAddr, localAuthAddr)
-	require.Equal(t, auth.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
-	require.Equal(t, auth.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
-	require.Equal(t, config.Auth.StorageConfig.Type, lite.GetName())
-	require.Equal(t, auth.StorageConfig.Params[defaults.BackendPath], filepath.Join(config.DataDir, defaults.BackendDir))
+	require.Equal(t, localAuthAddr, auth.SSHAddr)
+	require.Equal(t, int64(defaults.LimiterMaxConnections), auth.Limiter.MaxConnections)
+	require.Equal(t, defaults.LimiterMaxConcurrentUsers, auth.Limiter.MaxNumberOfUsers)
+	require.Equal(t, lite.GetName(), config.Auth.StorageConfig.Type)
+	require.Equal(t, filepath.Join(config.DataDir, defaults.BackendDir), auth.StorageConfig.Params[defaults.BackendPath])
 
 	// SSH section
 	ssh := config.SSH
-	require.Equal(t, ssh.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
-	require.Equal(t, ssh.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
-	require.Equal(t, ssh.AllowTCPForwarding, true)
+	require.Equal(t, int64(defaults.LimiterMaxConnections), ssh.Limiter.MaxConnections)
+	require.Equal(t, defaults.LimiterMaxConcurrentUsers, ssh.Limiter.MaxNumberOfUsers)
+	require.True(t, ssh.AllowTCPForwarding, "AllowTCPForwarding")
 
 	// proxy section
 	proxy := config.Proxy
-	require.Equal(t, proxy.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
-	require.Equal(t, proxy.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
+	require.Equal(t, int64(defaults.LimiterMaxConnections), proxy.Limiter.MaxConnections)
+	require.Equal(t, defaults.LimiterMaxConcurrentUsers, proxy.Limiter.MaxNumberOfUsers)
 
 	// Misc levers and dials
-	require.Equal(t, config.RotationConnectionInterval, defaults.HighResPollingPeriod)
-	require.Equal(t, config.RestartThreshold.Amount, defaults.MaxConnectionErrorsBeforeRestart)
-	require.Equal(t, config.RestartThreshold.Time, defaults.ConnectionErrorMeasurementPeriod)
+	require.Equal(t, defaults.HighResPollingPeriod, config.RotationConnectionInterval)
+	require.Equal(t, defaults.MaxConnectionErrorsBeforeRestart, config.RestartThreshold.Amount)
+	require.Equal(t, defaults.ConnectionErrorMeasurementPeriod, config.RestartThreshold.Time)
 }
 
 // TestCheckApp validates application configuration.
