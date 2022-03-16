@@ -430,7 +430,7 @@ func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
 	case "stderr", "error", "2":
 		logger.SetOutput(os.Stderr)
 		cfg.Console = io.Discard // disable console printing
-	case "stdoggerout", "out", "1":
+	case "stdout", "out", "1":
 		logger.SetOutput(os.Stdout)
 		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
