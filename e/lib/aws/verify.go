@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/gravitational/teleport/api/types"
@@ -114,7 +114,7 @@ func download(uri string) ([]byte, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	defer re.Body.Close()
-	data, err := ioutil.ReadAll(re.Body)
+	data, err := io.ReadAll(re.Body)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
