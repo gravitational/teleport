@@ -193,6 +193,9 @@ const (
 	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
 	MetaNameStaticTokens = "static-tokens"
 
+	// MetaNameSessionTracker is the prefix of resources used to track live sessions.
+	MetaNameSessionTracker = "session-tracker"
+
 	// KindTrustedCluster is a resource that contains trusted cluster configuration.
 	KindTrustedCluster = "trusted_cluster"
 
@@ -246,6 +249,12 @@ const (
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
 
+	// KindSessionTracker is a resource that tracks a live session.
+	KindSessionTracker = "session_tracker"
+
+	// V5 is the fifth version of resources.
+	V5 = "v5"
+
 	// V4 is the fourth version of resources.
 	V4 = "v4"
 
@@ -288,9 +297,13 @@ const (
 )
 
 const (
+	// TeleportNamespace is used as the namespace prefix for any
+	// labels defined by teleport
+	TeleportNamespace = "teleport.dev"
+
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
-	OriginLabel = "teleport.dev/origin"
+	OriginLabel = TeleportNamespace + "/origin"
 
 	// OriginConfigFile is an origin value indicating that the resource was
 	// constructed as a default value.
@@ -356,4 +369,32 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+)
+
+const (
+	// ResourceMetadataName refers to a resource metadata field named "name".
+	ResourceMetadataName = "name"
+
+	// ResourceSpecDescription refers to a resource spec field named "description".
+	ResourceSpecDescription = "description"
+
+	// ResourceSpecHostname refers to a resource spec field named "hostname".
+	ResourceSpecHostname = "hostname"
+
+	// ResourceSpecAddr refers to a resource spec field named "address".
+	ResourceSpecAddr = "address"
+
+	// ResourceSpecPublicAddr refers to a resource field named "address".
+	ResourceSpecPublicAddr = "publicAddress"
+
+	// ResourceSpecType refers to a resource field named "type".
+	ResourceSpecType = "type"
+)
+
+const (
+	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
+	BotLabel = "teleport.internal/bot"
+
+	// BotGenerationLabel is a label used to record the certificate generation counter.
+	BotGenerationLabel = "teleport.internal/bot-generation"
 )

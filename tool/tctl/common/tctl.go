@@ -18,7 +18,6 @@ package common
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,14 +25,13 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -41,6 +39,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	searchHelp = `List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")`
+	queryHelp  = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels.key1 == "value1" && labels.key2 != "value2"')`
+	labelHelp  = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)"
 )
 
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
@@ -152,7 +156,7 @@ func Run(commands []CLICommand) {
 
 	ctx := context.Background()
 
-	client, err := connectToAuthService(ctx, cfg, clientConfig)
+	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
 		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
@@ -173,91 +177,12 @@ func Run(commands []CLICommand) {
 	}
 }
 
-// AuthServiceClientConfig is a client config for auth service
-type AuthServiceClientConfig struct {
-	// TLS holds credentials for mTLS
-	TLS *tls.Config
-	// SSH is client SSH config
-	SSH *ssh.ClientConfig
-}
-
-// connectToAuthService creates a valid client connection to the auth service
-func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig *AuthServiceClientConfig) (auth.ClientI, error) {
-	// connect to the local auth server by default:
-	cfg.Auth.Enabled = true
-	if len(cfg.AuthServers) == 0 {
-		cfg.AuthServers = []utils.NetAddr{
-			*defaults.AuthConnectAddr(),
-		}
-	}
-
-	log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
-
-	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewClient(apiclient.Config{
-		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
-		Credentials: []apiclient.Credentials{
-			apiclient.LoadTLS(clientConfig.TLS),
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
-	}
-
-	// Check connectivity by calling something on the client.
-	_, err = client.GetClusterName()
-	if err != nil {
-		err = trace.Wrap(err, "failed direct dial to auth server: %v", err)
-		if clientConfig.SSH == nil {
-			// No identity file was provided, don't try dialing via a reverse
-			// tunnel on the proxy.
-			return nil, trace.Wrap(err)
-		}
-
-		// If direct dial failed, we may have a proxy address in
-		// cfg.AuthServers. Try connecting to the reverse tunnel endpoint and
-		// make a client over that.
-		//
-		// TODO(awly): this logic should be implemented once, in the auth
-		// package, and reused in IoT nodes.
-
-		errs := []error{err}
-
-		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
-		// within an SSH tunnel.
-		dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
-			Resolver:     reversetunnel.WebClientResolver(ctx, cfg.AuthServers, clientConfig.TLS.InsecureSkipVerify),
-			ClientConfig: clientConfig.SSH,
-			Log:          cfg.Log,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		client, err = auth.NewClient(apiclient.Config{
-			Dialer: dialer,
-			Credentials: []apiclient.Credentials{
-				apiclient.LoadTLS(clientConfig.TLS),
-			},
-		})
-		if err != nil {
-			errs = append(errs, trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err))
-			return nil, trace.NewAggregate(errs...)
-		}
-		// Check connectivity by calling something on the client.
-		if _, err := client.GetClusterName(); err != nil {
-			errs = append(errs, trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err))
-			return nil, trace.NewAggregate(errs...)
-		}
-	}
-	return client, nil
-}
-
-// applyConfig takes configuration values from the config file and applies
-// them to 'service.Config' object.
+// applyConfig takes configuration values from the config file and applies them
+// to 'service.Config' object.
 //
-// The returned authServiceClientConfig has the credentials needed to dial the
-// auth server.
-func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientConfig, error) {
+// The returned authclient.Config has the credentials needed to dial the auth
+// server.
+func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -316,7 +241,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 			return nil, trace.Wrap(err)
 		}
 	}
-	authConfig := new(AuthServiceClientConfig)
+	authConfig := new(authclient.Config)
 	// --identity flag
 	if ccf.IdentityFilePath != "" {
 		key, err := client.KeyFromIdentityFile(ccf.IdentityFilePath)
@@ -359,6 +284,8 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 		}
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
+	authConfig.AuthServers = cfg.AuthServers
+	authConfig.Log = cfg.Log
 
 	return authConfig, nil
 }
@@ -382,7 +309,7 @@ func (m *sshTrustedHostKeyWrapper) GetKnownHostKeys(hostname string) ([]ssh.Publ
 }
 
 // loadConfigFromProfile applies config from ~/.tsh/ profile if it's present
-func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientConfig, error) {
+func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	if ccf.IdentityFilePath != "" {
 		return nil, trace.NotFound("identity has been supplied, skip loading the config")
 	}
@@ -432,7 +359,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 		return nil, trace.BadParameter("your credentials are for cluster %q, please run `tsh login %q` to log in to the root cluster", profile.Cluster, rootCluster)
 	}
 
-	authConfig := &AuthServiceClientConfig{}
+	authConfig := &authclient.Config{}
 	authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -451,6 +378,8 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 		log.Debugf("Setting auth server to web proxy %v.", webProxyAddr)
 		cfg.AuthServers = []utils.NetAddr{*webProxyAddr}
 	}
+	authConfig.AuthServers = cfg.AuthServers
+	authConfig.Log = cfg.Log
 
 	return authConfig, nil
 }

@@ -22,17 +22,7 @@ like:
   This guide requires a commercial edition of Teleport.
 </Admonition>
 
-## Enable OIDC Authentication
-
-First, configure Teleport auth server to use OIDC authentication instead of the local
-user database. Update `/etc/teleport.yaml` as shown below and restart the
-teleport daemon.
-
-```yaml
-auth_service:
-    authentication:
-        type: oidc
-```
+(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
 
 ## Configure GitLab
 
@@ -110,7 +100,7 @@ root and is capable of administrating the cluster and non-privileged dev.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: admin
 spec:
@@ -129,7 +119,7 @@ The developer role:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: dev
 spec:

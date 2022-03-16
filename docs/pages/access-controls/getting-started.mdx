@@ -90,7 +90,7 @@ We're now going to set up a GitHub connector for Teleport Open Source Edition an
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     Follow [SAML Okta Guide](../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
     Check out [OIDC guides](../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
@@ -122,7 +122,7 @@ Save this role as `interns.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: interns
 spec:

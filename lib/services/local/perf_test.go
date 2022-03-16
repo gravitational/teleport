@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // BenchmarkGetNodes verifies the performance of the GetNodes operation
@@ -68,16 +68,16 @@ func BenchmarkGetNodes(b *testing.B) {
 			var err error
 			if tt.memory {
 				bk, err = memory.New(memory.Config{})
-				assert.NoError(b, err)
+				require.NoError(b, err)
 			} else {
 				dir, err := ioutil.TempDir("", "teleport")
-				assert.NoError(b, err)
+				require.NoError(b, err)
 				defer os.RemoveAll(dir)
 
 				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
 					Path: dir,
 				})
-				assert.NoError(b, err)
+				require.NoError(b, err)
 			}
 			defer bk.Close()
 
@@ -95,7 +95,7 @@ func BenchmarkGetNodes(b *testing.B) {
 }
 
 // insertNodes inserts a collection of test nodes into a backend.
-func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, nodeCount int) {
+func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
@@ -117,7 +117,7 @@ func insertNodes(ctx context.Context, t assert.TestingT, svc services.Presence, 
 			},
 		}
 		_, err := svc.UpsertNode(ctx, node)
-		assert.NoError(t, err)
+		require.NoError(b, err)
 	}
 }
 
@@ -127,10 +127,10 @@ func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence,
 	var err error
 	for i := 0; i < b.N; i++ {
 		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace, opts...)
-		assert.NoError(b, err)
+		require.NoError(b, err)
 	}
 	// do *something* with the loop result.  probably unnecessary since the loop
 	// contains I/O, but I don't know enough about the optimizer to be 100% certain
 	// about that.
-	assert.Equal(b, nodeCount, len(nodes))
+	require.Equal(b, nodeCount, len(nodes))
 }

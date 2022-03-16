@@ -243,7 +243,7 @@ func (a *Agent) getPrincipalsList() []string {
 }
 
 func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
-	cas, err := a.AccessPoint.GetCertAuthorities(types.HostCA, false)
+	cas, err := a.AccessPoint.GetCertAuthorities(context.TODO(), types.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -278,7 +278,10 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		a.reverseTunnelDetails = a.getReverseTunnelDetails()
 	}
 
-	var opts []proxy.DialerOptionFunc
+	opts := []proxy.DialerOptionFunc{
+		proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode()),
+	}
+
 	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.TLSRoutingEnabled {
 		opts = append(opts, proxy.WithALPNDialer())
 	}

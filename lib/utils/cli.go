@@ -251,6 +251,8 @@ func formatCertError(err error) string {
 }
 
 const (
+	// Bold is an escape code to format as bold or increased intensity
+	Bold = 1
 	// Red is an escape code for red terminal color
 	Red = 31
 	// Yellow is an escape code for yellow terminal color

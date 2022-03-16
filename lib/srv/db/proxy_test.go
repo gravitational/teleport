@@ -98,6 +98,32 @@ func TestProxyProtocolMongo(t *testing.T) {
 	require.NoError(t, mongo.Disconnect(ctx))
 }
 
+func TestProxyProtocolRedis(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})
+
+	// Point our proxy to the Teleport's TLS listener.
+	proxy, err := multiplexer.NewTestProxy(testCtx.webListener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { proxy.Close() })
+	go proxy.Serve()
+
+	// Connect to the proxy instead of directly to Teleport listener and make
+	// sure the connection succeeds.
+	redisClient, err := testCtx.redisClientWithAddr(ctx, proxy.Address(), "alice", "redis", "admin")
+	require.NoError(t, err)
+
+	// Send ECHO to Redis server and check if we get it back.
+	resp := redisClient.Echo(ctx, "hello")
+	require.NoError(t, resp.Err())
+	require.Equal(t, "hello", resp.Val())
+
+	require.NoError(t, redisClient.Close())
+}
+
 // TestProxyClientDisconnectDueToIdleConnection ensures that idle clients will be disconnected.
 func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
 	const (
@@ -171,7 +197,9 @@ func TestProxyClientDisconnectDueToLockInForce(t *testing.T) {
 		Target: types.LockTarget{User: "alice"},
 	})
 	require.NoError(t, err)
-	testCtx.authServer.UpsertLock(ctx, lock)
+
+	err = testCtx.authServer.UpsertLock(ctx, lock)
+	require.NoError(t, err)
 
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
 	err = mysql.Ping()

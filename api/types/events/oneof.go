@@ -17,9 +17,11 @@ limitations under the License.
 package events
 
 import (
+	"encoding/json"
 	"reflect"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // MustToOneOf converts audit event to OneOf
@@ -309,8 +311,72 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_CertificateCreate{
 			CertificateCreate: e,
 		}
+	case *DesktopRecording:
+		out.Event = &OneOf_DesktopRecording{
+			DesktopRecording: e,
+		}
+	case *DesktopClipboardReceive:
+		out.Event = &OneOf_DesktopClipboardReceive{
+			DesktopClipboardReceive: e,
+		}
+	case *DesktopClipboardSend:
+		out.Event = &OneOf_DesktopClipboardSend{
+			DesktopClipboardSend: e,
+		}
+	case *MySQLStatementPrepare:
+		out.Event = &OneOf_MySQLStatementPrepare{
+			MySQLStatementPrepare: e,
+		}
+	case *MySQLStatementExecute:
+		out.Event = &OneOf_MySQLStatementExecute{
+			MySQLStatementExecute: e,
+		}
+	case *MySQLStatementSendLongData:
+		out.Event = &OneOf_MySQLStatementSendLongData{
+			MySQLStatementSendLongData: e,
+		}
+	case *MySQLStatementClose:
+		out.Event = &OneOf_MySQLStatementClose{
+			MySQLStatementClose: e,
+		}
+	case *MySQLStatementReset:
+		out.Event = &OneOf_MySQLStatementReset{
+			MySQLStatementReset: e,
+		}
+	case *MySQLStatementFetch:
+		out.Event = &OneOf_MySQLStatementFetch{
+			MySQLStatementFetch: e,
+		}
+	case *MySQLStatementBulkExecute:
+		out.Event = &OneOf_MySQLStatementBulkExecute{
+			MySQLStatementBulkExecute: e,
+		}
+	case *RenewableCertificateGenerationMismatch:
+		out.Event = &OneOf_RenewableCertificateGenerationMismatch{
+			RenewableCertificateGenerationMismatch: e,
+		}
+	case *Unknown:
+		out.Event = &OneOf_Unknown{
+			Unknown: e,
+		}
 	default:
-		return nil, trace.BadParameter("event type %T is not supported", in)
+		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
+		unknown := &Unknown{}
+		unknown.Type = UnknownEvent
+		unknown.Code = UnknownCode
+		unknown.Time = in.GetTime()
+		unknown.ClusterName = in.GetClusterName()
+		unknown.UnknownType = in.GetType()
+		unknown.UnknownCode = in.GetCode()
+		data, err := json.Marshal(in)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		unknown.Data = string(data)
+		out.Event = &OneOf_Unknown{
+			Unknown: unknown,
+		}
 	}
 	return &out, nil
 }

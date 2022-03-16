@@ -44,7 +44,7 @@ type App struct {
 	// AWSConsole if true, indicates that the app represents AWS management console.
 	AWSConsole bool `json:"awsConsole"`
 	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
-	AWSRoles []aws.AWSRole `json:"awsRoles,omitempty"`
+	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.

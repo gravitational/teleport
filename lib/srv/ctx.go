@@ -99,7 +99,7 @@ type AccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 }
 
 // Server is regular or forwarding SSH server.
@@ -206,6 +206,13 @@ type IdentityContext struct {
 	// DisallowReissue is a flag that, if set, instructs the auth server to
 	// deny any requests from this identity to generate new certificates.
 	DisallowReissue bool
+
+	// Renewable indicates this certificate is renewable.
+	Renewable bool
+
+	// Generation counts the number of times this identity's certificate has
+	// been renewed.
+	Generation uint64
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -362,6 +369,18 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		cancel:                 cancel,
 	}
 
+	fields := log.Fields{
+		"local":        child.ServerConn.LocalAddr(),
+		"remote":       child.ServerConn.RemoteAddr(),
+		"login":        child.Identity.Login,
+		"teleportUser": child.Identity.TeleportUser,
+		"id":           child.id,
+	}
+	child.Entry = log.WithFields(log.Fields{
+		trace.Component:       child.srv.Component(),
+		trace.ComponentFields: fields,
+	})
+
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
 		childErr := child.Close()
@@ -372,13 +391,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
 
-	fields := log.Fields{
-		"local":        child.ServerConn.LocalAddr(),
-		"remote":       child.ServerConn.RemoteAddr(),
-		"login":        child.Identity.Login,
-		"teleportUser": child.Identity.TeleportUser,
-		"id":           child.id,
-	}
+	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
 		fields["cert"] = child.disconnectExpiredCert
 	}

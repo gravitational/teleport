@@ -43,11 +43,11 @@ A role definition looks like this:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: example
 spec:
-  # SSH options used for user sessions with default values:
+  # Options used for user sessions with default values:
   options:
     # max_session_ttl defines the TTL (time to live) of SSH certificates
     # issued to the users with this role.
@@ -72,6 +72,19 @@ spec:
     max_sessions: 10
     # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
     permit_x11_forwarding: true
+    # Specify whether or not to record the user's desktop sessions.
+    # Desktop session recording is enabled if one or more of the user's
+    # roles has enabled recording. Defaults to true if unspecified.
+    # Desktop sessions will never be recorded if auth_service.session_recording
+    # is set to 'off' in teleport.yaml or if the cluster's session_recording_config
+    # resource has set 'mode: off'.
+    record_sessions:
+      desktop: true
+    # Specify whether clipboard sharing should be allowed with the
+    # remote desktop (requires a supported browser). Defaults to true
+    # if unspecified. If one or more of the user's roles has disabled
+    # the clipboard, then it will be disabled.
+    desktop_clipboard: true
 
   # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default, nothing is allowed.
@@ -81,7 +94,7 @@ spec:
     logins: [root, '{{internal.logins}}']
     # Windows logins a user is allowed to use for desktop sessions.
     windows_desktop_logins: [Administrator, '{{internal.logins}}']
-    # If kubernetes integration is enabled, this setting configures which 
+    # If the Kubernetes integration is enabled, this setting configures which
     # kubernetes groups the users of this role will be assigned to.
     # Note that you can refer to a SAML/OIDC trait via the "external" property bag.
     # This allows you to specify Kubernetes group membership in an identity manager:
@@ -100,7 +113,7 @@ spec:
       'environment': '^test|staging$'
 
     kubernetes_labels:
-      # A user can only access prod enviroments
+      # A user can only access prod environments
       'env': 'prod'
       # User can access any region in us-west, e.g us-west-1, us-west-2
       'region': 'us-west-*'
@@ -129,6 +142,35 @@ spec:
       verbs: [list,create,read,update,delete]
     - resources: [token]
       verbs: [list,create,read,update,delete]
+
+    # Moderated Sessions policy that dictates requirements for starting a session.
+    require_session_join:
+      # Defines the name of the policy. The name serves only as an
+      # identifier in logs and for organisation/categorisation.
+      - name: Auditor oversight
+        # Specifies an RBAC predicate that is used to define
+        # which users count against the required user count of the policy.
+        filter: 'contains(user.roles, "auditor")'
+        # The different session kinds this policy applies to.
+        kinds: ['k8s', 'ssh']
+        # A list of session participant modes that a participant must have
+        # one of in order to count against the policy.
+        modes: ['moderator']
+        # The minimum amount of users that need to match the filter expression
+        # in order to satisfy the policy.
+        count: 1
+
+    # Moderated Sessions policy that dictates the ability to join sessions
+    join_sessions:
+      # Defines the name of the policy. The name serves only as an
+      # identifier in logs and for organisation/categorisation.
+      - name: Auditor oversight
+        # Allows one to join sessions created by other users with these roles
+        roles : ['prod-access']
+        # The different session kinds this policy applies to.
+        kinds: ['k8s', 'ssh']
+        # The list of session participant modes the role may join the session as.
+        modes: ['moderator', 'observer']
 
   # The deny section uses the identical format as the 'allow' section.
   # The deny rules always override allow rules.
@@ -185,10 +227,10 @@ Teleport provides several pre-defined roles out-of-the-box:
 | Role | Description |
 | --- | --- |
 | `editor` | Allows editing of cluster configuration settings. |
-| `auditor`| Allows reading cluster events, audit logs, and playing back session records. | 
+| `auditor`| Allows reading cluster events, audit logs, and playing back session records. |
 | `access`| Allows access to cluster resources. |
 
-<Details title="Version Warning: Before 8.0" opened={false}> 
+<Details title="Version Warning: Before 8.0" opened={false}>
 Teleport versions prior to 8.0 also included a default `admin` role. This role
 has been deprecated in favor of smaller, more fine-grained roles like the
 presets mentioned above.
@@ -201,12 +243,12 @@ that are more appropriately scoped.
 
 ### Role versions
 
-There are currently two supported role versions: `v3` and `v4`. `v4` roles are
+There are currently three supported role versions: `v3`, `v4` and `v5`. `v4` and `v5` roles are
 completely backwards-compatible with `v3`, the only difference lies in the
 default allow labels which will be applied to the role if they are not
-explicitly set.
+explicitly set. Additionally, `v5` is required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
 
-Label              | `v3` Default   | `v4` Default
+Label              | `v3` Default   | `v4` and `v5` Default
 ------------------ | -------------- | ---------------
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`
@@ -228,13 +270,13 @@ that only have access to one environment. Let's say you create an intern role wi
 ### Example
 
 The role below allows access to all nodes labeled "env=stage" except those that
-also have "workload=database" (these will always be denied).
+also have "workload=database" or "workload=backup".
 
-Access to any other nodes will be denied:
+Access to any other nodes will be denied.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: example-role
 spec:
@@ -244,8 +286,9 @@ spec:
 
   deny:
     node_labels:
-      # multiple labels are interpreted as an "or" operation.  in this case
-      # Teleport will deny access to any node labeled as 'database' or 'backup'
+      # Multiple labels are interpreted as an "or" operation. In this case,
+      # Teleport will deny access to any node labeled as 'workload=database' or
+      # 'workload=backup'
       'workload': ['database', 'backup']
 ```
 
@@ -264,7 +307,7 @@ Below are a few examples for more complex filtering using various regexes.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: example-role
 spec:
@@ -333,15 +376,24 @@ The examples below illustrate how to restrict session access only for the user
 who created the session.
 
 <Details title="Version Warning: Before 8.1" opened={false}>
-Teleport versions prior to 8.1 don't support the roles exemplified below.
-You may to create such roles after an upgrade, but in the event of a cluster
+Teleport versions prior to 8.1 don't support the roles shown below.
+You may create these roles after upgrading, but in the event of a cluster
 downgrade they will become invalid.
 </Details>
+
+<Admonition
+  type="warning"
+  title="Preset Auditor Role"
+>
+In order for these roles to take effect, you must ensure your user doesn't also
+have a more permissive role, like the preset `auditor` role, which allows access
+to all events, sessions, and session recordings.
+</Admonition>
 
 Role for restricted access to session recordings:
 
 ```yaml
-version: v4
+version: v5
 kind: role
 metadata:
   name: only-own-sessions
@@ -358,7 +410,7 @@ spec:
 Role for restricted access to active sessions:
 
 ```yaml
-version: v4
+version: v5
 kind: role
 metadata:
   name: only-own-ssh-sessions

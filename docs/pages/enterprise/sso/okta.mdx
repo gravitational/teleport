@@ -22,17 +22,7 @@ like:
   This guide requires a commercial edition of Teleport.
 </Admonition>
 
-## Enable SAML Authentication
-
-First, configure Teleport auth server to use SAML authentication instead of the local
-user database. Update `/etc/teleport.yaml` as shown below and restart the
-teleport daemon.
-
-```yaml
-auth_service:
-    authentication:
-        type: saml
-```
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
 ## Configure Okta
 
@@ -124,7 +114,7 @@ and just have the username prefix.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: dev
 spec:

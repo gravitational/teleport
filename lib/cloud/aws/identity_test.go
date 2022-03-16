@@ -37,6 +37,7 @@ func TestGetIdentity(t *testing.T) {
 		outName      string
 		outAccountID string
 		outPartition string
+		outType      string
 	}{
 		{
 			description:  "role identity",
@@ -45,6 +46,7 @@ func TestGetIdentity(t *testing.T) {
 			outName:      "EC2ReadOnly",
 			outAccountID: "1234567890",
 			outPartition: "aws",
+			outType:      "role",
 		},
 		{
 			description:  "assumed role identity",
@@ -53,6 +55,7 @@ func TestGetIdentity(t *testing.T) {
 			outName:      "DatabaseAccess",
 			outAccountID: "1234567890",
 			outPartition: "aws",
+			outType:      "assumed-role",
 		},
 		{
 			description:  "user identity",
@@ -61,6 +64,7 @@ func TestGetIdentity(t *testing.T) {
 			outName:      "alice",
 			outAccountID: "1234567890",
 			outPartition: "aws-us-gov",
+			outType:      "user",
 		},
 		{
 			description:  "unsupported identity",
@@ -69,6 +73,7 @@ func TestGetIdentity(t *testing.T) {
 			outName:      "readers",
 			outAccountID: "1234567890",
 			outPartition: "aws",
+			outType:      "group",
 		},
 	}
 	for _, test := range tests {
@@ -79,6 +84,7 @@ func TestGetIdentity(t *testing.T) {
 			require.Equal(t, test.outName, identity.GetName())
 			require.Equal(t, test.outAccountID, identity.GetAccountID())
 			require.Equal(t, test.outPartition, identity.GetPartition())
+			require.Equal(t, test.outType, identity.GetType())
 		})
 	}
 }

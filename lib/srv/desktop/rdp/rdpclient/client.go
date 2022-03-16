@@ -68,6 +68,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -223,6 +224,7 @@ func (c *Client) connect(ctx context.Context) error {
 		// screen size.
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
+		C.bool(c.cfg.AllowClipboard),
 	)
 	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)
@@ -245,6 +247,12 @@ func (c *Client) start() {
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if err := cgoError(C.read_rdp_output(c.rustClient)); err != nil {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
+
+			// close the TDP connection to the browser
+			// (without this the input streaming goroutine will hang
+			// waiting for user input)
+			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
+			c.cfg.Conn.Close()
 		}
 	}()
 
@@ -253,12 +261,14 @@ func (c *Client) start() {
 	go func() {
 		defer c.wg.Done()
 		defer c.Close()
-		defer c.cfg.Log.Info("RDP input streaming finished")
+		defer c.cfg.Log.Info("TDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
 			msg, err := c.cfg.Conn.InputMessage()
-			if err != nil {
+			if errors.Is(err, io.EOF) {
+				return
+			} else if err != nil {
 				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
 				return
 			}
@@ -352,13 +362,17 @@ func (c *Client) start() {
 					return
 				}
 			case tdp.ClipboardData:
-				if err := cgoError(C.update_clipboard(
-					c.rustClient,
-					(*C.uint8_t)(unsafe.Pointer(&m[0])),
-					C.uint32_t(len(m)),
-				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP clipboard data: %v", err)
-					return
+				if len(m) > 0 {
+					if err := cgoError(C.update_clipboard(
+						c.rustClient,
+						(*C.uint8_t)(unsafe.Pointer(&m[0])),
+						C.uint32_t(len(m)),
+					)); err != nil {
+						c.cfg.Log.Warningf("Failed forwarding RDP clipboard data: %v", err)
+						return
+					}
+				} else {
+					c.cfg.Log.Warning("Recieved an empty clipboard message")
 				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
@@ -368,17 +382,23 @@ func (c *Client) start() {
 }
 
 //export handle_bitmap
-func handle_bitmap(handle C.uintptr_t, cb C.CGOBitmap) C.CGOError {
+func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOError {
 	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
-func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
+func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOError {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a bitmap was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	data := C.GoBytes(unsafe.Pointer(cb.data_ptr), C.int(cb.data_len))
+	// use unsafe.Slice here instead of C.GoBytes, because unsafe.Slice
+	// creates a Go slice backed by data managed from Rust - it does not
+	// copy. This way we only need one copy into img.Pix below.
+	ptr := unsafe.Pointer(cb.data_ptr)
+	uptr := (*uint8)(ptr)
+	data := unsafe.Slice(uptr, C.int(cb.data_len))
+
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
 	// a byte slice with 4-byte segments representing pixels (RGBA).

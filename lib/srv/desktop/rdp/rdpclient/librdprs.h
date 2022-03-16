@@ -7,6 +7,19 @@
 
 #define SPECIAL_NO_RESPONSE 4294967295
 
+/**
+ * The default maximum chunk size for virtual channel data.
+ *
+ * If an RDP server supports larger chunks, it will advertise
+ * the larger chunk size in the `VCChunkSize` field of the
+ * virtual channel capability set.
+ *
+ * See also:
+ * - https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/6c074267-1b32-4ceb-9496-2eb941a23e6b
+ * - https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a8593178-80c0-4b80-876c-cb77e62cecfc
+ */
+#define CHANNEL_CHUNK_LEGNTH 1600
+
 typedef enum CGOPointerButton {
   PointerButtonNone,
   PointerButtonLeft,
@@ -102,7 +115,8 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
                                  uint32_t key_der_len,
                                  uint8_t *key_der,
                                  uint16_t screen_width,
-                                 uint16_t screen_height);
+                                 uint16_t screen_height,
+                                 bool allow_clipboard);
 
 /**
  * `update_clipboard` is called from Go, and caches data that was copied
@@ -164,6 +178,6 @@ void free_rust_string(char *s);
 
 extern void free_go_string(char *s);
 
-extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap b);
+extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
 extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);

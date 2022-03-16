@@ -81,10 +81,10 @@ type AuthorizerAccessPoint interface {
 	GetUser(name string, withSecrets bool) (types.User, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -174,7 +174,7 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	case LocalUser:
 		return a.authorizeLocalUser(user)
 	case RemoteUser:
-		return a.authorizeRemoteUser(user)
+		return a.authorizeRemoteUser(ctx, user)
 	case BuiltinRole:
 		return a.authorizeBuiltinRole(ctx, user)
 	case RemoteBuiltinRole:
@@ -190,8 +190,8 @@ func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
-func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
-	ca, err := a.accessPoint.GetCertAuthority(types.CertAuthID{
+func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Context, error) {
+	ca, err := a.accessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: u.ClusterName,
 	}, false)
@@ -309,7 +309,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	roles, err := services.FromSpec(
 		string(types.RoleRemoteProxy),
-		types.RoleSpecV4{
+		types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces: []string{types.Wildcard},
 				Rules: []types.Rule{
@@ -364,7 +364,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAuth:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -373,11 +373,11 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProvisionToken:
-		return services.FromSpec(role.String(), types.RoleSpecV4{})
+		return services.FromSpec(role.String(), types.RoleSpecV5{})
 	case types.RoleNode:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -406,7 +406,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleApp:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -436,7 +436,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleDatabase:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -467,7 +467,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 		if services.IsRecordAtProxy(recConfig.GetMode()) {
 			return services.FromSpec(
 				role.String(),
-				types.RoleSpecV4{
+				types.RoleSpecV5{
 					Allow: types.RoleConditions{
 						Namespaces:    []string{types.Wildcard},
 						ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -530,7 +530,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 		}
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces:    []string{types.Wildcard},
 					ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -592,7 +592,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleSignup:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -604,7 +604,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAdmin:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.MaxDuration(),
 				},
@@ -622,7 +622,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleNop:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{},
 					Rules:      []types.Rule{},
@@ -631,7 +631,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleKube:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -653,7 +653,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleWindowsDesktop:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},

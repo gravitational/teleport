@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -44,15 +43,16 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	fwdutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
@@ -67,7 +67,6 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
-	utilexec "k8s.io/client-go/util/exec"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -238,6 +237,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		activeRequests:    make(map[string]context.Context),
 		ctx:               closeCtx,
 		close:             close,
+		sessions:          make(map[uuid.UUID]*session),
+		upgrader: websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		},
 	}
 
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
@@ -248,6 +252,8 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
+
+	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuth(fwd.join))
 
 	fwd.router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
@@ -280,6 +286,10 @@ type Forwarder struct {
 	// creds contain kubernetes credentials for multiple clusters.
 	// map key is cluster name.
 	creds map[string]*kubeCreds
+	// sessions tracks in-flight sessions
+	sessions map[uuid.UUID]*session
+	// upgrades connections to websockets
+	upgrader websocket.Upgrader
 }
 
 // Close signals close to all outstanding or background operations
@@ -731,6 +741,160 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	return events.NewTeeStreamer(fileStreamer, f.cfg.StreamEmitter), nil
 }
 
+// join joins an existing session over a websocket connection
+func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+	f.log.Debugf("Join %v.", req.URL.String())
+
+	sess, err := f.newClusterSession(*ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := f.setupForwardingHeaders(sess, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if sess.noAuditEvents {
+		return f.remoteJoin(ctx, w, req, p, sess)
+	}
+
+	sessionIDString := p.ByName("session")
+	sessionID, err := uuid.Parse(sessionIDString)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session := f.sessions[sessionID]
+	if session == nil {
+		return nil, trace.NotFound("session %v not found", sessionID)
+	}
+
+	if !session.tty {
+		return nil, trace.NotFound("session %v is not interactive", sessionID)
+	}
+
+	ws, err := f.upgrader.Upgrade(w, req, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client := &websocketClientStreams{stream}
+	party := newParty(*ctx, stream.Mode, client)
+	go func() {
+		<-stream.Done()
+		session.mu.Lock()
+		defer session.mu.Unlock()
+		session.leave(party.ID)
+	}()
+
+	err = session.join(party)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	<-party.closeC
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
+// remoteJoin forwards a join request to a remote cluster.
+func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession) (resp interface{}, err error) {
+	dialer := &websocket.Dialer{
+		TLSClientConfig: sess.tlsConfig,
+		NetDialContext:  sess.DialWithContext,
+	}
+
+	url := "wss://" + req.URL.Host
+	if req.URL.Port() != "" {
+		url = url + ":" + req.URL.Port()
+	}
+	url = url + req.URL.Path
+
+	wsTarget, respTarget, err := dialer.Dial(url, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer wsTarget.Close()
+	defer respTarget.Body.Close()
+
+	wsSource, err := f.upgrader.Upgrade(w, req, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer wsSource.Close()
+
+	err = wsProxy(wsSource, wsTarget)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
+// wsProxy proxies a websocket connection between two clusters transparently to allow for
+// remote joins.
+func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
+	closeM := make(chan struct{})
+	errS := make(chan error)
+	errT := make(chan error)
+
+	go func() {
+		for {
+			ty, data, err := wsSource.ReadMessage()
+			if err != nil {
+				wsSource.Close()
+				errS <- trace.Wrap(err)
+				return
+			}
+
+			wsTarget.WriteMessage(ty, data)
+
+			if ty == websocket.CloseMessage {
+				closeM <- struct{}{}
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			ty, data, err := wsTarget.ReadMessage()
+			if err != nil {
+				wsTarget.Close()
+				errT <- trace.Wrap(err)
+				return
+			}
+
+			wsSource.WriteMessage(ty, data)
+
+			if ty == websocket.CloseMessage {
+				closeM <- struct{}{}
+				return
+			}
+		}
+	}()
+
+	var err error
+	select {
+	case err = <-errS:
+		wsTarget.WriteMessage(websocket.CloseMessage, []byte{})
+	case err = <-errT:
+		wsSource.WriteMessage(websocket.CloseMessage, []byte{})
+	case <-closeM:
+	}
+
+	return trace.Wrap(err)
+}
+
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
@@ -754,8 +918,6 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	sessionStart := f.cfg.Clock.Now().UTC()
-
 	q := req.URL.Query()
 	request := remoteCommandRequest{
 		podNamespace:       p.ByName("podNamespace"),
@@ -770,121 +932,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		httpResponseWriter: w,
 		context:            req.Context(),
 		pingPeriod:         f.cfg.ConnPingPeriod,
-	}
-	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
-
-	var recorder events.SessionRecorder
-	var emitter apievents.Emitter
-	sessionID := session.NewID()
-	if sess.noAuditEvents {
-		// All events should be recorded by kubernetes_service and not proxy_service
-		emitter = events.NewDiscardEmitter()
-		request.onResize = func(resize remotecommand.TerminalSize) {}
-	} else if request.tty {
-		streamer, err := f.newStreamer(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// create session recorder
-		// get the audit log from the server and create a session recorder. this will
-		// be a discard audit log if the proxy is in recording mode and a teleport
-		// node so we don't create double recordings.
-		recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed
-			Context:      f.ctx,
-			Streamer:     streamer,
-			Clock:        f.cfg.Clock,
-			SessionID:    sessionID,
-			ServerID:     f.cfg.ServerID,
-			Namespace:    f.cfg.Namespace,
-			RecordOutput: ctx.recordingConfig.GetMode() != types.RecordOff,
-			Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
-			ClusterName:  f.cfg.ClusterName,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		emitter = recorder
-		defer recorder.Close(f.ctx)
-		request.onResize = func(resize remotecommand.TerminalSize) {
-			params := session.TerminalParams{
-				W: int(resize.Width),
-				H: int(resize.Height),
-			}
-			// Build the resize event.
-			resizeEvent := &apievents.Resize{
-				Metadata: apievents.Metadata{
-					Type:        events.ResizeEvent,
-					Code:        events.TerminalResizeCode,
-					ClusterName: f.cfg.ClusterName,
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: req.RemoteAddr,
-					Protocol:   events.EventProtocolKube,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerNamespace: f.cfg.Namespace,
-				},
-				SessionMetadata: apievents.SessionMetadata{
-					SessionID: string(sessionID),
-					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-				},
-				UserMetadata:              ctx.eventUserMeta(),
-				TerminalSize:              params.Serialize(),
-				KubernetesClusterMetadata: ctx.eventClusterMeta(),
-				KubernetesPodMetadata:     eventPodMeta,
-			}
-
-			// Report the updated window size to the event log (this is so the sessions
-			// can be replayed correctly).
-			if err := recorder.EmitAuditEvent(f.ctx, resizeEvent); err != nil {
-				f.log.WithError(err).Warn("Failed to emit terminal resize event.")
-			}
-		}
-	} else {
-		emitter = f.cfg.StreamEmitter
-	}
-
-	if request.tty {
-		// Emit "new session created" event. There are no initial terminal
-		// parameters per k8s protocol, so set up with any default
-		termParams := session.TerminalParams{
-			W: 100,
-			H: 100,
-		}
-		sessionStartEvent := &apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type:        events.SessionStartEvent,
-				Code:        events.SessionStartCode,
-				ClusterName: f.cfg.ClusterName,
-				ID:          uuid.New().String(),
-			},
-			ServerMetadata: apievents.ServerMetadata{
-				ServerID:        f.cfg.ServerID,
-				ServerNamespace: f.cfg.Namespace,
-				ServerHostname:  sess.teleportCluster.name,
-				ServerAddr:      sess.kubeAddress,
-			},
-			SessionMetadata: apievents.SessionMetadata{
-				SessionID: string(sessionID),
-				WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-			},
-			UserMetadata: ctx.eventUserMeta(),
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				RemoteAddr: req.RemoteAddr,
-				LocalAddr:  sess.kubeAddress,
-				Protocol:   events.EventProtocolKube,
-			},
-			TerminalSize:              termParams.Serialize(),
-			KubernetesClusterMetadata: ctx.eventClusterMeta(),
-			KubernetesPodMetadata:     eventPodMeta,
-			InitialCommand:            request.cmd,
-			SessionRecording:          ctx.recordingConfig.GetMode(),
-		}
-		if err := emitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
-			f.log.WithError(err).Warn("Failed to emit event.")
-		}
+		onResize:           func(remotecommand.TerminalSize) {},
 	}
 
 	if err := f.setupForwardingHeaders(sess, req); err != nil {
@@ -895,6 +943,34 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if sess.noAuditEvents {
+		// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
+		return f.remoteExec(ctx, w, req, p, sess, request, proxy)
+	}
+
+	client := newKubeProxyClientStreams(proxy)
+	party := newParty(*ctx, types.SessionPeerMode, client)
+	session, err := newSession(*ctx, f, req, p, party, sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	f.mu.Lock()
+	f.sessions[session.id] = session
+	f.mu.Unlock()
+	err = session.join(party)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	<-party.closeC
+	delete(f.sessions, session.id)
+	return nil, nil
+}
+
+// remoteExec forwards an exec request to a remote cluster.
+func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) (resp interface{}, err error) {
 	defer proxy.Close()
 
 	executor, err := f.getExecutor(*ctx, sess, req)
@@ -903,139 +979,6 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-
-	// Wrap stdin/out/err with data trackers, but keep them as nil if they were
-	// nil. Otherwise, executor will try to use these tracking read/writers
-	// when the underlying stream is nil.
-	trackIn := utils.NewTrackingReader(streamOptions.Stdin)
-	if streamOptions.Stdin != nil {
-		streamOptions.Stdin = trackIn
-	}
-	trackOut := utils.NewTrackingWriter(streamOptions.Stdout)
-	if streamOptions.Stdout != nil {
-		streamOptions.Stdout = trackOut
-	}
-	trackErr := utils.NewTrackingWriter(streamOptions.Stderr)
-	if streamOptions.Stderr != nil {
-		streamOptions.Stderr = trackErr
-	}
-	if recorder != nil {
-		// capture stderr and stdout writes to session recorder
-		streamOptions.Stdout = io.MultiWriter(streamOptions.Stdout, recorder)
-		streamOptions.Stderr = io.MultiWriter(streamOptions.Stderr, recorder)
-	}
-
-	// Defer a cleanup handler that will mark the stream as complete on exit, regardless of
-	// whether it exits successfully, or with an error.
-	// NOTE that this cleanup handler MAY MODIFY the returned error value.
-	defer func() {
-		if err := proxy.sendStatus(err); err != nil {
-			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-		}
-
-		if request.tty {
-			sessionDataEvent := &apievents.SessionData{
-				Metadata: apievents.Metadata{
-					Type:        events.SessionDataEvent,
-					Code:        events.SessionDataCode,
-					ClusterName: f.cfg.ClusterName,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerID:        f.cfg.ServerID,
-					ServerNamespace: f.cfg.Namespace,
-				},
-				SessionMetadata: apievents.SessionMetadata{
-					SessionID: string(sessionID),
-					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-				},
-				UserMetadata: ctx.eventUserMeta(),
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: req.RemoteAddr,
-					LocalAddr:  sess.kubeAddress,
-					Protocol:   events.EventProtocolKube,
-				},
-				// Bytes transmitted from user to pod.
-				BytesTransmitted: trackIn.Count(),
-				// Bytes received from pod by user.
-				BytesReceived: trackOut.Count() + trackErr.Count(),
-			}
-			if err := emitter.EmitAuditEvent(f.ctx, sessionDataEvent); err != nil {
-				f.log.WithError(err).Warn("Failed to emit session data event.")
-			}
-			sessionEndEvent := &apievents.SessionEnd{
-				Metadata: apievents.Metadata{
-					Type:        events.SessionEndEvent,
-					Code:        events.SessionEndCode,
-					ClusterName: f.cfg.ClusterName,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerID:        f.cfg.ServerID,
-					ServerNamespace: f.cfg.Namespace,
-				},
-				SessionMetadata: apievents.SessionMetadata{
-					SessionID: string(sessionID),
-					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-				},
-				UserMetadata: ctx.eventUserMeta(),
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: req.RemoteAddr,
-					LocalAddr:  sess.kubeAddress,
-					Protocol:   events.EventProtocolKube,
-				},
-				Interactive: true,
-				// There can only be 1 participant, k8s sessions are not join-able.
-				Participants:              []string{ctx.User.GetName()},
-				StartTime:                 sessionStart,
-				EndTime:                   f.cfg.Clock.Now().UTC(),
-				KubernetesClusterMetadata: ctx.eventClusterMeta(),
-				KubernetesPodMetadata:     eventPodMeta,
-				InitialCommand:            request.cmd,
-				SessionRecording:          ctx.recordingConfig.GetMode(),
-			}
-			if err := emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
-				f.log.WithError(err).Warn("Failed to emit session end event.")
-			}
-		} else {
-			// send an exec event
-			execEvent := &apievents.Exec{
-				Metadata: apievents.Metadata{
-					Type:        events.ExecEvent,
-					ClusterName: f.cfg.ClusterName,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerID:        f.cfg.ServerID,
-					ServerNamespace: f.cfg.Namespace,
-				},
-				SessionMetadata: apievents.SessionMetadata{
-					SessionID: string(sessionID),
-					WithMFA:   ctx.Identity.GetIdentity().MFAVerified,
-				},
-				UserMetadata: ctx.eventUserMeta(),
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: req.RemoteAddr,
-					LocalAddr:  sess.kubeAddress,
-					Protocol:   events.EventProtocolKube,
-				},
-				CommandMetadata: apievents.CommandMetadata{
-					Command: strings.Join(request.cmd, " "),
-				},
-				KubernetesClusterMetadata: ctx.eventClusterMeta(),
-				KubernetesPodMetadata:     eventPodMeta,
-			}
-			if err != nil {
-				execEvent.Code = events.ExecFailureCode
-				execEvent.Error = err.Error()
-				if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
-					execEvent.ExitCode = fmt.Sprintf("%d", exitErr.ExitStatus())
-				}
-			} else {
-				execEvent.Code = events.ExecCode
-			}
-			if err := emitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
-				f.log.WithError(err).Warn("Failed to emit event.")
-			}
-		}
-	}()
 
 	if err = executor.Stream(streamOptions); err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")

@@ -206,6 +206,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	}
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
+		DataDir:      process.Config.DataDir,
 		Log:          log,
 		Clock:        process.Clock,
 		Authorizer:   authorizer,
@@ -225,6 +226,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		LDAPConfig:           desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
 		DiscoveryBaseDN:      cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters: cfg.WindowsDesktop.Discovery.Filters,
+		Hostname:             cfg.Hostname,
 	})
 	if err != nil {
 		return trace.Wrap(err)
