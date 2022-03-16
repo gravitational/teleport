@@ -31,12 +31,15 @@ const maxHistory = 1000
 // - history scrollback for new clients
 // - stream breaking
 type TermManager struct {
-	mu           sync.Mutex
-	writers      map[string]io.Writer
-	readerState  map[string]*int32
-	OnWriteError func(idString string, err error)
+	// These two fields need to be first in the struct so that they are 64-bit aligned which is a requirement
+	// for atomic operations on certain architectures.
 	countWritten uint64
 	countRead    uint64
+
+	mu           sync.Mutex
+	writers      map[string]io.Writer
+	readerState  map[string]bool
+	OnWriteError func(idString string, err error)
 	// buffer is used to buffer writes when turned off
 	buffer []byte
 	on     bool
@@ -48,7 +51,7 @@ type TermManager struct {
 	// we only support one concurrent reader so this isn't mutex protected
 	remaining         []byte
 	readStateUpdate   *sync.Cond
-	closed            *int32
+	closed            bool
 	lastWasBroadcast  bool
 	terminateNotifier chan struct{}
 }
@@ -57,8 +60,8 @@ type TermManager struct {
 func NewTermManager() *TermManager {
 	return &TermManager{
 		writers:           make(map[string]io.Writer),
-		readerState:       make(map[string]*int32),
-		closed:            new(int32),
+		readerState:       make(map[string]bool),
+		closed:            false,
 		readStateUpdate:   sync.NewCond(&sync.Mutex{}),
 		incoming:          make(chan []byte, 100),
 		terminateNotifier: make(chan struct{}),
@@ -214,8 +217,7 @@ func (g *TermManager) DeleteWriter(name string) {
 }
 
 func (g *TermManager) AddReader(name string, r io.Reader) {
-	readerState := new(int32)
-	g.readerState[name] = readerState
+	g.readerState[name] = false
 
 	go func() {
 		for {
@@ -231,21 +233,24 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				// This is the ASCII control code for CTRL+C.
 				if b == 0x03 {
 					g.mu.Lock()
-					if !g.on {
+					if !g.on && !g.closed {
 						select {
 						case g.terminateNotifier <- struct{}{}:
 						default:
 						}
 					}
 					g.mu.Unlock()
-					return
+					break
 				}
 			}
 
 			g.incoming <- buf[:n]
-			if atomic.LoadInt32(g.closed) == 1 || atomic.LoadInt32(readerState) == 1 {
+			g.mu.Lock()
+			if g.closed || g.readerState[name] {
+				g.mu.Unlock()
 				return
 			}
+			g.mu.Unlock()
 		}
 	}()
 }
@@ -253,10 +258,7 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 func (g *TermManager) DeleteReader(name string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-
-	if g.readerState[name] != nil {
-		atomic.StoreInt32(g.readerState[name], 1)
-	}
+	g.readerState[name] = true
 }
 
 func (g *TermManager) CountWritten() uint64 {
@@ -268,7 +270,11 @@ func (g *TermManager) CountRead() uint64 {
 }
 
 func (g *TermManager) Close() {
-	if atomic.CompareAndSwapInt32(g.closed, 0, 1) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if !g.closed {
+		g.closed = true
 		close(g.terminateNotifier)
 	}
 }
