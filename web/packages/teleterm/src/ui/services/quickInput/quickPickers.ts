@@ -133,6 +133,8 @@ export class QuickCommandPicker implements QuickInputPicker {
     return commands.map(cmd => ({
       kind: 'suggestion.cmd' as const,
       token: cmd.displayName,
+      // This allows us to immediately show autocomplete for the first argument of the command.
+      appendToToken: ' ',
       data: cmd,
     }));
   }
