@@ -107,6 +107,7 @@ func Run(args []string) error {
 
 	command, err := app.Parse(args)
 	if err != nil {
+		app.Usage(args)
 		return trace.Wrap(err)
 	}
 
