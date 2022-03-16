@@ -552,10 +552,8 @@ type deviceWithInfo struct {
 type deviceFilterFunc func(dev FIDODevice, info *deviceInfo) (ok bool, err error)
 type deviceCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) error
 
-type runPrompt interface {
-	PromptPIN() (string, error)
-	PromptAdditionalTouch() error
-}
+// runPrompt defines the prompt operations necessary for runOnFIDO2Devices.
+type runPrompt LoginPrompt
 
 func runOnFIDO2Devices(
 	ctx context.Context,
