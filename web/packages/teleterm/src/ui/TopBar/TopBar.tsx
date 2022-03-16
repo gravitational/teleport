@@ -10,7 +10,7 @@ export function TopBar() {
   return (
     <Flex
       justifyContent="space-between"
-      p="0 25px"
+      p="8px 25px"
       height="56px"
       alignItems="center"
     >
@@ -30,4 +30,5 @@ const CentralContainer = styled.div`
   margin: auto 10px;
   grid-template-columns: minmax(150px, 280px) auto;
   align-items: center;
+  height: 100%;
 `

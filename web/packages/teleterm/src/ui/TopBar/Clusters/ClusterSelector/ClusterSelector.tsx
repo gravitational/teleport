@@ -34,7 +34,7 @@ const Container = styled.button`
   color: inherit;
   font-family: inherit;
   width: 100%;
-  height: 40px;
+  height: 100%;
   border: 0.5px ${props => props.theme.colors.action.disabledBackground} solid;
   border-radius: 4px;
   display: flex;

@@ -22,7 +22,8 @@ export type KeyboardShortcutType =
   | 'tab-next'
   | 'focus-global-search'
   | 'toggle-connections'
-  | 'toggle-clusters';
+  | 'toggle-clusters'
+  | 'toggle-identity';
 
 export type KeyboardShortcutsConfig = Record<KeyboardShortcutType, string>;
 
@@ -46,6 +47,7 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'focus-global-search': 'F1',
         'toggle-connections': 'Command-O',
         'toggle-clusters': 'Command-E',
+        'toggle-identity': 'Command-I',
       };
 
       const linuxShortcuts: KeyboardShortcutsConfig = {
@@ -65,6 +67,7 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'focus-global-search': 'F1',
         'toggle-connections': 'Ctrl-O',
         'toggle-clusters': 'Ctrl-E',
+        'toggle-identity': 'Ctrl-I',
       };
 
       switch (platform) {

@@ -41,6 +41,13 @@ const kind = ({ kind, theme }) => {
     };
   }
 
+  if (kind === 'success') {
+    return {
+      backgroundColor: theme.colors.success,
+      color: theme.colors.primary.contrastText,
+    };
+  }
+
   // default is primary
   return {
     backgroundColor: theme.colors.secondary.main,
@@ -65,7 +72,14 @@ const Label = styled.div`
 `;
 
 Label.propTypes = {
-  kind: PropTypes.oneOf(['primary', 'secondary', 'warning', 'danger']),
+  kind: PropTypes.oneOf([
+    'primary',
+    'secondary',
+    'warning',
+    'danger',
+    'success',
+  ]),
+  invert: PropTypes.oneOf([true, false]),
 };
 
 export default Label;
