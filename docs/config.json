@@ -279,10 +279,6 @@
           "slug": "/server-access/guides/",
           "entries": [
             {
-              "title": "Ansible",
-              "slug": "/server-access/guides/ansible/"
-            },
-            {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
             },
@@ -451,6 +447,10 @@
               "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
             {
+              "title": "Self-Hosted Redis",
+              "slug": "/database-access/guides/redis/"
+            },
+            {
               "title": "SQL Server (Preview)",
               "slug": "/database-access/guides/sql-server-ad/"
             },
@@ -537,6 +537,16 @@
         {
           "title": "Getting Started",
           "slug": "/machine-id/getting-started/"
+        },
+        {
+          "title": "Guides",
+          "slug": "/machine-id/guides/",
+          "entries": [
+            {
+              "title": "Machine ID with Ansible",
+              "slug": "/machine-id/guides/ansible/"
+            }
+          ]
         }
       ]
     },
@@ -774,7 +784,7 @@
     }
   ],
   "variables": {
-    "version": "7.0",
+    "version": "9.0",
     "helm": {
       "version": "3.4.2"
     },
@@ -826,14 +836,14 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "7.0.0",
+      "version": "9.0.0",
       "golang": "1.16",
       "plugin": {
-        "version": "7.0.0"
+        "version": "9.0.0"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:7"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:9",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:9"
     }
   },
   "redirects": [
