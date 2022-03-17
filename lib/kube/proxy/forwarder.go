@@ -1611,7 +1611,8 @@ func (f *Forwarder) newTransport(dial DialFunc, tlsConfig *tls.Config) *http.Tra
 		// IdleConnTimeout defines the maximum amount of time before idle connections
 		// are closed. Leaving this unset will lead to connections open forever and
 		// will cause memory leaks in a long running process.
-		IdleConnTimeout: defaults.HTTPIdleTimeout,
+		IdleConnTimeout:   defaults.HTTPIdleTimeout,
+		ForceAttemptHTTP2: true,
 	}
 }
 
