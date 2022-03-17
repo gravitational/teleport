@@ -169,8 +169,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			Clients: c.CloudClients,
-			HostID:  c.HostID,
+			AuthClient: c.AuthClient,
+			Clients:    c.CloudClients,
+			HostID:     c.HostID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -188,6 +189,38 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 
 // Server is a database server. It accepts database client requests coming over
 // reverse tunnel from Teleport proxy and proxies them to databases.
+//
+// Here is a simplified diagram of the lifecyle of a database:
+//  ┌──────────┐  ┌──────────┐
+//  │Statically│  │  Auto    │
+//  │Configured│  │Discovered│
+//  └─────┬────┘  └───┬──────┘
+//        │           │
+//        ▼           ▼
+//  ┌────────────────────────┐
+//  │      Monitored         │
+//  └─────┬──────────────────┘
+//        │ re.OnCreate.register.success
+//        ▼
+//  ┌────────────────────────┐
+//  │                        │ re.OnUpdate.register.success
+//  │   Registered/Proxied   │◄───────────────────────────┐
+//  │                        │                            │
+//  └─────┬──────────────────┘                            │
+//        │ re.OnDelete or                                │
+//        │ re.OnUpdate.stop.success                      │
+//        ▼                                               │
+//  ┌────────────────────────┐                            │
+//  │      Stopped           ├────────────────────────────┘
+//  └─────┬──────────────────┘
+//        │ re.OnDelete or
+//        │ re.OnUpdate.register.fail
+//        ▼
+//  ┌────────────────────────┐
+//  │  Unregistered/Removed  │
+//  └────────────────────────┘
+//
+// Note that "re.OnXXX" are reconciler events.
 type Server struct {
 	// cfg is the database server configuration.
 	cfg Config

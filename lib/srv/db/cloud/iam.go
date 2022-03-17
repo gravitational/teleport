@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
@@ -30,6 +31,8 @@ import (
 
 // IAMConfig is the IAM configurator config.
 type IAMConfig struct {
+	// AuthClient is the cluster auth client.
+	AuthClient *auth.Client
 	// Clients is an interface for retrieving cloud clients.
 	Clients common.CloudClients
 	// HostID is the host identified where this agent is running.
@@ -49,10 +52,10 @@ func (c *IAMConfig) Check() error {
 
 // IAM is a service that manages IAM policies for cloud databases.
 type IAM struct {
-	cfg         IAMConfig
-	log         logrus.FieldLogger
-	awsIdentity aws.Identity
-	mu          sync.RWMutex
+	cfg    IAMConfig
+	log    logrus.FieldLogger
+	policy aws.InlinePolicy
+	mu     sync.RWMutex
 }
 
 // NewIAM returns a new IAM configurator service.
@@ -69,11 +72,11 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 	if database.IsRDS() || database.IsRedshift() {
-		rds, err := c.getAWSConfigurator(ctx, database)
+		configurator, err := c.getAWSConfigurator(ctx, database)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return rds.setupIAM(ctx)
+		return configurator.setupIAM(ctx)
 	}
 	return nil
 }
@@ -81,35 +84,35 @@ func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 // Teardown tears down cloud IAM policies for the provided database.
 func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 	if database.IsRDS() || database.IsRedshift() {
-		rds, err := c.getAWSConfigurator(ctx, database)
+		configurator, err := c.getAWSConfigurator(ctx, database)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return rds.teardownIAM(ctx)
+		return configurator.teardownIAM(ctx)
 	}
 	return nil
 }
 
 // getAWSConfigurator returns configurator instance for the provided database.
 func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (*awsClient, error) {
-	identity, err := c.getAWSIdentity(ctx)
+	policy, err := c.getPolicyClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return newAWS(ctx, awsConfig{
-		clients:  c.cfg.Clients,
-		identity: identity,
-		database: database,
-		hostID:   c.cfg.HostID,
+		authClient: c.cfg.AuthClient,
+		clients:    c.cfg.Clients,
+		policy:     policy,
+		database:   database,
 	})
 }
 
-// getAWSIdentity returns this process' AWS identity.
-func (c *IAM) getAWSIdentity(ctx context.Context) (aws.Identity, error) {
+// getPolicyClient returns the policy client.
+func (c *IAM) getPolicyClient(ctx context.Context) (aws.InlinePolicy, error) {
 	c.mu.RLock()
-	if c.awsIdentity != nil {
+	if c.policy != nil {
 		defer c.mu.RUnlock()
-		return c.awsIdentity, nil
+		return c.policy, nil
 	}
 	c.mu.RUnlock()
 	sts, err := c.cfg.Clients.GetAWSSTSClient("")
@@ -120,8 +123,18 @@ func (c *IAM) getAWSIdentity(ctx context.Context) (aws.Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	iam, err := c.cfg.Clients.GetAWSIAMClient("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	policy, err := aws.NewInlinePolicyForIdentity(c.cfg.HostID, iam, awsIdentity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.awsIdentity = awsIdentity
-	return c.awsIdentity, nil
+	c.policy = policy
+	return c.policy, nil
 }
