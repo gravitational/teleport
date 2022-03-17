@@ -39,7 +39,7 @@ export interface DocumentTshNode extends DocumentBase {
   serverUri: string;
   rootClusterId: string;
   leafClusterId?: string;
-  login: string;
+  login?: string;
 }
 
 export interface DocumentTshKube extends DocumentBase {

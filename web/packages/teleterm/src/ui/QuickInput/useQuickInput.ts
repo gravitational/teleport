@@ -17,9 +17,18 @@ limitations under the License.
 import React, { useEffect } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
+import {
+  AutocompleteResult,
+  AutocompletePartialMatch,
+} from 'teleterm/ui/services/quickInput/types';
 
 export default function useQuickInput() {
-  const { quickInputService, workspacesService } = useAppContext();
+  const {
+    quickInputService,
+    workspacesService,
+    clustersService,
+    commandLauncher,
+  } = useAppContext();
   workspacesService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
@@ -47,10 +56,41 @@ export default function useQuickInput() {
 
   const onEnter = (index?: number) => {
     if (!hasSuggestions || !visible) {
-      documentsService.openNewTerminal(inputValue);
+      executeCommand(autocompleteResult);
       return;
     }
 
+    // Passing `autocompleteResult` directly to narrow down AutocompleteResult type to
+    // AutocompletePartialMatch.
+    pickSuggestion(autocompleteResult, index);
+  };
+
+  const executeCommand = (autocompleteResult: AutocompleteResult) => {
+    const { command } = autocompleteResult;
+
+    switch (command.kind) {
+      case 'command.unknown': {
+        documentsService.openNewTerminal(inputValue);
+        break;
+      }
+      case 'command.tsh-ssh': {
+        const { localClusterUri } = workspacesService.getActiveWorkspace();
+
+        commandLauncher.executeCommand('tsh-ssh', {
+          loginHost: command.loginHost,
+          localClusterUri,
+        });
+        break;
+      }
+    }
+
+    quickInputService.clearInputValueAndHide();
+  };
+
+  const pickSuggestion = (
+    autocompleteResult: AutocompletePartialMatch,
+    index?: number
+  ) => {
     const suggestion = autocompleteResult.suggestions[index];
 
     setActiveSuggestion(index);

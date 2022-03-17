@@ -94,13 +94,13 @@ function buildOptions(settings: RuntimeSettings, cmd: PtyCommand): PtyOptions {
         env['TELEPORT_CLUSTER'] = cmd.leafClusterId;
       }
 
+      const loginHost = cmd.login
+        ? `${cmd.login}@${cmd.serverId}`
+        : cmd.serverId;
+
       return {
         path: settings.tshd.binaryPath,
-        args: [
-          `--proxy=${cmd.rootClusterId}`,
-          'ssh',
-          `${cmd.login}@${cmd.serverId}`,
-        ],
+        args: [`--proxy=${cmd.rootClusterId}`, 'ssh', loginHost],
         env,
       };
     default:

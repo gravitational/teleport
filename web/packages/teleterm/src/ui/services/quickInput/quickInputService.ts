@@ -171,6 +171,13 @@ export class QuickInputService extends Store<State> {
     });
   };
 
+  clearInputValueAndHide = () => {
+    this.setState({
+      inputValue: '',
+      visible: false,
+    });
+  };
+
   useState() {
     return useStore<QuickInputService>(this).state;
   }

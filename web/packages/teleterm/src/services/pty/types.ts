@@ -30,7 +30,7 @@ export type ShellCommand = {
 
 export type TshLoginCommand = {
   kind: 'pty.tsh-login';
-  login: string;
+  login?: string;
   serverId: string;
   rootClusterId: string;
   leafClusterId?: string;

@@ -462,11 +462,17 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     );
   }
 
-  searchServers(clusterUri: string, query: SearchQuery) {
+  searchServers(clusterUri: string, query: SearchQueryWithProps<tsh.Server>) {
     const servers = this.findServers(clusterUri);
+    const searchableProps = query.searchableProps || [
+      'hostname',
+      'addr',
+      'labelsList',
+      'tunnel',
+    ];
     return servers.filter(obj =>
       isMatch(obj, query.search, {
-        searchableProps: ['hostname', 'addr', 'labelsList', 'tunnel'],
+        searchableProps: searchableProps,
         cb: (targetValue, searchValue, propName) => {
           if (propName === 'tunnel') {
             return 'TUNNEL'.includes(searchValue);
@@ -492,6 +498,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
 type SearchQuery = {
   search: string;
+};
+
+type SearchQueryWithProps<T> = SearchQuery & {
+  searchableProps?: (keyof T)[];
 };
 
 const helpers = {
