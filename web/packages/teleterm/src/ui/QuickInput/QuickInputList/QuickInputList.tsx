@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { Label, Box, Text, Flex } from 'design';
+import { Box, Flex, Label } from 'design';
 import { makeLabelTag } from 'teleport/components/formatters';
 import * as types from 'teleterm/ui/services/quickInput/types';
+import { Cli, Server, Person } from 'design/Icon';
 
 const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
   const { items, activeItem } = props;
@@ -49,6 +50,7 @@ const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
 
   return (
     <StyledGlobalSearchResults
+      position={props.position}
       ref={ref}
       tabIndex={-1}
       data-attr="quickpicker.list"
@@ -64,8 +66,10 @@ export default QuickInputList;
 function CmdItem(props: { item: types.SuggestionCmd }) {
   return (
     <Flex alignItems="center">
+      <SquareIconBackground color="#512FC9">
+        <Cli fontSize="10px" />
+      </SquareIconBackground>
       <Box mr={2}>{props.item.data.displayName}</Box>
-      <Box color="text.placeholder">{props.item.data.description}</Box>
     </Flex>
   );
 }
@@ -73,13 +77,16 @@ function CmdItem(props: { item: types.SuggestionCmd }) {
 function SshLoginItem(props: { item: types.SuggestionSshLogin }) {
   return (
     <Flex alignItems="center">
+      <SquareIconBackground color="#FFAB00">
+        <Person fontSize="10px" />
+      </SquareIconBackground>
       <Box mr={2}>{props.item.data}</Box>
     </Flex>
   );
 }
 
 function ServerItem(props: { item: types.SuggestionServer }) {
-  const { hostname, uri, labelsList } = props.item.data;
+  const { hostname, labelsList } = props.item.data;
   const $labels = labelsList.map((label, index) => (
     <Label mr="1" key={index} kind="secondary">
       {makeLabelTag(label)}
@@ -87,13 +94,15 @@ function ServerItem(props: { item: types.SuggestionServer }) {
   ));
 
   return (
-    <div>
-      <Flex alignItems="center">
+    <Flex alignItems="center" p={1} minWidth="300px">
+      <SquareIconBackground color="#4DB2F0">
+        <Server fontSize="10px" />
+      </SquareIconBackground>
+      <Flex flexDirection="column" ml={1}>
         <Box mr={2}>{hostname}</Box>
-        <Box color="text.placeholder">{uri}</Box>
+        <Box>{$labels}</Box>
       </Flex>
-      {$labels}
-    </div>
+    </Flex>
   );
 }
 
@@ -109,26 +118,27 @@ const StyledItem = styled.div(({ theme, $active }) => {
       background: theme.colors.primary.lighter,
     },
 
-    borderBottom: `2px solid ${theme.colors.primary.main}`,
+    borderBottom: `2px solid ${theme.colors.primary.placeholder}`,
     padding: '2px 8px',
     color: theme.colors.primary.contrastText,
     background: $active
       ? theme.colors.primary.lighter
-      : theme.colors.primary.light,
+      : theme.colors.primary.dark,
   };
 });
 
-const StyledGlobalSearchResults = styled.div(({ theme }) => {
+const StyledGlobalSearchResults = styled.div(({ theme, position }) => {
   return {
     boxShadow: '8px 8px 18px rgb(0 0 0)',
     color: theme.colors.primary.contrastText,
     background: theme.colors.primary.light,
     boxSizing: 'border-box',
-    width: '600px',
-    marginTop: '32px',
+    marginTop: '42px',
+    left: position ? position + 'px' : 0,
     display: 'block',
+    transition: '0.12s',
     position: 'absolute',
-    border: '1px solid ' + theme.colors.action.hover,
+    borderRadius: '4px',
     fontSize: '12px',
     listStyle: 'none outside none',
     textShadow: 'none',
@@ -150,5 +160,18 @@ const ComponentMap: Record<
 type Props = {
   items: types.Suggestion[];
   activeItem: number;
+  position: number;
   onPick(index: number): void;
 };
+
+const SquareIconBackground = styled(Box)`
+  background: ${props => props.color};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+  width: 14px;
+  margin-right: 8px;
+  border-radius: 2px;
+  padding: 4px;
+`;
