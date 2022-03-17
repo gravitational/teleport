@@ -9,13 +9,20 @@ videoBanner: 5Uwhp3IQMHY
 Let's connect to Grafana using Teleport Application Access in three steps:
 
 - Launch Grafana in a Docker container.
-- Install Teleport and configure it to proxy Grafana.
+- Install the Teleport Application Service on a node and configure it to proxy Grafana.
 - Access Grafana through Teleport.
 
 ## Prerequisites
 
-- We will use Docker to launch Grafana in a container. Alternatively, if you have another web application you'd like to protect with App Access, you can use that instead.
-- We will assume your Teleport cluster is accessible at `teleport.example.com` and `*.teleport.example.com`. Configured DNS records are required to automatically fetch a [Let's Encrypt](https://letsencrypt.org) certificate.
+- The Teleport Auth Service and Proxy Service, deployed on your own infrastructure or via Teleport Cloud.
+- A Docker installation, which we will use to launch Grafana in a container. Alternatively, if you have another web application you'd like to protect with Application Access, you can use that instead.
+- A host where you will run the Teleport Application Service.
+
+We will assume your Teleport cluster is accessible at `teleport.example.com` and `*.teleport.example.com`. You can substitute the address of your Teleport Proxy Service. (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
+
+<Admonition type="tip" title="Not yet a Teleport user?">
+If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../getting-started.mdx).
+</Admonition>
 
 ## Step 1/3. Start Grafana
 
@@ -23,8 +30,7 @@ We've picked Grafana for this tutorial since it's very easy to run with zero
 configuration required. If you have another web application you'd like to
 expose, skip over to **Step 2**.
 
-Grafana can be launched in a [Docker container](https://grafana.com/docs/grafana/latest/installation/docker/)
-with a single command:
+Grafana can be launched in a Docker container with a single command:
 
 ```code
 $ docker run -d -p 3000:3000 grafana/grafana
@@ -33,50 +39,69 @@ $ docker run -d -p 3000:3000 grafana/grafana
 ## Step 2/3. Install and configure Teleport
 (!docs/pages/includes/permission-warning.mdx!)
 
-Download the latest version of Teleport for your platform from our
+On your Application Service host, download the latest version of Teleport for
+your platform from our
 [downloads page](https://goteleport.com/teleport/download).
 
-We will assume that you have configured DNS records for `teleport.example.com`
-and `*.teleport.example.com` to point to the Teleport Proxy Service.
+### Generate a token
 
-### Configure TLS
-Teleport uses TLS to communicate with clients, and can fetch certificates automatically via Let's Encrypt.
+A join token is required to authorize a Teleport Application Service agent to
+join the cluster. Generate a short-lived join token and save it, for example,
+in `/tmp/token` on your Teleport Application Service host:
 
-(!docs/pages/includes/acme.mdx!)
+```code
+$ tctl tokens add \
+    --type=app \
+    --app-name=grafana \
+    --app-uri=http://localhost:3000
+```
 
 ### Start Teleport
+
+On the host where you will run the Teleport Application Service, download the latest version of Teleport for your platform from our
+[downloads page](https://goteleport.com/teleport/download).
+
 Now start Teleport and point it to the application endpoint:
 
 ```code
-$ sudo teleport start \
-  --roles=proxy,auth,app \
-  --app-name=grafana \
-  --app-uri=http://localhost:3000
+$ sudo teleport app start \
+  --name=grafana \
+  --token=/tmp/token \
+  --uri=http://localhost:3000 \
+  --auth-server=https://teleport.example.com:3080
 ```
 
-Make sure to update `--app-name` and `--app-uri` accordingly if you're using
-your own web application.
+Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud cluster, use your tenant's subdomain, e.g., `mytenant.teleport.sh`. 
+
+Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
+
+The `--token` flag points to the file on the Application Service host where we stored the token that we generated earlier.
 
 ### Create a user
+
 Next, let's create a user to access the application we've just connected. Teleport has a built-in role called `access` that allows users to access cluster resources. Create a local user assigned this role:
 
 ```code
 $ tctl users add --roles=access alice
 ```
 
-The command will output a signup link. Use it to choose a password and set up a second factor. After that, it will take you to the Teleport web UI.
+The command will output a signup link. Use it to choose a password and set up a second factor. After that, it will take you to the Teleport Web UI.
 
 ## Step 3/3. Access the application
 
 There are a couple of ways to access the proxied application.
 
-Every application is assigned a public address which you use to navigate to
+Every application is assigned a public address that you can use to navigate to
 the application directly. In our sample Grafana application we have provided a public address with
 the `--app-public-addr` flag, so go to `https://grafana.teleport.example.com`
-(replace with your app public address) to access the app. If you're not logged into Teleport,
+to access the app. 
+
+Replace `grafana` with the value of the `--app-name` flag you used when starting the Teleport Application Service and `teleport.example.com` with the address of your Proxy Service.
+
+If you're not logged into Teleport,
 you will need to authenticate before the application will show.
 
-Alternatively, log into the Teleport Web Interface at `https://teleport.example.com` (replace with your proxy public address). All available applications are displayed on the Applications tab. Click on the Grafana application tile to access it.
+Alternatively, log in to the Teleport Web Interface at `https://teleport.example.com` (replace with your Proxy Service's public address). All available applications are displayed on the Applications tab. Click on the Grafana application tile to access it.
 
 ## Next steps
 
@@ -86,3 +111,4 @@ Dive deeper into the topics relevant to your Application Access use-case:
 - Learn about integrating with [JWT tokens](./guides/jwt.mdx) for auth.
 - Learn how to use Application Access with [RESTful APIs](./guides/api-access.mdx).
 - See full configuration and CLI [reference](./reference.mdx).
+- Read about how Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/).
