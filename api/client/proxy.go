@@ -30,15 +30,15 @@ import (
 )
 
 // DialProxy creates a connection to a server via an HTTP Proxy.
-func DialProxy(ctx context.Context, proxyAddr, addr string) (net.Conn, error) {
+func DialProxy(ctx context.Context, proxyAddr *url.URL, addr string) (net.Conn, error) {
 	return DialProxyWithDialer(ctx, proxyAddr, addr, &net.Dialer{})
 }
 
 // DialProxyWithDialer creates a connection to a server via an HTTP Proxy using a specified dialer.
-func DialProxyWithDialer(ctx context.Context, proxyAddr, addr string, dialer ContextDialer) (net.Conn, error) {
-	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
+func DialProxyWithDialer(ctx context.Context, proxyAddr *url.URL, addr string, dialer ContextDialer) (net.Conn, error) {
+	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr.Host)
 	if err != nil {
-		log.Warnf("Unable to dial to proxy: %v: %v.", proxyAddr, err)
+		log.Warnf("Unable to dial to proxy: %v: %v.", proxyAddr.Host, err)
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -86,23 +86,21 @@ func DialProxyWithDialer(ctx context.Context, proxyAddr, addr string, dialer Con
 }
 
 // GetProxyAddress gets the HTTP proxy address to use for a given address, if any.
-func GetProxyAddress(addr string) string {
+func GetProxyAddress(addr string) *url.URL {
 	addrURL, err := parse(addr)
 	if err != nil {
-		return ""
+		return nil
 	}
 	proxyFunc := httpproxy.FromEnvironment().ProxyFunc()
 	for _, scheme := range []string{"https", "http"} {
 		addrURL.Scheme = scheme
 		proxyURL, err := proxyFunc(addrURL)
 		if err == nil && proxyURL != nil {
-			// Trim scheme and leading slashes.
-			proxyURL.Scheme = ""
-			return proxyURL.String()[2:]
+			return proxyURL
 		}
 	}
 
-	return ""
+	return nil
 }
 
 // bufferedConn is used when part of the data on a connection has already been

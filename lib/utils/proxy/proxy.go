@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -140,8 +141,8 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 }
 
 type proxyDial struct {
-	// proxyHost is the HTTPS proxy address.
-	proxyHost string
+	// proxyAddr is the HTTPS proxy address.
+	proxyAddr *url.URL
 	// insecure is whether to skip certificate validation.
 	insecure bool
 	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
@@ -170,7 +171,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		defer cancel()
 		ctx = timeoutCtx
 	}
-	conn, err := apiclient.DialProxy(ctx, d.proxyHost, address)
+	conn, err := apiclient.DialProxy(ctx, d.proxyAddr, address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,7 +193,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 // SSH connection.
 func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	// Build a proxy connection first.
-	pconn, err := apiclient.DialProxy(context.Background(), d.proxyHost, addr)
+	pconn, err := apiclient.DialProxy(context.Background(), d.proxyAddr, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -264,7 +265,7 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 
 	// If no proxy settings are in environment return regular ssh dialer,
 	// otherwise return a proxy dialer.
-	if proxyAddr == "" {
+	if proxyAddr == nil {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{
 			insecure:          options.insecureSkipTLSVerify,
@@ -274,7 +275,7 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
 	return proxyDial{
-		proxyHost:         proxyAddr,
+		proxyAddr:         proxyAddr,
 		insecure:          options.insecureSkipTLSVerify,
 		tlsRoutingEnabled: options.tlsRoutingEnabled,
 		tlsConfig:         options.tlsConfig,
