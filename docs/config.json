@@ -279,10 +279,6 @@
           "slug": "/server-access/guides/",
           "entries": [
             {
-              "title": "Ansible",
-              "slug": "/server-access/guides/ansible/"
-            },
-            {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
             },
@@ -541,6 +537,16 @@
         {
           "title": "Getting Started",
           "slug": "/machine-id/getting-started/"
+        },
+        {
+          "title": "Guides",
+          "slug": "/machine-id/guides/",
+          "entries": [
+            {
+              "title": "Machine ID with Ansible",
+              "slug": "/machine-id/guides/ansible/"
+            }
+          ]
         }
       ]
     },
