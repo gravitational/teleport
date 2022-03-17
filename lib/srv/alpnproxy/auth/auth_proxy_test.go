@@ -2,12 +2,13 @@ package alpnproxyauth
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/stretchr/testify/require"
 )
 
 type mockAuthGetter struct {
