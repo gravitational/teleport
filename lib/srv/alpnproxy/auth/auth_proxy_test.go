@@ -44,6 +44,7 @@ func TestDialLocalAuthServerAvailableServers(t *testing.T) {
 	server, err := types.NewServer("s1", "auth", types.ServerSpecV2{Addr: socket.Addr().String()})
 	require.Nil(t, err)
 	servers := []types.Server{server}
+	// multiple invalid servers to minimize chance that we select good one first try
 	for i := 0; i < 20; i++ {
 		server, err := types.NewServer("s1", "auth", types.ServerSpecV2{Addr: "invalid2:8000"})
 		require.Nil(t, err)
