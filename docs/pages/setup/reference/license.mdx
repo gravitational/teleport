@@ -25,7 +25,7 @@ The `license_file` path can be either absolute or relative to the configured
 `data_dir`. If the license file path is not set, Teleport will look for the
 `license.pem` file in the configured `data_dir`.
 
-Only Auth Servers require the license. Proxies and Nodes that do not also have Auth role enabled do not need the license.  
+Only Auth Servers require the license. Proxies and Nodes that do not also run the Auth Service do not need the license.  
     
 Attempts to use unlicensed products will result in a error message and users will be unable to use those products. For example, if you attempt to use database access without it being included in the license, you will get a message similar to:
 ```code
