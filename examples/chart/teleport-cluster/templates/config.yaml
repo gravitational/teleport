@@ -79,7 +79,9 @@ data:
   {{- end }}
     kubernetes_service:
       enabled: true
-  {{- if not .Values.proxyListenerMode }}
+  {{- if eq .Values.proxyListenerMode "multiplex" }}
+      listen_addr: 0.0.0.0:443
+  {{- else if not .Values.proxyListenerMode }}
       listen_addr: 0.0.0.0:3027
   {{- end }}
   {{- if .Values.kubeClusterName }}
