@@ -171,10 +171,13 @@ const commands = {
   'cluster-open': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext, args: { clusterUri: string }) {
+    async run(ctx: IAppContext, args: { clusterUri: string }) {
       const { clusterUri } = args;
+      const rootCluster =
+        ctx.clustersService.findRootClusterByResource(clusterUri);
+      await ctx.workspacesService.setActiveWorkspace(rootCluster.uri);
       const documentsService =
-        ctx.workspacesService.getActiveWorkspaceDocumentService();
+        ctx.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
       const doc = documentsService.findClusterDocument(clusterUri);
       if (doc) {
         documentsService.open(doc.uri);

@@ -26,7 +26,7 @@ export function IdentityList(props: IdentityListProps) {
     <Container py="12px">
       <Flex px={'24px'} pb={2} justifyContent="space-between">
         <Box>
-          <Text bold>{props.loggedInUser.name}</Text>
+          <Text bold>{props.loggedInUser?.name}</Text>
           <Text typography="body2" color="text.secondary">
             {props.loggedInUser?.rolesList?.join(', ')}
           </Text>

@@ -25,7 +25,7 @@ const GlobalStyle = createGlobalStyle`
 
   body {
     margin: 0;
-    background-color: ${props => props.theme.colors.primary.dark};
+    background-color: ${props => props.theme.colors.primary.main};
     color: ${props => props.theme.colors.light};
     padding: 0;
   }

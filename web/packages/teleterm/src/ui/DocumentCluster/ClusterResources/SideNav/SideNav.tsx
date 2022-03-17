@@ -30,7 +30,7 @@ export default function SideNav(props: Props) {
   const $items = items.map((item, index) => {
     return (
       <ClusterNavButton
-        py={1}
+        p={1}
         my={1}
         title={item.title}
         to={item.to}

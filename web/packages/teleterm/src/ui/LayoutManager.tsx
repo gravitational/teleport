@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box, Flex } from 'design';
+import { Flex } from 'design';
 import { TabHostContainer } from 'teleterm/ui/TabHost';
 import { TopBar } from 'teleterm/ui/TopBar';
 
@@ -23,9 +23,9 @@ export function LayoutManager() {
   return (
     <Flex flexDirection="column" flex="1">
       <TopBar />
-      <Box flex="1" style={{ position: 'relative' }}>
+      <Flex flex="1" style={{ position: 'relative' }}>
         <TabHostContainer />
-      </Box>
+      </Flex>
     </Flex>
   );
 }

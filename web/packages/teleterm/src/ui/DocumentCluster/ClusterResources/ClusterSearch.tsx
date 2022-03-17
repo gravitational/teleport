@@ -43,14 +43,14 @@ const Input = styled.input(props => {
     color: theme.colors.text.primary,
     width: '100%',
     minHeight: '30px',
-    border: '1px solid',
-    borderColor: theme.colors.primary.lighter,
+    minWidth: '300px',
+    border: 'none',
     outline: 'none',
+    borderRadius: '4px',
     padding: '2px 12px',
     '&:hover, &:focus': {
       color: theme.colors.primary.contrastText,
       background: theme.colors.primary.lighter,
-      borderColor: theme.colors.secondary.dark,
       opacity: 1,
     },
 

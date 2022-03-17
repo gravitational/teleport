@@ -159,11 +159,12 @@ export class DocumentsService {
       return;
     }
 
-    const nextUri = this.getNextUri(uri);
-    const docs = this.getState().documents.filter(d => d.uri !== uri);
     this.setState(draft => {
-      draft.documents = docs;
-      draft.location = nextUri;
+      if (draft.location === uri) {
+        draft.location = this.getNextUri(uri);
+      }
+
+      draft.documents = this.getState().documents.filter(d => d.uri !== uri);
     });
   }
 

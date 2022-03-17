@@ -56,7 +56,7 @@ const StyledNavButton = styled.button(props => {
     padding: '0',
     marginRight: '24px',
     textDecoration: 'none',
-    fontWeight: '500',
+    fontWeight: props.active ? 700 : 400,
     outline: 'inherit',
     border: 'none',
     backgroundColor: 'inherit',

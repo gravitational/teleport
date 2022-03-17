@@ -19,8 +19,8 @@ import { IDisposable, Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { debounce } from 'lodash';
 import { PtyProcess } from 'teleterm/services/pty/types';
-import { colors } from 'teleport/Console/colors';
 import Logger from 'teleterm/ui/logger';
+import theme from 'teleterm/ui/ThemeProvider/theme';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 
@@ -52,7 +52,7 @@ export default class TtyTerminal {
       cursorBlink: false,
       fontFamily: this.options.fontFamily,
       theme: {
-        background: colors.bgTerminal,
+        background: theme.colors.bgTerminal,
       },
       windowOptions: {
         setWinSizeChars: true,
