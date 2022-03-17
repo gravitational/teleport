@@ -1,5 +1,4 @@
 import React from 'react';
-import { Flex } from 'design';
 import QuickInput from '../QuickInput';
 import { Connections } from './Connections';
 import { Clusters } from './Clusters';
@@ -8,27 +7,48 @@ import styled from 'styled-components';
 
 export function TopBar() {
   return (
-    <Flex
-      justifyContent="space-between"
-      p="8px 25px"
-      height="56px"
-      alignItems="center"
-    >
-      <Connections />
+    <Grid>
+      <JustifyLeft>
+        <Connections />
+      </JustifyLeft>
       <CentralContainer>
         <Clusters />
         <QuickInput />
       </CentralContainer>
-      <Identity />
-    </Flex>
+      <JustifyRight>
+        <Identity />
+      </JustifyRight>
+    </Grid>
   );
 }
+
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  width: 100%;
+  padding: 8px 25px;
+  height: 56px;
+  box-sizing: border-box;
+  align-items: center;
+`;
 
 const CentralContainer = styled.div`
   display: grid;
   column-gap: 10px;
   margin: auto 10px;
-  grid-template-columns: minmax(150px, 280px) auto;
+  grid-template-columns: minmax(150px, 280px) minmax(200px, 600px);
   align-items: center;
   height: 100%;
-`
+`;
+
+const JustifyLeft = styled.div`
+  display: flex;
+  justify-self: start;
+  align-items: center;
+`;
+
+const JustifyRight = styled.div`
+  display: flex;
+  justify-self: end;
+  align-items: center;
+`;
