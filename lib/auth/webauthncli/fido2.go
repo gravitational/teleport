@@ -375,6 +375,8 @@ func FIDO2Register(
 	}
 
 	// Can we create ES256 keys?
+	// TODO(codingllama): Consider supporting other algorithms and respecting
+	//  param order in the credential.
 	ok := false
 	for _, p := range cc.Response.Parameters {
 		if p.Type == protocol.PublicKeyCredentialType && p.Algorithm == webauthncose.AlgES256 {
