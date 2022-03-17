@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -205,6 +204,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("SSHTracker", suite.bind(testSSHTracker))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -607,7 +607,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 			// if we are looking for the output in a file, look in the file
 			// otherwise check stdout and stderr for the expected output
 			if tt.outFile {
-				bytes, err := ioutil.ReadFile(tempfile)
+				bytes, err := os.ReadFile(tempfile)
 				require.NoError(t, err)
 				require.Contains(t, string(bytes), tt.outContains)
 			} else {
@@ -787,6 +787,38 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	// attempting to run a command by uuid should succeed.
 	_, err = runCommand(t, teleportSvr, []string{"echo", "Hello there!"}, ClientConfig{Login: suite.me.Username, Cluster: Site, Host: uuid1}, 1)
 	require.NoError(t, err)
+}
+
+// testSSHTracker verifies that an SSH session creates a tracker for sessions.
+func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+	teleport := suite.newTeleport(t, nil, true)
+	defer teleport.StopAll()
+
+	site := teleport.GetSiteAPI(Site)
+	require.NotNil(t, site)
+
+	personA := NewTerminal(250)
+	cl, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+	cl.Stdout = personA
+	cl.Stdin = personA
+	personA.Type("\aecho hi\n\r")
+	go cl.SSH(ctx, []string{}, false)
+
+	condition := func() bool {
+		// verify that the tracker was created
+		trackers, err := site.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		return len(trackers) == 1
+	}
+
+	// wait for the tracker to be created
+	require.Eventually(t, condition, time.Minute, time.Millisecond*100)
 }
 
 // testInteractive covers SSH into shell and joining the same session from another client
@@ -1510,7 +1542,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 	// The known_hosts file should have two certificates, the way bytes.Split
 	// works that means the output will be 3 (2 certs + 1 empty).
-	buffer, err := ioutil.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
+	buffer, err := os.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
 	require.NoError(t, err)
 	parts := bytes.Split(buffer, []byte("\n"))
 	require.Len(t, parts, 3)
@@ -1521,7 +1553,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		if info.IsDir() {
 			return nil
 		}
-		buffer, err = ioutil.ReadFile(path)
+		buffer, err = os.ReadFile(path)
 		require.NoError(t, err)
 		ok := roots.AppendCertsFromPEM(buffer)
 		require.True(t, ok)
@@ -3220,7 +3252,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		controlDir, err := ioutil.TempDir("", "teleport-")
+		controlDir, err := os.MkdirTemp("", "teleport-")
 		require.NoError(t, err)
 		defer os.RemoveAll(controlDir)
 		controlPath := filepath.Join(controlDir, "control-path")

@@ -97,7 +97,7 @@ func Run(args []string) error {
 	).StringVar(&cf.BotUser)
 	initCmd.Flag("owner", "Name of the user:group that will own the "+
 		"destination. If ACLs are in use, must be different from the reader "+
-		"user and defaults to nobody:nobody. Otherwise, assumes the current "+
+		"user and defaults to the bot user. Otherwise, assumes the current "+
 		"user.",
 	).StringVar(&cf.Owner)
 

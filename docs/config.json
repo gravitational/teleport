@@ -279,10 +279,6 @@
           "slug": "/server-access/guides/",
           "entries": [
             {
-              "title": "Ansible",
-              "slug": "/server-access/guides/ansible/"
-            },
-            {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
             },
@@ -451,6 +447,10 @@
               "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
             {
+              "title": "Self-Hosted Redis",
+              "slug": "/database-access/guides/redis/"
+            },
+            {
               "title": "SQL Server (Preview)",
               "slug": "/database-access/guides/sql-server-ad/"
             },
@@ -517,8 +517,34 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Configuration",
-          "slug": "/desktop-access/reference/configuration/"
+          "title": "Access Controls",
+          "slug": "/desktop-access/rbac/"
+        },
+        {
+          "title": "Reference",
+          "slug": "/desktop-access/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/desktop-access/reference/configuration/"
+            },
+            {
+              "title": "Audit Events",
+              "slug": "/desktop-access/reference/audit/"
+            },
+            {
+              "title": "Clipboard Sharing",
+              "slug": "/desktop-access/reference/clipboard/"
+            },
+            {
+              "title": "Session Recording",
+              "slug": "/desktop-access/reference/sessions/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/desktop-access/reference/cli/"
+            }
+          ]
         },
         {
           "title": "Troubleshooting",
@@ -537,6 +563,16 @@
         {
           "title": "Getting Started",
           "slug": "/machine-id/getting-started/"
+        },
+        {
+          "title": "Guides",
+          "slug": "/machine-id/guides/",
+          "entries": [
+            {
+              "title": "Machine ID with Ansible",
+              "slug": "/machine-id/guides/ansible/"
+            }
+          ]
         }
       ]
     },
