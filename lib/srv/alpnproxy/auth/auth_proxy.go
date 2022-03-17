@@ -116,7 +116,7 @@ func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context) (net.C
 	}
 	var errors []string
 
-	//select random server from list, try others if it's unavailable
+	// iterate over the addresses in random order
 	for len(authServers) > 0 {
 		authServerIndex := rand.Intn(len(authServers))
 		var conn net.Conn
