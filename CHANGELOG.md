@@ -1,5 +1,16 @@
 # Changelog
 
+## 9.0.1
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with Ctrl-C freezing sessions. [#11188](https://github.com/gravitational/teleport/pull/11188)
+* Improved handling of unknown audit events. [#11064](https://github.com/gravitational/teleport/pull/11064)
+* Improved calculation of public addresses for dynamically registered apps. [#11139](https://github.com/gravitational/teleport/pull/11139)
+* Fixed `tsh aws ecr` returning 500 errors. [#11108](https://github.com/gravitational/teleport/pull/11108)
+* Fixed issue with deleting certain users. [#11131](https://github.com/gravitational/teleport/pull/11131)
+* Fixed issue with Machine ID not detecting token in file config. [#11206](https://github.com/gravitational/teleport/pull/11206)
+
 ## 9.0.0
 
 Teleport 9.0 is a major release that brings:
