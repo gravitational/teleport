@@ -1350,21 +1350,21 @@ Kubernetes PriorityClass to set for pod.
 
 | Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
-| `integer` | `1` | ✅  |
+| `integer` | `1` | ✅ |
 
 [Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
 
 Kubernetes timeouts for the liveness and readiness probes.
 
 <Tabs>
-    <TabItem label="values.yaml">
-    ```yaml
-    probeTimeoutSeconds: 5
-    ```
-    </TabItem>
-    <TabItem label="--set">
-    ```code
-    $ --set probeTimeoutSeconds=5
-    ```
-    </TabItem>
-  </Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  probeTimeoutSeconds: 5
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set probeTimeoutSeconds=5
+  ```
+  </TabItem>
+</Tabs>
