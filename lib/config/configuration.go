@@ -139,6 +139,14 @@ type CommandLineFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
+	// DatabaseADKeytabFile is the path to Kerberos keytab file.
+	DatabaseADKeytabFile string
+	// DatabaseADKrb5File is the path to krb5.conf file.
+	DatabaseADKrb5File string
+	// DatabaseADDomain is the Active Directory domain for authentication.
+	DatabaseADDomain string
+	// DatabaseADSPN is the database Service Principal Name.
+	DatabaseADSPN string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -539,6 +547,9 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if fc.Auth.MessageOfTheDay != "" {
 		cfg.Auth.Preference.SetMessageOfTheDay(fc.Auth.MessageOfTheDay)
 	}
 
@@ -1075,6 +1086,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			GCP: service.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
+			},
+			AD: service.DatabaseAD{
+				KeytabFile: database.AD.KeytabFile,
+				Krb5File:   database.AD.Krb5File,
+				Domain:     database.AD.Domain,
+				SPN:        database.AD.SPN,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
@@ -1661,6 +1678,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			GCP: service.DatabaseGCP{
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
+			},
+			AD: service.DatabaseAD{
+				KeytabFile: clf.DatabaseADKeytabFile,
+				Krb5File:   clf.DatabaseADKrb5File,
+				Domain:     clf.DatabaseADDomain,
+				SPN:        clf.DatabaseADSPN,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {

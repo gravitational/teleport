@@ -90,14 +90,21 @@ type ResourceWithLabels interface {
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 
-// Find returns resource with the specified name or nil.
-func (r ResourcesWithLabels) Find(name string) ResourceWithLabels {
-	for _, resource := range r {
-		if resource.GetName() == name {
-			return resource
-		}
+// ResourcesWithLabelsMap is like ResourcesWithLabels, but a map from resource name to its value.
+type ResourcesWithLabelsMap map[string]ResourceWithLabels
+
+// ToMap returns these databases as a map keyed by database name.
+func (r ResourcesWithLabels) ToMap() ResourcesWithLabelsMap {
+	rm := make(ResourcesWithLabelsMap, len(r))
+
+	// there may be duplicate resources in the input list.
+	// by iterating from end to start, the first resource of given name wins.
+	for i := len(r) - 1; i >= 0; i-- {
+		resource := r[i]
+		rm[resource.GetName()] = resource
 	}
-	return nil
+
+	return rm
 }
 
 // Len returns the slice length.
@@ -108,6 +115,71 @@ func (r ResourcesWithLabels) Less(i, j int) bool { return r[i].GetName() < r[j].
 
 // Swap swaps two resources.
 func (r ResourcesWithLabels) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+
+// AsAppServers converts each resource into type AppServer.
+func (r ResourcesWithLabels) AsAppServers() ([]AppServer, error) {
+	apps := make([]AppServer, 0, len(r))
+	for _, resource := range r {
+		app, ok := resource.(AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.AppServer, got: %T", resource)
+		}
+		apps = append(apps, app)
+	}
+	return apps, nil
+}
+
+// AsServers converts each resource into type Server.
+func (r ResourcesWithLabels) AsServers() ([]Server, error) {
+	servers := make([]Server, 0, len(r))
+	for _, resource := range r {
+		server, ok := resource.(Server)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
+		}
+		servers = append(servers, server)
+	}
+	return servers, nil
+}
+
+// AsDatabaseServers converts each resource into type DatabaseServer.
+func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
+	dbs := make([]DatabaseServer, 0, len(r))
+	for _, resource := range r {
+		db, ok := resource.(DatabaseServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.DatabaseServer, got: %T", resource)
+		}
+		dbs = append(dbs, db)
+	}
+	return dbs, nil
+}
+
+// AsWindowsDesktops converts each resource into type WindowsDesktop.
+func (r ResourcesWithLabels) AsWindowsDesktops() ([]WindowsDesktop, error) {
+	desktops := make([]WindowsDesktop, 0, len(r))
+	for _, resource := range r {
+		desktop, ok := resource.(WindowsDesktop)
+		if !ok {
+			return nil, trace.BadParameter("expected types.WindowsDesktop, got: %T", resource)
+		}
+		desktops = append(desktops, desktop)
+	}
+	return desktops, nil
+}
+
+// AsKubeClusters converts each resource into type KubeCluster.
+func (r ResourcesWithLabels) AsKubeClusters() ([]KubeCluster, error) {
+	clusters := make([]KubeCluster, 0, len(r))
+	for _, resource := range r {
+		cluster, ok := resource.(KubeCluster)
+		if !ok {
+			return nil, trace.BadParameter("expected types.KubeCluster, got: %T", resource)
+		}
+		clusters = append(clusters, cluster)
+	}
+	return clusters, nil
+}
 
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
@@ -313,4 +385,21 @@ Outer:
 	}
 
 	return true
+}
+
+func stringCompare(a string, b string, isDesc bool) bool {
+	if isDesc {
+		return a > b
+	}
+	return a < b
+}
+
+// ListResourcesResponse describes a non proto response to ListResources.
+type ListResourcesResponse struct {
+	// Resources is a list of resource.
+	Resources []ResourceWithLabels
+	// NextKey is the next key to use as a starting point.
+	NextKey string
+	// TotalCount is the total number of resources available as a whole.
+	TotalCount int
 }

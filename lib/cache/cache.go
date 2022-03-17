@@ -201,9 +201,19 @@ func ForOldRemoteProxy(cfg Config) Config {
 
 // ForNode sets up watch configuration for node
 func ForNode(cfg Config) Config {
+	var caFilter map[string]string
+	if cfg.ClusterConfig != nil {
+		clusterName, err := cfg.ClusterConfig.GetClusterName()
+		if err == nil {
+			caFilter = types.CertAuthorityFilter{
+				types.HostCA: clusterName.GetClusterName(),
+				types.UserCA: types.Wildcard,
+			}.IntoMap()
+		}
+	}
 	cfg.target = "node"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, Filter: caFilter},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -1190,7 +1200,7 @@ var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1199,8 +1209,10 @@ func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts
 
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), getCertAuthorityCacheKey{id}, func() (interface{}, error) {
-			ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			ca, err := rg.trust.GetCertAuthority(c.ctx, id, loadSigningKeys, opts...)
 			ta(ca)
 			return ca, err
 		})
@@ -1212,13 +1224,13 @@ func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts
 		return cachedCA.Clone(), nil
 	}
 
-	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
+	ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if ca, err := c.Config.Trust.GetCertAuthority(id, loadSigningKeys, opts...); err == nil {
+		if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...); err == nil {
 			return ca, nil
 		}
 	}
@@ -1233,7 +1245,7 @@ var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1241,8 +1253,10 @@ func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bo
 	defer rg.Release()
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
-			cas, err := rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			cas, err := rg.trust.GetCertAuthorities(c.ctx, caType, loadSigningKeys, opts...)
 			ta(cas)
 			return cas, trace.Wrap(err)
 		})
@@ -1257,7 +1271,7 @@ func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bo
 		}
 		return cas, nil
 	}
-	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
+	return rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -1495,6 +1509,8 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 }
 
 // ListNodes is a part of auth.Cache implementation
+//
+// DELETE IN 10.0.0 in favor of ListResources.
 func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
 	rg, err := c.read()
 	if err != nil {
@@ -1515,6 +1531,8 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 // of TTL-based caching rather than caching individual page calls (very messy).
 // It relies on caching the result of the `GetNodes` endpoint and then "faking"
 // pagination.
+//
+// DELETE IN 10.0.0 in favor of ListResources.
 func (c *Cache) listNodesFromTTLCache(ctx context.Context, rg readGuard, namespace, startKey string, labels map[string]string, limit int) ([]types.Server, string, error) {
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
@@ -1898,49 +1916,89 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	return rg.presence.GetWindowsDesktopServices(ctx)
 }
 
-// GetWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
+func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktops(ctx)
+	return rg.presence.GetWindowsDesktopService(ctx, name)
 }
 
-// GetWindowsDesktop returns a registered Windows desktop host.
-func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+// GetWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktop(ctx, name)
+	return rg.windowsDesktops.GetWindowsDesktops(ctx, filter)
+}
+
+// ListWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.windowsDesktops.ListWindowsDesktops(ctx, req)
 }
 
 // ListResources is a part of auth.Cache implementation
-func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error) {
+func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	rg, err := c.read()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	// Cache is not healthy, but right now, only `Node` kind has an
 	// implementation that falls back to TTL cache.
 	if !rg.IsCacheRead() && req.ResourceType == types.KindNode {
-		nodes, nextKey, err := c.listNodesFromTTLCache(ctx, rg, req.Namespace, req.StartKey, req.Labels, int(req.Limit))
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
-		resources := make([]types.ResourceWithLabels, len(nodes))
-		for i, node := range nodes {
-			resources[i] = node
-		}
-
-		return resources, nextKey, nil
+		return c.listResourcesFromTTLCache(ctx, rg, req)
 	}
 
 	return rg.presence.ListResources(ctx, req)
+}
+
+// listResourcesFromTTLCache used when the cache is not healthy. It takes advantage
+// of TTL-based caching rather than caching individual page calls (very messy).
+// It relies on caching the result of the `GetXXXs` endpoint and then "faking"
+// pagination.
+//
+// Since TTLCaching falls back to retrieving all resources upfront, we also support
+// sorting.
+//
+// NOTE: currently only types.KindNode supports TTL caching.
+func (c *Cache) listResourcesFromTTLCache(ctx context.Context, rg readGuard, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	var resources []types.ResourceWithLabels
+	switch req.ResourceType {
+	case types.KindNode:
+		// Retrieve all nodes.
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Nodes returned from the TTL caching layer
+		// must be cloned to avoid concurrent modification.
+		clonedNodes := make([]types.Server, 0, len(cachedNodes))
+		for _, node := range cachedNodes {
+			clonedNodes = append(clonedNodes, node.DeepCopy())
+		}
+
+		servers := types.Servers(clonedNodes)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = servers.AsResources()
+
+	default:
+		return nil, trace.NotImplemented("resource type %q does not support TTL caching", req.ResourceType)
+	}
+
+	return local.FakePaginate(resources, req)
 }

@@ -95,7 +95,6 @@ func (cfg *backendConfig) CheckAndSetDefaults() error {
 type Backend struct {
 	*log.Entry
 	backendConfig
-	backend.NoMigrations
 	// svc is the primary Firestore client
 	svc *firestore.Client
 	// clock is the

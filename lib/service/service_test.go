@@ -347,6 +347,8 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"proxy-kube-public-2",
 			},
 			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
 				"*.proxy-public-1",
 				"*.proxy-public-2",
 				"*.proxy-kube-public-1",
@@ -360,7 +362,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"auth-public-1",
 				"auth-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleAdmin,
@@ -369,7 +374,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"auth-public-1",
 				"auth-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleNode,
@@ -393,7 +401,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"kube-public-1",
 				"kube-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleApp,
@@ -401,7 +412,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"global-hostname",
 				"global-uuid",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.SystemRole("unknown"),
@@ -492,6 +506,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-mysql",
 				"teleport-mongodb",
 				"teleport-redis",
+				"teleport-sqlserver",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",

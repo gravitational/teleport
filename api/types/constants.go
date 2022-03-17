@@ -297,9 +297,13 @@ const (
 )
 
 const (
+	// TeleportNamespace is used as the namespace prefix for any
+	// labels defined by teleport
+	TeleportNamespace = "teleport.dev"
+
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
-	OriginLabel = "teleport.dev/origin"
+	OriginLabel = TeleportNamespace + "/origin"
 
 	// OriginConfigFile is an origin value indicating that the resource was
 	// constructed as a default value.
@@ -365,4 +369,32 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+)
+
+const (
+	// ResourceMetadataName refers to a resource metadata field named "name".
+	ResourceMetadataName = "name"
+
+	// ResourceSpecDescription refers to a resource spec field named "description".
+	ResourceSpecDescription = "description"
+
+	// ResourceSpecHostname refers to a resource spec field named "hostname".
+	ResourceSpecHostname = "hostname"
+
+	// ResourceSpecAddr refers to a resource spec field named "address".
+	ResourceSpecAddr = "address"
+
+	// ResourceSpecPublicAddr refers to a resource field named "address".
+	ResourceSpecPublicAddr = "publicAddress"
+
+	// ResourceSpecType refers to a resource field named "type".
+	ResourceSpecType = "type"
+)
+
+const (
+	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
+	BotLabel = "teleport.internal/bot"
+
+	// BotGenerationLabel is a label used to record the certificate generation counter.
+	BotGenerationLabel = "teleport.internal/bot-generation"
 )
