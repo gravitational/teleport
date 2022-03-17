@@ -22,7 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -254,7 +254,7 @@ func parseSAMLInResponseTo(response string) (string, error) {
 	err := doc.ReadFromBytes(raw)
 	if err != nil {
 		// Attempt to inflate the response in case it happens to be compressed (as with one case at saml.oktadev.com)
-		buf, err := ioutil.ReadAll(flate.NewReader(bytes.NewReader(raw)))
+		buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(raw)))
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
