@@ -178,9 +178,9 @@ export class QuickTshSshPicker implements QuickInputPicker {
 
     // Show autocomplete only after at least one space after `tsh ssh`.
     if (rawInput !== '' && input === '') {
+      // Returning unknown command for the same reasons as outlined at the end of this function.
       const command = {
-        kind: 'command.tsh-ssh' as const,
-        loginHost: '',
+        kind: 'command.unknown' as const,
       };
       return {
         ...this.sshLoginPicker.getAutocompleteResult('', startIndex),
@@ -219,9 +219,21 @@ export class QuickTshSshPicker implements QuickInputPicker {
       };
     }
 
+    // The code gets to this point if either `input` is empty or it has additional arguments besides
+    // the first positional argument.
+    //
+    // In case of the input being empty, we know that at this point we don't have enough arguments
+    // to successfully launch tsh ssh. But we also don't have code to handle this error case. So
+    // instead we return an unknown command, so that if the user presses enter at this point, we'll
+    // launch `tsh ssh` in a local shell and it'll show the appropriate error.
+    //
+    // In case of additional arguments, the command bar doesn't know how to handle them. This would
+    // require adding a real parser which we're going to do soon. In the meantime, we just run the
+    // command in a local shell to a similar effect (though the host to which someone tries to
+    // connect to won't show up in the connection tracker and so on).
     return {
       kind: 'autocomplete.no-match',
-      command: { kind: 'command.tsh-ssh', loginHost: '' },
+      command: { kind: 'command.unknown' },
     };
   }
 }

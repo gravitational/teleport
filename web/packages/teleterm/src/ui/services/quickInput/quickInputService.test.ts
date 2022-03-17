@@ -253,10 +253,7 @@ test("the SSH login autocomplete isn't shown if there's no space after `tsh ssh`
 
   const autocompleteResult = quickInputService.getAutocompleteResult('tsh ssh');
   expect(autocompleteResult.kind).toBe('autocomplete.no-match');
-  expect(autocompleteResult.command).toEqual({
-    kind: 'command.tsh-ssh',
-    loginHost: '',
-  });
+  expect(autocompleteResult.command).toEqual({ kind: 'command.unknown' });
 });
 
 test("the SSH login autocomplete is shown only if there's at least one space after `tsh ssh`", () => {
@@ -294,10 +291,7 @@ test("the SSH login autocomplete is shown only if there's at least one space aft
     value: '',
     startIndex: 8,
   });
-  expect(autocompleteResult.command).toEqual({
-    kind: 'command.tsh-ssh',
-    loginHost: '',
-  });
+  expect(autocompleteResult.command).toEqual({ kind: 'command.unknown' });
 });
 
 test('getAutocompleteResult returns correct result for an SSH host suggestion right after user@', () => {
