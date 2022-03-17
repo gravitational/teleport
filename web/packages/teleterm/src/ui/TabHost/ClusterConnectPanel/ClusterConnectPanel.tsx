@@ -21,7 +21,7 @@ export function ClusterConnectPanel() {
     >
       <Image width="120px" src={clusterPng} mb={3} />
       <Text typography="h3" bold mb={2}>
-        Connect with a Cluster
+        Connect to a Cluster
       </Text>
       <Text color="text.secondary" mb={3} textAlign="center">
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
