@@ -60,6 +60,7 @@ export class QuickCommandPicker implements QuickInputPicker {
       return {
         kind: 'autocomplete.partial-match',
         targetToken,
+        command: { kind: 'command.unknown' },
         suggestions:
           this.mapAutocompleteCommandsToSuggestions(autocompleteCommands),
       };
@@ -79,13 +80,17 @@ export class QuickCommandPicker implements QuickInputPicker {
       });
 
     if (matchingAutocompleteCommands.length === 0) {
-      return { kind: 'autocomplete.no-match' };
+      return {
+        kind: 'autocomplete.no-match',
+        command: { kind: 'command.unknown' },
+      };
     }
 
     if (matchingAutocompleteCommands.length > 1) {
       return {
         kind: 'autocomplete.partial-match',
         targetToken,
+        command: { kind: 'command.unknown' },
         suggestions: this.mapAutocompleteCommandsToSuggestions(
           matchingAutocompleteCommands
         ),
@@ -119,6 +124,7 @@ export class QuickCommandPicker implements QuickInputPicker {
     return {
       kind: 'autocomplete.partial-match',
       targetToken,
+      command: { kind: 'command.unknown' },
       suggestions: this.mapAutocompleteCommandsToSuggestions(
         matchingAutocompleteCommands
       ),
@@ -186,31 +192,50 @@ export class QuickTshSshPicker implements QuickInputPicker {
 
     // Show autocomplete only after at least one space after `tsh ssh`.
     if (rawInput !== '' && input === '') {
-      return this.sshLoginPicker.getAutocompleteResult('', startIndex);
+      const command = {
+        kind: 'command.tsh-ssh' as const,
+        loginHost: '',
+      };
+      return {
+        ...this.sshLoginPicker.getAutocompleteResult('', startIndex),
+        command,
+      };
     }
 
     const hostMatch = input.match(this.totalSshLoginAndHostRegex);
 
     if (hostMatch) {
+      const command = {
+        kind: 'command.tsh-ssh' as const,
+        loginHost: hostMatch[0],
+      };
       const hostStartIndex = startIndex + hostMatch.groups.loginPart.length;
 
-      return this.serverPicker.getAutocompleteResult(
-        hostMatch.groups.hostPart,
-        hostStartIndex
-      );
+      return {
+        ...this.serverPicker.getAutocompleteResult(
+          hostMatch.groups.hostPart,
+          hostStartIndex
+        ),
+        command,
+      };
     }
 
     const loginMatch = input.match(this.totalSshLoginRegex);
 
     if (loginMatch) {
-      return this.sshLoginPicker.getAutocompleteResult(
-        loginMatch[0],
-        startIndex
-      );
+      const command = {
+        kind: 'command.tsh-ssh' as const,
+        loginHost: loginMatch[0],
+      };
+      return {
+        ...this.sshLoginPicker.getAutocompleteResult(loginMatch[0], startIndex),
+        command,
+      };
     }
 
     return {
       kind: 'autocomplete.no-match',
+      command: { kind: 'command.tsh-ssh', loginHost: '' },
     };
   }
 }
@@ -231,6 +256,7 @@ export class QuickTshProxyDbPicker implements QuickInputPicker {
   getAutocompleteResult(input: string): AutocompleteResult {
     return {
       kind: 'autocomplete.no-match',
+      command: { kind: 'command.unknown' },
     };
   }
 }
@@ -273,6 +299,7 @@ export class QuickSshLoginPicker implements QuickInputPicker {
     return {
       kind: 'autocomplete.partial-match',
       suggestions,
+      command: { kind: 'command.unknown' },
       targetToken: {
         startIndex,
         value: input,
@@ -309,6 +336,7 @@ export class QuickServerPicker implements QuickInputPicker {
     return {
       kind: 'autocomplete.partial-match',
       suggestions,
+      command: { kind: 'command.unknown' },
       targetToken: {
         startIndex,
         value: input,

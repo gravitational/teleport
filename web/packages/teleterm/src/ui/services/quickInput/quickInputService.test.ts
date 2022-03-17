@@ -53,7 +53,7 @@ function mockCommandLauncherAutocompleteCommands(
     });
 }
 
-test('getAutocompleteResult returns correct target token for a command suggestion with empty input', () => {
+test('getAutocompleteResult returns correct result for a command suggestion with empty input', () => {
   mockCommandLauncherAutocompleteCommands(
     CommandLauncherMock,
     onlyTshSshCommand
@@ -70,9 +70,10 @@ test('getAutocompleteResult returns correct target token for a command suggestio
     value: '',
     startIndex: 0,
   });
+  expect(autocompleteResult.command).toEqual({ kind: 'command.unknown' });
 });
 
-test('getAutocompleteResult returns correct target token for a command suggestion', () => {
+test('getAutocompleteResult returns correct result for a command suggestion', () => {
   mockCommandLauncherAutocompleteCommands(
     CommandLauncherMock,
     onlyTshSshCommand
@@ -89,9 +90,10 @@ test('getAutocompleteResult returns correct target token for a command suggestio
     value: 'ts',
     startIndex: 0,
   });
+  expect(autocompleteResult.command).toEqual({ kind: 'command.unknown' });
 });
 
-test('getAutocompleteResult returns correct target token for an SSH login suggestion', () => {
+test('getAutocompleteResult returns correct result for an SSH login suggestion', () => {
   mockCommandLauncherAutocompleteCommands(
     CommandLauncherMock,
     onlyTshSshCommand
@@ -110,6 +112,7 @@ test('getAutocompleteResult returns correct target token for an SSH login sugges
           },
         ],
         targetToken: { startIndex, value: input },
+        command: { kind: 'command.unknown' },
       };
     });
   const quickInputService = new QuickInputService(
@@ -125,9 +128,13 @@ test('getAutocompleteResult returns correct target token for an SSH login sugges
     value: 'roo',
     startIndex: 8,
   });
+  expect(autocompleteResult.command).toEqual({
+    kind: 'command.tsh-ssh',
+    loginHost: 'roo',
+  });
 });
 
-test('getAutocompleteResult returns correct target token for an SSH login suggestion with spaces between arguments', () => {
+test('getAutocompleteResult returns correct result for an SSH login suggestion with spaces between arguments', () => {
   mockCommandLauncherAutocompleteCommands(
     CommandLauncherMock,
     onlyTshSshCommand
@@ -146,6 +153,7 @@ test('getAutocompleteResult returns correct target token for an SSH login sugges
           },
         ],
         targetToken: { startIndex, value: input },
+        command: { kind: 'command.unknown' },
       };
     });
   const quickInputService = new QuickInputService(
@@ -160,6 +168,10 @@ test('getAutocompleteResult returns correct target token for an SSH login sugges
   expect((autocompleteResult as AutocompletePartialMatch).targetToken).toEqual({
     value: 'bar',
     startIndex: 14,
+  });
+  expect(autocompleteResult.command).toEqual({
+    kind: 'command.tsh-ssh',
+    loginHost: 'bar',
   });
 });
 
@@ -185,6 +197,7 @@ test("getAutocompleteResult doesn't return any suggestions if the only suggestio
           startIndex: 0,
           value: 'foobar',
         },
+        command: { kind: 'command.unknown' },
       };
     });
   const quickInputService = new QuickInputService(
@@ -195,6 +208,7 @@ test("getAutocompleteResult doesn't return any suggestions if the only suggestio
 
   const autocompleteResult = quickInputService.getAutocompleteResult('foobar');
   expect(autocompleteResult.kind).toBe('autocomplete.no-match');
+  expect(autocompleteResult.command).toEqual({ kind: 'command.unknown' });
 });
 
 test('getAutocompleteResult returns no match if any of the pickers returns partial match with empty array', () => {
@@ -212,6 +226,7 @@ test('getAutocompleteResult returns no match if any of the pickers returns parti
           startIndex: 0,
           value: '',
         },
+        command: { kind: 'command.unknown' },
       };
     });
   const quickInputService = new QuickInputService(
@@ -222,6 +237,7 @@ test('getAutocompleteResult returns no match if any of the pickers returns parti
 
   const autocompleteResult = quickInputService.getAutocompleteResult('');
   expect(autocompleteResult.kind).toBe('autocomplete.no-match');
+  expect(autocompleteResult.command).toEqual({ kind: 'command.unknown' });
 });
 
 test("the SSH login autocomplete isn't shown if there's no space after `tsh ssh`", () => {
@@ -237,6 +253,10 @@ test("the SSH login autocomplete isn't shown if there's no space after `tsh ssh`
 
   const autocompleteResult = quickInputService.getAutocompleteResult('tsh ssh');
   expect(autocompleteResult.kind).toBe('autocomplete.no-match');
+  expect(autocompleteResult.command).toEqual({
+    kind: 'command.tsh-ssh',
+    loginHost: '',
+  });
 });
 
 test("the SSH login autocomplete is shown only if there's at least one space after `tsh ssh`", () => {
@@ -258,6 +278,7 @@ test("the SSH login autocomplete is shown only if there's at least one space aft
           },
         ],
         targetToken: { startIndex, value: input },
+        command: { kind: 'command.unknown' },
       };
     });
   const quickInputService = new QuickInputService(
@@ -273,9 +294,13 @@ test("the SSH login autocomplete is shown only if there's at least one space aft
     value: '',
     startIndex: 8,
   });
+  expect(autocompleteResult.command).toEqual({
+    kind: 'command.tsh-ssh',
+    loginHost: '',
+  });
 });
 
-test('getAutocompleteResult returns correct target token for an SSH host suggestion right after user@', () => {
+test('getAutocompleteResult returns correct result for an SSH host suggestion right after user@', () => {
   mockCommandLauncherAutocompleteCommands(
     CommandLauncherMock,
     onlyTshSshCommand
@@ -307,9 +332,13 @@ test('getAutocompleteResult returns correct target token for an SSH host suggest
     value: '',
     startIndex: 13,
   });
+  expect(autocompleteResult.command).toEqual({
+    kind: 'command.tsh-ssh',
+    loginHost: 'user@',
+  });
 });
 
-test('getAutocompleteResult returns correct target token for a partial match on an SSH host suggestion', () => {
+test('getAutocompleteResult returns correct result for a partial match on an SSH host suggestion', () => {
   mockCommandLauncherAutocompleteCommands(
     CommandLauncherMock,
     onlyTshSshCommand
@@ -341,6 +370,51 @@ test('getAutocompleteResult returns correct target token for a partial match on 
   expect((autocompleteResult as AutocompletePartialMatch).targetToken).toEqual({
     value: 'baz',
     startIndex: 18,
+  });
+  expect(autocompleteResult.command).toEqual({
+    kind: 'command.tsh-ssh',
+    loginHost: 'foo@baz',
+  });
+});
+
+test("getAutocompleteResult returns the first argument as loginHost when there's no @ sign", () => {
+  mockCommandLauncherAutocompleteCommands(
+    CommandLauncherMock,
+    onlyTshSshCommand
+  );
+  jest
+    .spyOn(pickers.QuickSshLoginPicker.prototype, 'getAutocompleteResult')
+    .mockImplementation((input: string, startIndex: number) => {
+      return {
+        kind: 'autocomplete.partial-match',
+        suggestions: [
+          {
+            kind: 'suggestion.ssh-login',
+            token: 'barfoo',
+            appendToToken: '@',
+            data: 'barfoo',
+          },
+        ],
+        targetToken: { startIndex, value: input },
+        command: { kind: 'command.unknown' },
+      };
+    });
+  const quickInputService = new QuickInputService(
+    new CommandLauncherMock(undefined),
+    new ClustersServiceMock(undefined),
+    new WorkspacesServiceMock(undefined, undefined, undefined)
+  );
+
+  const autocompleteResult =
+    quickInputService.getAutocompleteResult('tsh ssh bar');
+  expect(autocompleteResult.kind).toBe('autocomplete.partial-match');
+  expect((autocompleteResult as AutocompletePartialMatch).targetToken).toEqual({
+    value: 'bar',
+    startIndex: 8,
+  });
+  expect(autocompleteResult.command).toEqual({
+    kind: 'command.tsh-ssh',
+    loginHost: 'bar',
   });
 });
 

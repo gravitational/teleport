@@ -112,6 +112,7 @@ export class QuickInputService extends Store<State> {
       if (isEmpty || hasSingleCompleteMatch) {
         return {
           kind: 'autocomplete.no-match',
+          command: autocompleteResult.command,
         };
       }
     }
