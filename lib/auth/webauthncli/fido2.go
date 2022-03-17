@@ -150,91 +150,92 @@ func FIDO2Login(
 	var username string
 	var usedAppID bool
 
-	skipAdditionalPrompt := passwordless
-	if err := runOnFIDO2Devices(
-		ctx, prompt, skipAdditionalPrompt,
-		/* filter */ func(dev FIDODevice, info *deviceInfo) (bool, error) {
-			switch {
-			case uv && !info.uvCapable():
-				return false, nil
-			case passwordless && !info.rk:
-				return false, nil
-			case len(allowedCreds) == 0: // Nothing else to check
-				return true, nil
-			}
+	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
+		switch {
+		case uv && !info.uvCapable():
+			return false, nil
+		case passwordless && !info.rk:
+			return false, nil
+		case len(allowedCreds) == 0: // Nothing else to check
+			return true, nil
+		}
 
-			// Does the device have a suitable credential?
-			const pin = "" // not required to filter
-			if _, err := dev.Assertion(rpID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
-				UP: libfido2.False,
-			}); err == nil {
-				return true, nil
-			}
+		// Does the device have a suitable credential?
+		const pin = "" // not required to filter
+		if _, err := dev.Assertion(rpID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
+			UP: libfido2.False,
+		}); err == nil {
+			return true, nil
+		}
 
-			// Try again with the App ID, if present.
-			if appID == "" {
-				return false, nil
-			}
-			_, err = dev.Assertion(appID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
-				UP: libfido2.False,
-			})
-			return err == nil, nil
-		},
-		/* deviceCallback */ func(dev FIDODevice, info *deviceInfo, pin string) error {
-			var actualRPID string
-			var cID []byte
-			var uID []byte
-			var uName string
-			if passwordless {
-				cred, err := getPasswordlessCredentials(dev, pin, rpID, user)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				actualRPID = rpID
-				cID = cred.ID
-				uID = cred.User.ID
-				uName = cred.User.Name
-			} else {
-				// TODO(codingllama): Ideally we'd rely on fido_assert_id_ptr/_len.
-				var err error
-				actualRPID, cID, err = getMFACredentials(dev, pin, rpID, appID, allowedCreds)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			}
+		// Try again with the App ID, if present.
+		if appID == "" {
+			return false, nil
+		}
+		_, err = dev.Assertion(appID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
+			UP: libfido2.False,
+		})
+		return err == nil, nil
+	}
 
-			if passwordless {
-				// Ask for another touch before the assertion, we used the first touch
-				// in the Credentials() call.
-				if err := prompt.PromptAdditionalTouch(); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-
-			opts := &libfido2.AssertionOpts{
-				UP: libfido2.True,
-			}
-			if uv {
-				opts.UV = libfido2.True
-			}
-			resp, err := dev.Assertion(actualRPID, ccdHash[:], [][]byte{cID}, pin, opts)
+	deviceCallback := func(dev FIDODevice, info *deviceInfo, pin string) error {
+		var actualRPID string
+		var cID []byte
+		var uID []byte
+		var uName string
+		if passwordless {
+			cred, err := getPasswordlessCredentials(dev, pin, rpID, user)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-
-			// Use the first successful assertion.
-			// In practice it is very unlikely we'd hit this twice.
-			mu.Lock()
-			if assertionResp == nil {
-				assertionResp = resp
-				credentialID = cID
-				userID = uID
-				username = uName
-				usedAppID = actualRPID != rpID
+			actualRPID = rpID
+			cID = cred.ID
+			uID = cred.User.ID
+			uName = cred.User.Name
+		} else {
+			// TODO(codingllama): Ideally we'd rely on fido_assert_id_ptr/_len.
+			var err error
+			actualRPID, cID, err = getMFACredentials(dev, pin, rpID, appID, allowedCreds)
+			if err != nil {
+				return trace.Wrap(err)
 			}
-			mu.Unlock()
-			return nil
-		}); err != nil {
+		}
+
+		if passwordless {
+			// Ask for another touch before the assertion, we used the first touch
+			// in the Credentials() call.
+			if err := prompt.PromptAdditionalTouch(); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		opts := &libfido2.AssertionOpts{
+			UP: libfido2.True,
+		}
+		if uv {
+			opts.UV = libfido2.True
+		}
+		resp, err := dev.Assertion(actualRPID, ccdHash[:], [][]byte{cID}, pin, opts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Use the first successful assertion.
+		// In practice it is very unlikely we'd hit this twice.
+		mu.Lock()
+		if assertionResp == nil {
+			assertionResp = resp
+			credentialID = cID
+			userID = uID
+			username = uName
+			usedAppID = actualRPID != rpID
+		}
+		mu.Unlock()
+		return nil
+	}
+
+	skipAdditionalPrompt := passwordless
+	if err := runOnFIDO2Devices(ctx, prompt, skipAdditionalPrompt, filter, deviceCallback); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -421,61 +422,62 @@ func FIDO2Register(
 	var mu sync.Mutex
 	var attestation *libfido2.Attestation
 
+	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
+		switch {
+		case (plat && !info.plat) || (rrk && !info.rk) || (uv && !info.uvCapable()):
+			return false, nil
+		case len(excludeList) == 0:
+			return true, nil
+		}
+
+		// Does the device hold an excluded credential?
+		const pin = "" // not required to filter
+		switch _, err := dev.Assertion(rp.ID, ccdHash[:], excludeList, pin, &libfido2.AssertionOpts{
+			UP: libfido2.False,
+		}); {
+		case errors.Is(err, libfido2.ErrNoCredentials):
+			return true, nil
+		case err == nil:
+			return false, nil
+		default: // unexpected error
+			return false, trace.Wrap(err)
+		}
+	}
+
+	deviceCallback := func(d FIDODevice, info *deviceInfo, pin string) error {
+		// TODO(codingllama): We may need to setup a PIN if rrk=true.
+		//  Do that as a response to specific MakeCredential failures.
+
+		opts := &libfido2.MakeCredentialOpts{}
+		if rrk {
+			opts.RK = libfido2.True
+		}
+		// Only set the "uv" bit if the authenticator supports built-in
+		// verification. PIN-enabled devices don't claim to support "uv", but they
+		// are capable of UV assertions.
+		// See
+		// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#getinfo-uv.
+		if uv && info.uv {
+			opts.UV = libfido2.True
+		}
+
+		resp, err := d.MakeCredential(ccdHash[:], rp, user, libfido2.ES256, pin, opts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Use the first successful attestation.
+		// In practice it is very unlikely we'd hit this twice.
+		mu.Lock()
+		if attestation == nil {
+			attestation = resp
+		}
+		mu.Unlock()
+		return nil
+	}
+
 	const skipAdditionalPrompt = false
-	if err := runOnFIDO2Devices(
-		ctx, prompt, skipAdditionalPrompt,
-		/* filter */ func(dev FIDODevice, info *deviceInfo) (bool, error) {
-			switch {
-			case (plat && !info.plat) || (rrk && !info.rk) || (uv && !info.uvCapable()):
-				return false, nil
-			case len(excludeList) == 0:
-				return true, nil
-			}
-
-			// Does the device hold an excluded credential?
-			const pin = "" // not required to filter
-			switch _, err := dev.Assertion(rp.ID, ccdHash[:], excludeList, pin, &libfido2.AssertionOpts{
-				UP: libfido2.False,
-			}); {
-			case errors.Is(err, libfido2.ErrNoCredentials):
-				return true, nil
-			case err == nil:
-				return false, nil
-			default: // unexpected error
-				return false, trace.Wrap(err)
-			}
-		},
-		/* deviceCallback */ func(d FIDODevice, info *deviceInfo, pin string) error {
-			// TODO(codingllama): We may need to setup a PIN if rrk=true.
-			//  Do that as a response to specific MakeCredential failures.
-
-			opts := &libfido2.MakeCredentialOpts{}
-			if rrk {
-				opts.RK = libfido2.True
-			}
-			// Only set the "uv" bit if the authenticator supports built-in
-			// verification. PIN-enabled devices don't claim to support "uv", but they
-			// are capable of UV assertions.
-			// See
-			// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#getinfo-uv.
-			if uv && info.uv {
-				opts.UV = libfido2.True
-			}
-
-			resp, err := d.MakeCredential(ccdHash[:], rp, user, libfido2.ES256, pin, opts)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			// Use the first successful attestation.
-			// In practice it is very unlikely we'd hit this twice.
-			mu.Lock()
-			if attestation == nil {
-				attestation = resp
-			}
-			mu.Unlock()
-			return nil
-		}); err != nil {
+	if err := runOnFIDO2Devices(ctx, prompt, skipAdditionalPrompt, filter, deviceCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
