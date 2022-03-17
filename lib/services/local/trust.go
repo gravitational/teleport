@@ -181,7 +181,7 @@ func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
 // DeactivateCertAuthority moves a CertAuthority from the normal list to
 // the deactivated list.
 func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
-	certAuthority, err := s.GetCertAuthority(id, true)
+	certAuthority, err := s.GetCertAuthority(context.TODO(), id, true)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("can not deactivate cert authority %q which does not exist", id.DomainName)
@@ -215,11 +215,11 @@ func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (s *CA) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
+	item, err := s.Get(ctx, backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -244,14 +244,14 @@ func setSigningKeys(ca types.CertAuthority, loadSigningKeys bool) {
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (s *CA) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get all items in the bucket.
 	startKey := backend.Key(authoritiesPrefix, string(caType))
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -11,7 +11,8 @@
           "slug": "/getting-started/",
            "entries": [
             { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
-            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" }
+            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" },
+            { "title": "DigitalOcean", "slug": "/getting-started/digitalocean/" }
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
@@ -165,6 +166,7 @@
           "entries": [
             { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
             { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
+            { "title": "DigitalOcean Kubernetes Cluster", "slug": "/kubernetes-access/helm/guides/digitalocean/" },
             { "title": "Customize Deployment Config", "slug": "/kubernetes-access/helm/guides/custom/" },
             { "title": "Migrating From Older Charts", "slug": "/kubernetes-access/helm/guides/migration/" }
           ]

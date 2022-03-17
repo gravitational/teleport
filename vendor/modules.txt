@@ -97,7 +97,7 @@ github.com/aquasecurity/libbpfgo/helpers
 # github.com/armon/go-radix v1.0.0
 ## explicit
 github.com/armon/go-radix
-# github.com/aws/aws-sdk-go v1.37.17
+# github.com/aws/aws-sdk-go v1.43.15
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/arn
@@ -145,11 +145,35 @@ github.com/aws/aws-sdk-go/private/protocol/restjson
 github.com/aws/aws-sdk-go/private/protocol/restxml
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/aws/aws-sdk-go/service/applicationautoscaling
+github.com/aws/aws-sdk-go/service/appstream
+github.com/aws/aws-sdk-go/service/detective
 github.com/aws/aws-sdk-go/service/dynamodb
 github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute
 github.com/aws/aws-sdk-go/service/dynamodbstreams
+github.com/aws/aws-sdk-go/service/ecr
+github.com/aws/aws-sdk-go/service/ecrpublic
+github.com/aws/aws-sdk-go/service/elasticinference
 github.com/aws/aws-sdk-go/service/iam
 github.com/aws/aws-sdk-go/service/iam/iamiface
+github.com/aws/aws-sdk-go/service/iot1clickdevicesservice
+github.com/aws/aws-sdk-go/service/iotdataplane
+github.com/aws/aws-sdk-go/service/iotdeviceadvisor
+github.com/aws/aws-sdk-go/service/ioteventsdata
+github.com/aws/aws-sdk-go/service/iotfleethub
+github.com/aws/aws-sdk-go/service/iotjobsdataplane
+github.com/aws/aws-sdk-go/service/iotsecuretunneling
+github.com/aws/aws-sdk-go/service/iottwinmaker
+github.com/aws/aws-sdk-go/service/iotwireless
+github.com/aws/aws-sdk-go/service/lexmodelsv2
+github.com/aws/aws-sdk-go/service/marketplacecatalog
+github.com/aws/aws-sdk-go/service/mediatailor
+github.com/aws/aws-sdk-go/service/memorydb
+github.com/aws/aws-sdk-go/service/migrationhubstrategyrecommendations
+github.com/aws/aws-sdk-go/service/mobile
+github.com/aws/aws-sdk-go/service/pinpoint
+github.com/aws/aws-sdk-go/service/pinpointsmsvoice
+github.com/aws/aws-sdk-go/service/pricing
+github.com/aws/aws-sdk-go/service/proton
 github.com/aws/aws-sdk-go/service/rds
 github.com/aws/aws-sdk-go/service/rds/rdsiface
 github.com/aws/aws-sdk-go/service/rds/rdsutils
@@ -158,10 +182,14 @@ github.com/aws/aws-sdk-go/service/redshift/redshiftiface
 github.com/aws/aws-sdk-go/service/s3
 github.com/aws/aws-sdk-go/service/s3/s3iface
 github.com/aws/aws-sdk-go/service/s3/s3manager
+github.com/aws/aws-sdk-go/service/sagemaker
+github.com/aws/aws-sdk-go/service/ses
 github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
+github.com/aws/aws-sdk-go/service/ssooidc
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
+github.com/aws/aws-sdk-go/service/timestreamquery
 # github.com/aws/aws-sdk-go-v2 v1.9.0
 ## explicit; go 1.15
 github.com/aws/aws-sdk-go-v2
@@ -836,7 +864,7 @@ golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/agent
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
+# golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 ## explicit; go 1.17
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -869,11 +897,11 @@ golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
-## explicit; go 1.11
+# golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+## explicit; go 1.17
 golang.org/x/term
-# golang.org/x/text v0.3.6
-## explicit; go 1.11
+# golang.org/x/text v0.3.7
+## explicit; go 1.17
 golang.org/x/text/cases
 golang.org/x/text/encoding
 golang.org/x/text/encoding/internal

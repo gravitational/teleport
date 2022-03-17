@@ -156,13 +156,13 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxy
 
 // generateAppToken generates an JWT token that will be passed along with every
 // application request.
-func (s *Server) generateAppToken(username string, roles []string, uri string, expires time.Time) (string, error) {
+func (s *Server) generateAppToken(ctx context.Context, username string, roles []string, uri string, expires time.Time) (string, error) {
 	// Get the clusters CA.
 	clusterName, err := s.GetDomainName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	ca, err := s.GetCertAuthority(types.CertAuthID{
+	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.JWTSigner,
 		DomainName: clusterName,
 	}, true)

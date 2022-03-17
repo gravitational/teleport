@@ -306,9 +306,9 @@ func (process *TeleportProcess) newWatcher(conn *Connector, watch types.Watch) (
 // TLS client this method uses the local auth server.
 func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertAuthID, loadPrivateKeys bool) (types.CertAuthority, error) {
 	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
-		return process.localAuth.GetCertAuthority(id, loadPrivateKeys)
+		return process.localAuth.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
 	}
-	return conn.Client.GetCertAuthority(id, loadPrivateKeys)
+	return conn.Client.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
 }
 
 // reRegister receives new identity credentials for proxy, node and auth.

@@ -962,7 +962,6 @@ var _ http.Handler = (*Server)(nil)
 // Notice: This API is EXPERIMENTAL and may be changed or removed in a
 // later release.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	println("NIC grpcserver ServeHTTP")
 	st, err := transport.NewServerHandlerTransport(w, r, s.opts.statsHandler)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
