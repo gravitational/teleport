@@ -53,11 +53,11 @@ export class QuickInputService extends Store<State> {
 
     this.quickCommandPicker.registerPickerForCommand(
       'tsh ssh',
-      new pickers.QuickTshSshPicker(launcher, sshLoginPicker, serverPicker)
+      new pickers.QuickTshSshPicker(sshLoginPicker, serverPicker)
     );
     this.quickCommandPicker.registerPickerForCommand(
       'tsh proxy db',
-      new pickers.QuickTshProxyDbPicker(launcher)
+      new pickers.QuickTshProxyDbPicker()
     );
   }
 

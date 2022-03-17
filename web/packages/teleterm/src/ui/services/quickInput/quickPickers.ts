@@ -41,10 +41,6 @@ export class QuickCommandPicker implements QuickInputPicker {
   }
 
   // TODO(ravicious): Handle env vars.
-  // TODO(ravicious): Take cursor position into account.
-  onPick(suggestion: SuggestionCmd) {}
-
-  // TODO(ravicious): Handle env vars.
   getAutocompleteResult(rawInput: string): AutocompleteResult {
     const autocompleteCommands = this.launcher.getAutocompleteCommands();
     // We can safely ignore any whitespace at the start. However, `startIndex` needs to account for
@@ -160,19 +156,9 @@ export class QuickTshSshPicker implements QuickInputPicker {
   );
 
   constructor(
-    private launcher: CommandLauncher,
     private sshLoginPicker: QuickSshLoginPicker,
     private serverPicker: QuickServerPicker
   ) {}
-
-  onFilter() {
-    return [];
-  }
-
-  onPick(suggestion: SuggestionCmd) {
-    // TODO: Execute SSH.
-    // this.launcher.executeCommand('ssh', { serverUri: suggestion.data.uri, });
-  }
 
   // TODO: Support cluster arg.
   getAutocompleteResult(
@@ -242,16 +228,7 @@ export class QuickTshSshPicker implements QuickInputPicker {
 
 // TODO: Implement the rest of this class.
 export class QuickTshProxyDbPicker implements QuickInputPicker {
-  constructor(private launcher: CommandLauncher) {}
-
-  onFilter() {
-    return [];
-  }
-
-  onPick(suggestion: SuggestionCmd) {
-    // TODO: Execute Proxy db.
-    // this.launcher.executeCommand(suggestion.data.name as any, null);
-  }
+  constructor() {}
 
   getAutocompleteResult(input: string): AutocompleteResult {
     return {
@@ -292,8 +269,6 @@ export class QuickSshLoginPicker implements QuickInputPicker {
     }));
   }
 
-  onPick(suggestion: SuggestionCmd) {}
-
   getAutocompleteResult(input: string, startIndex: number): AutocompleteResult {
     const suggestions = this.filterSshLogins(input);
     return {
@@ -328,8 +303,6 @@ export class QuickServerPicker implements QuickInputPicker {
       data: server,
     }));
   }
-
-  onPick(suggestion: SuggestionCmd) {}
 
   getAutocompleteResult(input: string, startIndex: number): AutocompleteResult {
     const suggestions = this.filterServers(input);

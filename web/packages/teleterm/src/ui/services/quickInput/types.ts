@@ -22,7 +22,6 @@ export type SuggestionServer = SuggestionBase<'suggestion.server', tsh.Server>;
 export type Suggestion = SuggestionCmd | SuggestionSshLogin | SuggestionServer;
 
 export type QuickInputPicker = {
-  onPick(suggestion: Suggestion): void;
   getAutocompleteResult(input: string, startIndex: number): AutocompleteResult;
 };
 
