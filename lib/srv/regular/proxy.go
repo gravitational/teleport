@@ -63,7 +63,7 @@ var ( // failedConnectingToNode counts failed attempts to connect to a node
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricConnectToNodeAttempts,
-			Help:      "Number of ssh connect attempts",
+			Help:      "Number of ssh connection attempts to a node.",
 		},
 	)
 
