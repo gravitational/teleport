@@ -2479,6 +2479,54 @@ will also be available to any `initContainers` configured by the chart.
   </TabItem>
 </Tabs>
 
+## `extraArgs`
+
+| Type | Default value |
+| - | - |
+| `list` | `[]` |
+
+A list of extra arguments to pass to the `teleport start` command when running a Teleport Pod.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraArgs:
+  - "--debug"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "extraArgs={--debug}"
+  ```
+  </TabItem>
+</Tabs>
+
+## `extraEnv`
+
+| Type | Default value |
+| - | - |
+| `list` | `[]` |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/)
+
+A list of extra environment variables to be set on the main Teleport container.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraEnv:
+  - name: HTTPS_PROXY
+    value: "http://username:password@my.proxy.host:3128"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "extraEnv[0].name=HTTPS_PROXY" \
+  --set "extraEnv[0].value=\"http://username:password@my.proxy.host:3128\""
+  ```
+  </TabItem>
+</Tabs>
+
 ## `extraVolumeMounts`
 
 | Type | Default value | Can be used in `custom` mode? |
