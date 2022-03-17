@@ -26,7 +26,11 @@ import {
   getGatewayConnectionByDocument,
   getServerConnectionByDocument,
 } from './trackedConnectionUtils';
-import { TrackedConnection, TrackedGatewayConnection } from './types';
+import {
+  ExtendedTrackedConnection,
+  TrackedConnection,
+  TrackedGatewayConnection,
+} from './types';
 
 export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerState> {
   private _trackedConnectionOperationsFactory: TrackedConnectionOperationsFactory;
@@ -55,8 +59,13 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     return useStore(this).state;
   }
 
-  getConnections(): TrackedConnection[] {
-    return this.state.connections;
+  getConnections(): ExtendedTrackedConnection[] {
+    return this.state.connections.map(connection => {
+      const { clusterUri } =
+        this._trackedConnectionOperationsFactory.create(connection);
+      const cluster = this._clusterService.findCluster(clusterUri);
+      return { ...connection, clusterName: cluster?.name };
+    });
   }
 
   async activateItem(id: string): Promise<void> {

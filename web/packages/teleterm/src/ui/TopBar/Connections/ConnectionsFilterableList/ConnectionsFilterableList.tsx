@@ -1,12 +1,12 @@
 import React from 'react';
 import { FilterableList } from 'teleterm/ui/components/FilterableList';
-import { TrackedConnection } from 'teleterm/ui/services/connectionTracker';
+import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { ConnectionItem } from './ConnectionItem';
 import { Box, Text } from 'design';
 import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 
 interface ConnectionsFilterableListProps {
-  items: TrackedConnection[];
+  items: ExtendedTrackedConnection[];
 
   onActivateItem(id: string): void;
 
@@ -23,7 +23,7 @@ export function ConnectionsFilterableList(
   return (
     <Box width="300px">
       {props.items.length ? (
-        <FilterableList<TrackedConnection>
+        <FilterableList<ExtendedTrackedConnection>
           items={props.items}
           filterBy="title"
           placeholder="Search Connections"
