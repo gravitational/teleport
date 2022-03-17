@@ -37,9 +37,6 @@ type Stream interface {
 	Recv() (*proto.Frame, error)
 }
 
-// Check that streamConn implements net.Conn.
-var _ net.Conn = &streamConn{}
-
 // streamConn wraps a grpc stream with a net.streamConn interface.
 type streamConn struct {
 	stream Stream
