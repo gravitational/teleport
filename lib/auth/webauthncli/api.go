@@ -52,6 +52,13 @@ func Login(
 // may cause it block forever.
 // The caller is expected to prompt the user for action before calling this
 // method.
-func Register(ctx context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func Register(
+	ctx context.Context,
+	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
+	if IsFIDO2Available() {
+		log.Debug("FIDO2: Using libfido2 for credential creation")
+		return FIDO2Register(ctx, origin, cc, prompt)
+	}
+
 	return U2FRegister(ctx, origin, cc)
 }
