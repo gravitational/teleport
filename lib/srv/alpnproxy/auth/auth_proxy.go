@@ -114,21 +114,22 @@ func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context) (net.C
 	if len(authServers) == 0 {
 		return nil, trace.NotFound("empty auth servers list")
 	}
-	var errors []string
+	var errors []error
 
 	// iterate over the addresses in random order
 	for len(authServers) > 0 {
 		authServerIndex := rand.Intn(len(authServers))
 		var conn net.Conn
 		addr := authServers[authServerIndex].GetAddr()
-		conn, err = net.Dial("tcp", addr)
+		var d net.Dialer
+		conn, err = d.DialContext(ctx, "tcp", addr)
 		if err == nil {
 			return conn, nil
 		}
-		errors = append(errors, fmt.Sprintf("%s: %s", addr, err.Error()))
+		errors = append(errors, fmt.Errorf("%s: %w", addr, err))
 		authServers = append(authServers[:authServerIndex], authServers[authServerIndex+1:]...)
 	}
-	return nil, trace.Errorf("all auth servers unavailable: %s", strings.Join(errors, ", "))
+	return nil, trace.NewAggregate(errors...)
 }
 
 func (s *AuthProxyDialerService) dialRemoteAuthServer(ctx context.Context, clusterName string) (net.Conn, error) {
