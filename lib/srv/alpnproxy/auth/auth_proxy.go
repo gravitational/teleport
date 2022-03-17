@@ -118,16 +118,17 @@ func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context) (net.C
 
 	// iterate over the addresses in random order
 	for len(authServers) > 0 {
-		authServerIndex := rand.Intn(len(authServers))
-		var conn net.Conn
+		l := len(authServers)
+		authServerIndex := rand.Intn(l)
 		addr := authServers[authServerIndex].GetAddr()
 		var d net.Dialer
-		conn, err = d.DialContext(ctx, "tcp", addr)
+		conn, err := d.DialContext(ctx, "tcp", addr)
 		if err == nil {
 			return conn, nil
 		}
 		errors = append(errors, fmt.Errorf("%s: %w", addr, err))
-		authServers = append(authServers[:authServerIndex], authServers[authServerIndex+1:]...)
+		authServers[authServerIndex] = authServers[l-1]
+		authServers = authServers[:l-1]
 	}
 	return nil, trace.NewAggregate(errors...)
 }

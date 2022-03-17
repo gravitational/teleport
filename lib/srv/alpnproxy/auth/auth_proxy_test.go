@@ -35,7 +35,7 @@ func TestDialLocalAuthServerNoAvailableServers(t *testing.T) {
 	s := NewAuthProxyDialerService(nil, mockAuthGetter{servers: []types.Server{server1}})
 	_, err = s.dialLocalAuthServer(context.Background())
 	require.Error(t, err, "dialLocalAuthServer expected to fail")
-	require.Contains(t, err.Error(), "all auth servers unavailable: invalid:8000:")
+	require.Contains(t, err.Error(), "invalid:8000:")
 }
 
 func TestDialLocalAuthServerAvailableServers(t *testing.T) {
@@ -52,8 +52,9 @@ func TestDialLocalAuthServerAvailableServers(t *testing.T) {
 		servers = append(servers, server)
 	}
 	s := NewAuthProxyDialerService(nil, mockAuthGetter{servers: servers})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
+	//ctx := context.Background()
 	_, err = s.dialLocalAuthServer(ctx)
 	require.NoError(t, err)
 }
