@@ -22,17 +22,25 @@ import * as types from 'teleterm/ui/services/quickInput/types';
 import { Cli, Server, Person } from 'design/Icon';
 
 const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
+  const activeItemRef = useRef<HTMLDivElement>();
   const { items, activeItem } = props;
   if (items.length === 0) {
     return null;
   }
 
+  useEffect(() => {
+    // `false` - bottom of the element will be aligned to the bottom of the visible area of the scrollable ancestor
+    activeItemRef.current?.scrollIntoView(false);
+  }, [activeItem]);
+
   const $items = items.map((r, index) => {
     const Cmpt = ComponentMap[r.kind] || UnknownItem;
+    const isActive = index === activeItem;
     return (
       <StyledItem
         data-attr={index}
-        $active={index === activeItem}
+        ref={isActive ? activeItemRef : null}
+        $active={isActive}
         key={` ${index}`}
       >
         <Cmpt item={r} />
