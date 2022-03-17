@@ -300,15 +300,15 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	for _, p := range party.s.getParties() {
 		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
 		if err != nil {
-			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			continue
 		}
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			continue
 		}
-		s.log.Debugf("Sent %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
+		s.log.Debugf("Sent %v to %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr())
 	}
 }
 
@@ -349,17 +349,18 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Emit session leave event to both the Audit Log as well as over the
-	// "x-teleport-event" channel in the SSH connection.
-	s.emitSessionLeaveEvent(party)
-
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
-
 	// Remove member from in-members representation of party.
 	if err := sess.removeParty(party); err != nil {
 		return trace.Wrap(err)
 	}
+
+	sess.mu.Unlock()
+	// Emit session leave event to both the Audit Log as well as over the
+	// "x-teleport-event" channel in the SSH connection.
+	s.emitSessionLeaveEvent(party)
+	sess.mu.Lock()
 
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit
