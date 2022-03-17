@@ -18,6 +18,7 @@ package alpnproxyauth
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -113,13 +114,21 @@ func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context) (net.C
 	if len(authServers) == 0 {
 		return nil, trace.NotFound("empty auth servers list")
 	}
-	//TODO(smallinksy) Better support for HA. Add dial retry on auth network errors.
-	authServerIndex := rand.Intn(len(authServers))
-	conn, err := net.Dial("tcp", authServers[authServerIndex].GetAddr())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var errors []string
+
+	//select random server from list, try others if it's unavailable
+	for len(authServers) > 0 {
+		authServerIndex := rand.Intn(len(authServers))
+		var conn net.Conn
+		addr := authServers[authServerIndex].GetAddr()
+		conn, err = net.Dial("tcp", addr)
+		if err == nil {
+			return conn, nil
+		}
+		errors = append(errors, fmt.Sprintf("%s: %s", addr, err.Error()))
+		authServers = append(authServers[:authServerIndex], authServers[authServerIndex+1:]...)
 	}
-	return conn, nil
+	return nil, trace.Errorf("all auth servers unavailable: %s", strings.Join(errors, ", "))
 }
 
 func (s *AuthProxyDialerService) dialRemoteAuthServer(ctx context.Context, clusterName string) (net.Conn, error) {
