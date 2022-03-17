@@ -93,7 +93,7 @@ func TestRegister(t *testing.T) {
 			fakeDevs := &fakeDevices{devs: test.devs}
 			fakeDevs.assignU2FCallbacks()
 
-			resp, err := wancli.Register(ctx, origin, cc)
+			resp, err := wancli.U2FRegister(ctx, origin, cc)
 			switch hasErr := err != nil; {
 			case hasErr != test.wantErr:
 				t.Fatalf("Register returned err = %v, wantErr = %v", err, test.wantErr)
@@ -196,7 +196,7 @@ func TestRegister_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := wancli.Register(ctx, test.origin, test.makeCC())
+			_, err := wancli.U2FRegister(ctx, test.origin, test.makeCC())
 			require.Error(t, err)
 			require.Contains(t, err.Error(), test.wantErr)
 		})
