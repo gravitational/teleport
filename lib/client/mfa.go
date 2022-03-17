@@ -33,7 +33,7 @@ import (
 )
 
 type (
-	OTPPrompt func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error)
+	OTPPrompt func(ctx context.Context, out io.Writer, in prompt.Reader, question string) (string, error)
 	WebPrompt func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
 )
 

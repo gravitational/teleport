@@ -137,7 +137,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 			defer cancel()
 
 			client.Prompts.Swap(
-				func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error) {
+				func(ctx context.Context, out io.Writer, in prompt.Reader, question string) (string, error) {
 					return test.solveOTP(ctx)
 				},
 				func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
