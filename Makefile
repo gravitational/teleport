@@ -30,7 +30,7 @@ ADDFLAGS ?=
 PWD ?= `pwd`
 TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' # -linkmode external -extldflags "-static"
 CGOFLAG ?= CGO_ENABLED=1
 CGOFLAG_TSH ?= CGO_ENABLED=1
 # Windows requires extra parameters to cross-compile with CGO.
@@ -129,10 +129,10 @@ RDPCLIENT_MESSAGE := "without Windows RDP client"
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
-CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
-CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
-CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
-CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
+CARGO_TARGET_linux_arm := arm-unknown-linux-musleabihf
+CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-musl
+CARGO_TARGET_linux_386 := i686-unknown-linux-musl
+CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-musl
 
 CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 

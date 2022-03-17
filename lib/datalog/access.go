@@ -19,10 +19,10 @@ limitations under the License.
 
 package datalog
 
-// #cgo linux,386 LDFLAGS: -L${SRCDIR}/../../target/i686-unknown-linux-gnu/release
-// #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../target/x86_64-unknown-linux-gnu/release
-// #cgo linux,arm LDFLAGS: -L${SRCDIR}/../../target/arm-unknown-linux-gnueabihf/release
-// #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../target/aarch64-unknown-linux-gnu/release
+// #cgo linux,386 LDFLAGS: -L${SRCDIR}/../../target/i686-unknown-linux-musl/release
+// #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../target/x86_64-unknown-linux-musl/release
+// #cgo linux,arm LDFLAGS: -L${SRCDIR}/../../target/arm-unknown-linux-musleabihf/release
+// #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../target/aarch64-unknown-linux-musl/release
 // #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../target/x86_64-apple-darwin/release
 // #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../target/aarch64-apple-darwin/release
 // #cgo LDFLAGS: -lrole_tester -ldl -lm

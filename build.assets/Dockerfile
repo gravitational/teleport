@@ -168,7 +168,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     cargo --version && \
     rustc --version && \
     rustup component add rustfmt clippy && \
-    if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi && \
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-musl arm-unknown-linux-musleabihf aarch64-unknown-linux-musl; fi && \
     cargo install cbindgen
 
 USER root
