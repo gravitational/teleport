@@ -178,6 +178,12 @@ annotations:
   # Annotations for the ServiceAccount object
   serviceAccount: {}
 
+# Extra arguments to pass to 'teleport start' for the main Teleport pod
+extraArgs: []
+
+# Extra environment to be configured on the Teleport pod
+extraEnv: []
+
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/
 extraVolumes: []
