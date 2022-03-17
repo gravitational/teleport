@@ -40,7 +40,7 @@ import (
 )
 
 // newSelfSignedCA creates a new CA for testing.
-func newSelfSignedCA(t *testing.T) (*tlsca.CertAuthority, error) {
+func newSelfSignedCA(t *testing.T) *tlsca.CertAuthority {
 	rsaKey, err := ssh.ParseRawPrivateKey(fixtures.PEMBytes["rsa"])
 	require.NoError(t, err)
 
@@ -52,7 +52,7 @@ func newSelfSignedCA(t *testing.T) (*tlsca.CertAuthority, error) {
 	ca, err := tlsca.FromCertAndSigner(cert, rsaKey.(*rsa.PrivateKey))
 	require.NoError(t, err)
 
-	return ca, nil
+	return ca
 }
 
 // certFromIdentity creates a tls config for a given CA and identity.
@@ -101,11 +101,8 @@ type mockAccessCache struct {
 // TestServerTLS ensures that only trusted certificates with the proxy role
 // are accepted by the server.
 func TestServerTLS(t *testing.T) {
-	ca1, err := newSelfSignedCA(t)
-	require.NoError(t, err)
-
-	ca2, err := newSelfSignedCA(t)
-	require.NoError(t, err)
+	ca1 := newSelfSignedCA(t)
+	ca2 := newSelfSignedCA(t)
 
 	tests := []struct {
 		desc      string
@@ -146,38 +143,40 @@ func TestServerTLS(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		listener, err := net.Listen("tcp", "localhost:0")
-		require.NoError(t, err)
+		t.Run(tc.desc, func(t *testing.T) {
+			listener, err := net.Listen("tcp", "localhost:0")
+			require.NoError(t, err)
 
-		clientCAs := tc.server.RootCAs
-		tc.server.RootCAs = nil
+			clientCAs := tc.server.RootCAs
+			tc.server.RootCAs = nil
 
-		server, err := NewServer(ServerConfig{
-			AccessCache:   &mockAccessCache{},
-			Listener:      listener,
-			TLSConfig:     tc.server,
-			ClusterDialer: &mockClusterDialer{},
-			getConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
-				config := tc.server.Clone()
-				config.ClientAuth = tls.RequireAndVerifyClientCert
-				config.ClientCAs = clientCAs
-				return config, nil
-			},
+			server, err := NewServer(ServerConfig{
+				AccessCache:   &mockAccessCache{},
+				Listener:      listener,
+				TLSConfig:     tc.server,
+				ClusterDialer: &mockClusterDialer{},
+				getConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+					config := tc.server.Clone()
+					config.ClientAuth = tls.RequireAndVerifyClientCert
+					config.ClientCAs = clientCAs
+					return config, nil
+				},
+			})
+			require.NoError(t, err)
+			go server.Serve()
+			t.Cleanup(func() { server.Close() })
+
+			creds := newProxyCredentials(credentials.NewTLS(tc.client))
+			conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(creds))
+			require.NoError(t, err)
+
+			func() {
+				defer conn.Close()
+
+				client := proto.NewProxyServiceClient(conn)
+				_, err = client.DialNode(context.Background())
+				tc.assertErr(t, err)
+			}()
 		})
-		require.NoError(t, err)
-		go server.Serve()
-		t.Cleanup(func() { server.Close() })
-
-		creds := newProxyCredentials(credentials.NewTLS(tc.client))
-		conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(creds))
-		require.NoError(t, err)
-
-		func() {
-			defer conn.Close()
-
-			client := proto.NewProxyServiceClient(conn)
-			_, err = client.DialNode(context.Background())
-			tc.assertErr(t, err, tc.desc)
-		}()
 	}
 }
