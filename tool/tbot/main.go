@@ -17,10 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -35,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tbot/config"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"github.com/kr/pretty"
@@ -62,9 +68,11 @@ func Run(args []string) error {
 	var cf config.CLIConf
 	utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 
-	app := utils.InitCLIParser("tbot", "tbot: Teleport Credential Bot").Interspersed(false)
+	app := utils.InitCLIParser("tbot", "tbot: Teleport Machine ID").Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "tbot.yaml path").Short('c').StringVar(&cf.ConfigPath)
+
+	versionCmd := app.Command("version", "Print the version")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
 	startCmd.Flag("auth-server", "Specify the Teleport auth server host").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
@@ -73,13 +81,29 @@ func Run(args []string) error {
 	startCmd.Flag("data-dir", "Directory to store internal bot data.").StringVar(&cf.DataDir)
 	startCmd.Flag("destination-dir", "Directory to write generated certificates").StringVar(&cf.DestinationDir)
 	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
-	startCmd.Flag("renew-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewInterval)
+	startCmd.Flag("renewal-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
+	startCmd.Flag("join-method", "Method to use to join the cluster.").Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, "token", "iam")
+	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
+
+	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
+	initCmd.Flag("destination-dir", "If NOT using a config file, specify the destination directory.").StringVar(&cf.DestinationDir)
+	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, specify which to initialize.").StringVar(&cf.InitDir)
+	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination.").BoolVar(&cf.Clean)
+	initCmd.Flag("reader-user", "If ACLs are in use, name of the Unix user "+
+		"that will read from the destination.",
+	).StringVar(&cf.ReaderUser)
+	initCmd.Flag("bot-user", "If ACLs are in use, name of the bot Unix user "+
+		"which should have write access to the destination.",
+	).StringVar(&cf.BotUser)
+	initCmd.Flag("owner", "Name of the user:group that will own the "+
+		"destination. If ACLs are in use, must be different from the reader "+
+		"user and defaults to the bot user. Otherwise, assumes the current "+
+		"user.",
+	).StringVar(&cf.Owner)
 
 	configCmd := app.Command("config", "Parse and dump a config file").Hidden()
 
-	initCmd := app.Command("init", "Initialize a certificate destination directory.")
-
-	watchCmd := app.Command("watch", "Watch a destination directory for changes.")
+	watchCmd := app.Command("watch", "Watch a destination directory for changes.").Hidden()
 
 	command, err := app.Parse(args)
 	if err != nil {
@@ -97,12 +121,14 @@ func Run(args []string) error {
 	}
 
 	switch command {
+	case versionCmd.FullCommand():
+		err = onVersion()
 	case startCmd.FullCommand():
 		err = onStart(botConfig)
 	case configCmd.FullCommand():
 		err = onConfig(botConfig)
 	case initCmd.FullCommand():
-		err = onInit(botConfig)
+		err = onInit(botConfig, &cf)
 	case watchCmd.FullCommand():
 		err = onWatch(botConfig)
 	default:
@@ -113,14 +139,15 @@ func Run(args []string) error {
 	return err
 }
 
+func onVersion() error {
+	utils.PrintVersion()
+	return nil
+}
+
 func onConfig(botConfig *config.BotConfig) error {
 	pretty.Println(botConfig)
 
 	return nil
-}
-
-func onInit(botConfig *config.BotConfig) error {
-	return trace.NotImplemented("init not yet implemented")
 }
 
 func onWatch(botConfig *config.BotConfig) error {
@@ -128,37 +155,49 @@ func onWatch(botConfig *config.BotConfig) error {
 }
 
 func onStart(botConfig *config.BotConfig) error {
+	if botConfig.AuthServer == "" {
+		return trace.BadParameter("an auth or proxy server must be set via --auth-server or configuration")
+	}
+
+	// First, try to make sure all destinations are usable.
+	if err := checkDestinations(botConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Start by loading the bot's primary destination.
 	dest, err := botConfig.Storage.GetDestination()
 	if err != nil {
 		return trace.Wrap(err, "could not read bot storage destination from config")
 	}
 
-	addr, err := utils.ParseAddr(botConfig.AuthServer)
-	if err != nil {
-		return trace.Wrap(err, "invalid auth server address %+v", botConfig.AuthServer)
+	reloadChan := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go handleSignals(reloadChan, cancel)
+
+	configTokenHashBytes := []byte{}
+	if botConfig.Onboarding != nil && botConfig.Onboarding.Token != "" {
+		sha := sha256.Sum256([]byte(botConfig.Onboarding.Token))
+		configTokenHashBytes = []byte(hex.EncodeToString(sha[:]))
 	}
 
 	var authClient auth.ClientI
 
-	// TODO: graceful shutdown via signal; see #7066
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// First, attempt to load an identity from storage.
-	ident, err := identity.LoadIdentity(dest)
-	if err == nil {
-		identStr, err := describeIdentity(ident)
+	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
+	if err == nil && !hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes) {
+		identStr, err := describeTLSIdentity(ident)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		log.Infof("Successfully loaded bot identity, %s", identStr)
 
-		// TODO: we should cache the token; if --token is provided but
-		// different, assume the user is attempting to start with a new
-		// identity. (May want to store a sha256 has to avoid storing the
-		// token directly.)
+		if err := checkIdentity(ident); err != nil {
+			return trace.Wrap(err)
+		}
+
 		if botConfig.Onboarding != nil {
 			log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
 		}
@@ -171,42 +210,21 @@ func onStart(botConfig *config.BotConfig) error {
 		// If the identity can't be loaded, assume we're starting fresh and
 		// need to generate our initial identity from a token
 
+		if ident != nil {
+			// If ident is set here, we detected a token change above.
+			log.Warnf("Detected a token change, will attempt to fetch a new identity.")
+		}
+
 		// TODO: validate that errors from LoadIdentity are sanely typed; we
 		// actually only want to ignore NotFound errors
 
-		onboarding := botConfig.Onboarding
-		if onboarding == nil {
-			return trace.BadParameter("onboarding config required on first start via CLI or YAML")
+		// Verify we can write to the destination.
+		if err := identity.VerifyWrite(dest); err != nil {
+			return trace.Wrap(err, "Could not write to destination %s, aborting.", dest)
 		}
 
-		// If no token is present, we can't continue.
-		if onboarding.Token == "" {
-			return trace.Errorf("unable to start: no identity could be loaded and no token present")
-		}
-
-		tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
-		if err != nil {
-			return trace.Wrap(err, "unable to generate new keypairs")
-		}
-
-		log.Info("Attempting to generate new identity from token")
-		params := auth.RegisterParams{
-			Token: onboarding.Token,
-			ID: auth.IdentityID{
-				Role: types.RoleBot,
-			},
-			Servers:            []utils.NetAddr{*addr},
-			PublicTLSKey:       tlsPublicKey,
-			PublicSSHKey:       sshPublicKey,
-			CAPins:             onboarding.CAPins,
-			CAPath:             onboarding.CAPath,
-			GetHostCredentials: client.HostCredentials,
-		}
-		certs, err := auth.Register(params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ident, err = identity.ReadIdentityFromKeyPair(tlsPrivateKey, sshPublicKey, certs)
+		// Get first identity
+		ident, err = getIdentityFromToken(botConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -222,23 +240,17 @@ func onStart(botConfig *config.BotConfig) error {
 			return trace.Wrap(err, "unable to communicate with auth server")
 		}
 
-		identStr, err := describeIdentity(ident)
+		identStr, err := describeTLSIdentity(ident)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Successfully generated new bot identity, %s", identStr)
 
 		log.Debugf("Storing new bot identity to %s", dest)
-		if err := identity.SaveIdentity(ident, dest); err != nil {
+		if err := identity.SaveIdentity(ident, dest, identity.BotKinds()...); err != nil {
 			return trace.Wrap(err, "unable to save generated identity back to destination")
 		}
 	}
-
-	// TODO: handle cases where an identity exists on disk but we might _not_
-	// want to use it:
-	//  - identity has expired
-	//  - user provided a new token
-	//  - ???
 
 	watcher, err := authClient.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
@@ -253,7 +265,100 @@ func onStart(botConfig *config.BotConfig) error {
 
 	defer watcher.Close()
 
-	return renewLoop(ctx, botConfig, authClient, ident)
+	return renewLoop(ctx, botConfig, authClient, ident, reloadChan)
+}
+
+func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
+	if len(configTokenBytes) == 0 || len(identityBytes) == 0 {
+		return false
+	}
+
+	return !bytes.Equal(identityBytes, configTokenBytes)
+}
+
+// checkDestinations checks all destinations and tries to create any that
+// don't already exist.
+func checkDestinations(cfg *config.BotConfig) error {
+	// Note: This is vaguely problematic as we don't recommend that users
+	// store renewable certs under the same user as end-user certs. That said,
+	//  - if the destination was properly created via tbot init this is a no-op
+	//  - if users intend to follow that advice but miss a step, it should fail
+	//    due to lack of permissions
+	storage, err := cfg.Storage.GetDestination()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO: consider warning if ownership of all destintions is not expected.
+
+	if err := storage.Init(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, dest := range cfg.Destinations {
+		destImpl, err := dest.GetDestination()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := destImpl.Init(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// checkIdentity performs basic startup checks on an identity and loudly warns
+// end users if it is unlikely to work.
+func checkIdentity(ident *identity.Identity) error {
+	var validAfter time.Time
+	var validBefore time.Time
+
+	if ident.X509Cert != nil {
+		validAfter = ident.X509Cert.NotBefore
+		validBefore = ident.X509Cert.NotAfter
+	} else if ident.SSHCert != nil {
+		validAfter = time.Unix(int64(ident.SSHCert.ValidAfter), 0)
+		validBefore = time.Unix(int64(ident.SSHCert.ValidBefore), 0)
+	} else {
+		return trace.BadParameter("identity is invalid and contains no certificates")
+	}
+
+	now := time.Now().UTC()
+	if now.After(validBefore) {
+		log.Errorf(
+			"Identity has expired. The renewal is likely to fail. (expires: %s, current time: %s)",
+			validBefore.Format(time.RFC3339),
+			now.Format(time.RFC3339),
+		)
+	} else if now.Before(validAfter) {
+		log.Warnf(
+			"Identity is not yet valid. Confirm that the system time is correct. (valid after: %s, current time: %s)",
+			validAfter.Format(time.RFC3339),
+			now.Format(time.RFC3339),
+		)
+	}
+
+	return nil
+}
+
+// handleSignals handles incoming Unix signals.
+func handleSignals(reload chan struct{}, cancel context.CancelFunc) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
+
+	for signal := range signals {
+		switch signal {
+		case syscall.SIGINT:
+			log.Info("Received interrupt, cancelling...")
+			cancel()
+			return
+		case syscall.SIGHUP, syscall.SIGUSR1:
+			log.Info("Received reload signal, reloading...")
+			reload <- struct{}{}
+		}
+	}
 }
 
 func watchCARotations(watcher types.Watcher) {
@@ -271,29 +376,87 @@ func watchCARotations(watcher types.Watcher) {
 	}
 }
 
+func getIdentityFromToken(cfg *config.BotConfig) (*identity.Identity, error) {
+	if cfg.Onboarding == nil {
+		return nil, trace.BadParameter("onboarding config required via CLI or YAML")
+	}
+	if cfg.Onboarding.Token == "" {
+		return nil, trace.BadParameter("unable to start: no token present")
+	}
+	addr, err := utils.ParseAddr(cfg.AuthServer)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "invalid auth server address %+v", cfg.AuthServer)
+	}
+
+	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "unable to generate new keypairs")
+	}
+
+	log.Info("Attempting to generate new identity from token")
+	params := auth.RegisterParams{
+		Token: cfg.Onboarding.Token,
+		ID: auth.IdentityID{
+			Role: types.RoleBot,
+		},
+		Servers:            []utils.NetAddr{*addr},
+		PublicTLSKey:       tlsPublicKey,
+		PublicSSHKey:       sshPublicKey,
+		CAPins:             cfg.Onboarding.CAPins,
+		CAPath:             cfg.Onboarding.CAPath,
+		GetHostCredentials: client.HostCredentials,
+		JoinMethod:         cfg.Onboarding.JoinMethod,
+	}
+	certs, err := auth.Register(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sha := sha256.Sum256([]byte(params.Token))
+	tokenHash := hex.EncodeToString(sha[:])
+	ident, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
+		PrivateKeyBytes: tlsPrivateKey,
+		PublicKeyBytes:  sshPublicKey,
+		TokenHashBytes:  []byte(tokenHash),
+	}, certs, identity.BotKinds()...)
+	return ident, trace.Wrap(err)
+}
+
 func renewIdentityViaAuth(
 	ctx context.Context,
 	client auth.ClientI,
 	currentIdentity *identity.Identity,
-	certTTL time.Duration,
+	cfg *config.BotConfig,
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
+
+	// If using the IAM join method we always go through the initial join flow
+	// and fetch new nonrenewable certs
+	var joinMethod types.JoinMethod
+	if cfg.Onboarding != nil {
+		joinMethod = cfg.Onboarding.JoinMethod
+	}
+	switch joinMethod {
+	case types.JoinMethodIAM:
+		ident, err := getIdentityFromToken(cfg)
+		return ident, trace.Wrap(err)
+	default:
+	}
 
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: currentIdentity.SSHPublicKeyBytes,
-		Username:  currentIdentity.XCert.Subject.CommonName,
-		Expires:   time.Now().Add(certTTL),
+		PublicKey: currentIdentity.PublicKeyBytes,
+		Username:  currentIdentity.X509Cert.Subject.CommonName,
+		Expires:   time.Now().Add(cfg.CertificateTTL),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	newIdentity, err := identity.ReadIdentityFromKeyPair(
-		currentIdentity.KeyBytes,
-		currentIdentity.SSHPublicKeyBytes,
+	newIdentity, err := identity.ReadIdentityFromStore(
+		currentIdentity.Params(),
 		certs,
+		identity.BotKinds()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -314,26 +477,31 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 	return conditions.Roles, nil
 }
 
-// describeIdentity writes an informational message about the given identity to
+// describeTLSIdentity writes an informational message about the given identity to
 // the log.
-func describeIdentity(ident *identity.Identity) (string, error) {
-	tlsIdent, err := tlsca.FromSubject(ident.XCert.Subject, ident.XCert.NotAfter)
+func describeTLSIdentity(ident *identity.Identity) (string, error) {
+	cert := ident.X509Cert
+	if cert == nil {
+		return "", trace.BadParameter("attempted to describe TLS identity without TLS credentials")
+	}
+
+	tlsIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	if err != nil {
 		return "", trace.Wrap(err, "bot TLS certificate can not be parsed as an identity")
 	}
 
 	var principals []string
-	for _, principal := range ident.Cert.ValidPrincipals {
+	for _, principal := range tlsIdent.Principals {
 		if !strings.HasPrefix(principal, constants.NoLoginPrefix) {
 			principals = append(principals, principal)
 		}
 	}
 
-	duration := time.Second * time.Duration(ident.Cert.ValidBefore-ident.Cert.ValidAfter)
+	duration := cert.NotAfter.Sub(cert.NotBefore)
 	return fmt.Sprintf(
-		"valid: after=%v, before=%v, duration=%s | properties: renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
-		time.Unix(int64(ident.Cert.ValidAfter), 0),
-		time.Unix(int64(ident.Cert.ValidBefore), 0),
+		"valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
+		cert.NotBefore.Format(time.RFC3339),
+		cert.NotAfter.Format(time.RFC3339),
 		duration,
 		tlsIdent.Renewable,
 		tlsIdent.DisallowReissue,
@@ -343,7 +511,181 @@ func describeIdentity(ident *identity.Identity) (string, error) {
 	), nil
 }
 
-func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, ident *identity.Identity) error {
+// describeSSHIdentity writes an informational message about the given SSH
+// identity to the log.
+func describeSSHIdentity(ident *identity.Identity) (string, error) {
+	cert := ident.SSHCert
+	if cert == nil {
+		return "", trace.BadParameter("attempted to describe SSH identity without SSH credentials")
+	}
+
+	renewable := false
+	if _, ok := cert.Extensions[teleport.CertExtensionRenewable]; ok {
+		renewable = true
+	}
+
+	disallowReissue := false
+	if _, ok := cert.Extensions[teleport.CertExtensionDisallowReissue]; ok {
+		disallowReissue = true
+	}
+
+	var roles []string
+	if rolesStr, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]; ok {
+		if actualRoles, err := services.UnmarshalCertRoles(rolesStr); err == nil {
+			roles = actualRoles
+		}
+	}
+
+	var principals []string
+	for _, principal := range cert.ValidPrincipals {
+		if !strings.HasPrefix(principal, constants.NoLoginPrefix) {
+			principals = append(principals, principal)
+		}
+	}
+
+	duration := time.Second * time.Duration(cert.ValidBefore-cert.ValidAfter)
+	return fmt.Sprintf(
+		"valid: after=%v, before=%v, duration=%s | kind=ssh, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v",
+		time.Unix(int64(cert.ValidAfter), 0).Format(time.RFC3339),
+		time.Unix(int64(cert.ValidBefore), 0).Format(time.RFC3339),
+		duration,
+		renewable,
+		disallowReissue,
+		roles,
+		principals,
+	), nil
+}
+
+// renew performs a single renewal
+func renew(
+	ctx context.Context, cfg *config.BotConfig, client auth.ClientI,
+	ident *identity.Identity, botDestination destination.Destination,
+) (auth.ClientI, *identity.Identity, error) {
+	// Make sure we can still write to the bot's destination.
+	if err := identity.VerifyWrite(botDestination); err != nil {
+		return nil, nil, trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
+	}
+
+	log.Debug("Attempting to renew bot certificates...")
+	newIdentity, err := renewIdentityViaAuth(ctx, client, ident, cfg)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	identStr, err := describeTLSIdentity(ident)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "Could not describe bot identity at %s", botDestination)
+	}
+
+	log.Infof("Successfully renewed bot certificates, %s", identStr)
+
+	// TODO: warn if duration < certTTL? would indicate TTL > server's max renewable cert TTL
+	// TODO: error if duration < renewalInterval? next renewal attempt will fail
+
+	// Immediately attempt to reconnect using the new identity (still
+	// haven't persisted the known-good certs).
+	newClient, err := authenticatedUserClientFromIdentity(ctx, newIdentity, cfg.AuthServer)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Attempt a request to make sure our client works.
+	// TODO: consider a retry/backoff loop.
+	if _, err := newClient.Ping(ctx); err != nil {
+		return nil, nil, trace.Wrap(err, "unable to communicate with auth server")
+	}
+
+	log.Debug("Auth client now using renewed credentials.")
+	client = newClient
+	ident = newIdentity
+
+	// Now that we're sure the new creds work, persist them.
+	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Determine the default role list based on the bot role. The role's
+	// name should match the certificate's Key ID (user and role names
+	// should all match bot-$name)
+	botResourceName := ident.X509Cert.Subject.CommonName
+	defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
+	if err != nil {
+		log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
+		defaultRoles = []string{}
+	}
+
+	// Next, generate impersonated certs
+	expires := ident.X509Cert.NotAfter
+	for _, dest := range cfg.Destinations {
+		destImpl, err := dest.GetDestination()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// Check the ACLs. We can't fix them, but we can warn if they're
+		// misconfigured. We'll need to precompute a list of keys to check.
+		// Note: This may only log a warning, depending on configuration.
+		if err := destImpl.Verify(identity.ListKeys(dest.Kinds...)); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// Ensure this destination is also writable. This is a hard fail if
+		// ACLs are misconfigured, regardless of configuration.
+		// TODO: consider not making these a hard error? e.g. write other
+		// destinations even if this one is broken?
+		if err := identity.VerifyWrite(destImpl); err != nil {
+			return nil, nil, trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
+		}
+
+		var desiredRoles []string
+		if len(dest.Roles) > 0 {
+			desiredRoles = dest.Roles
+		} else {
+			log.Debugf("Destination specified no roles, defaults will be requested: %v", defaultRoles)
+			desiredRoles = defaultRoles
+		}
+
+		impersonatedIdent, err := generateImpersonatedIdentity(ctx, client, ident, expires, desiredRoles, dest.Kinds)
+		if err != nil {
+			return nil, nil, trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
+		}
+
+		var impersonatedIdentStr string
+		if dest.ContainsKind(identity.KindTLS) {
+			impersonatedIdentStr, err = describeTLSIdentity(impersonatedIdent)
+			if err != nil {
+				return nil, nil, trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
+			}
+		} else {
+			// Note: kinds must contain at least 1 of TLS or SSH
+			impersonatedIdentStr, err = describeSSHIdentity(impersonatedIdent)
+			if err != nil {
+				return nil, nil, trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
+			}
+		}
+		log.Infof("Successfully renewed impersonated certificates for %s, %s", destImpl, impersonatedIdentStr)
+
+		if err := identity.SaveIdentity(impersonatedIdent, destImpl, dest.Kinds...); err != nil {
+			return nil, nil, trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
+		}
+
+		for _, templateConfig := range dest.Configs {
+			template, err := templateConfig.GetConfigTemplate()
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+
+			if err := template.Render(ctx, client, impersonatedIdent, dest); err != nil {
+				log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
+			}
+		}
+	}
+
+	log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", cfg.RenewalInterval)
+	return newClient, newIdentity, nil
+}
+
+func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, ident *identity.Identity, reloadChan chan struct{}) error {
 	// TODO: failures here should probably not just end the renewal loop, there
 	// should be some retry / back-off logic.
 
@@ -351,12 +693,12 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 	// Also, must be < the validity period.
 	// TODO: validate that cert is actually renewable.
 
-	log.Infof("Beginning renewal loop: ttl=%s interval=%s", cfg.CertificateTTL, cfg.RenewInterval)
-	if cfg.RenewInterval > cfg.CertificateTTL {
+	log.Infof("Beginning renewal loop: ttl=%s interval=%s", cfg.CertificateTTL, cfg.RenewalInterval)
+	if cfg.RenewalInterval > cfg.CertificateTTL {
 		log.Errorf(
 			"Certificate TTL (%s) is shorter than the renewal interval (%s). The next renewal is likely to fail.",
 			cfg.CertificateTTL,
-			cfg.RenewInterval,
+			cfg.RenewalInterval,
 		)
 	}
 
@@ -367,112 +709,44 @@ func renewLoop(ctx context.Context, cfg *config.BotConfig, client auth.ClientI, 
 		return trace.Wrap(err)
 	}
 
-	ticker := time.NewTicker(cfg.RenewInterval)
+	ticker := time.NewTicker(cfg.RenewalInterval)
 	defer ticker.Stop()
 	for {
-		log.Debug("Attempting to renew bot certificates...")
-		newIdentity, err := renewIdentityViaAuth(ctx, client, ident, cfg.CertificateTTL)
+		newClient, newIdentity, err := renew(ctx, cfg, client, ident, botDestination)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		identStr, err := describeIdentity(ident)
-		if err != nil {
-			return trace.Wrap(err, "Could not describe bot identity at %s", botDestination)
+		if cfg.Oneshot {
+			log.Info("Oneshot mode enabled, exiting successfully.")
+			break
 		}
 
-		log.Infof("Successfully renewed bot certificates, %s", identStr)
-
-		// TODO: warn if duration < certTTL? would indicate TTL > server's max renewable cert TTL
-		// TODO: error if duration < renewalInterval? next renewal attempt will fail
-
-		// Immediately attempt to reconnect using the new identity (still
-		// haven't persisted the known-good certs).
-		newClient, err := authenticatedUserClientFromIdentity(ctx, newIdentity, cfg.AuthServer)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Attempt a request to make sure our client works.
-		// TODO: consider a retry/backoff loop.
-		if _, err := newClient.Ping(ctx); err != nil {
-			return trace.Wrap(err, "unable to communicate with auth server")
-		}
-
-		log.Debug("Auth client now using renewed credentials.")
 		client = newClient
 		ident = newIdentity
-
-		// Now that we're sure the new creds work, persist them.
-		if err := identity.SaveIdentity(newIdentity, botDestination); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Determine the default role list based on the bot role. The role's
-		// name should match the certificate's Key ID (user and role names
-		// should all match bot-$name)
-		defaultRoles, err := fetchDefaultRoles(ctx, client, ident.Cert.KeyId)
-		if err != nil {
-			log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
-			defaultRoles = []string{}
-		}
-
-		// Next, generate impersonated certs
-		expires := time.Unix(int64(ident.Cert.ValidBefore), 0)
-		for _, dest := range cfg.Destinations {
-			destImpl, err := dest.GetDestination()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			var desiredRoles []string
-			if len(dest.Roles) > 0 {
-				desiredRoles = dest.Roles
-			} else {
-				log.Debugf("Destination specified no roles, defaults will be requested: %v", defaultRoles)
-				desiredRoles = defaultRoles
-			}
-
-			impersonatedIdent, err := generateImpersonatedIdentity(ctx, client, ident, expires, desiredRoles)
-			if err != nil {
-				return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
-			}
-
-			impersonatedIdentStr, err := describeIdentity(impersonatedIdent)
-			if err != nil {
-				return trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
-			}
-			log.Infof("Successfully renewed impersonated certificates for %s, %s", destImpl, impersonatedIdentStr)
-
-			if err := identity.SaveIdentity(impersonatedIdent, destImpl); err != nil {
-				return trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
-			}
-
-			for _, templateConfig := range dest.Configs {
-				template, err := templateConfig.GetConfigTemplate()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				if err := template.Render(ctx, client, impersonatedIdent, dest); err != nil {
-					log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
-				}
-			}
-		}
-
-		log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", cfg.RenewInterval)
 
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
 			continue
+		case <-reloadChan:
+			continue
 		}
-
 	}
+
+	return nil
 }
 
+// authenticatedUserClientFromIdentity creates a new auth client from the given
+// identity. Note that depending on the connection address given, this may
+// attempt to connect via the proxy and therefore requires both SSH and TLS
+// credentials.
 func authenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity, authServer string) (auth.ClientI, error) {
+	if id.SSHCert == nil || id.X509Cert == nil {
+		return nil, trace.BadParameter("auth client requires a fully formed identity")
+	}
+
 	tlsConfig, err := id.TLSConfig(nil /* cipherSuites */)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -505,6 +779,7 @@ func generateImpersonatedIdentity(
 	currentIdentity *identity.Identity,
 	expires time.Time,
 	roleRequests []string,
+	kinds []identity.ArtifactKind,
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
 
@@ -520,7 +795,7 @@ func generateImpersonatedIdentity(
 	// expiration date.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey:    publicKey,
-		Username:     currentIdentity.XCert.Subject.CommonName,
+		Username:     currentIdentity.X509Cert.Subject.CommonName,
 		Expires:      expires,
 		RoleRequests: roleRequests,
 	})
@@ -549,11 +824,10 @@ func generateImpersonatedIdentity(
 		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
 	}
 
-	newIdentity, err := identity.ReadIdentityFromKeyPair(
-		privateKey,
-		publicKey,
-		certs,
-	)
+	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
+		PrivateKeyBytes: privateKey,
+		PublicKeyBytes:  publicKey,
+	}, certs, kinds...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

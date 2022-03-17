@@ -11,16 +11,16 @@ steps:
 
   # Run the integration tests. Actual content of this job depends on the changes 
   # detected in the PR
-  - name: quay.io/gravitational/teleport-buildbox:go1.17.2
+  - name: quay.io/gravitational/teleport-buildbox:teleport9
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash
-    args: 
+    args:
       - -c
       - |
         go run ./cmd/integration-tests \
           -target $_BASE_BRANCH        \
           -bucket test-logs            \
           -build $BUILD_ID             \
-          -a "test-logs/*.json"          
-    timeout: 20m
+          -a "test-logs/*.json"
+    timeout: 25m

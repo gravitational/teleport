@@ -1383,7 +1383,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		require.NoError(t, err)
 
 		// load CA cert
-		authority, err := authServer.GetCertAuthority(types.CertAuthID{
+		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: "localhost",
 		}, false)

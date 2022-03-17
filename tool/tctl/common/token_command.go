@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -93,9 +94,10 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.tokenAdd.Flag("type", "Type of token to add").Required().StringVar(&c.tokenType)
 	c.tokenAdd.Flag("value", "Value of token to add").StringVar(&c.value)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
-	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
-		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
-		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&c.ttl)
+	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour",
+		int(defaults.SignupTokenTTL/time.Hour))).
+		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).
+		DurationVar(&c.ttl)
 	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("example-app").StringVar(&c.appName)
 	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("http://localhost:8080").StringVar(&c.appURI)
 	c.tokenAdd.Flag("db-name", "Name of the database to add").StringVar(&c.dbName)
@@ -218,12 +220,29 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			token,
 			int(c.ttl.Minutes()))
 	default:
+		authServer := authServers[0].GetAddr()
+
+		pingResponse, err := client.Ping(context.TODO())
+		if err != nil {
+			log.Debugf("unnable to ping auth client: %s.", err.Error())
+		}
+
+		if err == nil && pingResponse.GetServerFeatures().Cloud {
+			proxies, err := client.GetProxies()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if len(proxies) != 0 {
+				authServer = proxies[0].GetPublicAddr()
+			}
+		}
 		return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
 			"token":       token,
 			"roles":       strings.ToLower(roles.String()),
 			"minutes":     int(c.ttl.Minutes()),
 			"ca_pins":     caPins,
-			"auth_server": authServers[0].GetAddr(),
+			"auth_server": authServer,
 		})
 	}
 
