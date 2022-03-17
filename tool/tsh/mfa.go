@@ -148,6 +148,7 @@ type mfaAddCommand struct {
 	*kingpin.CmdClause
 	devName string
 	devType string
+	pwdless bool
 }
 
 func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
@@ -157,6 +158,9 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
 		StringVar(&c.devType)
+	if wancli.IsFIDO2Available() {
+		c.Flag("pwdless", "Allow passwordless logins").BoolVar(&c.pwdless)
+	}
 	return c
 }
 
@@ -211,7 +215,15 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("device name can not be empty")
 	}
 
-	dev, err := c.addDeviceRPC(ctx, tc, c.devName, devType, stdin)
+	if wancli.IsFIDO2Available() && !c.pwdless {
+		answer, err := prompt.PickOne(ctx, os.Stdout, stdin, "Allow passwordless logins", []string{"YES", "NO"})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.pwdless = answer == "yes"
+	}
+
+	dev, err := c.addDeviceRPC(ctx, tc, c.devName, devType, c.pwdless, stdin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -240,7 +252,7 @@ func deviceTypesFromPreferredMFA(preferredMFA constants.SecondFactorType) []stri
 
 func (c *mfaAddCommand) addDeviceRPC(
 	ctx context.Context,
-	tc *client.TeleportClient, devName string, devType proto.DeviceType, r prompt.Reader) (*types.MFADevice, error) {
+	tc *client.TeleportClient, devName string, devType proto.DeviceType, passwordless bool, r prompt.Reader) (*types.MFADevice, error) {
 	var dev *types.MFADevice
 	if err := client.RetryWithRelogin(ctx, tc, func() error {
 		pc, err := tc.ConnectToProxy(ctx)
@@ -261,10 +273,15 @@ func (c *mfaAddCommand) addDeviceRPC(
 			return trace.Wrap(err)
 		}
 		// Init.
+		usage := proto.DeviceUsage_DEVICE_USAGE_MFA
+		if passwordless {
+			usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+		}
 		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_Init{
 			Init: &proto.AddMFADeviceRequestInit{
-				DeviceName: devName,
-				DeviceType: devType,
+				DeviceName:  devName,
+				DeviceType:  devType,
+				DeviceUsage: usage,
 			},
 		}}); err != nil {
 			return trace.Wrap(err)
@@ -417,9 +434,8 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 type mfaAddPrompt struct{}
 
 func (m mfaAddPrompt) PromptPIN() (string, error) {
-	fmt.Printf("Enter the PIN for your *new* security key: ")
+	fmt.Println("Enter your *new* security key PIN")
 	pwd, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println() // '\n' gets swallowed by ReadPassword.
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -427,7 +443,7 @@ func (m mfaAddPrompt) PromptPIN() (string, error) {
 }
 
 func (m mfaAddPrompt) PromptAdditionalTouch() error {
-	fmt.Println("Tap your *new* security key again")
+	fmt.Println("Tap your *new* security key again to complete registration")
 	return nil
 }
 
