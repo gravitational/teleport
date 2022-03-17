@@ -2108,7 +2108,6 @@ func (g *GRPCServer) DeleteMFADevice(stream proto.AuthService_DeleteMFADeviceSer
 	return trace.Wrap(stream.Send(&proto.DeleteMFADeviceResponse{
 		Response: &proto.DeleteMFADeviceResponse_Ack{Ack: &proto.DeleteMFADeviceResponseAck{}},
 	}))
-
 }
 
 func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream proto.AuthService_DeleteMFADeviceServer) error {
@@ -3712,17 +3711,18 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 		return nil, trace.Wrap(err)
 	}
 
-	resources, nextKey, err := auth.ListResources(ctx, *req)
+	resp, err := auth.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp := &proto.ListResourcesResponse{
-		NextKey:   nextKey,
-		Resources: make([]*proto.PaginatedResource, len(resources)),
+	protoResp := &proto.ListResourcesResponse{
+		NextKey:    resp.NextKey,
+		Resources:  make([]*proto.PaginatedResource, len(resp.Resources)),
+		TotalCount: int32(resp.TotalCount),
 	}
 
-	for i, resource := range resources {
+	for i, resource := range resp.Resources {
 		var protoResource *proto.PaginatedResource
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
@@ -3753,14 +3753,28 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeService{KubeService: srv}}
+		case types.KindWindowsDesktop:
+			desktop, ok := resource.(*types.WindowsDesktopV3)
+			if !ok {
+				return nil, trace.BadParameter("windows desktop has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+		case types.KindKubernetesCluster:
+			cluster, ok := resource.(*types.KubernetesClusterV3)
+			if !ok {
+				return nil, trace.BadParameter("kubernetes cluster has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}
 
-		resp.Resources[i] = protoResource
+		protoResp.Resources[i] = protoResource
 	}
 
-	return resp, nil
+	return protoResp, nil
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.

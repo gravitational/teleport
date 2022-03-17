@@ -85,9 +85,9 @@ data:
           {{- end }}
         {{- end }}
         {{- toYaml .Values.databases | nindent 6 }}
-      {{- else }}
-      enabled: false
       {{- end }}
+    {{- else }}
+      enabled: false
     {{- end }}
     {{- end }}
 

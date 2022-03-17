@@ -406,6 +406,11 @@ message CreateBotResponse {
     // TokenTTL is the TTL for the token. If it differs from the requested TTL,
     // it may have been limited by server policy.
     int64 TokenTTL = 4 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // JoinMethod is the join method the bot must use to join the cluster.
+    string JoinMethod = 5 [
+        (gogoproto.jsontag) = "join_method",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.JoinMethod"
+    ];
 }
 
 // DeleteBotRequest is a request to delete a bot user
@@ -1462,6 +1467,12 @@ message PaginatedResource {
         types.ServerV2 Node = 3 [ (gogoproto.jsontag) = "node,omitempty" ];
         // KubeService represents a KubernetesService resource.
         types.ServerV2 KubeService = 4 [ (gogoproto.jsontag) = "kube_service,omitempty" ];
+        // WindowsDesktop represents a WindowsDesktop resource.
+        types.WindowsDesktopV3 WindowsDesktop = 5
+            [ (gogoproto.jsontag) = "windows_desktop,omitempty" ];
+        // KubeCluster represents a KubeCluster resource.
+        types.KubernetesClusterV3 KubeCluster = 6
+            [ (gogoproto.jsontag) = "kube_cluster,omitempty" ];
     }
 }
 
@@ -1487,6 +1498,12 @@ message ListResourcesRequest {
     // SortBy describes which resource field and which direction to sort by.
     types.SortBy SortBy = 8
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "sort_by,omitempty" ];
+    // NeedTotalCount indicates whether or not the caller also wants the total number of resources
+    // after filtering.
+    bool NeedTotalCount = 9 [ (gogoproto.jsontag) = "need_total_count,omitempty" ];
+    // WindowsDesktopFilter specifies windows desktop specific filters.
+    types.WindowsDesktopFilter WindowsDesktopFilter = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "windows_desktop_filter,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.
@@ -1497,6 +1514,8 @@ message ListResourcesResponse {
     // continue retrieving pages of resource. If NextKey is empty, there are no
     // more pages.
     string NextKey = 2 [ (gogoproto.jsontag) = "next_key,omitempty" ];
+    // TotalCount is the total number of resources available after filter, if any.
+    int32 TotalCount = 3 [ (gogoproto.jsontag) = "total_count,omitempty" ];
 }
 
 // CreateSessionTrackerRequest is a request to create a new session.

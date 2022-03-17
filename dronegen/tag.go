@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 const (
@@ -175,7 +176,11 @@ func tagPipelines() []pipeline {
 
 			// RPM/DEB package builds
 			for _, packageType := range []string{rpmPackage, debPackage} {
-				ps = append(ps, tagPackagePipeline(packageType, buildType{os: "linux", arch: arch, fips: fips}))
+				bt := buildType{os: "linux", arch: arch, fips: fips}
+				if packageType == "rpm" && arch == "amd64" {
+					bt.centos7 = true
+				}
+				ps = append(ps, tagPackagePipeline(packageType, bt))
 			}
 		}
 	}
@@ -224,7 +229,8 @@ func tagPipeline(b buildType) pipeline {
 
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
-		"RUNTIME": goRuntime,
+		"BUILDBOX_VERSION": buildboxVersion,
+		"RUNTIME":          goRuntime,
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: "/go"}
@@ -282,6 +288,11 @@ func tagDownloadArtifactCommands(b buildType) []string {
 	}
 	artifactOSS := true
 	artifactType := fmt.Sprintf("%s-%s", b.os, b.arch)
+
+	if b.centos7 {
+		artifactType += "-centos7"
+	}
+
 	if b.fips {
 		artifactType += "-fips"
 		artifactOSS = false
@@ -361,8 +372,19 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
+
+	if b.centos7 {
+		dependentPipeline += "-centos7"
+	}
+
+	apkPackages := []string{"bash", "curl", "gzip", "make", "tar"}
+	if packageType == rpmPackage {
+		// Required by `make rpm`
+		apkPackages = append(apkPackages, "go")
+	}
+
 	packageBuildCommands := []string{
-		`apk add --no-cache bash curl gzip make tar`,
+		fmt.Sprintf("apk add --no-cache %s", strings.Join(apkPackages, " ")),
 		`cd /go/src/github.com/gravitational/teleport`,
 		`export VERSION=$(cat /go/.version.txt)`,
 	}

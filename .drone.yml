@@ -1,4 +1,33 @@
 ---
+kind: pipeline
+type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+        
+---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
@@ -9,8 +38,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64
 environment:
+  BUILDBOX_VERSION: teleport9
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -111,8 +141,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-386
 environment:
+  BUILDBOX_VERSION: teleport9
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -213,8 +244,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
+  BUILDBOX_VERSION: teleport9
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -319,8 +351,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-windows-amd64
 environment:
+  BUILDBOX_VERSION: teleport9
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -480,7 +513,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.2
+    RUNTIME: go1.17.7
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -563,8 +596,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm
 environment:
+  BUILDBOX_VERSION: teleport9
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -665,8 +699,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
 environment:
+  BUILDBOX_VERSION: teleport9
   GID: "1000"
-  RUNTIME: go1.17.2
+  RUNTIME: go1.17.7
   UID: "1000"
 trigger:
   event:
@@ -1018,14 +1053,15 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport9
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -1159,14 +1195,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport9
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -1299,14 +1336,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport9
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -1437,14 +1475,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport9
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -1575,12 +1614,12 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: build-linux-amd64-rpm
+name: build-linux-amd64-centos7-rpm
 trigger:
   event:
     include:
@@ -1596,7 +1635,7 @@ workspace:
 clone:
   disable: true
 depends_on:
-- build-linux-amd64
+- build-linux-amd64-centos7
 steps:
 - name: Check out code
   image: docker:git
@@ -1630,9 +1669,9 @@ steps:
   - export VERSION=$(cat /go/.version.txt)
   - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -1645,7 +1684,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -1741,12 +1780,12 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: build-linux-amd64-fips-rpm
+name: build-linux-amd64-centos7-fips-rpm
 trigger:
   event:
     include:
@@ -1762,7 +1801,7 @@ workspace:
 clone:
   disable: true
 depends_on:
-- build-linux-amd64-fips
+- build-linux-amd64-centos7-fips
 steps:
 - name: Check out code
   image: docker:git
@@ -1796,7 +1835,7 @@ steps:
   - export VERSION=$(cat /go/.version.txt)
   - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -1809,7 +1848,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -1904,7 +1943,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -2056,7 +2095,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -2205,14 +2244,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport9
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -2343,7 +2383,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -2413,7 +2453,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -2509,7 +2549,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -2727,7 +2767,7 @@ steps:
   - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.17.2
+    RUNTIME: go1.17.7
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3187,14 +3227,15 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport9
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -3325,14 +3366,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport9
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -3463,7 +3505,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -3615,7 +3657,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -3767,7 +3809,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -3837,7 +3879,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -3933,7 +3975,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:409
+# Generated at dronegen/tag.go:431
 ################################################
 
 kind: pipeline
@@ -4003,7 +4045,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -4099,14 +4141,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:230
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  RUNTIME: go1.17.2
+  BUILDBOX_VERSION: teleport9
+  RUNTIME: go1.17.7
 trigger:
   event:
     include:
@@ -4566,8 +4609,8 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 environment:
+  BUILDBOX_VERSION: teleport9
   GID: "1000"
-  RUNTIME: go1.17.2
   UID: "1000"
 trigger:
   event:
@@ -4579,6 +4622,7 @@ trigger:
   branch:
     include:
     - master
+    - branch/v9
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -4604,7 +4648,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox
-  - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4620,7 +4664,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-fips
-  - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4636,7 +4680,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-arm
-  - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -5040,6 +5084,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 2fa9a32bf1f8b0fe5ef6abb7b0cdd30df5cd8813ca2bdbc3fdbd9b1d7296f459
+hmac: 1dd41a2efd6b7983f62a49578cdcf4eb9058d4319e333f9f958e80e7f8a91877
 
 ...

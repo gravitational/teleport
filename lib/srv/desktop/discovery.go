@@ -69,7 +69,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		// pre-filtered by nature of using an LDAP search with filters.
 		Matcher: func(r types.ResourceWithLabels) bool { return true },
 
-		GetCurrentResources: func() types.ResourcesWithLabels { return s.lastDiscoveryResults },
+		GetCurrentResources: func() types.ResourcesWithLabelsMap { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.upsertDesktop,
@@ -117,7 +117,7 @@ func (s *WindowsService) ldapSearchFilter() string {
 }
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
-func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
+func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabelsMap {
 	if !s.ldapReady() {
 		s.cfg.Log.Warn("skipping desktop discovery: LDAP not yet initialized")
 		return nil
@@ -144,14 +144,14 @@ func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
 
 	s.cfg.Log.Debugf("discovered %d Windows Desktops", len(entries))
 
-	var result types.ResourcesWithLabels
+	result := make(types.ResourcesWithLabelsMap)
 	for _, entry := range entries {
 		desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn)
 		if err != nil {
 			s.cfg.Log.Warnf("could not create Windows Desktop from LDAP entry: %v", err)
 			continue
 		}
-		result = append(result, desktop)
+		result[desktop.GetName()] = desktop
 	}
 
 	// capture the result, which will be used on the next reconcile loop
