@@ -177,14 +177,14 @@ func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWith
 }
 
 func applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
-	labels["teleport.dev/dns_host_name"] = entry.GetAttributeValue(attrDNSHostName)
-	labels["teleport.dev/computer_name"] = entry.GetAttributeValue(attrName)
-	labels["teleport.dev/os"] = entry.GetAttributeValue(attrOS)
-	labels["teleport.dev/os_version"] = entry.GetAttributeValue(attrOSVersion)
+	labels[types.TeleportNamespace+"/dns_host_name"] = entry.GetAttributeValue(attrDNSHostName)
+	labels[types.TeleportNamespace+"/computer_name"] = entry.GetAttributeValue(attrName)
+	labels[types.TeleportNamespace+"/os"] = entry.GetAttributeValue(attrOS)
+	labels[types.TeleportNamespace+"/os_version"] = entry.GetAttributeValue(attrOSVersion)
 	labels[types.OriginLabel] = types.OriginDynamic
 	switch entry.GetAttributeValue(attrPrimaryGroupID) {
 	case writableDomainControllerGroupID, readOnlyDomainControllerGroupID:
-		labels["teleport.dev/is_domain_controller"] = "true"
+		labels[types.TeleportNamespace+"/is_domain_controller"] = "true"
 	}
 }
 
@@ -193,7 +193,7 @@ func applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
 func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
 	hostname := entry.GetAttributeValue(attrDNSHostName)
 	labels := getHostLabels(hostname)
-	labels["teleport.dev/windows_domain"] = s.cfg.Domain
+	labels[types.TeleportNamespace+"/windows_domain"] = s.cfg.Domain
 	applyLabelsFromLDAP(entry, labels)
 
 	addrs, err := s.dnsResolver.LookupHost(ctx, hostname)

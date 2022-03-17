@@ -45,6 +45,9 @@ type AppsCommand struct {
 	predicateExpr  string
 	labels         string
 
+	// verbose sets whether full table output should be shown for labels
+	verbose bool
+
 	// appsList implements the "tctl apps ls" subcommand.
 	appsList *kingpin.CmdClause
 }
@@ -55,10 +58,11 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	apps := app.Command("apps", "Operate on applications registered with the cluster.")
 	c.appsList = apps.Command("ls", "List all applications registered with the cluster.")
-	c.appsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default("text").StringVar(&c.format)
+	c.appsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.appsList.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.appsList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.appsList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
+	c.appsList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 
 // TryRun attempts to run subcommands like "apps ls".
@@ -108,22 +112,18 @@ func (c *AppsCommand) ListApps(clt auth.ClientI) error {
 		}
 	}
 
-	coll := &appServerCollection{servers: servers}
+	coll := &appServerCollection{servers: servers, verbose: c.verbose}
 
 	switch c.format {
 	case teleport.Text:
-		err = coll.writeText(os.Stdout)
+		return trace.Wrap(coll.writeText(os.Stdout))
 	case teleport.JSON:
-		err = coll.writeJSON(os.Stdout)
+		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
-		err = coll.writeYAML(os.Stdout)
+		return trace.Wrap(coll.writeYAML(os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}.
