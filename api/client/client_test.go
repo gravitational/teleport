@@ -594,7 +594,7 @@ func TestGetResources(t *testing.T) {
 			expectedResources, err := testResources(test.resourceType, defaults.Namespace)
 			require.NoError(t, err)
 
-			// listing everything at once breaks the ListResource.
+			// Test listing everything at once errors with limit exceeded.
 			_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 				Namespace:    defaults.Namespace,
 				Limit:        int32(len(expectedResources)),
@@ -603,7 +603,11 @@ func TestGetResources(t *testing.T) {
 			require.Error(t, err)
 			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
 
-			resources, err := clt.GetResources(ctx, defaults.Namespace, test.resourceType)
+			// Test getting all resources by chunks to handle limit exceeded.
+			resources, err := GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+				Namespace:    defaults.Namespace,
+				ResourceType: test.resourceType,
+			})
 			require.NoError(t, err)
 			require.Len(t, resources, len(expectedResources))
 			require.Empty(t, cmp.Diff(expectedResources, resources))
