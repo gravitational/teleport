@@ -20,16 +20,30 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	log "github.com/sirupsen/logrus"
 )
 
 // Login performs client-side, U2F-compatible, Webauthn login.
 // This method blocks until either device authentication is successful or the
 // context is cancelled. Calling Login without a deadline or cancel condition
 // may cause it block forever.
+// The informed user is used to disambiguate credentials in case of passwordless
+// logins.
+// It returns an MFAAuthenticateResponse and the credential user, if a resident
+// credential is used.
 // The caller is expected to prompt the user for action before calling this
 // method.
-func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
-	return U2FLogin(ctx, origin, assertion)
+func Login(
+	ctx context.Context,
+	origin string, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt,
+) (*proto.MFAAuthenticateResponse, string, error) {
+	if IsFIDO2Available() {
+		log.Debug("FIDO2: Using libfido2 for assertion")
+		return FIDO2Login(ctx, origin, user, assertion, prompt)
+	}
+
+	resp, err := U2FLogin(ctx, origin, assertion)
+	return resp, "" /* credentialUser */, err
 }
 
 // Register performs client-side, U2F-compatible, Webauthn registration.
