@@ -15,8 +15,10 @@
 package webauthn_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/pem"
+	"sort"
 	"testing"
 
 	"github.com/duo-labs/webauthn/protocol"
@@ -116,6 +118,89 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 			// Device created in storage?
 			require.Len(t, identity.UpdatedDevices, 1)
 			require.Equal(t, newDevice, identity.UpdatedDevices[0])
+		})
+	}
+}
+
+func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
+	const user = "llama"
+	const rpID = "localhost"
+	const origin = "https://localhost"
+
+	dev1ID := []byte{1, 1, 1} // U2F
+	web1ID := []byte{1, 1, 2} // WebAuthn / MFA
+	rk1ID := []byte{1, 1, 3}  // WebAuthn / passwordless
+	dev1 := &types.MFADevice{
+		Device: &types.MFADevice_U2F{
+			U2F: &types.U2FDevice{
+				KeyHandle: dev1ID,
+			},
+		},
+	}
+	web1 := &types.MFADevice{
+		Device: &types.MFADevice_Webauthn{
+			Webauthn: &types.WebauthnDevice{
+				CredentialId: web1ID,
+			},
+		},
+	}
+	rk1 := &types.MFADevice{
+		Device: &types.MFADevice_Webauthn{
+			Webauthn: &types.WebauthnDevice{
+				CredentialId: rk1ID,
+				ResidentKey:  true,
+			},
+		},
+	}
+	identity := newFakeIdentity(user, dev1, web1, rk1)
+
+	rf := wanlib.RegistrationFlow{
+		Webauthn: &types.Webauthn{
+			RPID: rpID,
+		},
+		Identity: identity,
+	}
+
+	ctx := context.Background()
+	tests := []struct {
+		name            string
+		passwordless    bool
+		wantExcludeList [][]byte
+	}{
+		{
+			name:            "MFA",
+			wantExcludeList: [][]byte{web1ID}, // U2F and resident excluded
+		},
+		{
+			name:            "passwordless",
+			passwordless:    true,
+			wantExcludeList: [][]byte{rk1ID}, // U2F and MFA excluded
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cc, err := rf.Begin(ctx, user, test.passwordless)
+			require.NoError(t, err, "Begin")
+
+			got := cc.Response.CredentialExcludeList
+			sort.Slice(got, func(i, j int) bool {
+				return bytes.Compare(got[i].CredentialID, got[j].CredentialID) == -1
+			})
+
+			want := make([]protocol.CredentialDescriptor, len(test.wantExcludeList))
+			for i, id := range test.wantExcludeList {
+				want[i] = protocol.CredentialDescriptor{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: id,
+				}
+			}
+			sort.Slice(want, func(i, j int) bool {
+				return bytes.Compare(want[i].CredentialID, want[j].CredentialID) == -1
+			})
+
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("Begin() mismatch (-want +got):\n%s", diff)
+			}
 		})
 	}
 }
