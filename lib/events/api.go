@@ -446,6 +446,9 @@ const (
 
 	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
 	CertificateTypeUser = "user"
+
+	// UnknownEvent is any event received that isn't recognized as any other event type.
+	UnknownEvent = apievents.UnknownEvent
 )
 
 const (
