@@ -231,7 +231,7 @@ func (c *cliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 
 	// Check for mysql binary. Return with error as mysql and mariadb are missing. There is nothing else we can do here.
 	if !c.isMySQLBinAvailable() {
-		return nil, trace.NotFound("neither \"mysql\" nor \"mariadb\" were found")
+		return nil, trace.NotFound("neither %q nor %q CLI clients were found, please make sure an appropriate CLI client is available in $PATH", mysqlBin, mariadbBin)
 	}
 
 	// Check which flavor is installed. Otherwise, we don't know which ssl flag to use.
