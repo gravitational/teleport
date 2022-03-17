@@ -31,6 +31,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/http2"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -62,7 +64,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream"
-	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	utilexec "k8s.io/client-go/util/exec"
@@ -1569,7 +1570,10 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 	transport := f.newTransport(sess.Dial, sess.tlsConfig)
 
 	if sess.upgradeToHTTP2 {
-		transport = utilnet.SetTransportDefaults(transport)
+		err := http2.ConfigureTransport(transport)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	} else {
 		sess.tlsConfig.NextProtos = nil
 	}
