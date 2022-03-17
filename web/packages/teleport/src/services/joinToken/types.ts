@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,14 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { at } from 'lodash';
-import { NodeToken } from './types';
+export type JoinToken = {
+  id: string;
+  expiry: Date;
+};
 
-export default function makeToken(json): NodeToken {
-  const [id, expiry] = at(json, ['id', 'expiry']);
-
-  return {
-    id,
-    expiry: new Date(expiry),
-  };
-}
+export type Roles = 'App' | 'Node' | 'Db';

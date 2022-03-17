@@ -35,7 +35,7 @@ export default function useAddApp(ctx: TeleportContext) {
 
   function createToken() {
     return run(() =>
-      ctx.nodeService.fetchJoinToken().then(token => {
+      ctx.joinTokenService.fetchJoinToken(['App']).then(token => {
         const expires = formatDistanceStrict(new Date(), token.expiry);
         setExpires(expires);
         setToken(token.id);

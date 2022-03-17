@@ -1,4 +1,4 @@
-import { NodeToken } from 'teleport/services/nodes';
+import { JoinToken } from 'teleport/services/joinToken';
 import { createNodeBashCommand } from './useAddNode';
 
 describe('correct node bash command', () => {
@@ -12,7 +12,7 @@ describe('correct node bash command', () => {
   `(
     'test bash command with: $token expiring in $hours',
     ({ token, hours, expires, cmd }) => {
-      const node: NodeToken = {
+      const node: JoinToken = {
         expiry: addHours(now, hours),
         id: token,
       };

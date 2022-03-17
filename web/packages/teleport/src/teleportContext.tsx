@@ -25,6 +25,7 @@ import sshService from './services/ssh';
 import ResourceService from './services/resources';
 import userService from './services/user';
 import appService from './services/apps';
+import JoinTokenService from './services/joinToken';
 import KubeService from './services/kube';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
@@ -47,6 +48,7 @@ class TeleportContext implements types.Context {
   resourceService = new ResourceService();
   userService = userService;
   appService = appService;
+  joinTokenService = new JoinTokenService();
   kubeService = new KubeService();
   databaseService = new DatabaseService();
   desktopService = desktopService;
