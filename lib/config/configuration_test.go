@@ -885,6 +885,7 @@ func TestTunnelStrategy(t *testing.T) {
 	tests := []struct {
 		desc           string
 		config         string
+		readErr        require.ErrorAssertionFunc
 		applyErr       require.ErrorAssertionFunc
 		tunnelStrategy interface{}
 	}{
@@ -894,6 +895,7 @@ func TestTunnelStrategy(t *testing.T) {
 				"auth_service:",
 				"  enabled: yes",
 			}, "\n"),
+			readErr:        require.NoError,
 			applyErr:       require.NoError,
 			tunnelStrategy: types.DefaultAgentMeshTunnelStrategy(),
 		},
@@ -905,6 +907,7 @@ func TestTunnelStrategy(t *testing.T) {
 				"  tunnel_strategy:",
 				"    type: proxy_peering",
 			}, "\n"),
+			readErr:        require.NoError,
 			applyErr:       require.NoError,
 			tunnelStrategy: types.DefaultProxyPeeringTunnelStrategy(),
 		},
@@ -917,9 +920,9 @@ func TestTunnelStrategy(t *testing.T) {
 				"    type: proxy_peering",
 				"    agent_connection_count: 2",
 			}, "\n"),
+			readErr:  require.NoError,
 			applyErr: require.NoError,
 			tunnelStrategy: &types.ProxyPeeringTunnelStrategy{
-				Type:                 types.ProxyPeering,
 				AgentConnectionCount: 2,
 			},
 		},
@@ -932,27 +935,30 @@ func TestTunnelStrategy(t *testing.T) {
 				"    type: agent_mesh",
 				"    agent_connection_count: 2",
 			}, "\n"),
-			applyErr:       require.Error,
+			readErr:        require.Error,
+			applyErr:       require.NoError,
 			tunnelStrategy: types.DefaultAgentMeshTunnelStrategy(),
 		},
 	}
 
 	for _, tc := range tests {
-		conf, err := ReadConfig(bytes.NewBufferString(tc.config))
-		require.NoError(t, err, tc.desc)
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(bytes.NewBufferString(tc.config))
+			tc.readErr(t, err)
 
-		cfg := service.MakeDefaultConfig()
-		err = ApplyFileConfig(conf, cfg)
-		tc.applyErr(t, err, tc.desc)
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+			tc.applyErr(t, err)
 
-		var actualStrategy interface{}
-		if cfg.Auth.NetworkingConfig == nil {
-		} else if s := cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy(); s != nil {
-			actualStrategy = s
-		} else if s := cfg.Auth.NetworkingConfig.GetProxyPeeringTunnelStrategy(); s != nil {
-			actualStrategy = s
-		}
-		require.Equal(t, tc.tunnelStrategy, actualStrategy, tc.desc)
+			var actualStrategy interface{}
+			if cfg.Auth.NetworkingConfig == nil {
+			} else if s := cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy(); s != nil {
+				actualStrategy = s
+			} else if s := cfg.Auth.NetworkingConfig.GetProxyPeeringTunnelStrategy(); s != nil {
+				actualStrategy = s
+			}
+			require.Equal(t, tc.tunnelStrategy, actualStrategy)
+		})
 	}
 }
 

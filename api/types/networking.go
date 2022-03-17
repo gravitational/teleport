@@ -99,7 +99,7 @@ type ClusterNetworkingConfig interface {
 	GetProxyPeeringTunnelStrategy() *ProxyPeeringTunnelStrategy
 
 	// SetTunnelStrategy sets the tunnel strategy.
-	SetTunnelStrategy(TunnelStrategy) error
+	SetTunnelStrategy(*TunnelStrategyV1)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -292,38 +292,29 @@ func (c *ClusterNetworkingConfigV2) SetRoutingStrategy(strategy RoutingStrategy)
 
 // GetTunnelStrategy gets the tunnel strategy type.
 func (c *ClusterNetworkingConfigV2) GetTunnelStrategyType() (TunnelStrategyType, error) {
-	switch c.Spec.TunnelStrategy.(type) {
-	case *ClusterNetworkingConfigSpecV2_AgentMesh:
+	switch c.Spec.TunnelStrategy.Strategy.(type) {
+	case *TunnelStrategyV1_AgentMesh:
 		return AgentMesh, nil
-	case *ClusterNetworkingConfigSpecV2_ProxyPeering:
+	case *TunnelStrategyV1_ProxyPeering:
 		return ProxyPeering, nil
 	}
 
-	return "", trace.BadParameter("unknown tunnel strategy type: %T", c.Spec.TunnelStrategy)
+	return "", trace.BadParameter("unknown tunnel strategy type: %T", c.Spec.TunnelStrategy.Strategy)
 }
 
-// GetAgentMeshTunnelStrategy gets the war dial tunnel strategy.
+// GetAgentMeshTunnelStrategy gets the agent mesh tunnel strategy.
 func (c *ClusterNetworkingConfigV2) GetAgentMeshTunnelStrategy() *AgentMeshTunnelStrategy {
-	return c.Spec.GetAgentMesh()
+	return c.Spec.TunnelStrategy.GetAgentMesh()
 }
 
 // GetProxyPeeringTunnelStrategy gets the proxy peering tunnel strategy.
 func (c *ClusterNetworkingConfigV2) GetProxyPeeringTunnelStrategy() *ProxyPeeringTunnelStrategy {
-	return c.Spec.GetProxyPeering()
+	return c.Spec.TunnelStrategy.GetProxyPeering()
 }
 
 // SetTunnelStrategy sets the tunnel strategy.
-func (c *ClusterNetworkingConfigV2) SetTunnelStrategy(strategy TunnelStrategy) error {
-	switch strategy.(type) {
-	case *ClusterNetworkingConfigSpecV2_AgentMesh:
-	case *ClusterNetworkingConfigSpecV2_ProxyPeering:
-	default:
-		return trace.BadParameter("unknown tunnel strategy: %T", strategy)
-	}
-
+func (c *ClusterNetworkingConfigV2) SetTunnelStrategy(strategy *TunnelStrategyV1) {
 	c.Spec.TunnelStrategy = strategy
-
-	return nil
 }
 
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
@@ -347,10 +338,12 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	}
 
 	if c.Spec.TunnelStrategy == nil {
-		err := c.SetTunnelStrategy(DefaultTunnelStrategy())
-		if err != nil {
-			return trace.Wrap(err)
+		c.Spec.TunnelStrategy = &TunnelStrategyV1{
+			Strategy: DefaultTunnelStrategy(),
 		}
+	}
+	if err := c.Spec.TunnelStrategy.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

@@ -370,11 +370,11 @@ const (
 type TunnelStrategyType string
 
 const (
-	// WarDialTunnelStrategy requires agents to create a reverse tunnel to
+	// AgentMesh requires agents to create a reverse tunnel to
 	// every proxy server.
 	AgentMesh TunnelStrategyType = "agent_mesh"
-	// ProxyPeering requires agents to create a reverse tunnel to
-	// a single proxy instance and enables proxy to proxy communication.
+	// ProxyPeering requires agents to create a reverse tunnel to a configured
+	// number of proxy servers and enables proxy to proxy communication.
 	ProxyPeering TunnelStrategyType = "proxy_peering"
 )
 

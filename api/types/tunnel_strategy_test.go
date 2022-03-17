@@ -12,62 +12,49 @@ func TestTunnelStrategyMarshalling(t *testing.T) {
 	tests := []struct {
 		json     string
 		yaml     string
-		strategy isClusterNetworkingConfigSpecV2_TunnelStrategy
+		strategy *TunnelStrategyV1
 	}{
 		{
-			json: `{"tunnel_strategy":{"type":"agent_mesh"}}`,
-			yaml: "tunnel_strategy:\n  type: agent_mesh\n",
-			strategy: &ClusterNetworkingConfigSpecV2_AgentMesh{
-				AgentMesh: &AgentMeshTunnelStrategy{Type: AgentMesh},
-			},
+			json: `{"type":"agent_mesh"}`,
+			yaml: "type: agent_mesh\n",
+			strategy: &TunnelStrategyV1{Strategy: &TunnelStrategyV1_AgentMesh{
+				AgentMesh: &AgentMeshTunnelStrategy{},
+			}},
 		},
 		{
-			json: `{"tunnel_strategy":{"type":"proxy_peering"}}`,
-			yaml: "tunnel_strategy:\n  type: proxy_peering\n",
-			strategy: &ClusterNetworkingConfigSpecV2_ProxyPeering{
-				ProxyPeering: &ProxyPeeringTunnelStrategy{Type: ProxyPeering},
-			},
-		},
+			json: `{"type":"proxy_peering"}`,
+			yaml: "type: proxy_peering\n",
+			strategy: &TunnelStrategyV1{Strategy: &TunnelStrategyV1_ProxyPeering{
+				ProxyPeering: &ProxyPeeringTunnelStrategy{},
+			}}},
 		{
-			json: `{"tunnel_strategy":{"type":"proxy_peering","agent_connection_count":2}}`,
-			yaml: "tunnel_strategy:\n  agent_connection_count: 2\n  type: proxy_peering\n",
-			strategy: &ClusterNetworkingConfigSpecV2_ProxyPeering{
+			json: `{"agent_connection_count":2,"type":"proxy_peering"}`,
+			yaml: "agent_connection_count: 2\ntype: proxy_peering\n",
+			strategy: &TunnelStrategyV1{Strategy: &TunnelStrategyV1_ProxyPeering{
 				ProxyPeering: &ProxyPeeringTunnelStrategy{
-					Type:                 ProxyPeering,
 					AgentConnectionCount: 2,
 				},
-			},
+			}},
 		},
 	}
 
 	for _, tc := range tests {
 		data, err := yaml.Marshal(tc.strategy)
 		require.NoError(t, err)
-		s := string(data)
-		_ = s
 		require.Equal(t, []byte(tc.yaml), data)
 
 		data, err = json.Marshal(tc.strategy)
 		require.NoError(t, err)
-		s = string(data)
-		_ = s
 		require.Equal(t, []byte(tc.json), data)
 
-		var actual interface{}
-		switch tc.strategy.(type) {
-		case *ClusterNetworkingConfigSpecV2_AgentMesh:
-			actual = &ClusterNetworkingConfigSpecV2_AgentMesh{}
-		case *ClusterNetworkingConfigSpecV2_ProxyPeering:
-			actual = &ClusterNetworkingConfigSpecV2_ProxyPeering{}
-		default:
-			require.FailNow(t, "unexpected type: %T", tc.strategy)
-		}
-		err = json.Unmarshal([]byte(tc.json), actual)
+		strategy := &TunnelStrategyV1{}
+		err = json.Unmarshal([]byte(tc.json), strategy)
 		require.NoError(t, err)
-		require.Equal(t, tc.strategy, actual)
+		require.Equal(t, tc.strategy, strategy)
 
-		err = yaml.Unmarshal([]byte(tc.yaml), actual)
+		strategy = &TunnelStrategyV1{}
+		err = yaml.Unmarshal([]byte(tc.yaml), strategy)
 		require.NoError(t, err)
-		require.Equal(t, tc.strategy, actual)
+		require.Equal(t, tc.strategy, strategy)
 	}
 }

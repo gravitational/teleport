@@ -582,7 +582,7 @@ type Auth struct {
 	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
 
 	// TunnelStrategy configures the tunnel strategy used by the cluster.
-	TunnelStrategy types.TunnelStrategyConfig `yaml:"tunnel_strategy,omitempty"`
+	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.

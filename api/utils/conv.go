@@ -18,6 +18,7 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/gravitational/trace"
@@ -55,6 +56,23 @@ func ObjectToStruct(in interface{}, out interface{}) error {
 		return trace.Wrap(err, "failed to marshal %v, %v", in, err)
 	}
 	if err := json.Unmarshal(bytes, out); err != nil {
+		return trace.Wrap(err, "failed to unmarshal %v into %T, %v", in, out, err)
+	}
+	return nil
+}
+
+// StrictObjectToStruct converts any structure into JSON and then unmarshalls
+// it into another structure using a strict decoder.
+func StrictObjectToStruct(in interface{}, out interface{}) error {
+	data, err := json.Marshal(in)
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal %v, %v", in, err)
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(out); err != nil {
 		return trace.Wrap(err, "failed to unmarshal %v into %T, %v", in, out, err)
 	}
 	return nil
