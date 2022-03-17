@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -216,7 +217,7 @@ func TestDatabaseAccessMongoRootCluster(t *testing.T) {
 func TestDatabaseAccessMongoConnectionCount(t *testing.T) {
 	pack := setupDatabaseTest(t)
 
-	connectMongoClient := func(t *testing.T) {
+	connectMongoClient := func(t *testing.T) (serverConnectionCount int32) {
 		// Connect to the database service in root cluster.
 		client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
 			AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -231,23 +232,39 @@ func TestDatabaseAccessMongoConnectionCount(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+
 		// Execute a query.
 		_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
 		require.NoError(t, err)
+
+		// Get a server connection count before disconnect.
+		serverConnectionCount = pack.root.mongo.GetActiveConnectionsCount()
+
 		// Disconnect.
 		err = client.Disconnect(context.Background())
 		require.NoError(t, err)
-	}
-	connectMongoClient(t)
 
-	// Get connection count after mongo driver indicated the connection pool.
-	initialConnectionCount := pack.root.mongo.GetActiveConnectionsCount()
+		return serverConnectionCount
+	}
+
+	// Get connection count while the first client is connected.
+	initialConnectionCount := connectMongoClient(t)
+
+	// Check if active connections count is not growing over time when new
+	// clients connect to the mongo server.
 	clientCount := 8
 	for i := 0; i < clientCount; i++ {
-		connectMongoClient(t)
+		// Note that connection count per client fluctuates between 6 and 9.
+		// Use InDelta to avoid flaky test.
+		require.InDelta(t, initialConnectionCount, connectMongoClient(t), 3)
 	}
-	// Check if active connections count is not growing over time when new clients connect to the mongo server.
-	require.Equal(t, initialConnectionCount, pack.root.mongo.GetActiveConnectionsCount())
+
+	// Wait until the server reports no more connections. This usually happens
+	// really quick but wait a little longer just in case.
+	waitUntilNoConnections := func() bool {
+		return 0 == pack.root.mongo.GetActiveConnectionsCount()
+	}
+	require.Eventually(t, waitUntilNoConnections, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestDatabaseAccessMongoLeafCluster tests a scenario where a user connects
@@ -421,6 +438,121 @@ func TestDatabaseAccessPostgresSeparateListener(t *testing.T) {
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
 	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+	// Disconnect.
+	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
+func init() {
+	// Override database agents shuffle behavior to ensure they're always
+	// tried in the same order during tests. Used for HA tests.
+	db.SetShuffleFunc(db.ShuffleSort)
+}
+
+// TestDatabaseAccessHARootCluster verifies that proxy falls back to a healthy
+// database agent when multiple agents are serving the same database and one
+// of them is down in a root cluster.
+func TestDatabaseAccessHARootCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	// Insert a database server entry not backed by an actual running agent
+	// to simulate a scenario when an agent is down but the resource hasn't
+	// expired from the backend yet.
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: pack.root.postgresService.Name,
+	}, types.DatabaseServerSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      pack.root.postgresAddr,
+		// To make sure unhealthy server is always picked in tests first, make
+		// sure its host ID always compares as "smaller" as the tests sort
+		// agents.
+		HostID:   "0000",
+		Hostname: "test",
+	})
+	require.NoError(t, err)
+
+	_, err = pack.root.cluster.Process.GetAuthServer().UpsertDatabaseServer(
+		context.Background(), dbServer)
+	require.NoError(t, err)
+
+	// Connect to the database service in root cluster.
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.postgresService.Name,
+			Protocol:    pack.root.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+	// Disconnect.
+	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
+// TestDatabaseAccessHALeafCluster verifies that proxy falls back to a healthy
+// database agent when multiple agents are serving the same database and one
+// of them is down in a leaf cluster.
+func TestDatabaseAccessHALeafCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+	pack.waitForLeaf(t)
+
+	// Insert a database server entry not backed by an actual running agent
+	// to simulate a scenario when an agent is down but the resource hasn't
+	// expired from the backend yet.
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: pack.leaf.postgresService.Name,
+	}, types.DatabaseServerSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      pack.leaf.postgresAddr,
+		// To make sure unhealthy server is always picked in tests first, make
+		// sure its host ID always compares as "smaller" as the tests sort
+		// agents.
+		HostID:   "0000",
+		Hostname: "test",
+	})
+	require.NoError(t, err)
+
+	_, err = pack.leaf.cluster.Process.GetAuthServer().UpsertDatabaseServer(
+		context.Background(), dbServer)
+	require.NoError(t, err)
+
+	// Connect to the database service in leaf cluster via root cluster.
+	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Cluster:    pack.leaf.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.leaf.postgresService.Name,
+			Protocol:    pack.leaf.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.leaf.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.root.postgres.QueryCount())
 
 	// Disconnect.
 	err = client.Close(context.Background())
@@ -667,7 +799,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p.setupUsersAndRoles(t)
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := p.leaf.cluster.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+	ca, err := p.leaf.cluster.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: p.root.cluster.Secrets.SiteName,
 	}, false)

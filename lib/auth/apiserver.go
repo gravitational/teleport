@@ -1109,7 +1109,7 @@ func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.RotateCertAuthority(req); err != nil {
+	if err := auth.RotateCertAuthority(r.Context(), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -1154,7 +1154,7 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.RotateExternalCertAuthority(ca); err != nil {
+	if err := auth.RotateExternalCertAuthority(r.Context(), ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -1165,8 +1165,7 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := auth.GetCertAuthorities(types.CertAuthType(p.ByName("type")), loadKeys)
-
+	certs, err := auth.GetCertAuthorities(r.Context(), types.CertAuthType(p.ByName("type")), loadKeys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1190,7 +1189,7 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 		Type:       types.CertAuthType(p.ByName("type")),
 		DomainName: p.ByName("domain"),
 	}
-	ca, err := auth.GetCertAuthority(id, loadKeys)
+	ca, err := auth.GetCertAuthority(r.Context(), id, loadKeys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

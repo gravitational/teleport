@@ -24,17 +24,7 @@ like:
   This guide requires a commercial edition of Teleport.
 </Admonition>
 
-## Enable ADFS Authentication
-
-First, configure Teleport auth server to use ADFS authentication instead of the local
-user database. Update `/etc/teleport.yaml` as shown below and restart the
-teleport daemon.
-
-```yaml
-auth_service:
-    authentication:
-        type: saml
-```
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
 ## Configure ADFS
 

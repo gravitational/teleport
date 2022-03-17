@@ -16,86 +16,75 @@ package backend
 
 import (
 	"context"
+	"fmt"
+	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-type Suite struct {
-}
-
-var _ = check.Suite(&Suite{})
-
-func (s *Suite) SetUpSuite(c *check.C) {
-}
-
-func (s *Suite) TearDownSuite(c *check.C) {
-}
-
-func (s *Suite) TearDownTest(c *check.C) {
-}
-
-func (s *Suite) SetUpTest(c *check.C) {
-}
-
-func (s *Suite) TestSanitizeBucket(c *check.C) {
+func TestSanitize(t *testing.T) {
 	tests := []struct {
-		inKey    []byte
-		outError bool
+		inKey  []byte
+		assert require.ErrorAssertionFunc
 	}{
 		{
-			inKey:    []byte("a-b/c:d/.e_f/01"),
-			outError: false,
+			inKey:  []byte("a-b/c:d/.e_f/01"),
+			assert: require.NoError,
 		},
 		{
-			inKey:    []byte("/namespaces//params"),
-			outError: true,
+			inKey:  []byte("/namespaces//params"),
+			assert: require.Error,
 		},
 		{
-			inKey:    RangeEnd([]byte("a-b/c:d/.e_f/01")),
-			outError: false,
+			inKey:  RangeEnd([]byte("a-b/c:d/.e_f/01")),
+			assert: require.NoError,
 		},
 		{
-			inKey:    RangeEnd([]byte("/")),
-			outError: false,
+			inKey:  RangeEnd([]byte("/")),
+			assert: require.NoError,
 		},
 		{
-			inKey:    RangeEnd([]byte("Malformed \xf0\x90\x28\xbc UTF8")),
-			outError: true,
+			inKey:  RangeEnd([]byte("Malformed \xf0\x90\x28\xbc UTF8")),
+			assert: require.Error,
 		},
 		{
-			inKey:    []byte("test+subaddr@example.com"),
-			outError: false,
+			inKey:  []byte("test+subaddr@example.com"),
+			assert: require.NoError,
+		},
+		{
+			inKey:  []byte("xyz"),
+			assert: require.NoError,
 		},
 	}
 
-	for i, tt := range tests {
-		comment := check.Commentf("Test %v, key: %q", i, string(tt.inKey))
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%v", string(tt.inKey)), func(t *testing.T) {
+			ctx := context.Background()
+			safeBackend := NewSanitizer(&nopBackend{})
 
-		safeBackend := NewSanitizer(&nopBackend{})
+			_, err := safeBackend.Get(ctx, tt.inKey)
+			tt.assert(t, err)
 
-		ctx := context.TODO()
-		_, err := safeBackend.Get(ctx, tt.inKey)
-		c.Assert(err != nil, check.Equals, tt.outError, comment)
+			_, err = safeBackend.Create(ctx, Item{Key: tt.inKey})
+			tt.assert(t, err)
 
-		_, err = safeBackend.Create(ctx, Item{Key: tt.inKey})
-		c.Assert(err != nil, check.Equals, tt.outError, comment)
+			_, err = safeBackend.Put(ctx, Item{Key: tt.inKey})
+			tt.assert(t, err)
 
-		_, err = safeBackend.Put(ctx, Item{Key: tt.inKey})
-		c.Assert(err != nil, check.Equals, tt.outError, comment)
+			_, err = safeBackend.Update(ctx, Item{Key: tt.inKey})
+			tt.assert(t, err)
 
-		_, err = safeBackend.Update(ctx, Item{Key: tt.inKey})
-		c.Assert(err != nil, check.Equals, tt.outError, comment)
+			_, err = safeBackend.CompareAndSwap(ctx, Item{Key: tt.inKey}, Item{Key: tt.inKey})
+			tt.assert(t, err)
 
-		_, err = safeBackend.CompareAndSwap(ctx, Item{Key: tt.inKey}, Item{Key: tt.inKey})
-		c.Assert(err != nil, check.Equals, tt.outError, comment)
+			err = safeBackend.Delete(ctx, tt.inKey)
+			tt.assert(t, err)
 
-		err = safeBackend.Delete(ctx, tt.inKey)
-		c.Assert(err != nil, check.Equals, tt.outError, comment)
-
-		err = safeBackend.DeleteRange(ctx, tt.inKey, tt.inKey)
-		c.Assert(err != nil, check.Equals, tt.outError, comment)
+			err = safeBackend.DeleteRange(ctx, tt.inKey, tt.inKey)
+			tt.assert(t, err)
+		})
 	}
 }
 
@@ -108,7 +97,9 @@ func (n *nopBackend) Get(_ context.Context, _ []byte) (*Item, error) {
 }
 
 func (n *nopBackend) GetRange(_ context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
-	return &GetResult{Items: []Item{Item{Key: []byte("foo"), Value: []byte("bar")}}}, nil
+	return &GetResult{Items: []Item{
+		{Key: []byte("foo"), Value: []byte("bar")},
+	}}, nil
 }
 
 func (n *nopBackend) Create(_ context.Context, _ Item) (*Lease, error) {

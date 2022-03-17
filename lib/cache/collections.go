@@ -809,17 +809,17 @@ func (c *certAuthority) erase(ctx context.Context) error {
 }
 
 func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	applyHostCAs, err := c.fetchCertAuthorities(types.HostCA)
+	applyHostCAs, err := c.fetchCertAuthorities(ctx, types.HostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	applyUserCAs, err := c.fetchCertAuthorities(types.UserCA)
+	applyUserCAs, err := c.fetchCertAuthorities(ctx, types.UserCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	applyJWTSigners, err := c.fetchCertAuthorities(types.JWTSigner)
+	applyJWTSigners, err := c.fetchCertAuthorities(ctx, types.JWTSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -835,8 +835,8 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 	}, nil
 }
 
-func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
-	authorities, err := c.Trust.GetCertAuthorities(caType, c.watch.LoadSecrets)
+func (c *certAuthority) fetchCertAuthorities(ctx context.Context, caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
+	authorities, err := c.Trust.GetCertAuthorities(ctx, caType, c.watch.LoadSecrets)
 	if err != nil {
 		// DELETE IN: 5.1
 		//
@@ -2278,7 +2278,7 @@ func (c *windowsDesktops) erase(ctx context.Context) error {
 }
 
 func (c *windowsDesktops) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.WindowsDesktops.GetWindowsDesktops(ctx)
+	resources, err := c.WindowsDesktops.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2288,7 +2288,7 @@ func (c *windowsDesktops) fetch(ctx context.Context) (apply func(ctx context.Con
 		}
 
 		for _, resource := range resources {
-			if err := c.windowsDesktopsCache.CreateWindowsDesktop(ctx, resource); err != nil {
+			if err := c.windowsDesktopsCache.UpsertWindowsDesktop(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2299,7 +2299,10 @@ func (c *windowsDesktops) fetch(ctx context.Context) (apply func(ctx context.Con
 func (c *windowsDesktops) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
-		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx, event.Resource.GetName())
+		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx,
+			event.Resource.GetMetadata().Description, // Cache passes host ID via description field.
+			event.Resource.GetName(),
+		)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				c.Warningf("Failed to delete resource %v.", err)
@@ -2311,14 +2314,7 @@ func (c *windowsDesktops) processEvent(ctx context.Context, event types.Event) e
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		err := c.windowsDesktopsCache.DeleteWindowsDesktop(ctx, resource.GetName())
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				c.WithError(err).Warningf("Failed to delete Windows desktop %v.", event.Resource.GetName())
-				return trace.Wrap(err)
-			}
-		}
-		if err := c.windowsDesktopsCache.CreateWindowsDesktop(ctx, resource); err != nil {
+		if err := c.windowsDesktopsCache.UpsertWindowsDesktop(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
