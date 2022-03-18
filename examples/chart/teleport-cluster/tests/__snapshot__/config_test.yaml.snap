@@ -817,6 +817,7 @@ matches snapshot for proxy-listener-mode.yaml:
           proxy_listener_mode: multiplex
         kubernetes_service:
           enabled: true
+          listen_addr: 0.0.0.0:443
           kube_cluster_name: test-proxy-listener-mode
         proxy_service:
           public_addr: 'test-proxy-listener-mode:443'

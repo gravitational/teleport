@@ -780,6 +780,9 @@ should provision initContainer correctly when set in values:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
+            env:
+            - name: HTTPS_PROXY
+              value: http://username:password@my.proxy.host:3128
             image: quay.io/gravitational/teleport:10.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
@@ -1052,6 +1055,81 @@ should set default serviceAccountName when not set in values:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
+            image: quay.io/gravitational/teleport:10.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /healthz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: data
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+          - emptyDir: {}
+            name: data
+should set environment when extraEnv set in values:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: a0e194d315c4d1a73f7c1b7a276bfcbb74aef2b03f7529e393844bdda44abb72
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            env:
+            - name: HTTPS_PROXY
+              value: http://username:password@my.proxy.host:3128
             image: quay.io/gravitational/teleport:10.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
