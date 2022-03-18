@@ -780,9 +780,6 @@ should provision initContainer correctly when set in values:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
-            env:
-            - name: HTTPS_PROXY
-              value: http://username:password@my.proxy.host:3128
             image: quay.io/gravitational/teleport:10.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:

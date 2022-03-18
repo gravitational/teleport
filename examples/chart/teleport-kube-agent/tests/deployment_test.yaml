@@ -199,31 +199,25 @@ tests:
           value: Always
       - matchSnapshot: {}
 
-  # TODO: uncomment when #11155 merges
-  # - it: should set environment when extraEnv set in values
-  #   set:
-  #     proxyAddr: helm-lint.example.com
-  #     authToken: sample-auth-token-dont-use-this
-  #     kubeClusterName: helm-lint.example.com
-  #     extraEnv:
-  #       - name: HTTPS_PROXY
-  #         value: "http://username:password@my.proxy.host:3128"
-  #   asserts:
-  #     - contains:
-  #         path: spec.template.spec.containers[0].env
-  #         content:
-  #           name: HTTPS_PROXY
-  #           value: "http://username:password@my.proxy.host:3128"
-  #     - matchSnapshot: {}
+  - it: should set environment when extraEnv set in values
+    set:
+      proxyAddr: helm-lint.example.com
+      authToken: sample-auth-token-dont-use-this
+      kubeClusterName: helm-lint.example.com
+      extraEnv:
+        - name: HTTPS_PROXY
+          value: "http://username:password@my.proxy.host:3128"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: "http://username:password@my.proxy.host:3128"
+      - matchSnapshot: {}
 
   - it: should provision initContainer correctly when set in values
     values:
       - ../.lint/initcontainers.yaml
-      - ../.lint/resources.yaml
-    set:
-      extraEnv:
-        - name: HTTPS_PROXY
-          value: "http://username:password@my.proxy.host:3128"
     asserts:
       - contains:
           path: spec.template.spec.initContainers[0].args
@@ -234,12 +228,6 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].image
           value: "alpine"
-      # TODO: uncomment when #11155 merges
-      # - contains:
-      #     path: spec.template.spec.initContainers[0].env
-      #     content:
-      #       name: HTTPS_PROXY
-      #       value: "http://username:password@my.proxy.host:3128"
       - equal:
           path: spec.template.spec.initContainers[0].resources.limits.cpu
           value: 2
