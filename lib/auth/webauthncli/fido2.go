@@ -213,8 +213,7 @@ func fido2Login(
 		return nil
 	}
 
-	skipAdditionalPrompt := passwordless
-	if err := runOnFIDO2Devices(ctx, prompt, skipAdditionalPrompt, filter, deviceCallback); err != nil {
+	if err := runOnFIDO2Devices(ctx, prompt, passwordless, filter, deviceCallback); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -246,6 +245,13 @@ func getPasswordlessCredentials(dev FIDODevice, pin, rpID, user string) (*libfid
 	creds, err := dev.Credentials(rpID, pin)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO(codingllama): After this line we should cancel other devices,
+	//  the user picked the current one.
+
+	if user != "" {
+		log.Debugf("FIDO2: Searching credentials for user %q", user)
 	}
 
 	switch {
@@ -454,8 +460,8 @@ func fido2Register(
 		return nil
 	}
 
-	const skipAdditionalPrompt = false
-	if err := runOnFIDO2Devices(ctx, prompt, skipAdditionalPrompt, filter, deviceCallback); err != nil {
+	const passwordless = false
+	if err := runOnFIDO2Devices(ctx, prompt, passwordless, filter, deviceCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -543,7 +549,7 @@ type runPrompt LoginPrompt
 
 func runOnFIDO2Devices(
 	ctx context.Context,
-	prompt runPrompt, skipAdditionalPrompt bool,
+	prompt runPrompt, passwordless bool,
 	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc) error {
 	devices, err := findSuitableDevicesOrTimeout(ctx, filter)
@@ -551,30 +557,35 @@ func runOnFIDO2Devices(
 		return trace.Wrap(err)
 	}
 
-	// Ask for touch before select step.
-	prompt.PromptTouch()
+	var dev deviceWithInfo
+	if doEagerPINPrompt(passwordless, devices) {
+		dev = devices[0] // single device guaranteed in this case
+	} else {
+		prompt.PromptTouch() // about to select
 
-	// Be optimistic at first and assume there is no PIN.
-	// We'll get requiresPIN = true if the user picks a PIN-protected device.
-	var pin string
-	dev, requiresPIN, err := selectDevice(ctx, pin, devices, deviceCallback)
-	switch {
-	case err != nil:
-		return trace.Wrap(err)
-	case !requiresPIN:
-		return nil
+		d, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, deviceCallback)
+		switch {
+		case err != nil:
+			return trace.Wrap(err)
+		case !requiresPIN:
+			return nil
+		}
+		dev = d
 	}
 
 	// Selected device requires PIN, let's use the prompt and run the callback
 	// again.
-	pin, err = prompt.PromptPIN()
-	if err != nil {
+	pin, err := prompt.PromptPIN()
+	switch {
+	case err != nil:
 		return trace.Wrap(err)
+	case pin == "":
+		return libfido2.ErrPinRequired
 	}
 
-	// Ask for an additional touch after PIN.
-	// Works for most flows (except passwordless).
-	if !skipAdditionalPrompt {
+	// Prompt again for a touch if MFA, but don't prompt for passwordless.
+	// The passwordless callback calls the prompt at a more appropriate time.
+	if !passwordless {
 		prompt.PromptTouch()
 	}
 
@@ -582,6 +593,20 @@ func runOnFIDO2Devices(
 	// selectDevice is used since it correctly deals with cancellation.
 	_, _, err = selectDevice(ctx, pin, []deviceWithInfo{dev}, deviceCallback)
 	return trace.Wrap(err)
+}
+
+func doEagerPINPrompt(passwordless bool, devices []deviceWithInfo) bool {
+	// Don't eagerly prompt for PIN if MFA, it usually doesn't require PINs.
+	// Also don't eagerly prompt if >1 device, the touch chooses the device and we
+	// can't know which device will be chosen.
+	if !passwordless || len(devices) > 1 {
+		return false
+	}
+
+	// Only eagerly prompt for PINs if not bio, biometric devices unlock with
+	// touch instead (explicit PIN not required).
+	info := devices[0].info
+	return info.clientPinSet && !info.bioEnroll
 }
 
 func findSuitableDevicesOrTimeout(ctx context.Context, filter deviceFilterFunc) ([]deviceWithInfo, error) {
@@ -652,9 +677,11 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 		devs = append(devs, deviceWithInfo{FIDODevice: dev, info: di})
 	}
 
-	if len(devs) == 0 {
+	l := len(devs)
+	if l == 0 {
 		return nil, errors.New("no suitable devices found")
 	}
+	log.Debugf("FIDO2: Found %v suitable devices", l)
 
 	return devs, nil
 }
@@ -744,6 +771,7 @@ type deviceInfo struct {
 	rk                             bool
 	clientPinCapable, clientPinSet bool
 	uv                             bool
+	bioEnroll                      bool
 }
 
 // uvCapable returns true for both "uv" and pin-configured devices.
@@ -766,6 +794,8 @@ func makeDevInfo(path string, info *libfido2.DeviceInfo) *deviceInfo {
 			di.clientPinSet = opt.Value == libfido2.True
 		case "uv":
 			di.uv = opt.Value == libfido2.True
+		case "bioEnroll":
+			di.bioEnroll = opt.Value == libfido2.True
 		}
 	}
 	return di
