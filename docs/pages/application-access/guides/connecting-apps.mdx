@@ -59,31 +59,13 @@ In our example:
 - `teleport.example.com` will host the Access Plane.
 - `*.teleport.example.com` will host all of the applications e.g. `grafana.teleport.example.com`.
 
-Teleport can obtain a certificate automatically from Let's Encrypt using
-[ACME](https://letsencrypt.org/how-it-works/) protocol.
-
-Enable ACME in your proxy config:
-
-```yaml
-proxy_service:
-  enabled: "yes"
-  web_listen_addr: "0.0.0.0:443"
-  public_addr: "teleport.example.com:443"
-  acme:
-    enabled: "yes"
-    email: alice@example.com
-```
-
-<Admonition
-  type="note"
-  title="Web Proxy Port"
->
-  Teleport uses [TLS-ALPN-01](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01)
-  ACME challenge to validate certificate requests which only works on port `443`.  Make sure your Teleport proxy is accessible on port `443` when using ACME for certificate management.
-</Admonition>
-
-Alternatively, if you have obtained certificate/key pairs for your domain
-(e.g. using [certbot](https://certbot.eff.org/)), they can be provided directly
+You can either configure Teleport to obtain a TLS certificate via Let's Encrypt or use an existing certificate and private key (e.g. using [certbot](https://certbot.eff.org/)).
+<Tabs>
+<TabItem label="Let's Encrypt">
+(!docs/pages/includes/acme.mdx!)
+</TabItem>
+<TabItem label="Existing Credentials">
+If you have obtained certificate/key pairs for your domain they can be provided directly
 to the proxy service:
 
 ```yaml
@@ -97,6 +79,8 @@ proxy_service:
   - key_file: "/etc/letsencrypt/live/*.teleport.example.com/privkey.pem"
     cert_file: "/etc/letsencrypt/live/*.teleport.example.com/fullchain.pem"
 ```
+</TabItem>
+</Tabs>
 
 ### Create a user
 

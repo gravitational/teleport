@@ -25,24 +25,37 @@ Take a look at the [Installation Guide](../installation.mdx) for more options.
 
 ### Configure Teleport
 
-Generate a configuration file for Teleport using `teleport configure`.
+Teleport requires TLS credentials to provide a secure public endpoint for the
+Teleport UI and for end-users to connect to.
 
-Acme turns on automatic TLS certificates from [Let's Encrypt](https://letsencrypt.org).
+You can either configure Teleport to obtain a TLS certificate via Let's Encrypt
+or use an existing certificate and private key.
 
-Set up an email to receive updates from Let's Encrypt, and use a valid DNS name for a cluster name.
+<Tabs>
+  <TabItem label="Public internet deployment with Let's Encrypt">
 
-```code
-$ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
-# Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
-```
+  (!docs/pages/includes/acme.mdx!)
 
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
+  </TabItem>
 
-### Configure domain name and obtain TLS certificates using Let's Encrypt
+  <TabItem label="Private net deployment">
+  On your Teleport host, place a valid private key and a certificate chain in `/var/lib/teleport/privkey.pem`
+  and `/var/lib/teleport/fullchain.pem` respectively.
 
-Teleport requires a secure public endpoint for the Teleport UI and for end-users to connect to.
-To get started, set up two `A` records for `tele.example.com` and `*.tele.example.com`
-pointing to the IP/FQDN of the machine with Teleport installed.
+  The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `*.teleport.example.com`.
+
+  Configure Teleport, changing the values of the `--cluster-name` and `--public-addr` flags to match the domain name of your Teleport host.
+
+  ```code
+  $ sudo teleport configure -o file \
+      --cluster-name=tele.example.com \
+      --public-addr=tele.example.com:443 \
+      --cert-file=/var/lib/teleport/fullchain.pem \
+      --key-file=/var/lib/teleport/privkey.pem
+  ```
+  </TabItem>
+
+</Tabs>
 
 <Admonition
   type="tip"
@@ -55,15 +68,24 @@ pointing to the IP/FQDN of the machine with Teleport installed.
   ```
 </Admonition>
 
-Start Teleport:
 
-```code
-$ sudo teleport start
-```
+### Start Teleport
 
-You can access Teleport's Web UI on port `443`.
+<Tabs>
+  <TabItem label="Package manager RPM/DEB">
+    ```code
+    $ sudo systemctl start teleport
+    ```
+  </TabItem>
 
-Replace `tele.example.com` with your domain: `https://tele.example.com/`.
+  <TabItem label="Source or custom install">
+    ```code
+    $ sudo teleport start
+    ```
+  </TabItem>
+</Tabs>
+
+You can access Teleport's Web UI via HTTPS at the domain you created earlier.
 
 ## Step 2/4. Create a Teleport user and set up two-factor authentication
 
