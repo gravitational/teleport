@@ -20,7 +20,7 @@ export type KeyboardShortcutType =
   | 'tab-new'
   | 'tab-previous'
   | 'tab-next'
-  | 'focus-global-search'
+  | 'open-quick-input'
   | 'toggle-connections'
   | 'toggle-clusters'
   | 'toggle-identity';
@@ -44,7 +44,7 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'tab-new': 'Command-T',
         'tab-previous': 'Control-Shift-Tab',
         'tab-next': 'Control-Tab',
-        'focus-global-search': 'F1',
+        'open-quick-input': 'Command-K',
         'toggle-connections': 'Command-O',
         'toggle-clusters': 'Command-E',
         'toggle-identity': 'Command-I',
@@ -64,7 +64,7 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'tab-new': 'Ctrl-Shift-T',
         'tab-previous': 'Ctrl-PageUp',
         'tab-next': 'Ctrl-PageDown',
-        'focus-global-search': 'F1',
+        'open-quick-input': 'Ctrl-K',
         'toggle-connections': 'Ctrl-O',
         'toggle-clusters': 'Ctrl-E',
         'toggle-identity': 'Ctrl-I',

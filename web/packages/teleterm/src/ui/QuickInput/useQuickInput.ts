@@ -111,7 +111,7 @@ export default function useQuickInput() {
   };
 
   useKeyboardShortcuts({
-    'focus-global-search': () => {
+    'open-quick-input': () => {
       quickInputService.show();
     },
   });
