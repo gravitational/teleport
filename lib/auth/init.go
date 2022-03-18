@@ -1042,7 +1042,7 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 // Function does nothing for databases created with Teleport v9.0+.
 // https://github.com/gravitational/teleport/issues/5029
 //
-// DELETE IN 10.0
+// DELETE IN 11.0
 func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
