@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -45,6 +46,7 @@ type BotsCommand struct {
 
 	botName  string
 	botRoles string
+	tokenID  string
 	tokenTTL time.Duration
 
 	botsList   *kingpin.CmdClause
@@ -64,7 +66,8 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
 	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").Required().StringVar(&c.botRoles)
 	c.botsAdd.Flag("ttl", "TTL for the bot join token.").DurationVar(&c.tokenTTL)
-	// TODO: --token for optionally specifying the join token to use?
+	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
+	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	// TODO: --ttl for setting a ttl on the join token
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
@@ -134,19 +137,42 @@ func (c *BotsCommand) ListBots(client auth.ClientI) error {
 	return nil
 }
 
-var startMessageTemplate = template.Must(template.New("node").Parse(`The bot token: {{.token}}
+// bold wraps the given text in an ANSI escape to bold it
+func bold(text string) string {
+	return utils.Color(utils.Bold, text)
+}
+
+var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
+	"bold": bold,
+}).Parse(`The bot token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
-Run this on the new bot node to join the cluster:
+Optionally, if running the bot under an isolated user account, first initialize
+the data directory by running the following command {{ bold "as root" }}:
+
+> tbot init \
+   --destination-dir=./tbot-user \
+   --bot-user=tbot \
+   --reader-user=alice
+
+... where "tbot" is the username of the bot's UNIX user, and "alice" is the
+UNIX user that will be making use of the certificates.
+
+Then, run this {{ bold "as the bot user" }} to begin continuously fetching
+certificates:
 
 > tbot start \
    --destination-dir=./tbot-user \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   --auth-server={{.auth_server}}
+   --auth-server={{.auth_server}}{{if .join_method}} \
+   --join-method={{.join_method}}{{end}}
 
 Please note:
 
+  - The ./tbot-user destination directory can be changed as desired.
+  - /var/lib/teleport/bot must be accessible to the bot user, or --data-dir
+    must point to another accessible directory to store internal bot data.
   - This invitation token will expire in {{.minutes}} minutes
   - {{.auth_server}} must be reachable from the new node
 `))
@@ -154,12 +180,23 @@ Please note:
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(client auth.ClientI) error {
 	response, err := client.CreateBot(context.Background(), &proto.CreateBotRequest{
-		Name:  c.botName,
-		TTL:   proto.Duration(c.tokenTTL),
-		Roles: splitRoles(c.botRoles),
+		Name:    c.botName,
+		TTL:     proto.Duration(c.tokenTTL),
+		Roles:   splitRoles(c.botRoles),
+		TokenID: c.tokenID,
 	})
 	if err != nil {
 		return trace.WrapWithMessage(err, "error while creating bot")
+	}
+
+	if c.format == teleport.JSON {
+		out, err := json.MarshalIndent(response, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal CreateBot response")
+		}
+
+		fmt.Println(string(out))
+		return nil
 	}
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
@@ -186,11 +223,21 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 		addr = authServers[0].GetAddr()
 	}
 
+	joinMethod := response.JoinMethod
+	// omit join method output for the token method
+	switch joinMethod {
+	case types.JoinMethodUnspecified, types.JoinMethodToken:
+		// the template will omit an empty string
+		joinMethod = ""
+	default:
+	}
+
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
 		"token":       response.TokenID,
 		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
 		"ca_pins":     caPins,
 		"auth_server": addr,
+		"join_method": joinMethod,
 	})
 }
 

@@ -108,26 +108,43 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 	if req.Role == types.RoleBot {
 		// bots use this endpoint but get a user cert
 		// botResourceName must be set, enforced in CheckAndSetDefaults
-		botResourceName := provisionToken.GetBotName()
+		botName := provisionToken.GetBotName()
+
+		// Append `bot-` to the bot name to derive its username.
+		botResourceName := BotResourceName(botName)
 		expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
 
-		certs, err := a.generateInitialRenewableUserCerts(ctx, botResourceName, req.PublicSSHKey, expires)
+		joinMethod := provisionToken.GetJoinMethod()
+
+		// certs for IAM method should not be renewable
+		var renewable bool
+		switch joinMethod {
+		case types.JoinMethodToken:
+			renewable = true
+		case types.JoinMethodIAM:
+			renewable = false
+		default:
+			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
+		}
+		certs, err := a.generateInitialBotCerts(ctx, botResourceName, req.PublicSSHKey, expires, renewable)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		switch provisionToken.GetJoinMethod() {
-		case types.JoinMethodEC2, types.JoinMethodIAM:
-			// don't delete long-lived AWS join tokens
-		default:
-			// delete bot join tokens so they can't be re-used
+		switch joinMethod {
+		case types.JoinMethodToken:
+			// delete ephemeral bot join tokens so they can't be re-used
 			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
 				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
 					string(backend.MaskKeyName(provisionToken.GetName())))
 			}
+		case types.JoinMethodIAM:
+			// don't delete long-lived IAM join tokens
+		default:
+			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
 		}
 
-		log.Infof("Bot %q has joined the cluster.", botResourceName)
+		log.Infof("Bot %q has joined the cluster.", botName)
 		return certs, nil
 	}
 	// generate and return host certificate and keys

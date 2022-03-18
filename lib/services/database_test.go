@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -357,8 +358,57 @@ func TestIsRDSClusterSupported(t *testing.T) {
 				EngineVersion:       aws.String(test.engineVersion),
 			}
 
-			require.Equal(t, test.isSupported, IsRDSClusterSupported(cluster))
+			got, want := IsRDSClusterSupported(cluster), test.isSupported
+			require.Equal(t, want, got, "IsRDSClusterSupported = %v, want = %v", got, want)
+		})
+	}
+}
 
+func TestIsRDSInstanceSupported(t *testing.T) {
+	tests := []struct {
+		name          string
+		engine        string
+		engineVersion string
+		isSupported   bool
+	}{
+		{
+			name:          "non-MariaDB engine",
+			engine:        RDSEnginePostgres,
+			engineVersion: "13.3",
+			isSupported:   true,
+		},
+		{
+			name:          "unsupported MariaDB",
+			engine:        RDSEngineMariaDB,
+			engineVersion: "10.3.28",
+			isSupported:   false,
+		},
+		{
+			name:          "min supported version",
+			engine:        RDSEngineMariaDB,
+			engineVersion: "10.6.2",
+			isSupported:   true,
+		},
+		{
+			name:          "supported version",
+			engine:        RDSEngineMariaDB,
+			engineVersion: "10.8.0",
+			isSupported:   true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cluster := &rds.DBInstance{
+				DBInstanceArn:       aws.String("arn:aws:rds:us-east-1:1234567890:instance:test"),
+				DBClusterIdentifier: aws.String(test.name),
+				DbiResourceId:       aws.String(uuid.New().String()),
+				Engine:              aws.String(test.engine),
+				EngineVersion:       aws.String(test.engineVersion),
+			}
+
+			got, want := IsRDSInstanceSupported(cluster), test.isSupported
+			require.Equal(t, want, got, "IsRDSInstanceSupported = %v, want = %v", got, want)
 		})
 	}
 }
@@ -384,46 +434,58 @@ func TestRDSTagsToLabels(t *testing.T) {
 
 // TestDatabaseFromRedshiftCluster tests converting an Redshift cluster to a database resource.
 func TestDatabaseFromRedshiftCluster(t *testing.T) {
-	cluster := &redshift.Cluster{
-		ClusterIdentifier:   aws.String("mycluster"),
-		ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:1234567890:namespace:u-u-i-d"),
-		Endpoint: &redshift.Endpoint{
-			Address: aws.String("localhost"),
-			Port:    aws.Int64(5439),
-		},
-		Tags: []*redshift.Tag{
-			{
-				Key:   aws.String("key"),
-				Value: aws.String("val"),
+	t.Run("success", func(t *testing.T) {
+		cluster := &redshift.Cluster{
+			ClusterIdentifier:   aws.String("mycluster"),
+			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:1234567890:namespace:u-u-i-d"),
+			Endpoint: &redshift.Endpoint{
+				Address: aws.String("localhost"),
+				Port:    aws.Int64(5439),
 			},
-			{
-				Key:   aws.String("elasticbeanstalk:environment-id"),
-				Value: aws.String("id"),
+			Tags: []*redshift.Tag{
+				{
+					Key:   aws.String("key"),
+					Value: aws.String("val"),
+				},
+				{
+					Key:   aws.String("elasticbeanstalk:environment-id"),
+					Value: aws.String("id"),
+				},
 			},
-		},
-	}
-	expected, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "mycluster",
-		Description: "Redshift cluster in us-east-1",
-		Labels: map[string]string{
-			types.OriginLabel: types.OriginCloud,
-			labelAccountID:    "1234567890",
-			labelRegion:       "us-east-1",
-			"key":             "val",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5439",
-		AWS: types.AWS{
-			AccountID: "1234567890",
-			Region:    "us-east-1",
-			Redshift: types.Redshift{
-				ClusterID: "mycluster",
+		}
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "mycluster",
+			Description: "Redshift cluster in us-east-1",
+			Labels: map[string]string{
+				types.OriginLabel: types.OriginCloud,
+				labelAccountID:    "1234567890",
+				labelRegion:       "us-east-1",
+				"key":             "val",
 			},
-		},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5439",
+			AWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-east-1",
+				Redshift: types.Redshift{
+					ClusterID: "mycluster",
+				},
+			},
+		})
+
+		require.NoError(t, err)
+
+		actual, err := NewDatabaseFromRedshiftCluster(cluster)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
 	})
-	require.NoError(t, err)
-	actual, err := NewDatabaseFromRedshiftCluster(cluster)
-	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+
+	t.Run("missing endpoint", func(t *testing.T) {
+		_, err := NewDatabaseFromRedshiftCluster(&redshift.Cluster{
+			ClusterIdentifier: aws.String("still-creating"),
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err), "Expected trace.BadParameter, got %v", err)
+	})
 }

@@ -157,7 +157,6 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 	roleSet := []types.Role{role}
 
 	allowed := access{true, true, true, true, true}
-	denied := access{false, false, false, false, false}
 
 	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
 	c.Assert(err, check.IsNil)
@@ -186,5 +185,5 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 
 	// cloud-specific asserts
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, allowed)
-	c.Assert(userContext.ACL.Desktops, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Desktops, check.DeepEquals, allowed)
 }

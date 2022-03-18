@@ -254,11 +254,11 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	}
 }
 
-func newBotToken(t *testing.T, tokenName, user string, role types.SystemRole, expiry time.Time) types.ProvisionToken {
+func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole, expiry time.Time) types.ProvisionToken {
 	t.Helper()
 	token, err := types.NewProvisionTokenFromSpec(tokenName, expiry, types.ProvisionTokenSpecV2{
 		Roles:   []types.SystemRole{role},
-		BotName: user,
+		BotName: botName,
 	})
 	require.NoError(t, err, "could not create bot token")
 	return token
@@ -271,19 +271,22 @@ func TestRegister_Bot(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 
+	botName := "test"
+	botResourceName := BotResourceName(botName)
+
 	_, err := createBotRole(context.Background(), srv.Auth(), "test", "bot-test", []string{})
 	require.NoError(t, err)
 
-	user, err := createBotUser(context.Background(), srv.Auth(), "test", "bot-test")
+	_, err = createBotUser(context.Background(), srv.Auth(), botName, botResourceName)
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)
 
-	goodToken := newBotToken(t, "good-token", user.GetName(), types.RoleBot, later)
-	expiredToken := newBotToken(t, "expired", user.GetName(), types.RoleBot, srv.Clock().Now().Add(-1*time.Hour))
+	goodToken := newBotToken(t, "good-token", botName, types.RoleBot, later)
+	expiredToken := newBotToken(t, "expired", botName, types.RoleBot, srv.Clock().Now().Add(-1*time.Hour))
 	wrongKind := newBotToken(t, "wrong-kind", "", types.RoleNode, later)
 	wrongUser := newBotToken(t, "wrong-user", "llama", types.RoleBot, later)
-	invalidToken := newBotToken(t, "this-token-does-not-exist", user.GetName(), types.RoleBot, later)
+	invalidToken := newBotToken(t, "this-token-does-not-exist", botName, types.RoleBot, later)
 
 	err = srv.Auth().UpsertToken(context.Background(), goodToken)
 	require.NoError(t, err)

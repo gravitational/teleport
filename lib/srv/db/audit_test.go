@@ -122,22 +122,22 @@ func TestAuditMongo(t *testing.T) {
 	waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 
 	// Connect should trigger successful session start event.
-	mongo, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
+	mongoClient, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
 	require.NoError(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 
 	// Find command in a database we don't have access to.
-	_, err = mongo.Database("notadmin").Collection("test").Find(ctx, bson.M{})
+	_, err = mongoClient.Database("notadmin").Collection("test").Find(ctx, bson.M{})
 	require.Error(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionQueryFailedCode)
 
 	// Find command should trigger the query event.
-	_, err = mongo.Database("admin").Collection("test").Find(ctx, bson.M{})
+	_, err = mongoClient.Database("admin").Collection("test").Find(ctx, bson.M{})
 	require.NoError(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
 
 	// Closing connection should trigger session end event.
-	err = mongo.Disconnect(ctx)
+	err = mongoClient.Disconnect(ctx)
 	require.NoError(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionEndCode)
 }

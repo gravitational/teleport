@@ -17,6 +17,8 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -153,7 +155,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRole("populist", types.RoleSpecV5{
+	populist, err := types.NewRoleV3("populist", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -166,7 +168,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRole("dictator", types.RoleSpecV5{})
+	dictator, err := types.NewRoleV3("dictator", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -175,7 +177,11 @@ func TestOIDCLogin(t *testing.T) {
 
 	connector := mockConnector(t)
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(populist, dictator, connector, alice))
+	motd := "MESSAGE_OF_THE_DAY_OIDC"
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(populist, dictator, connector, alice),
+		withMOTD(t, motd),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -213,6 +219,8 @@ func TestOIDCLogin(t *testing.T) {
 		}
 	}()
 
+	buf := bytes.NewBuffer([]byte{})
+	sc := bufio.NewScanner(buf)
 	err = Run([]string{
 		"login",
 		"--insecure",
@@ -223,6 +231,7 @@ func TestOIDCLogin(t *testing.T) {
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
+		cf.overrideStderr = buf
 		return nil
 	}))
 
@@ -231,9 +240,20 @@ func TestOIDCLogin(t *testing.T) {
 	// verify that auto-request happened
 	require.True(t, didAutoRequest.Load())
 
+	findMOTD(t, sc, motd)
 	// if we got this far, then tsh successfully registered name change from `alice` to
 	// `alice@example.com`, since the correct name needed to be used for the access
 	// request to be generated.
+}
+
+func findMOTD(t *testing.T, sc *bufio.Scanner, motd string) {
+	t.Helper()
+	for sc.Scan() {
+		if strings.Contains(sc.Text(), motd) {
+			return
+		}
+	}
+	require.Fail(t, "Failed to find %q MOTD in the logs", motd)
 }
 
 // TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
@@ -283,7 +303,11 @@ func TestRelogin(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	motd := "RELOGIN MOTD PRESENT"
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice),
+		withMOTD(t, motd),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -291,6 +315,8 @@ func TestRelogin(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
+	buf := bytes.NewBuffer([]byte{})
+	sc := bufio.NewScanner(buf)
 	err = Run([]string{
 		"login",
 		"--insecure",
@@ -299,9 +325,11 @@ func TestRelogin(t *testing.T) {
 		"--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.overrideStderr = buf
 		return nil
 	}))
 	require.NoError(t, err)
+	findMOTD(t, sc, motd)
 
 	err = Run([]string{
 		"login",
@@ -309,10 +337,20 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, setHomePath(tmpHomePath))
+	}, setHomePath(tmpHomePath),
+		cliOption(func(cf *CLIConf) error {
+			cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+			cf.overrideStderr = buf
+			return nil
+		}))
 	require.NoError(t, err)
+	findMOTD(t, sc, motd)
 
-	err = Run([]string{"logout"}, setHomePath(tmpHomePath))
+	err = Run([]string{"logout"}, setHomePath(tmpHomePath),
+		cliOption(func(cf *CLIConf) error {
+			cf.overrideStderr = buf
+			return nil
+		}))
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -324,8 +362,10 @@ func TestRelogin(t *testing.T) {
 		"localhost",
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.overrideStderr = buf
 		return nil
 	}))
+	findMOTD(t, sc, motd)
 	require.NoError(t, err)
 }
 
@@ -444,7 +484,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		lib.SetInsecureDevMode(isInsecure)
 	})
 
-	requester, err := types.NewRole("requester", types.RoleSpecV5{
+	requester, err := types.NewRoleV3("requester", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"access"},
@@ -986,58 +1026,6 @@ func TestKubeConfigUpdate(t *testing.T) {
 	}
 }
 
-func TestMakeTableWithTruncatedColumn(t *testing.T) {
-	// os.Stdin.Fd() fails during go test, so width is defaulted to 80
-	columns := []string{"column1", "column2", "column3"}
-	rows := [][]string{[]string{strings.Repeat("cell1", 6), strings.Repeat("cell2", 6), strings.Repeat("cell3", 6)}}
-
-	testCases := []struct {
-		truncatedColumn string
-		expectedWidth   int
-		expectedOutput  []string
-	}{
-		{
-			truncatedColumn: "column2",
-			expectedWidth:   80,
-			expectedOutput: []string{
-				"column1                        column2           column3                        ",
-				"------------------------------ ----------------- ------------------------------ ",
-				"cell1cell1cell1cell1cell1cell1 cell2cell2cell... cell3cell3cell3cell3cell3cell3 ",
-				"",
-			},
-		},
-		{
-			truncatedColumn: "column3",
-			expectedWidth:   80,
-			expectedOutput: []string{
-				"column1                        column2                        column3           ",
-				"------------------------------ ------------------------------ ----------------- ",
-				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell... ",
-				"",
-			},
-		},
-		{
-			truncatedColumn: "no column match",
-			expectedWidth:   93,
-			expectedOutput: []string{
-				"column1                        column2                        column3                        ",
-				"------------------------------ ------------------------------ ------------------------------ ",
-				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell3cell3cell3cell3 ",
-				"",
-			},
-		},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.truncatedColumn, func(t *testing.T) {
-			table := makeTableWithTruncatedColumn(columns, rows, testCase.truncatedColumn)
-			rows := strings.Split(table.AsBuffer().String(), "\n")
-			require.Len(t, rows, 4)
-			require.Len(t, rows[2], testCase.expectedWidth)
-			require.Equal(t, testCase.expectedOutput, rows)
-		})
-	}
-}
-
 func TestSetX11Config(t *testing.T) {
 	t.Parallel()
 
@@ -1238,8 +1226,8 @@ func TestSetX11Config(t *testing.T) {
 }
 
 type testServersOpts struct {
-	bootstrap      []types.Resource
-	authConfigFunc func(cfg *service.AuthConfig)
+	bootstrap       []types.Resource
+	authConfigFuncs []func(cfg *service.AuthConfig)
 }
 
 type testServerOptFunc func(o *testServersOpts)
@@ -1252,7 +1240,11 @@ func withBootstrap(bootstrap ...types.Resource) testServerOptFunc {
 
 func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
 	return func(o *testServersOpts) {
-		o.authConfigFunc = fn
+		if o.authConfigFuncs == nil {
+			o.authConfigFuncs = []func(cfg *service.AuthConfig){}
+		}
+
+		o.authConfigFuncs = append(o.authConfigFuncs, fn)
 	}
 }
 
@@ -1264,6 +1256,17 @@ func withClusterName(t *testing.T, n string) testServerOptFunc {
 			})
 		require.NoError(t, err)
 		cfg.ClusterName = clusterName
+	})
+}
+
+func withMOTD(t *testing.T, motd string) testServerOptFunc {
+	oldpass := client.PasswordFromConsoleFn
+	*client.PasswordFromConsoleFn = func() (string, error) {
+		return "", nil
+	}
+	t.Cleanup(func() { *client.PasswordFromConsoleFn = *oldpass })
+	return withAuthConfig(func(cfg *service.AuthConfig) {
+		cfg.Preference.SetMessageOfTheDay(motd)
 	})
 }
 
@@ -1299,8 +1302,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
-	if options.authConfigFunc != nil {
-		options.authConfigFunc(&cfg.Auth)
+	for _, fn := range options.authConfigFuncs {
+		fn(&cfg.Auth)
 	}
 
 	auth, err = service.NewTeleport(cfg)
@@ -1383,7 +1386,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		require.NoError(t, err)
 
 		// load CA cert
-		authority, err := authServer.GetCertAuthority(types.CertAuthID{
+		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: "localhost",
 		}, false)

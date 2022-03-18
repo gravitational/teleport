@@ -89,7 +89,7 @@ type fakeClient struct {
 	caKey ssh.PublicKey
 }
 
-func (fc *fakeClient) GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (fc *fakeClient) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:         types.HostCA,
 		ClusterName:  "example.com",

@@ -32,11 +32,6 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
-	triggerPushMasterOnly = trigger{
-		Event:  triggerRef{Include: []string{"push"}},
-		Branch: triggerRef{Include: []string{"master"}},
-		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
-	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
@@ -56,6 +51,8 @@ var (
 	}
 )
 
+var buildboxVersion value
+
 var goRuntime value
 
 func init() {
@@ -64,6 +61,21 @@ func init() {
 		log.Fatalf("could not get Go version: %v", err)
 	}
 	goRuntime = value{raw: string(bytes.TrimSpace(v))}
+
+	v, err = exec.Command("make", "-s", "-C", "build.assets", "print-buildbox-version").Output()
+	if err != nil {
+		log.Fatalf("could not get buildbox version: %v", err)
+	}
+	buildboxVersion = value{raw: string(bytes.TrimSpace(v))}
+}
+
+func pushTriggerForBranch(branches ...string) trigger {
+	t := trigger{
+		Event: triggerRef{Include: []string{"push"}},
+		Repo:  triggerRef{Include: []string{"gravitational/teleport"}},
+	}
+	t.Branch.Include = append(t.Branch.Include, branches...)
+	return t
 }
 
 type buildType struct {

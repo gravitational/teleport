@@ -23,15 +23,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
+	DefaultJoinMethod     = "token"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -58,13 +61,40 @@ type CLIConf struct {
 	// Token is a bot join token.
 	Token string
 
-	// RenewInterval is the interval at which certificates are renewed, as a
+	// RenewalInterval is the interval at which certificates are renewed, as a
 	// time.ParseDuration() string. It must be less than the certificate TTL.
-	RenewInterval time.Duration
+	RenewalInterval time.Duration
 
 	// CertificateTTL is the requested TTL of certificates. It should be some
 	// multiple of the renewal interval to allow for failed renewals.
 	CertificateTTL time.Duration
+
+	// JoinMethod is the method the bot should use to exchange a token for the
+	// initial certificate
+	JoinMethod string
+
+	// Oneshot controls whether the bot quits after a single renewal.
+	Oneshot bool
+
+	// InitDir specifies which destination to initialize if multiple are
+	// configured.
+	InitDir string
+
+	// BotUser is a Unix username that should be given permission to write
+	BotUser string
+
+	// ReaderUser is the Unix username that will be reading the files
+	ReaderUser string
+
+	// Owner is the user:group that will own the destination files. Due to SSH
+	// restrictions on key permissions, it cannot be the same as the reader
+	// user. If ACL support is unused or unavailable, the reader user will own
+	// files directly.
+	Owner string
+
+	// Clean is a flag that, if set, instructs `tbot init` to remove existing
+	// unexpected files.
+	Clean bool
 }
 
 // OnboardingConfig contains values only required on first connect.
@@ -78,21 +108,30 @@ type OnboardingConfig struct {
 	// CAPins is a list of certificate authority pins, used to validate the
 	// connection to the Teleport auth server.
 	CAPins []string `yaml:"ca_pins"`
+
+	// JoinMethod is the method the bot should use to exchange a token for the
+	// initial certificate
+	JoinMethod types.JoinMethod `yaml:"join_method"`
 }
 
 // BotConfig is the bot's root config object.
 type BotConfig struct {
 	Onboarding   *OnboardingConfig    `yaml:"onboarding,omitempty"`
-	Storage      StorageConfig        `yaml:"storage,omitempty"`
+	Storage      *StorageConfig       `yaml:"storage,omitempty"`
 	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
-	Debug          bool          `yaml:"debug"`
-	AuthServer     string        `yaml:"auth_server"`
-	CertificateTTL time.Duration `yaml:"certificate_ttl"`
-	RenewInterval  time.Duration `yaml:"renew_interval"`
+	Debug           bool          `yaml:"debug"`
+	AuthServer      string        `yaml:"auth_server"`
+	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
+	RenewalInterval time.Duration `yaml:"renewal_interval"`
+	Oneshot         bool          `yaml:"oneshot"`
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
+	if conf.Storage == nil {
+		conf.Storage = &StorageConfig{}
+	}
+
 	if err := conf.Storage.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -103,19 +142,41 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	if conf.AuthServer == "" {
-		return trace.BadParameter("an auth server address must be configured")
-	}
-
 	if conf.CertificateTTL == 0 {
 		conf.CertificateTTL = DefaultCertificateTTL
 	}
 
-	if conf.RenewInterval == 0 {
-		conf.RenewInterval = DefaultRenewInterval
+	if conf.RenewalInterval == 0 {
+		conf.RenewalInterval = DefaultRenewInterval
 	}
 
 	return nil
+}
+
+// GetDestinationByPath attempts to fetch a destination by its filesystem path.
+// Only valid for filesystem destinations; returns nil if no matching
+// destination exists.
+func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, error) {
+	for _, dest := range conf.Destinations {
+		destImpl, err := dest.GetDestination()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		destDir, ok := destImpl.(*DestinationDirectory)
+		if !ok {
+			continue
+		}
+
+		// Note: this compares only paths as written in the config file. We
+		// might want to compare .Abs() if that proves to be confusing (though
+		// this may have its own problems)
+		if destDir.Path == path {
+			return dest, nil
+		}
+	}
+
+	return nil, nil
 }
 
 // NewDefaultConfig creates a new minimal bot configuration from defaults.
@@ -153,6 +214,10 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		config.Debug = true
 	}
 
+	if cf.Oneshot {
+		config.Oneshot = true
+	}
+
 	if cf.AuthServer != "" {
 		if config.AuthServer != "" {
 			log.Warnf("CLI parameters are overriding auth server configured in %s", cf.ConfigPath)
@@ -167,20 +232,22 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		config.CertificateTTL = cf.CertificateTTL
 	}
 
-	if cf.RenewInterval != 0 {
-		if config.RenewInterval != 0 {
+	if cf.RenewalInterval != 0 {
+		if config.RenewalInterval != 0 {
 			log.Warnf("CLI parameters are overriding renewal interval configured in %s", cf.ConfigPath)
 		}
-		config.RenewInterval = cf.RenewInterval
+		config.RenewalInterval = cf.RenewalInterval
 	}
 
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
-		if _, err := config.Storage.GetDestination(); err != nil {
-			log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
+		if config.Storage != nil {
+			if _, err := config.Storage.GetDestination(); err != nil {
+				log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
+			}
 		}
 
-		config.Storage = StorageConfig{
+		config.Storage = &StorageConfig{
 			DestinationMixin: DestinationMixin{
 				Directory: &DestinationDirectory{
 					Path: cf.DataDir,
@@ -210,16 +277,17 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// (CAPath, CAPins, etc follow different codepaths so we don't want a
 	// situation where different fields become set weirdly due to struct
 	// merging)
-	if cf.Token != "" || len(cf.CAPins) > 0 {
+	if cf.Token != "" || len(cf.CAPins) > 0 || cf.JoinMethod != DefaultJoinMethod {
 		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) {
+		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || cf.JoinMethod != DefaultJoinMethod {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
 
 		config.Onboarding = &OnboardingConfig{
-			Token:  cf.Token,
-			CAPins: cf.CAPins,
+			Token:      cf.Token,
+			CAPins:     cf.CAPins,
+			JoinMethod: types.JoinMethod(cf.JoinMethod),
 		}
 	}
 
