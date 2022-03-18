@@ -48,9 +48,9 @@ different scenarios:
 
 Alice is a member of the group “splunk”.
 
-She gets an alert from a node “db-1”.
+She gets an alert that “db-1” is malfunctioning.
 
-Alice needs to locate the node and request access to it.
+Alice needs to locate the "db-1" resource and request access to it.
 
 Alice goes to the “Request access” screen and selects: “select access to resources”
 option that is available alongside the “select access to roles” option.
@@ -254,7 +254,7 @@ the node uuid-2 despite the fact that the root cluster “allowed” it.
 
 ### Access Requests RBAC Edge-Cases
 
-A user could find several different types of resources `label: a` and `label: b`.
+A user could find and request access to several different types of resources, some with `label: a` others with `label: b`.
 Access to resource `label: a` can be granted by users having role `a`. Access
 to resource `label: b` can be granted by users having role: `b`. In this case both
 users with role `a` and role `b` have to approve access for the request to be
@@ -267,12 +267,12 @@ label and resource type.
 
 Will complete this section with an example config, or create another RFD.
 
-### Search events
+### Audit events
 
-Will create an event `access_request.search` that will include the searches users are
+Will create a new audit event `access_request.search` that will include the searches users are
 running in the scope of requesting access.
 
 ### OpenSSH
 
-OpenSSH clients should work, assuming that the proxy and node are both Teleport.
+OpenSSH clients should work with credentials obtained via search-based access requests, assuming that the proxy and node are both Teleport.
 OpenSSH servers won't support this flow.
