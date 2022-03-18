@@ -1,22 +1,20 @@
 ---
 title: Authentication options
-description: Teleport enterprise license file configuration parameters and requirements
+description: A reference for Teleport's authentication connectors
 ---
 
-Teleport uses the concept of "authentication connectors" to authenticate users
-when they execute [`tsh login`](./cli.mdx#tsh-login) command. There are three
-types of authentication connectors:
+Teleport authenticates users with an identity provider via **authentication
+connectors**. There are three types of authentication connectors.
 
-## Local
+## Local (no authentication connector)
 
 Local authentication is used to authenticate against a local Teleport user
-database. This database is managed by [`tctl users`](./cli.mdx#tctl-users-add)
+database. This database is managed by the [`tctl users`](./cli.mdx#tctl-users-add)
 command. Teleport also supports second-factor authentication (2FA) for the local
 connector. There are several possible values (types) of 2FA:
 
-- `otp` is the default. It implements [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-  standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator)
-  or [Authy](https://www.authy.com/) or any other TOTP client.
+- `otp` is the default. It implements the [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+  standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator), [Authy],(https://www.authy.com/) or any other TOTP client.
 - `webauthn` implements the [Web Authentication standard](https://webauthn.guide) for utilizing
   second factor authenticators and hardware devices.
   You can use [YubiKeys](https://www.yubico.com/), [SoloKeys](https://solokeys.com/) or any other authenticator that
@@ -63,13 +61,12 @@ You can modify these settings in the static config `teleport.yaml` or using dyna
 </Tabs>
   
 <Admonition type="note">
-  SSO users can also register 2FA devices, but Teleport will not prompt them for 2FA during login. Login 2FA for SSO users should be handled by the SSO
-  provider.
+  SSO users can also register 2FA devices, but Teleport will not prompt them for 2FA during login. Login 2FA for SSO users should be handled by the SSO provider.
 </Admonition>
 
 ## GitHub
 
-This connector implements Github OAuth 2.0 authentication flow. Please refer to GitHub documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
 to learn how to create and register an OAuth app.
 
 Here is an example of this setting in the `teleport.yaml` :
@@ -84,9 +81,9 @@ See [Github OAuth 2.0](../admin/github-sso.mdx) for details on how to configure 
 
 ## SAML
 
-<Admonition type="note">
-You need Enterprise edition of Teleport for this option.
-</Admonition>
+<Notice type="note">
+You need the Enterprise edition of Teleport for this option.
+</Notice>
 
 This connector type implements SAML authentication. It can be configured against any external identity manager like Okta or Auth0. This feature is only available for Teleport Enterprise.
 
@@ -100,9 +97,9 @@ auth_service:
 
 ### OIDC
 
-<Admonition type="note">
-You need Enterprise edition of Teleport for this option.
-</Admonition>
+<Notice type="note">
+You need the Enterprise edition of Teleport for this option.
+</Notice>
 
 Teleport implements OpenID Connect (OIDC) authentication, which is similar to SAML in principle.
 
