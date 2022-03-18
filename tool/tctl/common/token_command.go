@@ -93,9 +93,10 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.tokenAdd.Flag("type", "Type of token to add").Required().StringVar(&c.tokenType)
 	c.tokenAdd.Flag("value", "Value of token to add").StringVar(&c.value)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
-	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
-		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
-		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&c.ttl)
+	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour",
+		int(defaults.SignupTokenTTL/time.Hour))).
+		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).
+		DurationVar(&c.ttl)
 	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("example-app").StringVar(&c.appName)
 	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("http://localhost:8080").StringVar(&c.appURI)
 	c.tokenAdd.Flag("db-name", "Name of the database to add").StringVar(&c.dbName)
