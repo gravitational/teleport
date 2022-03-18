@@ -40,14 +40,21 @@ type TunnelStrategy interface {
 	CheckAndSetDefaults() error
 }
 
-// TunnelStrategyConfig represents a unparsed tunnel strategy configuration.
-type TunnelStrategyConfig struct {
+// tunnelStrategyConfig represents a unparsed tunnel strategy configuration.
+type tunnelStrategyConfig struct {
 	Type   TunnelStrategyType     `yaml:"type" json:"type"`
 	Params map[string]interface{} `yaml:",inline" json:"-"`
 }
 
-// SetFromMap sets a TunnelStrategyConfig from a map.
-func (c *TunnelStrategyConfig) SetFromMap(m map[string]interface{}) error {
+// newTunnelStrategyConfig creates a new tunnelStrategyConfig instance.
+func newTunnelStrategyConfig() *tunnelStrategyConfig {
+	return &tunnelStrategyConfig{
+		Params: make(map[string]interface{}),
+	}
+}
+
+// setFromMap sets a TunnelStrategyConfig from a map.
+func (c *tunnelStrategyConfig) setFromMap(m map[string]interface{}) error {
 	rawStrategy, ok := m[tunnelStrategyTypeParam]
 	if !ok {
 		return trace.BadParameter("missing type parameter")
@@ -67,8 +74,8 @@ func (c *TunnelStrategyConfig) SetFromMap(m map[string]interface{}) error {
 	return nil
 }
 
-// GetMapCopy returns a TunnelStrategyConfig as a map.
-func (c *TunnelStrategyConfig) GetMapCopy() map[string]interface{} {
+// getMapCopy returns a TunnelStrategyConfig as a map.
+func (c *tunnelStrategyConfig) getMapCopy() map[string]interface{} {
 	mCopy := make(map[string]interface{})
 	for k, v := range c.Params {
 		mCopy[k] = v
@@ -79,21 +86,21 @@ func (c *TunnelStrategyConfig) GetMapCopy() map[string]interface{} {
 
 // MarshalYAML converts a TunnelStrategyV1 to yaml.
 func (s *TunnelStrategyV1) MarshalYAML() (interface{}, error) {
-	var config *TunnelStrategyConfig
-	err := s.marshal(func(c *TunnelStrategyConfig) error {
+	var config *tunnelStrategyConfig
+	err := s.marshal(func(c *tunnelStrategyConfig) error {
 		config = c
 		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return config.GetMapCopy(), nil
+	return config.getMapCopy(), nil
 }
 
 // UnmarshalYAML converts yaml to a TunnelStrategyV1 using a strict policy to
 // disallow unknown fields.
 func (s *TunnelStrategyV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	err := s.unmarshal(utils.StrictObjectToStruct, func(c *TunnelStrategyConfig) error {
+	err := s.unmarshal(utils.StrictObjectToStruct, func(c *tunnelStrategyConfig) error {
 		return trace.Wrap(unmarshal(c))
 	})
 	return trace.Wrap(err)
@@ -102,9 +109,9 @@ func (s *TunnelStrategyV1) UnmarshalYAML(unmarshal func(interface{}) error) erro
 // MarshalJSON converts a TunnelStrategyV1 to json.
 func (s *TunnelStrategyV1) MarshalJSON() ([]byte, error) {
 	var data []byte
-	err := s.marshal(func(c *TunnelStrategyConfig) error {
+	err := s.marshal(func(c *tunnelStrategyConfig) error {
 		var err error
-		data, err = json.Marshal(c.GetMapCopy())
+		data, err = json.Marshal(c.getMapCopy())
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -116,23 +123,21 @@ func (s *TunnelStrategyV1) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON converts json to a TunnelStrategyV1. Unknown fields are allowed
 // to prevent rollbacks causing issues decoding this data from the backend.
 func (s *TunnelStrategyV1) UnmarshalJSON(data []byte) error {
-	err := s.unmarshal(utils.ObjectToStruct, func(c *TunnelStrategyConfig) error {
+	err := s.unmarshal(utils.ObjectToStruct, func(c *tunnelStrategyConfig) error {
 		params := make(map[string]interface{})
 		err := json.Unmarshal(data, &params)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(c.SetFromMap(params))
+		return trace.Wrap(c.setFromMap(params))
 	})
 	return trace.Wrap(err)
 }
 
 // marshal converts a TunnelStrategyV1 to a TunnelStrategyConfig before calling
 // the given marshal function.
-func (s *TunnelStrategyV1) marshal(marshal func(*TunnelStrategyConfig) error) error {
-	config := &TunnelStrategyConfig{
-		Params: make(map[string]interface{}),
-	}
+func (s *TunnelStrategyV1) marshal(marshal func(*tunnelStrategyConfig) error) error {
+	config := newTunnelStrategyConfig()
 	switch strategy := s.Strategy.(type) {
 	case *TunnelStrategyV1_AgentMesh:
 		config.Type = AgentMesh
@@ -156,10 +161,8 @@ func (s *TunnelStrategyV1) marshal(marshal func(*TunnelStrategyConfig) error) er
 // objectToStructFunc is a function that converts one struct to another.
 type objectToStructFunc func(interface{}, interface{}) error
 
-func (s *TunnelStrategyV1) unmarshal(ots objectToStructFunc, unmarshal func(*TunnelStrategyConfig) error) error {
-	config := &TunnelStrategyConfig{
-		Params: make(map[string]interface{}),
-	}
+func (s *TunnelStrategyV1) unmarshal(ots objectToStructFunc, unmarshal func(*tunnelStrategyConfig) error) error {
+	config := newTunnelStrategyConfig()
 	err := unmarshal(config)
 	if err != nil {
 		return trace.Wrap(err)
