@@ -892,7 +892,7 @@ func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]types.Server, 
 	return ap.kubeServices, nil
 }
 
-func (ap mockAccessPoint) GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	var cas []types.CertAuthority
 	for _, ca := range ap.cas {
 		cas = append(cas, ca)
@@ -900,7 +900,7 @@ func (ap mockAccessPoint) GetCertAuthorities(caType types.CertAuthType, loadKeys
 	return cas, nil
 }
 
-func (ap mockAccessPoint) GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	return ap.cas[id.DomainName], nil
 }
 

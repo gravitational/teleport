@@ -782,17 +782,17 @@ func (c *certAuthority) erase(ctx context.Context) error {
 }
 
 func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	applyHostCAs, err := c.fetchCertAuthorities(types.HostCA)
+	applyHostCAs, err := c.fetchCertAuthorities(ctx, types.HostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	applyUserCAs, err := c.fetchCertAuthorities(types.UserCA)
+	applyUserCAs, err := c.fetchCertAuthorities(ctx, types.UserCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	applyJWTSigners, err := c.fetchCertAuthorities(types.JWTSigner)
+	applyJWTSigners, err := c.fetchCertAuthorities(ctx, types.JWTSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -808,8 +808,8 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 	}, nil
 }
 
-func (c *certAuthority) fetchCertAuthorities(caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
-	authorities, err := c.Trust.GetCertAuthorities(caType, c.watch.LoadSecrets)
+func (c *certAuthority) fetchCertAuthorities(ctx context.Context, caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
+	authorities, err := c.Trust.GetCertAuthorities(ctx, caType, c.watch.LoadSecrets)
 	if err != nil {
 		// DELETE IN: 5.1
 		//
@@ -1066,17 +1066,38 @@ func (c *clusterConfig) storeDerivedResources(clusterConfig types.ClusterConfig,
 		if err := services.UpdateAuthPreferenceWithLegacyClusterConfig(clusterConfig, authPref); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, derivedResources.ClusterAuditConfig); err != nil {
-			return trace.Wrap(err)
+		if derivedResources.ClusterAuditConfig != nil {
+			if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, derivedResources.ClusterAuditConfig); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.clusterConfigCache.DeleteClusterAuditConfig(ctx); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
 		}
-		if err := c.clusterConfigCache.SetClusterNetworkingConfig(ctx, derivedResources.ClusterNetworkingConfig); err != nil {
-			return trace.Wrap(err)
+		if derivedResources.ClusterNetworkingConfig != nil {
+			if err := c.clusterConfigCache.SetClusterNetworkingConfig(ctx, derivedResources.ClusterNetworkingConfig); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.clusterConfigCache.DeleteClusterNetworkingConfig(ctx); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
 		}
-		if err := c.clusterConfigCache.SetSessionRecordingConfig(ctx, derivedResources.SessionRecordingConfig); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := c.clusterConfigCache.SetAuthPreference(ctx, authPref); err != nil {
-			return trace.Wrap(err)
+		if derivedResources.SessionRecordingConfig != nil {
+			if err := c.clusterConfigCache.SetSessionRecordingConfig(ctx, derivedResources.SessionRecordingConfig); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.clusterConfigCache.DeleteSessionRecordingConfig(ctx); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
 		}
 		return nil
 	}

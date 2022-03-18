@@ -195,7 +195,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// if resources are supplied, use them to bootstrap backend state
 	// on initial startup.
 	if len(cfg.Resources) > 0 {
-		firstStart, err := isFirstStart(asrv, cfg)
+		firstStart, err := isFirstStart(ctx, asrv, cfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -320,7 +320,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// generate certificate authorities if they don't exist
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
 		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
-		ca, err := asrv.GetCertAuthority(caID, true)
+		ca, err := asrv.GetCertAuthority(ctx, caID, true)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -345,11 +345,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 					// without any active keys. These keys will not be used for
 					// any signing operations until a CA rotation. Only the Host
 					// CA is necessary to issue the Admin identity.
-					if err := asrv.ensureLocalAdditionalKeys(ca); err != nil {
+					if err := asrv.ensureLocalAdditionalKeys(ctx, ca); err != nil {
 						return nil, trace.Wrap(err)
 					}
 					// reload updated CA for below checks
-					if ca, err = asrv.GetCertAuthority(caID, true); err != nil {
+					if ca, err = asrv.GetCertAuthority(ctx, caID, true); err != nil {
 						return nil, trace.Wrap(err)
 					}
 				}
@@ -369,7 +369,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
 	// (or wasting) HSM resources.
-	if err := asrv.deleteUnusedKeys(); err != nil {
+	if err := asrv.deleteUnusedKeys(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -614,7 +614,7 @@ func migrateOSSTrustedClusters(ctx context.Context, role types.Role, asrv *Serve
 			return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
 		}
 		for _, catype := range []types.CertAuthType{types.UserCA, types.HostCA} {
-			ca, err := asrv.GetCertAuthority(types.CertAuthID{Type: catype, DomainName: tc.GetName()}, true)
+			ca, err := asrv.GetCertAuthority(ctx, types.CertAuthID{Type: catype, DomainName: tc.GetName()}, true)
 			if err != nil {
 				return migratedTcs, trace.Wrap(err, migrationAbortedMessage)
 			}
@@ -717,9 +717,10 @@ func migrateOSSGithubConns(ctx context.Context, role types.Role, asrv *Server) (
 
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
-func isFirstStart(authServer *Server, cfg InitConfig) (bool, error) {
+func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool, error) {
 	// check if the CA exists?
 	_, err := authServer.GetCertAuthority(
+		ctx,
 		types.CertAuthID{
 			DomainName: cfg.ClusterName.GetClusterName(),
 			Type:       types.HostCA,
@@ -1136,7 +1137,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	certAuthorities, err := asrv.GetCertAuthorities(types.HostCA, false)
+	certAuthorities, err := asrv.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1278,7 +1279,7 @@ func migrateMFADevices(ctx context.Context, asrv *Server) error {
 func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 	var errors []error
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		cas, err := asrv.GetCertAuthorities(caType, true)
+		cas, err := asrv.GetCertAuthorities(ctx, caType, true)
 		if err != nil {
 			errors = append(errors, trace.Wrap(err, "fetching %v CAs", caType))
 			continue

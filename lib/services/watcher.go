@@ -731,7 +731,7 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	)
 
 	if c.WatchHostCA {
-		host, err := c.AuthorityGetter.GetCertAuthorities(types.HostCA, false)
+		host, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.HostCA, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -742,7 +742,7 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	}
 
 	if c.WatchUserCA {
-		user, err := c.AuthorityGetter.GetCertAuthorities(types.UserCA, false)
+		user, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.UserCA, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -757,7 +757,11 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	c.user = newUser
 	c.lock.Unlock()
 
-	c.CertAuthorityC <- casToSlice(newHost, newUser)
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case c.CertAuthorityC <- casToSlice(newHost, newUser):
+	}
 	return nil
 }
 
@@ -778,7 +782,10 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			delete(c.user, event.Resource.GetName())
 		}
 
-		c.CertAuthorityC <- casToSlice(c.host, c.user)
+		select {
+		case <-ctx.Done():
+		case c.CertAuthorityC <- casToSlice(c.host, c.user):
+		}
 	case types.OpPut:
 		ca, ok := event.Resource.(types.CertAuthority)
 		if !ok {
@@ -793,7 +800,10 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			c.user[ca.GetName()] = ca
 		}
 
-		c.CertAuthorityC <- casToSlice(c.host, c.user)
+		select {
+		case <-ctx.Done():
+		case c.CertAuthorityC <- casToSlice(c.host, c.user):
+		}
 	default:
 		c.Log.Warnf("Unsupported event type %s.", event.Type)
 		return

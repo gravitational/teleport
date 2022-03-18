@@ -134,7 +134,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
 	c.Assert(err, check.IsNil)
 
-	rootCA, err := s.tlsServer.Auth().GetCertAuthority(types.CertAuthID{
+	rootCA, err := s.tlsServer.Auth().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: "root.example.com",
 	}, false)

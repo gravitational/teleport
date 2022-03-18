@@ -145,7 +145,7 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	case LocalUser:
 		return a.authorizeLocalUser(user)
 	case RemoteUser:
-		return a.authorizeRemoteUser(user)
+		return a.authorizeRemoteUser(ctx, user)
 	case BuiltinRole:
 		return a.authorizeBuiltinRole(ctx, user)
 	case RemoteBuiltinRole:
@@ -161,8 +161,8 @@ func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
-func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
-	ca, err := a.accessPoint.GetCertAuthority(types.CertAuthID{
+func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Context, error) {
+	ca, err := a.accessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: u.ClusterName,
 	}, false)
