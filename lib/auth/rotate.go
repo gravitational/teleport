@@ -431,11 +431,11 @@ func (a *Server) getAllCertificates(ctx context.Context, clusterName string) (Ce
 // is returned as a result. If no duplicates are found, then caTypes is returned in unmodified form.
 func findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) []types.CertAuthType {
 	if len(caTypes) == len(allCerts) {
-		// requested rotation of all certs, no point of looking for duplicates
+		// requested rotation of all certs, no point of looking for duplicates.
 		return caTypes
 	}
 
-	// create a set to prevent duplicates
+	// create a set to prevent duplicates.
 	rotateMap := make(map[types.CertAuthType]struct{})
 	certsThumbs := make(map[[32]byte][]types.CertAuthType)
 
@@ -460,7 +460,7 @@ func findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAutho
 
 	for _, certsThumb := range certsThumbs {
 		if len(certsThumb) == 1 {
-			// key is unique
+			// key is unique.
 			continue
 		}
 
@@ -478,7 +478,7 @@ func findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAutho
 	}
 
 	if len(rotateMap) == 0 {
-		// no duplicates found
+		// no duplicates found.
 		return caTypes
 	}
 
@@ -487,7 +487,7 @@ func findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAutho
 		rotateMap[caType] = struct{}{}
 	}
 
-	// copy all set elements to an array
+	// copy all set elements to an array.
 	toRotate := make([]types.CertAuthType, 0, len(rotateMap))
 
 	for key := range rotateMap {
