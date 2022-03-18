@@ -55,6 +55,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -70,6 +71,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
@@ -543,7 +545,9 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 	log.Debugf("Activating relogin on %v.", err)
 
-	key, err := tc.Login(ctx)
+	// TODO(codingllama): Allow for the passwordless flag to drip down here?
+	//  We'd have to change it to a global flag, but that seems alright.
+	key, err := tc.Login(ctx, false /* pwdless */)
 	if err != nil {
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.SSHProxyAddr)
@@ -2460,7 +2464,7 @@ func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingR
 // The returned Key should typically be passed to ActivateKey in order to
 // update local agent state.
 //
-func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
+func (tc *TeleportClient) Login(ctx context.Context, pwdless bool) (*Key, error) {
 	// Ping the endpoint to see if it's up and find the type of authentication
 	// supported, also show the message of the day if available.
 	pr, err := tc.PingAndShowMOTD(ctx)
@@ -2477,13 +2481,27 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 
 	var response *auth.SSHLoginResponse
 
-	switch pr.Auth.Type {
-	case constants.Local:
+	switch authType := pr.Auth.Type; {
+	case pwdless: // Takes precedence over other methods if set.
+		// Do a few sanity checks before obeying.
+		switch {
+		case authType != constants.Local:
+			return nil, trace.BadParameter("Passwordless is only available for local authentication")
+		case pr.Auth.Webauthn == nil:
+			return nil, trace.BadParameter(
+				"Webauthn is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/webauthn/")
+		}
+		response, err = tc.pwdlessLogin(ctx, key.Pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tc.Username = response.Username
+	case authType == constants.Local:
 		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case constants.OIDC:
+	case authType == constants.OIDC:
 		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.Pub, constants.OIDC)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2493,7 +2511,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if tc.localAgent != nil {
 			tc.localAgent.username = response.Username
 		}
-	case constants.SAML:
+	case authType == constants.SAML:
 		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, constants.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2503,7 +2521,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if tc.localAgent != nil {
 			tc.localAgent.username = response.Username
 		}
-	case constants.Github:
+	case authType == constants.Github:
 		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, constants.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2542,6 +2560,200 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	return key, nil
+}
+
+type pwdlessPrompt struct {
+	Out io.Writer
+}
+
+func (l pwdlessPrompt) PromptPIN() (string, error) {
+	fmt.Fprintln(l.Out, "Enter your security key PIN:")
+	pwd, err := passwordFromConsoleFn()
+	if err != nil {
+		fmt.Fprintln(l.Out, err)
+		return "", trace.Wrap(err)
+	}
+	return pwd, nil
+}
+
+func (l pwdlessPrompt) PromptAdditionalTouch() error {
+	fmt.Fprintln(l.Out, "Tap your security key again to complete login")
+	return nil
+}
+
+func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {
+	webClient, _, err := initClient(tc.WebProxyAddr, tc.InsecureSkipVerify, loopbackPool(tc.WebProxyAddr))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeJSON, err := webClient.PostJSON(
+		ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"),
+		&MFAChallengeRequest{
+			Passwordless: true,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	challenge := &MFAAuthenticateChallenge{}
+	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Sanity check WebAuthn challenge.
+	switch {
+	case challenge.WebauthnChallenge == nil:
+		return nil, trace.BadParameter("passwordless: webauthn challenge missing")
+	case challenge.WebauthnChallenge.Response.UserVerification == protocol.VerificationDiscouraged:
+		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
+	}
+
+	origin := tc.WebProxyAddr
+	if !strings.HasPrefix(origin, "https://") {
+		origin = "https://" + origin
+	}
+	prompt := pwdlessPrompt{Out: tc.Stderr}
+
+	fmt.Fprintln(tc.Stderr, "Tap your security key")
+	mfaResp, _, err := prompts.Webauthn(ctx, origin, tc.Username, challenge.WebauthnChallenge, prompt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	loginRespJSON, err := webClient.PostJSON(
+		ctx, webClient.Endpoint("webapi", "mfa", "login", "finish"),
+		&AuthenticateSSHUserRequest{
+			User:                      "", // User carried on WebAuthn assertion.
+			WebauthnChallengeResponse: wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+			PubKey:                    pubKey,
+			TTL:                       tc.KeyTTL,
+			Compatibility:             tc.CertificateFormat,
+			RouteToCluster:            tc.SiteName,
+			KubernetesCluster:         tc.KubernetesCluster,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	loginResp := &auth.SSHLoginResponse{}
+	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return loginResp, nil
+}
+
+func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
+	var err error
+	var response *auth.SSHLoginResponse
+
+	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
+	// (with a nop MFA challenge if no 2nd factor is required). That way we can
+	// deprecate the direct login endpoint.
+	switch secondFactor {
+	case constants.SecondFactorOff, constants.SecondFactorOTP:
+		response, err = tc.directLogin(ctx, secondFactor, pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+		response, err = tc.mfaLocalLogin(ctx, pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
+	}
+
+	return response, nil
+}
+
+// directLogin asks for a password + HOTP token, makes a request to CA via proxy
+func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
+	password, err := tc.AskPassword()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// only ask for a second factor if it's enabled
+	var otpToken string
+	if secondFactorType == constants.SecondFactorOTP {
+		otpToken, err = tc.AskOTP()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// ask the CA (via proxy) to sign our public key:
+	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
+		User:     tc.Config.Username,
+		Password: password,
+		OTPToken: otpToken,
+	})
+
+	return response, trace.Wrap(err)
+}
+
+// mfaLocalLogin asks for a password and performs the challenge-response authentication
+func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
+	password, err := tc.AskPassword()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
+		User:     tc.Config.Username,
+		Password: password,
+	})
+
+	return response, trace.Wrap(err)
+}
+
+// SSOLoginFunc is a function used in tests to mock SSO logins.
+type SSOLoginFunc func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error)
+
+// samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
+func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
+	if tc.MockSSOLogin != nil {
+		// sso login response is being mocked for testing purposes
+		return tc.MockSSOLogin(ctx, connectorID, pub, protocol)
+	}
+	// ask the CA (via proxy) to sign our public key:
+	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
+		ConnectorID: connectorID,
+		Protocol:    protocol,
+		BindAddr:    tc.BindAddr,
+		Browser:     tc.Browser,
+	})
+	return response, trace.Wrap(err)
 }
 
 // ActivateKey saves the target session cert into the local
@@ -2871,31 +3083,6 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	return nil
 }
 
-func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
-	var err error
-	var response *auth.SSHLoginResponse
-
-	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
-	// (with a nop MFA challenge if no 2nd factor is required). That way we can
-	// deprecate the direct login endpoint.
-	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		response, err = tc.directLogin(ctx, secondFactor, pub)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
-		response, err = tc.mfaLocalLogin(ctx, pub)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
-	}
-
-	return response, nil
-}
-
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
 func (tc *TeleportClient) AddTrustedCA(ca types.CertAuthority) error {
 	if tc.localAgent == nil {
@@ -2927,96 +3114,6 @@ func (tc *TeleportClient) AddKey(key *Key) (*agent.AddedKey, error) {
 		key.ClusterName = tc.SiteName
 	}
 	return tc.localAgent.AddKey(key)
-}
-
-// directLogin asks for a password + HOTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
-	password, err := tc.AskPassword()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// only ask for a second factor if it's enabled
-	var otpToken string
-	if secondFactorType == constants.SecondFactorOTP {
-		otpToken, err = tc.AskOTP()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
-		SSHLogin: SSHLogin{
-			ProxyAddr:         tc.WebProxyAddr,
-			PubKey:            pub,
-			TTL:               tc.KeyTTL,
-			Insecure:          tc.InsecureSkipVerify,
-			Pool:              loopbackPool(tc.WebProxyAddr),
-			Compatibility:     tc.CertificateFormat,
-			RouteToCluster:    tc.SiteName,
-			KubernetesCluster: tc.KubernetesCluster,
-		},
-		User:     tc.Config.Username,
-		Password: password,
-		OTPToken: otpToken,
-	})
-
-	return response, trace.Wrap(err)
-}
-
-// SSOLoginFunc is a function used in tests to mock SSO logins.
-type SSOLoginFunc func(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error)
-
-// samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
-func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub []byte, protocol string) (*auth.SSHLoginResponse, error) {
-	if tc.MockSSOLogin != nil {
-		// sso login response is being mocked for testing purposes
-		return tc.MockSSOLogin(ctx, connectorID, pub, protocol)
-	}
-	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin: SSHLogin{
-			ProxyAddr:         tc.WebProxyAddr,
-			PubKey:            pub,
-			TTL:               tc.KeyTTL,
-			Insecure:          tc.InsecureSkipVerify,
-			Pool:              loopbackPool(tc.WebProxyAddr),
-			Compatibility:     tc.CertificateFormat,
-			RouteToCluster:    tc.SiteName,
-			KubernetesCluster: tc.KubernetesCluster,
-		},
-		ConnectorID: connectorID,
-		Protocol:    protocol,
-		BindAddr:    tc.BindAddr,
-		Browser:     tc.Browser,
-	})
-	return response, trace.Wrap(err)
-}
-
-// mfaLocalLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.SSHLoginResponse, error) {
-	password, err := tc.AskPassword()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
-		SSHLogin: SSHLogin{
-			ProxyAddr:         tc.WebProxyAddr,
-			PubKey:            pub,
-			TTL:               tc.KeyTTL,
-			Insecure:          tc.InsecureSkipVerify,
-			Pool:              loopbackPool(tc.WebProxyAddr),
-			Compatibility:     tc.CertificateFormat,
-			RouteToCluster:    tc.SiteName,
-			KubernetesCluster: tc.KubernetesCluster,
-		},
-		User:     tc.Config.Username,
-		Password: password,
-	})
-
-	return response, trace.Wrap(err)
 }
 
 // SendEvent adds a events.EventFields to the channel.

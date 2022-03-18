@@ -45,6 +45,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -292,6 +293,9 @@ type CLIConf struct {
 
 	// JoinMode is the participant mode someone is joining a session as.
 	JoinMode string
+
+	// Pwdless instructs tsh to do passwordless login.
+	Pwdless bool
 
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
@@ -551,6 +555,9 @@ func Run(args []string, opts ...cliOption) error {
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
+	if wancli.IsFIDO2Available() {
+		login.Flag("pwdless", "Do passwordless login").BoolVar(&cf.Pwdless)
+	}
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -976,7 +983,7 @@ func onLogin(cf *CLIConf) error {
 	// -i flag specified? save the retrieved cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
 
-	key, err := tc.Login(cf.Context)
+	key, err := tc.Login(cf.Context, cf.Pwdless)
 	if err != nil {
 		return trace.Wrap(err)
 	}
