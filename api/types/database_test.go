@@ -77,28 +77,56 @@ func TestDatabaseStatus(t *testing.T) {
 	require.Equal(t, awsMeta, database.GetAWS())
 }
 
-// TestDatabaseIsElastiCache verifies if the Elasticache URI is correctly recognized.
-func TestDatabaseIsElastiCache(t *testing.T) {
-	database, err := NewDatabaseV3(Metadata{
-		Name: "test",
-	}, DatabaseSpecV3{
-		Protocol: "redis",
-		URI:      "clustercfg.test-instance.dwudvg.use1.cache.amazonaws.com:6379",
-	})
-	require.NoError(t, err)
+// TestDatabaseElastiCacheEndpoint verifies if the Elasticache URI is correctly recognized.
+func TestDatabaseElastiCacheEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		uri      string
+		awsRedis AWSRedis
+	}{
+		{
+			name: "cluster",
+			uri:  "clustercfg.test-instance.abcdvg.use1.cache.amazonaws.com:6379",
+			awsRedis: AWSRedis{
+				ReplicationGroupID: "test-instance",
+				EndpointType:       AWSRedis_ENDPOINT_CONFIGURATION,
+				Mode:               AWSRedis_MODE_CLUSTER,
+			},
+		},
+		{
+			name: "standalone - primary",
+			uri:  "master.test-instance-1.abcdvg.use1.cache.amazonaws.com:6379",
+			awsRedis: AWSRedis{
+				ReplicationGroupID: "test-instance-1",
+				EndpointType:       AWSRedis_ENDPOINT_PRIMARY,
+				Mode:               AWSRedis_MODE_SINGLE,
+			},
+		},
+		{
+			name: "standalone - reader",
+			uri:  "replica.test-instance.abcdvg.use1.cache.amazonaws.com:6379",
+			awsRedis: AWSRedis{
+				ReplicationGroupID: "test-instance",
+				EndpointType:       AWSRedis_ENDPOINT_READER,
+				Mode:               AWSRedis_MODE_SINGLE,
+			},
+		},
+	}
 
-	require.True(t, database.IsElastiCache())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			database, err := NewDatabaseV3(Metadata{
+				Name: "test",
+			}, DatabaseSpecV3{
+				Protocol: "redis",
+				URI:      tt.uri,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, AWS{
+				Elasticache: tt.awsRedis,
+			}, database.GetAWS())
+			require.True(t, database.IsElastiCache())
+		})
+	}
 }
-
-// TestDatabaseIsMemoryDB verifies if the MemoryDB URI is correctly recognized.
-//func TestDatabaseIsMemoryDB(t *testing.T) {
-//	database, err := NewDatabaseV3(Metadata{
-//		Name: "test",
-//	}, DatabaseSpecV3{
-//		Protocol: "redis",
-//		URI:      "redis://clustercfg.test-instance.dwudvg.memorydb.us-east-1.amazonaws.com:6379?mode=cluster",
-//	})
-//	require.NoError(t, err)
-//
-//	require.True(t, database.IsMemoryDB())
-//}

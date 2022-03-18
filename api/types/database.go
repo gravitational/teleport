@@ -89,10 +89,6 @@ type Database interface {
 	IsAzure() bool
 	// IsElastiCache returns true if this is an AWS ElastiCache database
 	IsElastiCache() bool
-
-	// IsMemoryDB returns true if this is an AWS MemoryDB database.
-	//IsMemoryDB() bool
-
 	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
 	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
@@ -312,13 +308,7 @@ func (d *DatabaseV3) IsAzure() bool {
 
 func (d *DatabaseV3) IsElastiCache() bool {
 	return d.GetType() == DatabaseTypeElasticache
-	//return strings.Contains(d.Spec.URI, ".cache.amazonaws.com")
 }
-
-// IsMemoryDB returns true if the database is MemoryDB instance.
-//func (d *DatabaseV3) IsMemoryDB() bool {
-//	return memoryDBUriRegex.MatchString(d.Spec.URI)
-//}
 
 // IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
@@ -342,9 +332,6 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAzure().Name != "" {
 		return DatabaseTypeAzure
 	}
-	//if d.IsMemoryDB() {
-	//	return DatabaseTypeMemoryDB
-	//}
 	return DatabaseTypeSelfHosted
 }
 
@@ -424,12 +411,18 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.Spec.AWS.Region = region
 		}
 	case strings.Contains(d.Spec.URI, ElasticacheSuffix):
-		clusterID, _, err := parseElasticacheEndpoint(d.Spec.URI)
+		clusterID, endpointType, err := parseElasticacheEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if d.Spec.AWS.Elasticache.ReplicationGroupID == "" {
 			d.Spec.AWS.Elasticache.ReplicationGroupID = clusterID
+		}
+		if d.Spec.AWS.Elasticache.EndpointType == AWSRedis_ENDPOINT_UNSPECIFIED {
+			d.Spec.AWS.Elasticache.EndpointType = awsRedisEndpointToEnum(endpointType)
+		}
+		if d.Spec.AWS.Elasticache.Mode == AWSRedis_MODE_UNSPECIFIED {
+			d.Spec.AWS.Elasticache.Mode = awsRedisEndpointToMode(d.Spec.AWS.Elasticache.EndpointType)
 		}
 	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
@@ -484,12 +477,12 @@ func parseElasticacheEndpoint(endpoint string) (clusterID, endpointType string, 
 	// https://docs.aws.amazon.com/ram/latest/userguide/working-with-az-ids.html
 
 	// Elasticache endpoint looks like this:
-	// clustercfg.test-instance.dwudvg.memorydb.us-east-1.amazonaws.com
+	// master.redis-test.abcdef.use1.cache.amazonaws.com
 	parts := strings.Split(connOpt.Host, ".")
 	if !strings.HasSuffix(connOpt.Host, ElasticacheSuffix) || len(parts) != 7 {
 		return "", "", trace.BadParameter("failed to parse %v as Elasticache endpoint", endpoint)
 	}
-	// TODO(jakule) incorrect.....
+
 	return parts[1], parts[0], nil
 }
 
@@ -506,6 +499,32 @@ func parseAzureEndpoint(endpoint string) (name string, err error) {
 		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
 	}
 	return parts[0], nil
+}
+
+// awsRedisEndpointToEnum maps endpoint name from a URL to protobuf type.
+func awsRedisEndpointToEnum(endpoint string) AWSRedis_AWSRedisEndpointType {
+	switch endpoint {
+	case "master":
+		return AWSRedis_ENDPOINT_PRIMARY
+	case "replica":
+		return AWSRedis_ENDPOINT_READER
+	case "clustercfg":
+		return AWSRedis_ENDPOINT_CONFIGURATION
+	default:
+		return AWSRedis_ENDPOINT_UNSPECIFIED
+	}
+}
+
+// awsRedisEndpointToEnum maps AWS Elasticache endpoint type to Redis connection mode.
+func awsRedisEndpointToMode(endpoint AWSRedis_AWSRedisEndpointType) AWSRedis_AWSRedisMode {
+	switch endpoint {
+	case AWSRedis_ENDPOINT_PRIMARY, AWSRedis_ENDPOINT_READER:
+		return AWSRedis_MODE_SINGLE
+	case AWSRedis_ENDPOINT_CONFIGURATION:
+		return AWSRedis_MODE_CLUSTER
+	default:
+		return AWSRedis_MODE_UNSPECIFIED
+	}
 }
 
 // GetIAMPolicy returns AWS IAM policy for this database.

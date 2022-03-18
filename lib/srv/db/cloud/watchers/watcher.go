@@ -144,42 +144,29 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 
 // makeFetchers returns cloud fetchers for the provided matchers.
 func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
-	// TODO(jakule):
-	//fetchers := map[string]awsFetcherFunc{
-	//	services.AWSMatcherRDS: makeRDSFetchers,
-	//}
+	allFetchers := map[string]awsFetcherFunc{
+		services.AWSMatcherRDS:         makeRDSFetchers,
+		services.AWSMatcherRedshift:    makeRedshiftFetcher,
+		services.AWSMatcherElasticache: makeElasticacheFetcher,
+	}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
-			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDS) {
-				fetchers, err := makeRDSFetchers(clients, region, matcher.Tags)
-				if err != nil {
-					return nil, trace.Wrap(err)
+			for fetcherID, fetcherFn := range allFetchers {
+				if utils.SliceContainsStr(matcher.Types, fetcherID) {
+					fetchers, err := fetcherFn(clients, region, matcher.Tags)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					result = append(result, fetchers...)
 				}
-				result = append(result, fetchers...)
 			}
-
-			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRedshift) {
-				fetcher, err := makeRedshiftFetcher(clients, region, matcher.Tags)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				result = append(result, fetcher)
-			}
-
-			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherElasticache) {
-				fetcher, err := makeElasticacheFetcher(clients, region, matcher.Tags)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				result = append(result, fetcher)
-			}
-
 		}
 	}
 	return result, nil
 }
 
-//type awsFetcherFunc = func(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error)
+// awsFetcherFunc is a common function prototype for all AWS fetchers.
+type awsFetcherFunc = func(clients common.CloudClients, region string, tags types.Labels) ([]Fetcher, error)
 
 // makeRDSFetchers returns RDS fetcher for the provided region and tags.
 func makeRDSFetchers(clients common.CloudClients, region string, tags types.Labels) ([]Fetcher, error) {
@@ -189,11 +176,11 @@ func makeRDSFetchers(clients common.CloudClients, region string, tags types.Labe
 	}
 
 	var fetchers []Fetcher
-	for _, new := range []func(rdsFetcherConfig) (Fetcher, error){
+	for _, fetcherFn := range []func(rdsFetcherConfig) (Fetcher, error){
 		newRDSDBInstancesFetcher,
 		newRDSAuroraClustersFetcher,
 	} {
-		fetcher, err := new(rdsFetcherConfig{
+		fetcher, err := fetcherFn(rdsFetcherConfig{
 			Region: region,
 			Labels: tags,
 			RDS:    rds,
@@ -208,27 +195,39 @@ func makeRDSFetchers(clients common.CloudClients, region string, tags types.Labe
 }
 
 // makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.
-func makeRedshiftFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+func makeRedshiftFetcher(clients common.CloudClients, region string, tags types.Labels) ([]Fetcher, error) {
 	redshift, err := clients.GetAWSRedshiftClient(region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newRedshiftFetcher(redshiftFetcherConfig{
+
+	fetcher, err := newRedshiftFetcher(redshiftFetcherConfig{
 		Region:   region,
 		Labels:   tags,
 		Redshift: redshift,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []Fetcher{fetcher}, nil
 }
 
 // makeElasticacheFetcher returns Elasticache fetcher for the provided region and tags.
-func makeElasticacheFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+func makeElasticacheFetcher(clients common.CloudClients, region string, tags types.Labels) ([]Fetcher, error) {
 	elasticacheClient, err := clients.GetAWSElasticacheClient(region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newElasticacheFetcher(elasticacheFetcherConfig{
+
+	fetcher, err := newElasticacheFetcher(elasticacheFetcherConfig{
 		Region:      region,
 		Labels:      tags,
 		elasticache: elasticacheClient,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []Fetcher{fetcher}, nil
 }
