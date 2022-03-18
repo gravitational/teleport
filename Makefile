@@ -475,16 +475,19 @@ test-bot:
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
 
+# Google Cloud Buiild uses a weird homedir and Helm can't pick up plugins by default there,
+# so override the plugin location via environment variable when running in CI.
 .PHONY: test-helm
 test-helm:
-	helm plugin list
-	helm env
-	ls -lR /root/.local/share/helm
-	ls -ld /root/.local/share/helm/plugins
-	ls -lR /home/ci/.local/share/helm
-	ls -ld /home/ci/.local/share/helm/plugins
-	helm unittest examples/chart/teleport-cluster
-	helm unittest examples/chart/teleport-kube-agent
+	@if [ -d /builder/home ]; then \
+		export HELM_PLUGINS=/root/.local/share/helm/plugins && \
+		helm plugin list && \
+		helm unittest examples/chart/teleport-cluster && \
+		helm unittest examples/chart/teleport-kube-agent; \
+	else \
+		helm unittest examples/chart/teleport-cluster && \
+		helm unittest examples/chart/teleport-kube-agent; \
+	fi
 
 .PHONY: update-helm-snapshots
 update-helm-snapshots:
