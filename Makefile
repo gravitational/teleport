@@ -475,7 +475,7 @@ test-bot:
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
 
-# Google Cloud Buiild uses a weird homedir and Helm can't pick up plugins by default there,
+# Google Cloud Build uses a weird homedir and Helm can't pick up plugins by default there,
 # so override the plugin location via environment variable when running in CI.
 .PHONY: test-helm
 test-helm:
