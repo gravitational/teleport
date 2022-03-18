@@ -1289,6 +1289,37 @@ Print cluster version:
 tctl version
 ```
 
+## Resource filtering
+
+Both `tsh` and `tctl` allow you to filter `nodes`, `apps`, `db`, and `kube` resources using the `--search` and `--query` flags.
+
+The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
+
+The `--query` flag allows you to perform more sophisticated searches using a [predicate language](predicate-language.mdx#resource-filtering).
+
+In both cases, you can further refine the results by appending a list of comma-separated labels to the command. For example:
+
+```bash
+$ tsh ls --search=foo,bar labelKey1=labelValue1,labelKey2=labelValue2
+```
+
+### Filter Examples
+
+```bash
+# List all nodes
+$ tsh ls
+
+# List nodes using label argument
+$ tsh ls env=staging,os=mac
+
+# List nodes using search keywords
+$ tsh ls --search=staging,mac
+
+# List nodes using predicate language. This query searches for nodes with labels
+# with key `env` equal to `staging` and key `os` equal to `mac`.
+$ tsh ls --query='labels.env == "staging" && equals(labels.os, "mac")'
+```
+
 ## Experimental features
 
 ### tctl access ls
