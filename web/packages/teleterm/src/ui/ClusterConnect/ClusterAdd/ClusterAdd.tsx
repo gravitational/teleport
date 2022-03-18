@@ -53,7 +53,7 @@ export function ClusterAddPresentation({
               value={addr}
               autoFocus
               onChange={e => setAddr(e.target.value)}
-              placeholder="https://cluster"
+              placeholder="teleport.example.com"
             />
             <Box mt="5">
               <ButtonPrimary
