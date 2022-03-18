@@ -479,15 +479,9 @@ $(TEST_LOG_DIR):
 # so override the plugin location via environment variable when running in CI.
 .PHONY: test-helm
 test-helm:
-	@if [ -d /builder/home ]; then \
-		export HELM_PLUGINS=/root/.local/share/helm/plugins && \
-		helm plugin list && \
+	@if [ -d /builder/home ]; then export HELM_PLUGINS=/root/.local/share/helm/plugins; fi; \
 		helm unittest examples/chart/teleport-cluster && \
-		helm unittest examples/chart/teleport-kube-agent; \
-	else \
-		helm unittest examples/chart/teleport-cluster && \
-		helm unittest examples/chart/teleport-kube-agent; \
-	fi
+		helm unittest examples/chart/teleport-kube-agent
 
 .PHONY: update-helm-snapshots
 update-helm-snapshots:
