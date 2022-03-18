@@ -1,5 +1,146 @@
 # Changelog
 
+## 9.0.1
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with Ctrl-C freezing sessions. [#11188](https://github.com/gravitational/teleport/pull/11188)
+* Improved handling of unknown audit events. [#11064](https://github.com/gravitational/teleport/pull/11064)
+* Improved calculation of public addresses for dynamically registered apps. [#11139](https://github.com/gravitational/teleport/pull/11139)
+* Fixed `tsh aws ecr` returning 500 errors. [#11108](https://github.com/gravitational/teleport/pull/11108)
+* Fixed issue with deleting certain users. [#11131](https://github.com/gravitational/teleport/pull/11131)
+* Fixed issue with Machine ID not detecting token in file config. [#11206](https://github.com/gravitational/teleport/pull/11206)
+
+## 9.0.0
+
+Teleport 9.0 is a major release that brings:
+
+- Teleport Desktop Access GA
+- Teleport Machine ID Preview
+- Various additions to Teleport Database Access
+- Moderated Sessions for Server and Kubernetes Access
+
+Desktop Access adds support for clipboard sharing, session recording, and
+per-session MFA.
+
+Teleport Machine ID Preview extends identity-based access to machines. It's the
+easiest way to issue, renew, and manage SSH and X.509 certificates for service
+accounts, microservices, CI/CD automation and all other forms of
+machine-to-machine access.
+
+Database Access brings self-hosted Redis support, RDS MariaDB (10.6 and higher)
+support, auto-discovery for Redshift clusters, and auto-IAM configuration
+improvements to GA. Additionally, this release also brings Microsoft SQL Server
+with AD authentication to Preview.
+
+Moderated Sessions enables the creation of sessions where a moderator has to
+be present. This feature can be selectively enabled for specific sessions via
+RBAC and can be used in conjunction with per-session MFA.
+
+### Desktop Access
+
+#### Clipboard Support
+
+Desktop Access now supports copying and pasting text between your local
+workstation and a remote Windows Desktop. This feature requires a Chromium-based
+browser and can be disabled via RBAC.
+
+#### Session Recording
+
+Desktop sessions are now recorded and stored alongside SSH sessions, and can be
+viewed in Teleport's web interface. Desktop session recordings are fully
+compatible with the RBAC for sessions feature introduced in Teleport 8.1.
+
+#### Per-session MFA
+
+Per-session MFA settings now apply to desktop sessions. This allows cluster
+administrators to require an additional MFA "tap" prior to opening a desktop
+session. This feature requires a WebAuthn device.
+
+### Machine ID (Preview)
+
+Machine ID allows the creation of machine / bot / service account users who can
+automatically issue, renew, and manage SSH and X.509 certificates to facilitate
+machine-to-machine access.
+
+Machine ID is a service that programmatically issues and renews short-lived
+certificates to any service account (e.g., a CI/CD server) by retrieving
+credentials from the Teleport Auth Service. This enables fine-grained role-based
+access controls and audit.
+
+Some of the things you can do with Machine ID:
+
+- Machines can retrieve short-lived SSH certificates for CI/CD pipelines.
+- Machines can retrieve short-lived X.509 certificates for use with databases or
+  applications.
+- Configure role-based access controls and locking for machines.
+- Capture access events in the audit log.
+
+Machine ID getting started guide:
+https://goteleport.com/docs/ver/9.0/machine-id/getting-started/.
+
+### Database Access
+
+#### Redis
+
+You can now use Database Access to connect to a self-hosted Redis instance or
+Redis cluster and view Redis commands in the Teleport audit log. We will be
+adding support for AWS Elasticache in the coming weeks.
+
+Self-hosted Redis guide:
+https://goteleport.com/docs/ver/9.0/database-access/guides/redis/.
+
+#### SQL Server (Preview)
+
+Teleport 9 includes a preview release of Microsoft SQL Server with Active
+Directory authentication support for Database Access. Audit logging of query
+activity is not included in the preview release and will be implemented in a
+later 9.x release.
+
+SQL Server guide:
+https://goteleport.com/docs/ver/9.0/database-access/guides/sql-server-ad/.
+
+#### RDS MariaDB
+
+Teleport 9 updates MariaDB support with auto-discovery and connection to AWS RDS
+MariaDB databases using IAM authentication. The minimum MariaDB version that
+supports IAM authentication is 10.6.
+
+Updated RDS guide:
+https://goteleport.com/docs/ver/9.0/database-access/guides/rds/.
+
+#### Other Improvements
+
+In addition, Teleport 9 expands auto-discovery to support Redshift databases and
+2 new commands which simplify the Database Access getting started experience:
+"teleport db configure create", which generates Database Service configuration,
+and "teleport db configure bootstrap", which configures IAM permissions for the
+Database Service when running on AWS.
+
+CLI commands reference:
+https://goteleport.com/docs/ver/9.0/database-access/reference/cli/#teleport-db-configure-create
+https://goteleport.com/docs/ver/9.0/database-access/reference/cli/#teleport-db-configure-bootstrap
+
+### Moderated Sessions
+
+With Moderated Sessions, Teleport administrators can define policies that allow
+users to invite other users to participate in SSH or Kubernetes sessions as
+observers, moderators or peers.
+
+Moderated Sessions guide:
+https://goteleport.com/docs/ver/9.0/access-controls/guides/moderated-sessions/.
+
+### Breaking Changes
+
+#### CentOS 6
+
+CentOS 6 support was deprecated in Teleport 8 and has now been removed.
+
+#### Desktop Access
+
+Desktop Access now authenticates to LDAP using X.509 client certificates.
+Support for the `password_file` configuration option has been removed.
+
 ## 8.0.0
 
 Teleport 8.0 is a major release of Teleport that contains new features, improvements, and bug fixes.

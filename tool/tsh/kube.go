@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -594,16 +595,26 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 
 type kubeLSCommand struct {
 	*kingpin.CmdClause
+	labels         string
+	predicateExpr  string
+	searchKeywords string
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of kubernetes clusters"),
 	}
+	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
+	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
+	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	return c
 }
 
 func (c *kubeLSCommand) run(cf *CLIConf) error {
+	cf.SearchKeywords = c.searchKeywords
+	cf.UserHost = c.labels
+	cf.PredicateExpression = c.predicateExpr
+
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -720,10 +731,27 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		}
 		teleportCluster = cn.GetClusterName()
 
-		kubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
+		kubeClusters, err = kubeutils.ListKubeClusterNamesWithFilters(ctx, ac, proto.ListResourcesRequest{
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+			Labels:              tc.Labels,
+		})
 		if err != nil {
+			// ListResources for kube service not available, provide fallback.
+			// Fallback does not support filters, so if users
+			// provide them, it does nothing.
+			//
+			// DELETE IN 11.0.0
+			if trace.IsNotImplemented(err) {
+				kubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				return nil
+			}
 			return trace.Wrap(err)
 		}
+
 		return nil
 	})
 	if err != nil {
