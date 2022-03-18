@@ -451,6 +451,10 @@
               "slug": "/database-access/guides/redis/"
             },
             {
+              "title": "Self-Hosted Redis Cluster",
+              "slug": "/database-access/guides/redis-cluster/"
+            },
+            {
               "title": "SQL Server (Preview)",
               "slug": "/database-access/guides/sql-server-ad/"
             },
