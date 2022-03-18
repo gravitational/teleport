@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -486,7 +485,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := a.GetCertAuthority(types.CertAuthID{
+	ca, err := a.GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
@@ -507,7 +506,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 // GenerateConfig generates instance config
 func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *service.Config) (*service.Config, error) {
 	var err error
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -722,7 +721,7 @@ func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.T
 
 // startNode starts a node and connects it to the cluster.
 func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*service.TeleportProcess, error) {
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -776,7 +775,7 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 }
 
 func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess, error) {
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -821,7 +820,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 
 // StartDatabase starts the database access service with the provided config.
 func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportProcess, *auth.Client, error) {
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -886,7 +885,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 // StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to
 // the cluster.
 func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, proxySSHPort int) error {
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -973,7 +972,7 @@ type ProxyConfig struct {
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
 func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error) {
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
+	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1192,7 +1191,7 @@ func (i *TeleInstance) NewClientWithCreds(cfg ClientConfig, creds UserCreds) (tc
 // NewUnauthenticatedClient returns a fully configured and pre-authenticated client
 // (pre-authenticated with server CAs and signed session key)
 func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.TeleportClient, err error) {
-	keyDir, err := ioutil.TempDir(i.Config.DataDir, "tsh")
+	keyDir, err := os.MkdirTemp(i.Config.DataDir, "tsh")
 	if err != nil {
 		return nil, err
 	}
@@ -1624,7 +1623,7 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 // clobber your system agent.
 func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
-	sockDir, err := ioutil.TempDir("", "int-test")
+	sockDir, err := os.MkdirTemp("", "int-test")
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}

@@ -66,7 +66,7 @@ Let's start with a single-pod Teleport deployment using a persistent volume as a
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     ```code
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
@@ -115,7 +115,7 @@ to create a public IP for Teleport.
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     ```code
     # Set kubectl context to the namespace to set some typing
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
@@ -139,45 +139,7 @@ to create a public IP for Teleport.
   </TabItem>
 </Tabs>
 
-Set up two `A` DNS records - `tele.example.com` for UI and `*.tele.example.com`
-for web apps using [application access](../../application-access/introduction.mdx).
-
-<Tabs>
-  <TabItem label="GCP Cloud DNS">
-    ```code
-    $ MYZONE="myzone"
-    $ MYDNS="tele.example.com"
-
-    $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
-    ```
-  </TabItem>
-
-  <TabItem label="AWS Route 53">
-    ```code
-    # Tip for finding AWS zone id by the domain name.
-    $ MYZONE_DNS="example.com"
-    $ MYZONE=$(aws route53 list-hosted-zones-by-name --dns-name=${MYZONE_DNS?} | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)
-
-    $ MYDNS="tele.example.com"
-
-    # Create a JSON file changeset for AWS.
-    $ jq -n --arg ip ${MYIP?} --arg dns ${MYDNS?} '{"Comment": "Create records", "Changes": [{"Action": "CREATE","ResourceRecordSet": {"Name": $dns, "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}},{"Action": "CREATE", "ResourceRecordSet": {"Name": ("*." + $dns), "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}}]}' > myrecords.json
-
-    # Review records before applying.
-    $ cat myrecords.json | jq
-    # Apply the records and capture change id
-    $ CHANGEID=$(aws route53 change-resource-record-sets --hosted-zone-id ${MYZONE?} --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')
-
-    # Verify that change has been applied
-    $ aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
-    # "INSYNC"
-    ```
-  </TabItem>
-</Tabs>
+(!docs/pages/includes/dns.mdx!)
 
 Use the following command to confirm that Teleport is running:
 
@@ -202,6 +164,8 @@ metadata:
 spec:
   allow:
     kubernetes_groups: ["system:masters"]
+    kubernetes_labels:
+      '*': '*'
 ```
 
 Create the role and add a user:
@@ -237,7 +201,7 @@ For other install options, check out [install guide](../../installation.mdx)
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     ```code
     $ curl -L -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
     $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
@@ -306,7 +270,7 @@ In this step, we will set up the GitHub Single Sign-On connector for the OSS ver
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     Follow the [SAML Okta Guide](../../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
     Check out [OIDC guides](../../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
@@ -341,7 +305,7 @@ To create a connector, we are going to run Teleport's admin tool `tctl` from the
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise"  scope={["enterprise"]}>
     ```code
     # To create an Okta connector, we are going to run Teleport's admin tool tctl from the pod.
     $ POD=$(kubectl get po -l app=teleport-cluster-ent -o jsonpath='{.items[0].metadata.name}')
@@ -362,7 +326,7 @@ the default one in case there is a problem.
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     ```code
     $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com --auth=okta
     ```

@@ -517,7 +517,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
+	role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 		},
@@ -750,29 +750,37 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 	}
 }
 
-type getSiteNodeResponse struct {
-	Items []ui.Server `json:"items"`
+type clusterNodesGetResponse struct {
+	Items      []ui.Server `json:"items"`
+	StartKey   string      `json:"startKey"`
+	TotalCount int         `json:"totalCount"`
 }
 
-func (s *WebSuite) TestGetSiteNodes(c *C) {
-	pack := s.authPack(c, "foo")
+func TestClusterNodesGet(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+	clusterName := env.server.ClusterName()
 
-	// get site nodes
-	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
-	c.Assert(err, IsNil)
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
-	nodes := getSiteNodeResponse{}
-	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
-	c.Assert(len(nodes.Items), Equals, 1)
+	// Get nodes.
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
 
-	// get site nodes using shortcut
+	nodes := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
+	require.Len(t, nodes.Items, 1)
+
+	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
-	nodes2 := getSiteNodeResponse{}
-	c.Assert(json.Unmarshal(re.Bytes(), &nodes2), IsNil)
-	c.Assert(len(nodes.Items), Equals, 1)
-	c.Assert(nodes2, DeepEquals, nodes)
+	nodes2 := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
+	require.Len(t, nodes.Items, 1)
+	require.Equal(t, nodes, nodes2)
 }
 
 func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
@@ -1155,7 +1163,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	require.NoError(t, err)
 
-	ca, err := authClient.GetCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()}, false)
+	ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()}, false)
 	require.NoError(t, err)
 
 	for _, kp := range services.GetTLSCerts(ca) {
@@ -1465,44 +1473,48 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	}
 }
 
-func (s *WebSuite) TestCreateSession(c *C) {
-	pack := s.authPack(c, "foo")
+func TestCreateSession(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	user := "test-user@example.com"
+	pack := proxy.authPack(t, user)
 
 	// get site nodes
-	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
-	c.Assert(err, IsNil)
+	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes"), url.Values{})
+	require.NoError(t, err)
 
-	nodes := getSiteNodeResponse{}
-	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
+	nodes := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
 	node := nodes.Items[0]
 
 	sess := session.Session{
 		TerminalParams: session.TerminalParams{W: 300, H: 120},
-		Login:          s.user,
+		Login:          user,
 	}
 
 	// test using node UUID
 	sess.ServerID = node.Name
 	re, err = pack.clt.PostJSON(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
 		siteSessionGenerateReq{Session: sess},
 	)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	var created *siteSessionGenerateResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
-	c.Assert(created.Session.ID, Not(Equals), "")
-	c.Assert(created.Session.ServerHostname, Equals, node.Hostname)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &created))
+	require.NotEmpty(t, created.Session.ID)
+	require.Equal(t, node.Hostname, created.Session.ServerHostname)
 
 	// test empty serverID (older version does not supply serverID)
 	sess.ServerID = ""
 	_, err = pack.clt.PostJSON(
 		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
 		siteSessionGenerateReq{Session: sess},
 	)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
@@ -1948,6 +1960,70 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(nodes, HasLen, cluster.NodeCount)
 }
 
+func TestTokenGeneration(t *testing.T) {
+	tt := []struct {
+		name      string
+		roles     types.SystemRoles
+		shouldErr bool
+	}{
+		{
+			name:      "single node role",
+			roles:     types.SystemRoles{types.RoleNode},
+			shouldErr: false,
+		},
+		{
+			name:      "single app role",
+			roles:     types.SystemRoles{types.RoleApp},
+			shouldErr: false,
+		},
+		{
+			name:      "single db role",
+			roles:     types.SystemRoles{types.RoleDatabase},
+			shouldErr: false,
+		},
+		{
+			name:      "multiple roles",
+			roles:     types.SystemRoles{types.RoleNode, types.RoleApp, types.RoleDatabase},
+			shouldErr: false,
+		},
+		{
+			name:      "return error if no role is requested",
+			roles:     types.SystemRoles{},
+			shouldErr: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newWebPack(t, 1)
+
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, "test-user@example.com")
+
+			endpoint := pack.clt.Endpoint("webapi", "token")
+			re, err := pack.clt.PostJSON(context.Background(), endpoint, createTokenRequest{
+				Roles: tc.roles,
+			})
+
+			if tc.shouldErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			var responseToken nodeJoinToken
+			err = json.Unmarshal(re.Bytes(), &responseToken)
+			require.NoError(t, err)
+
+			// generated token roles should match the requested ones
+			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.roles, generatedToken.GetRoles())
+		})
+	}
+}
+
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
@@ -1958,10 +2034,14 @@ func TestClusterDatabasesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
+	type testResponse struct {
+		Items []ui.Database `json:"items"`
+	}
+
 	// No db registered.
-	dbs := []ui.Database{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
-	require.Len(t, dbs, 0)
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 0)
 
 	// Register a database.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
@@ -1982,16 +2062,16 @@ func TestClusterDatabasesGet(t *testing.T) {
 	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	dbs = []ui.Database{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &dbs))
-	require.Len(t, dbs, 1)
+	resp = testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
 	require.EqualValues(t, ui.Database{
 		Name:     "test-db-name",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, dbs[0])
+	}, resp.Items[0])
 }
 
 func TestClusterKubesGet(t *testing.T) {
@@ -2004,10 +2084,14 @@ func TestClusterKubesGet(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
+	type testResponse struct {
+		Items []ui.Kube `json:"items"`
+	}
+
 	// No kube registered.
-	kbs := []ui.Kube{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
-	require.Len(t, kbs, 0)
+	resp := testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 0)
 
 	// Register a kube service.
 	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
@@ -2033,13 +2117,13 @@ func TestClusterKubesGet(t *testing.T) {
 	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	kbs = []ui.Kube{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &kbs))
-	require.Len(t, kbs, 1)
+	resp = testResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
 	require.EqualValues(t, ui.Kube{
 		Name:   "test-kube-name",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, kbs[0])
+	}, resp.Items[0])
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -2378,37 +2462,55 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		deviceType string
+		name            string
+		req             *createRegisterChallengeRequest
+		assertChallenge func(t *testing.T, c *client.MFARegisterChallenge)
 	}{
 		{
-			name:       "totp challenge",
-			deviceType: "totp",
+			name: "totp",
+			req: &createRegisterChallengeRequest{
+				DeviceType: "totp",
+			},
 		},
 		{
-			name:       "webauthn challenge",
-			deviceType: "webauthn",
+			name: "webauthn",
+			req: &createRegisterChallengeRequest{
+				DeviceType: "webauthn",
+			},
+		},
+		{
+			name: "passwordless",
+			req: &createRegisterChallengeRequest{
+				DeviceType:  "webauthn",
+				DeviceUsage: "passwordless",
+			},
+			assertChallenge: func(t *testing.T, c *client.MFARegisterChallenge) {
+				// rrk=true is a good proxy for passwordless.
+				require.NotNil(t, c.Webauthn.Response.AuthenticatorSelection.RequireResidentKey, "rrk cannot be nil")
+				require.True(t, *c.Webauthn.Response.AuthenticatorSelection.RequireResidentKey, "rrk cannot be false")
+			},
 		},
 	}
-
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			endpoint := clt.Endpoint("webapi", "mfa", "token", token.GetName(), "registerchallenge")
-			res, err := clt.PostJSON(ctx, endpoint, &createRegisterChallengeRequest{
-				DeviceType: tc.deviceType,
-			})
+			res, err := clt.PostJSON(ctx, endpoint, tc.req)
 			require.NoError(t, err)
 
 			var chal client.MFARegisterChallenge
 			require.NoError(t, json.Unmarshal(res.Bytes(), &chal))
 
-			switch tc.deviceType {
+			switch tc.req.DeviceType {
 			case "totp":
-				require.NotNil(t, chal.TOTP.QRCode)
+				require.NotNil(t, chal.TOTP.QRCode, "TOTP QR code cannot be nil")
 			case "webauthn":
-				require.NotNil(t, chal.Webauthn)
+				require.NotNil(t, chal.Webauthn, "WebAuthn challenge cannot be nil")
+			}
+
+			if tc.assertChallenge != nil {
+				tc.assertChallenge(t, &chal)
 			}
 		})
 	}

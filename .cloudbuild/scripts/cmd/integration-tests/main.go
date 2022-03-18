@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
+	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
@@ -56,6 +58,26 @@ func innerMain() error {
 		return trace.Wrap(err)
 	}
 
+	// If a github deploy key location was supplied...
+	var deployKey []byte
+	if args.githubKeySrc != "" {
+		// fetch the deployment key from the GCB secret manager
+		log.Infof("Fetching deploy key from %s", args.githubKeySrc)
+		deployKey, err = secrets.Fetch(context.Background(), args.githubKeySrc)
+		if err != nil {
+			return trace.Wrap(err, "failed fetching deploy key")
+		}
+	}
+
+	if !args.skipUnshallow {
+		unshallowCtx, unshallowCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer unshallowCancel()
+		err = git.UnshallowRepository(unshallowCtx, args.workspace, deployKey)
+		if err != nil {
+			return trace.Wrap(err, "unshallow failed")
+		}
+	}
+
 	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
 	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
 
@@ -70,9 +92,6 @@ func innerMain() error {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}
-
-	cancelCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// From this point on, whatever happens we want to upload any artifacts
 	// produced by the build
@@ -115,10 +134,13 @@ func innerMain() error {
 	// diagnostic warnings that would pollute the build log and just confuse
 	// people when they are trying to work out why their build failed.
 	log.Printf("Starting etcd...")
-	err = etcd.Start(cancelCtx, args.workspace, nonrootUID, nonrootGID, gomodcache)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	etcdSvc, err := etcd.Start(timeoutCtx, args.workspace)
 	if err != nil {
 		return trace.Wrap(err, "failed starting etcd")
 	}
+	defer etcdSvc.Stop()
 
 	unameOut, err := exec.Command("uname", "-a").CombinedOutput()
 	if err != nil {

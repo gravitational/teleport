@@ -44,8 +44,11 @@ This reference details available values for the `teleport-cluster` chart.
 
   (!docs/pages/kubernetes-access/helm/includes/kubernetes-externaladdress.mdx!)
 
-  You will need to manually add DNS records pointing `teleport.example.com` and `*.teleport.example.com` to either the IP or hostname
-  of the Kubernetes load balancer.
+  You will need to manually add a DNS A record pointing `teleport.example.com` to either the IP or hostname of the Kubernetes load balancer.
+
+<Details title="Using Application Access?">
+(!docs/pages/includes/dns-app-access.mdx!)
+</Details>
 
   If you are not using ACME certificates, you may also need to accept insecure warnings in your browser to view the page successfully.
 </Admonition>
@@ -66,6 +69,48 @@ This reference details available values for the `teleport-cluster` chart.
 | `string` | `local` | Yes | `auth_service.authentication.type` | ❌ |
 
 `authenticationType` controls the authentication scheme used by Teleport. Possible values are `local` and `github` for OSS, plus `oidc`, `saml`, and `false` for Enterprise.
+
+## `authenticationSecondFactor`
+
+### `authenticationSecondFactor.secondFactor`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `otp` | Yes | `auth_service.authentication.second_factor` | ❌ |
+
+`authenticationSecondFactor.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
+
+When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used. The configured `rp_id` defaults to
+the FQDN which is used to access the Teleport cluster.
+
+### `authenticationSecondFactor.webauthn`
+
+See [Second Factor - WebAuthn](../../access-controls/guides/webauthn.mdx) for more details.
+
+#### `authenticationSecondFactor.webauthn.attestationAllowedCas`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `array` | `[]` | No | `auth_service.authentication.webauthn.attestation_allowed_cas` | ❌ |
+
+`authenticationSecondFactor.webauthn.attestationAllowedCas` is an optional allow list of certificate authorities (as local file paths or in-line PEM certificate string) for
+[device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+This field allows you to restrict which device models and vendors you trust.
+Devices outside of the list will be rejected during registration.
+By default all devices are allowed.
+
+#### `authenticationSecondFactor.webauthn.attestationDeniedCas`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `array` | `[]` | No | `auth_service.authentication.webauthn.attestation_denied_cas` | ❌ |
+
+`authenticationSecondFactor.webauthn.attestationDeniedCas` is optional deny list of certificate authorities (as local file paths or in-line PEM certificate string) for
+[device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+This field allows you to forbid specific device models and vendors, while allowing all others (provided they clear attestation_allowed_cas as well).
+Devices within this list will be rejected during registration.
+By default no devices are forbidden.
 
 ## `proxyListenerMode`
 
@@ -494,7 +539,7 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](./guides/aws.mdx#step-47-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 ### `highAvailability.certManager.addCommonName`
@@ -509,7 +554,7 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](./guides/aws.mdx#step-47-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
@@ -543,7 +588,7 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
   You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
 
   Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-  of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
+  of the [AWS](./guides/aws.mdx#step-47-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
@@ -1487,7 +1532,7 @@ You can specify multiple apps by adding additional list elements.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your agent pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-configure-iam).
+  For AWS database auto-discovery to work, your agent pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-47-create-an-iam-policy-for-teleport).
 
   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 
@@ -2433,6 +2478,54 @@ will also be available to any `initContainers` configured by the chart.
   ```code
   $ --set "extraVolumes[0].name=myvolume" \
   --set "extraVolumes[0].secret.secretName=mysecret"
+  ```
+  </TabItem>
+</Tabs>
+
+## `extraArgs`
+
+| Type | Default value |
+| - | - |
+| `list` | `[]` |
+
+A list of extra arguments to pass to the `teleport start` command when running a Teleport Pod.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraArgs:
+  - "--debug"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "extraArgs={--debug}"
+  ```
+  </TabItem>
+</Tabs>
+
+## `extraEnv`
+
+| Type | Default value |
+| - | - |
+| `list` | `[]` |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/)
+
+A list of extra environment variables to be set on the main Teleport container.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  extraEnv:
+  - name: HTTPS_PROXY
+    value: "http://username:password@my.proxy.host:3128"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "extraEnv[0].name=HTTPS_PROXY" \
+  --set "extraEnv[0].value=\"http://username:password@my.proxy.host:3128\""
   ```
   </TabItem>
 </Tabs>

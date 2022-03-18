@@ -71,10 +71,10 @@ func TestAppliesLDAPLabels(t *testing.T) {
 	applyLabelsFromLDAP(entry, l)
 
 	require.Equal(t, l[types.OriginLabel], types.OriginDynamic)
-	require.Equal(t, l["teleport.dev/dns_host_name"], "foo.example.com")
-	require.Equal(t, l["teleport.dev/computer_name"], "foo")
-	require.Equal(t, l["teleport.dev/os"], "Windows Server")
-	require.Equal(t, l["teleport.dev/os_version"], "6.1")
+	require.Equal(t, l[types.TeleportNamespace+"/dns_host_name"], "foo.example.com")
+	require.Equal(t, l[types.TeleportNamespace+"/computer_name"], "foo")
+	require.Equal(t, l[types.TeleportNamespace+"/os"], "Windows Server")
+	require.Equal(t, l[types.TeleportNamespace+"/os_version"], "6.1")
 }
 
 func TestLabelsDomainControllers(t *testing.T) {
@@ -109,7 +109,7 @@ func TestLabelsDomainControllers(t *testing.T) {
 			l := make(map[string]string)
 			applyLabelsFromLDAP(test.entry, l)
 
-			b, _ := strconv.ParseBool(l["teleport.dev/is_domain_controller"])
+			b, _ := strconv.ParseBool(l[types.TeleportNamespace+"/is_domain_controller"])
 			test.assert(t, b)
 		})
 	}

@@ -276,6 +276,15 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 - [ ] Test receiving a message via Teleport Slackbot
 - [ ] Test receiving a new Jira Ticket via Teleport Jira
 
+### AWS Node Joining
+[Docs](https://goteleport.com/docs/setup/guides/joining-nodes-aws/)
+- [ ] On EC2 instance with `ec2:DescribeInstances` permissions for local account:
+  `TELEPORT_TEST_EC2=1 go test ./integration -run TestEC2NodeJoin`
+- [ ] On EC2 instance with any attached role:
+  `TELEPORT_TEST_EC2=1 go test ./integration -run TestIAMNodeJoin`
+- [ ] EC2 Join method in IoT mode with node and auth in different AWS accounts
+- [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
+
 ## WEB UI
 
 ## Main
@@ -938,6 +947,10 @@ and non interactive tsh bench loads.
   - [ ] Verify async recording (`mode: node` or `mode: proxy`)
   - [ ] Sessions show up in session recordings UI with desktop icon
   - [ ] Sessions can be played back, including play/pause functionality
+  - [ ] A session that ends with a TDP error message can be played back, ends by displaying the error message,
+        and the progress bar progresses to the end.
+  - [ ] Attempting to play back a session that doesn't exist (i.e. by entering a non-existing session id in the url) shows
+        a relevant error message.
   - [ ] RBAC for sessions: ensure users can only see their own recordings when
     using the RBAC rule from our
     [docs](../../docs/pages/access-controls/reference.mdx#rbac-for-sessions)

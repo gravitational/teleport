@@ -245,10 +245,10 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 	m.cloud = databases
 }
 
-func (m *monitoredDatabases) get() types.ResourcesWithLabels {
+func (m *monitoredDatabases) get() types.ResourcesWithLabelsMap {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append(append(m.static, m.resources...), m.cloud...).AsResources()
+	return append(append(m.static, m.resources...), m.cloud...).AsResources().ToMap()
 }
 
 // New returns a new database server.
