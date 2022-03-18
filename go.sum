@@ -458,8 +458,8 @@ github.com/gravitational/go-mysql v1.1.1-teleport.2 h1:XZ36BZ7BgslA5ZCyCHjpc1wil
 github.com/gravitational/go-mysql v1.1.1-teleport.2/go.mod h1:re0JQZ1Cy5dVlIDGq0YksfDIla/GRZlxqOoC0XPSSGE=
 github.com/gravitational/go-oidc v0.0.5 h1:kxsCknoOZ+KqIAoYLLdHuQcvcc+SrQlnT7xxIM8oo6o=
 github.com/gravitational/go-oidc v0.0.5/go.mod h1:SevmOUNdOB0aD9BAIgjptZ6oHkKxMZZgA70nwPfgU/w=
-github.com/gravitational/gosaml2 v0.0.0-20220318215643-ab3d61c45323 h1:naZEf1w430Yys15K9dVfdP090MUmkdUfff3AGxGEZrA=
-github.com/gravitational/gosaml2 v0.0.0-20220318215643-ab3d61c45323/go.mod h1:PiLt5KX4EMjlMIq3WLRR/xb5yqhiwtQhGr8wmU0b08M=
+github.com/gravitational/gosaml2 v0.0.0-20220318224559-f06932032ae2 h1:8z1D1fehTDV20wkiGX+JTnlevvEUeVEh4LCygvOrFBs=
+github.com/gravitational/gosaml2 v0.0.0-20220318224559-f06932032ae2/go.mod h1:PiLt5KX4EMjlMIq3WLRR/xb5yqhiwtQhGr8wmU0b08M=
 github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible h1:CfyZl3nyo9K5lLqOmqvl9/IElY1UCnOWKZiQxJ8HKdA=
 github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible/go.mod h1:LWxG30M3FcrjhOn3T4zz7JmBoQJ45MWZmOXgy9Ganoc=
 github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621 h1:ivU//THqy3/TMz7Bx6VbLbcVebBJLSOpvfcASbLlT1s=
