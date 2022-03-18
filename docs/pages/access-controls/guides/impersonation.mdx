@@ -312,16 +312,15 @@ $ tsh login --proxy=teleport.example.com --user=alice --auth=local
 $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```
 
-### Filter fields explained
+### Filter fields
 
-Explanation of the fields used in this guide for the `where` conditions.
+Here is an explanation of the fields used in the `where` conditions within this guide.
 
-| Field                                             | Description                                                    |
-|---------------------------------------------------|----------------------------------------------------------------|
-| `user.spec.traits["<list name>"]`                 | the `list` of traits from a local or SSO user                  |
-| `impersonate_role.metadata.labels["<label key>"]` | the label `value` given label `key` from a role to impersonate |
-| `impersonate_user.metadata.labels["<label key>"]` | the label `value` given label `key` from a user to impersonate |
-
+| Field                                             | Description                                                                                                            |
+|---------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `user.spec.traits["group"]`                       | The list of traits from a local or SSO user where the `group` trait typically comes from an external identity provider |
+| `impersonate_role.metadata.labels["<label key>"]` | The label value given the label `key` from a role to impersonate                                                       |
+| `impersonate_user.metadata.labels["<label key>"]` | The label value given the label `key` from a user to impersonate                                                       |
 
 Check out our [predicate language](../../setup/reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources) 
 guide for a more in depth explanation of the language.
