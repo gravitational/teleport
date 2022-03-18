@@ -116,7 +116,6 @@ type Memory struct {
 	*sync.Mutex
 	*log.Entry
 	Config
-	backend.NoMigrations
 	// tree is a BTree with items
 	tree *btree.BTree
 	// heap is a min heap with expiry records

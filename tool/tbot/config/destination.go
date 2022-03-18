@@ -31,12 +31,12 @@ type DestinationMixin struct {
 
 type DestinationDefaults = func(*DestinationMixin) error
 
-func (dm *DestinationMixin) CheckAndSetDefaults(applyDefaults DestinationDefaults) error {
+// checkAndSetDefaultsInner performs member initialization that won't recurse
+func (dm *DestinationMixin) checkAndSetDefaultsInner() (int, error) {
 	notNilCount := 0
-
 	if dm.Directory != nil {
 		if err := dm.Directory.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+			return 0, trace.Wrap(err)
 		}
 
 		notNilCount++
@@ -44,16 +44,34 @@ func (dm *DestinationMixin) CheckAndSetDefaults(applyDefaults DestinationDefault
 
 	if dm.Memory != nil {
 		if err := dm.Memory.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+			return 0, trace.Wrap(err)
 		}
 
 		notNilCount++
+	}
+	return notNilCount, nil
+}
+
+func (dm *DestinationMixin) CheckAndSetDefaults(applyDefaults DestinationDefaults) error {
+	notNilCount, err := dm.checkAndSetDefaultsInner()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	if notNilCount == 0 {
 		// use defaults
 		if err := applyDefaults(dm); err != nil {
 			return trace.Wrap(err)
+		}
+
+		// CheckAndSetDefaults() again
+		notNilCount, err := dm.checkAndSetDefaultsInner()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if notNilCount == 0 {
+			return trace.BadParameter("a destination is required")
 		}
 	} else if notNilCount > 1 {
 		return trace.BadParameter("only one destination backend may be specified at a time")

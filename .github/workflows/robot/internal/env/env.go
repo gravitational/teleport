@@ -38,13 +38,26 @@ type Environment struct {
 	// Author is the author of the PR.
 	Author string
 
-	// UnsafeBranch is the name of the branch the workflow is running in.
+	// UnsafeHead is the name of the branch the workflow is running in.
 	//
-	// UnsafeBranch can be attacker controlled and should not be used in any
-	// security sensitive context. See the following link for more details:
+	// UnsafeHead can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
 	//
 	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
-	UnsafeBranch string
+	UnsafeHead string
+
+	// UnsafeBase is the name of the base branch the user is trying to merge the
+	// PR into. For example: "master" or "branch/v8".
+	//
+	// UnsafeBase can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+	UnsafeBase string
 }
 
 // New returns a new execution environment for the workflow.
@@ -72,7 +85,8 @@ func New() (*Environment, error) {
 		Repository:   event.Repository.Name,
 		Number:       event.PullRequest.Number,
 		Author:       event.PullRequest.User.Login,
-		UnsafeBranch: event.PullRequest.UnsafeHead.UnsafeRef,
+		UnsafeHead:   event.PullRequest.UnsafeHead.UnsafeRef,
+		UnsafeBase:   event.PullRequest.UnsafeBase.UnsafeRef,
 	}, nil
 }
 

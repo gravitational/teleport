@@ -351,8 +351,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// token generation
+	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+
 	// add Node token generation
-	h.POST("/webapi/nodes/token", h.WithAuth(h.createScriptJoinTokenHandle))
+	// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
+	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
+	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
 	// web context
@@ -807,12 +812,13 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		ServerVersion: teleport.Version,
 	}
 
+	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
 	if connectorName == constants.Local {
-		as, err := localSettings(cap)
+		response.Auth, err = localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.Auth = as
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -820,6 +826,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = oidcSettings(oidcConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -827,6 +834,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = samlSettings(samlConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -834,6 +842,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = githubSettings(githubConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -965,7 +974,7 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	// Fetch the JWT public keys only.
-	ca, err := h.cfg.ProxyClient.GetCertAuthority(types.CertAuthID{
+	ca, err := h.cfg.ProxyClient.GetCertAuthority(r.Context(), types.CertAuthID{
 		Type:       types.JWTSigner,
 		DomainName: clusterName,
 	}, false)
@@ -1652,27 +1661,39 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 }
 
 // mfaLoginBegin is the first step in the MFA authentication ceremony, which
-// may be completed either via mfaLoginFinish (SSH) or mfaLoginFinishSession (Web).
+// may be completed either via mfaLoginFinish (SSH) or mfaLoginFinishSession
+// (Web).
 //
 // POST /webapi/mfa/login/begin
 //
 // {"user": "alex", "pass": "abc123"}
+// {"passwordless": true}
 //
 // Successful response:
 //
 // {"webauthn_challenge": {...}, "totp_challenge": true}
+// {"webauthn_challenge": {...}} // passwordless
 func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *client.MFAChallengeRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	mfaChallenge, err := h.auth.proxyClient.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-			Username: req.User,
-			Password: []byte(req.Pass),
-		}},
-	})
+	mfaReq := &proto.CreateAuthenticateChallengeRequest{}
+	if req.Passwordless {
+		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_Passwordless{
+			Passwordless: &proto.Passwordless{},
+		}
+	} else {
+		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: &proto.UserCredentials{
+				Username: req.User,
+				Password: []byte(req.Pass),
+			},
+		}
+	}
+
+	mfaChallenge, err := h.auth.proxyClient.CreateAuthenticateChallenge(r.Context(), mfaReq)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
@@ -1723,10 +1744,14 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
-	if err := SetSessionCookie(w, req.User, session.GetName()); err != nil {
+
+	// Fetch user from session, user is empty for passwordless requests.
+	user := session.GetUser()
+	if err := SetSessionCookie(w, user, session.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := h.auth.newSessionContext(req.User, session.GetName())
+
+	ctx, err := h.auth.newSessionContext(user, session.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
