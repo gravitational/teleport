@@ -61,20 +61,22 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
 
   getConnections(): ExtendedTrackedConnection[] {
     return this.state.connections.map(connection => {
-      const { clusterUri } =
+      const { rootClusterUri, leafClusterUri } =
         this._trackedConnectionOperationsFactory.create(connection);
-      const cluster = this._clusterService.findCluster(clusterUri);
+      const cluster = this._clusterService.findCluster(
+        leafClusterUri || rootClusterUri
+      );
       return { ...connection, clusterName: cluster?.name };
     });
   }
 
   async activateItem(id: string): Promise<void> {
     const connection = this.state.connections.find(c => c.id === id);
-    const { clusterUri, activate } =
+    const { rootClusterUri, activate } =
       this._trackedConnectionOperationsFactory.create(connection);
 
-    if (clusterUri !== this._workspacesService.getRootClusterUri()) {
-      await this._workspacesService.setActiveWorkspace(clusterUri);
+    if (rootClusterUri !== this._workspacesService.getRootClusterUri()) {
+      await this._workspacesService.setActiveWorkspace(rootClusterUri);
     }
     activate();
   }
