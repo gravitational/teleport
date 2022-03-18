@@ -26,6 +26,7 @@ import {
 import theme from 'design/theme';
 
 const Text = styled.div`
+  opacity: ${props => props.opacity || 1};
   overflow: hidden;
   text-overflow: ellipsis;
   ${typography}
@@ -34,6 +35,7 @@ const Text = styled.div`
   ${color}
   ${textAlign}
   ${fontWeight}
+
 `;
 
 Text.displayName = 'Text';

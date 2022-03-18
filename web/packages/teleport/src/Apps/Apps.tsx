@@ -81,22 +81,11 @@ export function Apps(props: State) {
 }
 
 const emptyStateInfo: EmptyStateInfo = {
-  title: 'ADD YOUR FIRST APPLICATION',
-  description: (
-    <Text>
-      {`Quick access to web applications running behind NAT and firewalls with
-      security and compliance. Follow `}
-      <Link
-        target="_blank"
-        href="https://goteleport.com/docs/application-access/getting-started/"
-      >
-        the documentation
-      </Link>
-      {' to get started.'}
-    </Text>
-  ),
-  videoLink: 'https://www.youtube.com/watch?v=HkBQY-uWIbU',
-  buttonText: 'ADD APPLICATION',
+  title: 'Add your first application to Teleport',
+  byline:
+    'Teleport Application Access provides secure access to internal applications.',
+  docsURL: 'https://goteleport.com/docs/application-access/getting-started/',
+  entityType: 'application',
   readOnly: {
     title: 'No Applications Found',
     resource: 'applications',

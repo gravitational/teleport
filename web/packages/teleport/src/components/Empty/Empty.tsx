@@ -16,22 +16,15 @@ limitations under the License.
 
 import React from 'react';
 
-import { Text, Box, Flex, ButtonPrimary, Link } from 'design';
+import { Text, Box, Flex, ButtonPrimary, ButtonOutlined, Link } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
-import * as Icons from 'design/Icon';
-import empty from './assets';
+import application from './assets/appplication.png';
 
 export default function Empty(props: Props) {
   const { canCreate, onClick, clusterId, emptyStateInfo } = props;
 
-  const {
-    title,
-    description,
-    buttonText,
-    videoLink,
-    readOnly,
-  } = emptyStateInfo;
+  const { byline, docsURL, entityType, readOnly, title } = emptyStateInfo;
 
   // always show the welcome for enterprise users who have access to create an app
   if (!canCreate) {
@@ -62,65 +55,53 @@ export default function Empty(props: Props) {
 
   return (
     <Card
-      p={4}
+      p={8}
       as={Flex}
-      maxWidth="900px"
       width="100%"
       mt={4}
       mx="auto"
-      bg="primary.main"
+      bg="primary.light"
+      alignItems="center"
+      justifyContent="center"
     >
-      <Flex
-        as={Link}
-        mr={4}
-        maxWidth="296px"
-        maxHeight="176px"
-        bg="primary.dark"
-        p={4}
-        borderRadius={8}
-        alignItems="center"
-        justifyContent="center"
-        style={{ position: 'relative' }}
-        target="_blank"
-        href={videoLink}
-      >
-        <Image width="220px" src={empty} />
-        <Flex
-          style={{ position: 'absolute' }}
-          flexDirection="column"
-          alignItems="center"
-          mt={3}
-        >
-          <Icons.CirclePlay mb={3} fontSize="64px" />
-          <Text color="text.primary" fontWeight={700}>
-            WATCH THE QUICKSTART
-          </Text>
-        </Flex>
-      </Flex>
       <Box>
-        <Box mb={4}>
-          <Text typography="h3" mb={2} fontWeight={700} fontSize={14}>
+        <Box mb={4} textAlign="center">
+          <Image src={application} m={0} ml="auto" mr="auto" />
+          <Text typography="h5" mb={2} fontWeight={700} fontSize={24}>
             {title}
           </Text>
-          {description}
+          <Text fontWeight={400} fontSize={14} opacity={0.6}>
+            {byline}
+          </Text>
         </Box>
         <ButtonPrimary onClick={onClick} width="224px">
-          {buttonText}
+          Add {entityType}
         </ButtonPrimary>
+        <ButtonOutlined
+          size="medium"
+          as="a"
+          href={docsURL}
+          target="_blank"
+          width="224px"
+          ml={4}
+          rel="noreferrer"
+        >
+          View Documentation
+        </ButtonOutlined>
       </Box>
     </Card>
   );
 }
 
 export type EmptyStateInfo = {
-  title: string;
-  description: JSX.Element;
-  buttonText: string;
-  videoLink: string;
+  byline: string;
+  docsURL: string;
+  entityType: string;
   readOnly: {
     title: string;
     resource: string;
   };
+  title: string;
 };
 
 export type Props = {
