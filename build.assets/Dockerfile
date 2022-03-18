@@ -47,6 +47,7 @@ RUN apt-get update -y --fix-missing && \
         make \
         mingw-w64 \
         mingw-w64-x86-64-dev \
+        musl-tools \
         net-tools \
         openssh-client \
         osslsigncode \
