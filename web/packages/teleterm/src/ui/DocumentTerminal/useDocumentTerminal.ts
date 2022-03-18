@@ -73,8 +73,19 @@ async function initState(
     removeInitCommand();
   });
 
-  ptyProcess.onExit(() => {
-    docsService.close(doc.uri);
+  ptyProcess.onExit(event => {
+    // Not closing the tab on non-zero exit code lets us show the error to the user if, for example,
+    // tsh ssh cannot connect to the given node.
+    //
+    // The downside of this is that if you open a local shell, then execute a command that fails
+    // (for example, `cd` to a nonexistent directory), and then try to execute `exit` or press
+    // Ctrl + D, the tab won't automatically close, because the last exit code is not zero.
+    //
+    // We can look up how the terminal in vscode handles this problem, since in the scenario
+    // described above they do close the tab correctly.
+    if (event.exitCode === 0) {
+      docsService.close(doc.uri);
+    }
   });
 
   return {
