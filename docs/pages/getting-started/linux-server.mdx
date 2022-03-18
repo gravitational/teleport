@@ -29,6 +29,7 @@ Take a look at the [Installation Guide](../installation.mdx) for more options.
 (!docs/pages/includes/permission-warning.mdx!)
 
 ### Configure DNS
+Teleport uses TLS to provide secure access to its Proxy Service and Auth Service, and this requires a domain name that clients can use to verify Teleport's certificate.
 
 Teleport uses TLS to provide secure access to its Proxy Service and Auth Service, and this requires a domain name that clients can use to verify Teleport's certificate. To get started, set up two `A` records for `tele.example.com` and `*.tele.example.com` pointing to the IP/FQDN of the machine with Teleport installed.
 
