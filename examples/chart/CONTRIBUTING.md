@@ -14,8 +14,9 @@ Our goal is to:
 
 If your functionality is only really useful to you, it's best to keep it on your own fork and deploy from there.
 
-Sometimes Teleport staff may take over your PR and make changes, or implement it in a slightly different way. We will
-make sure that you still get credited in the final commit if this happens.
+Sometimes Teleport staff may take over your PR and make changes, implement it in a slightly different way, or just merge it
+as part of a bigger merge of multiple PRs at once. We will make sure that you still get credit in the final commit if this
+happens.
 
 ## Guidelines
 
@@ -45,6 +46,6 @@ then run `make update-helm-snapshots` to update the snapshots and commit these c
 
 Again, `make -C build.assets update-helm-snapshots` will run this via Docker.
 
-7) Document the changes you've made in the PR comment and add @webvictim as a reviewer.
+7) Document the changes you've made in the PR summary and add @webvictim as a reviewer.
 
 Thanks!

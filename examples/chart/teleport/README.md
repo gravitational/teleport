@@ -1,6 +1,6 @@
 # WARNING
 
-This chart is **deprecated** and no longer actively maintaned or supported by Teleport.
+This chart is **deprecated** and no longer actively maintained or supported by Teleport.
 We recommend the use of the [teleport-cluster](../teleport-cluster/README.md) chart instead.
 
 # Teleport
