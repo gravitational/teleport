@@ -13,6 +13,8 @@ description: How to configure Teleport Database Access with Redis.
   Database access for Redis is available starting from Teleport `9.0`.
 </Details>
 
+If you want to configure Redis Cluster guide is available [here](redis-cluster.mdx).
+
 This guide will help you to:
 
 - Install and configure Teleport.
@@ -22,7 +24,7 @@ This guide will help you to:
 ## Prerequisites
 
 - Teleport version `9.0` or newer.
-- Redis (standalone or cluster) version `6.0` or newer.
+- Redis version `6.0` or newer.
 - `redis-cli` installed and added to your system's `PATH` environment variable.
 
 <Admonition type="note" title="Note">
@@ -45,7 +47,7 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
-Create the secrets:
+### Create the secrets:
 
 When connecting to standalone Redis, sign the certificate for the hostname over
 which Teleport will be connecting to it.
@@ -65,7 +67,6 @@ The command will create three files:
 - `server.crt` with a generated user certificate
 
 You will need these files to enable mutual TLS on your Redis server.
-
 
 (!docs/pages/includes/database-access/rotation-note.mdx!)
 
@@ -94,11 +95,10 @@ in the Redis documentation for more details.
 
 (!docs/pages/includes/database-access/redis-connect.mdx!)
 
-
 ### Supported Redis commands
 
 Redis in standalone mode doesn't support the commands below. If one of the listed commands is called Teleport
-returns the `ERR Teleport: not supported by Teleport` error.
+returns the <nobr>`ERR Teleport: not supported by Teleport`</nobr> error.
 
 - `HELLO`
 - `PUNSUBSCRIBE`
