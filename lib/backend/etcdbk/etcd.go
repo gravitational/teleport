@@ -23,7 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"io/ioutil"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -277,7 +277,7 @@ func (cfg *Config) Validate() error {
 		cfg.DialTimeout = apidefaults.DefaultDialTimeout
 	}
 	if cfg.PasswordFile != "" {
-		out, err := ioutil.ReadFile(cfg.PasswordFile)
+		out, err := os.ReadFile(cfg.PasswordFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -313,11 +313,11 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	tlsConfig := utils.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
-		clientCertPEM, err := ioutil.ReadFile(b.cfg.TLSCertFile)
+		clientCertPEM, err := os.ReadFile(b.cfg.TLSCertFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
-		clientKeyPEM, err := ioutil.ReadFile(b.cfg.TLSKeyFile)
+		clientKeyPEM, err := os.ReadFile(b.cfg.TLSKeyFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -329,7 +329,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	}
 
 	if b.cfg.TLSCAFile != "" {
-		caCertPEM, err := ioutil.ReadFile(b.cfg.TLSCAFile)
+		caCertPEM, err := os.ReadFile(b.cfg.TLSCAFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}

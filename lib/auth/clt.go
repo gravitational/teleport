@@ -22,7 +22,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -1309,7 +1309,7 @@ func (c *Client) PostSessionSlice(slice events.SessionSlice) error {
 	// we **must** consume response by reading all of its body, otherwise the http
 	// client will allocate a new connection for subsequent requests
 	defer re.Body.Close()
-	responseBytes, _ := ioutil.ReadAll(re.Body)
+	responseBytes, _ := io.ReadAll(re.Body)
 	return trace.ReadError(re.StatusCode, responseBytes)
 }
 
