@@ -99,6 +99,7 @@ func TestAWSIAM(t *testing.T) {
 
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
+		Semaphores: &SemaphoresMock{},
 		Clients: &common.TestCloudClients{
 			RDS:      rdsClient,
 			Redshift: redshiftClient,
@@ -112,6 +113,7 @@ func TestAWSIAM(t *testing.T) {
 	// Configure RDS database and make sure IAM was enabled and policy was attached.
 	err = configurator.Setup(ctx, rdsDatabase)
 	require.NoError(t, err)
+	require.NoError(t, configurator.flush())
 	require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
 	policy := iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
 	require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
@@ -119,12 +121,14 @@ func TestAWSIAM(t *testing.T) {
 	// Deconfigure RDS database, policy should get detached.
 	err = configurator.Teardown(ctx, rdsDatabase)
 	require.NoError(t, err)
+	require.NoError(t, configurator.flush())
 	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
 	require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 
 	// Configure Aurora database and make sure IAM was enabled and policy was attached.
 	err = configurator.Setup(ctx, auroraDatabase)
 	require.NoError(t, err)
+	require.NoError(t, configurator.flush())
 	require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
 	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
 	require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
@@ -132,18 +136,21 @@ func TestAWSIAM(t *testing.T) {
 	// Deconfigure Aurora database, policy should get detached.
 	err = configurator.Teardown(ctx, auroraDatabase)
 	require.NoError(t, err)
+	require.NoError(t, configurator.flush())
 	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
 	require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 
 	// Configure Redshift database and make sure policy was attached.
 	err = configurator.Setup(ctx, redshiftDatabase)
 	require.NoError(t, err)
+	require.NoError(t, configurator.flush())
 	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
 	require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 
 	// Deconfigure Redshift database, policy should get detached.
 	err = configurator.Teardown(ctx, redshiftDatabase)
 	require.NoError(t, err)
+	require.NoError(t, configurator.flush())
 	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
 	require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 }
@@ -163,6 +170,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
+		Semaphores: &SemaphoresMock{},
 		Clients: &common.TestCloudClients{
 			STS:      stsClient,
 			RDS:      rdsClient,
@@ -205,9 +213,11 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			// Make sure there're no errors trying to setup/destroy IAM.
 			err = configurator.Setup(ctx, database)
 			require.NoError(t, err)
+			require.NoError(t, configurator.flush())
 
 			err = configurator.Teardown(ctx, database)
 			require.NoError(t, err)
+			require.NoError(t, configurator.flush())
 		})
 	}
 }

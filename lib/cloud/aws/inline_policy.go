@@ -18,7 +18,6 @@ package aws
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -28,10 +27,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// InlinePolicy defines an interface for an AWS IAM inline policy.
-type InlinePolicy interface {
-	// GetName returns the inline policy name.
-	GetName() string
+// InlinePolicyClient defines an interface for an AWS IAM inline policy client.
+type InlinePolicyClient interface {
+	// GetPolicyName returns the inline policy name.
+	GetPolicyName() string
 
 	// Get fetches and returns the policy.
 	Get(ctx context.Context) (*PolicyDocument, error)
@@ -41,71 +40,75 @@ type InlinePolicy interface {
 	Delete(ctx context.Context) error
 }
 
-// NewRoleInlinePolicy creates an inline policy for provided IAM role.
-func NewRoleInlinePolicy(name, role string, iam iamiface.IAMAPI) (InlinePolicy, error) {
+// NewInlinePolicyClientForRole creates an inline policy client for provided
+// policy name and IAM role.
+func NewInlinePolicyClientForRole(policyName, roleName string, iam iamiface.IAMAPI) (InlinePolicyClient, error) {
 	if iam == nil {
 		return nil, trace.BadParameter("missing IAM client")
 	}
-	if name == "" {
-		return nil, trace.BadParameter("policy cannot be empty")
+	if policyName == "" {
+		return nil, trace.BadParameter("policy name cannot be empty")
 	}
-	if role == "" {
-		return nil, trace.BadParameter("role cannot be empty")
+	if roleName == "" {
+		return nil, trace.BadParameter("role name cannot be empty")
 	}
-	return &roleInlinePolicy{
-		name: name,
-		role: role,
-		iam:  iam,
+	return &inlinePolicyClientForRole{
+		policyName: policyName,
+		roleName:   roleName,
+		iam:        iam,
 	}, nil
 }
 
-// NewUserInlinePolicy creates an inline policy for provided IAM user.
-func NewUserInlinePolicy(name, user string, iam iamiface.IAMAPI) (InlinePolicy, error) {
+// NewInlinePolicyClientForUser creates an inline policy client for provided
+// policy name and IAM user.
+func NewInlinePolicyClientForUser(policyName, userName string, iam iamiface.IAMAPI) (InlinePolicyClient, error) {
 	if iam == nil {
 		return nil, trace.BadParameter("missing IAM client")
 	}
-	if name == "" {
-		return nil, trace.BadParameter("policy cannot be empty")
+	if policyName == "" {
+		return nil, trace.BadParameter("policy name cannot be empty")
 	}
-	if user == "" {
-		return nil, trace.BadParameter("user cannot be empty")
+	if userName == "" {
+		return nil, trace.BadParameter("user name cannot be empty")
 	}
-	return &userInlinePolicy{
-		name: name,
-		user: user,
-		iam:  iam,
+	return &inlinePolicyClientForUser{
+		policyName: policyName,
+		userName:   userName,
+		iam:        iam,
 	}, nil
 }
 
-// NewInlinePolicyForIdentity creates an inline policy from provided identity.
-func NewInlinePolicyForIdentity(name string, iam iamiface.IAMAPI, identity Identity) (InlinePolicy, error) {
+// NewInlinePolicyClientForIdentity creates an inline policy client from
+// provided policy name and identity.
+func NewInlinePolicyClientForIdentity(policyName string, iam iamiface.IAMAPI, identity Identity) (InlinePolicyClient, error) {
 	switch identity.(type) {
 	case Role:
-		return NewRoleInlinePolicy(name, identity.GetName(), iam)
+		return NewInlinePolicyClientForRole(policyName, identity.GetName(), iam)
 
 	case User:
-		return NewUserInlinePolicy(name, identity.GetName(), iam)
+		return NewInlinePolicyClientForUser(policyName, identity.GetName(), iam)
 	}
 	return nil, trace.BadParameter("unsupported identity: %v", identity)
 }
 
-// roleInlinePolicy represents an inline policy for an AWS IAM role.
-type roleInlinePolicy struct {
-	name string
-	role string
-	iam  iamiface.IAMAPI
+// inlinePolicyClientForRole represents an inline policy client for an AWS IAM
+// role.
+type inlinePolicyClientForRole struct {
+	policyName string
+	roleName   string
+	iam        iamiface.IAMAPI
 }
 
-// GetName returns the inline policy name.
-func (p *roleInlinePolicy) GetName() string {
-	return p.name
+// GetPolicyName returns the inline policy name.
+func (p *inlinePolicyClientForRole) GetPolicyName() string {
+	return p.policyName
 }
 
 // Get fetches and returns the policy.
-func (p *roleInlinePolicy) Get(ctx context.Context) (*PolicyDocument, error) {
+func (p *inlinePolicyClientForRole) Get(ctx context.Context) (*PolicyDocument, error) {
 	out, err := p.iam.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
-		PolicyName: aws.String(p.name),
-		RoleName:   aws.String(p.role),
+		PolicyName: aws.String(p.policyName),
+		RoleName:   aws.String(p.roleName),
 	})
 	if err != nil {
 		return nil, ConvertRequestFailureError(err)
@@ -115,49 +118,50 @@ func (p *roleInlinePolicy) Get(ctx context.Context) (*PolicyDocument, error) {
 }
 
 // Put updates the policy and creates if not exists.
-func (p *roleInlinePolicy) Put(ctx context.Context, policyDocument *PolicyDocument) error {
-	log.Debugf("Putting IAM policy for role %v.", p.role)
+func (p *inlinePolicyClientForRole) Put(ctx context.Context, policyDocument *PolicyDocument) error {
+	log.Debugf("Putting IAM policy %v for role %v.", p.policyName, p.roleName)
 
-	document, err := json.Marshal(policyDocument)
+	document, err := policyDocument.Marshal()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = p.iam.PutRolePolicyWithContext(ctx, &iam.PutRolePolicyInput{
-		PolicyName:     aws.String(p.name),
+		PolicyName:     aws.String(p.policyName),
 		PolicyDocument: aws.String(string(document)),
-		RoleName:       aws.String(p.role),
+		RoleName:       aws.String(p.roleName),
 	})
 	return ConvertRequestFailureError(err)
 }
 
 // Delete detaches the policy from the identity.
-func (p *roleInlinePolicy) Delete(ctx context.Context) error {
-	log.Debugf("Deleting IAM policy from role %v.", p.role)
+func (p *inlinePolicyClientForRole) Delete(ctx context.Context) error {
+	log.Debugf("Deleting IAM policy %v from role %v.", p.policyName, p.roleName)
 	_, err := p.iam.DeleteRolePolicyWithContext(ctx, &iam.DeleteRolePolicyInput{
-		PolicyName: aws.String(p.name),
-		RoleName:   aws.String(p.role),
+		PolicyName: aws.String(p.policyName),
+		RoleName:   aws.String(p.roleName),
 	})
 	return ConvertRequestFailureError(err)
 }
 
-// userInlinePolicy represents an inline policy for an AWS IAM user.
-type userInlinePolicy struct {
-	name string
-	user string
-	iam  iamiface.IAMAPI
+// inlinePolicyClientForUser represents an inline policy client for an AWS IAM
+// user.
+type inlinePolicyClientForUser struct {
+	policyName string
+	userName   string
+	iam        iamiface.IAMAPI
 }
 
-// GetName returns the inline policy name.
-func (p *userInlinePolicy) GetName() string {
-	return p.name
+// GetPolicyName returns the inline policy name.
+func (p *inlinePolicyClientForUser) GetPolicyName() string {
+	return p.policyName
 }
 
 // Get fetches and returns the policy.
-func (p *userInlinePolicy) Get(ctx context.Context) (*PolicyDocument, error) {
+func (p *inlinePolicyClientForUser) Get(ctx context.Context) (*PolicyDocument, error) {
 	out, err := p.iam.GetUserPolicyWithContext(ctx, &iam.GetUserPolicyInput{
-		PolicyName: aws.String(p.name),
-		UserName:   aws.String(p.user),
+		PolicyName: aws.String(p.policyName),
+		UserName:   aws.String(p.userName),
 	})
 	if err != nil {
 		return nil, ConvertRequestFailureError(err)
@@ -167,28 +171,28 @@ func (p *userInlinePolicy) Get(ctx context.Context) (*PolicyDocument, error) {
 }
 
 // Put updates the policy and creates if not exists.
-func (p *userInlinePolicy) Put(ctx context.Context, policyDocument *PolicyDocument) error {
-	log.Debugf("Putting IAM policy for user %v.", p.user)
+func (p *inlinePolicyClientForUser) Put(ctx context.Context, policyDocument *PolicyDocument) error {
+	log.Debugf("Putting IAM policy %v for user %v.", p.policyName, p.userName)
 
-	document, err := json.Marshal(policyDocument)
+	document, err := policyDocument.Marshal()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = p.iam.PutUserPolicyWithContext(ctx, &iam.PutUserPolicyInput{
-		PolicyName:     aws.String(p.name),
+		PolicyName:     aws.String(p.policyName),
 		PolicyDocument: aws.String(string(document)),
-		UserName:       aws.String(p.user),
+		UserName:       aws.String(p.userName),
 	})
 	return ConvertRequestFailureError(err)
 }
 
 // Delete detaches the policy from the identity.
-func (p *userInlinePolicy) Delete(ctx context.Context) error {
-	log.Debugf("Deleting IAM policy from user %v.", p.user)
+func (p *inlinePolicyClientForUser) Delete(ctx context.Context) error {
+	log.Debugf("Deleting IAM policy %v from user %v.", p.policyName, p.userName)
 	_, err := p.iam.DeleteUserPolicyWithContext(ctx, &iam.DeleteUserPolicyInput{
-		PolicyName: aws.String(p.name),
-		UserName:   aws.String(p.user),
+		PolicyName: aws.String(p.policyName),
+		UserName:   aws.String(p.userName),
 	})
 	return ConvertRequestFailureError(err)
 }

@@ -176,6 +176,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		if err = c.CloudIAM.Start(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if c.Limiter == nil {
 		// Use default limiter if nothing is provided. Connection limiting will be disabled.
@@ -190,18 +193,18 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 // Server is a database server. It accepts database client requests coming over
 // reverse tunnel from Teleport proxy and proxies them to databases.
 //
-// Here is a simplified diagram of the lifecyle of a database:
-//  ┌──────────┐  ┌──────────┐
-//  │Statically│  │  Auto    │
-//  │Configured│  │Discovered│
-//  └─────┬────┘  └───┬──────┘
-//        │           │
-//        ▼           ▼
-//  ┌────────────────────────┐
-//  │      Monitored         │
-//  └─────┬──────────────────┘
-//        │ re.OnCreate.register.success
-//        ▼
+// Here is a simplified diagram on how server manages database state.
+//  ┌──────────┐  ┌──────────┐   ┌──────────┐
+//  │Statically│  │  Cloud   │   │   CLI    │
+//  │Configured│  │Discovered│   │   API    │
+//  └─┬───┬────┘  └───┬──────┘   └────┬─────┘
+//    │   │           │               │
+//    │   ▼           ▼               │
+//  ┌─┴──────────────────────┐        │
+//  │      Monitored         │◄───────┘
+//  └─┬───┬──────────────────┘
+//    │   │ re.OnCreate.register.success
+//    ▼   ▼
 //  ┌────────────────────────┐
 //  │                        │ re.OnUpdate.register.success
 //  │   Registered/Proxied   │◄───────────────────────────┐
@@ -219,8 +222,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 //  ┌────────────────────────┐
 //  │  Unregistered/Removed  │
 //  └────────────────────────┘
-//
-// Note that "re.OnXXX" are reconciler events.
+// ("re.OnXXX" are reconciler events.)
 type Server struct {
 	// cfg is the database server configuration.
 	cfg Config

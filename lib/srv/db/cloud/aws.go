@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
@@ -34,29 +33,24 @@ import (
 
 // awsConfig is the config for the client that configures IAM for AWS databases.
 type awsConfig struct {
-	// authClient is the cluster auth client.
-	authClient *auth.Client
 	// clients is an interface for creating AWS clients.
 	clients common.CloudClients
 	// database is the database instance to configure.
 	database types.Database
-	// policy is the IAM inline policy to configure.
-	policy awslib.InlinePolicy
+	// awsPolicyClient is the IAM inline policy to configure.
+	awsPolicyClient awslib.InlinePolicyClient
 }
 
 // Check validates the config.
 func (c *awsConfig) Check() error {
-	if c.authClient == nil {
-		return trace.BadParameter("missing parameter auth client")
-	}
 	if c.clients == nil {
 		return trace.BadParameter("missing parameter clients")
 	}
 	if c.database == nil {
 		return trace.BadParameter("missing parameter database")
 	}
-	if c.policy == nil {
-		return trace.BadParameter("missing parameter policy")
+	if c.awsPolicyClient == nil {
+		return trace.BadParameter("missing parameter aws policy client")
 	}
 	return nil
 }
@@ -160,10 +154,14 @@ func (r *awsClient) enableIAMAuth(ctx context.Context) error {
 
 // ensureIAMPolicy adds database connect permissions to the agent's policy.
 func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
-	policy, err := r.cfg.policy.Get(ctx)
+	policy, err := r.cfg.awsPolicyClient.Get(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		policy = awslib.NewPolicyDocument()
 	}
+
 	action := r.cfg.database.GetIAMAction()
 	var changed bool
 	for _, resource := range r.cfg.database.GetIAMResources() {
@@ -177,7 +175,7 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 	if !changed {
 		return nil
 	}
-	err = r.cfg.policy.Put(ctx, policy)
+	err = r.cfg.awsPolicyClient.Put(ctx, policy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -186,7 +184,7 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 
 // deleteIAMPolicy deletes IAM access policy from the identity this agent is running as.
 func (r *awsClient) deleteIAMPolicy(ctx context.Context) error {
-	policy, err := r.cfg.policy.Get(ctx)
+	policy, err := r.cfg.awsPolicyClient.Get(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -196,7 +194,7 @@ func (r *awsClient) deleteIAMPolicy(ctx context.Context) error {
 	}
 	// If policy is empty now, delete it as IAM policy can't be empty.
 	if len(policy.Statements) == 0 {
-		return r.cfg.policy.Delete(ctx)
+		return r.cfg.awsPolicyClient.Delete(ctx)
 	}
-	return r.cfg.policy.Put(ctx, policy)
+	return r.cfg.awsPolicyClient.Put(ctx, policy)
 }

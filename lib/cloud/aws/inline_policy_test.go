@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInlinePolicy(t *testing.T) {
+func TestInlinePolicyClient(t *testing.T) {
 	tests := []struct {
 		name             string
 		inputPolicyName  string
@@ -58,28 +58,30 @@ func TestInlinePolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := context.TODO()
 			identity, err := IdentityFromArn(test.inputIdentityARN)
 			require.NoError(t, err)
 
-			inlinePolicy, err := NewInlinePolicyForIdentity(test.inputPolicyName, test.inputIAM, identity)
+			inlinePolicyClient, err := NewInlinePolicyClientForIdentity(test.inputPolicyName, test.inputIAM, identity)
 			if test.expectNewError {
 				require.Error(t, err)
 				return
 			}
 
-			ctx := context.TODO()
+			require.Equal(t, test.inputPolicyName, inlinePolicyClient.GetPolicyName())
+
 			putDocument := NewPolicyDocument()
-			err = inlinePolicy.Put(ctx, putDocument)
+			err = inlinePolicyClient.Put(ctx, putDocument)
 			require.NoError(t, err)
 
-			getDocument, err := inlinePolicy.Get(ctx)
+			getDocument, err := inlinePolicyClient.Get(ctx)
 			require.NoError(t, err)
 			require.Equal(t, putDocument, getDocument)
 
-			err = inlinePolicy.Delete(ctx)
+			err = inlinePolicyClient.Delete(ctx)
 			require.NoError(t, err)
 
-			_, err = inlinePolicy.Get(ctx)
+			_, err = inlinePolicyClient.Get(ctx)
 			require.True(t, trace.IsNotFound(err), "expect error is trace.NotFound")
 		})
 	}
