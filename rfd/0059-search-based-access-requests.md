@@ -34,8 +34,8 @@ access requests.
 Users won’t be asked to think about roles in advance, but will be able to focus
 on finding and requesting access to individual resources.
 
-Both “role-based” and “search-based” access requests are useful for two
-different scenarios:
+The existing “role-based” access requests and the new “search-based” access
+requests proposed here are useful for two different scenarios:
 
 - Sometimes it is helpful to request elevated roles in the system, like
   `db-admin`, to perform some system upgrades, or system wide-troubleshooting.
@@ -155,8 +155,7 @@ spec:
     - name: access_group
       select: external.claims[groups]:
         - "splunk": ["dbs", "{{external.claims['group']}}"]
-        # by default, allow members of the group to request access to their own
-group
+        # by default, allow members of the group to request access to their own group
         - ".*": "{{external.claims['group']}}"
   allow:
     request:
@@ -254,11 +253,12 @@ the node uuid-2 despite the fact that the root cluster “allowed” it.
 
 ### Access Requests RBAC Edge-Cases
 
-A user could find and request access to several different types of resources, some with `label: a` others with `label: b`.
-Access to resource `label: a` can be granted by users having role `a`. Access
-to resource `label: b` can be granted by users having role: `b`. In this case both
-users with role `a` and role `b` have to approve access for the request to be
-granted.
+A user could find and request access to several different types of resources,
+some with `label: a` others with `label: b`.
+Access to resource `label: a` can be granted by users having role `a`.
+Access to resource `label: b` can be granted by users having role: `b`.
+In this case both users with role `a` and role `b` have to approve access for
+the request to be granted.
 
 ### Access Requests RBAC Plugin Notification
 
