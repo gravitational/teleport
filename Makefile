@@ -477,6 +477,12 @@ $(TEST_LOG_DIR):
 
 .PHONY: test-helm
 test-helm:
+	helm plugin list
+	helm env
+	ls -lR /root/.local/share/helm
+	ls -ld /root/.local/share/helm/plugins
+	ls -lR /home/ci/.local/share/helm
+	ls -ld /home/ci/.local/share/helm/plugins
 	helm unittest examples/chart/teleport-cluster
 	helm unittest examples/chart/teleport-kube-agent
 
