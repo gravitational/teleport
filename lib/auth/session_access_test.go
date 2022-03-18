@@ -110,6 +110,25 @@ func failCountStartTestCase(t *testing.T) startTestCase {
 	}
 }
 
+func succeedDiscardPolicySetStartTestCase(t *testing.T) startTestCase {
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{{
+		Filter: "contains(user.roles, \"host\")",
+		Kinds:  []string{string(types.KubernetesSessionKind)},
+		Count:  2,
+		Modes:  []string{"peer"},
+	}})
+
+	return startTestCase{
+		name:        "succeedDiscardPolicySet",
+		host:        hostRole,
+		sessionKind: types.SSHSessionKind,
+		expected:    true,
+	}
+}
+
 func failFilterStartTestCase(t *testing.T) startTestCase {
 	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
@@ -154,6 +173,7 @@ func TestSessionAccessStart(t *testing.T) {
 		successStartTestCase(t),
 		failCountStartTestCase(t),
 		failFilterStartTestCase(t),
+		succeedDiscardPolicySetStartTestCase(t),
 	}
 
 	for _, testCase := range testCases {
