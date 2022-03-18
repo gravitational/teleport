@@ -38,8 +38,8 @@ Teleport and Fluentd variables can be grouped into sections in a TOML file:
 
 ```
 [teleport]
-addr = "localhost:3025"    # Equals to teleport-addr root key
-identity = "tmp/identity"  # Equals to teleport-identity root key
+addr = "localhost:3025"    # Equal to teleport-addr root key
+identity = "tmp/identity"  # Equal to teleport-identity root key
 ```
 
 ## Special arguments
@@ -76,20 +76,20 @@ By default, all events starting from the current moment will be exported. If you
 This will start an export from May 5 2021 (RFC3339 time):
 
 ```sh
-teleport-event-handler start --config teleport-event-handler.toml --start-time "2021-05-05T00:00:00Z"
+$ teleport-event-handler start --config teleport-event-handler.toml --start-time "2021-05-05T00:00:00Z"
 ```
 
 This will export new events from a moment the service did start:
 
 ```sh
-teleport-event-handler start --config teleport-event-handler.toml
+$ teleport-event-handler start --config teleport-event-handler.toml
 ```
 
-Note that start time can be set only once, on the first run. If you want to change the start time frame later, remove plugin state dir which you had specified in `storage-dir` argument.s
+Start time can only be set on the first run. If you want to change the start time frame later, remove the plugin state dir which you had specified in the `storage-dir` argument.s
 
 ## Export print events
 
-Session print events are skipped by default. If you still want to export them, specify `--skip-session-types=''` argument.
+Session print and desktop recording events are skipped by default. If you still want to export them, specify `--skip-session-types=''` argument.
 
 ## How it works
 
