@@ -29,6 +29,7 @@ function getAccentImage(entityType: string): string {
     application: application,
     database: database,
     kubernetes: desktop,
+    server: desktop,
   };
   return accentImages[entityType];
 }

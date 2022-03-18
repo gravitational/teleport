@@ -108,14 +108,11 @@ export function Nodes(props: State) {
 }
 
 const emptyStateInfo: EmptyStateInfo = {
-  title: 'ADD YOUR FIRST SERVER',
-  description: (
-    <Text>
-      Instant SSH access for engineers with native security and compliance.
-    </Text>
-  ),
-  buttonText: 'ADD SERVER',
-  videoLink: 'https://www.youtube.com/watch?v=tUXYtwP-Kvw',
+  title: 'Add your first Linux server to Teleport',
+  byline:
+    'Teleport Server Access consolidates SSH access across all environments.',
+  docsURL: 'https://goteleport.com/docs/server-access/getting-started/',
+  entityType: 'server',
   readOnly: {
     title: 'No Servers Found',
     resource: 'servers',
