@@ -367,7 +367,7 @@ func (process *TeleportProcess) onHeartbeat(component string) func(err error) {
 
 // ComponentsCount returns the number of components enabled.
 func (process *TeleportProcess) ComponentCount() int {
-	return process.Config.ComponentCount(process.log)
+	return process.Config.ComponentCount()
 }
 
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
