@@ -53,9 +53,8 @@ func TestDialLocalAuthServerAvailableServers(t *testing.T) {
 		servers = append(servers, server)
 	}
 	s := NewAuthProxyDialerService(nil, mockAuthGetter{servers: servers})
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	//ctx := context.Background()
 	_, err = s.dialLocalAuthServer(ctx)
 	require.NoError(t, err)
 }
