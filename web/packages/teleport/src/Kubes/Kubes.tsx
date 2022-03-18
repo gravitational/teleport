@@ -92,18 +92,11 @@ export function Kubes(props: State) {
 }
 
 const emptyStateInfo: EmptyStateInfo = {
-  title: 'ADD YOUR FIRST KUBERNETES CLUSTER',
-  description: (
-    <Text>
-      Fast, secure access to Kubernetes clusters. Follow{' '}
-      <Link target="_blank" href={DOC_URL}>
-        the documentation
-      </Link>{' '}
-      to connect your first cluster.
-    </Text>
-  ),
-  videoLink: 'https://www.youtube.com/watch?v=2diX_UAmJ1c',
-  buttonText: 'VIEW DOCUMENTATION',
+  title: 'Add your first Kubernetes cluster to Teleport',
+  byline:
+    'Teleport Kubenetes Access provides secure access to Kubernetes clusters.',
+  docsURL: DOC_URL,
+  entityType: 'kubernetes',
   readOnly: {
     title: 'No Kubernetes Clusters Found',
     resource: 'kubernetes clusters',

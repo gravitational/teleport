@@ -20,6 +20,15 @@ import { Text, Box, Flex, ButtonPrimary, ButtonOutlined, Link } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
 import application from './assets/appplication.png';
+import desktop from './assets/desktop.png';
+
+function getAccentImage(entityType: string): string {
+  const accentImages = {
+    application: application,
+    kubernetes: desktop,
+  };
+  return accentImages[entityType];
+}
 
 export default function Empty(props: Props) {
   const { canCreate, onClick, clusterId, emptyStateInfo } = props;
@@ -66,7 +75,7 @@ export default function Empty(props: Props) {
     >
       <Box>
         <Box mb={4} textAlign="center">
-          <Image src={application} m={0} ml="auto" mr="auto" />
+          <Image src={getAccentImage(entityType)} ml="auto" mr="auto" mb={4} />
           <Text typography="h5" mb={2} fontWeight={700} fontSize={24}>
             {title}
           </Text>
