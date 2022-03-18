@@ -102,23 +102,11 @@ export function Databases(props: State) {
 }
 
 const emptyStateInfo: EmptyStateInfo = {
-  title: 'ADD YOUR FIRST DATABASE',
-  description: (
-    <Text>
-      Consolidate access to databases running behind NAT, prevent data
-      exfiltration, meet compliance requirements, and have complete visibility
-      into access and behavior. Follow{' '}
-      <Link
-        target="_blank"
-        href="https://goteleport.com/docs/database-access/guides/"
-      >
-        the documentation
-      </Link>{' '}
-      to get started.
-    </Text>
-  ),
-  videoLink: 'https://www.youtube.com/watch?v=PCYyTecSzCY',
-  buttonText: 'ADD DATABASE',
+  title: 'Add your first database to Teleport',
+  byline:
+    'Teleport Database Access provides secure access to PostgreSQL, MySQL, MariaDB, MongoDB, Redis, and Microsoft SQL Server.',
+  docsURL: 'https://goteleport.com/docs/database-access/guides/',
+  entityType: 'database',
   readOnly: {
     title: 'No Databases Found',
     resource: 'databases',

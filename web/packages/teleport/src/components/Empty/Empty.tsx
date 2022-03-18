@@ -19,12 +19,15 @@ import React from 'react';
 import { Text, Box, Flex, ButtonPrimary, ButtonOutlined, Link } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
+
 import application from './assets/appplication.png';
+import database from './assets/database.png';
 import desktop from './assets/desktop.png';
 
 function getAccentImage(entityType: string): string {
   const accentImages = {
     application: application,
+    database: database,
     kubernetes: desktop,
   };
   return accentImages[entityType];
@@ -73,7 +76,7 @@ export default function Empty(props: Props) {
       alignItems="center"
       justifyContent="center"
     >
-      <Box>
+      <Box maxWidth={600}>
         <Box mb={4} textAlign="center">
           <Image src={getAccentImage(entityType)} ml="auto" mr="auto" mb={4} />
           <Text typography="h5" mb={2} fontWeight={700} fontSize={24}>
@@ -83,20 +86,22 @@ export default function Empty(props: Props) {
             {byline}
           </Text>
         </Box>
-        <ButtonPrimary onClick={onClick} width="224px">
-          Add {entityType}
-        </ButtonPrimary>
-        <ButtonOutlined
-          size="medium"
-          as="a"
-          href={docsURL}
-          target="_blank"
-          width="224px"
-          ml={4}
-          rel="noreferrer"
-        >
-          View Documentation
-        </ButtonOutlined>
+        <Box textAlign="center">
+          <ButtonPrimary onClick={onClick} width="224px">
+            Add {entityType}
+          </ButtonPrimary>
+          <ButtonOutlined
+            size="medium"
+            as="a"
+            href={docsURL}
+            target="_blank"
+            width="224px"
+            ml={4}
+            rel="noreferrer"
+          >
+            View Documentation
+          </ButtonOutlined>
+        </Box>
       </Box>
     </Card>
   );
