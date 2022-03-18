@@ -92,7 +92,7 @@ type ClusterNetworkingConfig interface {
 	// GetTunnelStrategy gets the tunnel strategy.
 	GetTunnelStrategyType() (TunnelStrategyType, error)
 
-	// GetAgentMeshTunnelStrategy gets the war dial tunnel strategy.
+	// GetAgentMeshTunnelStrategy gets the agent mesh tunnel strategy.
 	GetAgentMeshTunnelStrategy() *AgentMeshTunnelStrategy
 
 	// GetProxyPeeringTunnelStrategy gets the proxy peering tunnel strategy.
