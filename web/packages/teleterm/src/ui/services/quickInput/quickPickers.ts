@@ -23,6 +23,7 @@ import {
   SuggestionCmd,
   SuggestionServer,
   SuggestionSshLogin,
+  SuggestionDatabase,
   AutocompleteResult,
 } from './types';
 
@@ -238,11 +239,46 @@ export class QuickTshSshPicker implements QuickInputPicker {
   }
 }
 
-// TODO: Implement the rest of this class.
 export class QuickTshProxyDbPicker implements QuickInputPicker {
-  constructor() {}
+  private totalDbNameRegex = /^\S+$/i;
 
-  getAutocompleteResult(input: string): AutocompleteResult {
+  constructor(private databasePicker: QuickDatabasePicker) {}
+
+  getAutocompleteResult(
+    rawInput: string,
+    startIndex: number
+  ): AutocompleteResult {
+    // We can safely ignore any whitespace at the start. However, `startIndex` needs to account for
+    // any removed whitespace.
+    const input = rawInput.trimStart();
+    if (input === '') {
+      // input is empty, so rawInput must include only whitespace.
+      // Add length of the whitespace to startIndex.
+      startIndex += rawInput.length;
+    } else {
+      startIndex += rawInput.indexOf(input);
+    }
+
+    // Show autocomplete only after at least one space after `tsh proxy db`.
+    if (rawInput !== '' && input === '') {
+      return {
+        ...this.databasePicker.getAutocompleteResult('', startIndex),
+        command: { kind: 'command.unknown' },
+      };
+    }
+
+    const dbNameMatch = input.match(this.totalDbNameRegex);
+
+    if (dbNameMatch) {
+      return {
+        ...this.databasePicker.getAutocompleteResult(
+          dbNameMatch[0],
+          startIndex
+        ),
+        command: { kind: 'command.unknown' },
+      };
+    }
+
     return {
       kind: 'autocomplete.no-match',
       command: { kind: 'command.unknown' },
@@ -324,6 +360,43 @@ export class QuickServerPicker implements QuickInputPicker {
 
   getAutocompleteResult(input: string, startIndex: number): AutocompleteResult {
     const suggestions = this.filterServers(input);
+    return {
+      kind: 'autocomplete.partial-match',
+      suggestions,
+      command: { kind: 'command.unknown' },
+      targetToken: {
+        startIndex,
+        value: input,
+      },
+    };
+  }
+}
+
+export class QuickDatabasePicker implements QuickInputPicker {
+  constructor(
+    private workspacesService: WorkspacesService,
+    private clustersService: ClustersService
+  ) {}
+
+  private filterDatabases(input: string): SuggestionDatabase[] {
+    const localClusterUri =
+      this.workspacesService.getActiveWorkspace()?.localClusterUri;
+    if (!localClusterUri) {
+      return [];
+    }
+    const databases = this.clustersService.searchDbs(localClusterUri, {
+      search: input,
+    });
+
+    return databases.map(database => ({
+      kind: 'suggestion.database' as const,
+      token: database.name,
+      data: database,
+    }));
+  }
+
+  getAutocompleteResult(input: string, startIndex: number): AutocompleteResult {
+    const suggestions = this.filterDatabases(input);
     return {
       kind: 'autocomplete.partial-match',
       suggestions,

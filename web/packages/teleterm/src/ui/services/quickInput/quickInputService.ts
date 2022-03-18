@@ -50,6 +50,10 @@ export class QuickInputService extends Store<State> {
       workspacesService,
       clustersService
     );
+    const databasePicker = new pickers.QuickDatabasePicker(
+      workspacesService,
+      clustersService
+    );
 
     this.quickCommandPicker.registerPickerForCommand(
       'tsh ssh',
@@ -57,7 +61,7 @@ export class QuickInputService extends Store<State> {
     );
     this.quickCommandPicker.registerPickerForCommand(
       'tsh proxy db',
-      new pickers.QuickTshProxyDbPicker()
+      new pickers.QuickTshProxyDbPicker(databasePicker)
     );
   }
 

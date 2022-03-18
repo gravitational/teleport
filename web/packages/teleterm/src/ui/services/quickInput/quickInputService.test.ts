@@ -175,6 +175,54 @@ test('getAutocompleteResult returns correct result for an SSH login suggestion w
   });
 });
 
+test('getAutocompleteResult returns correct result for a database name suggestion', () => {
+  mockCommandLauncherAutocompleteCommands(CommandLauncherMock, [
+    {
+      name: 'autocomplete.tsh-proxy-db',
+      displayName: 'tsh proxy db',
+      description: '',
+      run: () => {},
+    },
+  ]);
+  jest
+    .spyOn(WorkspacesServiceMock.prototype, 'getActiveWorkspace')
+    .mockImplementation(() => ({
+      localClusterUri: 'test_uri',
+      documents: [],
+      location: '',
+    }));
+  jest
+    .spyOn(ClustersServiceMock.prototype, 'searchDbs')
+    .mockImplementation(() => {
+      return [
+        {
+          hostname: 'foobar',
+          uri: '',
+          name: '',
+          desc: '',
+          protocol: '',
+          type: '',
+          addr: '',
+          labelsList: null,
+        },
+      ];
+    });
+  const quickInputService = new QuickInputService(
+    new CommandLauncherMock(undefined),
+    new ClustersServiceMock(undefined),
+    new WorkspacesServiceMock(undefined, undefined, undefined)
+  );
+
+  const autocompleteResult =
+    quickInputService.getAutocompleteResult('tsh proxy db foo');
+  expect(autocompleteResult.kind).toBe('autocomplete.partial-match');
+  expect((autocompleteResult as AutocompletePartialMatch).targetToken).toEqual({
+    value: 'foo',
+    startIndex: 13,
+  });
+  expect(autocompleteResult.command).toEqual({ kind: 'command.unknown' });
+});
+
 test("getAutocompleteResult doesn't return any suggestions if the only suggestion completely matches the target token", () => {
   jest.mock('./quickPickers');
   const QuickCommandPickerMock = pickers.QuickCommandPicker as jest.MockedClass<

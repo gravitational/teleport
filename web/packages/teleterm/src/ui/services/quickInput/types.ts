@@ -19,7 +19,16 @@ export type SuggestionSshLogin = SuggestionBase<
 
 export type SuggestionServer = SuggestionBase<'suggestion.server', tsh.Server>;
 
-export type Suggestion = SuggestionCmd | SuggestionSshLogin | SuggestionServer;
+export type SuggestionDatabase = SuggestionBase<
+  'suggestion.database',
+  tsh.Database
+>;
+
+export type Suggestion =
+  | SuggestionCmd
+  | SuggestionSshLogin
+  | SuggestionServer
+  | SuggestionDatabase;
 
 export type QuickInputPicker = {
   getAutocompleteResult(input: string, startIndex: number): AutocompleteResult;

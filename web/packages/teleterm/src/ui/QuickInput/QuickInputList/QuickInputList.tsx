@@ -16,10 +16,10 @@ limitations under the License.
 
 import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { Box, Flex, Label } from 'design';
+import { Box, Flex, Label, Text } from 'design';
 import { makeLabelTag } from 'teleport/components/formatters';
 import * as types from 'teleterm/ui/services/quickInput/types';
-import { Cli, Server, Person } from 'design/Icon';
+import { Cli, Server, Person, Database } from 'design/Icon';
 
 const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
   const activeItemRef = useRef<HTMLDivElement>();
@@ -114,6 +114,34 @@ function ServerItem(props: { item: types.SuggestionServer }) {
   );
 }
 
+function DatabaseItem(props: { item: types.SuggestionDatabase }) {
+  const db = props.item.data;
+  const $labels = db.labelsList.map((label, index) => (
+    <Label mr="1" key={index} kind="secondary">
+      {makeLabelTag(label)}
+    </Label>
+  ));
+
+  return (
+    <Flex alignItems="center" p={1} minWidth="300px">
+      <SquareIconBackground color="#4DB2F0">
+        <Database fontSize="10px" />
+      </SquareIconBackground>
+      <Flex flexDirection="column" ml={1} flex={1}>
+        <Flex justifyContent="space-between" alignItems="center">
+          <Box mr={2}>{db.name}</Box>
+          <Box mr={2}>
+            <Text typography="body2" fontSize={0}>
+              {db.type}/{db.protocol}
+            </Text>
+          </Box>
+        </Flex>
+        <Box>{$labels}</Box>
+      </Flex>
+    </Flex>
+  );
+}
+
 function UnknownItem(props: { item: types.Suggestion }) {
   const { kind } = props.item;
   return <div>unknown kind: {kind} </div>;
@@ -163,6 +191,7 @@ const ComponentMap: Record<
   ['suggestion.cmd']: CmdItem,
   ['suggestion.ssh-login']: SshLoginItem,
   ['suggestion.server']: ServerItem,
+  ['suggestion.database']: DatabaseItem,
 };
 
 type Props = {

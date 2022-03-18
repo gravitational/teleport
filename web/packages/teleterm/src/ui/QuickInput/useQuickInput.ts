@@ -23,11 +23,8 @@ import {
 } from 'teleterm/ui/services/quickInput/types';
 
 export default function useQuickInput() {
-  const {
-    quickInputService,
-    workspacesService,
-    commandLauncher,
-  } = useAppContext();
+  const { quickInputService, workspacesService, commandLauncher } =
+    useAppContext();
   workspacesService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
