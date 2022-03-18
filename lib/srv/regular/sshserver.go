@@ -594,6 +594,7 @@ func New(addr utils.NetAddr,
 		uuid:               uuid,
 		cancel:             cancel,
 		ctx:                ctx,
+		clock:              clockwork.NewRealClock(),
 		dataDir:            dataDir,
 		allowTCPForwarding: true,
 	}
