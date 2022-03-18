@@ -14,6 +14,7 @@ tests:
           path: spec.type
           value: LoadBalancer
       - matchSnapshot: {}
+
   - it: uses a ClusterIP when service.type=ClusterIP
     set:
       clusterName: teleport.example.com
@@ -28,6 +29,7 @@ tests:
           path: spec.type
           value: ClusterIP
       - matchSnapshot: {}
+
   - it: sets AWS annotations when chartMode=aws
     set:
       clusterName: teleport.example.com
@@ -50,6 +52,7 @@ tests:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-cross-zone-load-balancing-enabled
           value: "true"
       - matchSnapshot: {}
+
   - it: sets service annotations when specified
     values:
       - ../.lint/annotations.yaml

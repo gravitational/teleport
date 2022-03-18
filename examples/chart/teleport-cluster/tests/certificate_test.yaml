@@ -14,6 +14,7 @@ tests:
           path: spec.dnsNames
       - matchSnapshot:
           path: spec.issuerRef
+
   - it: should request a certificate for cluster name when cert-manager is enabled (cert-secret.yaml)
     values:
       - ../.lint/cert-secret.yaml
