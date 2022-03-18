@@ -92,7 +92,14 @@ func TestServiceSelfSignedHTTPS(t *testing.T) {
 	require.FileExists(t, cfg.Proxy.KeyPairs[0].PrivateKey)
 }
 
-func startTeleportWithMonitor(t *testing.T, sshEnabled bool) (*TeleportProcess, clockwork.FakeClock, string) {
+type monitorTest struct {
+	desc         string
+	event        *Event
+	advanceClock time.Duration
+	wantStatus   int
+}
+
+func testMonitor(t *testing.T, sshEnabled bool, tests []monitorTest) {
 	fakeClock := clockwork.NewFakeClock()
 	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
@@ -128,20 +135,22 @@ func startTeleportWithMonitor(t *testing.T, sshEnabled bool) (*TeleportProcess, 
 	err = waitForStatus(endpoint, http.StatusOK)
 	require.NoError(t, err)
 
-	return process, fakeClock, endpoint
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			fakeClock.Advance(tt.advanceClock)
+			if tt.event != nil {
+				process.BroadcastEvent(*tt.event)
+			}
+			err := waitForStatus(endpoint, tt.wantStatus)
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestMonitorOneComponent(t *testing.T) {
 	t.Parallel()
 	sshEnabled := false
-	process, fakeClock, endpoint := startTeleportWithMonitor(t, sshEnabled)
-
-	tests := []struct {
-		desc         string
-		event        *Event
-		advanceClock time.Duration
-		wantStatus   int
-	}{
+	tests := []monitorTest{
 		{
 			desc:       "it starts with OK state",
 			event:      nil,
@@ -169,29 +178,13 @@ func TestMonitorOneComponent(t *testing.T) {
 			wantStatus:   http.StatusOK,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			fakeClock.Advance(tt.advanceClock)
-			if tt.event != nil {
-				process.BroadcastEvent(*tt.event)
-			}
-			err := waitForStatus(endpoint, tt.wantStatus)
-			require.NoError(t, err)
-		})
-	}
+	testMonitor(t, sshEnabled, tests)
 }
 
 func TestMonitorTwoComponents(t *testing.T) {
 	t.Parallel()
 	sshEnabled := true
-	process, fakeClock, endpoint := startTeleportWithMonitor(t, sshEnabled)
-
-	tests := []struct {
-		desc         string
-		event        *Event
-		advanceClock time.Duration
-		wantStatus   int
-	}{
+	tests := []monitorTest{
 		{
 			desc:       "it starts with OK state",
 			event:      nil,
@@ -219,16 +212,7 @@ func TestMonitorTwoComponents(t *testing.T) {
 			wantStatus:   http.StatusOK,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			fakeClock.Advance(tt.advanceClock)
-			if tt.event != nil {
-				process.BroadcastEvent(*tt.event)
-			}
-			err := waitForStatus(endpoint, tt.wantStatus)
-			require.NoError(t, err)
-		})
-	}
+	testMonitor(t, sshEnabled, tests)
 }
 
 // TestServiceCheckPrincipals checks certificates regeneration only requests
