@@ -50,7 +50,7 @@ var ports utils.PortList
 
 func init() {
 	var err error
-	ports, err = utils.GetFreeTCPPorts(3, utils.PortStartingNumber)
+	ports, err = utils.GetFreeTCPPorts(5, utils.PortStartingNumber)
 	if err != nil {
 		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
 	}

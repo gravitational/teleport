@@ -62,7 +62,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
