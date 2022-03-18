@@ -23,6 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.16.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.7.0
 	github.com/beevik/etree v1.1.0
+	github.com/cloudflare/cfssl v0.0.0-20190726000631-633726f6bcb7
 	github.com/coreos/go-oidc v0.0.4
 	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1
@@ -129,8 +130,8 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20200615164410-66371956d46c // indirect
-	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd // indirect
+	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/alecthomas/assert v0.0.0-20170929043011-405dbfeb8e38 // indirect
@@ -148,7 +149,6 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chai2010/gettext-go v0.0.0-20160711120539-c6fed771bfd5 // indirect
-	github.com/cloudflare/cfssl v0.0.0-20190726000631-633726f6bcb7 // indirect
 	github.com/containerd/continuity v0.0.0-20190827140505-75bee3e2ccb6 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
