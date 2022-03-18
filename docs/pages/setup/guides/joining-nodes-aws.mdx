@@ -9,6 +9,10 @@ Teleport cluster with the EC2 join method. The EC2 join method enables you to
 allow Teleport nodes to join your Teleport cluster from EC2 instances in your
 AWS account without sharing any secrets.
 
+<Notice scope={["cloud"]} type="warning">
+Teleport Cloud does not support the EC2 join method.
+</Notice>
+
 ## Prerequisites
 
 - Teleport v(=teleport.version=) Open Source or Enterprise.
@@ -101,7 +105,7 @@ Kubernetes, Application, or Database roles. The service should be run directly
 on an AWS EC2 instance and must have network access to the AWS EC2 IMDSv2
 (enabled by default for most EC2 instances).
 
-Configure your Teleport node with a custom `teleport.yaml` file. Use the
+Configure your Teleport Node with a custom `teleport.yaml` file. Use the
 `join_params` section with `token_name` matching your token created in Step 2
 and `method: ec2` as shown in the following example config:
 
@@ -137,7 +141,7 @@ your cluster. You're all set!
 
 ### Configuring AWS Node Joining for Multiple AWS Accounts
 
-In order for Teleport nodes to join from EC2 instances in AWS accounts other
+In order for Teleport Nodes to join from EC2 instances in AWS accounts other
 than the account in which your Teleport auth server is running, Teleport must
 have permissions to assume an IAM role in each of those accounts and call
 `ec2:DescribeInstances` in the foreign account.
@@ -181,7 +185,7 @@ In the AWS account where your Teleport auth server is running:
 2. Attach this `teleport-AssumeRole-policy` to the IAM role your Teleport auth
    server has credentials for, see [Step 1.2](#step-12-attach-the-iam-policy).
 
-When creating the AWS Node Joining token, include an allow rule for each foreign
+When creating the AWS Node joining token, include an allow rule for each foreign
 account and specify the AWS ARN for the foreign
 `teleport-DescribeInstances-role`.
 
