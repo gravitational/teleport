@@ -300,6 +300,13 @@ test('getAutocompleteResult returns correct result for an SSH host suggestion ri
     onlyTshSshCommand
   );
   jest
+    .spyOn(WorkspacesServiceMock.prototype, 'getActiveWorkspace')
+    .mockImplementation(() => ({
+      localClusterUri: 'test_uri',
+      documents: [],
+      location: '',
+    }));
+  jest
     .spyOn(ClustersServiceMock.prototype, 'searchServers')
     .mockImplementation(() => {
       return [
@@ -351,6 +358,13 @@ test('getAutocompleteResult returns correct result for a partial match on an SSH
         },
       ];
     });
+  jest
+    .spyOn(WorkspacesServiceMock.prototype, 'getActiveWorkspace')
+    .mockImplementation(() => ({
+      localClusterUri: 'test_uri',
+      documents: [],
+      location: '',
+    }));
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined),

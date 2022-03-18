@@ -26,7 +26,6 @@ export default function useQuickInput() {
   const {
     quickInputService,
     workspacesService,
-    clustersService,
     commandLauncher,
   } = useAppContext();
   workspacesService.useState();
@@ -36,7 +35,9 @@ export default function useQuickInput() {
   const [activeSuggestion, setActiveSuggestion] = React.useState(0);
   const autocompleteResult = React.useMemo(
     () => quickInputService.getAutocompleteResult(inputValue),
-    [inputValue]
+    // `localClusterUri` has been added to refresh suggestions from
+    // `QuickSshLoginPicker` and `QuickServerPicker` when it changes
+    [inputValue, workspacesService.getActiveWorkspace()?.localClusterUri]
   );
   const hasSuggestions =
     autocompleteResult.kind === 'autocomplete.partial-match';

@@ -257,10 +257,13 @@ export class QuickSshLoginPicker implements QuickInputPicker {
   ) {}
 
   private filterSshLogins(input: string): SuggestionSshLogin[] {
-    // TODO(ravicious): Use local cluster URI.
     // TODO(ravicious): Handle the `--cluster` tsh ssh flag.
-    const rootClusterUri = this.workspacesService.getRootClusterUri();
-    const cluster = this.clustersService.findCluster(rootClusterUri);
+    const localClusterUri =
+      this.workspacesService.getActiveWorkspace()?.localClusterUri;
+    if (!localClusterUri) {
+      return [];
+    }
+    const cluster = this.clustersService.findCluster(localClusterUri);
     const allLogins = cluster?.loggedInUser?.sshLoginsList || [];
     let matchingLogins: typeof allLogins;
 
@@ -302,10 +305,13 @@ export class QuickServerPicker implements QuickInputPicker {
   ) {}
 
   private filterServers(input: string): SuggestionServer[] {
-    // TODO(ravicious): Use local cluster URI.
     // TODO(ravicious): Handle the `--cluster` tsh ssh flag.
-    const rootClusterUri = this.workspacesService.getRootClusterUri();
-    const servers = this.clustersService.searchServers(rootClusterUri, {
+    const localClusterUri =
+      this.workspacesService.getActiveWorkspace()?.localClusterUri;
+    if (!localClusterUri) {
+      return [];
+    }
+    const servers = this.clustersService.searchServers(localClusterUri, {
       search: input,
     });
 
