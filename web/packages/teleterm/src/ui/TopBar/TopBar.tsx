@@ -45,10 +45,12 @@ const JustifyLeft = styled.div`
   display: flex;
   justify-self: start;
   align-items: center;
+  height: 100%;
 `;
 
 const JustifyRight = styled.div`
   display: flex;
   justify-self: end;
   align-items: center;
+  height: 100%;
 `;
