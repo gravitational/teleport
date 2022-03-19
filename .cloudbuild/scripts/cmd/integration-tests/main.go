@@ -167,15 +167,10 @@ func innerMain() error {
 		return trace.Wrap(err, "failed to get user 1000")
 	}
 
-	group, err := user.LookupGroupId(fileGid)
+	log.Printf("adding %s user to %s group", usr.Username, fileGid)
+	err = exec.Command("usermod", "-a", "-G", fileGid, usr.Username).Run()
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	log.Printf("adding %s user to %s group", usr.Username, group.Name)
-	err = exec.Command("usermod", "-a", "-G", group.Name, usr.Username).Run()
-	if err != nil {
-		return trace.Wrap(err, "failed to add user to docker group")
+		return trace.Wrap(err, "failed to add user to the group")
 	}
 
 	log.Printf("Running nonroot integration tests...")
