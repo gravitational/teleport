@@ -18,6 +18,7 @@ steps:
     args: 
       - -c
       - |
+        apt update -y && apt install -y acl &&
         go run ./cmd/integration-tests          \
           -target "$_BASE_BRANCH"               \
           -bucket test-logs                     \

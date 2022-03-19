@@ -187,13 +187,6 @@ func innerMain() error {
 		return trace.Wrap(err, "failed to add user to docker group")
 	}
 
-	aclInstall, err := exec.Command("bash", "-c", "\"apt update && apt install acl\"").CombinedOutput()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("aal install:\n%s\n", string(aclInstall))
-
 	// setfacl --modify group::rw /var/run/docker.sock
 
 	factlOut, err := exec.Command("getfacl", "/var/run/docker.sock").CombinedOutput()
