@@ -49,29 +49,13 @@ type ServerConfig struct {
 	// configurable for testing purposes.
 	getConfigForClient func(*tls.ClientHelloInfo) (*tls.Config, error)
 
-	// getService returns a custom ProxyServiceServer
+	// service is a custom ProxyServiceServer
 	// configurable for testing purposes.
-	getService func() proto.ProxyServiceServer
+	service proto.ProxyServiceServer
 }
 
 // checkAndSetDefaults checks and sets default values
 func (c *ServerConfig) checkAndSetDefaults() error {
-	if c.AccessCache == nil {
-		return trace.BadParameter("missing access cache")
-	}
-	if c.Listener == nil {
-		return trace.BadParameter("missing listener")
-	}
-	if c.ClusterDialer == nil {
-		return trace.BadParameter("missing cluster dialer server")
-	}
-
-	if c.TLSConfig == nil {
-		return trace.BadParameter("missing tls config")
-	}
-	if len(c.TLSConfig.Certificates) == 0 {
-		return trace.BadParameter("missing tls certificate")
-	}
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
@@ -80,14 +64,40 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
 
+	if c.AccessCache == nil {
+		return trace.BadParameter("missing access cache")
+	}
+
+	if c.Listener == nil {
+		return trace.BadParameter("missing listener")
+	}
+
+	if c.ClusterDialer == nil {
+		return trace.BadParameter("missing cluster dialer server")
+	}
+
+	if c.TLSConfig == nil {
+		return trace.BadParameter("missing tls config")
+	}
+
+	if len(c.TLSConfig.Certificates) == 0 {
+		return trace.BadParameter("missing tls certificate")
+	}
+
 	c.TLSConfig = c.TLSConfig.Clone()
 	c.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	if c.getConfigForClient == nil {
 		c.getConfigForClient = getConfigForClient(c.TLSConfig, c.AccessCache, c.Log)
 	}
-
 	c.TLSConfig.GetConfigForClient = c.getConfigForClient
+
+	if c.service == nil {
+		c.service = &proxyService{
+			c.ClusterDialer,
+			c.Log,
+		}
+	}
 
 	return nil
 }
@@ -126,15 +136,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 		}),
 	)
 
-	if config.getService != nil {
-		proto.RegisterProxyServiceServer(server, config.getService())
-	} else {
-		service := &proxyService{
-			config.ClusterDialer,
-			config.Log,
-		}
-		proto.RegisterProxyServiceServer(server, service)
-	}
+	proto.RegisterProxyServiceServer(server, config.service)
 
 	return &Server{
 		config:  config,
