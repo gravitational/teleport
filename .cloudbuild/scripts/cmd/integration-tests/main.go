@@ -187,6 +187,20 @@ func innerMain() error {
 		return trace.Wrap(err, "failed to add user to docker group")
 	}
 
+	// setfacl --modify group::rw /var/run/docker.sock
+
+	factlOut, err := exec.Command("getfacl", "/var/run/docker.sock").CombinedOutput()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Printf("getfactl out:\n%s\n", string(factlOut))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+
 	log.Printf("Running nonroot integration tests...")
 	err = runNonrootIntegrationTests(args.workspace, nonrootUID, nonrootGID, gomodcache)
 	if err != nil {
