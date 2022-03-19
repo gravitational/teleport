@@ -38,7 +38,7 @@ the following services.
 | - | - | - | - |
 | `-d, --debug` | none | none | enable verbose logging to stderr |
 | `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally. |
-| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](../../architecture/overview.mdx) document. |
+| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, auth, node, db, app` or `windowsdesktop` | start listed services/roles. These roles are explained in the [Teleport Architecture](../../architecture/overview.mdx) document. |
 | `--pid-file` | none | **string** filepath | create a PID file at the path |
 | `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT |
 | `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP |
