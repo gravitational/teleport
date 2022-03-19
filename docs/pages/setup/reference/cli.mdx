@@ -938,7 +938,7 @@ $ tctl nodes add [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--roles` | `node` | `node,auth` or `proxy` | Comma-separated list of roles for the new node to assume |
+| `--roles` | `node` | `proxy, auth, node, db, app` or `windowsdesktop` | Comma-separated list of roles for the new node to assume |
 | `--ttl` | 30m | relative duration like 5s, 2m, or 3h | Time to live for a generated token |
 | `--token` | none | **string** token value | A custom token to use, auto-generated if not provided. Should match token set with `teleport start --token` |
 
