@@ -175,8 +175,10 @@ func innerMain() error {
 			return trace.Wrap(err)
 		}
 
-		group.Name = "docker"
-		group.Gid = fileGid
+		group = &user.Group{
+			Name: "docker",
+			Gid:  fileGid,
+		}
 	}
 
 	log.Printf("adding %s user to %s group", usr.Username, group.Name)
