@@ -33,12 +33,12 @@ type grpcServerStreamWrapper struct {
 
 // SendMsg wraps around ServerStream.SendMsg and adds metrics reporting
 func (s *grpcServerStreamWrapper) SendMsg(m interface{}) error {
-	return trail.ToGRPC(s.ServerStream.SendMsg(m))
+	return trail.FromGRPC(s.ServerStream.SendMsg(m))
 }
 
 // RecvMsg wraps around ServerStream.RecvMsg and adds metrics reporting
 func (s *grpcServerStreamWrapper) RecvMsg(m interface{}) error {
-	return trail.ToGRPC(s.ServerStream.RecvMsg(m))
+	return trail.FromGRPC(s.ServerStream.RecvMsg(m))
 }
 
 // grpcClientStreamWrapper wraps around the embedded grpc.ClientStream
@@ -50,19 +50,25 @@ type grpcClientStreamWrapper struct {
 
 // SendMsg wraps around ClientStream.SendMsg
 func (s *grpcClientStreamWrapper) SendMsg(m interface{}) error {
-	return trail.ToGRPC(s.ClientStream.SendMsg(m))
+	return trail.FromGRPC(s.ClientStream.SendMsg(m))
 }
 
 // RecvMsg wraps around ClientStream.RecvMsg
 func (s *grpcClientStreamWrapper) RecvMsg(m interface{}) error {
-	return trail.ToGRPC(s.ClientStream.RecvMsg(m))
+	return trail.FromGRPC(s.ClientStream.RecvMsg(m))
 }
 
 // GRPCServerUnaryErrorInterceptor is a GPRC unary server interceptor that
 // handles converting errors to the appropriate grpc status error.
-func GRPCServerUnaryErrorInterceptor (ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func GRPCServerUnaryErrorInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	resp, err := handler(ctx, req)
 	return resp, trail.ToGRPC(err)
+}
+
+// GRPCClientUnaryErrorInterceptor is a GPRC unary client interceptor that
+// handles converting errors to the appropriate grpc status error.
+func GRPCClientUnaryErrorInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	return trail.FromGRPC(invoker(ctx, method, req, reply, cc, opts...))
 }
 
 // GRPCServerStreamErrorInterceptor is a GPRC server stream interceptor that
@@ -75,11 +81,11 @@ func GRPCServerStreamErrorInterceptor(srv interface{}, ss grpc.ServerStream, inf
 // GRPCClientStreamErrorInterceptor is GPRC client stream interceptor that
 // handles converting errors to the appropriate grpc status error.
 func GRPCClientStreamErrorInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-		s, err := streamer(ctx, desc, cc, method, opts...)
-		if err != nil {
-			return nil, trail.ToGRPC(err)
-		}
-		return &grpcClientStreamWrapper{s}, nil
+	s, err := streamer(ctx, desc, cc, method, opts...)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &grpcClientStreamWrapper{s}, nil
 }
 
 // ChainUnaryServerInterceptors takes 1 or more grpc.UnaryServerInterceptors and
