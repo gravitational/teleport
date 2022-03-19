@@ -156,7 +156,7 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		client.Close()
+		require.NoError(t, client.Close())
 	})
 
 	return client, tlsConf
@@ -186,7 +186,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 		TLSConfig:          tlsConf,
 		ClusterDialer:      &mockClusterDialer{},
 		getConfigForClient: getConfigForClient,
-		getService:         func() clientapi.ProxyServiceServer { return &mockProxyService{} },
+		service:            &mockProxyService{},
 	})
 	require.NoError(t, err)
 
@@ -198,7 +198,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 
 	go server.Serve()
 	t.Cleanup(func() {
-		server.Close()
+		require.NoError(t, server.Close())
 	})
 
 	return server, tlsConf, ts

@@ -212,7 +212,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		toDial[proxy.GetName()] = proxy
 	}
 
-	toDelete := make([]string, 0)
+	var toDelete []string
 	toKeep := make(map[string]*clientConn)
 	for id, conn := range c.conns {
 		proxy, ok := toDial[id]
@@ -354,7 +354,7 @@ func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient,
 
 	// try to dial existing connections.
 	var stream clientapi.ProxyService_DialNodeClient
-	errs := make([]error, 0)
+	var errs []error
 	ids := make(map[string]struct{})
 	for _, id := range proxyIDs {
 		ids[id] = struct{}{}
@@ -395,7 +395,7 @@ func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient,
 		return nil, false, trace.NewAggregate(errs...)
 	}
 
-	errs = make([]error, 0)
+	errs = nil
 	for _, proxy := range proxies {
 		id := proxy.GetName()
 		if _, ok := ids[id]; !ok {
