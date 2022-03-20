@@ -1,0 +1,500 @@
+suite: Deployment
+templates:
+  - deployment.yaml
+  - config.yaml
+tests:
+  - it: sets Deployment annotations when specified
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment-different
+          value: 3
+      - matchSnapshot: {}
+
+  - it: sets Pod annotations when specified
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          value: test-annotation
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          value: 4
+      - matchSnapshot: {}
+
+  - it: should not have more than one replica in standalone mode
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - matchSnapshot: {}
+
+  - it: should have multiple replicas when replicaCount is set
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+      highAvailability:
+        replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - matchSnapshot: {}
+
+  - it: should set affinity when set in values
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+      highAvailability:
+        replicaCount: 3
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: gravitational.io/dedicated
+                operator: In
+                values:
+                - teleport
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - matchSnapshot: {}
+
+  - it: should set required affinity when highAvailability.requireAntiAffinity is set
+    values:
+      - ../.lint/aws-ha-antiaffinity.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - matchSnapshot: {}
+
+  - it: should set tolerations when set in values
+    values:
+      - ../.lint/tolerations.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.tolerations
+      - matchSnapshot: {}
+
+  - it: should set resources when set in values
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot: {}
+
+  # we can't use the dynamic chart version or appVersion as a variable in the tests,
+  # so we override it manually and check that gets set instead
+  # this saves us having to update the test every time we cut a new release
+  - it: should do enterprise things when when enterprise is set in values
+    set:
+      clusterName: helm-lint.example.com
+      enterprise: true
+      teleportVersionOverride: 8.3.4
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: quay.io/gravitational/teleport-ent:8.3.4
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/license
+            name: "license"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: license
+            secret:
+              secretName: license
+      - matchSnapshot: {}
+
+  - it: should not do enterprise things when when enterprise is not set in values
+    set:
+      clusterName: helm-lint
+      teleportVersionOverride: 8.3.4
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: quay.io/gravitational/teleport:8.3.4
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/license
+            name: "license"
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: license
+            secret:
+              secretName: license
+      - matchSnapshot: {}
+
+  - it: should mount GCP credentials in GCP mode
+    values:
+      - ../.lint/gcp-ha.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: "gcp-credentials"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: gcp-credentials
+            secret:
+              secretName: teleport-gcp-credentials
+      - matchSnapshot: {}
+
+  - it: should mount GCP credentials for initContainer in GCP mode
+    values:
+      - ../.lint/gcp-ha.yaml
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: "gcp-credentials"
+            readOnly: true
+      - matchSnapshot: {}
+
+  - it: should mount TLS certs when cert-manager is enabled
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: "teleport-tls"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: teleport-tls
+      - matchSnapshot: {}
+
+  - it: should mount TLS certs for initContainer when cert-manager is enabled
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: "teleport-tls"
+            readOnly: true
+      - matchSnapshot: {}
+
+  - it: should mount ConfigMap for config in AWS mode
+    values:
+      - ../.lint/aws-ha.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport
+            name: "config"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME
+      - matchSnapshot: {}
+
+  - it: should mount ConfigMap for config in GCP mode
+    values:
+      - ../.lint/gcp-ha.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport
+            name: "config"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME
+      - matchSnapshot: {}
+
+  - it: should mount ConfigMap for config in standalone mode
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport
+            name: "config"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME
+      - matchSnapshot: {}
+
+  - it: should mount ConfigMap for config in custom mode
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport
+            name: "config"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME
+      - matchSnapshot: {}
+
+  - it: should mount extraVolumes and extraVolumeMounts
+    values:
+      - ../.lint/volumes.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-mount
+            secret:
+              secretName: mySecret
+      - matchSnapshot: {}
+
+  - it: should mount extraVolumes and extraVolumeMounts
+    values:
+      - ../.lint/volumes.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-mount
+            secret:
+              secretName: mySecret
+      - matchSnapshot: {}
+
+  - it: should mount extraVolumes and extraVolumeMounts
+    values:
+      - ../.lint/volumes.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-mount
+            secret:
+              secretName: mySecret
+      - matchSnapshot: {}
+
+  - it: should set imagePullPolicy when set in values
+    set:
+      clusterName: helm-lint.example.com
+      imagePullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+      - matchSnapshot: {}
+
+  - it: should set environment when extraEnv set in values
+    set:
+      clusterName: helm-lint.example.com
+      extraEnv:
+        - name: SSL_CERT_FILE
+          value: "/etc/tls/some-cert-file.pem"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: "/etc/tls/some-cert-file.pem"
+      - matchSnapshot: {}
+
+  - it: should provision initContainer correctly when set in values
+    values:
+      - ../.lint/initcontainers.yaml
+      - ../.lint/resources.yaml
+    set:
+      extraEnv:
+        - name: SSL_CERT_FILE
+          value: "/etc/tls/some-cert-file.pem"
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: "echo test"
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: "teleport-init"
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "alpine"
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot: {}
+
+  - it: should add insecureSkipProxyTLSVerify to args when set in values
+    set:
+      clusterName: helm-lint.example.com
+      insecureSkipProxyTLSVerify: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--insecure"
+      - matchSnapshot: {}
+
+  - it: should expose diag port
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: diag
+            containerPort: 3000
+            protocol: TCP
+      - matchSnapshot: {}
+
+  - it: should set postStart command if set in values
+    set:
+      clusterName: helm-lint.example.com
+      postStart:
+        command: ["/bin/echo", "test"]
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.postStart.exec.command
+          value: ["/bin/echo", "test"]
+      - matchSnapshot: {}
+
+  - it: should add PersistentVolumeClaim as volume when in standalone mode
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+      - matchSnapshot: {}
+
+  - it: should add named PersistentVolumeClaim as volume when in standalone mode and standalone.existingClaimName is set
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+      - matchSnapshot: {}
+
+  - it: should add emptyDir for data in AWS mode
+    values:
+      - ../.lint/aws-ha.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - matchSnapshot: {}
+
+  - it: should add emptyDir for data in GCP mode
+    values:
+      - ../.lint/gcp-ha.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - matchSnapshot: {}
+
+  - it: should add emptyDir for data in custom mode
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - matchSnapshot: {}
+
+  - it: should set priorityClassName when set in values
+    values:
+      - ../.lint/priority-class-name.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: system-cluster-critical
+      - matchSnapshot: {}
