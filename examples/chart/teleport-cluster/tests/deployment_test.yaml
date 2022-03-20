@@ -384,11 +384,6 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].image
           value: "alpine"
-      - contains:
-          path: spec.template.spec.initContainers[0].env
-          content:
-            name: SSL_CERT_FILE
-            value: "/etc/tls/some-cert-file.pem"
       - equal:
           path: spec.template.spec.initContainers[0].resources.limits.cpu
           value: 2

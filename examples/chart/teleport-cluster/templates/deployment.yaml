@@ -73,10 +73,6 @@ spec:
       {{- end }}
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
-  {{- if .Values.extraEnv }}
-        env:
-        {{- toYaml .Values.extraEnv | nindent 8 }}
-  {{- end }}
   {{- if .Values.resources }}
         resources:
     {{- toYaml .Values.resources | nindent 10 }}

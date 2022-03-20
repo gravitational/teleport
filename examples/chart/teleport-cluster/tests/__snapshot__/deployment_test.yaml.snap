@@ -1606,9 +1606,6 @@ should provision initContainer correctly when set in values:
           initContainers:
           - args:
             - echo test
-            env:
-            - name: SSL_CERT_FILE
-              value: /etc/tls/some-cert-file.pem
             image: alpine
             name: teleport-init
             resources:
