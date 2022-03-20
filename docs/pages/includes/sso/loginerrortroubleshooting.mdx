@@ -1,0 +1,61 @@
+<Tabs>
+<TabItem label="Login Errors in Audit Log" scope={["cloud"]}>
+If you get "access denied" or other login errors, the number one place to check is the Audit
+Log on the Teleport Auth Server. You can access it in the **Activity** tab of the Teleport Web UI.
+
+![Audit Log Entry for SSO Login error](../../../img/sso/teleportauditlogssofailed.png)
+
+Example of a user being denied because the role `clusteradmin` wasn't set up.
+
+```json
+{
+  "code": "T1001W",
+  "error": "role clusteradmin is not found",
+  "event": "user.login",
+  "method": "oidc",
+  "success": false,
+  "time": "2019-06-15T19:38:07Z",
+  "uid": "cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"
+}
+```
+</TabItem>
+<TabItem label="Self Hosted" >
+All editions can provide the ability to review the Audit Log in the Web Console. In self hosted
+you can monitor the audit log file entries and the process logs on the Teleport Auth Server as a additional option.
+The Audit Log is located in `/var/lib/teleport/log` by
+default and it will contain a detailed reason why a user's login was denied.
+
+<Admonition
+  type="Note"
+  title="Note"
+>
+  If you are using a Teleport storage configuration that does not store log entries locally this will not appear. You can look at the `teleport`
+process logs to see `ERROR` and `INFO` related entries.
+</Admonition>
+
+Example of a user being denied because the role `clusteradmin` wasn't set up.
+
+
+```json
+{
+  "code": "T1001W",
+  "error": "role clusteradmin is not found",
+  "event": "user.login",
+  "method": "oidc",
+  "success": false,
+  "time": "2019-06-15T19:38:07Z",
+  "uid": "cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"
+}
+```
+
+Some errors (like filesystem permissions or a misconfigured network) can be
+diagnosed using Teleport's `stderr` log, which is usually available via:
+
+```code
+$ sudo journalctl -fu teleport
+```
+
+If you wish to increase the verbosity of Teleport's logs, you can pass the
+[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to the `teleport start` command.
+</TabItem>
+</Tabs>
