@@ -46,6 +46,6 @@ then run `make update-helm-snapshots` to update the snapshots and commit these c
 
 Again, `make -C build.assets update-helm-snapshots` will run this via Docker.
 
-7) Document the changes you've made in the PR summary and add @webvictim as a reviewer.
+7) Document the changes you've made in the PR summary.
 
 Thanks!
