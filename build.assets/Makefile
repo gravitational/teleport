@@ -252,10 +252,10 @@ test-helm: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) test-helm"
 
-.PHONY:update-helm-snapshots
-update-helm-snapshots:
+.PHONY:test-helm-update-snapshots
+test-helm-update-snapshots:
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) update-helm-snapshots"
+		/bin/bash -c "make -C $(SRCDIR) test-helm-update-snapshots"
 
 .PHONY:integration
 integration: buildbox

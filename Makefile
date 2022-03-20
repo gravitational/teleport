@@ -483,8 +483,8 @@ test-helm:
 		helm unittest examples/chart/teleport-cluster && \
 		helm unittest examples/chart/teleport-kube-agent
 
-.PHONY: update-helm-snapshots
-update-helm-snapshots:
+.PHONY: test-helm-update-snapshots
+test-helm-update-snapshots:
 	helm unittest -u examples/chart/teleport-cluster
 	helm unittest -u examples/chart/teleport-kube-agent
 

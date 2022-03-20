@@ -6,7 +6,7 @@ If you get a snapshot error during your testing, you should verify that your cha
 this command from the root of your Teleport checkout to update the snapshots:
 
 ```bash
-make -C build.assets update-helm-snapshots
+make -C build.assets test-helm-update-snapshots
 ```
 
 After this, re-run the tests to make sure everything is fine:

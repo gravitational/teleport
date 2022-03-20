@@ -42,9 +42,9 @@ You will need `yamllint`, `helm` and [helm3-unittest](https://github.com/vbehar/
 `make -C build.assets lint-helm test-helm` will run these via Docker if you'd prefer not to install locally.
 
 6) If you get a snapshot error during your testing, you should verify that your changes intended to alter the output,
-then run `make update-helm-snapshots` to update the snapshots and commit these changes along with your PR.
+then run `make test-helm-update-snapshots` to update the snapshots and commit these changes along with your PR.
 
-Again, `make -C build.assets update-helm-snapshots` will run this via Docker.
+Again, `make -C build.assets test-helm-update-snapshots` will run this via Docker.
 
 7) Document the changes you've made in the PR summary.
 
