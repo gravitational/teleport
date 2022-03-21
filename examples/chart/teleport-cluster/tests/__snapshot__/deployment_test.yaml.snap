@@ -1,2184 +1,1585 @@
 sets Deployment annotations when specified:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      annotations:
-        kubernetes.io/deployment: test-annotation
-        kubernetes.io/deployment-different: 3
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 35cc6ed95ae9bbbbebce4e4fafa1c9684fc7a6b2ddcb35a44ed3f3a9c64b8879
-            kubernetes.io/pod: test-annotation
-            kubernetes.io/pod-different: 4
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 sets Pod annotations when specified:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      annotations:
-        kubernetes.io/deployment: test-annotation
-        kubernetes.io/deployment-different: 3
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 35cc6ed95ae9bbbbebce4e4fafa1c9684fc7a6b2ddcb35a44ed3f3a9c64b8879
-            kubernetes.io/pod: test-annotation
-            kubernetes.io/pod-different: 4
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should add PersistentVolumeClaim as volume when in standalone mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 02e900883a5cbf51b02418a1bc6d117a08cb373da148b14b1f926d3ba0e5735d
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should add emptyDir for data in AWS mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 3c7b6f5c5283e73e5b68b818813503228e3323a9092805a27ac359ba3d2dc29f
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should add emptyDir for data in GCP mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 7860161d0c13077d38858a303a793a0b5cfe0d38cc2c085414e34dba529cc6e6
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport-secrets
-              name: gcp-credentials
-              readOnly: true
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport-secrets
+        name: gcp-credentials
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should add emptyDir for data in custom mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should add insecureSkipProxyTLSVerify to args when set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 02e900883a5cbf51b02418a1bc6d117a08cb373da148b14b1f926d3ba0e5735d
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            - --insecure
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      - --insecure
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should add named PersistentVolumeClaim as volume when in standalone mode and standalone.existingClaimName is set:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 5e1c3e28a7dc5815203ada448e36f79607f8e7308f8732e7d049f1e44b312120
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: teleport-storage
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: teleport-storage
 should do enterprise things when when enterprise is set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: df667419732ddf7ade5070ba488bc12cebeb29072dfd4eb2cf9a5214fdd165d6
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport-ent:8.3.4
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /var/lib/license
-              name: license
-              readOnly: true
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: license
-            secret:
-              secretName: license
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport-ent:8.3.4
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /var/lib/license
+        name: license
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: license
+      secret:
+        secretName: license
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should expose diag port:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 02e900883a5cbf51b02418a1bc6d117a08cb373da148b14b1f926d3ba0e5735d
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should have multiple replicas when replicaCount is set:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should mount ConfigMap for config in AWS mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 3c7b6f5c5283e73e5b68b818813503228e3323a9092805a27ac359ba3d2dc29f
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should mount ConfigMap for config in GCP mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 7860161d0c13077d38858a303a793a0b5cfe0d38cc2c085414e34dba529cc6e6
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport-secrets
-              name: gcp-credentials
-              readOnly: true
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport-secrets
+        name: gcp-credentials
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should mount ConfigMap for config in custom mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should mount ConfigMap for config in standalone mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 02e900883a5cbf51b02418a1bc6d117a08cb373da148b14b1f926d3ba0e5735d
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should mount GCP credentials for initContainer in GCP mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: d500f89b1581e027a502c2fac36c06b0ae973de64a8d12611702701ea615be0a
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport-secrets
-              name: gcp-credentials
-              readOnly: true
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          initContainers:
-          - args:
-            - echo test
-            image: alpine
-            name: teleport-init
-            volumeMounts:
-            - mountPath: /etc/teleport-secrets
-              name: gcp-credentials
-              readOnly: true
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport-secrets
+        name: gcp-credentials
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    initContainers:
+    - args:
+      - echo test
+      image: alpine
+      name: teleport-init
+      volumeMounts:
+      - mountPath: /etc/teleport-secrets
+        name: gcp-credentials
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should mount GCP credentials in GCP mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 7860161d0c13077d38858a303a793a0b5cfe0d38cc2c085414e34dba529cc6e6
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport-secrets
-              name: gcp-credentials
-              readOnly: true
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport-secrets
+        name: gcp-credentials
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should mount TLS certs for initContainer when cert-manager is enabled:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: cf089ed888d98d4ca45d59a2ee015579370c1e00cb53a89793969b30c5234451
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport-secrets
-              name: gcp-credentials
-              readOnly: true
-            - mountPath: /etc/teleport-tls
-              name: teleport-tls
-              readOnly: true
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          initContainers:
-          - args:
-            - echo test
-            image: alpine
-            name: teleport-init
-            volumeMounts:
-            - mountPath: /etc/teleport-secrets
-              name: gcp-credentials
-              readOnly: true
-            - mountPath: /etc/teleport-tls
-              name: teleport-tls
-              readOnly: true
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - name: teleport-tls
-            secret:
-              secretName: teleport-tls
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport-secrets
+        name: gcp-credentials
+        readOnly: true
+      - mountPath: /etc/teleport-tls
+        name: teleport-tls
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    initContainers:
+    - args:
+      - echo test
+      image: alpine
+      name: teleport-init
+      volumeMounts:
+      - mountPath: /etc/teleport-secrets
+        name: gcp-credentials
+        readOnly: true
+      - mountPath: /etc/teleport-tls
+        name: teleport-tls
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - name: teleport-tls
+      secret:
+        secretName: teleport-tls
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should mount TLS certs when cert-manager is enabled:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 86d88c5cb948c27a7ed679c5c68698ef8d124361bcba7fd62735d99176cc21c2
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport-secrets
-              name: gcp-credentials
-              readOnly: true
-            - mountPath: /etc/teleport-tls
-              name: teleport-tls
-              readOnly: true
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - name: teleport-tls
-            secret:
-              secretName: teleport-tls
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport-secrets
+        name: gcp-credentials
+        readOnly: true
+      - mountPath: /etc/teleport-tls
+        name: teleport-tls
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - name: teleport-tls
+      secret:
+        secretName: teleport-tls
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should mount extraVolumes and extraVolumeMounts:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 5ffc3d652d8c34499967db353b39c34b66ec1e0178abcbea2ea471b4613ee605
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-            - mountPath: /path/to/mount
-              name: my-mount
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
-          - name: my-mount
-            secret:
-              secretName: mySecret
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+      - mountPath: /path/to/mount
+        name: my-mount
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+    - name: my-mount
+      secret:
+        secretName: mySecret
 should not do enterprise things when when enterprise is not set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 5ffc3d652d8c34499967db353b39c34b66ec1e0178abcbea2ea471b4613ee605
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:8.3.4
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:8.3.4
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should not have more than one replica in standalone mode:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 02e900883a5cbf51b02418a1bc6d117a08cb373da148b14b1f926d3ba0e5735d
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should provision initContainer correctly when set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 5ffc3d652d8c34499967db353b39c34b66ec1e0178abcbea2ea471b4613ee605
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            env:
-            - name: SSL_CERT_FILE
-              value: /etc/tls/some-cert-file.pem
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            resources:
-              limits:
-                cpu: 2
-                memory: 4Gi
-              requests:
-                cpu: 1
-                memory: 2Gi
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          initContainers:
-          - args:
-            - echo test
-            image: alpine
-            name: teleport-init
-            resources:
-              limits:
-                cpu: 2
-                memory: 4Gi
-              requests:
-                cpu: 1
-                memory: 2Gi
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: SSL_CERT_FILE
+        value: /etc/tls/some-cert-file.pem
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    initContainers:
+    - args:
+      - echo test
+      image: alpine
+      name: teleport-init
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should set affinity when set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                - matchExpressions:
-                  - key: gravitational.io/dedicated
-                    operator: In
-                    values:
-                    - teleport
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: gravitational.io/dedicated
+              operator: In
+              values:
+              - teleport
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should set environment when extraEnv set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 02e900883a5cbf51b02418a1bc6d117a08cb373da148b14b1f926d3ba0e5735d
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            env:
-            - name: SSL_CERT_FILE
-              value: /etc/tls/some-cert-file.pem
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: SSL_CERT_FILE
+        value: /etc/tls/some-cert-file.pem
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should set imagePullPolicy when set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 02e900883a5cbf51b02418a1bc6d117a08cb373da148b14b1f926d3ba0e5735d
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: Always
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: Always
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should set postStart command if set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 02e900883a5cbf51b02418a1bc6d117a08cb373da148b14b1f926d3ba0e5735d
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            lifecycle:
-              postStart:
-                exec:
-                  command:
-                  - /bin/echo
-                  - test
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      lifecycle:
+        postStart:
+          exec:
+            command:
+            - /bin/echo
+            - test
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should set priorityClassName when set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 5ffc3d652d8c34499967db353b39c34b66ec1e0178abcbea2ea471b4613ee605
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          priorityClassName: system-cluster-critical
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    priorityClassName: system-cluster-critical
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should set required affinity when highAvailability.requireAntiAffinity is set:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 3c7b6f5c5283e73e5b68b818813503228e3323a9092805a27ac359ba3d2dc29f
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchExpressions:
-                  - key: app
-                    operator: In
-                    values:
-                    - RELEASE-NAME
-                topologyKey: kubernetes.io/hostname
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - RELEASE-NAME
+          topologyKey: kubernetes.io/hostname
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
 should set resources when set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 5ffc3d652d8c34499967db353b39c34b66ec1e0178abcbea2ea471b4613ee605
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            resources:
-              limits:
-                cpu: 2
-                memory: 4Gi
-              requests:
-                cpu: 1
-                memory: 2Gi
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should set tolerations when set in values:
   1: |
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 2f8462f0dc120a8666b7f1c0acb0dbf391095cea02ad5ddd2d225a9e3f552ad4
-          labels:
-            app: RELEASE-NAME
-        spec:
-          affinity:
-            podAntiAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-              - podAffinityTerm:
-                  labelSelector:
-                    matchExpressions:
-                    - key: app
-                      operator: In
-                      values:
-                      - RELEASE-NAME
-                  topologyKey: kubernetes.io/hostname
-                weight: 50
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: data
-          serviceAccountName: RELEASE-NAME
-          tolerations:
-          - effect: NoExecute
-            key: dedicated
-            operator: Equal
-            value: teleport
-          - effect: NoSchedule
-            key: dedicated
-            operator: Equal
-            value: teleport
-          volumes:
-          - name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - emptyDir: {}
-            name: data
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    tolerations:
+    - effect: NoExecute
+      key: dedicated
+      operator: Equal
+      value: teleport
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: teleport
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
