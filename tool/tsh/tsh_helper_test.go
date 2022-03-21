@@ -108,7 +108,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 
 func (s *suite) setupLeafCluster(t *testing.T) {
 	fileConfig := &config.FileConfig{
-		Version: "v2",
+		Version: "v1",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
 			NodeName: "localnode",
@@ -121,9 +121,11 @@ func (s *suite) setupLeafCluster(t *testing.T) {
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
-				EnabledFlag: "true",
+				EnabledFlag:   "true",
+				ListenAddress: localListenerAddr(),
 			},
 			WebAddr: localListenerAddr(),
+			TunAddr: localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{

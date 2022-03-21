@@ -67,6 +67,7 @@ func TestTSHSSH(t *testing.T) {
 	}{
 		{"ssh root cluster access", testRootClusterSSHAccess},
 		{"ssh leaf cluster access", testLeafClusterSSHAccess},
+		{"test jump host ssh proxy port", testJumpHostProxySSHPort},
 	}
 
 	for _, tc := range tests {
@@ -163,6 +164,42 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 		"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
 		s.leaf.Config.Hostname,
 		"echo", "hello",
+	})
+	require.NoError(t, err)
+}
+
+func testJumpHostProxySSHPort(t *testing.T, s *suite) {
+	err := Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", s.connector.GetName(),
+		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		s.root.Config.Auth.ClusterName.GetClusterName(),
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		s.leaf.Config.Auth.ClusterName.GetClusterName(),
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"ssh",
+		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
+		s.leaf.Config.Hostname,
+		"echo", "hello",
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
 	})
 	require.NoError(t, err)
 }

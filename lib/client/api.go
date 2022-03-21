@@ -2302,12 +2302,16 @@ func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientC
 }
 
 func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	if tc.Config.TLSRoutingEnabled {
+	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
 		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
 	}
-	client, err := ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
+	addr := tc.Config.SSHProxyAddr
+	if len(tc.JumpHosts) > 0 {
+		addr = tc.JumpHosts[0].Addr.Addr
+	}
+	client, err := ssh.Dial("tcp", addr, sshConfig)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", addr)
 	}
 	return client, nil
 }
