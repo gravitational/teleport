@@ -1,0 +1,16 @@
+should request a certificate for cluster name when cert-manager is enabled (cert-manager.yaml):
+  1: |
+    - test-cluster
+    - '*.test-cluster'
+  2: |
+    group: custom.cert-manager.io
+    kind: CustomClusterIssuer
+    name: custom
+should request a certificate for cluster name when cert-manager is enabled (cert-secret.yaml):
+  1: |
+    - test-cluster
+    - '*.test-cluster'
+  2: |
+    group: cert-manager.io
+    kind: Issuer
+    name: letsencrypt

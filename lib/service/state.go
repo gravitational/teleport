@@ -88,7 +88,7 @@ func (f *processState) update(event Event) {
 
 	component, ok := event.Payload.(string)
 	if !ok {
-		f.process.log.Errorf("TeleportDegradedEvent broadcasted without component name, this is a bug!")
+		f.process.log.Errorf("%v broadcasted without component name, this is a bug!", event.Name)
 		return
 	}
 	s, ok := f.states[component]
@@ -118,7 +118,7 @@ func (f *processState) update(event Event) {
 			s.recoveryTime = f.process.Clock.Now()
 			f.process.log.Infof("Teleport component %q is recovering from a degraded state.", component)
 		case stateRecovering:
-			if f.process.Clock.Now().Sub(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
+			if f.process.Clock.Since(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
 				s.state = stateOK
 				f.process.log.Infof("Teleport component %q has recovered from a degraded state.", component)
 			}

@@ -245,7 +245,7 @@ func (a *Agent) getPrincipalsList() []string {
 }
 
 func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
-	cas, err := a.AccessPoint.GetCertAuthorities(types.HostCA, false)
+	cas, err := a.AccessPoint.GetCertAuthorities(context.TODO(), types.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
