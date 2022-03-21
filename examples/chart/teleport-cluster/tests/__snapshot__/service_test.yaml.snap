@@ -1,3 +1,85 @@
+adds a separate Mongo listener port when separateMongoListener is true:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:1234567890:certificate/a857a76c-51d0-4d3d-8000-465bb3e9829b
+        service.beta.kubernetes.io/aws-load-balancer-ssl-ports: 443
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      - name: mongo
+        port: 27017
+        protocol: TCP
+        targetPort: 27017
+      selector:
+        app: RELEASE-NAME
+      type: LoadBalancer
+adds a separate Postgres listener port when separatePostgresListener is true:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:1234567890:certificate/a857a76c-51d0-4d3d-8000-465bb3e9829b
+        service.beta.kubernetes.io/aws-load-balancer-ssl-ports: 443
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      - name: postgres
+        port: 5432
+        protocol: TCP
+        targetPort: 5432
+      selector:
+        app: RELEASE-NAME
+      type: LoadBalancer
 sets AWS annotations when chartMode=aws:
   1: |
     apiVersion: v1

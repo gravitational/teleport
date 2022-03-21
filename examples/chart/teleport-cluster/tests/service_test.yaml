@@ -64,3 +64,29 @@ tests:
           path: metadata.annotations.kubernetes\.io/service-different
           value: 5
       - matchSnapshot: {}
+
+  - it: adds a separate Postgres listener port when separatePostgresListener is true
+    values:
+      - ../.lint/separate-postgres-listener.yaml
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: postgres
+            port: 5432
+            targetPort: 5432
+            protocol: TCP
+      - matchSnapshot: {}
+
+  - it: adds a separate Mongo listener port when separateMongoListener is true
+    values:
+      - ../.lint/separate-mongo-listener.yaml
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: mongo
+            port: 27017
+            targetPort: 27017
+            protocol: TCP
+      - matchSnapshot: {}
