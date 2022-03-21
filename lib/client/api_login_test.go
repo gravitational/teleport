@@ -18,10 +18,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/base32"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -37,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
@@ -80,20 +81,20 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	cfg.InsecureSkipVerify = true
 
 	// Reset functions after tests.
-	oldPwd := *client.PasswordFromConsoleFn
+	oldPwd, oldWebauthn := client.PasswordFromConsole, *client.PromptWebauthn
 	t.Cleanup(func() {
-		*client.PasswordFromConsoleFn = oldPwd
-		client.Prompts.Reset()
+		client.PasswordFromConsole = oldPwd
+		*client.PromptWebauthn = oldWebauthn
 	})
-	*client.PasswordFromConsoleFn = func() (string, error) {
+
+	userPasswordFn := func(ctx context.Context) (string, error) {
 		return password, nil
 	}
-
-	promptOTPNoop := func(ctx context.Context) (string, error) {
+	noopPasswordFn := func(ctx context.Context) (string, error) {
 		<-ctx.Done() // wait for timeout
 		return "", ctx.Err()
 	}
-	promptWebauthnNoop := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+	noopWebauthnFn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		<-ctx.Done() // wait for timeout
 		return nil, ctx.Err()
 	}
@@ -101,7 +102,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	solveOTP := func(ctx context.Context) (string, error) {
 		return totp.GenerateCode(otpKey, clock.Now())
 	}
-	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
 			return nil, err
@@ -112,40 +113,77 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			},
 		}, nil
 	}
-	solvePwdless := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
-		resp, err := solveWebauthn(ctx, origin, assertion)
+	solvePwdless := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
 		if err == nil {
 			resp.GetWebauthn().Response.UserHandle = webID
 		}
 		return resp, err
 	}
 
+	const pin = "pin123"
+	pinC := make(chan struct{})
+	userPINFn := func(ctx context.Context) (string, error) {
+		<-pinC // Do not answer until we get the WebAuthn prompt.
+		return pin, nil
+	}
+	solvePIN := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+		go func() {
+			// Wait a bit so prompt.PromptPIN() happens first.
+			// It's important because it signals cancellation of the OTP read.
+			time.Sleep(100 * time.Millisecond)
+			pinC <- struct{}{}
+		}()
+
+		// Ask and verify the PIN. Usually the authenticator would verify the PIN,
+		// but we are faking it here.
+		got, err := prompt.PromptPIN()
+		switch {
+		case err != nil:
+			return nil, err
+		case got != pin:
+			return nil, errors.New("invalid PIN")
+		}
+		prompt.PromptAdditionalTouch() // Realistically, this would happen too.
+		return solveWebauthn(ctx, origin, assertion, prompt)
+	}
+
 	ctx := context.Background()
 	tests := []struct {
-		name          string
-		secondFactor  constants.SecondFactorType
-		solveOTP      func(context.Context) (string, error)
-		solveWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
-		pwdless       bool
+		name                string
+		secondFactor        constants.SecondFactorType
+		passwordFromConsole func(ctx context.Context) (string, error)
+		solveWebauthn       func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		pwdless             bool
+		wantUserPrompts     int
 	}{
 		{
-			name:          "OTP device login",
-			secondFactor:  constants.SecondFactorOptional,
-			solveOTP:      solveOTP,
-			solveWebauthn: promptWebauthnNoop,
+			name:                "OTP device login",
+			secondFactor:        constants.SecondFactorOptional,
+			passwordFromConsole: chainPasswordFns(userPasswordFn, solveOTP),
+			solveWebauthn:       noopWebauthnFn,
+			wantUserPrompts:     2, // password + OTP
 		},
 		{
-			name:          "WebAuthn device login",
-			secondFactor:  constants.SecondFactorOptional,
-			solveOTP:      promptOTPNoop,
-			solveWebauthn: solveWebauthn,
+			name:                "Webauthn device login",
+			secondFactor:        constants.SecondFactorOptional,
+			passwordFromConsole: chainPasswordFns(userPasswordFn, noopPasswordFn),
+			solveWebauthn:       solveWebauthn,
+			wantUserPrompts:     2, // password + OTP (not answered)
 		},
 		{
-			name:          "passwordless login",
-			secondFactor:  constants.SecondFactorOptional,
-			solveOTP:      promptOTPNoop,
-			solveWebauthn: solvePwdless,
-			pwdless:       true,
+			name:                "Webauthn device with PIN", // a bit hypothetical, but _could_ happen.
+			secondFactor:        constants.SecondFactorOptional,
+			passwordFromConsole: chainPasswordFns(userPasswordFn, userPINFn),
+			solveWebauthn:       solvePIN,
+			wantUserPrompts:     2, // password + OTP-turned-PIN
+		},
+		{
+			name:            "passwordless login",
+			secondFactor:    constants.SecondFactorOptional,
+			solveWebauthn:   solvePwdless,
+			pwdless:         true,
+			wantUserPrompts: 0,
 		},
 	}
 	for _, test := range tests {
@@ -153,15 +191,20 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
-			client.Prompts.Swap(
-				func(ctx context.Context, out io.Writer, in prompt.Reader, question string) (string, error) {
-					return test.solveOTP(ctx)
-				},
-				func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, _ wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
-					resp, err := test.solveWebauthn(ctx, origin, assertion)
-					return resp, "", err
-				},
-			)
+			// wg is used to ensure that fake prompt functions exit cleanly before the
+			// test ends.
+			// PromptMFAChallenge can't do this because the stdin hijack doesn't
+			// always return.
+			var wg sync.WaitGroup
+			wg.Add(test.wantUserPrompts)
+			client.PasswordFromConsole = func() (string, error) {
+				defer wg.Done()
+				return test.passwordFromConsole(ctx)
+			}
+			*client.PromptWebauthn = func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
+				return resp, "", err
+			}
 
 			authServer := sa.Auth.GetAuthServer()
 			pref, err := authServer.GetAuthPreference(ctx)
@@ -178,7 +221,19 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
 			require.NoError(t, err)
+
+			cancel()
+			wg.Wait()
 		})
+	}
+}
+
+func chainPasswordFns(fns ...func(ctx context.Context) (string, error)) func(context.Context) (string, error) {
+	i := 0
+	return func(ctx context.Context) (string, error) {
+		val, err := fns[i](ctx)
+		i++
+		return val, err
 	}
 }
 

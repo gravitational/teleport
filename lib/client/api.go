@@ -2599,13 +2599,7 @@ type pwdlessPrompt struct {
 }
 
 func (l pwdlessPrompt) PromptPIN() (string, error) {
-	fmt.Fprintln(l.Out, "Enter your security key PIN:")
-	pwd, err := passwordFromConsoleFn()
-	if err != nil {
-		fmt.Fprintln(l.Out, err)
-		return "", trace.Wrap(err)
-	}
-	return pwd, nil
+	return ReadPassword(l.Out, "Enter your security key PIN:")
 }
 
 func (l pwdlessPrompt) PromptAdditionalTouch() error {
@@ -2641,7 +2635,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 
 	prompt := pwdlessPrompt{Out: tc.Stderr}
 	fmt.Fprintln(tc.Stderr, "Tap your security key")
-	mfaResp, _, err := prompts.Webauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2897,7 +2891,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		// use might enter at the prompt. Whatever the user enters will
 		// be simply discarded, and the user can still CTRL+C out if they
 		// disagree.
-		_, err := passwordFromConsoleFn()
+		_, err := PasswordFromConsole()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3230,24 +3224,27 @@ func Username() (string, error) {
 
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP() (token string, err error) {
-	fmt.Fprintf(tc.Config.Stderr, "Enter your OTP token:\n")
-	token, err = passwordFromConsoleFn()
-	if err != nil {
-		fmt.Fprintln(tc.Stderr, err)
-		return "", trace.Wrap(err)
-	}
-	return token, nil
+	return ReadPassword(tc.Stderr, "Enter your OTP token:")
 }
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
-	fmt.Fprintf(tc.Config.Stderr, "Enter password for Teleport user %v:\n", tc.Config.Username)
-	pwd, err = passwordFromConsoleFn()
+	return ReadPassword(tc.Stderr, fmt.Sprintf("Enter password for Teleport user %v:", tc.Config.Username))
+}
+
+// ReadPassword reads a password-like string from stdin.
+// out is used to write user prompts.
+// question is the prompt question, without a newline at the end. An empty
+// question prints nothing to out.
+func ReadPassword(out io.Writer, question string) (string, error) {
+	if question != "" {
+		fmt.Fprintln(out, question)
+	}
+	pwd, err := PasswordFromConsole()
 	if err != nil {
-		fmt.Fprintln(tc.Stderr, err)
+		fmt.Fprintln(out, err)
 		return "", trace.Wrap(err)
 	}
-
 	return pwd, nil
 }
 
@@ -3320,17 +3317,15 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// passwordFromConsoleFn allows tests to replace the passwordFromConsole
-// function.
-var passwordFromConsoleFn = passwordFromConsole
+// PasswordFromConsole reads from stdin without echoing typed characters to
+// stdout.
+// The var declaration allows tests to mock the console interaction.
+var PasswordFromConsole = passwordFromConsole
 
-// passwordFromConsole reads from stdin without echoing typed characters to stdout
+// passwordFromConsole reads from stdin without echoing typed characters to
+// stdout.
 func passwordFromConsole() (string, error) {
-	// syscall.Stdin is not an int on windows. The linter will complain only on
-	// linux where syscall.Stdin is an int.
-	//
-	// nolint:unconvert
-	fd := int(syscall.Stdin)
+	fd := int(os.Stdin.Fd())
 	state, err := term.GetState(fd)
 
 	// intercept Ctr+C and restore terminal
@@ -3343,15 +3338,13 @@ func passwordFromConsole() (string, error) {
 		go func() {
 			select {
 			case <-sigCh:
-				term.Restore(fd, state)
+				_ = term.Restore(fd, state)
 				os.Exit(1)
 			case <-closeCh:
 			}
 		}()
 	}
-	defer func() {
-		close(closeCh)
-	}()
+	defer close(closeCh)
 
 	bytes, err := term.ReadPassword(fd)
 	return string(bytes), err

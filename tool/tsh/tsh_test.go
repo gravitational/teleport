@@ -1268,11 +1268,11 @@ func withClusterName(t *testing.T, n string) testServerOptFunc {
 }
 
 func withMOTD(t *testing.T, motd string) testServerOptFunc {
-	oldpass := client.PasswordFromConsoleFn
-	*client.PasswordFromConsoleFn = func() (string, error) {
+	oldPwd := client.PasswordFromConsole
+	client.PasswordFromConsole = func() (string, error) {
 		return "", nil
 	}
-	t.Cleanup(func() { *client.PasswordFromConsoleFn = *oldpass })
+	t.Cleanup(func() { client.PasswordFromConsole = oldPwd })
 	return withAuthConfig(func(cfg *service.AuthConfig) {
 		cfg.Preference.SetMessageOfTheDay(motd)
 	})
