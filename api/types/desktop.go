@@ -31,6 +31,8 @@ type WindowsDesktopService interface {
 	GetAddr() string
 	// GetVersion returns the teleport binary version of this service.
 	GetTeleportVersion() string
+	// GetHostname returns the hostname of this service
+	GetHostname() string
 }
 
 var _ WindowsDesktopService = &WindowsDesktopServiceV3{}
@@ -95,6 +97,11 @@ func (s *WindowsDesktopServiceV3) SetOrigin(origin string) {
 // GetAllLabels returns the resources labels.
 func (s *WindowsDesktopServiceV3) GetAllLabels() map[string]string {
 	return s.Metadata.Labels
+}
+
+// GetHostname returns the windows hostname of this service.
+func (s *WindowsDesktopServiceV3) GetHostname() string {
+	return s.Spec.Hostname
 }
 
 // MatchSearch goes through select field values and tries to

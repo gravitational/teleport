@@ -27,7 +27,7 @@
 1. [Installing and Running](#installing-and-running)
 1. [Docker](#docker)
 1. [Building Teleport](#building-teleport)
-1. [Why did We Build Teleport?](#why-did-we-build-teleport)
+1. [Why Did We Build Teleport?](#why-did-we-build-teleport)
 1. [More Information](#more-information)
 1. [Support and Contributing](#support-and-contributing)
 1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)

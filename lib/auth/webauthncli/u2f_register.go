@@ -38,13 +38,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Register performs client-side, U2F-compatible Webauthn registration.
-// This method blocks until either device authentication is successful or the
-// context is cancelled. Calling Register without a deadline or cancel condition
-// may cause it block forever.
-// The caller is expected to prompt the user for action before calling this
-// method.
-func Register(ctx context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+// U2FRegister implements Register for U2F/CTAP1 devices.
+// The implementation is backed exclusively by Go code, making it useful in
+// scenarios where libfido2 is unavailable.
+func U2FRegister(ctx context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	// Preliminary checks, more below.
 	switch {
 	case origin == "":
