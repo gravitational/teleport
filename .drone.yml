@@ -5014,11 +5014,15 @@ steps:
       - |
         # write config files
         mkdir -p /go/reprepro/teleport/conf /go/reprepro/teleport/public
+        # we have to keep listing "arm" even though it's not a real debian arch
+        # because we have released packages for it that are currently in the
+        # repo bucket, and reprepro will error out if it's told to includedeb a
+        # package for an architecture that's not in its configuration
         cat << EOF > /go/reprepro/teleport/conf/distributions
         Origin: teleport
         Label: teleport
         Codename: stable
-        Architectures: i386 amd64 arm arm64
+        Architectures: i386 amd64 arm armhf arm64
         Components: main
         Description: apt repository for teleport
         SignWith: 6282C411
@@ -5084,6 +5088,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 8d0b79ebd4a3a0432402abf3b2773f45f8d787c0114d921dcdb5c909f2c338db
+hmac: 8147740c0e998d3a7c39f01894cae20c1581e650e7b26b330a53287c3b73e4e0
 
 ...
