@@ -1,0 +1,326 @@
+suite: Deployment
+templates:
+  - deployment.yaml
+  - config.yaml
+tests:
+  - it: creates a Deployment
+    values:
+      - ../.lint/all-v6.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - hasDocuments:
+          count: 1
+
+  - it: sets Deployment annotations when specified
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment-different
+          value: 3
+      - matchSnapshot: {}
+
+  - it: sets Pod annotations when specified
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          value: test-annotation
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          value: 4
+      - matchSnapshot: {}
+
+  - it: should have one replica when replicaCount is not set
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - matchSnapshot: {}
+
+  - it: should have multiple replicas when replicaCount is set (using .replicaCount, deprecated)
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - matchSnapshot: {}
+
+  - it: should have multiple replicas when replicaCount is set (using highAvailability.replicaCount)
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      highAvailability:
+        replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - matchSnapshot: {}
+
+  - it: should set affinity when set in values
+    values:
+      - ../.lint/affinity.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - matchSnapshot: {}
+
+  - it: should set required affinity when highAvailability.requireAntiAffinity is set
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      highAvailability:
+        replicaCount: 2
+        requireAntiAffinity: true
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - isNull:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+      - matchSnapshot: {}
+
+  - it: should set preferred affinity when more than one replica is used
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      highAvailability:
+        replicaCount: 3
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+      - isNull:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - matchSnapshot: {}
+
+  - it: should set tolerations when set in values
+    values:
+      - ../.lint/tolerations.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.tolerations
+      - matchSnapshot: {}
+
+  - it: should set resources when set in values
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot: {}
+
+  - it: should set SecurityContext
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities
+          value:
+            drop:
+              - all
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 9807
+      - matchSnapshot: {}
+
+  - it: should set image and tag correctly
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      teleportVersionOverride: 8.3.4
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: quay.io/gravitational/teleport:8.3.4
+      - matchSnapshot: {}
+
+  - it: should mount extraVolumes and extraVolumeMounts
+    values:
+      - ../.lint/volumes.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-mount
+            secret:
+              secretName: mySecret
+      - matchSnapshot: {}
+
+  - it: should set imagePullPolicy when set in values
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      imagePullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+      - matchSnapshot: {}
+
+  - it: should set environment when extraEnv set in values
+    set:
+      proxyAddr: helm-lint.example.com
+      authToken: sample-auth-token-dont-use-this
+      kubeClusterName: helm-lint.example.com
+      extraEnv:
+        - name: HTTPS_PROXY
+          value: "http://username:password@my.proxy.host:3128"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: "http://username:password@my.proxy.host:3128"
+      - matchSnapshot: {}
+
+  - it: should provision initContainer correctly when set in values
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: "echo test"
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: "teleport-init"
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "alpine"
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot: {}
+
+  - it: should add insecureSkipProxyTLSVerify to args when set in values
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      insecureSkipProxyTLSVerify: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--insecure"
+      - matchSnapshot: {}
+
+  - it: should expose diag port
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: diag
+            containerPort: 3000
+            protocol: TCP
+      - matchSnapshot: {}
+
+  - it: should set nodeSelector if set in values
+    values:
+      - ../.lint/node-selector.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            gravitational.io/k8s-role: node
+      - matchSnapshot: {}
+
+  - it: should add emptyDir for data when existingDataVolume is not set
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/teleport
+            name: data
+      - matchSnapshot: {}
+
+  - it: should correctly configure existingDataVolume when set
+    values:
+      - ../.lint/existing-data-volume.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/teleport
+            name: teleport-kube-agent-data
+      - matchSnapshot: {}
+
+  - it: should set serviceAccountName when set in values
+    values:
+      - ../.lint/service-account-name.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: teleport-kube-agent-sa
+      - matchSnapshot: {}
+
+  - it: should set default serviceAccountName when not set in values
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME
+      - matchSnapshot: {}

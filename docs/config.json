@@ -345,10 +345,6 @@
               "slug": "/kubernetes-access/guides/federation/"
             },
             {
-              "title": "Migration",
-              "slug": "/kubernetes-access/guides/migration/"
-            },
-            {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
             }
@@ -517,8 +513,34 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Configuration",
-          "slug": "/desktop-access/reference/configuration/"
+          "title": "Access Controls",
+          "slug": "/desktop-access/rbac/"
+        },
+        {
+          "title": "Reference",
+          "slug": "/desktop-access/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/desktop-access/reference/configuration/"
+            },
+            {
+              "title": "Audit Events",
+              "slug": "/desktop-access/reference/audit/"
+            },
+            {
+              "title": "Clipboard Sharing",
+              "slug": "/desktop-access/reference/clipboard/"
+            },
+            {
+              "title": "Session Recording",
+              "slug": "/desktop-access/reference/sessions/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/desktop-access/reference/cli/"
+            }
+          ]
         },
         {
           "title": "Troubleshooting",
@@ -537,6 +559,20 @@
         {
           "title": "Getting Started",
           "slug": "/machine-id/getting-started/"
+        },
+        {
+          "title": "Reference",
+          "slug": "/machine-id/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/machine-id/reference/cli/"
+            }
+          ]
         },
         {
           "title": "Guides",
@@ -1045,6 +1081,11 @@
     {
       "source": "/docs/best-practices/",
       "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/migration/",
+      "destination": "/kubernetes-access/introduction/",
       "permanent": true
     }
   ]

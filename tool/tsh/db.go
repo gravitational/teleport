@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"sort"
@@ -474,7 +473,7 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		return false, nil
 	}
 
-	buff, err := ioutil.ReadFile(certPath)
+	buff, err := os.ReadFile(certPath)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
