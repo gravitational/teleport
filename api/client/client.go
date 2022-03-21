@@ -369,7 +369,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 	}
 	// must come last, otherwise provided opts may get clobbered by defaults above
-	dialOpts = append([]grpc.DialOption{}, c.c.DialOpts...)
+	dialOpts = append(dialOpts, c.c.DialOpts...)
 
 	var err error
 	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
