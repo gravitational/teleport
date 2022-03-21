@@ -18,13 +18,14 @@ package cloud
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -38,10 +39,8 @@ type IAMConfig struct {
 	Clients common.CloudClients
 	// HostID is the host identified where this agent is running.
 	HostID string
-	// TaskFlushInterval is the interval duration how often tasks are flushed.
-	TaskFlushInterval time.Duration
-	// TaskMaxRetries is the maximum number a IAM task will be retried.
-	TaskMaxRetries int
+	// TaskQueueSize is the size of the task queue.
+	TaskQueueSize int
 }
 
 // Check validates the IAM configurator config.
@@ -55,22 +54,29 @@ func (c *IAMConfig) Check() error {
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
-	if c.TaskFlushInterval == 0 {
-		c.TaskFlushInterval = defaultTaskFlushInterval
-	}
-	if c.TaskMaxRetries == 0 {
-		c.TaskMaxRetries = defaultTaskMaxRetries
+	if c.TaskQueueSize <= 0 {
+		c.TaskQueueSize = defaultIAMTaskQueueSize
 	}
 	return nil
 }
 
+// iamTask defines an IAM task for the database.
+type iamTask struct {
+	// isSetup indicates the task is a setup task if true, a teardown task if
+	// false.
+	isSetup bool
+	// database is the database to configure.
+	database types.Database
+}
+
 // IAM is a service that manages IAM policies for cloud databases.
 type IAM struct {
-	ctx             context.Context
-	cfg             IAMConfig
-	log             logrus.FieldLogger
-	awsPolicyClient aws.InlinePolicyClient
-	taskQueue       iamTaskQueue
+	ctx         context.Context
+	cfg         IAMConfig
+	log         logrus.FieldLogger
+	awsIdentity aws.Identity
+	mu          sync.RWMutex
+	tasks       chan iamTask
 }
 
 // NewIAM returns a new IAM configurator service.
@@ -79,22 +85,38 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &IAM{
-		ctx: ctx,
-		cfg: config,
-		log: logrus.WithField(trace.Component, "iam"),
+		ctx:   ctx,
+		cfg:   config,
+		log:   logrus.WithField(trace.Component, "iam"),
+		tasks: make(chan iamTask, config.TaskQueueSize),
 	}, nil
 }
 
 // Start starts the IAM configurator service.
 func (c *IAM) Start() error {
-	go c.runPeriodicOperations()
+	go func() {
+		c.log.Debug("Started IAM configurator service.")
+		defer c.log.Debug("Stopped IAM configurator service.")
+		for {
+			select {
+			case <-c.ctx.Done():
+				return
+
+			case task := <-c.tasks:
+				err := c.runTask(c.ctx, task)
+				if err != nil {
+					c.log.WithError(err).Errorf("Failed to auto-configure IAM for %v.", task.database)
+				}
+			}
+		}
+	}()
 	return nil
 }
 
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 	if database.IsRDS() || database.IsRedshift() {
-		c.taskQueue.addTask(iamTask{
+		return c.addTask(iamTask{
 			isSetup:  true,
 			database: database,
 		})
@@ -105,7 +127,7 @@ func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 // Teardown tears down cloud IAM policies for the provided database.
 func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 	if database.IsRDS() || database.IsRedshift() {
-		c.taskQueue.addTask(iamTask{
+		return c.addTask(iamTask{
 			isSetup:  false,
 			database: database,
 		})
@@ -113,130 +135,103 @@ func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 	return nil
 }
 
-// getAWSPolicyClient returns the policy client for configuring the inline policy.
-func (c *IAM) getAWSPolicyClient() (aws.InlinePolicyClient, error) {
-	if c.awsPolicyClient != nil {
-		return c.awsPolicyClient, nil
-	}
-
-	policyName := "teleport-" + c.cfg.HostID
-	awsPolicyClient, err := createAWSPolicyClient(c.ctx, policyName, c.cfg.Clients)
+// getAWSConfigurator returns configurator instance for the provided database.
+func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (*awsClient, error) {
+	identity, err := c.getAWSIdentity(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c.awsPolicyClient = awsPolicyClient
-	return c.awsPolicyClient, nil
-}
-
-// runPeriodicOperations runs a periodic interval to flush IAM tasks.
-func (c *IAM) runPeriodicOperations() {
-	tick := interval.New(interval.Config{
-		Duration: c.cfg.TaskFlushInterval,
-		Jitter:   utils.NewHalfJitter(),
+	return newAWS(ctx, awsConfig{
+		clients:    c.cfg.Clients,
+		policyName: databaseAccessInlinePolicyName,
+		identity:   identity,
+		database:   database,
 	})
-	defer tick.Stop()
-
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-
-		case <-tick.Next():
-			err := c.flush()
-			if err != nil {
-				c.log.Error(err)
-			}
-		}
-	}
 }
 
-// flush flushes IAM task queue.
-func (c *IAM) flush() error {
-	remainingTasks := c.taskQueue.take()
-	if len(remainingTasks) == 0 {
-		return nil
+// getAWSIdentity returns this process' AWS identity.
+func (c *IAM) getAWSIdentity(ctx context.Context) (aws.Identity, error) {
+	c.mu.RLock()
+	if c.awsIdentity != nil {
+		defer c.mu.RUnlock()
+		return c.awsIdentity, nil
 	}
+	c.mu.RUnlock()
+	sts, err := c.cfg.Clients.GetAWSSTSClient("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	awsIdentity, err := aws.GetIdentityWithClient(ctx, sts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.awsIdentity = awsIdentity
+	return c.awsIdentity, nil
+}
 
-	defer func() {
-		c.taskQueue.addTasksForRetry(remainingTasks, c.cfg.TaskMaxRetries)
-	}()
-
-	awsPolicyClient, err := c.getAWSPolicyClient()
+// runTask TODO
+func (c *IAM) runTask(ctx context.Context, task iamTask) error {
+	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	expiresDuration := time.Duration(len(remainingTasks)) * defaultSemaphoreExpiresPerTask
-	request := types.AcquireSemaphoreRequest{
-		SemaphoreKind: types.SemaphoreKindConnection,
-		SemaphoreName: policyName,
-		MaxLeases:     1,
-		Expires:       time.Now().Add(expiresDuration),
-	}
-	lease, err := c.cfg.Semaphores.AcquireSemaphore(c.ctx, request)
+	// TODO(greedy52) ideally tasks can be bundled so the semaphore is acquired
+	// once per group, and the IAM policy is only get/put once per group.
+	lease, err := services.AcquireSemaphoreWithRetry(ctx, services.AcquireSemaphoreWithRetryConfig{
+		Service: c.cfg.Semaphores,
+		Request: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindConnection,
+			SemaphoreName: databaseAccessInlinePolicyName,
+			MaxLeases:     1,
+			Expires:       time.Now().Add(time.Minute),
+		},
+		Retry: utils.LinearConfig{
+			Step:   10 * time.Second,
+			Max:    time.Minute,
+			Jitter: utils.NewHalfJitter(),
+		},
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	defer func() {
-		err := c.cfg.Semaphores.CancelSemaphoreLease(c.ctx, *lease)
+		err := c.cfg.Semaphores.CancelSemaphoreLease(ctx, *lease)
 		if err != nil {
 			c.log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
 		}
 	}()
 
-	// TODO(greedy52) optimize the logic to make Get/Put policy API calls only
-	// once for all tasks, instead of doing it once per database.
-	var errors []error
-	failedTasks := []iamTask{}
-	for _, task := range remainingTasks {
-		err := task.run(c.ctx, c.cfg.Clients, awsPolicyClient)
-		if err != nil {
-			errors = append(errors, trace.Retry(err, "failed to configure IAM for %v (try #%d): %v", task.database.GetName(), task.retryCount+1, err))
-			failedTasks = append(failedTasks, task)
-		}
+	if task.isSetup {
+		return configurator.setupIAM(ctx)
 	}
-
-	// Set failed tasks for retry.
-	remainingTasks = failedTasks
-	return trace.NewAggregate(errors...)
+	return configurator.teardownIAM(ctx)
 }
 
-// createAWSPolicyClient returns the policy client.
-func createAWSPolicyClient(ctx context.Context, policyName string, clients common.CloudClients) (aws.InlinePolicyClient, error) {
-	sts, err := clients.GetAWSSTSClient("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// addTask add a task for processing.
+func (c *IAM) addTask(task iamTask) error {
+	select {
+	case c.tasks <- task:
+		return nil
 
-	iam, err := clients.GetAWSIAMClient("")
-	if err != nil {
-		return nil, trace.Wrap(err)
+	default:
+		return trace.LimitExceeded("failed to create IAM task for %v", task.database)
 	}
+}
 
-	awsIdentity, err := aws.GetIdentityWithClient(ctx, sts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	awsPolicyClient, err := aws.NewInlinePolicyClientForIdentity(policyName, iam, awsIdentity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return awsPolicyClient, nil
+// isIdle returns true if there is no tasks being processed.
+func (c *IAM) isIdle() bool {
+	return len(c.tasks) == 0
 }
 
 const (
-	// policyName is the inline policy name used for the IAM idenity.
-	policyName = "teleport-database-access"
+	// databaseAccessInlinePolicyName is the inline policy name for database
+	// access permissions for the IAM idenity.
+	databaseAccessInlinePolicyName = "teleport-database-access"
 
-	// defaultTaskFlushInterval is the default flush interval.
-	defaultTaskFlushInterval = 20 * time.Second
-
-	// defaultTaskMaxRetries is the default task max retries.
-	defaultTaskMaxRetries = 3
-
-	// defaultSemaphoreExpiresPerTask is the default per task duration used to
-	// calculate expiration time for the semaphore.
-	defaultSemaphoreExpiresPerTask = 10 * time.Second
+	// defaultIAMTaskQueueSize is the default task queue size for IAM configurator.
+	defaultIAMTaskQueueSize = 10000
 )

@@ -19,6 +19,7 @@ package cloud
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -33,7 +34,8 @@ import (
 
 // TestAWSIAM tests RDS, Aurora and Redshift IAM auto-configuration.
 func TestAWSIAM(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	// Setup AWS database objects.
 	rdsInstance := &rds.DBInstance{
@@ -109,56 +111,58 @@ func TestAWSIAM(t *testing.T) {
 		HostID: "host-id",
 	})
 	require.NoError(t, err)
+	require.NoError(t, configurator.Start())
 
 	// Configure RDS database and make sure IAM was enabled and policy was attached.
 	err = configurator.Setup(ctx, rdsDatabase)
 	require.NoError(t, err)
-	require.NoError(t, configurator.flush())
+	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
 	require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
-	policy := iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 	require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 
 	// Deconfigure RDS database, policy should get detached.
 	err = configurator.Teardown(ctx, rdsDatabase)
 	require.NoError(t, err)
-	require.NoError(t, configurator.flush())
-	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 	require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 
 	// Configure Aurora database and make sure IAM was enabled and policy was attached.
 	err = configurator.Setup(ctx, auroraDatabase)
 	require.NoError(t, err)
-	require.NoError(t, configurator.flush())
+	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
 	require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
-	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 	require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 
 	// Deconfigure Aurora database, policy should get detached.
 	err = configurator.Teardown(ctx, auroraDatabase)
 	require.NoError(t, err)
-	require.NoError(t, configurator.flush())
-	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 	require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 
 	// Configure Redshift database and make sure policy was attached.
 	err = configurator.Setup(ctx, redshiftDatabase)
 	require.NoError(t, err)
-	require.NoError(t, configurator.flush())
-	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 	require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 
 	// Deconfigure Redshift database, policy should get detached.
 	err = configurator.Teardown(ctx, redshiftDatabase)
 	require.NoError(t, err)
-	require.NoError(t, configurator.flush())
-	policy = iamClient.attachedRolePolicies["test-role"]["teleport-host-id"]
+	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 	require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 }
 
 // TestAWSIAMNoPermissions tests that lack of AWS permissions does not produce
 // errors during IAM auto-configuration.
 func TestAWSIAMNoPermissions(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	// Create unauthorized mocks for AWS services.
 	stsClient := &STSMock{
@@ -211,13 +215,17 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			require.NoError(t, err)
 
 			// Make sure there're no errors trying to setup/destroy IAM.
-			err = configurator.Setup(ctx, database)
+			err = configurator.runTask(ctx, iamTask{
+				isSetup:  true,
+				database: database,
+			})
 			require.NoError(t, err)
-			require.NoError(t, configurator.flush())
 
-			err = configurator.Teardown(ctx, database)
+			err = configurator.runTask(ctx, iamTask{
+				isSetup:  false,
+				database: database,
+			})
 			require.NoError(t, err)
-			require.NoError(t, configurator.flush())
 		})
 	}
 }

@@ -56,7 +56,7 @@ type Config struct {
 	Clock clockwork.Clock
 	// DataDir is the path to the data directory for the server.
 	DataDir string
-	// AuthClient is a client directly connected to the Auth server.
+	// Semaphores is a client directly connected to the Auth server.
 	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
@@ -169,7 +169,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			AuthClient: c.AuthClient,
+			Semaphores: c.AuthClient,
 			Clients:    c.CloudClients,
 			HostID:     c.HostID,
 		})
