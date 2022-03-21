@@ -23,13 +23,15 @@ import Image from 'design/Image';
 import application from './assets/appplication.png';
 import database from './assets/database.png';
 import desktop from './assets/desktop.png';
+import stack from './assets/stack.png';
 
 function getAccentImage(entityType: string): string {
   const accentImages = {
     application: application,
     database: database,
-    kubernetes: desktop,
-    server: desktop,
+    desktop: desktop,
+    kubernetes: stack,
+    server: stack,
   };
   return accentImages[entityType];
 }

@@ -24,7 +24,8 @@ import { openNewTab } from 'teleport/lib/util';
 
 export default function useDesktops(ctx: Ctx) {
   const { attempt, run } = useAttempt('processing');
-  const { clusterId } = useStickyClusterId();
+  const { clusterId, isLeafCluster } = useStickyClusterId();
+  const canCreate = ctx.storeUser.getTokenAccess().create;
   const username = ctx.storeUser.state.username;
   const windowsLogins = ctx.storeUser.getWindowsLogins();
 
@@ -56,6 +57,8 @@ export default function useDesktops(ctx: Ctx) {
     attempt,
     username,
     clusterId,
+    canCreate,
+    isLeafCluster,
     getWindowsLoginOptions,
     openRemoteDesktopTab,
   };

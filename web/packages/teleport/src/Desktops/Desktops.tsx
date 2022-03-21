@@ -23,8 +23,11 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import DesktopList from './DesktopList';
 import useDesktops, { State } from './useDesktops';
+
+const DOC_URL = 'https://goteleport.com/docs/desktop-access/getting-started/';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -38,9 +41,13 @@ export function Desktops(props: State) {
     username,
     clusterId,
     desktops,
+    canCreate,
+    isLeafCluster,
     getWindowsLoginOptions,
     openRemoteDesktopTab,
   } = props;
+
+  const isEmpty = attempt.status === 'success' && desktops.length === 0;
 
   return (
     <FeatureBox>
@@ -53,7 +60,7 @@ export function Desktops(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      {attempt.status === 'success' && (
+      {!isEmpty && (
         <>
           <DesktopList
             desktops={desktops}
@@ -64,6 +71,26 @@ export function Desktops(props: State) {
           />
         </>
       )}
+      {isEmpty && (
+        <Empty
+          clusterId={clusterId}
+          canCreate={canCreate && !isLeafCluster}
+          onClick={() => window.open(DOC_URL)}
+          emptyStateInfo={emptyStateInfo}
+        />
+      )}
     </FeatureBox>
   );
 }
+
+const emptyStateInfo: EmptyStateInfo = {
+  title: 'Add your first Windows desktop to Teleport',
+  byline:
+    'Teleport Desktop Access provides graphical desktop access to remote Windows hosts.',
+  docsURL: DOC_URL,
+  entityType: 'desktop',
+  readOnly: {
+    title: 'No Desktops Found',
+    resource: 'applications',
+  },
+};
