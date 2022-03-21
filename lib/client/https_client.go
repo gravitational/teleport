@@ -24,6 +24,7 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
+	apiproxy "github.com/gravitational/teleport/api/client/proxy"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
@@ -40,12 +41,12 @@ func NewInsecureWebClient() *http.Client {
 	tlsConfig.InsecureSkipVerify = true
 
 	return &http.Client{
-		Transport: &http.Transport{
+		Transport: &apiproxy.ProxyAwareRoundTripper{Transport: http.Transport{
 			TLSClientConfig: tlsConfig,
 			Proxy: func(req *http.Request) (*url.URL, error) {
 				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 			},
-		},
+		}},
 	}
 }
 
@@ -56,12 +57,12 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 	tlsConfig.RootCAs = pool
 
 	return &http.Client{
-		Transport: &http.Transport{
+		Transport: &apiproxy.ProxyAwareRoundTripper{Transport: http.Transport{
 			TLSClientConfig: tlsConfig,
 			Proxy: func(req *http.Request) (*url.URL, error) {
 				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 			},
-		},
+		}},
 	}
 }
 

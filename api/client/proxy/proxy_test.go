@@ -14,13 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package proxy
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/http/httpproxy"
 )
 
 func TestGetProxyAddress(t *testing.T) {
@@ -115,4 +120,22 @@ func TestGetProxyAddress(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProxyAwareRoundTripper(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://localhost:8888")
+	rt := ProxyAwareRoundTripper{
+		Transport: http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			Proxy: func(req *http.Request) (*url.URL, error) {
+				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+			},
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, "https://localhost:9999", nil)
+	// Don't care about response, only if the scheme changed.
+	rt.RoundTrip(req)
+	require.Equal(t, "http", req.URL.Scheme)
 }

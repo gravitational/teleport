@@ -22,11 +22,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/siddontang/go/log"
-	"golang.org/x/net/http/httpproxy"
 )
 
 // DialProxy creates a connection to a server via an HTTP Proxy.
@@ -85,24 +83,6 @@ func DialProxyWithDialer(ctx context.Context, proxyAddr *url.URL, addr string, d
 	}, nil
 }
 
-// GetProxyAddress gets the HTTP proxy address to use for a given address, if any.
-func GetProxyAddress(addr string) *url.URL {
-	addrURL, err := parse(addr)
-	if err != nil {
-		return nil
-	}
-	proxyFunc := httpproxy.FromEnvironment().ProxyFunc()
-	for _, scheme := range []string{"https", "http"} {
-		addrURL.Scheme = scheme
-		proxyURL, err := proxyFunc(addrURL)
-		if err == nil && proxyURL != nil {
-			return proxyURL
-		}
-	}
-
-	return nil
-}
-
 // bufferedConn is used when part of the data on a connection has already been
 // read by a *bufio.Reader. Reads will first try and read from the
 // *bufio.Reader and when everything has been read, reads will go to the
@@ -119,18 +99,4 @@ func (bc *bufferedConn) Read(b []byte) (n int, err error) {
 		return bc.reader.Read(b)
 	}
 	return bc.Conn.Read(b)
-}
-
-// parse will extract the host:port of the proxy to dial to. If the
-// value is not prefixed by "http", then it will prepend "http" and try.
-func parse(addr string) (*url.URL, error) {
-	proxyurl, err := url.Parse(addr)
-	if err != nil || !strings.HasPrefix(proxyurl.Scheme, "http") {
-		proxyurl, err = url.Parse("http://" + addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return proxyurl, nil
 }

@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
@@ -42,7 +43,7 @@ import (
 // newWebClient creates a new client to the HTTPS web proxy.
 func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 	return &http.Client{
-		Transport: &http.Transport{
+		Transport: &proxy.ProxyAwareRoundTripper{Transport: http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs:            pool,
 				InsecureSkipVerify: insecure,
@@ -50,7 +51,7 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 			Proxy: func(req *http.Request) (*url.URL, error) {
 				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 			},
-		},
+		}},
 	}
 }
 
