@@ -741,6 +741,74 @@ Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-man
   </TabItem>
 </Tabs>
 
+## `tls.existingSecretName`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `""` | ✅ | `proxy_service.https_keypairs` |
+
+`tls.existingSecretName` tells Teleport to use an existing Kubernetes TLS secret to secure its web UI using HTTPS. This can be
+set to use a TLS certificate issued by a trusted internal CA rather than a public-facing CA like Let's Encrypt.
+
+You should create the secret in the same namespace as Teleport using a command like this:
+
+```shell
+kubectl create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
+```
+
+See https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets for more information.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tls:
+    existingSecretName: my-tls-secret
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tls.existingSecretName=my-tls-secret
+  ```
+  </TabItem>
+</Tabs>
+
+## `tls.existingCASecretName`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `""` | ✅ |
+
+`tls.existingCASecretName` sets the `SSL_CERT_FILE` environment variable to load a trusted CA or bundle in PEM format into Teleport pods.
+This can be set to inject a root and/or intermediate CA so that Teleport can build a full trust chain on startup.
+
+This is likely to be needed
+if Teleport fails to start when `tls.existingSecretName` is set with a `User Message: unable to verify HTTPS certificate chain` error
+in the pod logs.
+
+You should create the secret in the same namespace as Teleport using a command like this:
+
+```shell
+kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
+
+<Notice type="warning" title="Root CA filename">
+  The filename used for the root CA in the secret must be `ca.pem`.
+</Notice>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tls:
+    existingCASecretName: my-root-ca
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tls.existingSecretName=my-root-ca
+  ```
+  </TabItem>
+</Tabs>
+
 ## `image`
 
 | Type | Default value | Can be used in `custom` mode? |
