@@ -84,7 +84,7 @@ export default function Empty(props: Props) {
           <Text typography="h5" mb={2} fontWeight={700} fontSize={24}>
             {title}
           </Text>
-          <Text fontWeight={400} fontSize={14} opacity={0.6}>
+          <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
             {byline}
           </Text>
         </Box>
