@@ -72,9 +72,18 @@ the [customer portal](https://dashboard.gravitational.com/web/login).
 ## Step 1/2. Generate a kubeconfig
 
 First, configure your local `kubectl` command to point at the Kubernetes cluster
-you want to register. You can use `kubectl config get-contexts` to verify that
-the correct cluster is selected, or `kubectl config use-context ${CONTEXT_NAME?}`
-to switch to cluster `CONTEXT_NAME`.
+you want to register. You can use the following command to verify that
+the correct cluster is selected:
+
+```code
+$ kubectl config get-contexts
+```
+
+Use this command to switch to the cluster assigned to `CONTEXT_NAME`:
+
+```code
+$ kubectl config use-context ${CONTEXT_NAME?}
+```
 
 Next, use [get-kubeconfig.sh](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) to create a `kubeconfig` for Teleport to use.
 
