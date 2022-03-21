@@ -39,9 +39,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// FIDO2PollInterval is the poll interval used to check for new FIDO2 devices.
-var FIDO2PollInterval = 200 * time.Millisecond
-
 // FIDODevice abstracts *libfido2.Device for testing.
 type FIDODevice interface {
 	// Info mirrors libfido2.Device.Info.
@@ -77,34 +74,13 @@ var fidoNewDevice = func(path string) (FIDODevice, error) {
 	return libfido2.NewDevice(path)
 }
 
-// LoginPrompt is the user interface for FIDO2Login.
-type LoginPrompt interface {
-	// PromptPIN prompts the user for their PIN.
-	PromptPIN() (string, error)
-	// PromptAdditionalTouch prompts the user for an additional security key
-	// touch.
-	// Additional touches may be required after PINs and during passwordless flows.
-	PromptAdditionalTouch() error
+// IsFIDO2Available returns true if libfido2 is available in the current build.
+func IsFIDO2Available() bool {
+	return true
 }
 
-// RegisterPrompt is the user interface for FIDO2Register.
-type RegisterPrompt interface {
-	// PromptPIN prompts the user for their PIN.
-	PromptPIN() (string, error)
-	// PromptAdditionalTouch prompts the user for an additional security key
-	// touch.
-	// Additional touches may be required after PINs.
-	PromptAdditionalTouch() error
-}
-
-// FIDO2Login signs an assertion using available CTAP1 or CTAP2 devices.
-// It must be called with a context with timeout, otherwise it can run
-// indefinitely.
-// The informed user is used to disambiguate credentials in case of passwordless
-// logins.
-// It returns an MFAAuthenticateResponse and the credential user, if a resident
-// credential is used.
-func FIDO2Login(
+// fido2Login implements FIDO2Login.
+func fido2Login(
 	ctx context.Context,
 	origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt,
 ) (*proto.MFAAuthenticateResponse, string, error) {
@@ -338,11 +314,8 @@ func getMFACredentials(dev FIDODevice, pin, rpID, appID string, allowedCreds [][
 	return actualRPID, cID, nil
 }
 
-// FIDO2Register registers a new credential using available CTAP1 or CTAP2
-// devices.
-// It must be called with a context with timeout, otherwise it can run
-// indefinitely.
-func FIDO2Register(
+// fido2Register implements FIDO2Register.
+func fido2Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
 ) (*proto.MFARegisterResponse, error) {
