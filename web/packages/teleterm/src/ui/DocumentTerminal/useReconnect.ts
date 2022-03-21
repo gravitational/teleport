@@ -18,20 +18,25 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
+import { useEffect } from 'react';
 
 export function useReconnect(doc: types.DocumentTshNode) {
   const ctx = useAppContext();
   const workspaceDocumentsService = useWorkspaceDocumentsService();
   const { attempt, setAttempt } = useAttempt('');
+  const cluster = ctx.clustersService.findRootClusterByResource(doc.serverUri);
 
-  function updateDoc() {
+  function markDocumentAsConnected() {
     workspaceDocumentsService.update(doc.uri, { status: 'connected' });
   }
 
+  useEffect(() => {
+    if (cluster.connected) {
+      markDocumentAsConnected();
+    }
+  }, []);
+
   function reconnect() {
-    const cluster = ctx.clustersService.findRootClusterByResource(
-      doc.serverUri
-    );
     if (!cluster) {
       setAttempt({
         status: 'failed',
@@ -44,13 +49,13 @@ export function useReconnect(doc: types.DocumentTshNode) {
     if (!cluster.connected) {
       ctx.commandLauncher.executeCommand('cluster-connect', {
         clusterUri: cluster.uri,
-        onSuccess: updateDoc,
+        onSuccess: markDocumentAsConnected,
       });
 
       return;
     }
 
-    updateDoc();
+    markDocumentAsConnected();
   }
 
   return { reconnect, attempt };

@@ -18,8 +18,9 @@ import { useState, useEffect } from 'react';
 import { formatDistanceStrict } from 'date-fns';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import TeleportContext from 'teleport/teleportContext';
-import { BashCommand, NodeToken } from 'teleport/services/nodes';
+import { BashCommand } from 'teleport/services/nodes';
 import cfg from 'teleport/config';
+import { JoinToken } from 'teleport/services/joinToken';
 
 export default function useAddNode(ctx: TeleportContext) {
   const { attempt, run } = useAttempt('processing');
@@ -38,7 +39,7 @@ export default function useAddNode(ctx: TeleportContext) {
 
   function createJoinToken() {
     return run(() =>
-      ctx.nodeService.fetchJoinToken().then(token => {
+      ctx.joinTokenService.fetchJoinToken(['Node']).then(token => {
         const cmd = createNodeBashCommand(token);
         setExpiry(cmd.expires);
         setScript(cmd.text);
@@ -62,7 +63,7 @@ export default function useAddNode(ctx: TeleportContext) {
   };
 }
 
-export function createNodeBashCommand(node: NodeToken): BashCommand {
+export function createNodeBashCommand(node: JoinToken): BashCommand {
   const { expiry, id } = node;
 
   const expires = formatDistanceStrict(new Date(), new Date(expiry));

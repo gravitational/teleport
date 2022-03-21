@@ -24,3 +24,7 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
 export type TrackedConnection =
   | TrackedServerConnection
   | TrackedGatewayConnection;
+
+export type ExtendedTrackedConnection = TrackedConnection & {
+  clusterName: string;
+};

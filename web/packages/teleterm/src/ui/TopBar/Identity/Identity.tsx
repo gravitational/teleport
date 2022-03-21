@@ -1,9 +1,12 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import styled from 'styled-components';
+import { Box } from 'design';
 import Popover from 'design/Popover';
 import { useIdentity } from './useIdentity';
 import { IdentityList } from './IdentityList/IdentityList';
 import { IdentitySelector } from './IdentitySelector/IdentitySelector';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
+import { EmptyIdentityList } from './EmptyIdentityList';
 
 export function Identity() {
   const selectorRef = useRef<HTMLButtonElement>();
@@ -47,14 +50,20 @@ export function Identity() {
         onClose={() => setIsPopoverOpened(false)}
       >
         {focusGrabber}
-        <IdentityList
-          loggedInUser={loggedInUser}
-          clusters={rootClusters}
-          selectCluster={changeRootCluster}
-          logout={logout}
-          removeCluster={removeCluster}
-          addCluster={addCluster}
-        />
+        <Container>
+          {rootClusters.length ? (
+            <IdentityList
+              loggedInUser={loggedInUser}
+              clusters={rootClusters}
+              onSelectCluster={changeRootCluster}
+              onLogout={logout}
+              onRemoveCluster={removeCluster}
+              onAddCluster={addCluster}
+            />
+          ) : (
+            <EmptyIdentityList />
+          )}
+        </Container>
       </Popover>
     </>
   );
@@ -74,3 +83,9 @@ const focusGrabber = (
     autoFocus={true}
   />
 );
+
+const Container = styled(Box)`
+  background: ${props => props.theme.colors.primary.dark};
+  width: 280px;
+  padding: 12px 0;
+`;

@@ -14,18 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import { Flex } from 'design';
-import { TabHostContainer } from 'teleterm/ui/TabHost';
-import { TopBar } from 'teleterm/ui/TopBar';
+import { JoinToken } from './types';
 
-export function LayoutManager() {
-  return (
-    <Flex flexDirection="column" flex="1">
-      <TopBar />
-      <Flex flex="1" style={{ position: 'relative' }}>
-        <TabHostContainer />
-      </Flex>
-    </Flex>
-  );
+export default function makeToken(json): JoinToken {
+  json = json || {};
+  const { id, expiry } = json;
+  return {
+    id,
+    expiry: expiry ? new Date(expiry) : null,
+  };
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,42 +19,34 @@ import { formatDistanceStrict } from 'date-fns';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import TeleportContext from 'teleport/teleportContext';
 
-export default function useAddApp(ctx: TeleportContext) {
-  const { attempt, run } = useAttempt('');
-  const user = ctx.storeUser.state.username;
-  const version = ctx.storeUser.state.cluster.authVersion;
-  const isAuthTypeLocal = !ctx.storeUser.isSso();
-  const isEnterprise = ctx.isEnterprise;
-  const [automatic, setAutomatic] = useState(isEnterprise);
-  const [expires, setExpires] = useState('');
+export default function useAddDatabase(ctx: TeleportContext) {
+  const { attempt, run } = useAttempt('processing');
+  const [expiry, setExpiry] = useState('');
   const [token, setToken] = useState('');
 
   useEffect(() => {
-    createToken();
+    createJoinToken();
   }, []);
 
-  function createToken() {
+  function createJoinToken() {
     return run(() =>
-      ctx.joinTokenService.fetchJoinToken(['App']).then(token => {
-        const expires = formatDistanceStrict(new Date(), token.expiry);
-        setExpires(expires);
+      ctx.joinTokenService.fetchJoinToken(['Db']).then(token => {
+        const expires = formatDistanceStrict(
+          new Date(),
+          new Date(token.expiry)
+        );
+        setExpiry(expires);
         setToken(token.id);
       })
     );
   }
 
   return {
-    user,
-    version,
-    createToken,
-    expires,
+    createJoinToken,
+    expiry,
     attempt,
-    automatic,
-    setAutomatic,
-    isAuthTypeLocal,
-    isEnterprise,
     token,
   };
 }
 
-export type State = ReturnType<typeof useAddApp>;
+export type State = ReturnType<typeof useAddDatabase>;

@@ -19,11 +19,9 @@ import { useDrag, useDrop } from 'react-dnd';
 
 const TAB_ITEM_TYPE = 'TAB_ITEM_TYPE';
 
-export function useTabDnD({
-  index,
-  onDrop,
-  ref,
-}: Props): { isDragging: boolean } {
+export function useTabDnD({ index, onDrop, ref, canDrag }: Props): {
+  isDragging: boolean;
+} {
   const [{ isDragging }, drag] = useDrag({
     type: TAB_ITEM_TYPE,
     item: () => {
@@ -32,6 +30,7 @@ export function useTabDnD({
     collect: monitor => ({
       isDragging: monitor.isDragging(),
     }),
+    canDrag,
   });
 
   const [, drop] = useDrop({
@@ -77,5 +76,6 @@ interface Props {
 
   onDrop(oldIndex: number, newIndex: number): void;
 
-  ref: MutableRefObject<HTMLElement>;
+  ref?: MutableRefObject<HTMLElement>;
+  canDrag?: boolean;
 }

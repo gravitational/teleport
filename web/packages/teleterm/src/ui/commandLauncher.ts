@@ -15,13 +15,81 @@ limitations under the License.
 */
 
 import { IAppContext } from 'teleterm/ui/types';
+import { routing } from 'teleterm/ui/uri';
+import { tsh } from 'teleterm/ui/services/clusters/types';
 
 const commands = {
+  // For handling the "Connect" button next to a server.
   ssh: {
     displayName: '',
     description: '',
     run(ctx: IAppContext, args: { serverUri: string }) {
       ctx.modalsService.openProxySshDialog(args.serverUri);
+    },
+  },
+  // For handling "tsh ssh" executed from the command bar.
+  'tsh-ssh': {
+    displayName: '',
+    description: '',
+    run(
+      ctx: IAppContext,
+      args: { loginHost: string; localClusterUri: string }
+    ) {
+      const { loginHost, localClusterUri } = args;
+      const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
+      const documentsService =
+        ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
+      let login: string | undefined, host: string;
+      const parts = loginHost.split('@');
+
+      if (parts.length > 1) {
+        host = parts.pop();
+        // If someone types in `foo@bar@baz` as input here, `parts` will have more than two
+        // elements. `foo@bar` is probably not a valid login, but we don't want to lose that
+        // input here.
+        //
+        // In any case, we're just repeating what `tsh ssh` is doing with inputs like these.
+        login = parts.join('@');
+      } else {
+        host = parts[0];
+      }
+
+      // TODO(ravicious): Handle finding host by more than just a name.
+      // Basically we have to replicate tsh ssh behavior here.
+      const servers = ctx.clustersService.searchServers(localClusterUri, {
+        search: host,
+        searchableProps: ['hostname'],
+      });
+      let server: tsh.Server | undefined;
+
+      if (servers.length === 1) {
+        server = servers[0];
+      } else if (servers.length > 1) {
+        // TODO(ravicious): Handle ambiguous host name. See `onSSH` in `tool/tsh/tsh.go`.
+        console.error('Ambiguous host');
+      }
+
+      let serverUri: string, serverHostname: string;
+
+      if (server) {
+        serverUri = server.uri;
+        serverHostname = server.hostname;
+      } else {
+        // If we can't find a server by the given hostname, we still want to create a document to
+        // handle the error further down the line.
+        const clusterParams = routing.parseClusterUri(localClusterUri).params;
+        serverUri = routing.getServerUri({
+          ...clusterParams,
+          serverId: host,
+        });
+        serverHostname = host;
+      }
+      // TODO(ravicious): Handle failure due to incorrect host name.
+      const doc = documentsService.createTshNodeDocument(serverUri);
+      doc.title = login ? `${login}@${serverHostname}` : serverHostname;
+      doc.login = login;
+      documentsService.add(doc);
+      documentsService.setLocation(doc.uri);
     },
   },
   'proxy-db': {
@@ -36,7 +104,8 @@ const commands = {
       }
     ) {
       const onSuccess = (gatewayUri: string) => {
-        const documentsService = ctx.workspacesService.getActiveWorkspaceDocumentService()
+        const documentsService =
+          ctx.workspacesService.getActiveWorkspaceDocumentService();
         const db = ctx.clustersService.findDb(args.dbUri);
         const gateway = ctx.clustersService.findGateway(gatewayUri);
         const doc = documentsService.createGatewayDocument({
@@ -63,7 +132,8 @@ const commands = {
     displayName: '',
     description: '',
     run(ctx: IAppContext, args: { kubeUri: string }) {
-      const documentsService = ctx.workspacesService.getActiveWorkspaceDocumentService()
+      const documentsService =
+        ctx.workspacesService.getActiveWorkspaceDocumentService();
       const kubeDoc = documentsService.createTshKubeDocument(args.kubeUri);
       documentsService.add(kubeDoc);
       documentsService.open(kubeDoc.uri);
@@ -101,9 +171,13 @@ const commands = {
   'cluster-open': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext, args: { clusterUri: string }) {
+    async run(ctx: IAppContext, args: { clusterUri: string }) {
       const { clusterUri } = args;
-      const documentsService = ctx.workspacesService.getActiveWorkspaceDocumentService()
+      const rootCluster =
+        ctx.clustersService.findRootClusterByResource(clusterUri);
+      await ctx.workspacesService.setActiveWorkspace(rootCluster.uri);
+      const documentsService =
+        ctx.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
       const doc = documentsService.findClusterDocument(clusterUri);
       if (doc) {
         documentsService.open(doc.uri);
@@ -115,46 +189,16 @@ const commands = {
     },
   },
 
-  'cmd-palette.cluster-login': {
-    displayName: 'login',
-    description: 'Log in to a cluster and retrieve the session',
-    run(appCtx: IAppContext) {
-      appCtx.quickInputService.setState({
-        picker: appCtx.quickInputService.quickLoginPicker,
-        inputValue: '',
-      });
-    },
-  },
-  'cmd-palette.ssh': {
-    displayName: 'ssh',
+  'autocomplete.tsh-ssh': {
+    displayName: 'tsh ssh',
     description: 'Run shell or execute a command on a remote SSH node',
-    run(appCtx: IAppContext) {
-      appCtx.quickInputService.setState({
-        picker: appCtx.quickInputService.quickServerPicker,
-        inputValue: '',
-      });
-    },
+    run() {},
   },
-  'cmd-palette.proxy-db': {
-    displayName: 'proxy db',
+  'autocomplete.tsh-proxy-db': {
+    displayName: 'tsh proxy db',
     description:
       'Start local TLS proxy for database connections when using Teleport',
-    run(appCtx: IAppContext) {
-      appCtx.quickInputService.setState({
-        picker: appCtx.quickInputService.quickDbPicker,
-        inputValue: '',
-      });
-    },
-  },
-  'cmd-palette.db-ls': {
-    displayName: 'db ls',
-    description: 'List cluster available databases',
-    run(appCtx: IAppContext) {
-      appCtx.quickInputService.setState({
-        picker: appCtx.quickInputService.quickLoginPicker,
-        inputValue: '',
-      });
-    },
+    run() {},
   },
 };
 
@@ -169,17 +213,10 @@ export class CommandLauncher {
     commands[name].run(this.appContext, args as any);
   }
 
-  getPaletteCommands() {
+  getAutocompleteCommands() {
     return Object.entries(commands)
-      .filter(([key]) => {
-        return key.startsWith('cmd-palette');
-      })
-      .map(([key, value]) => {
-        return {
-          name: key,
-          ...value,
-        };
-      });
+      .filter(([key]) => key.startsWith('autocomplete.'))
+      .map(([key, value]) => ({ name: key, ...value }));
   }
 }
 

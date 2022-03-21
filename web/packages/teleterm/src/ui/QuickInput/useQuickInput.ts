@@ -17,58 +17,129 @@ limitations under the License.
 import React, { useEffect } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
+import {
+  AutocompleteResult,
+  AutocompletePartialMatch,
+} from 'teleterm/ui/services/quickInput/types';
 
 export default function useQuickInput() {
-  const { quickInputService: serviceQuickInput } = useAppContext();
-  const { picker, visible, inputValue } = serviceQuickInput.useState();
-  const [activeItem, setActiveItem] = React.useState(0);
-  const listItems = React.useMemo(
-    () => picker.onFilter(inputValue),
-    [inputValue, picker]
+  const { quickInputService, workspacesService, commandLauncher } =
+    useAppContext();
+  workspacesService.useState();
+  const documentsService =
+    workspacesService.getActiveWorkspaceDocumentService();
+  const { visible, inputValue } = quickInputService.useState();
+  const [activeSuggestion, setActiveSuggestion] = React.useState(0);
+  const autocompleteResult = React.useMemo(
+    () => quickInputService.getAutocompleteResult(inputValue),
+    // `localClusterUri` has been added to refresh suggestions from
+    // `QuickSshLoginPicker` and `QuickServerPicker` when it changes
+    [inputValue, workspacesService.getActiveWorkspace()?.localClusterUri]
   );
+  const hasSuggestions =
+    autocompleteResult.kind === 'autocomplete.partial-match';
 
   const onFocus = (e: any) => {
     if (e.relatedTarget) {
-      serviceQuickInput.lastFocused = new WeakRef(e.relatedTarget);
+      quickInputService.lastFocused = new WeakRef(e.relatedTarget);
     }
   };
 
-  const onActiveItem = (index: number) => {
-    setActiveItem(index);
+  const onActiveSuggestion = (index: number) => {
+    if (!hasSuggestions) {
+      return;
+    }
+    setActiveSuggestion(index);
   };
 
-  const onPickItem = (index: number) => {
-    setActiveItem(index);
-    picker.onPick(listItems[index]);
+  const onEnter = (index?: number) => {
+    if (!hasSuggestions || !visible) {
+      executeCommand(autocompleteResult);
+      return;
+    }
+
+    // Passing `autocompleteResult` directly to narrow down AutocompleteResult type to
+    // AutocompletePartialMatch.
+    pickSuggestion(autocompleteResult, index);
+  };
+
+  const executeCommand = (autocompleteResult: AutocompleteResult) => {
+    const { command } = autocompleteResult;
+
+    switch (command.kind) {
+      case 'command.unknown': {
+        documentsService.openNewTerminal(inputValue);
+        break;
+      }
+      case 'command.tsh-ssh': {
+        const { localClusterUri } = workspacesService.getActiveWorkspace();
+
+        commandLauncher.executeCommand('tsh-ssh', {
+          loginHost: command.loginHost,
+          localClusterUri,
+        });
+        break;
+      }
+    }
+
+    quickInputService.clearInputValueAndHide();
+  };
+
+  const pickSuggestion = (
+    autocompleteResult: AutocompletePartialMatch,
+    index?: number
+  ) => {
+    const suggestion = autocompleteResult.suggestions[index];
+
+    setActiveSuggestion(index);
+    quickInputService.pickSuggestion(
+      autocompleteResult.targetToken,
+      suggestion
+    );
   };
 
   const onBack = () => {
-    serviceQuickInput.goBack();
-    setActiveItem(0);
+    setActiveSuggestion(0);
+
+    // If there are suggestions to show, the first onBack call should always just close the
+    // suggestions and the second call should actually go back.
+    if (visible && hasSuggestions) {
+      quickInputService.hide();
+    } else {
+      quickInputService.goBack();
+    }
   };
 
   useKeyboardShortcuts({
-    'focus-global-search': () => {
-      serviceQuickInput.show();
+    'open-quick-input': () => {
+      quickInputService.show();
     },
   });
 
+  // Reset active suggestion when the suggestion list changes.
+  // We extract just the tokens and stringify the list to avoid stringifying big objects.
+  // See https://github.com/facebook/react/issues/14476#issuecomment-471199055
   useEffect(() => {
-    setActiveItem(0);
-  }, [picker]);
+    setActiveSuggestion(0);
+  }, [
+    hasSuggestions &&
+      JSON.stringify(
+        autocompleteResult.suggestions.map(suggestion => suggestion.token)
+      ),
+  ]);
 
   return {
     visible,
-    activeItem,
+    autocompleteResult,
+    activeSuggestion,
     inputValue,
-    listItems,
     onFocus,
     onBack,
-    onPickItem,
-    onActiveItem,
-    onInputChange: serviceQuickInput.setInputValue,
-    onHide: serviceQuickInput.hide,
-    onShow: serviceQuickInput.show,
+    onEnter,
+    onActiveSuggestion,
+    onInputChange: quickInputService.setInputValue,
+    onHide: quickInputService.hide,
+    onShow: quickInputService.show,
   };
 }
 

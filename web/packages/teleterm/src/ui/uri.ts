@@ -36,6 +36,12 @@ export const routing = {
     return leafMatch || rootMatch;
   },
 
+  // Pass either a root or a leaf cluster URI to get back a root cluster URI.
+  ensureRootClusterUri(uri: string) {
+    const { rootClusterId } = routing.parseClusterUri(uri).params;
+    return routing.getClusterUri({ rootClusterId });
+  },
+
   parseKubeUri(uri: string) {
     return routing.parseUri(uri, paths.kube);
   },
@@ -79,6 +85,10 @@ export const routing = {
     }
 
     return generatePath(paths.rootCluster, params as any);
+  },
+
+  getServerUri(params: Params) {
+    return generatePath(paths.server, params as any);
   },
 
   isClusterServer(clusterUri: string, serverUri: string) {

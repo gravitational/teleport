@@ -26,7 +26,11 @@ import {
   getGatewayConnectionByDocument,
   getServerConnectionByDocument,
 } from './trackedConnectionUtils';
-import { TrackedConnection, TrackedGatewayConnection } from './types';
+import {
+  ExtendedTrackedConnection,
+  TrackedConnection,
+  TrackedGatewayConnection,
+} from './types';
 
 export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerState> {
   private _trackedConnectionOperationsFactory: TrackedConnectionOperationsFactory;
@@ -55,17 +59,24 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     return useStore(this).state;
   }
 
-  getConnections(): TrackedConnection[] {
-    return this.state.connections;
+  getConnections(): ExtendedTrackedConnection[] {
+    return this.state.connections.map(connection => {
+      const { rootClusterUri, leafClusterUri } =
+        this._trackedConnectionOperationsFactory.create(connection);
+      const cluster = this._clusterService.findCluster(
+        leafClusterUri || rootClusterUri
+      );
+      return { ...connection, clusterName: cluster?.name };
+    });
   }
 
   async activateItem(id: string): Promise<void> {
     const connection = this.state.connections.find(c => c.id === id);
-    const { clusterUri, activate } =
+    const { rootClusterUri, activate } =
       this._trackedConnectionOperationsFactory.create(connection);
 
-    if (clusterUri !== this._workspacesService.getRootClusterUri()) {
-      await this._workspacesService.setActiveWorkspace(clusterUri);
+    if (rootClusterUri !== this._workspacesService.getRootClusterUri()) {
+      await this._workspacesService.setActiveWorkspace(rootClusterUri);
     }
     activate();
   }

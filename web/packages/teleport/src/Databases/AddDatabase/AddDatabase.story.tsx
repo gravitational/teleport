@@ -15,18 +15,37 @@ limitations under the License.
 */
 
 import React from 'react';
-import Component from './AddDatabase';
+import { AuthType } from 'teleport/services/user';
+import { AddDatabase } from './AddDatabase';
 
 export default {
   title: 'Teleport/Databases/Add',
 };
 
-export const Add = () => (
-  <Component
-    isEnterprise={false}
-    username="yassine"
-    version="6.1.3"
-    onClose={() => null}
-    authType="local"
-  />
+export const WithToken = () => <AddDatabase {...props} />;
+export const Processing = () => (
+  <AddDatabase {...props} attempt={{ status: 'processing' }} />
 );
+export const WithoutTokenLocal = () => (
+  <AddDatabase {...props} attempt={{ status: 'failed' }} />
+);
+export const WithoutTokenSSO = () => (
+  <AddDatabase {...props} attempt={{ status: 'failed' }} authType="sso" />
+);
+
+const props = {
+  isEnterprise: false,
+  username: 'yassine',
+  version: '6.1.3',
+  onClose: () => null,
+  authType: 'local' as AuthType,
+  attempt: {
+    status: 'success',
+    statusText: '',
+  } as any,
+  token: 'some-join-token-hash',
+  createJoinToken() {
+    return Promise.resolve(null);
+  },
+  expiry: '4 hours',
+};

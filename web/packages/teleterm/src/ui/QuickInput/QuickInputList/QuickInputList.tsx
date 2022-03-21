@@ -14,23 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { Label, Box, Text, Flex } from 'design';
+import { Box, Flex, Label, Text } from 'design';
+import { makeLabelTag } from 'teleport/components/formatters';
 import * as types from 'teleterm/ui/services/quickInput/types';
+import { Cli, Server, Person, Database } from 'design/Icon';
 
 const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
+  const activeItemRef = useRef<HTMLDivElement>();
   const { items, activeItem } = props;
   if (items.length === 0) {
     return null;
   }
 
+  useEffect(() => {
+    // `false` - bottom of the element will be aligned to the bottom of the visible area of the scrollable ancestor
+    activeItemRef.current?.scrollIntoView(false);
+  }, [activeItem]);
+
   const $items = items.map((r, index) => {
     const Cmpt = ComponentMap[r.kind] || UnknownItem;
+    const isActive = index === activeItem;
     return (
       <StyledItem
         data-attr={index}
-        $active={index === activeItem}
+        ref={isActive ? activeItemRef : null}
+        $active={isActive}
         key={` ${index}`}
       >
         <Cmpt item={r} />
@@ -48,6 +58,7 @@ const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
 
   return (
     <StyledGlobalSearchResults
+      position={props.position}
       ref={ref}
       tabIndex={-1}
       data-attr="quickpicker.list"
@@ -60,79 +71,80 @@ const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
 
 export default QuickInputList;
 
-function ServerItem(props: { item: types.ItemServer }) {
-  const { hostname, uri, labelsList } = props.item.data;
+function CmdItem(props: { item: types.SuggestionCmd }) {
+  return (
+    <Flex alignItems="center">
+      <SquareIconBackground color="#512FC9">
+        <Cli fontSize="10px" />
+      </SquareIconBackground>
+      <Box mr={2}>{props.item.data.displayName}</Box>
+    </Flex>
+  );
+}
+
+function SshLoginItem(props: { item: types.SuggestionSshLogin }) {
+  return (
+    <Flex alignItems="center">
+      <SquareIconBackground color="#FFAB00">
+        <Person fontSize="10px" />
+      </SquareIconBackground>
+      <Box mr={2}>{props.item.data}</Box>
+    </Flex>
+  );
+}
+
+function ServerItem(props: { item: types.SuggestionServer }) {
+  const { hostname, labelsList } = props.item.data;
   const $labels = labelsList.map((label, index) => (
     <Label mr="1" key={index} kind="secondary">
-      {label.name}: {label.value}
+      {makeLabelTag(label)}
     </Label>
   ));
 
   return (
-    <div>
-      <Flex alignItems="center">
+    <Flex alignItems="center" p={1} minWidth="300px">
+      <SquareIconBackground color="#4DB2F0">
+        <Server fontSize="10px" />
+      </SquareIconBackground>
+      <Flex flexDirection="column" ml={1}>
         <Box mr={2}>{hostname}</Box>
-        <Box color="text.placeholder">{uri}</Box>
+        <Box>{$labels}</Box>
       </Flex>
-      {$labels}
-    </div>
+    </Flex>
   );
 }
 
-function DbItem(props: { item: types.ItemDb }) {
+function DatabaseItem(props: { item: types.SuggestionDatabase }) {
   const db = props.item.data;
   const $labels = db.labelsList.map((label, index) => (
     <Label mr="1" key={index} kind="secondary">
-      {label.name}: {label.value}
+      {makeLabelTag(label)}
     </Label>
   ));
+
   return (
-    <div>
-      <Flex alignItems="center">
-        <Box mr={2}>{db.name}</Box>
-        <Box color="text.placeholder">{db.uri}</Box>
-        <Text ml="auto" typography="body2" fontSize={0}>
-          {db.type}/{db.protocol}
-        </Text>
+    <Flex alignItems="center" p={1} minWidth="300px">
+      <SquareIconBackground color="#4DB2F0">
+        <Database fontSize="10px" />
+      </SquareIconBackground>
+      <Flex flexDirection="column" ml={1} flex={1}>
+        <Flex justifyContent="space-between" alignItems="center">
+          <Box mr={2}>{db.name}</Box>
+          <Box mr={2}>
+            <Text typography="body2" fontSize={0}>
+              {db.type}/{db.protocol}
+            </Text>
+          </Box>
+        </Flex>
+        <Box>{$labels}</Box>
       </Flex>
-      {$labels}
-    </div>
-  );
-}
-
-function CmdItem(props: { item: types.ItemCmd }) {
-  return (
-    <Flex alignItems="center">
-      <Box mr={2}>{props.item.data.displayName}</Box>
-      <Box color="text.placeholder">{props.item.data.description}</Box>
     </Flex>
   );
 }
 
-function ClusterItem(props: { item: types.ItemCluster }) {
-  return (
-    <Flex alignItems="center">
-      <Box mr={2}>{props.item.data.name}</Box>
-    </Flex>
-  );
-}
-
-function UnknownItem(props: { item: types.Item }) {
+function UnknownItem(props: { item: types.Suggestion }) {
   const { kind } = props.item;
   return <div>unknown kind: {kind} </div>;
-}
-
-function EmptyItem(props: { item: types.ItemEmpty }) {
-  return <div>{props.item.data.message || 'Empty'}</div>;
-}
-
-function NewClusterItem(props: { item: types.ItemNewCluster }) {
-  return (
-    <Flex alignItems="center">
-      <Box mr={2}>{props.item.data.displayName}</Box>
-      <Box color="text.placeholder">{props.item.data.description}</Box>
-    </Flex>
-  );
 }
 
 const StyledItem = styled.div(({ theme, $active }) => {
@@ -142,26 +154,27 @@ const StyledItem = styled.div(({ theme, $active }) => {
       background: theme.colors.primary.lighter,
     },
 
-    borderBottom: `2px solid ${theme.colors.primary.main}`,
+    borderBottom: `2px solid ${theme.colors.primary.placeholder}`,
     padding: '2px 8px',
     color: theme.colors.primary.contrastText,
     background: $active
       ? theme.colors.primary.lighter
-      : theme.colors.primary.light,
+      : theme.colors.primary.dark,
   };
 });
 
-const StyledGlobalSearchResults = styled.div(({ theme }) => {
+const StyledGlobalSearchResults = styled.div(({ theme, position }) => {
   return {
     boxShadow: '8px 8px 18px rgb(0 0 0)',
     color: theme.colors.primary.contrastText,
     background: theme.colors.primary.light,
     boxSizing: 'border-box',
-    width: '600px',
-    marginTop: '32px',
+    marginTop: '42px',
+    left: position ? position + 'px' : 0,
     display: 'block',
+    transition: '0.12s',
     position: 'absolute',
-    border: '1px solid ' + theme.colors.action.hover,
+    borderRadius: '4px',
     fontSize: '12px',
     listStyle: 'none outside none',
     textShadow: 'none',
@@ -172,19 +185,30 @@ const StyledGlobalSearchResults = styled.div(({ theme }) => {
 });
 
 const ComponentMap: Record<
-  types.Item['kind'],
-  React.FC<{ item: types.Item }>
+  types.Suggestion['kind'],
+  React.FC<{ item: types.Suggestion }>
 > = {
-  ['item.db']: DbItem,
-  ['item.server']: ServerItem,
-  ['item.cluster']: ClusterItem,
-  ['item.cluster-new']: NewClusterItem,
-  ['item.cmd']: CmdItem,
-  ['item.empty']: EmptyItem,
+  ['suggestion.cmd']: CmdItem,
+  ['suggestion.ssh-login']: SshLoginItem,
+  ['suggestion.server']: ServerItem,
+  ['suggestion.database']: DatabaseItem,
 };
 
 type Props = {
-  items: types.Item[];
+  items: types.Suggestion[];
   activeItem: number;
+  position: number;
   onPick(index: number): void;
 };
+
+const SquareIconBackground = styled(Box)`
+  background: ${props => props.color};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+  width: 14px;
+  margin-right: 8px;
+  border-radius: 2px;
+  padding: 4px;
+`;

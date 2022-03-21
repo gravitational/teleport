@@ -3,6 +3,7 @@ export type PtyOptions = {
   path: string;
   args: string[] | string;
   cwd?: string;
+  initCommand?: string;
 };
 
 export type PtyProcess = {
@@ -24,11 +25,12 @@ export type PtyServiceClient = {
 export type ShellCommand = {
   kind: 'pty.shell';
   cwd?: string;
+  initCommand?: string;
 };
 
 export type TshLoginCommand = {
   kind: 'pty.tsh-login';
-  login: string;
+  login?: string;
   serverId: string;
   rootClusterId: string;
   leafClusterId?: string;

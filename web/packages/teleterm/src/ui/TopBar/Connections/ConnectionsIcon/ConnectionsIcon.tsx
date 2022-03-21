@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { ListThin } from 'design/Icon';
+import { Cluster } from 'design/Icon';
 import styled from 'styled-components';
 import { Button } from 'design';
 import { ConnectionsIconStatusIndicator } from './ConnectionsIconStatusIndicator';
@@ -21,7 +21,7 @@ export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
           m="auto"
           title="Connections"
         >
-          <ListThin fontSize={12} />
+          <Cluster fontSize={14} />
         </StyledButton>
       </Container>
     );

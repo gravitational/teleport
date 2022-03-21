@@ -16,7 +16,8 @@
 
 import React from 'react';
 import { fireEvent, render, screen } from 'design/utils/testing';
-import AddDialog, { Props } from './AddDatabase';
+import { Props, AddDatabase } from './AddDatabase';
+import { State } from './useAddDatabase';
 
 describe('correct database add command generated with given input', () => {
   test.each`
@@ -32,7 +33,7 @@ describe('correct database add command generated with given input', () => {
   `(
     'should generate correct command for input: $input',
     ({ input, output }) => {
-      render(<AddDialog {...props} />);
+      render(<AddDatabase {...props} />);
 
       const dropDownInputEl = document.querySelector('input');
 
@@ -45,29 +46,19 @@ describe('correct database add command generated with given input', () => {
   );
 });
 
-test('correct tsh login command generated with local authType', () => {
-  render(<AddDialog {...props} />);
-  const output = 'tsh login --proxy=localhost:443 --auth=local --user=yassine';
-
-  expect(screen.queryByText(output)).not.toBeNull();
-});
-
-test('correct tsh login command generated with sso authType', () => {
-  render(<AddDialog {...props} authType="sso" />);
-  const output = 'tsh login --proxy=localhost:443';
-
-  expect(screen.queryByText(output)).not.toBeNull();
-});
-
-test('render instructions dialog for adding database', () => {
-  render(<AddDialog {...props} />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
-});
-
-const props: Props = {
+const props: Props & State = {
   isEnterprise: false,
   username: 'yassine',
   version: '6.1.3',
   onClose: () => null,
   authType: 'local',
+  attempt: {
+    status: 'failed',
+    statusText: '',
+  } as any,
+  token: 'some-token',
+  createJoinToken() {
+    return Promise.resolve(null);
+  },
+  expiry: '4 hours',
 };

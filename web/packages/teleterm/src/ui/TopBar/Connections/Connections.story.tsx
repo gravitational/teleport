@@ -18,6 +18,7 @@ export function ExpanderConnections() {
           id: 'e9c4fbc2',
           serverUri: 'brock',
           login: 'casey',
+          clusterName: 'teleport.example.sh',
         },
         {
           connected: true,
@@ -27,6 +28,7 @@ export function ExpanderConnections() {
           targetUri: 'brock',
           port: '22',
           gatewayUri: 'empty',
+          clusterName: 'teleport.example.sh',
         },
         {
           connected: false,
@@ -35,6 +37,7 @@ export function ExpanderConnections() {
           id: '949651ed',
           serverUri: 'brock',
           login: 'casey',
+          clusterName: 'teleport.example.sh',
         },
       ];
     },

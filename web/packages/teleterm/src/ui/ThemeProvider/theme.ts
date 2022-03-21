@@ -95,8 +95,8 @@ const colors = {
   subtle: '#CFD8DC',
   link: '#039BE5',
   terminal: '#28FE14',
-  terminalDark: '#01172C',
-  bgTerminal: '#010B1C',
+  terminalDark: '#011223',
+  bgTerminal: '#01172C',
 
   danger: pink.A400,
   highlight: yellow[50],

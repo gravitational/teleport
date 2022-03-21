@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import useAsync from 'teleterm/ui/useAsync';
@@ -25,6 +25,7 @@ export default function useGateway(doc: types.DocumentGateway) {
   const workspaceDocumentsService = useWorkspaceDocumentsService();
   const gateway = ctx.clustersService.findGateway(doc.gatewayUri);
   const connected = !!gateway;
+  const cluster = ctx.clustersService.findRootClusterByResource(doc.targetUri);
 
   const [connectAttempt, createGateway, setConnectAttempt] = useAsync(
     async () => {
@@ -45,10 +46,7 @@ export default function useGateway(doc: types.DocumentGateway) {
   });
 
   const reconnect = () => {
-    const cluster = ctx.clustersService.findRootClusterByResource(
-      doc.targetUri
-    );
-    if (cluster && cluster.connected) {
+    if (cluster?.connected) {
       createGateway();
       return;
     }
@@ -74,6 +72,12 @@ export default function useGateway(doc: types.DocumentGateway) {
       workspaceDocumentsService.close(doc.uri);
     }
   }, [disconnectAttempt.status]);
+
+  useEffect(() => {
+    if (cluster.connected) {
+      createGateway();
+    }
+  }, [cluster.connected]);
 
   return {
     doc,

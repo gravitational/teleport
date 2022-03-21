@@ -64,13 +64,24 @@ const UnorderedList = styled.ul`
 
 const DarkInput = styled(Input)`
   background: inherit;
-  border: 1px ${props => props.theme.colors.light} solid;
+  border: 1px ${props => props.theme.colors.action.disabledBackground} solid;
+  border-radius: 51px;
   color: ${props => props.theme.colors.light};
   margin-bottom: 10px;
   font-size: 14px;
   opacity: 0.6;
+  height: 34px;
 
   ::placeholder {
+    opacity: 1;
+  }
+
+  & :hover {
+    border-color: ${props => props.theme.colors.action.active};
+  }
+  
+  &:focus {
+    border-color: ${props => props.theme.colors.secondary.main};
     opacity: 1;
   }
 `;

@@ -1,13 +1,14 @@
 import React from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
+import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import DocumentTerminal from 'teleterm/ui/DocumentTerminal';
 import Document from 'teleterm/ui/Document';
-import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import styled from 'styled-components';
 import { WorkspaceDocumentsServiceProvider } from './workspaceDocumentsServiceContext';
+import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 
 export function DocumentsRenderer() {
   const { workspacesService } = useAppContext();
@@ -28,8 +29,14 @@ export function DocumentsRenderer() {
             isVisible={clusterUri === workspacesService.getRootClusterUri()}
             key={clusterUri}
           >
-            <WorkspaceDocumentsServiceProvider value={workspaceDocumentsService}>
-              {renderDocuments(workspaceDocumentsService)}
+            <WorkspaceDocumentsServiceProvider
+              value={workspaceDocumentsService}
+            >
+              {workspaceDocumentsService.getDocuments().length ? (
+                renderDocuments(workspaceDocumentsService)
+              ) : (
+                <KeyboardShortcutsPanel />
+              )}
             </WorkspaceDocumentsServiceProvider>
           </DocumentsContainer>
         ))}

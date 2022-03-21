@@ -12,26 +12,26 @@ interface IdentityListProps {
   loggedInUser: LoggedInUser;
   clusters: IdentityRootCluster[];
 
-  removeCluster(clusterUri: string): void;
+  onRemoveCluster(clusterUri: string): void;
 
-  selectCluster(clusterUri: string): void;
+  onSelectCluster(clusterUri: string): void;
 
-  addCluster(): void;
+  onAddCluster(): void;
 
-  logout(): void;
+  onLogout(): void;
 }
 
 export function IdentityList(props: IdentityListProps) {
   return (
-    <Container py="12px">
+    <>
       <Flex px={'24px'} pb={2} justifyContent="space-between">
         <Box>
-          <Text bold>{props.loggedInUser.name}</Text>
+          <Text bold>{props.loggedInUser?.name}</Text>
           <Text typography="body2" color="text.secondary">
             {props.loggedInUser?.rolesList?.join(', ')}
           </Text>
         </Box>
-        <ButtonIcon onClick={props.addCluster} title="Add cluster">
+        <ButtonIcon onClick={props.onAddCluster} title="Add cluster">
           <Add />
         </ButtonIcon>
       </Flex>
@@ -45,24 +45,26 @@ export function IdentityList(props: IdentityListProps) {
               isSelected={i.active}
               title={i.name}
               isSyncing={i.clusterSyncStatus}
-              onSelect={() => props.selectCluster(i.uri)}
-              onRemove={() => props.removeCluster(i.uri)}
+              onSelect={() => props.onSelectCluster(i.uri)}
+              onRemove={() => props.onRemoveCluster(i.uri)}
             />
           ))}
         </Box>
-        <Separator />
-        <Box px={'12px'}>
-          <LogoutItem index={props.clusters.length + 1} logout={props.logout} />
-        </Box>
+        {props.loggedInUser && (
+          <>
+            <Separator />
+            <Box px={'12px'}>
+              <LogoutItem
+                index={props.clusters.length + 1}
+                onLogout={props.onLogout}
+              />
+            </Box>
+          </>
+        )}
       </KeyboardArrowsNavigation>
-    </Container>
+    </>
   );
 }
-
-const Container = styled(Box)`
-  background: ${props => props.theme.colors.primary.dark};
-  width: 280px;
-`;
 
 const Separator = styled.div`
   background: ${props => props.theme.colors.primary.lighter};

@@ -29,16 +29,20 @@ export class TrackedConnectionOperationsFactory {
   private getConnectionServerOperations(
     connection: TrackedServerConnection
   ): TrackedConnectionOperations {
-    const clusterUri = routing.getClusterUri({
-      rootClusterId: routing.parseServerUri(connection.serverUri).params
-        .rootClusterId,
+    const { rootClusterId, leafClusterId } = routing.parseServerUri(
+      connection.serverUri
+    ).params;
+    const { rootClusterUri, leafClusterUri } = this.getClusterUris({
+      rootClusterId,
+      leafClusterId,
     });
 
     const documentsService =
-      this._workspacesService.getWorkspaceDocumentService(clusterUri);
+      this._workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
     return {
-      clusterUri,
+      rootClusterUri,
+      leafClusterUri,
       activate: () => {
         let srvDoc = documentsService
           .getDocuments()
@@ -68,16 +72,20 @@ export class TrackedConnectionOperationsFactory {
   private getConnectionGatewayOperations(
     connection: TrackedGatewayConnection
   ): TrackedConnectionOperations {
-    const clusterUri = routing.getClusterUri({
-      rootClusterId: routing.parseDbUri(connection.targetUri).params
-        .rootClusterId,
+    const { rootClusterId, leafClusterId } = routing.parseDbUri(
+      connection.targetUri
+    ).params;
+    const { rootClusterUri, leafClusterUri } = this.getClusterUris({
+      rootClusterId,
+      leafClusterId,
     });
 
     const documentsService =
-      this._workspacesService.getWorkspaceDocumentService(clusterUri);
+      this._workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
     return {
-      clusterUri,
+      rootClusterUri,
+      leafClusterUri,
       activate: () => {
         let gwDoc = documentsService
           .getDocuments()
@@ -110,10 +118,33 @@ export class TrackedConnectionOperationsFactory {
       },
     };
   }
+
+  private getClusterUris({
+    rootClusterId,
+    leafClusterId,
+  }: {
+    rootClusterId: string;
+    leafClusterId: string;
+  }): { rootClusterUri: string; leafClusterUri: string } {
+    const rootClusterUri = routing.getClusterUri({
+      rootClusterId,
+    });
+    const leafClusterUri = routing.getClusterUri({
+      rootClusterId,
+      leafClusterId,
+    });
+
+    return {
+      rootClusterUri,
+      leafClusterUri:
+        rootClusterUri === leafClusterUri ? undefined : leafClusterUri,
+    };
+  }
 }
 
 interface TrackedConnectionOperations {
-  clusterUri: string;
+  rootClusterUri: string;
+  leafClusterUri: string;
 
   activate(): void;
 

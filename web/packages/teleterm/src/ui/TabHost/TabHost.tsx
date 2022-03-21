@@ -23,6 +23,7 @@ import { Tabs } from 'teleterm/ui/Tabs';
 import { useTabShortcuts } from './useTabShortcuts';
 import { DocumentsRenderer } from 'teleterm/ui/Documents';
 import { useNewTabOpener } from './useNewTabOpener';
+import { ClusterConnectPanel } from './ClusterConnectPanel/ClusterConnectPanel';
 
 export function TabHostContainer() {
   const ctx = useAppContext();
@@ -34,7 +35,7 @@ export function TabHostContainer() {
     if (isRootClusterSelected) {
       return <TabHost />;
     }
-    return <p>Select a cluster first</p>;
+    return <ClusterConnectPanel />;
   }, [isRootClusterSelected]);
 }
 
@@ -87,7 +88,7 @@ export function TabHost() {
 
   return (
     <StyledTabHost>
-      <Flex bg="terminalDark" height="32px">
+      <Flex height="32px">
         <Tabs
           flex="1"
           items={getActiveWorkspaceDocuments()}

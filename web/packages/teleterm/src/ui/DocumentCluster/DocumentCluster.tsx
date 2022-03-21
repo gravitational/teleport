@@ -14,17 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Text, Flex, Box, ButtonPrimary } from 'design';
+import { Box, ButtonPrimary, Flex, Text } from 'design';
 import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import ClusterCtx, {
-  useClusterContext,
   ClusterContextProvider,
+  useClusterContext,
 } from './clusterContext';
 import ClusterResources from './ClusterResources';
+import ClusterSearch from './ClusterResources/ClusterSearch';
 
 export default function Container(props: DocumentProps) {
   const { clusterUri } = props.doc;
@@ -68,17 +69,19 @@ export function Cluster() {
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
       <Flex justifyContent="space-between">
-        <Text typography="h4" color="text.secondary">
+        <Text typography="body1" color="text.secondary">
           {`clusters / `}
-          <Text as="span" typography="h4" color="text.primary">
+          <Text as="span" typography="h6" color="text.primary">
             {`${clusterCtx.state.clusterName}`}
           </Text>
         </Text>
-        <ButtonPrimary height="24px" size="small" onClick={clusterCtx.sync}>
-          Sync
-        </ButtonPrimary>
+        <Flex>
+          <ClusterSearch onChange={clusterCtx.changeSearchValue} />
+          <ButtonPrimary ml={2} size="small" onClick={clusterCtx.sync}>
+            Sync
+          </ButtonPrimary>
+        </Flex>
       </Flex>
-      <StyledBorder mt={2} mb={3} />
       <ClusterResources />
     </Layout>
   );
@@ -136,16 +139,10 @@ const Layout = styled(Box)`
   flex-direction: column;
   display: flex;
   flex: 1;
-  max-width: 1024px;
+  max-width: 1248px;
+
   ::after {
     content: ' ';
     padding-bottom: 24px;
   }
 `;
-
-const StyledBorder = styled(Box)(({ theme }) => {
-  return {
-    background: theme.colors.primary.lighter,
-    minHeight: '1px',
-  };
-});
