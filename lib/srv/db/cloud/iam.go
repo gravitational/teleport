@@ -282,13 +282,8 @@ func (c *IAM) migrateInlinePolicy(ctx context.Context) {
 		})
 	}
 
-	if err != nil {
-		err = common.ConvertError(err)
-		if trace.IsAccessDenied(err) { // Permission errors are expected.
-			c.log.WithError(err).Debugf("No permissions to delete inline policy %v for %v", oldPolicyName, identity)
-		} else if !trace.IsNotFound(err) {
-			c.log.WithError(err).Errorf("Failed to delete inline policy %v for %v. It is recommended to remove this policy as it is no longer required.", oldPolicyName, identity)
-		}
+	if err != nil && !trace.IsNotFound(common.ConvertError(err)) {
+		c.log.WithError(err).Errorf("Failed to delete inline policy %v for %v. It is recommended to remove this policy as it is no longer required.", oldPolicyName, identity)
 	}
 }
 

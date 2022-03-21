@@ -92,7 +92,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -101,7 +101,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -110,7 +110,16 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+		AWS:      types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+	})
+	require.NoError(t, err)
+
+	databaseMissingMetadata, err := types.NewDatabaseV3(types.Metadata{
+		Name: "redshift",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost",
+		AWS:      types.AWS{Redshift: types.Redshift{ClusterID: "missing metadata"}},
 	})
 	require.NoError(t, err)
 
@@ -129,58 +138,75 @@ func TestAWSIAM(t *testing.T) {
 	require.NoError(t, err)
 	go configurator.Start()
 
-	// Configure RDS database and make sure IAM was enabled and policy was attached.
-	err = configurator.Setup(ctx, rdsDatabase)
-	require.NoError(t, err)
-	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
-	require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
-	policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
-	require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
+	t.Run("RDS", func(t *testing.T) {
+		// Configure RDS database and make sure IAM was enabled and policy was attached.
+		err = configurator.Setup(ctx, rdsDatabase)
+		require.NoError(t, err)
+		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
+		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 
-	// Deconfigure RDS database, policy should get detached.
-	err = configurator.Teardown(ctx, rdsDatabase)
-	require.NoError(t, err)
-	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
-	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
-	require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
+		// Deconfigure RDS database, policy should get detached.
+		err = configurator.Teardown(ctx, rdsDatabase)
+		require.NoError(t, err)
+		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
+	})
 
-	// Configure Aurora database and make sure IAM was enabled and policy was attached.
-	err = configurator.Setup(ctx, auroraDatabase)
-	require.NoError(t, err)
-	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
-	require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
-	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
-	require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
+	t.Run("Aurora", func(t *testing.T) {
+		// Configure Aurora database and make sure IAM was enabled and policy was attached.
+		err = configurator.Setup(ctx, auroraDatabase)
+		require.NoError(t, err)
+		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
+		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 
-	// Deconfigure Aurora database, policy should get detached.
-	err = configurator.Teardown(ctx, auroraDatabase)
-	require.NoError(t, err)
-	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
-	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
-	require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
+		// Deconfigure Aurora database, policy should get detached.
+		err = configurator.Teardown(ctx, auroraDatabase)
+		require.NoError(t, err)
+		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
+	})
 
-	// Configure Redshift database and make sure policy was attached.
-	err = configurator.Setup(ctx, redshiftDatabase)
-	require.NoError(t, err)
-	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
-	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
-	require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
+	t.Run("Redshift", func(t *testing.T) {
+		// Configure Redshift database and make sure policy was attached.
+		err = configurator.Setup(ctx, redshiftDatabase)
+		require.NoError(t, err)
+		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 
-	// Deconfigure Redshift database, policy should get detached.
-	err = configurator.Teardown(ctx, redshiftDatabase)
-	require.NoError(t, err)
-	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
-	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
-	require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
+		// Deconfigure Redshift database, policy should get detached.
+		err = configurator.Teardown(ctx, redshiftDatabase)
+		require.NoError(t, err)
+		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
+	})
 
-	// Setup immediately for the same database should be rate limited.
-	err = configurator.Setup(ctx, redshiftDatabase)
-	require.True(t, trace.IsLimitExceeded(err), "expect err is trace.LimitExceeded")
+	t.Run("rate limiting setup", func(t *testing.T) {
+		// Setup immediately for the same database should be rate limited.
+		err = configurator.Setup(ctx, redshiftDatabase)
+		require.True(t, trace.IsLimitExceeded(err), "expect err is trace.LimitExceeded")
 
-	// Rate limit is lifted after advancing time.
-	timetools.AdvanceTimeBy(limiterClock, 2*time.Hour)
-	err = configurator.Teardown(ctx, redshiftDatabase)
-	require.NoError(t, err)
+		// Rate limit is lifted after advancing time.
+		timetools.AdvanceTimeBy(limiterClock, 2*time.Hour)
+		err = configurator.Teardown(ctx, redshiftDatabase)
+		require.NoError(t, err)
+	})
+
+	t.Run("missing metadata", func(t *testing.T) {
+		// Database without enough metadata to generate IAM actions should not
+		// be added to the policy.
+		err = configurator.Setup(ctx, databaseMissingMetadata)
+		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		require.NotContains(t, policy, databaseMissingMetadata.GetAWS().Redshift.ClusterID)
+	})
 }
 
 // TestAWSIAMNoPermissions tests that lack of AWS permissions does not produce
@@ -216,15 +242,15 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	}{
 		{
 			name: "RDS database",
-			meta: types.AWS{RDS: types.RDS{InstanceID: "postgres-rds"}},
+			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 		},
 		{
 			name: "Aurora cluster",
-			meta: types.AWS{RDS: types.RDS{ClusterID: "postgres-aurora"}},
+			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 		},
 		{
 			name: "Redshift cluster",
-			meta: types.AWS{Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 		},
 	}
 

@@ -168,13 +168,18 @@ func (r *awsClient) enableIAMAuth(ctx context.Context) error {
 
 // ensureIAMPolicy adds database connect permissions to the agent's policy.
 func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
+	resources := r.cfg.database.GetIAMResources()
+	if len(resources) == 0 {
+		return nil
+	}
+
 	policy, err := r.getIAMPolicy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	action := r.cfg.database.GetIAMAction()
 	var changed bool
-	for _, resource := range r.cfg.database.GetIAMResources() {
+	for _, resource := range resources {
 		if policy.Ensure(awslib.EffectAllow, action, resource) {
 			r.log.Debugf("Permission %q for %q is already part of policy.", action, resource)
 		} else {
@@ -194,12 +199,17 @@ func (r *awsClient) ensureIAMPolicy(ctx context.Context) error {
 
 // deleteIAMPolicy deletes IAM access policy from the identity this agent is running as.
 func (r *awsClient) deleteIAMPolicy(ctx context.Context) error {
+	resources := r.cfg.database.GetIAMResources()
+	if len(resources) == 0 {
+		return nil
+	}
+
 	policy, err := r.getIAMPolicy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	action := r.cfg.database.GetIAMAction()
-	for _, resource := range r.cfg.database.GetIAMResources() {
+	for _, resource := range resources {
 		policy.Delete(awslib.EffectAllow, action, resource)
 	}
 	// If policy is empty now, delete it as IAM policy can't be empty.
