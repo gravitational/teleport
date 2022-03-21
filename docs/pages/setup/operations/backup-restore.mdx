@@ -136,15 +136,14 @@ The `--bootstrap` flag has no effect, except when the Auth Service initializes
 its backend initialization on first startup, so it is safe for use in
 supervised/High Availability contexts.
 
-## Limitations
+### Limitations
 
 The `--bootstrap` flag doesn't re-trigger Trusted Cluster handshakes, so Trusted
 Cluster resources need to be recreated manually.
 
 All the same limitations around modifying the config file of an existing cluster
-also apply to a new cluster being bootstrapped from the state of an old cluster.
+also apply to a new cluster being bootstrapped from the state of an old cluster:
 
-Of particular note:
   - Changing the cluster name will break your CAs. This will be caught and Teleport
     will refuse to start.
   - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
@@ -197,15 +196,14 @@ The `--bootstrap` flag has no effect, except when the Auth Service initializes
 its backend initialization on first startup, so it is safe for use in
 supervised/High Availability contexts.
 
-## Limitations
+### Limitations
 
 The `--bootstrap` flag doesn't re-trigger Trusted Cluster handshakes, so Trusted
 Cluster resources need to be recreated manually.
 
 All the same limitations around modifying the config file of an existing cluster
-also apply to a new cluster being bootstrapped from the state of an old cluster.
+also apply to a new cluster being bootstrapped from the state of an old cluster:
 
-Of particular note:
   - Changing the cluster name will break your CAs. This will be caught and Teleport
     will refuse to start.
   - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
@@ -217,75 +215,14 @@ Of particular note:
     
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
-<Notice type="tip">
 
-In Teleport Cloud, backend data is managed for you automatically. Follow the
-instructions below if you wish to migrate your Teleport Cloud backend to a
-self-hosted one.
+In Teleport Cloud, backend data is managed for you automatically. If you would
+like to migrate configuration resources to a self-hosted Teleport cluster,
+follow our recommended backup practice of storing configuration resources in a
+git repository and running `tctl create -f` regularly for each resource. This
+will enable you to keep your configuration resources up to date regardless of
+storage backend.
 
-</Notice>
-
-As of version v4.1, you can now quickly export a collection of resources from
-Teleport. This feature was designed to help customers migrate from local storage
-to etcd.
-
-Using `tctl get all --with-secrets` will retrieve the below items:
-
-- Users
-- Certificate Authorities
-- Trusted Clusters
-- Connectors:
-  - Github
-  - SAML
-  - OIDC
-- Roles
-
-When migrating backends, you should back up your Auth Service's
-`data_dir/storage` directly.
-
-### Example of backing up and restoring a cluster
-
-```code
-# Export dynamic configuration state from old cluster
-$ tctl get all --with-secrets > state.yaml
-
-# Prepare a new uninitialized backend (make sure to port
-# any non-default config values from the old config file)
-$ mkdir fresh && cat > fresh.yaml << EOF
-teleport:
-  data_dir: fresh
-EOF
-
-# bootstrap fresh server (kill the old one first!)
-$ sudo teleport start --config fresh.yaml --bootstrap state.yaml
-
-# from another terminal, verify state transferred correctly
-$ tctl --config fresh.yaml get all
-# <your state here>
-```
-
-The `--bootstrap` flag has no effect, except when the Auth Service initializes
-its backend initialization on first startup, so it is safe for use in
-supervised/High Availability contexts.
-
-## Limitations
-
-The `--bootstrap` flag doesn't re-trigger Trusted Cluster handshakes, so Trusted
-Cluster resources need to be recreated manually.
-
-All the same limitations around modifying the config file of an existing cluster
-also apply to a new cluster being bootstrapped from the state of an old cluster.
-
-Of particular note:
-  - Changing the cluster name will break your CAs. This will be caught and Teleport
-    will refuse to start.
-  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
-    public endpoint of the Web UI remains the same. This cannot be caught by
-    Teleport, so be careful!
-  - Any Node whose invite token is defined in the Auth Service's configuration
-    file will be able to join automatically, but Nodes that were added
-    dynamically will need to be re-invited.
-    
 </TabItem>
 </Tabs>
 
