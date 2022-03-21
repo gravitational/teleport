@@ -54,11 +54,13 @@ export function Apps(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Applications</FeatureHeaderTitle>
-        <ButtonAdd
-          isLeafCluster={isLeafCluster}
-          canCreate={canCreate}
-          onClick={showAddApp}
-        />
+        {!isEmpty && (
+          <ButtonAdd
+            isLeafCluster={isLeafCluster}
+            canCreate={canCreate}
+            onClick={showAddApp}
+          />
+        )}
       </FeatureHeader>
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>

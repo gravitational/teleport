@@ -68,16 +68,19 @@ export function Nodes(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
-        <Flex alignItems="center">
-          {hasNodes && (
-            <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
-          )}
-          <ButtonAdd
-            isLeafCluster={isLeafCluster}
-            canCreate={canCreate}
-            onClick={showAddNode}
-          />
-        </Flex>
+        {!isEmpty && (
+          <Flex alignItems="center">
+            {hasNodes && (
+              <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
+            )}
+
+            <ButtonAdd
+              isLeafCluster={isLeafCluster}
+              canCreate={canCreate}
+              onClick={showAddNode}
+            />
+          </Flex>
+        )}
       </FeatureHeader>
       {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
