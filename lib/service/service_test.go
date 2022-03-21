@@ -18,7 +18,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -88,15 +87,11 @@ func TestMonitor(t *testing.T) {
 	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
-	cfg.DataDir, err = ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	defer os.RemoveAll(cfg.DataDir)
+	cfg.DataDir = t.TempDir()
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"], err = ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	defer os.RemoveAll(cfg.DataDir)
+	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false

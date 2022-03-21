@@ -22,7 +22,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -111,7 +110,7 @@ func ReadFromString(configString string) (*FileConfig, error) {
 // ReadConfig reads Teleport configuration from reader in YAML format
 func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	// read & parse YAML config:
-	bytes, err := ioutil.ReadAll(reader)
+	bytes, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed reading Teleport configuration")
 	}
@@ -794,7 +793,7 @@ func getAttestationPEM(certOrPath string) (string, error) {
 	}
 
 	// Try reading as a file and parsing that.
-	data, err := ioutil.ReadFile(certOrPath)
+	data, err := os.ReadFile(certOrPath)
 	if err != nil {
 		// Don't use trace in order to keep a clean error message.
 		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
