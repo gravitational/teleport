@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	osfs "io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -180,7 +179,7 @@ func (fs *FSLocalKeyStore) writeBytes(bytes []byte, fp string) error {
 		fs.log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
-	err := ioutil.WriteFile(fp, bytes, keyFilePerms)
+	err := os.WriteFile(fp, bytes, keyFilePerms)
 	if err != nil {
 		fs.log.Error(err)
 	}
@@ -238,22 +237,22 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		}
 	}
 
-	if _, err := ioutil.ReadDir(fs.KeyDir); err != nil && trace.IsNotFound(err) {
+	if _, err := os.ReadDir(fs.KeyDir); err != nil && trace.IsNotFound(err) {
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	priv, err := ioutil.ReadFile(fs.UserKeyPath(idx))
+	priv, err := os.ReadFile(fs.UserKeyPath(idx))
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
-	pub, err := ioutil.ReadFile(fs.sshCAsPath(idx))
+	pub, err := os.ReadFile(fs.sshCAsPath(idx))
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
 	tlsCertFile := fs.tlsCertPath(idx)
-	tlsCert, err := ioutil.ReadFile(tlsCertFile)
+	tlsCert, err := os.ReadFile(tlsCertFile)
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
@@ -309,14 +308,14 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 
 	if info.IsDir() {
 		certDataMap := map[string][]byte{}
-		certFiles, err := ioutil.ReadDir(certPath)
+		certFiles, err := os.ReadDir(certPath)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
 		for _, certFile := range certFiles {
 			name := keypaths.TrimCertPathSuffix(certFile.Name())
 			if isCert := name != certFile.Name(); isCert {
-				data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
+				data, err := os.ReadFile(filepath.Join(certPath, certFile.Name()))
 				if err != nil {
 					return trace.ConvertSystemError(err)
 				}
@@ -326,7 +325,7 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 		return o.updateKeyWithMap(key, certDataMap)
 	}
 
-	certBytes, err := ioutil.ReadFile(certPath)
+	certBytes, err := os.ReadFile(certPath)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -616,7 +615,7 @@ func matchesWildcard(hostname, pattern string) bool {
 
 // GetKnownHostKeys returns all known public keys from `known_hosts`.
 func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
-	bytes, err := ioutil.ReadFile(fs.knownHostsPath())
+	bytes, err := os.ReadFile(fs.knownHostsPath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -723,7 +722,7 @@ func (fs *fsLocalNonSessionKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]b
 			return nil
 		}
 
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		for len(data) > 0 {
 			if err != nil {
 				return trace.Wrap(err)

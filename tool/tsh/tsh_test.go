@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -674,7 +673,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NotNil(t, cb)
 
 	// prepare the cluster CA separately
-	certBytes, err := ioutil.ReadFile("../../fixtures/certs/identities/ca.pem")
+	certBytes, err := os.ReadFile("../../fixtures/certs/identities/ca.pem")
 	require.NoError(t, err)
 
 	_, hosts, cert, _, _, err := ssh.ParseKnownHosts(certBytes)
