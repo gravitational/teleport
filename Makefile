@@ -858,6 +858,7 @@ buildbox-grpc:
 		api/types/types.proto \
 		api/types/webauthn/webauthn.proto \
 		api/types/wrappers/wrappers.proto \
+		api/backend/proto/backend.proto \
 		lib/datalog/types.proto \
 		lib/events/slice.proto \
 		lib/multiplexer/test/ping.proto \
@@ -882,6 +883,10 @@ buildbox-grpc:
 	cd api/types/wrappers && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		wrappers.proto
+	
+	cd api/backend/proto && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
+		backend.proto
 
 	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \

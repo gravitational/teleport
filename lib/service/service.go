@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
+	"github.com/gravitational/teleport/lib/backend/grpcclient"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -3752,6 +3753,8 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	// etcd backend.
 	case etcdbk.GetName():
 		bk, err = etcdbk.New(ctx, bc.Params)
+	case grpcclient.GetName():
+		bk, err = grpcclient.New(ctx, bc.Params)
 	default:
 		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
 	}

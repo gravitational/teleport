@@ -1,0 +1,147 @@
+// Copyright 2021-2022 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+package backend;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+message Item {
+    // Key is a key of the key value item
+    bytes key = 1;
+
+    // Value is a value of the key value item
+    bytes value = 2;
+
+    // Expires is an optional record expiry time
+    google.protobuf.Timestamp expires = 3
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+
+    // ID is a record ID, newer records have newer ids
+    sfixed64 id = 4;
+
+    // LeaseID is a lease ID, could be set on objects with TTL
+    sfixed64 lease_id = 5;
+}
+
+message Lease {
+    // Key is a key of the key value item
+    bytes key = 1;
+
+    // ID is a record ID, newer records have newer ids
+    sfixed64 id = 2;
+}
+
+message Watch {
+    // resume_last_id is the last item index we saw, and we want to resume from any event after that
+    // point
+    sfixed64 resume_last_id = 1;
+}
+
+message CompareAndSwapRequest {
+    // Expected is the existing item
+    Item expected = 1;
+
+    // replace_with is the new item to swap
+    Item replace_with = 2;
+}
+
+message GetRequest {
+    // Key is a key of the key value item
+    bytes key = 1;
+}
+
+message GetRangeRequest {
+    // start_key is the starting key to request in the range request
+    bytes start_key = 1;
+
+    // end_key is the ending key to request in the range request
+    bytes end_key = 2;
+
+    // limit is the maximum number of results to return
+    int32 limit = 3;
+}
+
+message GetRangeResult { repeated Item items = 1; }
+
+message DeleteRequest {
+    // Key is a key of the key value item
+    bytes key = 1;
+}
+
+message DeleteRangeRequest {
+    // start_key is the starting key to request in the range request
+    bytes start_key = 1;
+
+    // end_key is the ending key to request in the range request
+    bytes end_key = 2;
+}
+
+message KeepAliveRequest {
+    Lease lease = 1;
+    google.protobuf.Timestamp expires = 2
+        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
+}
+
+message Event {
+    // OpType specifies operation type
+    enum OpType {
+        UNKNOWN = 0;
+        UNRELIABLE = 1;
+        INVALID = 2;
+        INIT = 3;
+        PUT = 4;
+        DELETE = 5;
+        GET = 6;
+    }
+    OpType type = 1;
+    Item item = 2;
+}
+
+service BackendService {
+    // Create creates item if it does not exist
+    rpc Create(Item) returns (Lease);
+
+    // Put upserts value into backend
+    rpc Put(Item) returns (Lease);
+
+    // CompareAndSwap compares item with existing item and replaces is with replace_with item
+    rpc CompareAndSwap(CompareAndSwapRequest) returns (Lease);
+
+    // Update updates value in the backend
+    rpc Update(Item) returns (Lease);
+
+    // Get returns a single item or not found error
+    rpc Get(GetRequest) returns (Item);
+
+    // GetRange returns query range
+    rpc GetRange(GetRangeRequest) returns (GetRangeResult);
+
+    // Delete deletes item by key, returns NotFound error if item does not exist
+    rpc Delete(DeleteRequest) returns (google.protobuf.Empty);
+
+    // DeleteRange deletes range of items with keys between startKey and endKey
+    rpc DeleteRange(DeleteRangeRequest) returns (google.protobuf.Empty);
+
+    // KeepAlive keeps object from expiring, updates lease on the existing object,
+    // expires contains the new expiry to set on the lease,
+    // some backends may ignore expires based on the implementation
+    // in case if the lease managed server side
+    rpc KeepAlive(KeepAliveRequest) returns (google.protobuf.Empty);
+
+    // NewWatcher returns a new event watcher
+    rpc NewWatcher(Watch) returns (stream Event);
+}
