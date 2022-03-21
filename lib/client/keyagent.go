@@ -69,18 +69,27 @@ type LocalKeyAgent struct {
 
 	// insecure allows to accept public host keys.
 	insecure bool
+
+	// siteName specifies site to execute operation.
+	siteName string
+}
+
+// sshKnowHostGetter allows to fetch key for particular host - trusted cluster.
+type sshKnowHostGetter interface {
+	// GetKnownHostKeys returns all public keys for a hostname.
+	GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error)
 }
 
 // NewKeyStoreCertChecker returns a new certificate checker
 // using trusted certs from key store
-func NewKeyStoreCertChecker(keyStore LocalKeyStore) ssh.HostKeyCallback {
+func NewKeyStoreCertChecker(keyStore sshKnowHostGetter, host string) ssh.HostKeyCallback {
 	// CheckHostSignature checks if the given host key was signed by a Teleport
 	// certificate authority (CA) or a host certificate the user has seen before.
 	return func(addr string, remote net.Addr, key ssh.PublicKey) error {
 		certChecker := sshutils.CertChecker{
 			CertChecker: ssh.CertChecker{
 				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
-					keys, err := keyStore.GetKnownHostKeys("")
+					keys, err := keyStore.GetKnownHostKeys(host)
 					if err != nil {
 						log.Errorf("Unable to fetch certificate authorities: %v.", err)
 						return false
@@ -128,6 +137,7 @@ type LocalAgentConfig struct {
 	Username   string
 	KeysOption string
 	Insecure   bool
+	SiteName   string
 }
 
 // NewLocalAgent reads all available credentials from the provided LocalKeyStore
@@ -143,6 +153,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 		username:  conf.Username,
 		proxyHost: conf.ProxyHost,
 		insecure:  conf.Insecure,
+		siteName:  conf.SiteName,
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
@@ -327,16 +338,32 @@ func (a *LocalKeyAgent) UserRefusedHosts() bool {
 
 // CheckHostSignature checks if the given host key was signed by a Teleport
 // certificate authority (CA) or a host certificate the user has seen before.
-func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, key ssh.PublicKey) error {
+func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, hostKey ssh.PublicKey) error {
+	key, err := a.GetCoreKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootCluster, err := key.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusters := []string{rootCluster}
+	if rootCluster != a.siteName {
+		// In case of establishing connection to leaf cluster the client validate ssh cert against root
+		// cluster proxy cert and leaf cluster cert.
+		clusters = append(clusters, a.siteName)
+	}
+
 	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
-			IsHostAuthority: a.checkHostCertificate,
+			IsHostAuthority: a.checkHostCertificateForClusters(clusters...),
 			HostKeyFallback: a.checkHostKey,
 		},
 		FIPS: isFIPS(),
 	}
-	a.log.Debugf("Checking key: %s.", ssh.MarshalAuthorizedKey(key))
-	err := certChecker.CheckHostKey(addr, remote, key)
+	a.log.Debugf("Checking key: %s.", ssh.MarshalAuthorizedKey(hostKey))
+	err = certChecker.CheckHostKey(addr, remote, hostKey)
 	if err != nil {
 		a.log.Debugf("Host validation failed: %v.", err)
 		return trace.Wrap(err)
@@ -345,27 +372,35 @@ func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, key ssh
 	return nil
 }
 
-// checkHostCertificate validates a host certificate. First checks the
-// ~/.tsh/known_hosts cache and if not found, prompts the user to accept
-// or reject.
-func (a *LocalKeyAgent) checkHostCertificate(key ssh.PublicKey, addr string) bool {
-	// Check the local cache (where all Teleport CAs are placed upon login) to
-	// see if any of them match.
-	keys, err := a.keyStore.GetKnownHostKeys("")
-	if err != nil {
-		a.log.Errorf("Unable to fetch certificate authorities: %v.", err)
-		return false
-	}
-	for i := range keys {
-		if sshutils.KeysEqual(key, keys[i]) {
-			return true
-		}
-	}
+// checkHostCertificateForClusters validates a host certificate and check if remote key matches the know
+// trusted cluster key based on  ~/.tsh/known_hosts. If server key is not known, the users is prompted to accept or
+// reject the server key.
+func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func(key ssh.PublicKey, addr string) bool {
+	return func(key ssh.PublicKey, addr string) bool {
+		// Check the local cache (where all Teleport CAs are placed upon login) to
+		// see if any of them match.
 
-	// If this certificate was not seen before, prompt the user essentially
-	// treating it like a key.
-	err = a.checkHostKey(addr, nil, key)
-	return err == nil
+		var keys []ssh.PublicKey
+		for _, cluster := range clusters {
+			key, err := a.keyStore.GetKnownHostKeys(cluster)
+			if err != nil {
+				a.log.Errorf("Unable to fetch certificate authorities: %v.", err)
+				return false
+			}
+			keys = append(keys, key...)
+
+		}
+		for i := range keys {
+			if sshutils.KeysEqual(key, keys[i]) {
+				return true
+			}
+		}
+
+		// If this certificate was not seen before, prompt the user essentially
+		// treating it like a key.
+		err := a.checkHostKey(addr, nil, key)
+		return err == nil
+	}
 }
 
 // checkHostKey validates a host key. First checks the

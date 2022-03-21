@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tlsca"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // TestAWSSignerHandler test the AWS SigningService APP handler logic with mocked STS signing credentials.
@@ -117,7 +118,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := func(writer http.ResponseWriter, request *http.Request) {
 				require.Equal(t, tc.wantHost, request.Host)
-				awsAuthHeader, err := ParseSigV4(request.Header.Get(authorizationHeader))
+				awsAuthHeader, err := awsutils.ParseSigV4(request.Header.Get(awsutils.AuthorizationHeader))
 				require.NoError(t, err)
 				require.Equal(t, tc.wantAuthCredRegion, awsAuthHeader.Region)
 				require.Equal(t, tc.wantAuthCredKeyID, awsAuthHeader.KeyID)

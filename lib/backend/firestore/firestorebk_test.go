@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/protobuf/proto"
@@ -46,10 +45,10 @@ func TestMain(m *testing.M) {
 func TestMarshal(t *testing.T) {
 	meta := adminpb.IndexOperationMetadata{}
 	data, err := proto.Marshal(&meta)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	out := adminpb.IndexOperationMetadata{}
 	err = proto.Unmarshal(data, &out)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func firestoreParams() backend.Params {

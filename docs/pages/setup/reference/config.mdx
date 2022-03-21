@@ -11,8 +11,15 @@ By default, it is stored in `/etc/teleport.yaml`.
 
 (!docs/pages/includes/backup-warning.mdx!)
 
-This document aims to be a reference rather than a starting point for a real cluster. To
-get a good starting file, run `teleport configure -o teleport.yaml`.
+This document aims to be a reference rather than a starting point for a real cluster. 
+
+<Admonition type="danger" title="Before using this reference">
+You must edit your configuration file to meet the needs of your environment. Using a copy of the reference configuration will have unintended effects. To create a configuration file that you can use as a starting point, run the following command:
+
+```code
+$ teleport configure -o file
+```
+</Admonition>
 
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
@@ -89,11 +96,11 @@ teleport:
 
     # Logging configuration. Possible output values to disk via 
     # '/var/lib/teleport/teleport.log',
-    # 'stdout', 'stderr' and 'syslog'. Possible severity values are INFO, WARN
-    # and ERROR (default).
+    # 'stdout', 'stderr' and 'syslog'. Possible severity values are DEBUG, INFO (default), WARN,
+    # and ERROR.
     log:
         output: /var/lib/teleport/teleport.log
-        severity: ERROR
+        severity: INFO
 
         # Log format configuration
         # Possible output values are 'json' and 'text' (default).
@@ -329,8 +336,6 @@ auth_service:
 
     # The optional DNS name for the auth server if located behind a load 
     # balancer.
-    # See the "Public Addr" section for more details
-    # (https://goteleport.com/docs/admin-guide/#public-addr).
     public_addr: auth.example.com:3025
 
     # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
@@ -445,8 +450,6 @@ ssh_service:
     # The optional public address the SSH service. This is useful if 
     # administrators want to allow users to connect to nodes directly, 
     # bypassing a Teleport proxy.
-    # See the "Public Addr" section for more details
-    # (https://goteleport.com/docs/admin-guide/#public-addr).
     public_addr: node.example.com:3022
 
     # See explanation of labels in "Labeling Nodes and Applications" section
@@ -543,12 +546,12 @@ proxy_service:
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
-    # See the "Public Addr" section for more details
-
-    # (https://goteleport.com/docs/admin-guide/#public-addr).
+    # If application access is enabled, public_addr is used to write correct
+    # redirects
+    # (https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service).
     # If database access is enabled, Database clients will connect to the Proxy
-    # over this hostname.
-    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy)
+    # over this hostname
+    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy).
     public_addr: proxy.example.com:3080
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
@@ -693,58 +696,8 @@ kubernetes_service:
       period: 1m0s
 
 # This section configures the 'database service'.
-db_service:
-  # Enables the database service. Default is "no".
-  enabled: "yes"
-  # This section contains definitions of all databases proxied by this
-  # service, it can contain multiple database instances.
-  databases:
-    # Name of the database proxy instance used to reference in CLI.
-  - name: "prod"
-    # Free-form description of the database proxy instance.
-    description: "Production database"
-    # Database protocol. Can be "postgres", "mysql", or "mongodb".
-    protocol: "postgres"
-    # Database connection endpoint. Must be reachable from Database Service.
-    uri: "postgres.example.com:5432"
-    # Optional TLS configuration.
-    tls:
-      # TLS verification mode. Valid options are:
-      # 'verify-full' - performs full certificate validation (default).
-      # 'verify-ca' - the same as `verify-full`, but skips the server name 
-      # validation.
-      # 'insecure' - accepts any certificate provided by database (not 
-      # recommended).
-      mode: verify-full
-      # Optional database DNS server name. It allows to override the DNS name 
-      # on a client certificate when connecting to a database.
-      # Use only with 'verify-full' mode.
-      server_name: db.example.com
-      # Optional path to the CA used to validate the database certificate.
-      ca_cert_file: /path/to/pem
-    # AWS specific configuration, only required for RDS/Aurora/Redshift.
-    aws:
-      # Region the database is deployed in.
-      region: "us-east-1"
-      # Redshift specific configuration.
-      redshift:
-        # Redshift cluster identifier.
-        cluster_id: "redshift-cluster-1"
-    # GCP specific configuration for Cloud SQL databases.
-    gcp:
-      # GCP project ID.
-      project_id: "xxx-1234"
-      # Cloud SQL instance ID.
-      instance_id: "example"
-    # Static labels to assign to the database. Used in RBAC.
-    static_labels:
-      env: "prod"
-    # Dynamic labels ("commands"). Used in RBAC.
-    dynamic_labels:
-    - name: "hostname"
-      command: ["hostname"]
-      period: 1m0s
+(!docs/pages/includes/database-access/database-config.yaml!)
 
 # This section configures the windows desktop service
-(!docs/pages/includes/desktop-access/desktop-config.mdx!)
+(!docs/pages/includes/desktop-access/desktop-config.yaml!)
 ```

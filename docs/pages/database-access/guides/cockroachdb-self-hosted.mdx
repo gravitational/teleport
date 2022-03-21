@@ -28,15 +28,16 @@ This guide will help you to:
 
 ## Step 1/3. Install and configure Teleport
 
-### Setup Teleport Auth and Proxy services
+### Set up Teleport Auth and Proxy Services
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-### Setup Teleport Database service
+### Set up Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
-
-Start Teleport Database service:
+<Tabs>
+<TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
+Start the Teleport Database Service, pointing the `--auth-server` flag to the address of your Teleport Proxy Service:
 
 ```code
 $ teleport db start \
@@ -47,30 +48,42 @@ $ teleport db start \
   --uri=roach.example.com:26257 \
   --labels=env=dev
 ```
+</TabItem>
+<TabItem label="Teleport Cloud" scope={["cloud"]}>
+Start the Teleport Database Service, pointing the `--auth-server` flag at the address of your Teleport Cloud tenant, e.g., `mytenant.teleport.sh`.
+
+```code
+$ teleport db start \
+  --token=/tmp/token \
+  --auth-server=mytenant.teleport.sh \
+  --name=roach \
+  --protocol=cockroachdb \
+  --uri=roach.example.com:26257 \
+  --labels=env=dev
+```
+</TabItem>
+</Tabs>
 
 <Admonition type="note">
   The `--auth-server` flag must point to the Teleport cluster's proxy endpoint
-  because database service always connects back to the cluster over a reverse
+  because the Database Service always connects back to the cluster over a reverse
   tunnel.
 </Admonition>
 
 <Admonition type="tip">
-  You can start Database service using configuration file instead of CLI flags.
+  You can start the Database Service using a configuration file instead of CLI flags.
   See [YAML reference](../reference/configuration.mdx).
 </Admonition>
 
-### Create Teleport user
+### Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
 ## Step 2/3. Configure CockroachDB
 
-### Create CockroachDB user
+### Create a CockroachDB user
 
-Teleport uses [mutual TLS authentication](https://www.cockroachlabs.com/docs/stable/authentication.html#client-authentication)
-with CockroachDB.
-
-Client certificate authentication is available to all CockroachDB users. If you
+Teleport uses mutual TLS authentication with CockroachDB. Client certificate authentication is available to all CockroachDB users. If you
 don't have one, connect to your Cockroach cluster and create it:
 
 ```sql
@@ -84,9 +97,9 @@ Make sure to assign the user proper permissions within the database cluster.
 Refer to [Create User](https://www.cockroachlabs.com/docs/stable/create-user.html)
 in Cockroach docs for more information.
 
-### Setup mutual TLS
+### Set up mutual TLS
 
-To setup mutual TLS authentication, you need to make sure that:
+To set up mutual TLS authentication, you need to make sure that:
 
 - Teleport trusts certificates presented by CockroachDB nodes.
 - CockroachDB trusts client certificates signed by Teleport.
@@ -114,8 +127,8 @@ Teleport will be using to connect to the nodes in the `--host` flag.
   You can specify multiple comma-separated addresses e.g. `--host=roach,node-1,192.168.1.1`.
 </Admonition>
 
-Restart your CockroachDB nodes passing them the directory with generated secrets
-via `--certs-dir` flag:
+Restart your CockroachDB nodes, passing them the directory with generated secrets
+via the `--certs-dir` flag:
 
 ```code
 $ cockroach start \
@@ -125,9 +138,11 @@ $ cockroach start \
 
 ## Step 3/3. Connect
 
-Log into your Teleport cluster, your CockroachDB cluster should appear in the
+Log into your Teleport cluster. Your CockroachDB cluster should appear in the
 list of available databases:
 
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
@@ -135,6 +150,17 @@ $ tsh db ls
 # ----- ------------------- -------
 # roach Example CockroachDB env=dev
 ```
+</TabItem>
+<TabItem scope={["cloud"]} label="Cloud">
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name  Description         Labels
+# ----- ------------------- -------
+# roach Example CockroachDB env=dev
+```
+</TabItem>
+</Tabs>
 
 Fetch short-lived client certificate for it using `tsh db login` command:
 
@@ -160,7 +186,7 @@ $ tsh db connect roach
 ```
 
 <Admonition type="note">
-  Either `cockroach` or `psql` command-line client should be available in PATH
+  Either the `cockroach` or `psql` command-line client should be available in PATH
   in order to be able to connect.
 </Admonition>
 
@@ -173,3 +199,4 @@ $ tsh db logout roach
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+- [CockroachDB client authentication](https://www.cockroachlabs.com/docs/stable/authentication.html#client-authentication)

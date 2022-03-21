@@ -69,15 +69,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	var tunnelAddr string
-	if conn.TunnelProxy() != "" {
-		tunnelAddr = conn.TunnelProxy()
-	} else {
-		if tunnelAddr, ok = process.singleProcessMode(resp.GetProxyListenerMode()); !ok {
-			return trace.BadParameter("failed to find reverse tunnel address, " +
-				"if running in a single-process mode, make sure auth_service, " +
-				"proxy_service, and db_service are all enabled")
-		}
+	tunnelAddrResolver := conn.TunnelProxyResolver()
+	if tunnelAddrResolver == nil {
+		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 	}
 
 	// Start uploader that will scan a path on disk and upload completed
@@ -120,6 +114,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					InstanceID: db.GCP.InstanceID,
 				},
 				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
+				AD: types.AD{
+					KeytabFile: db.AD.KeytabFile,
+					Krb5File:   db.AD.Krb5File,
+					Domain:     db.AD.Domain,
+					SPN:        db.AD.SPN,
+				},
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -208,11 +208,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	// Create and start the agent pool.
-	agentPool, err := reversetunnel.NewAgentPool(process.ExitContext(),
+	agentPool, err := reversetunnel.NewAgentPool(
+		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
 			Component:   teleport.ComponentDatabase,
 			HostUUID:    conn.ServerIdentity.ID.HostUUID,
-			ProxyAddr:   tunnelAddr,
+			Resolver:    tunnelAddrResolver,
 			Client:      conn.Client,
 			Server:      dbService,
 			AccessPoint: conn.Client,

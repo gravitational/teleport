@@ -22,6 +22,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"encoding/json"
 )
@@ -165,6 +166,20 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.PostgresClose{}
 	case DatabaseSessionPostgresFunctionEvent:
 		e = &events.PostgresFunctionCall{}
+	case DatabaseSessionMySQLStatementPrepareEvent:
+		e = &events.MySQLStatementPrepare{}
+	case DatabaseSessionMySQLStatementExecuteEvent:
+		e = &events.MySQLStatementExecute{}
+	case DatabaseSessionMySQLStatementSendLongDataEvent:
+		e = &events.MySQLStatementSendLongData{}
+	case DatabaseSessionMySQLStatementCloseEvent:
+		e = &events.MySQLStatementClose{}
+	case DatabaseSessionMySQLStatementResetEvent:
+		e = &events.MySQLStatementReset{}
+	case DatabaseSessionMySQLStatementFetchEvent:
+		e = &events.MySQLStatementFetch{}
+	case DatabaseSessionMySQLStatementBulkExecuteEvent:
+		e = &events.MySQLStatementBulkExecute{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
@@ -187,12 +202,33 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case DesktopClipboardSendEvent:
+		e = &events.DesktopClipboardSend{}
+	case DesktopClipboardReceiveEvent:
+		e = &events.DesktopClipboardReceive{}
 	case SessionConnectEvent:
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:
 		e = &events.AccessRequestDelete{}
+	case CertificateCreateEvent:
+		e = &events.CertificateCreate{}
+	case RenewableCertificateGenerationMismatchEvent:
+		e = &events.RenewableCertificateGenerationMismatch{}
+	case UnknownEvent:
+		e = &events.Unknown{}
 	default:
-		return nil, trace.BadParameter("unknown event type: %q", eventType)
+		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
+		unknown := &events.Unknown{}
+		if err := utils.FastUnmarshal(data, unknown); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		unknown.Type = UnknownEvent
+		unknown.Code = UnknownCode
+		unknown.UnknownType = eventType
+		unknown.UnknownCode = fields.GetString(EventCode)
+		unknown.Data = string(data)
+		return unknown, nil
 	}
 
 	if err := utils.FastUnmarshal(data, e); err != nil {

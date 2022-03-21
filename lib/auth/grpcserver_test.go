@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"encoding/base32"
-	"encoding/base64"
 	"fmt"
 	"net"
 	"sort"
@@ -38,7 +37,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -62,10 +60,6 @@ func TestMFADeviceManagement(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -94,49 +88,18 @@ func TestMFADeviceManagement(t *testing.T) {
 	require.NoError(t, err)
 	webKey2.PreferRPID = true
 	const webDev2Name = "webauthn2"
+	const pwdlessDevName = "pwdless"
+
 	addTests := []struct {
 		desc string
 		opts mfaAddTestOpts
 	}{
 		{
-			desc: "fail U2F auth challenge",
-			opts: mfaAddTestOpts{
-				initReq: &proto.AddMFADeviceRequestInit{
-					DeviceName: "fail-dev",
-					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
-				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					require.Len(t, req.U2F, 1)
-					chal := req.U2F[0]
-
-					// Use a different, unregistered device, which should fail
-					// the authentication challenge.
-					keyHandle, err := base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(chal.KeyHandle)
-					require.NoError(t, err)
-					badDev, err := mocku2f.CreateWithKeyHandle(keyHandle)
-					require.NoError(t, err)
-					mresp, err := badDev.SignResponse(&u2f.AuthenticateChallenge{
-						Challenge: chal.Challenge,
-						KeyHandle: chal.KeyHandle,
-						AppID:     chal.AppID,
-					})
-					require.NoError(t, err)
-
-					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
-						KeyHandle:  mresp.KeyHandle,
-						ClientData: mresp.ClientData,
-						Signature:  mresp.SignatureData,
-					}}}
-				},
-				checkAuthErr: require.Error,
-			},
-		},
-		{
 			desc: "fail TOTP auth challenge",
 			opts: mfaAddTestOpts{
 				initReq: &proto.AddMFADeviceRequestInit{
 					DeviceName: "fail-dev",
-					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
+					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
 				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					require.NotNil(t, req.TOTP)
@@ -153,35 +116,6 @@ func TestMFADeviceManagement(t *testing.T) {
 					}}}
 				},
 				checkAuthErr: require.Error,
-			},
-		},
-		{
-			desc: "fail a U2F registration challenge",
-			opts: mfaAddTestOpts{
-				initReq: &proto.AddMFADeviceRequestInit{
-					DeviceName: "fail-dev",
-					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
-				},
-				authHandler:  devs.u2fAuthHandler,
-				checkAuthErr: require.NoError,
-				registerHandler: func(t *testing.T, req *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					u2fRegisterChallenge := req.GetU2F()
-					require.NotEmpty(t, u2fRegisterChallenge)
-
-					mdev, err := mocku2f.Create()
-					require.NoError(t, err)
-					mresp, err := mdev.RegisterResponse(&u2f.RegisterChallenge{
-						Challenge: u2fRegisterChallenge.Challenge,
-						AppID:     "wrong app ID", // This should cause registration to fail.
-					})
-					require.NoError(t, err)
-
-					return &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{U2F: &proto.U2FRegisterResponse{
-						RegistrationData: mresp.RegistrationData,
-						ClientData:       mresp.ClientData,
-					}}}
-				},
-				checkRegisterErr: require.Error,
 			},
 		},
 		{
@@ -297,6 +231,41 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "add passwordless device",
+			opts: mfaAddTestOpts{
+				initReq: &proto.AddMFADeviceRequestInit{
+					DeviceName:  pwdlessDevName,
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+				},
+				authHandler:  devs.webAuthHandler,
+				checkAuthErr: require.NoError,
+				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
+					require.NotNil(t, challenge.GetWebauthn(), "WebAuthn challenge cannot be nil")
+
+					key, err := mocku2f.Create()
+					require.NoError(t, err)
+					key.PreferRPID = true
+					key.SetPasswordless()
+
+					ccr, err := key.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					require.NoError(t, err)
+
+					return &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{
+							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+						},
+					}
+				},
+				checkRegisterErr: require.NoError,
+				assertRegisteredDev: func(t *testing.T, dev *types.MFADevice) {
+					// Do a few simple device checks - lib/auth/webauthn goes in depth.
+					require.NotNil(t, dev.GetWebauthn(), "WebAuthnDevice cannot be nil")
+					require.True(t, true, dev.GetWebauthn().ResidentKey, "ResidentKey should be set to true")
+				},
+			},
+		},
 	}
 	for _, tt := range addTests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -314,7 +283,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, deviceNames, []string{devs.TOTPName, devs.U2FName, devs.WebName, webDev2Name})
+	require.Equal(t, deviceNames, []string{pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name})
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
@@ -349,38 +318,6 @@ func TestMFADeviceManagement(t *testing.T) {
 
 					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{TOTP: &proto.TOTPResponse{
 						Code: code,
-					}}}
-				},
-				checkErr: require.Error,
-			},
-		},
-		{
-			desc: "fail a U2F auth challenge",
-			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.U2FName,
-				},
-				authHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					require.Len(t, req.U2F, 1)
-					chal := req.U2F[0]
-
-					// Use a different, unregistered device, which should fail
-					// the authentication challenge.
-					keyHandle, err := base64.URLEncoding.WithPadding(base64.NoPadding).DecodeString(chal.KeyHandle)
-					require.NoError(t, err)
-					badDev, err := mocku2f.CreateWithKeyHandle(keyHandle)
-					require.NoError(t, err)
-					mresp, err := badDev.SignResponse(&u2f.AuthenticateChallenge{
-						Challenge: chal.Challenge,
-						KeyHandle: chal.KeyHandle,
-						AppID:     chal.AppID,
-					})
-					require.NoError(t, err)
-
-					return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{U2F: &proto.U2FResponse{
-						KeyHandle:  mresp.KeyHandle,
-						ClientData: mresp.ClientData,
-						Signature:  mresp.SignatureData,
 					}}}
 				},
 				checkErr: require.Error,
@@ -422,12 +359,12 @@ func TestMFADeviceManagement(t *testing.T) {
 			},
 		},
 		{
-			desc: "delete U2F device by ID",
+			desc: "delete pwdless device by name",
 			opts: mfaDeleteTestOpts{
 				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: deviceIDs[devs.U2FName],
+					DeviceName: pwdlessDevName,
 				},
-				authHandler: devs.u2fAuthHandler,
+				authHandler: devs.webAuthHandler,
 				checkErr:    require.NoError,
 			},
 		},
@@ -478,8 +415,6 @@ type mfaDevices struct {
 	webOrigin string
 
 	TOTPName, TOTPSecret string
-	U2FName              string
-	U2FKey               *mocku2f.Key
 	WebName              string
 	WebKey               *mocku2f.Key
 }
@@ -501,28 +436,6 @@ func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthentic
 	}
 }
 
-func (d *mfaDevices) u2fAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-	require.Len(t, challenge.U2F, 1)
-	c := challenge.U2F[0]
-
-	resp, err := d.U2FKey.SignResponse(&u2f.AuthenticateChallenge{
-		Challenge: c.Challenge,
-		KeyHandle: c.KeyHandle,
-		AppID:     c.AppID,
-	})
-	require.NoError(t, err)
-
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_U2F{
-			U2F: &proto.U2FResponse{
-				KeyHandle:  resp.KeyHandle,
-				ClientData: resp.ClientData,
-				Signature:  resp.SignatureData,
-			},
-		},
-	}
-}
-
 func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 	require.NotNil(t, challenge.WebauthnChallenge)
 
@@ -538,19 +451,15 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 
 func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, origin string) mfaDevices {
 	const totpName = "totp-dev"
-	const u2fName = "u2f-dev"
 	const webName = "webauthn-dev"
 	devs := mfaDevices{
 		clock:     clock,
 		webOrigin: origin,
 		TOTPName:  totpName,
-		U2FName:   u2fName,
 		WebName:   webName,
 	}
 
 	var err error
-	devs.U2FKey, err = mocku2f.Create()
-	require.NoError(t, err)
 	devs.WebKey, err = mocku2f.Create()
 	require.NoError(t, err)
 	devs.WebKey.PreferRPID = true
@@ -596,49 +505,6 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				checkRegisterErr: require.NoError,
 				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
 					want, err := services.NewTOTPDevice(totpName, devs.TOTPSecret, clock.Now())
-					want.Id = got.Id
-					require.NoError(t, err)
-					require.Empty(t, cmp.Diff(want, got))
-				},
-			},
-		},
-		{
-			name: "U2F device",
-			opts: mfaAddTestOpts{
-				initReq: &proto.AddMFADeviceRequestInit{
-					DeviceName: u2fName,
-					DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
-				},
-				authHandler:  devs.totpAuthHandler,
-				checkAuthErr: require.NoError,
-				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					require.NotEmpty(t, challenge.GetU2F())
-
-					resp, err := devs.U2FKey.RegisterResponse(&u2f.RegisterChallenge{
-						Challenge: challenge.GetU2F().Challenge,
-						AppID:     challenge.GetU2F().AppID,
-					})
-					require.NoError(t, err)
-
-					return &proto.MFARegisterResponse{
-						Response: &proto.MFARegisterResponse_U2F{
-							U2F: &proto.U2FRegisterResponse{
-								RegistrationData: resp.RegistrationData,
-								ClientData:       resp.ClientData,
-							},
-						},
-					}
-				},
-				checkRegisterErr: require.NoError,
-				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
-					want, err := u2f.NewDevice(
-						u2fName,
-						&u2f.Registration{
-							KeyHandle: devs.U2FKey.KeyHandle,
-							PubKey:    devs.U2FKey.PrivateKey.PublicKey,
-						},
-						clock.Now(),
-					)
 					want.Id = got.Id
 					require.NoError(t, err)
 					require.Empty(t, cmp.Diff(want, got))
@@ -759,10 +625,6 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -799,17 +661,6 @@ func TestDeleteLastMFADevice(t *testing.T) {
 			},
 		},
 		{
-			name:         "NOK sf=U2F trying to delete last U2F device",
-			secondFactor: constants.SecondFactorU2F,
-			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.U2FName,
-				},
-				authHandler: devs.u2fAuthHandler,
-				checkErr:    require.Error,
-			},
-		},
-		{
 			name:         "NOK sf=Webauthn trying to delete last Webauthn device",
 			secondFactor: constants.SecondFactorWebauthn,
 			opts: mfaDeleteTestOpts{
@@ -828,17 +679,6 @@ func TestDeleteLastMFADevice(t *testing.T) {
 					DeviceName: devs.TOTPName,
 				},
 				authHandler: devs.totpAuthHandler,
-				checkErr:    require.NoError,
-			},
-		},
-		{
-			name:         "OK delete U2F device",
-			secondFactor: constants.SecondFactorOn,
-			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: devs.U2FName,
-				},
-				authHandler: devs.u2fAuthHandler,
 				checkErr:    require.NoError,
 			},
 		},
@@ -885,14 +725,9 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
 
-	// Enable U2F support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
-		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -926,7 +761,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			KubernetesClusters: []*types.KubernetesCluster{{Name: "kube-a"}},
 		},
 	}
-	err = srv.Auth().UpsertKubeService(ctx, k8sSrv)
+	_, err = srv.Auth().UpsertKubeServiceV2(ctx, k8sSrv)
 	require.NoError(t, err)
 	// Register a database.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
@@ -960,13 +795,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	// Fetch MFA device IDs.
 	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
-	var u2fDevID, webDevID string
+	var webDevID string
 	for _, dev := range devs {
-		switch {
-		case dev.GetU2F() != nil:
-			u2fDevID = dev.Id
-		case dev.GetWebauthn() != nil:
+		if dev.GetWebauthn() != nil {
 			webDevID = dev.Id
+			break
 		}
 	}
 
@@ -977,32 +810,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 		desc string
 		opts generateUserSingleUseCertTestOpts
 	}{
-		{
-			desc: "ssh using U2F",
-			opts: generateUserSingleUseCertTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_SSH,
-					NodeName:  "node-a",
-				},
-				checkInitErr: require.NoError,
-				authHandler:  registered.u2fAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetSSH()
-					require.NotEmpty(t, crt)
-
-					cert, err := sshutils.ParseCertificate(crt)
-					require.NoError(t, err)
-
-					require.Equal(t, cert.Extensions[teleport.CertExtensionMFAVerified], u2fDevID)
-					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionClientIP]).IsLoopback())
-					require.Equal(t, cert.ValidBefore, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()))
-				},
-			},
-		},
 		{
 			desc: "ssh using webauthn",
 			opts: generateUserSingleUseCertTestOpts{
@@ -1200,9 +1007,8 @@ func TestIsMFARequired(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+		Webauthn: &types.Webauthn{
+			RPID: "teleport",
 		},
 	})
 	require.NoError(t, err)
@@ -1258,9 +1064,8 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "teleport",
-			Facets: []string{"teleport"},
+		Webauthn: &types.Webauthn{
+			RPID: "teleport",
 		},
 	})
 	require.NoError(t, err)
@@ -1339,18 +1144,18 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	require.False(t, resp.Required)
 }
 
-// TestRoleVersions tests that downgraded V3 roles are returned to older
-// clients, and V4 roles are returned to newer clients.
+// TestRoleVersions tests that downgraded V4 roles are returned to older
+// clients, and V5 roles are returned to newer clients.
 func TestRoleVersions(t *testing.T) {
 	srv := newTestTLSServer(t)
 
-	role := &types.RoleV4{
+	role := &types.RoleV5{
 		Kind:    types.KindRole,
-		Version: types.V4,
+		Version: types.V5,
 		Metadata: types.Metadata{
 			Name: "test_role",
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindRole, services.RO()),
@@ -1374,26 +1179,26 @@ func TestRoleVersions(t *testing.T) {
 	}{
 		{
 			desc:                "old",
-			clientVersion:       "6.2.1",
-			expectedRoleVersion: "v3",
-			assertErr:           require.NoError,
-		},
-		{
-			desc:                "new",
-			clientVersion:       "6.3.0",
+			clientVersion:       "7.1.1",
 			expectedRoleVersion: "v4",
 			assertErr:           require.NoError,
 		},
 		{
+			desc:                "new",
+			clientVersion:       "9.0.0",
+			expectedRoleVersion: "v5",
+			assertErr:           require.NoError,
+		},
+		{
 			desc:                "alpha",
-			clientVersion:       "6.2.4-alpha.0",
+			clientVersion:       "7.2.4-alpha.0",
 			expectedRoleVersion: "v4",
 			assertErr:           require.NoError,
 		},
 		{
 			desc:                "greater than 10",
 			clientVersion:       "10.0.0-beta",
-			expectedRoleVersion: "v4",
+			expectedRoleVersion: "v5",
 			assertErr:           require.NoError,
 		},
 		{
@@ -1409,7 +1214,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc:                "no version metadata",
 			disableMetadata:     true,
-			expectedRoleVersion: "v3",
+			expectedRoleVersion: "v4",
 			assertErr:           require.NoError,
 		},
 	}
@@ -1583,7 +1388,9 @@ func TestNodesCRUD(t *testing.T) {
 	t.Run("NodeGetters", func(t *testing.T) {
 		t.Run("List Nodes", func(t *testing.T) {
 			t.Parallel()
-			// list nodes one at a time, last page should be empty
+			// List nodes one at a time, last page should be empty.
+
+			// First node.
 			nodes, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
 				Namespace: apidefaults.Namespace,
 				Limit:     1,
@@ -1594,6 +1401,7 @@ func TestNodesCRUD(t *testing.T) {
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 			require.Equal(t, backend.NextPaginationKey(node1), nextKey)
 
+			// Second node (last).
 			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
 				Namespace: apidefaults.Namespace,
 				Limit:     1,
@@ -1603,22 +1411,13 @@ func TestNodesCRUD(t *testing.T) {
 			require.Len(t, nodes, 1)
 			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-			require.Equal(t, backend.NextPaginationKey(node2), nextKey)
+			require.Empty(t, nextKey)
 
-			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-				Limit:     1,
-				StartKey:  nextKey,
-			})
-			require.NoError(t, err)
-			require.Empty(t, nodes)
-			require.Equal(t, "", nextKey)
-
-			// ListNodes should fail if namespace isn't provided
+			// ListNodes should not fail if namespace is empty
 			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
 				Limit: 1,
 			})
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.NoError(t, err)
 
 			// ListNodes should fail if limit is nonpositive
 			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
@@ -1641,9 +1440,9 @@ func TestNodesCRUD(t *testing.T) {
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
-			// GetNodes should fail if namespace isn't provided
+			// GetNodes should not fail if namespace is empty
 			_, err = clt.GetNodes(ctx, "")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.NoError(t, err)
 		})
 		t.Run("GetNode", func(t *testing.T) {
 			t.Parallel()
@@ -2082,11 +1881,11 @@ func TestListResources(t *testing.T) {
 
 	testCases := map[string]struct {
 		resourceType   string
-		createResource func(name string) error
+		createResource func(name string, clt *Client) error
 	}{
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
-			createResource: func(name string) error {
+			createResource: func(name string, clt *Client) error {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: name,
 				}, types.DatabaseServerSpecV3{
@@ -2105,7 +1904,7 @@ func TestListResources(t *testing.T) {
 		},
 		"ApplicationServers": {
 			resourceType: types.KindAppServer,
-			createResource: func(name string) error {
+			createResource: func(name string, clt *Client) error {
 				app, err := types.NewAppV3(types.Metadata{
 					Name: name,
 				}, types.AppSpecV3{
@@ -2132,7 +1931,7 @@ func TestListResources(t *testing.T) {
 		},
 		"KubeService": {
 			resourceType: types.KindKubeService,
-			createResource: func(name string) error {
+			createResource: func(name string, clt *Client) error {
 				server, err := types.NewServer(name, types.KindKubeService, types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{
 						{Name: name, StaticLabels: map[string]string{"name": name}},
@@ -2141,13 +1940,13 @@ func TestListResources(t *testing.T) {
 				if err != nil {
 					return err
 				}
-
-				return clt.UpsertKubeService(ctx, server)
+				_, err = clt.UpsertKubeServiceV2(ctx, server)
+				return err
 			},
 		},
 		"Node": {
 			resourceType: types.KindNode,
-			createResource: func(name string) error {
+			createResource: func(name string, clt *Client) error {
 				server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
 				if err != nil {
 					return err
@@ -2157,38 +1956,81 @@ func TestListResources(t *testing.T) {
 				return err
 			},
 		},
+		"WindowsDesktops": {
+			resourceType: types.KindWindowsDesktop,
+			createResource: func(name string, clt *Client) error {
+				desktop, err := types.NewWindowsDesktopV3(name, nil,
+					types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
+				if err != nil {
+					return err
+				}
+
+				return clt.UpsertWindowsDesktop(ctx, desktop)
+			},
+		},
 	}
 
 	for name, test := range testCases {
+		name := name
+		test := test
 		t.Run(name, func(t *testing.T) {
-			resources, nextKey, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			t.Parallel()
+			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 				ResourceType: test.resourceType,
 				Namespace:    apidefaults.Namespace,
 				Limit:        100,
 			})
 			require.NoError(t, err)
-			require.Len(t, resources, 0)
-			require.Empty(t, nextKey)
+			require.Len(t, resp.Resources, 0)
+			require.Empty(t, resp.NextKey)
 
 			// create two resources
-			err = test.createResource("foo")
+			err = test.createResource("foo", clt)
 			require.NoError(t, err)
-			err = test.createResource("bar")
+			err = test.createResource("bar", clt)
 			require.NoError(t, err)
 
-			resources, nextKey, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 				ResourceType: test.resourceType,
 				Namespace:    apidefaults.Namespace,
 				Limit:        100,
 			})
 			require.NoError(t, err)
-			require.Len(t, resources, 2)
-			require.Empty(t, nextKey)
+			require.Len(t, resp.Resources, 2)
+			require.Empty(t, resp.NextKey)
+			require.Empty(t, resp.TotalCount)
+
+			// Test types.KindKubernetesCluster
+			if test.resourceType == types.KindKubeService {
+				test.resourceType = types.KindKubernetesCluster
+				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.resourceType,
+					Namespace:    apidefaults.Namespace,
+					Limit:        100,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 2)
+				require.Empty(t, resp.NextKey)
+				require.Empty(t, resp.TotalCount)
+			}
+
+			// Test listing with NeedTotalCount flag.
+			if test.resourceType != types.KindKubeService {
+				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType:   test.resourceType,
+					Limit:          100,
+					NeedTotalCount: true,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 2)
+				require.Empty(t, resp.NextKey)
+				require.Equal(t, 2, resp.TotalCount)
+			}
 		})
 	}
 
 	t.Run("InvalidResourceType", func(t *testing.T) {
-		_, _, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		_, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: "",
 			Namespace:    apidefaults.Namespace,
 			Limit:        100,
@@ -2200,62 +2042,75 @@ func TestListResources(t *testing.T) {
 func TestCustomRateLimiting(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		fn   func(*Client) error
+	ctx := context.Background()
+	tests := []struct {
+		name  string
+		burst int
+		fn    func(*Client) error
 	}{
 		{
 			name: "RPC ChangeUserAuthentication",
 			fn: func(clt *Client) error {
-				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
+				_, err := clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
+				return err
+			},
+		},
+		{
+			name:  "RPC CreateAuthenticateChallenge",
+			burst: defaults.LimiterPasswordlessBurst,
+			fn: func(clt *Client) error {
+				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC GetAccountRecoveryToken",
 			fn: func(clt *Client) error {
-				_, err := clt.GetAccountRecoveryToken(context.Background(), &proto.GetAccountRecoveryTokenRequest{})
+				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC StartAccountRecovery",
 			fn: func(clt *Client) error {
-				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
+				_, err := clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC VerifyAccountRecovery",
 			fn: func(clt *Client) error {
-				_, err := clt.VerifyAccountRecovery(context.Background(), &proto.VerifyAccountRecoveryRequest{})
+				_, err := clt.VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
 		},
 	}
-
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// For now since we only have one custom rate limit,
-			// test limit for 1 request per minute with bursts up to 10 requests.
-			const maxAttempts = 11
-			var err error
-
-			// Create new instance per test case, to troubleshoot
-			// which test case specifically failed, otherwise
-			// multiple cases can fail from running cases in parallel.
+			// Create new instance per test case, to troubleshoot which test case
+			// specifically failed, otherwise multiple cases can fail from running
+			// cases in parallel.
 			srv := newTestTLSServer(t)
 			clt, err := srv.NewClient(TestNop())
 			require.NoError(t, err)
 
-			for i := 0; i < maxAttempts; i++ {
-				err = c.fn(clt)
-				require.Error(t, err)
+			var attempts int
+			if test.burst == 0 {
+				attempts = 10 // Good for most tests.
+			} else {
+				attempts = test.burst
 			}
-			require.True(t, trace.IsLimitExceeded(err))
+
+			for i := 0; i < attempts; i++ {
+				err = test.fn(clt)
+				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-IsLimitExceeded", err)
+			}
+
+			err = test.fn(clt)
+			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
 		})
 	}
 }

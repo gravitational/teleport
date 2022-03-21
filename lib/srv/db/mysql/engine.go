@@ -18,14 +18,15 @@ package mysql
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
@@ -36,9 +37,18 @@ import (
 	"github.com/siddontang/go-mysql/server"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
+
+func init() {
+	common.RegisterEngine(newEngine, defaults.ProtocolMySQL)
+}
+
+func newEngine(ec common.EngineConfig) common.Engine {
+	return &Engine{
+		EngineConfig: ec,
+	}
+}
 
 // Engine implements the MySQL database service that accepts client
 // connections coming over reverse tunnel from the proxy and proxies
@@ -46,18 +56,8 @@ import (
 //
 // Implements common.Engine.
 type Engine struct {
-	// Auth handles database access authentication.
-	Auth common.Auth
-	// Audit emits database access audit events.
-	Audit common.Audit
-	// AuthClient is the cluster auth server client.
-	AuthClient *auth.Client
-	// Context is the database server close context.
-	Context context.Context
-	// Clock is the clock interface.
-	Clock clockwork.Clock
-	// Log is used for logging.
-	Log logrus.FieldLogger
+	// EngineConfig is the common database engine configuration.
+	common.EngineConfig
 	// proxyConn is a client connection.
 	proxyConn server.Conn
 }
@@ -160,6 +160,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		return nil, trace.Wrap(err)
 	}
 	user := sessionCtx.DatabaseUser
+	connectOpt := func(conn *client.Conn) {
+		conn.SetTLSConfig(tlsConfig)
+	}
+
+	var dialer client.Dialer
 	var password string
 	switch {
 	case sessionCtx.Database.IsRDS():
@@ -191,6 +196,28 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Get the client once for subsequent calls (it acquires a read lock).
+		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Detect whether the instance is set to require SSL.
+		// Fallback to not requiring SSL for access denied errors.
+		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// Create ephemeral certificate and append to TLS config when
+		// the instance requires SSL. Also use a TLS dialer instead of
+		// the default net dialer when GCP requires SSL.
+		if requireSSL {
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx, gcpClient, tlsConfig)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			connectOpt = func(*client.Conn) {}
+			dialer = e.newGCPTLSDialer(tlsConfig)
+		}
 	case sessionCtx.Database.IsAzure():
 		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
 		if err != nil {
@@ -200,28 +227,22 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		// alice@mysql-server-name.
 		user = fmt.Sprintf("%v@%v", user, sessionCtx.Database.GetAzure().Name)
 	}
+
+	// Use default net dialer unless it is already initialized.
+	if dialer == nil {
+		var nd net.Dialer
+		dialer = nd.DialContext
+	}
+
 	// TODO(r0mant): Set CLIENT_INTERACTIVE flag on the client?
-	conn, err := client.Connect(sessionCtx.Database.GetURI(),
+	conn, err := client.ConnectWithDialer(ctx, "tcp", sessionCtx.Database.GetURI(),
 		user,
 		password,
 		sessionCtx.DatabaseName,
-		func(conn *client.Conn) {
-			conn.SetTLSConfig(tlsConfig)
-		})
+		dialer,
+		connectOpt)
 	if err != nil {
-		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
-			return nil, trace.AccessDenied(`Could not connect to database:
-
-  %v
-
-Make sure that IAM auth is enabled for MySQL user %q and Teleport database
-agent's IAM policy has "rds-connect" permissions (note that IAM changes may
-take a few minutes to propagate):
-
-%v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
-		}
-		return nil, trace.Wrap(err)
+		return nil, common.ConvertConnectError(err, sessionCtx)
 	}
 	return conn, nil
 }
@@ -265,6 +286,28 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			return
 		case *protocol.Quit:
 			return
+
+		case *protocol.StatementPreparePacket:
+			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
+		case *protocol.StatementExecutePacket:
+			// TODO(greedy52) Number of parameters is required to parse
+			// paremeters out of the packet. Parameter definitions are required
+			// to properly format the parameters for including in the audit
+			// log. Both number of parameters and parameter definitions can be
+			// obtained from the response of COM_STMT_PREPARE.
+			e.Audit.EmitEvent(e.Context, makeStatementExecuteEvent(sessionCtx, pkt))
+		case *protocol.StatementSendLongDataPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementSendLongDataEvent(sessionCtx, pkt))
+		case *protocol.StatementClosePacket:
+			e.Audit.EmitEvent(e.Context, makeStatementCloseEvent(sessionCtx, pkt))
+		case *protocol.StatementResetPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementResetEvent(sessionCtx, pkt))
+		case *protocol.StatementFetchPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementFetchEvent(sessionCtx, pkt))
+		case *protocol.StatementBulkExecutePacket:
+			// TODO(greedy52) Number of parameters and parameter definitions
+			// are required. See above comments for StatementExecutePacket.
+			e.Audit.EmitEvent(e.Context, makeStatementBulkExecuteEvent(sessionCtx, pkt))
 		}
 		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
 		if err != nil {
@@ -330,3 +373,27 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 		},
 	}
 }
+
+// newGCPTLSDialer returns a TLS dialer configured to connect to the Cloud Proxy
+// port rather than the default MySQL port.
+func (e *Engine) newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		// Workaround issue generating ephemeral certificates for secure connections
+		// by creating a TLS connection to the Cloud Proxy port overridding the
+		// MySQL client's connection. MySQL on the default port does not trust
+		// the ephemeral certificate's CA but Cloud Proxy does.
+		host, port, err := net.SplitHostPort(address)
+		if err == nil && port == gcpSQLListenPort {
+			address = net.JoinHostPort(host, gcpSQLProxyListenPort)
+		}
+		tlsDialer := tls.Dialer{Config: tlsConfig}
+		return tlsDialer.DialContext(ctx, network, address)
+	}
+}
+
+const (
+	// gcpSQLListenPort is the port used by Cloud SQL MySQL instances.
+	gcpSQLListenPort = "3306"
+	// gcpSQLProxyListenPort is the port used by Cloud Proxy for MySQL instances.
+	gcpSQLProxyListenPort = "3307"
+)

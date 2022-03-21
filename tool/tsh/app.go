@@ -45,6 +45,11 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	rootCluster, err := tc.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var arn string
 	if app.IsAWSConsole() {
 		var err error
@@ -89,7 +94,7 @@ func onAppLogin(cf *CLIConf) error {
 	}
 	return appLoginTpl.Execute(os.Stdout, map[string]string{
 		"appName": app.GetName(),
-		"curlCmd": formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL),
+		"curlCmd": formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster),
 	})
 }
 
@@ -109,11 +114,17 @@ tsh aws {{.awsCmd}}
 
 // getRegisteredApp returns the registered application with the specified name.
 func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Application, err error) {
+	var apps []types.Application
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allApps, err := tc.ListApps(cf.Context)
+		allApps, err := tc.ListApps(cf.Context, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
+		})
+		// Kept for fallback in case older auth does not apply filters.
+		// DELETE IN 11.0.0
 		for _, a := range allApps {
 			if a.GetName() == cf.AppName {
-				app = a
+				apps = append(apps, a)
 				return nil
 			}
 		}
@@ -122,10 +133,10 @@ func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Applica
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if app == nil {
+	if len(apps) == 0 {
 		return nil, trace.NotFound("app %q not found, use `tsh app ls` to see registered apps", cf.AppName)
 	}
-	return app, nil
+	return apps[0], nil
 }
 
 // onAppLogout implements "tsh app logout" command.
@@ -185,16 +196,16 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Print(formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format))
+	fmt.Print(formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, ""))
 	return nil
 }
 
-func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format string) string {
+func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) string {
 	switch format {
 	case appFormatURI:
 		return fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
 	case appFormatCA:
-		return profile.CACertPath()
+		return profile.CACertPathForCluster(cluster)
 	case appFormatCert:
 		return profile.AppCertPath(appName)
 	case appFormatKey:
@@ -205,7 +216,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
   --cert %v \
   --key %v \
   https://%v:%v`,
-			profile.CACertPath(),
+			profile.CACertPathForCluster(cluster),
 			profile.AppCertPath(appName),
 			profile.KeyPath(),
 			appPublicAddr,
@@ -216,7 +227,7 @@ URI:       https://%v:%v
 CA:        %v
 Cert:      %v
 Key:       %v
-`, appName, appPublicAddr, tc.WebProxyPort(), profile.CACertPath(),
+`, appName, appPublicAddr, tc.WebProxyPort(), profile.CACertPathForCluster(cluster),
 		profile.AppCertPath(appName), profile.KeyPath())
 }
 

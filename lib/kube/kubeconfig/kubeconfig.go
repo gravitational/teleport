@@ -90,7 +90,12 @@ func Update(path string, v Values) error {
 		return trace.Wrap(err)
 	}
 
-	cas := bytes.Join(v.Credentials.TLSCAs(), []byte("\n"))
+	clusterCAs, err := v.Credentials.RootClusterCAs()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cas := bytes.Join(clusterCAs, []byte("\n"))
 	if len(cas) == 0 {
 		return trace.BadParameter("TLS trusted CAs missing in provided credentials")
 	}

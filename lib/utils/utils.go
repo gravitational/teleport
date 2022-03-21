@@ -21,8 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -325,7 +323,7 @@ func ReadPath(path string) ([]byte, error) {
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	bytes, err := ioutil.ReadFile(abs)
+	bytes, err := os.ReadFile(abs)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -567,7 +565,7 @@ func StoreErrorOf(f func() error, err *error) {
 // when limit bytes are read.
 func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 	limitedReader := &io.LimitedReader{R: r, N: limit}
-	data, err := ioutil.ReadAll(limitedReader)
+	data, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return data, err
 	}

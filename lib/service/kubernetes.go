@@ -137,7 +137,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			reversetunnel.AgentPoolConfig{
 				Component:   teleport.ComponentKube,
 				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				ProxyAddr:   conn.TunnelProxy(),
+				Resolver:    conn.TunnelProxyResolver(),
 				Client:      conn.Client,
 				AccessPoint: accessPoint,
 				HostSigner:  conn.ServerIdentity.KeySigner,

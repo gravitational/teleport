@@ -26,47 +26,13 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/u2f"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
-
-// DELETE IN 7.0
-
-// GetRoles returns a list of roles
-func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
-	if resp, err := c.APIClient.GetRoles(ctx); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	out, err := c.Get(c.Endpoint("roles"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roles := make([]types.Role, len(items))
-	for i, roleBytes := range items {
-		role, err := services.UnmarshalRole(roleBytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles[i] = role
-	}
-	return roles, nil
-}
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
@@ -82,7 +48,7 @@ func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("roles"), &upsertRoleRawReq{Role: data})
+	_, err = c.PostJSON(ctx, c.Endpoint("roles"), &upsertRoleRawReq{Role: data})
 	return trace.Wrap(err)
 }
 
@@ -99,7 +65,7 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
 	}
-	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("roles", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,31 +89,8 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing name")
 	}
-	_, err := c.Delete(c.Endpoint("roles", name))
+	_, err := c.Delete(ctx, c.Endpoint("roles", name))
 	return trace.Wrap(err)
-}
-
-// DELETE IN 8.0
-
-// UpsertToken adds provisioning tokens for the auth server
-func (c *Client) UpsertToken(ctx context.Context, tok types.ProvisionToken) error {
-	if err := c.APIClient.UpsertToken(ctx, tok); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	_, err := c.PostJSON(c.Endpoint("tokens"), GenerateTokenRequest{
-		Token: tok.GetName(),
-		Roles: tok.GetRoles(),
-		TTL:   backend.TTL(clockwork.NewRealClock(), tok.Expiry()),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // GetTokens returns a list of active invitation tokens for nodes and users
@@ -160,7 +103,7 @@ func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("tokens"), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("tokens"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -181,7 +124,7 @@ func (c *Client) GetToken(ctx context.Context, token string) (types.ProvisionTok
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("tokens", token), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("tokens", token), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -199,7 +142,7 @@ func (c *Client) DeleteToken(ctx context.Context, token string) error {
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("tokens", token))
+	_, err := c.Delete(ctx, c.Endpoint("tokens", token))
 	return trace.Wrap(err)
 }
 
@@ -217,7 +160,7 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("oidc", "connectors"), &upsertOIDCConnectorRawReq{
+	_, err = c.PostJSON(ctx, c.Endpoint("oidc", "connectors"), &upsertOIDCConnectorRawReq{
 		Connector: data,
 	})
 	if err != nil {
@@ -239,7 +182,7 @@ func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bo
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
-	out, err := c.Get(c.Endpoint("oidc", "connectors", id),
+	out, err := c.Get(ctx, c.Endpoint("oidc", "connectors", id),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
 		return nil, err
@@ -257,7 +200,7 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("oidc", "connectors"),
+	out, err := c.Get(ctx, c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
 		return nil, err
@@ -290,7 +233,7 @@ func (c *Client) DeleteOIDCConnector(ctx context.Context, connectorID string) er
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
-	_, err := c.Delete(c.Endpoint("oidc", "connectors", connectorID))
+	_, err := c.Delete(ctx, c.Endpoint("oidc", "connectors", connectorID))
 	return trace.Wrap(err)
 }
 
@@ -308,7 +251,7 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PutJSON(c.Endpoint("saml", "connectors"), &upsertSAMLConnectorRawReq{
+	_, err = c.PutJSON(ctx, c.Endpoint("saml", "connectors"), &upsertSAMLConnectorRawReq{
 		Connector: data,
 	})
 	if err != nil {
@@ -330,7 +273,7 @@ func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bo
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
-	out, err := c.Get(c.Endpoint("saml", "connectors", id),
+	out, err := c.Get(ctx, c.Endpoint("saml", "connectors", id),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -348,7 +291,7 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]typ
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("saml", "connectors"),
+	out, err := c.Get(ctx, c.Endpoint("saml", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
 		return nil, err
@@ -381,7 +324,7 @@ func (c *Client) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
-	_, err := c.Delete(c.Endpoint("saml", "connectors", connectorID))
+	_, err := c.Delete(ctx, c.Endpoint("saml", "connectors", connectorID))
 	return trace.Wrap(err)
 }
 
@@ -399,7 +342,7 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.Gith
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PutJSON(c.Endpoint("github", "connectors"), &upsertGithubConnectorRawReq{
+	_, err = c.PutJSON(ctx, c.Endpoint("github", "connectors"), &upsertGithubConnectorRawReq{
 		Connector: bytes,
 	})
 	if err != nil {
@@ -418,7 +361,7 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]t
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("github", "connectors"), url.Values{
+	out, err := c.Get(ctx, c.Endpoint("github", "connectors"), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
 	if err != nil {
@@ -449,7 +392,7 @@ func (c *Client) GetGithubConnector(ctx context.Context, id string, withSecrets 
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("github", "connectors", id), url.Values{
+	out, err := c.Get(ctx, c.Endpoint("github", "connectors", id), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
 	if err != nil {
@@ -468,7 +411,7 @@ func (c *Client) DeleteGithubConnector(ctx context.Context, id string) error {
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("github", "connectors", id))
+	_, err := c.Delete(ctx, c.Endpoint("github", "connectors", id))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -484,7 +427,7 @@ func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.Trus
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("trustedclusters", name), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("trustedclusters", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -506,7 +449,7 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("trustedclusters"), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("trustedclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -541,7 +484,7 @@ func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.PostJSON(c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
+	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
 		TrustedCluster: trustedClusterBytes,
 	})
 	if err != nil {
@@ -560,7 +503,7 @@ func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("trustedclusters", name))
+	_, err := c.Delete(ctx, c.Endpoint("trustedclusters", name))
 	return trace.Wrap(err)
 }
 
@@ -574,7 +517,7 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("namespaces", namespace, "nodes"))
+	_, err := c.Delete(ctx, c.Endpoint("namespaces", namespace, "nodes"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -591,7 +534,7 @@ func (c *Client) DeleteNode(ctx context.Context, namespace string, name string) 
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("namespaces", namespace, "nodes", name))
+	_, err := c.Delete(ctx, c.Endpoint("namespaces", namespace, "nodes", name))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -605,6 +548,9 @@ type nodeClient interface {
 
 // GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  This is essentially
 // a wrapper around client.GetNodesWithLabels that performs fallback on NotImplemented errors.
+//
+// DELETE IN 11.0.0, this function is only called by lib/client/client.go (*ProxyClient).FindServersByLabels
+// which is also marked for deletion (replaced by FindNodesByFilters).
 func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	nodes, err := client.GetNodesWithLabels(ctx, clt, namespace, labels)
 	if err == nil || !trace.IsNotImplemented(err) {
@@ -630,6 +576,8 @@ func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, l
 }
 
 // GetNodes returns the list of servers registered in the cluster.
+//
+// DELETE IN 11.0.0, replaced by GetResourcesWithFilters
 func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
 		if !trace.IsNotImplemented(err) {
@@ -639,7 +587,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -661,177 +609,4 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	}
 
 	return re, nil
-}
-
-// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
-//
-// ChangeUserAuthentication changes user password with a user reset token and starts a web session.
-// Returns recovery tokens for cloud users with second factors turned on.
-func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
-	switch resp, err := c.APIClient.ChangeUserAuthentication(ctx, req); {
-	// ChangeUserAuthentication available
-	case err == nil:
-		return resp, nil
-	// ChangeUserAuthentication errored
-	case !trace.IsNotImplemented(err):
-		return nil, trace.Wrap(err)
-	}
-
-	// Convert request back to fallback compatible object.
-	httpReq := ChangePasswordWithTokenRequest{
-		SecondFactorToken: req.GetNewMFARegisterResponse().GetTOTP().GetCode(),
-		TokenID:           req.GetTokenID(),
-		Password:          req.GetNewPassword(),
-	}
-
-	if req.NewMFARegisterResponse.GetU2F() != nil {
-		httpReq.U2FRegisterResponse = &u2f.RegisterChallengeResponse{
-			RegistrationData: req.NewMFARegisterResponse.GetU2F().GetRegistrationData(),
-			ClientData:       req.NewMFARegisterResponse.GetU2F().GetClientData(),
-		}
-	}
-
-	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), httpReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	webSession, err := services.UnmarshalWebSession(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sess, ok := webSession.(*types.WebSessionV2)
-	if !ok {
-		return nil, trace.BadParameter("unexpected WebSessionV2 type %T", sess)
-	}
-
-	return &proto.ChangeUserAuthenticationResponse{
-		WebSession: sess,
-	}, nil
-}
-
-// GenerateHostCerts generates new host certificates (signed by the host CA).
-// DELETE IN 9.0.0 (zmb3)
-func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
-	switch certs, err := c.APIClient.GenerateHostCerts(ctx, req); {
-	case err == nil: // GRPC version is available and succeeded
-		return certs, nil
-	case !trace.IsNotImplemented(err): // GRPC version available but failed
-		return nil, trace.Wrap(err)
-	}
-
-	// fallback to legacy JSON API
-	out, err := c.PostJSON(c.Endpoint("server", "credentials"), legacyHostCertsRequest{
-		HostID:               req.HostID,
-		NodeName:             req.NodeName,
-		Roles:                types.SystemRoles{req.Role}, // old API requires a list of roles
-		AdditionalPrincipals: req.AdditionalPrincipals,
-		DNSNames:             req.DNSNames,
-		PublicTLSKey:         req.PublicTLSKey,
-		PublicSSHKey:         req.PublicSSHKey,
-		RemoteAddr:           req.RemoteAddr,
-		Rotation:             req.Rotation,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return UnmarshalLegacyCerts(out.Bytes())
-}
-
-// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
-//
-// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
-func (c *Client) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
-	switch resp, err := c.APIClient.CreateAuthenticateChallenge(ctx, req); {
-	case err == nil:
-		return resp, nil
-	case !trace.IsNotImplemented(err):
-		return nil, trace.Wrap(err)
-	}
-
-	// HTTP fallback for auth version <7.x
-	out, err := c.PostJSON(
-		c.Endpoint("u2f", "users", req.GetUserCredentials().GetUsername(), "sign"),
-		signInReq{
-			Password: string(req.GetUserCredentials().GetPassword()),
-		},
-	)
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var jsonChal *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &jsonChal); err != nil {
-		return nil, err
-	}
-
-	// Convert JSON back to proto.
-	// Webauthn is not handled here b/c the feature
-	// does not exist for auth version <7.x
-	protoChal := &proto.MFAAuthenticateChallenge{}
-
-	if jsonChal.TOTPChallenge {
-		protoChal.TOTP = &proto.TOTPChallenge{}
-	}
-
-	for _, u2fChal := range jsonChal.U2FChallenges {
-		protoChal.U2F = append(protoChal.U2F, &proto.U2FChallenge{
-			KeyHandle: u2fChal.KeyHandle,
-			Challenge: u2fChal.Challenge,
-			AppID:     u2fChal.AppID,
-		})
-	}
-
-	return protoChal, nil
-}
-
-// DELETE IN 9.0.0, to remove fallback and grpc call is already defined in api/client/client.go
-//
-// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
-func (c *Client) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
-	switch resp, err := c.APIClient.CreateRegisterChallenge(ctx, req); {
-	case err == nil:
-		return resp, nil
-	case !trace.IsNotImplemented(err):
-		return nil, trace.Wrap(err)
-	}
-
-	// Fallback for auth version <7.x
-	// Does not handle webauthn since this feature will not exist <7.x.
-	switch req.DeviceType {
-	case proto.DeviceType_DEVICE_TYPE_TOTP:
-		resp, err := c.APIClient.RotateUserTokenSecrets(ctx, req.GetTokenID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Only the QRCode is returned b/c that was the only value the caller was using/needed.
-		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_TOTP{
-			TOTP: &proto.TOTPRegisterChallenge{QRCode: resp.GetQRCode()},
-		}}, nil
-
-	case proto.DeviceType_DEVICE_TYPE_U2F:
-		out, err := c.Get(c.Endpoint("u2f", "signuptokens", req.GetTokenID()), url.Values{})
-		if err != nil {
-			return nil, err
-		}
-		var u2fRegReq u2f.RegisterChallenge
-		if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
-			return nil, err
-		}
-
-		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_U2F{
-			U2F: &proto.U2FRegisterChallenge{
-				Challenge: u2fRegReq.Challenge,
-				AppID:     u2fRegReq.AppID,
-				Version:   u2fRegReq.Version,
-			},
-		}}, nil
-
-	default:
-		return nil, trace.BadParameter("MFA device type %v unsupported", req.GetDeviceType().String())
-	}
 }

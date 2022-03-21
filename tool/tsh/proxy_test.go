@@ -19,10 +19,10 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -45,6 +45,127 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// TestTSHSSH verifies "tsh proxy ssh" command.
+func TestTSHSSH(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	os.RemoveAll(profile.FullProfilePath(""))
+	t.Cleanup(func() {
+		os.RemoveAll(profile.FullProfilePath(""))
+	})
+
+	s := newTestSuite(t, withLeafCluster(), withRootConfigFunc(func(cfg *service.Config) {
+		cfg.Version = defaults.TeleportConfigVersionV2
+		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	}))
+
+	tests := []struct {
+		name string
+		fn   func(t *testing.T, s *suite)
+	}{
+		{"ssh root cluster access", testRootClusterSSHAccess},
+		{"ssh leaf cluster access", testLeafClusterSSHAccess},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.fn(t, s)
+		})
+	}
+}
+
+func testRootClusterSSHAccess(t *testing.T, s *suite) {
+	err := Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", s.connector.GetName(),
+		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+	err = Run([]string{
+		"ssh",
+		s.root.Config.Hostname,
+		"echo", "hello",
+	})
+	require.NoError(t, err)
+
+	identityFile := path.Join(t.TempDir(), "identity.pem")
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", s.connector.GetName(),
+		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		"--out", identityFile,
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		"--insecure",
+		"-i", identityFile,
+		"ssh",
+		"localhost",
+		"echo", "hello",
+	})
+	require.NoError(t, err)
+}
+
+func testLeafClusterSSHAccess(t *testing.T, s *suite) {
+	err := Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", s.connector.GetName(),
+		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		s.leaf.Config.Auth.ClusterName.GetClusterName(),
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"ssh",
+		s.leaf.Config.Hostname,
+		"echo", "hello",
+	})
+	require.NoError(t, err)
+
+	identityFile := path.Join(t.TempDir(), "identity.pem")
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", s.connector.GetName(),
+		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		"--out", identityFile,
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		"--insecure",
+		"-i", identityFile,
+		"ssh",
+		"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
+		s.leaf.Config.Hostname,
+		"echo", "hello",
+	})
+	require.NoError(t, err)
+}
+
 // TestProxySSHDial verifies "tsh proxy ssh" command.
 func TestProxySSHDial(t *testing.T) {
 	createAgent(t)
@@ -52,7 +173,7 @@ func TestProxySSHDial(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
-	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV4{
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{"alice"},
 		},
@@ -198,7 +319,7 @@ func createAgent(t *testing.T) string {
 	// Create own tmp dir instead of using t.TmpDir
 	// because  net.Listen("unix", path) has dir path length limitation and
 	// the t.TmpDir calls creates tmp dir with test name.
-	sockDir, err := ioutil.TempDir("", "test")
+	sockDir, err := os.MkdirTemp("", "test")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.RemoveAll(sockDir)
@@ -253,7 +374,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "ssh_config")
-	err = ioutil.WriteFile(configPath, buff.Bytes(), 0600)
+	err = os.WriteFile(configPath, buff.Bytes(), 0600)
 	require.NoError(t, err)
 
 	return configPath
