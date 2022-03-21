@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 
-import { Text, Box, Flex, ButtonPrimary, ButtonOutlined, Link } from 'design';
+import { Text, Box, Flex, ButtonPrimary, ButtonOutlined } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
 

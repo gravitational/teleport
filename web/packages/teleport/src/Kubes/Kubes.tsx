@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box, Indicator, ButtonPrimary, Text, Link } from 'design';
+import { Box, Indicator, ButtonPrimary } from 'design';
 import { Danger } from 'design/Alert';
 import KubeList from 'teleport/Kubes/KubeList';
 import {

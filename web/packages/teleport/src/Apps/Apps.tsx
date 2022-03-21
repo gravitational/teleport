@@ -16,7 +16,7 @@
 
 import React from 'react';
 import { Danger } from 'design/Alert';
-import { Indicator, Box, Text, Link } from 'design';
+import { Indicator, Box } from 'design';
 import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
@@ -28,7 +28,6 @@ import AppList from './AppList';
 import AddApp from './AddApp';
 import ButtonAdd from './ButtonAdd';
 import useApps, { State } from './useApps';
-import { Failed } from 'teleport/Roles/Roles.story';
 
 export default function Container() {
   const ctx = useTeleport();
