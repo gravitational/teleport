@@ -28,6 +28,7 @@ import AppList from './AppList';
 import AddApp from './AddApp';
 import ButtonAdd from './ButtonAdd';
 import useApps, { State } from './useApps';
+import { Failed } from 'teleport/Roles/Roles.story';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -54,7 +55,7 @@ export function Apps(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Applications</FeatureHeaderTitle>
-        {!isEmpty && (
+        {!isEmpty && attempt.status !== 'processing' && (
           <ButtonAdd
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}

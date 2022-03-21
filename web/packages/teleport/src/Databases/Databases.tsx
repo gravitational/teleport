@@ -51,14 +51,16 @@ export function Databases(props: State) {
     authType,
   } = props;
 
-  const isEmpty = attempt.status === 'success' && databases.length === 0;
+  const isEmpty =
+    (attempt.status === 'success' || attempt.status === 'processing') &&
+    databases.length === 0;
   const hasDatabases = attempt.status === 'success' && databases.length > 0;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
-        {!isEmpty && (
+        {!isEmpty && attempt.status !== 'processing' && (
           <ButtonAdd
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}

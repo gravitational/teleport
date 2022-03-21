@@ -46,7 +46,6 @@ export default function Empty(props: Props) {
     return (
       <Box
         p={8}
-        mt={4}
         mx="auto"
         maxWidth="664px"
         textAlign="center"
@@ -71,9 +70,9 @@ export default function Empty(props: Props) {
   return (
     <Card
       p={8}
+      pt={5}
       as={Flex}
       width="100%"
-      mt={4}
       mx="auto"
       bg="primary.light"
       alignItems="center"

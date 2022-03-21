@@ -68,7 +68,7 @@ export function Nodes(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
-        {!isEmpty && (
+        {!isEmpty && attempt.status !== 'processing' && (
           <Flex alignItems="center">
             {hasNodes && (
               <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
