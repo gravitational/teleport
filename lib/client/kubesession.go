@@ -25,6 +25,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/utils"
@@ -201,12 +202,47 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, mode types.SessionParticipantM
 	go func() {
 		defer s.cancel()
 
-		handleNonPeerControls(mode, s.term, func() {
-			err := s.stream.ForceTerminate()
-			if err != nil {
-				fmt.Printf("\n\rError while sending force termination request: %v\n\r", err.Error())
+		if mode == types.SessionPeerMode {
+			// copy from the local input to the remote shell:
+			buf := make([]byte, 1024)
+
+			stdin := s.term.Stdin()
+			if s.term.IsAttached() {
+				stdin = escape.NewReader(stdin, s.term.Stderr(), func(err error) {
+					switch err {
+					case escape.ErrDisconnect:
+						fmt.Fprintf(s.term.Stderr(), "\r\n%v\r\n", err)
+					case escape.ErrTooMuchBufferedData:
+						fmt.Fprintf(s.term.Stderr(), "\r\nerror: %v\r\nremote peer may be unreachable, check your connectivity\r\n", trace.Wrap(err))
+					default:
+						fmt.Fprintf(s.term.Stderr(), "\r\nerror: %v\r\n", trace.Wrap(err))
+					}
+					s.cancel()
+				})
 			}
-		})
+
+			for {
+				n, err := stdin.Read(buf)
+				if n > 0 {
+					_, err = s.stream.Write(buf[:n])
+					if err != nil {
+						return
+					}
+				}
+
+				if err != nil {
+					fmt.Fprintf(s.term.Stderr(), "\r\n%v\r\n", trace.Wrap(err))
+					return
+				}
+			}
+		} else {
+			handleNonPeerControls(mode, s.term, func() {
+				err := s.stream.ForceTerminate()
+				if err != nil {
+					fmt.Printf("\n\rError while sending force termination request: %v\n\r", err.Error())
+				}
+			})
+		}
 	}()
 }
 
