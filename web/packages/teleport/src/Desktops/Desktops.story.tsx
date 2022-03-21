@@ -43,6 +43,8 @@ const props: State = {
   attempt: { status: 'success' },
   username: 'user',
   clusterId: 'im-a-cluster',
+  canCreate: true,
+  isLeafCluster: false,
   getWindowsLoginOptions: () => [{ login: '', url: '' }],
   openRemoteDesktopTab: () => {},
 };
