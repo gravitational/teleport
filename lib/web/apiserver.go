@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -443,7 +442,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.Wrap(err)
 		}
 		defer index.Close()
-		indexContent, err := ioutil.ReadAll(index)
+		indexContent, err := io.ReadAll(index)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}

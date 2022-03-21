@@ -21,7 +21,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -493,7 +492,7 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 }
 
 func newTest(t *testing.T) (keyStoreTest, func()) {
-	dir, err := ioutil.TempDir("", "teleport-keystore")
+	dir, err := os.MkdirTemp("", "teleport-keystore")
 	require.NoError(t, err)
 
 	store, err := NewFSLocalKeyStore(dir)
