@@ -21,8 +21,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/iam"
+
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/aws"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -38,24 +42,39 @@ type IAMConfig struct {
 	// Clients is an interface for retrieving cloud clients.
 	Clients common.CloudClients
 	// HostID is the host identified where this agent is running.
+	// DELETE IN 11.0.
 	HostID string
 	// TaskQueueSize is the size of the task queue.
 	TaskQueueSize int
+	// SetupRateLimiter limits the rate of setup calls per database.
+	SetupRateLimiter *limiter.RateLimiter
 }
 
 // Check validates the IAM configurator config.
-func (c *IAMConfig) Check() error {
-	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
-	}
+func (c *IAMConfig) Check() (err error) {
 	if c.Semaphores == nil {
 		return trace.BadParameter("missing Semaphores")
+	}
+	if c.Clients == nil {
+		c.Clients = common.NewCloudClients()
 	}
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
 	if c.TaskQueueSize <= 0 {
 		c.TaskQueueSize = defaultIAMTaskQueueSize
+	}
+	if c.SetupRateLimiter == nil {
+		c.SetupRateLimiter, err = limiter.NewRateLimiter(limiter.Config{
+			Rates: []limiter.Rate{{
+				Period:  defaultSetupRatePeriod,
+				Average: 1,
+				Burst:   1,
+			}},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -71,10 +90,10 @@ type iamTask struct {
 
 // IAM is a service that manages IAM policies for cloud databases.
 type IAM struct {
-	ctx         context.Context
+	closeCtx    context.Context
 	cfg         IAMConfig
 	log         logrus.FieldLogger
-	awsIdentity aws.Identity
+	awsIdentity awslib.Identity
 	mu          sync.RWMutex
 	tasks       chan iamTask
 }
@@ -85,37 +104,37 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &IAM{
-		ctx:   ctx,
-		cfg:   config,
-		log:   logrus.WithField(trace.Component, "iam"),
-		tasks: make(chan iamTask, config.TaskQueueSize),
+		closeCtx: ctx,
+		cfg:      config,
+		log:      logrus.WithField(trace.Component, "iam"),
+		tasks:    make(chan iamTask, config.TaskQueueSize),
 	}, nil
 }
 
 // Start starts the IAM configurator service.
-func (c *IAM) Start() error {
-	go func() {
-		c.log.Debug("Started IAM configurator service.")
-		defer c.log.Debug("Stopped IAM configurator service.")
-		for {
-			select {
-			case <-c.ctx.Done():
-				return
+func (c *IAM) Start() {
+	// DELETE IN 11.0.
+	c.migrateInlinePolicy(c.closeCtx)
 
-			case task := <-c.tasks:
-				err := c.runTask(c.ctx, task)
-				if err != nil {
-					c.log.WithError(err).Errorf("Failed to auto-configure IAM for %v.", task.database)
-				}
+	c.log.Info("Started IAM configurator service.")
+	defer c.log.Info("Stopped IAM configurator service.")
+	for {
+		select {
+		case <-c.closeCtx.Done():
+			return
+
+		case task := <-c.tasks:
+			err := c.processTask(c.closeCtx, task)
+			if err != nil {
+				c.log.WithError(err).Errorf("Failed to auto-configure IAM for %v.", task.database)
 			}
 		}
-	}()
-	return nil
+	}
 }
 
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
-	if database.IsRDS() || database.IsRedshift() {
+	if c.IsSetupRequired(database) {
 		return c.addTask(iamTask{
 			isSetup:  true,
 			database: database,
@@ -126,13 +145,18 @@ func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 
 // Teardown tears down cloud IAM policies for the provided database.
 func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
-	if database.IsRDS() || database.IsRedshift() {
+	if c.IsSetupRequired(database) {
 		return c.addTask(iamTask{
 			isSetup:  false,
 			database: database,
 		})
 	}
 	return nil
+}
+
+// IsSetupRequired returns true if setup is required for provided database.
+func (c *IAM) IsSetupRequired(database types.Database) bool {
+	return database.IsRDS() || database.IsRedshift()
 }
 
 // getAWSConfigurator returns configurator instance for the provided database.
@@ -150,7 +174,7 @@ func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (
 }
 
 // getAWSIdentity returns this process' AWS identity.
-func (c *IAM) getAWSIdentity(ctx context.Context) (aws.Identity, error) {
+func (c *IAM) getAWSIdentity(ctx context.Context) (awslib.Identity, error) {
 	c.mu.RLock()
 	if c.awsIdentity != nil {
 		defer c.mu.RUnlock()
@@ -161,7 +185,7 @@ func (c *IAM) getAWSIdentity(ctx context.Context) (aws.Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	awsIdentity, err := aws.GetIdentityWithClient(ctx, sts)
+	awsIdentity, err := awslib.GetIdentityWithClient(ctx, sts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -171,8 +195,8 @@ func (c *IAM) getAWSIdentity(ctx context.Context) (aws.Identity, error) {
 	return c.awsIdentity, nil
 }
 
-// runTask TODO
-func (c *IAM) runTask(ctx context.Context, task iamTask) error {
+// processTask runs an IAM task.
+func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
 		return trace.Wrap(err)
@@ -183,14 +207,14 @@ func (c *IAM) runTask(ctx context.Context, task iamTask) error {
 	lease, err := services.AcquireSemaphoreWithRetry(ctx, services.AcquireSemaphoreWithRetryConfig{
 		Service: c.cfg.Semaphores,
 		Request: types.AcquireSemaphoreRequest{
-			SemaphoreKind: types.SemaphoreKindConnection,
-			SemaphoreName: databaseAccessInlinePolicyName,
+			SemaphoreKind: databaseAccessInlinePolicyName,
+			SemaphoreName: configurator.cfg.identity.GetName(),
 			MaxLeases:     1,
 			Expires:       time.Now().Add(time.Minute),
 		},
 		Retry: utils.LinearConfig{
 			Step:   10 * time.Second,
-			Max:    time.Minute,
+			Max:    2 * time.Minute,
 			Jitter: utils.NewHalfJitter(),
 		},
 	})
@@ -213,6 +237,13 @@ func (c *IAM) runTask(ctx context.Context, task iamTask) error {
 
 // addTask add a task for processing.
 func (c *IAM) addTask(task iamTask) error {
+	if task.isSetup {
+		token := task.database.GetName() + task.database.GetURI()
+		if err := c.cfg.SetupRateLimiter.RegisterRequest(token, nil); err != nil {
+			return trace.LimitExceeded(err.Error())
+		}
+	}
+
 	select {
 	case c.tasks <- task:
 		return nil
@@ -227,6 +258,45 @@ func (c *IAM) isIdle() bool {
 	return len(c.tasks) == 0
 }
 
+// migrateInlinePolicy removes old inline policies "teleport-<host-id>" for
+// the caller identity. DELETE IN 11.0.
+func (c *IAM) migrateInlinePolicy(ctx context.Context) {
+	oldPolicyName := "teleport-" + c.cfg.HostID
+	identity, err := c.getAWSIdentity(ctx)
+	if err != nil {
+		c.log.WithError(err).Debugf("Failed to get AWS identity.")
+		return
+	}
+
+	iamClient, err := c.cfg.Clients.GetAWSIAMClient("")
+	if err != nil {
+		c.log.WithError(err).Debugf("Failed to get IAM client.")
+		return
+	}
+
+	switch identity.(type) {
+	case awslib.Role:
+		_, err = iamClient.DeleteRolePolicyWithContext(ctx, &iam.DeleteRolePolicyInput{
+			PolicyName: aws.String(oldPolicyName),
+			RoleName:   aws.String(identity.GetName()),
+		})
+	case awslib.User:
+		_, err = iamClient.DeleteUserPolicyWithContext(ctx, &iam.DeleteUserPolicyInput{
+			PolicyName: aws.String(oldPolicyName),
+			UserName:   aws.String(identity.GetName()),
+		})
+	}
+
+	if err != nil {
+		err = common.ConvertError(err)
+		if trace.IsAccessDenied(err) { // Permission errors are expected.
+			c.log.WithError(err).Debugf("No permissions to delete inline policy %v for %v", oldPolicyName, identity)
+		} else if !trace.IsNotFound(err) {
+			c.log.WithError(err).Errorf("Failed to delete inline policy %v for %v. It is recommended to remove this policy as it is no longer required.", oldPolicyName, identity)
+		}
+	}
+}
+
 const (
 	// databaseAccessInlinePolicyName is the inline policy name for database
 	// access permissions for the IAM idenity.
@@ -234,4 +304,7 @@ const (
 
 	// defaultIAMTaskQueueSize is the default task queue size for IAM configurator.
 	defaultIAMTaskQueueSize = 10000
+
+	// defaultSetupRatePeriod is the default rate period per database IAM setup.
+	defaultSetupRatePeriod = 10 * time.Minute
 )

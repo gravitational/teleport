@@ -23,9 +23,13 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/trace"
+	"github.com/mailgun/timetools"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
@@ -71,6 +75,17 @@ func TestAWSIAM(t *testing.T) {
 
 	iamClient := &IAMMock{}
 
+	limiterClock := timetools.SleepProvider(time.Now())
+	limiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{{
+			Period:  time.Hour,
+			Average: 1,
+			Burst:   1,
+		}},
+		Clock: limiterClock,
+	})
+	require.NoError(t, err)
+
 	// Setup database resources.
 	rdsDatabase, err := types.NewDatabaseV3(types.Metadata{
 		Name: "postgres-rds",
@@ -108,10 +123,11 @@ func TestAWSIAM(t *testing.T) {
 			STS:      stsClient,
 			IAM:      iamClient,
 		},
-		HostID: "host-id",
+		HostID:           "host-id",
+		SetupRateLimiter: limiter,
 	})
 	require.NoError(t, err)
-	require.NoError(t, configurator.Start())
+	go configurator.Start()
 
 	// Configure RDS database and make sure IAM was enabled and policy was attached.
 	err = configurator.Setup(ctx, rdsDatabase)
@@ -156,6 +172,15 @@ func TestAWSIAM(t *testing.T) {
 	require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
 	policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 	require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
+
+	// Setup immediately for the same database should be rate limited.
+	err = configurator.Setup(ctx, redshiftDatabase)
+	require.True(t, trace.IsLimitExceeded(err), "expect err is trace.LimitExceeded")
+
+	// Rate limit is lifted after advancing time.
+	timetools.AdvanceTimeBy(limiterClock, 2*time.Hour)
+	err = configurator.Teardown(ctx, redshiftDatabase)
+	require.NoError(t, err)
 }
 
 // TestAWSIAMNoPermissions tests that lack of AWS permissions does not produce
@@ -215,17 +240,54 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			require.NoError(t, err)
 
 			// Make sure there're no errors trying to setup/destroy IAM.
-			err = configurator.runTask(ctx, iamTask{
+			err = configurator.processTask(ctx, iamTask{
 				isSetup:  true,
 				database: database,
 			})
 			require.NoError(t, err)
 
-			err = configurator.runTask(ctx, iamTask{
+			err = configurator.processTask(ctx, iamTask{
 				isSetup:  false,
 				database: database,
 			})
 			require.NoError(t, err)
 		})
 	}
+}
+
+// DELETE IN 11.0.
+func TestAWSIAMMigration(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	// Configure mocks.
+	stsClient := &STSMock{
+		ARN: "arn:aws:iam::1234567890:role/test-role",
+	}
+
+	iamClient := &IAMMock{
+		attachedRolePolicies: map[string]map[string]string{
+			"test-role": map[string]string{
+				"teleport-host-id": "old policy",
+			},
+		},
+	}
+
+	// Make configurator.
+	configurator, err := NewIAM(ctx, IAMConfig{
+		Semaphores: &SemaphoresMock{},
+		Clients: &common.TestCloudClients{
+			STS: stsClient,
+			IAM: iamClient,
+		},
+		HostID: "host-id",
+	})
+	require.NoError(t, err)
+	configurator.migrateInlinePolicy(ctx)
+
+	_, err = iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
+		RoleName:   aws.String("test-role"),
+		PolicyName: aws.String("teleport-host-id"),
+	})
+	require.True(t, trace.IsNotFound(common.ConvertError(err)), "expect err is trace.NotFound")
 }

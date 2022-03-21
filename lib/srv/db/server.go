@@ -56,7 +56,7 @@ type Config struct {
 	Clock clockwork.Clock
 	// DataDir is the path to the data directory for the server.
 	DataDir string
-	// Semaphores is a client directly connected to the Auth server.
+	// AuthClient is a client directly connected to the Auth server.
 	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
@@ -174,9 +174,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			HostID:     c.HostID,
 		})
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err = c.CloudIAM.Start(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -336,10 +333,6 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	// Attempts to fetch cloud metadata and configure IAM for cloud-hosted
 	// databases on a best-effort basis.
-	//
-	// TODO(r0mant): It may also make sense to auto-configure IAM upon getting
-	// access denied error at connection time in case this fails or the policy
-	// gets removed off-band.
 	if err := s.cfg.CloudIAM.Setup(ctx, database); err != nil {
 		s.log.Warnf("Failed to auto-configure IAM for %v: %v.", database, err)
 	}
@@ -583,6 +576,9 @@ func (s *Server) getRotationState() types.Rotation {
 
 // Start starts proxying all server's registered databases.
 func (s *Server) Start(ctx context.Context) (err error) {
+	// Start IAM service.
+	go s.cfg.CloudIAM.Start()
+
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -684,7 +680,16 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
-	if err != nil && !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
+
+	// Auto-configure IAM upon getting access denied error in case
+	// startDatabase fails or the policy gets removed off-band.
+	if trace.IsAccessDenied(err) {
+		if err = s.cfg.CloudIAM.Setup(ctx, database); err != nil {
+			log.WithError(err).Debugf("Failed to auto-configure IAM for %v.", database, err)
+		}
+		return
+	}
+	if err != nil && !utils.IsOKNetworkError(err) {
 		log.WithError(err).Error("Failed to handle connection.")
 		return
 	}

@@ -29,7 +29,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -469,9 +468,6 @@ type iamMock struct {
 	attachRolePolicy   bool
 	attachUserBoundary bool
 	attachRoleBoundary bool
-
-	userInlinePolicies map[string]string
-	roleInlinePolicies map[string]string
 }
 
 func (m *iamMock) GetPolicyWithContext(context.Context, *iam.GetPolicyInput, ...request.Option) (*iam.GetPolicyOutput, error) {
@@ -544,58 +540,4 @@ func (m *iamMock) PutRolePermissionsBoundaryWithContext(context.Context, *iam.Pu
 	}
 
 	return &iam.PutRolePermissionsBoundaryOutput{}, nil
-}
-
-func (m *iamMock) GetRolePolicyWithContext(ctx context.Context, input *iam.GetRolePolicyInput, opts ...request.Option) (*iam.GetRolePolicyOutput, error) {
-	if m.roleInlinePolicies != nil {
-		key := aws.StringValue(input.RoleName) + aws.StringValue(input.PolicyName)
-		if document, ok := m.roleInlinePolicies[key]; ok {
-			return &iam.GetRolePolicyOutput{
-				PolicyDocument: aws.String(document),
-				RoleName:       input.RoleName,
-				PolicyName:     input.PolicyName,
-			}, nil
-		}
-	}
-	return nil, trace.NotFound("policy %v not found for %v", aws.StringValue(input.PolicyName), aws.StringValue(input.RoleName))
-}
-func (m *iamMock) PutRolePolicyWithContext(ctx context.Context, input *iam.PutRolePolicyInput, opts ...request.Option) (*iam.PutRolePolicyOutput, error) {
-	if m.roleInlinePolicies == nil {
-		m.roleInlinePolicies = make(map[string]string)
-	}
-	m.roleInlinePolicies[aws.StringValue(input.RoleName)+aws.StringValue(input.PolicyName)] = aws.StringValue(input.PolicyDocument)
-	return &iam.PutRolePolicyOutput{}, nil
-}
-func (m *iamMock) DeleteRolePolicyWithContext(ctx context.Context, input *iam.DeleteRolePolicyInput, opts ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
-	if m.roleInlinePolicies != nil {
-		delete(m.roleInlinePolicies, aws.StringValue(input.RoleName)+aws.StringValue(input.PolicyName))
-	}
-	return &iam.DeleteRolePolicyOutput{}, nil
-}
-
-func (m *iamMock) GetUserPolicyWithContext(ctx context.Context, input *iam.GetUserPolicyInput, opts ...request.Option) (*iam.GetUserPolicyOutput, error) {
-	if m.roleInlinePolicies != nil {
-		key := aws.StringValue(input.UserName) + aws.StringValue(input.PolicyName)
-		if document, ok := m.roleInlinePolicies[key]; ok {
-			return &iam.GetUserPolicyOutput{
-				PolicyDocument: aws.String(document),
-				UserName:       input.UserName,
-				PolicyName:     input.PolicyName,
-			}, nil
-		}
-	}
-	return nil, trace.NotFound("policy %v not found for %v", aws.StringValue(input.PolicyName), aws.StringValue(input.UserName))
-}
-func (m *iamMock) PutUserPolicyWithContext(ctx context.Context, input *iam.PutUserPolicyInput, opts ...request.Option) (*iam.PutUserPolicyOutput, error) {
-	if m.roleInlinePolicies == nil {
-		m.roleInlinePolicies = make(map[string]string)
-	}
-	m.roleInlinePolicies[aws.StringValue(input.UserName)+aws.StringValue(input.PolicyName)] = aws.StringValue(input.PolicyDocument)
-	return &iam.PutUserPolicyOutput{}, nil
-}
-func (m *iamMock) DeleteUserPolicyWithContext(ctx context.Context, input *iam.DeleteUserPolicyInput, opts ...request.Option) (*iam.DeleteUserPolicyOutput, error) {
-	if m.roleInlinePolicies != nil {
-		delete(m.roleInlinePolicies, aws.StringValue(input.UserName)+aws.StringValue(input.PolicyName))
-	}
-	return &iam.DeleteUserPolicyOutput{}, nil
 }
