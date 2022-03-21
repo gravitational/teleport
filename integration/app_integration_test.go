@@ -1142,6 +1142,7 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 		Value: p.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
+	req.Header.Add("Content-Type", "application/json")
 
 	client := &http.Client{
 		Transport: &http.Transport{
