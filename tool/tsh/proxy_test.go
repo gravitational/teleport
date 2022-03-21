@@ -56,10 +56,17 @@ func TestTSHSSH(t *testing.T) {
 		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
-	s := newTestSuite(t, withLeafCluster(), withRootConfigFunc(func(cfg *service.Config) {
-		cfg.Version = defaults.TeleportConfigVersionV2
-		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-	}))
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+		}),
+	)
 
 	tests := []struct {
 		name string
@@ -67,7 +74,7 @@ func TestTSHSSH(t *testing.T) {
 	}{
 		{"ssh root cluster access", testRootClusterSSHAccess},
 		{"ssh leaf cluster access", testLeafClusterSSHAccess},
-		{"test jump host ssh proxy port", testJumpHostProxySSHPort},
+		{"ssh jump host access", testJumpHostSSHAccess},
 	}
 
 	for _, tc := range tests {
@@ -168,7 +175,7 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 }
 
-func testJumpHostProxySSHPort(t *testing.T, s *suite) {
+func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	err := Run([]string{
 		"login",
 		"--insecure",
@@ -192,9 +199,24 @@ func testJumpHostProxySSHPort(t *testing.T, s *suite) {
 	})
 	require.NoError(t, err)
 
+	// Connect to leaf node though jump host set to leaf proxy SSH port.
 	err = Run([]string{
 		"ssh",
+		"--insecure",
 		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
+		s.leaf.Config.Hostname,
+		"echo", "hello",
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
+	err = Run([]string{
+		"ssh",
+		"--insecure",
+		"-J", s.leaf.Config.Proxy.WebAddr.Addr,
 		s.leaf.Config.Hostname,
 		"echo", "hello",
 	}, func(cf *CLIConf) error {

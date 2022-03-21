@@ -2260,7 +2260,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 
-	sshClient, err := makeProxySSHClient(tc, sshConfig)
+	sshClient, err := makeProxySSHClient(ctx, tc, sshConfig, sshProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2279,7 +2279,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}, nil
 }
 
-func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, addr string) (*ssh.Client, error) {
 	cfg := tc.Config
 	clientTLSConf, err := tc.loadTLSConfig()
 	if err != nil {
@@ -2289,29 +2289,34 @@ func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientC
 	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
 
-	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, clientTLSConf)
+	tlsConn, err := tls.Dial("tcp", addr, clientTLSConf)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to dial tls %v", cfg.WebProxyAddr)
+		return nil, trace.Wrap(err, "failed to dial tls %v", addr)
 	}
-	c, chans, reqs, err := ssh.NewClientConn(tlsConn, cfg.WebProxyAddr, sshConfig)
+	c, chans, reqs, err := ssh.NewClientConn(tlsConn, addr, sshConfig)
 	if err != nil {
 		// tlsConn is closed inside ssh.NewClientConn function
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.WebProxyAddr)
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", addr)
 	}
 	return ssh.NewClient(c, chans, reqs), nil
 }
 
-func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
-		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
-	}
-	addr := tc.Config.SSHProxyAddr
+func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, sshProxyAddr string) (*ssh.Client, error) {
 	if len(tc.JumpHosts) > 0 {
-		addr = tc.JumpHosts[0].Addr.Addr
+		resp, err := webclient.Find(ctx, tc.JumpHosts[0].Addr.Addr, tc.InsecureSkipVerify, nil)
+		if err == nil && resp.Proxy.TLSRoutingEnabled {
+			// Handle situation where jump host was set to proxy web address and Teleport supports TLS Routing.
+			return makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, tc.JumpHosts[0].Addr.Addr)
+		}
+
 	}
-	client, err := ssh.Dial("tcp", addr, sshConfig)
+	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
+		return makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, tc.Config.WebProxyAddr)
+	}
+
+	client, err := ssh.Dial("tcp", sshProxyAddr, sshConfig)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", addr)
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
 	}
 	return client, nil
 }
