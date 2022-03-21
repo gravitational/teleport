@@ -296,6 +296,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
 	if err != nil {
+		app.Usage(options.Args)
 		utils.FatalError(err)
 	}
 
