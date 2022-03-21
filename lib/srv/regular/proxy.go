@@ -55,7 +55,7 @@ var ( // failedConnectingToNode counts failed attempts to connect to a node
 	failedConnectingToNode = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: teleport.MetricFailedConnectToNodeAttempts,
-			Help: "Number of failed attempts to connect to a node",
+			Help: "Number of failed SSH connection attempts to a node. Used with `teleport_connect_to_node_attempts_total` to get failure rate.",
 		},
 	)
 
@@ -63,7 +63,7 @@ var ( // failedConnectingToNode counts failed attempts to connect to a node
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricConnectToNodeAttempts,
-			Help:      "Number of ssh connection attempts to a node.",
+			Help:      "Number of SSH connection attempts to a node. Used with `failed_connect_to_node_attempts_total` to get failure rate.",
 		},
 	)
 
