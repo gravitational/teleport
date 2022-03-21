@@ -626,6 +626,7 @@ func Run(args []string, opts ...cliOption) error {
 	// parse CLI commands+flags:
 	command, err := app.Parse(args)
 	if err != nil {
+		app.Usage(args)
 		return trace.Wrap(err)
 	}
 
