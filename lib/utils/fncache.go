@@ -14,20 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cache
+package utils
 
 import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
-// fnCache is a helper for temporarily storing the results of regularly called functions. This helper is
+// FnCache is a helper for temporarily storing the results of regularly called functions. This helper is
 // used to limit the amount of backend reads that occur while the primary cache is unhealthy.  Most resources
 // do not require this treatment, but certain resources (cas, nodes, etc) can be loaded on a per-request
 // basis and can cause significant numbers of backend reads if the cache is unhealthy or taking a while to init.
-type fnCache struct {
-	ttl         time.Duration
+type FnCache struct {
+	cfg         FnCacheConfig
 	mu          sync.Mutex
 	nextCleanup time.Time
 	entries     map[interface{}]*fnCacheEntry
@@ -39,11 +42,32 @@ type fnCache struct {
 // removed upon subsequent reads of the same key.
 const cleanupMultiplier time.Duration = 16
 
-func newFnCache(ttl time.Duration) *fnCache {
-	return &fnCache{
-		ttl:     ttl,
-		entries: make(map[interface{}]*fnCacheEntry),
+type FnCacheConfig struct {
+	TTL   time.Duration
+	Clock clockwork.Clock
+}
+
+func (c *FnCacheConfig) CheckAndSetDefaults() error {
+	if c.TTL <= 0 {
+		return trace.BadParameter("missing TTL parameter")
 	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
+	return nil
+}
+
+func NewFnCache(cfg FnCacheConfig) (*FnCache, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &FnCache{
+		cfg:     cfg,
+		entries: make(map[interface{}]*fnCacheEntry),
+	}, nil
 }
 
 type fnCacheEntry struct {
@@ -53,11 +77,11 @@ type fnCacheEntry struct {
 	loaded chan struct{}
 }
 
-func (c *fnCache) removeExpiredLocked(now time.Time) {
+func (c *FnCache) removeExpiredLocked(now time.Time) {
 	for key, entry := range c.entries {
 		select {
 		case <-entry.loaded:
-			if now.After(entry.t.Add(c.ttl)) {
+			if now.After(entry.t.Add(c.cfg.TTL)) {
 				delete(c.entries, key)
 			}
 		default:
@@ -71,15 +95,15 @@ func (c *fnCache) removeExpiredLocked(now time.Time) {
 // block until the first call updates the entry.  Note that the supplied context can cancel the call to Get, but will
 // not cancel loading.  The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
-func (c *fnCache) Get(ctx context.Context, key interface{}, loadfn func() (interface{}, error)) (interface{}, error) {
+func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func() (interface{}, error)) (interface{}, error) {
 	c.mu.Lock()
 
-	now := time.Now()
+	now := c.cfg.Clock.Now()
 
 	// check if we need to perform periodic cleanup
 	if now.After(c.nextCleanup) {
 		c.removeExpiredLocked(now)
-		c.nextCleanup = now.Add(c.ttl * cleanupMultiplier)
+		c.nextCleanup = now.Add(c.cfg.TTL * cleanupMultiplier)
 	}
 
 	entry := c.entries[key]
@@ -89,7 +113,7 @@ func (c *fnCache) Get(ctx context.Context, key interface{}, loadfn func() (inter
 	if entry != nil {
 		select {
 		case <-entry.loaded:
-			needsReload = now.After(entry.t.Add(c.ttl))
+			needsReload = now.After(entry.t.Add(c.cfg.TTL))
 		default:
 			// reload is already in progress
 			needsReload = false
@@ -105,7 +129,7 @@ func (c *fnCache) Get(ctx context.Context, key interface{}, loadfn func() (inter
 		c.entries[key] = entry
 		go func() {
 			entry.v, entry.e = loadfn()
-			entry.t = time.Now()
+			entry.t = c.cfg.Clock.Now()
 			close(entry.loaded)
 		}()
 	}
