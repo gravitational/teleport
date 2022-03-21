@@ -98,7 +98,7 @@ func buildLocationElements(r *request.Request, v reflect.Value, buildGETQuery bo
 
 			// Support the ability to customize values to be marshaled as a
 			// blob even though they were modeled as a string. Required for S3
-			// API operations like SSECustomerKey is modeled as stirng but
+			// API operations like SSECustomerKey is modeled as string but
 			// required to be base64 encoded in request.
 			if field.Tag.Get("marshal-as") == "blob" {
 				m = m.Convert(byteSliceType)
@@ -272,6 +272,9 @@ func convertType(v reflect.Value, tag reflect.StructTag) (str string, err error)
 
 	switch value := v.Interface().(type) {
 	case string:
+		if tag.Get("suppressedJSONValue") == "true" && tag.Get("location") == "header" {
+			value = base64.StdEncoding.EncodeToString([]byte(value))
+		}
 		str = value
 	case []byte:
 		str = base64.StdEncoding.EncodeToString(value)
@@ -306,5 +309,6 @@ func convertType(v reflect.Value, tag reflect.StructTag) (str string, err error)
 		err := fmt.Errorf("unsupported value for param %v (%s)", v.Interface(), v.Type())
 		return "", err
 	}
+
 	return str, nil
 }
