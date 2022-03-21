@@ -51,9 +51,21 @@ Read more in the following guide:
 
 </Details>
 
-<Notice type="warning">
-The IAM join method is not compatible with the `--insecure-no-tls` flag, and is
-currently not supported in the AWS China or GovCloud partitions.
+<Notice type="warning" scope={["oss", "enterprise"]}>
+
+The IAM join method will not work if TLS is terminated at a load balancer in
+front of your Teleport Proxy Service unless the node using this method is
+connecting directly to the Auth Service.
+
+The IAM join method is currently not supported in the AWS China or GovCloud
+partitions.
+
+</Notice>
+<Notice type="warning" scope={["cloud"]}>
+
+The IAM join method is currently not supported in the AWS China or GovCloud
+partitions.
+
 </Notice>
 
 ## Prerequisites
