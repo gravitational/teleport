@@ -358,7 +358,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
-	dialOpts := append([]grpc.DialOption{}, c.c.DialOpts...)
+	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
@@ -368,6 +368,8 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if c.tlsConfig != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 	}
+	// must come last, otherwise provided opts may get clobbered by defaults above
+	dialOpts = append([]grpc.DialOption{}, c.c.DialOpts...)
 
 	var err error
 	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
