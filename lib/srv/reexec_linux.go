@@ -30,6 +30,11 @@ func reexecCommandOSTweaks(cmd *exec.Cmd) {
 	// cleaning up child processes, send a signal for graceful shutdown
 	// to children.
 	cmd.SysProcAttr.Pdeathsig = syscall.SIGQUIT
+
+	// Linux only: execve on "/proc/self/exe" is special cased to run the
+	// current binary regardless of path - it'll work even if the file has been
+	// deleted or replaced
+	cmd.Path = "/proc/self/exe"
 }
 
 func userCommandOSTweaks(cmd *exec.Cmd) {
