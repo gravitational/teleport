@@ -134,7 +134,7 @@ func (c *IAM) Start() {
 
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
-	if c.IsSetupRequired(database) {
+	if database.IsRDS() || database.IsRedshift() {
 		return c.addTask(iamTask{
 			isSetup:  true,
 			database: database,
@@ -145,18 +145,13 @@ func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 
 // Teardown tears down cloud IAM policies for the provided database.
 func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
-	if c.IsSetupRequired(database) {
+	if database.IsRDS() || database.IsRedshift() {
 		return c.addTask(iamTask{
 			isSetup:  false,
 			database: database,
 		})
 	}
 	return nil
-}
-
-// IsSetupRequired returns true if setup is required for provided database.
-func (c *IAM) IsSetupRequired(database types.Database) bool {
-	return database.IsRDS() || database.IsRedshift()
 }
 
 // getAWSConfigurator returns configurator instance for the provided database.
@@ -300,7 +295,7 @@ func (c *IAM) migrateInlinePolicy(ctx context.Context) {
 const (
 	// databaseAccessInlinePolicyName is the inline policy name for database
 	// access permissions for the IAM idenity.
-	databaseAccessInlinePolicyName = "teleport-database-access"
+	databaseAccessInlinePolicyName = "teleport-managed-database-access"
 
 	// defaultIAMTaskQueueSize is the default task queue size for IAM configurator.
 	defaultIAMTaskQueueSize = 10000

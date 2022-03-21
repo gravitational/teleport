@@ -680,16 +680,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
-
-	// Auto-configure IAM upon getting access denied error in case
-	// startDatabase fails or the policy gets removed off-band.
-	if trace.IsAccessDenied(err) {
-		if err = s.cfg.CloudIAM.Setup(ctx, database); err != nil {
-			log.WithError(err).Debugf("Failed to auto-configure IAM for %v.", database, err)
-		}
-		return
-	}
-	if err != nil && !utils.IsOKNetworkError(err) {
+	if !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
 		log.WithError(err).Error("Failed to handle connection.")
 		return
 	}
@@ -771,6 +762,13 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
+		// Auto-configure IAM upon getting access denied error in case
+		// startDatabase fails or the policy gets removed off-band.
+		if trace.IsAccessDenied(err) {
+			if setupError := s.cfg.CloudIAM.Setup(ctx, sessionCtx.Database); setupError != nil {
+				s.log.WithError(setupError).Debugf("Failed to auto-configure IAM for %v.", sessionCtx.Database)
+			}
+		}
 		return trace.Wrap(err)
 	}
 	return nil

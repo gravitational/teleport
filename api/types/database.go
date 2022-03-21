@@ -481,18 +481,22 @@ func (d *DatabaseV3) GetIAMAction() string {
 func (d *DatabaseV3) GetIAMResources() []string {
 	aws := d.GetAWS()
 	if d.IsRDS() {
-		return []string{
-			fmt.Sprintf("arn:aws:rds-db:%v:%v:dbuser:%v/*",
-				aws.Region, aws.AccountID, aws.RDS.ResourceID),
+		if aws.Region != "" && aws.AccountID != "" && aws.RDS.ResourceID != "" {
+			return []string{
+				fmt.Sprintf("arn:aws:rds-db:%v:%v:dbuser:%v/*",
+					aws.Region, aws.AccountID, aws.RDS.ResourceID),
+			}
 		}
 	} else if d.IsRedshift() {
-		return []string{
-			fmt.Sprintf("arn:aws:redshift:%v:%v:dbuser:%v/*",
-				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-			fmt.Sprintf("arn:aws:redshift:%v:%v:dbname:%v/*",
-				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
-			fmt.Sprintf("arn:aws:redshift:%v:%v:dbgroup:%v/*",
-				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+		if aws.Region != "" && aws.AccountID != "" && aws.Redshift.ClusterID != "" {
+			return []string{
+				fmt.Sprintf("arn:aws:redshift:%v:%v:dbuser:%v/*",
+					aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+				fmt.Sprintf("arn:aws:redshift:%v:%v:dbname:%v/*",
+					aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+				fmt.Sprintf("arn:aws:redshift:%v:%v:dbgroup:%v/*",
+					aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+			}
 		}
 	}
 	return nil
