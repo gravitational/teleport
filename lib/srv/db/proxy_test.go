@@ -144,7 +144,7 @@ func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
 	err = mysql.Ping()
 	require.NoError(t, err)
 
-	testCtx.clock.Advance(idleClientTimeout + connMonitorDisconnectTimeBuff)
+	testCtx.advanceClock(idleClientTimeout + connMonitorDisconnectTimeBuff)
 
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
 	err = mysql.Ping()
@@ -171,7 +171,7 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 	err = mysql.Ping()
 	require.NoError(t, err)
 
-	testCtx.clock.Advance(ttlClientCert)
+	testCtx.advanceClock(ttlClientCert)
 
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
 	err = mysql.Ping()

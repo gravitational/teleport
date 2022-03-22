@@ -23,10 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/timetools"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -75,17 +73,6 @@ func TestAWSIAM(t *testing.T) {
 
 	iamClient := &IAMMock{}
 
-	limiterClock := timetools.SleepProvider(time.Now())
-	limiter, err := limiter.NewRateLimiter(limiter.Config{
-		Rates: []limiter.Rate{{
-			Period:  time.Hour,
-			Average: 1,
-			Burst:   1,
-		}},
-		Clock: limiterClock,
-	})
-	require.NoError(t, err)
-
 	// Setup database resources.
 	rdsDatabase, err := types.NewDatabaseV3(types.Metadata{
 		Name: "postgres-rds",
@@ -124,6 +111,14 @@ func TestAWSIAM(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make configurator.
+	taskChan := make(chan struct{})
+	waitForTaskProcessed := func(t *testing.T) {
+		select {
+		case <-taskChan:
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "Failed to wait till task is processed")
+		}
+	}
 	configurator, err := NewIAM(ctx, IAMConfig{
 		Semaphores: &SemaphoresMock{},
 		Clients: &common.TestCloudClients{
@@ -132,17 +127,19 @@ func TestAWSIAM(t *testing.T) {
 			STS:      stsClient,
 			IAM:      iamClient,
 		},
-		HostID:           "host-id",
-		SetupRateLimiter: limiter,
+		HostID: "host-id",
+		onProcessTask: func(iamTask) {
+			taskChan <- struct{}{}
+		},
 	})
 	require.NoError(t, err)
-	go configurator.Start()
+	require.NoError(t, configurator.Start(ctx))
 
 	t.Run("RDS", func(t *testing.T) {
 		// Configure RDS database and make sure IAM was enabled and policy was attached.
 		err = configurator.Setup(ctx, rdsDatabase)
 		require.NoError(t, err)
-		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		waitForTaskProcessed(t)
 		require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
 		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 		require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
@@ -150,7 +147,7 @@ func TestAWSIAM(t *testing.T) {
 		// Deconfigure RDS database, policy should get detached.
 		err = configurator.Teardown(ctx, rdsDatabase)
 		require.NoError(t, err)
-		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		waitForTaskProcessed(t)
 		policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 		require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 	})
@@ -159,7 +156,7 @@ func TestAWSIAM(t *testing.T) {
 		// Configure Aurora database and make sure IAM was enabled and policy was attached.
 		err = configurator.Setup(ctx, auroraDatabase)
 		require.NoError(t, err)
-		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		waitForTaskProcessed(t)
 		require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
 		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 		require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
@@ -167,7 +164,7 @@ func TestAWSIAM(t *testing.T) {
 		// Deconfigure Aurora database, policy should get detached.
 		err = configurator.Teardown(ctx, auroraDatabase)
 		require.NoError(t, err)
-		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		waitForTaskProcessed(t)
 		policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 		require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 	})
@@ -176,34 +173,23 @@ func TestAWSIAM(t *testing.T) {
 		// Configure Redshift database and make sure policy was attached.
 		err = configurator.Setup(ctx, redshiftDatabase)
 		require.NoError(t, err)
-		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		waitForTaskProcessed(t)
 		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 		require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 
 		// Deconfigure Redshift database, policy should get detached.
 		err = configurator.Teardown(ctx, redshiftDatabase)
 		require.NoError(t, err)
-		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		waitForTaskProcessed(t)
 		policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 		require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 	})
 
-	t.Run("rate limiting setup", func(t *testing.T) {
-		// Setup immediately for the same database should be rate limited.
-		err = configurator.Setup(ctx, redshiftDatabase)
-		require.True(t, trace.IsLimitExceeded(err), "expect err is trace.LimitExceeded")
-
-		// Rate limit is lifted after advancing time.
-		timetools.AdvanceTimeBy(limiterClock, 2*time.Hour)
-		err = configurator.Teardown(ctx, redshiftDatabase)
-		require.NoError(t, err)
-	})
-
+	// Database misssing metadata for generating IAM actions should NOT be
+	// added to the policy document.
 	t.Run("missing metadata", func(t *testing.T) {
-		// Database without enough metadata to generate IAM actions should not
-		// be added to the policy.
 		err = configurator.Setup(ctx, databaseMissingMetadata)
-		require.Eventuallyf(t, configurator.isIdle, 10*time.Second, 50*time.Millisecond, "database is not processed")
+		waitForTaskProcessed(t)
 		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
 		require.NotContains(t, policy, databaseMissingMetadata.GetAWS().Redshift.ClusterID)
 	})
@@ -309,7 +295,7 @@ func TestAWSIAMMigration(t *testing.T) {
 		HostID: "host-id",
 	})
 	require.NoError(t, err)
-	configurator.migrateInlinePolicy(ctx)
+	require.NoError(t, configurator.Start(ctx))
 
 	_, err = iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
 		RoleName:   aws.String("test-role"),

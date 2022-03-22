@@ -170,6 +170,9 @@ func (m *IAMMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePo
 func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.DeleteRolePolicyInput, options ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
 	if _, ok := m.attachedRolePolicies[*input.RoleName]; ok {
 		delete(m.attachedRolePolicies[*input.RoleName], *input.PolicyName)
+		if len(m.attachedRolePolicies[*input.RoleName]) == 0 {
+			delete(m.attachedRolePolicies, *input.RoleName)
+		}
 	}
 	return &iam.DeleteRolePolicyOutput{}, nil
 }

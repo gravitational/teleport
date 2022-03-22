@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/mailgun/timetools"
 
 	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
@@ -1266,6 +1267,12 @@ type testContext struct {
 	sqlServer map[string]testSQLServer
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
+	// clockProvider to override clock in tests.
+	clockProvider timetools.TimeProvider
+	// closeCtx is the context for closing.
+	closeCtx context.Context
+	// closeCtxFunc is cancel functin for closeCtx.
+	closeCtxFunc func()
 }
 
 // testPostgres represents a single proxied Postgres database.
@@ -1542,7 +1549,16 @@ func (c *testContext) Close() error {
 	if c.server != nil {
 		errors = append(errors, c.server.Close())
 	}
+	if c.closeCtxFunc != nil {
+		c.closeCtxFunc()
+	}
 	return trace.NewAggregate(errors...)
+}
+
+// advanceClock advance fake clocks.
+func (c *testContext) advanceClock(d time.Duration) {
+	c.clock.Advance(d)
+	timetools.AdvanceTimeBy(c.clockProvider, d)
 }
 
 func init() {
@@ -1552,15 +1568,20 @@ func init() {
 }
 
 func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDatabaseOption) *testContext {
+	ctx, cancel := context.WithCancel(ctx)
+	now := time.Now()
 	testCtx := &testContext{
-		clusterName: "root.example.com",
-		hostID:      uuid.New().String(),
-		postgres:    make(map[string]testPostgres),
-		mysql:       make(map[string]testMySQL),
-		mongo:       make(map[string]testMongoDB),
-		redis:       make(map[string]testRedis),
-		sqlServer:   make(map[string]testSQLServer),
-		clock:       clockwork.NewFakeClockAt(time.Now()),
+		clusterName:   "root.example.com",
+		hostID:        uuid.New().String(),
+		postgres:      make(map[string]testPostgres),
+		mysql:         make(map[string]testMySQL),
+		mongo:         make(map[string]testMongoDB),
+		redis:         make(map[string]testRedis),
+		sqlServer:     make(map[string]testSQLServer),
+		clock:         clockwork.NewFakeClockAt(now),
+		clockProvider: timetools.SleepProvider(now),
+		closeCtx:      ctx,
+		closeCtxFunc:  cancel,
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
@@ -1653,7 +1674,9 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		},
 	}
 	// Empty config means no limit.
-	connLimiter, err := limiter.NewLimiter(limiter.Config{})
+	connLimiter, err := limiter.NewLimiter(limiter.Config{
+		Clock: testCtx.clockProvider,
+	})
 	require.NoError(t, err)
 
 	// Create test audit events emitter.
@@ -1748,7 +1771,9 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	require.NoError(t, err)
 
 	// Create default limiter.
-	connLimiter, err := limiter.NewLimiter(limiter.Config{})
+	connLimiter, err := limiter.NewLimiter(limiter.Config{
+		Clock: c.clockProvider,
+	})
 	require.NoError(t, err)
 
 	// Create database server agent itself.
@@ -1783,7 +1808,9 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
 		CloudClients: &common.TestCloudClients{
-			STS:      &cloud.STSMock{},
+			STS: &cloud.STSMock{
+				ARN: testSTSRole,
+			},
 			RDS:      &cloud.RDSMock{},
 			Redshift: &cloud.RedshiftMock{},
 			IAM:      &cloud.IAMMock{},
@@ -2197,3 +2224,6 @@ var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{
 
 // testAWSRegion is the AWS region used in tests.
 const testAWSRegion = "us-east-1"
+
+// testSTSRole is the AWS IAM caller identity used in tests.
+const testSTSRole = "arn:aws:iam::1234567890:role/test-role"

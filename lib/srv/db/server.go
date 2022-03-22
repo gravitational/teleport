@@ -88,6 +88,8 @@ type Config struct {
 	OnHeartbeat func(error)
 	// OnReconcile is called after each database resource reconciliation.
 	OnReconcile func(types.Databases)
+	// OnDiagnose is called after a database error is diagnosed.
+	OnDiagnose func(types.Database, error)
 	// Auth is responsible for generating database auth tokens.
 	Auth common.Auth
 	// CADownloader automatically downloads root certs for cloud hosted databases.
@@ -243,6 +245,8 @@ type Server struct {
 	monitoredDatabases monitoredDatabases
 	// reconcileCh triggers reconciliation of proxied databases.
 	reconcileCh chan struct{}
+	// diagnoseCh triggers diagnosis of a database.
+	dignoseCh chan diagnoseTask
 	// mu protects access to server infos and databases.
 	mu sync.RWMutex
 	// log is used for logging.
@@ -303,6 +307,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 			static: config.Databases,
 		},
 		reconcileCh: make(chan struct{}),
+		dignoseCh:   make(chan diagnoseTask, defaultDiagnoseChannelSize),
 		middleware: &auth.Middleware{
 			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
@@ -487,6 +492,14 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	return databases
 }
 
+// getProxiedDatabase finds the proxided database by name.
+func (s *Server) getProxiedDatabase(name string) (database types.Database, found bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	database, found = s.proxiedDatabases[name]
+	return
+}
+
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
@@ -576,8 +589,16 @@ func (s *Server) getRotationState() types.Rotation {
 
 // Start starts proxying all server's registered databases.
 func (s *Server) Start(ctx context.Context) (err error) {
-	// Start IAM service.
-	go s.cfg.CloudIAM.Start()
+	// Start IAM service that will be configuring IAM Auth for databases.
+	if err := s.cfg.CloudIAM.Start(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start diagnose goroutine that will be reconfiguring databases upon
+	// connection failures.
+	if err := s.startDiagnoseRoutine(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
@@ -762,12 +783,8 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
-		// Auto-configure IAM upon getting access denied error in case
-		// startDatabase fails or the policy gets removed off-band.
-		if trace.IsAccessDenied(err) {
-			if setupError := s.cfg.CloudIAM.Setup(ctx, sessionCtx.Database); setupError != nil {
-				s.log.WithError(setupError).Debugf("Failed to auto-configure IAM for %v.", sessionCtx.Database)
-			}
+		if diagErr := s.addDiagnoseTask(sessionCtx.Database, err); diagErr != nil {
+			s.log.WithError(diagErr).Debugf("Failed to add diagnose task for %v", sessionCtx.Database.GetName())
 		}
 		return trace.Wrap(err)
 	}

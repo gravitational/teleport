@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,8 +45,8 @@ type IAMConfig struct {
 	HostID string
 	// TaskQueueSize is the size of the task queue.
 	TaskQueueSize int
-	// SetupRateLimiter limits the rate of setup calls per database.
-	SetupRateLimiter *limiter.RateLimiter
+	// onProcessTask is called after a task is processed.
+	onProcessTask func(task iamTask)
 }
 
 // Check validates the IAM configurator config.
@@ -64,18 +63,6 @@ func (c *IAMConfig) Check() (err error) {
 	if c.TaskQueueSize <= 0 {
 		c.TaskQueueSize = defaultIAMTaskQueueSize
 	}
-	if c.SetupRateLimiter == nil {
-		c.SetupRateLimiter, err = limiter.NewRateLimiter(limiter.Config{
-			Rates: []limiter.Rate{{
-				Period:  defaultSetupRatePeriod,
-				Average: 1,
-				Burst:   1,
-			}},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 
@@ -90,7 +77,6 @@ type iamTask struct {
 
 // IAM is a service that manages IAM policies for cloud databases.
 type IAM struct {
-	closeCtx    context.Context
 	cfg         IAMConfig
 	log         logrus.FieldLogger
 	awsIdentity awslib.Identity
@@ -104,32 +90,37 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &IAM{
-		closeCtx: ctx,
-		cfg:      config,
-		log:      logrus.WithField(trace.Component, "iam"),
-		tasks:    make(chan iamTask, config.TaskQueueSize),
+		cfg:   config,
+		log:   logrus.WithField(trace.Component, "iam"),
+		tasks: make(chan iamTask, config.TaskQueueSize),
 	}, nil
 }
 
 // Start starts the IAM configurator service.
-func (c *IAM) Start() {
+func (c *IAM) Start(ctx context.Context) error {
 	// DELETE IN 11.0.
-	c.migrateInlinePolicy(c.closeCtx)
+	c.migrateInlinePolicy(ctx)
 
-	c.log.Info("Started IAM configurator service.")
-	defer c.log.Info("Stopped IAM configurator service.")
-	for {
-		select {
-		case <-c.closeCtx.Done():
-			return
+	go func() {
+		c.log.Info("Started IAM configurator service.")
+		defer c.log.Info("Stopped IAM configurator service.")
+		for {
+			select {
+			case <-ctx.Done():
+				return
 
-		case task := <-c.tasks:
-			err := c.processTask(c.closeCtx, task)
-			if err != nil {
-				c.log.WithError(err).Errorf("Failed to auto-configure IAM for %v.", task.database)
+			case task := <-c.tasks:
+				err := c.processTask(ctx, task)
+				if err != nil {
+					c.log.WithError(err).Errorf("Failed to auto-configure IAM for %v.", task.database)
+				}
+				if c.cfg.onProcessTask != nil {
+					c.cfg.onProcessTask(task)
+				}
 			}
 		}
-	}
+	}()
+	return nil
 }
 
 // Setup sets up cloud IAM policies for the provided database.
@@ -232,13 +223,6 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 
 // addTask add a task for processing.
 func (c *IAM) addTask(task iamTask) error {
-	if task.isSetup {
-		token := task.database.GetName() + task.database.GetURI()
-		if err := c.cfg.SetupRateLimiter.RegisterRequest(token, nil); err != nil {
-			return trace.LimitExceeded(err.Error())
-		}
-	}
-
 	select {
 	case c.tasks <- task:
 		return nil
@@ -246,11 +230,6 @@ func (c *IAM) addTask(task iamTask) error {
 	default:
 		return trace.LimitExceeded("failed to create IAM task for %v", task.database)
 	}
-}
-
-// isIdle returns true if there is no tasks being processed.
-func (c *IAM) isIdle() bool {
-	return len(c.tasks) == 0
 }
 
 // migrateInlinePolicy removes old inline policies "teleport-<host-id>" for
@@ -294,7 +273,4 @@ const (
 
 	// defaultIAMTaskQueueSize is the default task queue size for IAM configurator.
 	defaultIAMTaskQueueSize = 10000
-
-	// defaultSetupRatePeriod is the default rate period per database IAM setup.
-	defaultSetupRatePeriod = 10 * time.Minute
 )
