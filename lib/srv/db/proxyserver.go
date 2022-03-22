@@ -629,7 +629,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 
 	teleportVer, err := semver.NewVersion(server.GetTeleportVersion())
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse Teleport version")
+		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
 	}
 
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
