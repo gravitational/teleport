@@ -84,9 +84,9 @@ func (s *service) BidirectionalStreamingEcho(stream pb.Echo_BidirectionalStreami
 	return trace.AlreadyExists("already exists")
 }
 
-// TestGRPCUnaryErrorWrapping tests the error wrapping capability of the client
+// TestGRPCErrorWrapping tests the error wrapping capability of the client
 // and server unary and stream interceptors
-func TestGRPCUnaryErrorWrapping(t *testing.T) {
+func TestGRPCErrorWrapping(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
