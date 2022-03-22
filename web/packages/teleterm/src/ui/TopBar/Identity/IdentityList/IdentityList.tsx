@@ -1,24 +1,21 @@
 import React from 'react';
 import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import styled from 'styled-components';
-import { Add } from 'design/Icon';
-import { Box, ButtonIcon, Flex, Text } from 'design';
+import { Box, Flex, Text } from 'design';
 import { LoggedInUser } from 'teleterm/services/tshd/types';
-import { ClusterItem } from './ClusterItem';
-import { LogoutItem } from './LogoutItem';
+import { IdentityListItem } from './IdentityListItem';
+import { AddNewClusterItem } from './AddNewClusterItem';
 import { IdentityRootCluster } from '../useIdentity';
 
 interface IdentityListProps {
   loggedInUser: LoggedInUser;
   clusters: IdentityRootCluster[];
 
-  onRemoveCluster(clusterUri: string): void;
-
   onSelectCluster(clusterUri: string): void;
 
   onAddCluster(): void;
 
-  onLogout(): void;
+  onLogout(clusterUri: string): void;
 }
 
 export function IdentityList(props: IdentityListProps) {
@@ -31,15 +28,12 @@ export function IdentityList(props: IdentityListProps) {
             {props.loggedInUser?.rolesList?.join(', ')}
           </Text>
         </Box>
-        <ButtonIcon onClick={props.onAddCluster} title="Add cluster">
-          <Add />
-        </ButtonIcon>
       </Flex>
       <Separator />
       <KeyboardArrowsNavigation>
         <Box px={'12px'}>
           {props.clusters.map((i, index) => (
-            <ClusterItem
+            <IdentityListItem
               key={i.uri}
               index={index}
               isSelected={i.active}
@@ -47,21 +41,17 @@ export function IdentityList(props: IdentityListProps) {
               clusterName={i.clusterName}
               isSyncing={i.clusterSyncStatus}
               onSelect={() => props.onSelectCluster(i.uri)}
-              onRemove={() => props.onRemoveCluster(i.uri)}
+              onLogout={() => props.onLogout(i.uri)}
             />
           ))}
         </Box>
-        {props.loggedInUser && (
-          <>
-            <Separator />
-            <Box px={'12px'}>
-              <LogoutItem
-                index={props.clusters.length + 1}
-                onLogout={props.onLogout}
-              />
-            </Box>
-          </>
-        )}
+        <Separator />
+        <Box px={'12px'}>
+          <AddNewClusterItem
+            index={props.clusters.length + 1}
+            onClick={props.onAddCluster}
+          />
+        </Box>
       </KeyboardArrowsNavigation>
     </>
   );

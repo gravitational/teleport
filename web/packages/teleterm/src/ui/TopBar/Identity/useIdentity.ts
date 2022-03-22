@@ -15,19 +15,18 @@ export function useIdentity() {
     ctx.commandLauncher.executeCommand('cluster-connect', {});
   }
 
-  function removeCluster(clusterUri: string): void {
-    ctx.commandLauncher.executeCommand('cluster-remove', { clusterUri });
-  }
+  async function logout(clusterUri: string): Promise<void> {
+    await ctx.clustersService.logout(clusterUri);
+    await ctx.clustersService.removeCluster(clusterUri);
 
-  async function logout(): Promise<void> {
-    const rootClusterUri = ctx.workspacesService.getRootClusterUri();
-    await ctx.clustersService.logout(rootClusterUri);
-    const [firstConnectedWorkspace] =
-      ctx.workspacesService.getConnectedWorkspacesClustersUri();
-    if (firstConnectedWorkspace) {
-      await ctx.workspacesService.setActiveWorkspace(firstConnectedWorkspace);
-    } else {
-      await ctx.workspacesService.setActiveWorkspace(null);
+    if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
+      const [firstConnectedWorkspace] =
+        ctx.workspacesService.getConnectedWorkspacesClustersUri();
+      if (firstConnectedWorkspace) {
+        await ctx.workspacesService.setActiveWorkspace(firstConnectedWorkspace);
+      } else {
+        await ctx.workspacesService.setActiveWorkspace(null);
+      }
     }
   }
 
@@ -55,7 +54,6 @@ export function useIdentity() {
   return {
     changeRootCluster,
     addCluster,
-    removeCluster,
     logout,
     activeRootCluster: getActiveRootCluster(),
     rootClusters,

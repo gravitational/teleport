@@ -5,7 +5,7 @@ import { ButtonIcon, Flex, Label, Text } from 'design';
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 import { CircleCross } from 'design/Icon';
 
-interface ClusterItemProps {
+interface IdentityListItemProps {
   index: number;
   userName?: string;
   clusterName: string;
@@ -14,10 +14,10 @@ interface ClusterItemProps {
 
   onSelect(): void;
 
-  onRemove(): void;
+  onLogout(): void;
 }
 
-export function ClusterItem(props: ClusterItemProps) {
+export function IdentityListItem(props: IdentityListItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const { isActive } = useKeyboardArrowsNavigation({
     index: props.index,
@@ -45,20 +45,21 @@ export function ClusterItem(props: ClusterItemProps) {
           </Label>
         ) : null}
         {props.isSyncing && <LinearProgress />}
+        {isHovered && (
+          <ButtonIcon
+            mr="-10px"
+            ml={1}
+            color="text.placeholder"
+            title="Logout"
+            onClick={e => {
+              e.stopPropagation();
+              props.onLogout();
+            }}
+          >
+            <CircleCross fontSize={12} />
+          </ButtonIcon>
+        )}
       </Flex>
-      {isHovered && !props.isSelected && (
-        <ButtonIcon
-          mr="-10px"
-          color="text.placeholder"
-          title="Remove cluster"
-          onClick={e => {
-            e.stopPropagation();
-            props.onRemove();
-          }}
-        >
-          <CircleCross fontSize={12} />
-        </ButtonIcon>
-      )}
     </ListItem>
   );
 }
