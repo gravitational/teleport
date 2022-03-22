@@ -107,19 +107,34 @@ A new "Window Indicator" (icon with two arrows) should appear in the bottom left
 ![Window Indicator in bottom left corner of VS Code](../../../img/vscode/window-indicator.png)
 </Figure>
 
-Click on it, and select "Open SSH Configuration File..."  
-Select the one we generated during Step 1 and open it in the editor.
+Click on it, and select "Connect to Host...".
+Select "+ Add New SSH Host..."
 
 For each host you wish to remotely develop on, add an entry like the following:
 
 ```txt
-Host node000.foo.example.com
-    User alice
+alice@node000.foo.example.com
 ```
+
+<Figure align="left" bordered caption="Adding new Node">
+![Input box to add new Node](../../../img/vscode/add-host.png)
+</Figure>
+
+When prompted to choose which SSH Configuration file to update select the one we generated during Step 1.
+
+This will write a new node into your SSH Configuration file. You can edit and manage all your nodes in this file.
 
 ## Step 3/3. Start a Remote Development session
 
-Start a Remote Development session by clicking on the Window Indicator again and selecting either "Connect to...". 
+Start a Remote Development session by either:
+
+1. Clicking "Connect" on the notification that opens after adding a new host.
+
+<Figure align="left" bordered caption="Host added notification">
+![Notification of "Host added" that has connect button](../../../img/vscode/host-added-notification.png)
+</Figure>
+
+2. Clicking on the Window Indicator again and selecting either "Connect to...". 
 You should see the host you just added and any others in your Configuration file in the drop down.
 
 <Figure align="left" bordered caption="Connect to a Node">
