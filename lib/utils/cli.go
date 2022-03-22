@@ -22,7 +22,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"math"
 	"os"
@@ -61,7 +60,7 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 			log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 			log.SetOutput(os.Stderr)
 		} else {
-			log.SetOutput(ioutil.Discard)
+			log.SetOutput(io.Discard)
 		}
 	case LoggingForDaemon:
 		log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
@@ -83,7 +82,7 @@ func InitLoggerForTests() {
 		return
 	}
 	logger.SetLevel(log.WarnLevel)
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 }
 
 // NewLoggerForTests creates a new logger for test environment
