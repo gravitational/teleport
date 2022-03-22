@@ -100,34 +100,15 @@ When you see this error, re-run `tsh login` to refresh your local certificate.
 
 ## Step 2/3. Configure Visual Studio Code
 
-<Admonition
-  type="warning"
-  title="Warning"
->
-  Due to [a VS Code bug](https://github.com/microsoft/vscode-remote-release/issues/5562),
-  you can not use Remote - SSH UI to add SSH hosts. It will improperly rewrite the quoting in
-  `tsh config`'s generated configuration.
-  If your SSH configuration becomes corrupted, re-run `tsh config`.
-</Admonition>
+Install the [Remote - SSH extension][remote-ssh] in your local VS Code instance. 
+A new "Window Indicator" (icon with two arrows) should appear in the bottom left of your VS Code window.
 
-Install the [Remote - SSH extension][remote-ssh] in your local VS Code
-instance. A new "Remote Explorer" sidebar entry should appear.
-
-Select it, ensure "SSH Targets" is selected in the drop-down menu, and select the "Configure"
-gear icon:
-
-<Figure align="left" bordered caption="VS Code sidebar">
-  ![VS Code sidebar with the Remote Explorer pane open and Configure highlighted](../../../img/vscode/remote-configure.png)
+<Figure align="left" bordered caption="Window Indicator">
+![Window Indicator in bottom left corner of VS Code](../../../img/vscode/window-indicator.png)
 </Figure>
 
-VS code will prompt you for your SSH config file.
-
+Click on it, and select "Open SSH Configuration File..."  
 Select the one we generated during Step 1 and open it in the editor.
-
-<Admonition type="warning">
-Do not use VS Code's SSH config helper. If prompted for an SSH command,
-close the dialog and select the "Configure" icon instead.
-</Admonition>
 
 For each host you wish to remotely develop on, add an entry like the following:
 
@@ -136,15 +117,13 @@ Host node000.foo.example.com
     User alice
 ```
 
-When finished, save the file. If the added host doesn't automatically appear in
-the list, select the Refresh button.
-
 ## Step 3/3. Start a Remote Development session
 
-Start a Remote Development session by right-clicking on any host added above and selecting either "Connect to..." option:
+Start a Remote Development session by clicking on the Window Indicator again and selecting either "Connect to...". 
+You should see the host you just added and any others in your Configuration file in the drop down.
 
 <Figure align="left" bordered caption="Connect to a Node">
-![Connecting to a Teleport host in VS Code](../../../img/vscode/connect.png)
+![Connecting to a Teleport host in VS Code](../../../img/vscode/select-host-to-connect.png)
 </Figure>
 
 On first connect, you'll be prompted to configure the remote OS. Select the
@@ -155,7 +134,7 @@ completes, you should be left with a working editor:
 ![VS Code connected to a Teleport Node](../../../img/vscode/connected-editor.png)
 </Figure>
 
-The status indicator in the bottom left highlights the currently connected remote host.
+The Window Indicator in the bottom left highlights the currently connected remote host.
 
 ## Next Steps
 
