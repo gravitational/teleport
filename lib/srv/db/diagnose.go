@@ -37,6 +37,8 @@ type diagnoseTask struct {
 // diagnosis.
 func (s *Server) startDiagnoseRoutine(ctx context.Context) error {
 	go func() {
+		s.log.Info("Started database diagnose rounetine")
+		defer s.log.Info("Stopped database diagnose rounetine")
 		for {
 			select {
 			case <-ctx.Done():
@@ -61,7 +63,9 @@ func (s *Server) startDiagnoseRoutine(ctx context.Context) error {
 
 // addDiagnoseTask adds a database with error for diagnosis.
 func (s *Server) addDiagnoseTask(database types.Database, err error) error {
-	if !common.IsIAMAuthError(err) {
+	switch {
+	case common.IsIAMAuthError(err):
+	default:
 		return nil
 	}
 
@@ -89,9 +93,10 @@ func (s *Server) addDiagnoseTask(database types.Database, err error) error {
 
 // processDiangoseTask diagnose a database error.
 func (s *Server) processDiangoseTask(ctx context.Context, task diagnoseTask) {
-	s.log.Debugf("Diagnosing database %v with error: %v", task.database, task.err)
 	switch {
 	case common.IsIAMAuthError(task.err):
+		s.log.Debugf("Diagnosing database %v with IAM auth error.", task.database)
+
 		if err := s.cfg.CloudMeta.Update(ctx, task.database); err != nil {
 			s.log.Warnf("Failed to fetch cloud metadata for %v: %v.", task.database, err)
 		}
@@ -103,7 +108,7 @@ func (s *Server) processDiangoseTask(ctx context.Context, task diagnoseTask) {
 
 const (
 	// defaultDiagnoseRatePeriod is the default rate limiting period per
-	// database diagnosis.
+	// database for diagnosis.
 	defaultDiagnoseRatePeriod = 10 * time.Minute
 
 	// defaultDiagnoseChannelSize is the default size of diagnose channel.

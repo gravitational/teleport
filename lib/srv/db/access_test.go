@@ -51,13 +51,13 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/mailgun/timetools"
 
 	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/timetools"
 	mysqlclient "github.com/siddontang/go-mysql/client"
 	mysqllib "github.com/siddontang/go-mysql/mysql"
 	"github.com/stretchr/testify/require"
@@ -1271,7 +1271,7 @@ type testContext struct {
 	clockProvider timetools.TimeProvider
 	// closeCtx is the context for closing.
 	closeCtx context.Context
-	// closeCtxFunc is cancel functin for closeCtx.
+	// closeCtxFunc is cancel function for closeCtx.
 	closeCtxFunc func()
 }
 

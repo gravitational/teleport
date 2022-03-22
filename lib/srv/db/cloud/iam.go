@@ -43,8 +43,6 @@ type IAMConfig struct {
 	// HostID is the host identified where this agent is running.
 	// DELETE IN 11.0.
 	HostID string
-	// TaskQueueSize is the size of the task queue.
-	TaskQueueSize int
 	// onProcessTask is called after a task is processed.
 	onProcessTask func(task iamTask)
 }
@@ -60,9 +58,6 @@ func (c *IAMConfig) Check() (err error) {
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
-	if c.TaskQueueSize <= 0 {
-		c.TaskQueueSize = defaultIAMTaskQueueSize
-	}
 	return nil
 }
 
@@ -76,6 +71,11 @@ type iamTask struct {
 }
 
 // IAM is a service that manages IAM policies for cloud databases.
+//
+// A semaphore lock has to be acquired by the this service before making
+// changes to the IAM inline policy as database agents may share the same the
+// same policy. These tasks are processed in a background goroutine to avoid
+// blocking callers when acquiring the locks with retries.
 type IAM struct {
 	cfg         IAMConfig
 	log         logrus.FieldLogger
@@ -92,7 +92,7 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 	return &IAM{
 		cfg:   config,
 		log:   logrus.WithField(trace.Component, "iam"),
-		tasks: make(chan iamTask, config.TaskQueueSize),
+		tasks: make(chan iamTask, defaultIAMTaskQueueSize),
 	}, nil
 }
 
@@ -228,7 +228,7 @@ func (c *IAM) addTask(task iamTask) error {
 		return nil
 
 	default:
-		return trace.LimitExceeded("failed to create IAM task for %v", task.database)
+		return trace.LimitExceeded("failed to create IAM task for %v", task.database.GetName())
 	}
 }
 
@@ -262,7 +262,7 @@ func (c *IAM) migrateInlinePolicy(ctx context.Context) {
 	}
 
 	if err != nil && !trace.IsNotFound(common.ConvertError(err)) {
-		c.log.WithError(err).Errorf("Failed to delete inline policy %v for %v. It is recommended to remove this policy as it is no longer required.", oldPolicyName, identity)
+		c.log.WithError(err).Errorf("Failed to delete inline policy %q for %v. It is recommended to remove this policy since it is no longer required.", oldPolicyName, identity)
 	}
 }
 

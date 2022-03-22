@@ -589,13 +589,13 @@ func (s *Server) getRotationState() types.Rotation {
 
 // Start starts proxying all server's registered databases.
 func (s *Server) Start(ctx context.Context) (err error) {
-	// Start IAM service that will be configuring IAM Auth for databases.
+	// Start IAM service that will be configuring IAM auth for databases.
 	if err := s.cfg.CloudIAM.Start(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Start diagnose goroutine that will be reconfiguring databases upon
-	// connection failures.
+	// Start diagnose goroutine that will be analyzing errors like connection
+	// errors and perform necessary actions.
 	if err := s.startDiagnoseRoutine(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -701,7 +701,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
-	if !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
+	if err != nil && !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
 		log.WithError(err).Error("Failed to handle connection.")
 		return
 	}

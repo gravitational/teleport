@@ -24,13 +24,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -116,7 +116,7 @@ func TestAWSIAM(t *testing.T) {
 		select {
 		case <-taskChan:
 		case <-time.After(5 * time.Second):
-			require.Fail(t, "Failed to wait till task is processed")
+			require.Fail(t, "Failed to wait for task is processed")
 		}
 	}
 	configurator, err := NewIAM(ctx, IAMConfig{
@@ -295,8 +295,9 @@ func TestAWSIAMMigration(t *testing.T) {
 		HostID: "host-id",
 	})
 	require.NoError(t, err)
-	require.NoError(t, configurator.Start(ctx))
 
+	// Old policy should not be deleted after Start.
+	require.NoError(t, configurator.Start(ctx))
 	_, err = iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
 		RoleName:   aws.String("test-role"),
 		PolicyName: aws.String("teleport-host-id"),

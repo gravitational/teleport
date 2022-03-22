@@ -22,8 +22,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,19 +36,21 @@ func TestDiagnose(t *testing.T) {
 	testCtx.server.cfg.OnDiagnose = func(database types.Database, err error) {
 		diagChan <- err
 	}
+	waitForIAMAuthErrorDiagnosed := func(t *testing.T) {
+		select {
+		case diagedErr := <-diagChan:
+			require.True(t, common.IsIAMAuthError(diagedErr), "expect error is common.IAMAuthError")
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "Didn't receive diagnose event.")
+		}
+	}
 
 	go testCtx.startHandlingConnections()
 
 	// Diagnose IAM auth error.
 	_, err := testCtx.mysqlClient("alice", "mysql-rds", "root")
 	require.Error(t, err)
-
-	select {
-	case diagedErr := <-diagChan:
-		require.True(t, common.IsIAMAuthError(diagedErr), "expect error is common.IAMAuthError")
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "Didn't receive diagnose event.")
-	}
+	waitForIAMAuthErrorDiagnosed(t)
 
 	// Diagnose should be rate limited per database.
 	err = testCtx.server.addDiagnoseTask(testCtx.mysql["mysql-rds"].resource, common.NewIAMAuthError("auth error"))
@@ -58,11 +60,5 @@ func TestDiagnose(t *testing.T) {
 	testCtx.advanceClock(time.Hour)
 	_, err = testCtx.mysqlClient("alice", "mysql-rds", "root")
 	require.Error(t, err)
-
-	select {
-	case diagedErr := <-diagChan:
-		require.True(t, common.IsIAMAuthError(diagedErr), "expect error is common.IAMAuthError")
-	case <-time.After(10 * time.Second):
-		require.Fail(t, "Didn't receive diagnose event.")
-	}
+	waitForIAMAuthErrorDiagnosed(t)
 }

@@ -30,12 +30,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/google/uuid"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
 // STSMock mocks AWS STS API.
@@ -170,9 +171,6 @@ func (m *IAMMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePo
 func (m *IAMMock) DeleteRolePolicyWithContext(ctx aws.Context, input *iam.DeleteRolePolicyInput, options ...request.Option) (*iam.DeleteRolePolicyOutput, error) {
 	if _, ok := m.attachedRolePolicies[*input.RoleName]; ok {
 		delete(m.attachedRolePolicies[*input.RoleName], *input.PolicyName)
-		if len(m.attachedRolePolicies[*input.RoleName]) == 0 {
-			delete(m.attachedRolePolicies, *input.RoleName)
-		}
 	}
 	return &iam.DeleteRolePolicyOutput{}, nil
 }
