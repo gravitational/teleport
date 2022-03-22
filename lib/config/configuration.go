@@ -24,7 +24,6 @@ import (
 	"bufio"
 	"crypto/x509"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -1753,7 +1752,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// apply --debug flag to config:
 	if clf.Debug {
-		cfg.Console = ioutil.Discard
+		cfg.Console = io.Discard
 		cfg.Debug = clf.Debug
 	}
 

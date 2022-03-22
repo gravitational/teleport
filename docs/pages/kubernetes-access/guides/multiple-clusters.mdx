@@ -7,18 +7,84 @@ This guide will show you how to use Teleport as an access plane for multiple Kub
 
 ## Prerequisites
 
-- [Kubernetes](https://kubernetes.io) >= v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
-- [Helm](https://helm.sh) >= (=helm.version=)
-- Installed and running Teleport cluster (Open Source, Enterprise, or Teleport Cloud)
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+- A Teleport cluster running on Kubernetes, version >=
+  v(=kubernetes.major_version=).(=kubernetes.minor_version=).0. We will assume
+  that you have followed the
+  [Kubernetes with SSO](../getting-started/cluster.mdx) guide
+- The `jq` tool to process `JSON` output. This is available via common package managers
+- An additional Kubernetes cluster version >=
+  v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
+- Helm >= (=helm.version=)
 
 (!docs/pages/includes/helm.mdx!)
 
+
+</TabItem>
+<TabItem
+  scope={["enterprise"]} label="Enterprise">
+
+- A Teleport cluster running on Kubernetes, version >=
+  v(=kubernetes.major_version=).(=kubernetes.minor_version=).0. We will assume
+  that you have followed the
+  [Kubernetes with SSO](../getting-started/cluster.mdx) guide
+- The `jq` tool to process `JSON` output. This is available via common package managers
+- An additional Kubernetes cluster version >=
+  v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
+- Helm >= (=helm.version=)
+
+(!docs/pages/includes/helm.mdx!)
+
+
+</TabItem>
+<TabItem scope={["cloud"]}
+  label="Teleport Cloud">
+
+- A Teleport Cloud account. If you do not have one, visit the
+  [sign up page](https://goteleport.com/signup/) to begin your free trial
+
+- The Teleport Kubernetes Service running in a Kubernetes cluster, version >=
+  v(=kubernetes.major_version=).(=kubernetes.minor_version=).0. We will assume
+  that you have already followed
+  [Connect a Kubernetes Cluster to Teleport](../getting-started/agent.mdx)
+
+- The `jq` tool to process `JSON` output. This is available via common package
+  managers
+
+- The Enterprise version of the `tctl` admin tool. To download this, visit
+the [customer portal](https://dashboard.gravitational.com/web/login)
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  (!docs/pages/includes/tctl.mdx!)
+
+- An additional Kubernetes cluster version >=
+  v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
+
+- Helm >= (=helm.version=)
+
+(!docs/pages/includes/helm.mdx!)
+
+
+</TabItem>
+</Tabs>
+
 ## Connecting clusters
 
-Teleport can act as an access plane for multiple Kubernetes clusters. 
-We have set up the Teleport cluster `tele.example.com` in [SSO and Kubernetes](../getting-started.mdx).
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-Let's start a lightweight agent in another Kubernetes cluster `cookie` and connect it to `tele.example.com`.
+Teleport can act as an access plane for multiple Kubernetes clusters. 
+
+We will assume that the domain of your Teleport cluster is `tele.example.com`.
+
+Let's start a lightweight agent in another Kubernetes cluster `cookie` and
+connect it to `tele.example.com`.
 
 We will need a join token from `tele.example.com`:
 
@@ -33,12 +99,11 @@ $ echo $TOKEN
 Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 
 ```code
-# Add teleport chart repository
+# Add Teleport chart repository
 $ helm repo add teleport https://charts.releases.teleport.dev
 
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
 $ CLUSTER='cookie'
-# For Cloud users this will be similar to mytenant.teleport.sh
 $ PROXY='tele.example.com:443'
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
@@ -57,8 +122,61 @@ $ tsh kube ls
 
 # kubeconfig now points to the cookie cluster
 $ tsh kube login cookie
-# Logged into kubernetes cluster "cookie"
+# Logged into Kubernetes cluster "cookie"
 
-# kubectl command executed on `cookie` but is routed through `tele.example.com` cluster.
+# kubectl command executed on `cookie` but is routed through the `tele.example.com` cluster.
 $ kubectl get pods
 ```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport can act as an access plane for multiple Kubernetes clusters. 
+
+We will assume that the domain of your Teleport cluster is `mytenant.teleport.sh`.
+
+Let's start a lightweight agent in another Kubernetes cluster `cookie` and
+connect it to `mytenant.teleport.sh`.
+
+We will need a join token from `mytenant.teleport.sh`:
+
+```code
+# Create a join token for the cluster cookie to authenticate
+$ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
+$ echo $TOKEN
+```
+
+Switch `kubectl` to the Kubernetes cluster `cookie` and run:
+
+```code
+# Add Teleport chart repository
+$ helm repo add teleport https://charts.releases.teleport.dev
+
+# Deploy a Kubernetes agent. It dials back to the Teleport cluster mytenant.teleport.sh.
+$ CLUSTER='cookie'
+$ PROXY='mytenant.teleport.sh'
+$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
+  --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
+```
+
+List connected clusters using `tsh kube ls` and switch between
+them using `tsh kube login`:
+
+```code
+$ tsh kube ls
+
+# Kube Cluster Name Selected 
+# ----------------- -------- 
+# cookie
+# mytenant.teleport.sh    *
+
+# kubeconfig now points to the cookie cluster
+$ tsh kube login cookie
+# Logged into Kubernetes cluster "cookie"
+
+# kubectl command executed on `cookie` but is routed through the `mytenant.teleport.sh` cluster.
+$ kubectl get pods
+```
+
+</TabItem>
+</Tabs>
