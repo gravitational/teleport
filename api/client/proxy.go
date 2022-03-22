@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/siddontang/go/log"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 )
 
