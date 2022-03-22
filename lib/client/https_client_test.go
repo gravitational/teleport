@@ -31,7 +31,8 @@ func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakeproxy.example.com: no such host")
+	require.Contains(t, err.Error(), "lookup fakeproxy.example.com")
+	require.Contains(t, err.Error(), "no such host")
 }
 
 func TestNewInsecureWebClientNoProxy(t *testing.T) {
@@ -42,7 +43,8 @@ func TestNewInsecureWebClientNoProxy(t *testing.T) {
 	resp, err := client.Get("https://fakedomain.example.com")
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.NotContains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakedomain.example.com: no such host")
+	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
+	require.Contains(t, err.Error(), "no such host")
 }
 
 func TestNewClientWithPoolHTTPProxy(t *testing.T) {
@@ -54,7 +56,8 @@ func TestNewClientWithPoolHTTPProxy(t *testing.T) {
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakeproxy.example.com: no such host")
+	require.Contains(t, err.Error(), "lookup fakeproxy.example.com")
+	require.Contains(t, err.Error(), "no such host")
 }
 
 func TestNewClientWithPoolNoProxy(t *testing.T) {
@@ -65,5 +68,6 @@ func TestNewClientWithPoolNoProxy(t *testing.T) {
 	resp, err := client.Get("https://fakedomain.example.com")
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.NotContains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakedomain.example.com: no such host")
+	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
+	require.Contains(t, err.Error(), "no such host")
 }
