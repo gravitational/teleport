@@ -1,0 +1,7 @@
+clusterName: test-acme-cluster
+databases:
+- name: aurora
+  uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
+  protocol: "postgres"
+  labels:
+    database: staging

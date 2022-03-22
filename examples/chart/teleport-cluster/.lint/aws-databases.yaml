@@ -1,0 +1,24 @@
+clusterName: test-aws-cluster
+chartMode: aws
+aws:
+  region: us-west-2
+  backendTable: test-dynamodb-backend-table
+  auditLogTable: test-dynamodb-auditlog-table
+  sessionRecordingBucket: test-s3-session-storage-bucket
+acme: true
+acmeEmail: test@email.com
+labels:
+  env: aws
+
+awsDatabases:
+- types: ["rds"]
+  regions: ["us-east-1"]
+  tags:
+    "*": "*"
+- types: ["rds"]
+  regions: ["us-west-2"]
+  tags:
+    "env": "development"
+annotations:
+  serviceAccount:
+    eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role
