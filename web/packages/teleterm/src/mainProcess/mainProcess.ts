@@ -10,7 +10,6 @@ import {
 import { ChildProcess, spawn } from 'child_process';
 import { Logger, RuntimeSettings } from 'teleterm/types';
 import { getAssetPath } from './runtimeSettings';
-import { subscribeToClusterContextMenuEvent } from './contextMenus/clusterContextMenu';
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import {
   ConfigService,
@@ -103,7 +102,6 @@ export default class MainProcess {
     });
 
     subscribeToTerminalContextMenuEvent();
-    subscribeToClusterContextMenuEvent();
     subscribeToTabContextMenuEvent();
     subscribeToConfigServiceEvents(this.configService);
   }
