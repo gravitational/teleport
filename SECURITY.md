@@ -12,4 +12,4 @@ To make a security vulnerability report, email
 details, including steps to reproduce the issue.
 
 You can use the [PGP key](gravitational.asc) in this repo to encrypt the
-contents.
+contents...
