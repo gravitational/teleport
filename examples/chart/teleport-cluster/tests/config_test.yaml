@@ -68,6 +68,16 @@ tests:
           value: 2
       - matchSnapshot: {}
 
+  - it: matches snapshot for aws-databases.yaml
+    values:
+      - ../.lint/aws-databases.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for aws-ha-acme.yaml
     values:
       - ../.lint/aws-ha-acme.yaml
@@ -131,6 +141,16 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: matches snapshot for db.yaml
+    values:
+      - ../.lint/db.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
 
   - it: matches snapshot for gcp-ha-acme.yaml
     values:
