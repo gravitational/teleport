@@ -1961,9 +1961,11 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 
 func TestTokenGeneration(t *testing.T) {
 	tt := []struct {
-		name      string
-		roles     types.SystemRoles
-		shouldErr bool
+		name       string
+		roles      types.SystemRoles
+		shouldErr  bool
+		joinMethod types.JoinMethod
+		allow      []*types.TokenRule
 	}{
 		{
 			name:      "single node role",
@@ -1990,6 +1992,19 @@ func TestTokenGeneration(t *testing.T) {
 			roles:     types.SystemRoles{},
 			shouldErr: true,
 		},
+		{
+			name:       "cannot request token with IAM join method without allow field",
+			roles:      types.SystemRoles{types.RoleNode},
+			joinMethod: types.JoinMethodIAM,
+			shouldErr:  true,
+		},
+		{
+			name:       "can request token with IAM join method",
+			roles:      types.SystemRoles{types.RoleNode},
+			joinMethod: types.JoinMethodIAM,
+			allow:      []*types.TokenRule{{AWSAccount: "1234"}},
+			shouldErr:  false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2000,8 +2015,10 @@ func TestTokenGeneration(t *testing.T) {
 			pack := proxy.authPack(t, "test-user@example.com")
 
 			endpoint := pack.clt.Endpoint("webapi", "token")
-			re, err := pack.clt.PostJSON(context.Background(), endpoint, createTokenRequest{
-				Roles: tc.roles,
+			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
+				Roles:      tc.roles,
+				JoinMethod: tc.joinMethod,
+				Allow:      tc.allow,
 			})
 
 			if tc.shouldErr {
@@ -2019,6 +2036,13 @@ func TestTokenGeneration(t *testing.T) {
 			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
 			require.NoError(t, err)
 			require.Equal(t, tc.roles, generatedToken.GetRoles())
+
+			expectedJoinMethod := tc.joinMethod
+			if tc.joinMethod == "" {
+				expectedJoinMethod = types.JoinMethodToken
+			}
+			// if no joinMethod is provided, expect token method
+			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
 		})
 	}
 }

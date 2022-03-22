@@ -46,6 +46,8 @@ type nodeJoinToken struct {
 	ID string `json:"id"`
 	// Expiry is token expiration time.
 	Expiry time.Time `json:"expiry,omitempty"`
+	// Method is the join method that the token supports
+	Method types.JoinMethod `json:"method"`
 }
 
 // scriptSettings is used to hold values which are passed into the function that
@@ -57,26 +59,39 @@ type scriptSettings struct {
 	appURI         string
 }
 
-// createTokenRequest is the expected request body of
-// the endpoint to create token
-type createTokenRequest struct {
-	Roles types.SystemRoles `json:"roles"`
-}
-
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req createTokenRequest
+	var req types.ProvisionTokenSpecV2
 	if err := httplib.ReadJSON(r, &req); err != nil {
-		log.WithError(err).Error("error reading body")
 		return nil, trace.Wrap(err)
 	}
 
 	clt, err := ctx.GetClient()
 	if err != nil {
-		log.WithError(err).Error("error getting client")
 		return nil, trace.Wrap(err)
 	}
 
-	return createJoinToken(r.Context(), clt, req.Roles)
+	// create a new random dynamic token
+	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	expires := time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
+	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = clt.UpsertToken(r.Context(), provisionToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &nodeJoinToken{
+		ID:     tokenName,
+		Expiry: expires,
+		Method: provisionToken.GetJoinMethod(),
+	}, nil
 }
 
 func (h *Handler) createNodeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
