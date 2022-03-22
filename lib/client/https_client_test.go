@@ -37,7 +37,7 @@ func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 
 func TestNewInsecureWebClientNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	t.Setenv("NO_PROXY", "example.com")
+	t.Setenv("NO_PROXY", "fakedomain.example.com")
 	client := NewInsecureWebClient()
 	//nolint:bodyclose
 	resp, err := client.Get("https://fakedomain.example.com")
@@ -62,7 +62,7 @@ func TestNewClientWithPoolHTTPProxy(t *testing.T) {
 
 func TestNewClientWithPoolNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	t.Setenv("NO_PROXY", "example.com")
+	t.Setenv("NO_PROXY", "fakedomain.example.com")
 	client := newClientWithPool(nil)
 	//nolint:bodyclose
 	resp, err := client.Get("https://fakedomain.example.com")

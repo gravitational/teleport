@@ -305,7 +305,7 @@ func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 
 func TestNewWebClientNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	t.Setenv("NO_PROXY", "example.com")
+	t.Setenv("NO_PROXY", "fakedomain.example.com")
 	client := newWebClient(false /* insecure */, nil /* pool */)
 	//nolint:bodyclose
 	resp, err := client.Get("https://fakedomain.example.com")
