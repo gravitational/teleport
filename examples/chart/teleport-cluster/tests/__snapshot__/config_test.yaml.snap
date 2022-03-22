@@ -33,6 +33,7 @@ matches snapshot and tests for annotations.yaml:
         kubernetes.io/config: test-annotation
         kubernetes.io/config-different: 2
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for acme-off.yaml:
   1: |
     apiVersion: v1
@@ -65,6 +66,7 @@ matches snapshot for acme-off.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for acme-on.yaml:
   1: |
     apiVersion: v1
@@ -100,6 +102,7 @@ matches snapshot for acme-on.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for acme-uri-staging.yaml:
   1: |
     apiVersion: v1
@@ -135,6 +138,7 @@ matches snapshot for acme-uri-staging.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for affinity.yaml:
   1: |
     apiVersion: v1
@@ -174,6 +178,7 @@ matches snapshot for affinity.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for aws-ha-acme.yaml:
   1: |
     apiVersion: v1
@@ -218,6 +223,7 @@ matches snapshot for aws-ha-acme.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for aws-ha-antiaffinity.yaml:
   1: |
     apiVersion: v1
@@ -259,6 +265,7 @@ matches snapshot for aws-ha-antiaffinity.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for aws-ha-log.yaml:
   1: |
     apiVersion: v1
@@ -303,6 +310,7 @@ matches snapshot for aws-ha-log.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for aws-ha.yaml:
   1: |
     apiVersion: v1
@@ -344,6 +352,7 @@ matches snapshot for aws-ha.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for aws.yaml:
   1: |
     apiVersion: v1
@@ -388,6 +397,7 @@ matches snapshot for aws.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for gcp-ha-acme.yaml:
   1: |
     apiVersion: v1
@@ -432,6 +442,7 @@ matches snapshot for gcp-ha-acme.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for gcp-ha-antiaffinity.yaml:
   1: |
     apiVersion: v1
@@ -473,6 +484,7 @@ matches snapshot for gcp-ha-antiaffinity.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for gcp-ha-log.yaml:
   1: |
     apiVersion: v1
@@ -517,6 +529,7 @@ matches snapshot for gcp-ha-log.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for gcp.yaml:
   1: |
     apiVersion: v1
@@ -561,6 +574,7 @@ matches snapshot for gcp.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for initcontainers.yaml:
   1: |
     apiVersion: v1
@@ -593,6 +607,7 @@ matches snapshot for initcontainers.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for kube-cluster-name.yaml:
   1: |
     apiVersion: v1
@@ -625,6 +640,7 @@ matches snapshot for kube-cluster-name.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for log-basic.yaml:
   1: |
     apiVersion: v1
@@ -657,6 +673,7 @@ matches snapshot for log-basic.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for log-extra.yaml:
   1: |
     apiVersion: v1
@@ -689,6 +706,7 @@ matches snapshot for log-extra.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for log-legacy.yaml:
   1: |
     apiVersion: v1
@@ -721,6 +739,7 @@ matches snapshot for log-legacy.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for priority-class-name.yaml:
   1: |
     apiVersion: v1
@@ -753,6 +772,7 @@ matches snapshot for priority-class-name.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for proxy-listener-mode.yaml:
   1: |
     apiVersion: v1
@@ -785,6 +805,7 @@ matches snapshot for proxy-listener-mode.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for resources.yaml:
   1: |
     apiVersion: v1
@@ -817,6 +838,7 @@ matches snapshot for resources.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for service.yaml:
   1: |
     apiVersion: v1
@@ -849,6 +871,7 @@ matches snapshot for service.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for standalone-customsize.yaml:
   1: |
     apiVersion: v1
@@ -886,6 +909,7 @@ matches snapshot for standalone-customsize.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for standalone-existingpvc.yaml:
   1: |
     apiVersion: v1
@@ -923,6 +947,7 @@ matches snapshot for standalone-existingpvc.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for tolerations.yaml:
   1: |
     apiVersion: v1
@@ -962,6 +987,7 @@ matches snapshot for tolerations.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for version-override.yaml:
   1: |
     apiVersion: v1
@@ -997,6 +1023,7 @@ matches snapshot for version-override.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for volumes.yaml:
   1: |
     apiVersion: v1
@@ -1029,6 +1056,7 @@ matches snapshot for volumes.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for webauthn.yaml:
   1: |
     apiVersion: v1
@@ -1067,3 +1095,4 @@ matches snapshot for webauthn.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
