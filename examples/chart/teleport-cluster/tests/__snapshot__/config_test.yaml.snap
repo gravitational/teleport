@@ -15,9 +15,7 @@ matches snapshot and tests for annotations.yaml:
           cluster_name: helm-lint
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: helm-lint
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -52,9 +50,7 @@ matches snapshot for acme-off.yaml:
           cluster_name: test-cluster-name
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-cluster-name
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -86,9 +82,7 @@ matches snapshot for acme-on.yaml:
           cluster_name: test-acme-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-acme-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -123,9 +117,7 @@ matches snapshot for acme-uri-staging.yaml:
           cluster_name: test-acme-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-acme-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -167,9 +159,7 @@ matches snapshot for affinity.yaml:
           cluster_name: test-gcp-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-gcp-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -208,9 +198,7 @@ matches snapshot for aws-ha-acme.yaml:
           cluster_name: test-aws-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-aws-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -254,9 +242,7 @@ matches snapshot for aws-ha-antiaffinity.yaml:
           cluster_name: test-aws-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-aws-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -297,9 +283,7 @@ matches snapshot for aws-ha-log.yaml:
           cluster_name: test-aws-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-aws-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -343,9 +327,7 @@ matches snapshot for aws-ha.yaml:
           cluster_name: test-aws-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-aws-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -386,9 +368,7 @@ matches snapshot for aws.yaml:
           cluster_name: test-aws-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-aws-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -432,9 +412,7 @@ matches snapshot for gcp-ha-acme.yaml:
           cluster_name: test-gcp-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-gcp-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -478,9 +456,7 @@ matches snapshot for gcp-ha-antiaffinity.yaml:
           cluster_name: test-gcp-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-gcp-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -521,9 +497,7 @@ matches snapshot for gcp-ha-log.yaml:
           cluster_name: test-gcp-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-gcp-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -567,9 +541,7 @@ matches snapshot for gcp.yaml:
           cluster_name: test-gcp-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-gcp-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -606,9 +578,7 @@ matches snapshot for initcontainers.yaml:
           cluster_name: helm-lint
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: helm-lint
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -640,9 +610,7 @@ matches snapshot for kube-cluster-name.yaml:
           cluster_name: test-aws-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-aws-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -674,9 +642,7 @@ matches snapshot for log-basic.yaml:
           cluster_name: test-log-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-log-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -708,9 +674,7 @@ matches snapshot for log-extra.yaml:
           cluster_name: test-log-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-log-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -742,9 +706,7 @@ matches snapshot for log-legacy.yaml:
           cluster_name: test-log-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-log-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -776,9 +738,7 @@ matches snapshot for priority-class-name.yaml:
           cluster_name: helm-lint
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: helm-lint
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -811,9 +771,7 @@ matches snapshot for proxy-listener-mode.yaml:
           cluster_name: test-proxy-listener-mode
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-proxy-listener-mode
+            second_factor: otp
           proxy_listener_mode: multiplex
         kubernetes_service:
           enabled: true
@@ -844,9 +802,7 @@ matches snapshot for resources.yaml:
           cluster_name: helm-lint
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: helm-lint
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -878,9 +834,7 @@ matches snapshot for service.yaml:
           cluster_name: helm-lint
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: helm-lint
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -912,9 +866,7 @@ matches snapshot for standalone-customsize.yaml:
           cluster_name: test-standalone-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-standalone-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -951,9 +903,7 @@ matches snapshot for standalone-existingpvc.yaml:
           cluster_name: test-standalone-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-standalone-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -997,9 +947,7 @@ matches snapshot for tolerations.yaml:
           cluster_name: test-aws-cluster
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-aws-cluster
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -1031,9 +979,7 @@ matches snapshot for version-override.yaml:
           cluster_name: test-cluster-name
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: test-cluster-name
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
@@ -1068,9 +1014,7 @@ matches snapshot for volumes.yaml:
           cluster_name: helm-lint
           authentication:
             type: local
-            second_factor: on
-            webauthn:
-              rp_id: helm-lint
+            second_factor: otp
         kubernetes_service:
           enabled: true
           listen_addr: 0.0.0.0:3027
