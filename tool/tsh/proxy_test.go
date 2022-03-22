@@ -19,7 +19,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -379,7 +378,7 @@ func createAgent(t *testing.T) string {
 	// Create own tmp dir instead of using t.TmpDir
 	// because  net.Listen("unix", path) has dir path length limitation and
 	// the t.TmpDir calls creates tmp dir with test name.
-	sockDir, err := ioutil.TempDir("", "test")
+	sockDir, err := os.MkdirTemp("", "test")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.RemoveAll(sockDir)
@@ -434,7 +433,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "ssh_config")
-	err = ioutil.WriteFile(configPath, buff.Bytes(), 0600)
+	err = os.WriteFile(configPath, buff.Bytes(), 0600)
 	require.NoError(t, err)
 
 	return configPath

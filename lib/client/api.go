@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -1679,7 +1678,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	var sessionEvents []events.EventFields
 	var stream []byte
 	protoReader := events.NewProtoReader(tarFile)
-	playbackDir, err := ioutil.TempDir("", "playback")
+	playbackDir, err := os.MkdirTemp("", "playback")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3075,7 +3074,7 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 	certPool := x509.NewCertPool()
 
 	certPath := filepath.Join(defaults.DataDir, defaults.SelfSignedCertPath)
-	pemByte, err := ioutil.ReadFile(certPath)
+	pemByte, err := os.ReadFile(certPath)
 	if err != nil {
 		log.Debugf("could not open any path in: %v", certPath)
 		return nil
