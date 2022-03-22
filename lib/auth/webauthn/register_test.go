@@ -125,7 +125,6 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 	const user = "llama"
 	const rpID = "localhost"
-	const origin = "https://localhost"
 
 	dev1ID := []byte{1, 1, 1} // U2F
 	web1ID := []byte{1, 1, 2} // WebAuthn / MFA
