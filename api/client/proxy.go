@@ -49,8 +49,8 @@ func DialProxyWithDialer(ctx context.Context, proxyAddr, addr string, dialer Con
 		Host:   addr,
 		Header: make(http.Header),
 	}
-	err = connectReq.Write(conn)
-	if err != nil {
+
+	if err := connectReq.Write(conn); err != nil {
 		log.Warnf("Unable to write to proxy: %v.", err)
 		return nil, trace.Wrap(err)
 	}

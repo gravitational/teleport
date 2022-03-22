@@ -295,19 +295,20 @@ func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 	client := newWebClient(false /* insecure */, nil /* pool */)
 	// resp should be nil, so there will be no body to close.
 	//nolint:bodyclose
-	resp, err := client.Get("https://example.com")
+	resp, err := client.Get("https://fakedomain.example.com")
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "no such host")
+	require.Contains(t, err.Error(), "lookup fakeproxy.example.com: no such host")
 }
 
 func TestNewWebClientNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	t.Setenv("NO_PROXY", "example.com")
 	client := newWebClient(false /* insecure */, nil /* pool */)
-	resp, err := client.Get("https://example.com")
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	//nolint:bodyclose
+	resp, err := client.Get("https://fakedomain.example.com")
+	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
+	require.NotContains(t, err.Error(), "proxyconnect")
+	require.Contains(t, err.Error(), "lookup fakedomain.example.com: no such host")
 }
