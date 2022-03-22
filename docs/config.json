@@ -574,6 +574,11 @@
       "source": "/docs/best-practices/",
       "destination": "/contributing/documentation/",
       "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/migration/",
+      "destination": "/kubernetes-access/introduction/",
+      "permanent": true
     }
   ]
 }
