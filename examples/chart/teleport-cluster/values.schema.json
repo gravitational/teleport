@@ -9,6 +9,7 @@
         "labels",
         "chartMode",
         "highAvailability",
+        "tls",
         "image",
         "enterpriseImage",
         "log",
@@ -303,6 +304,26 @@
                             "default": 1
                         }
                     }
+                }
+            }
+        },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingSecretName",
+                "existingSecretNameCA"
+            ],
+            "properties": {
+                "existingSecretName": {
+                    "$id": "#/properties/tls/properties/existingSecretName",
+                    "type": "string",
+                    "default": ""
+                },
+                "existingSecretNameCA": {
+                    "$id": "#/properties/tls/properties/existingSecretNameCA",
+                    "type": "string",
+                    "default": ""
                 }
             }
         },

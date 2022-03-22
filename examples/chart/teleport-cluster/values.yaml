@@ -39,8 +39,10 @@ separateMongoListener: false
 
 # ACME is a protocol for getting Web X.509 certificates
 # Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
+# For HA configurations, see either the "highAvailability.certManager" or "tls" values.
 # Setting acme to 'true' enables the ACME protocol and will attempt to get a free TLS certificate from Let's Encrypt.
 # Setting acme to 'false' (the default) will cause Teleport to generate and use self-signed certificates for its web UI.
+# This section is mutually exclusive with the "tls" value below.
 acme: false
 # acmeEmail is the email address to provide during certificate registration (this is a Let's Encrypt requirement)
 acmeEmail: ""
@@ -149,6 +151,7 @@ highAvailability:
     enabled: false
     minAvailable: 1
   # Settings for cert-manager (can be used for provisioning TLS certs in HA mode)
+  # These settings are mutually exclusive with the "tls" value below.
   certManager:
     # If set to true, a common name matching the cluster name will be set in the certificate signing request. This is mandatory for some CAs.
     addCommonName: false
@@ -164,6 +167,19 @@ highAvailability:
     # This defaults to 'cert-manager.io' which is the default Issuer group.
     issuerGroup: cert-manager.io
 
+# Settings for mounting your own TLS keypair to secure Teleport's web UI.
+# These settings are mutually exclusive with the "highAvailability.certManager" and "acme" values above.
+tls:
+  # Name of an existing secret to use which contains a TLS keypair. Will automatically set the https_keypairs section in teleport.yaml.
+  # Create the secret in the same namespace as Teleport using `kubectl create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file`
+  # See https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets for more information.
+  existingSecretName: ""
+  # (optional) Name of an existing secret to use which contains a CA or trust bundle in x509 PEM format.
+  # Useful for building trust when using intermediate certificate authorities.
+  # This will automatically set the SSL_CERT_FILE environment variable to trust the CA.
+  # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem
+  # The filename inside the secret is important - it _must_ be ca.pem
+  existingSecretNameCA: ""
 
 ##################################################
 # Values that you shouldn't need to change.
