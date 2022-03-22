@@ -27,7 +27,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -2950,7 +2949,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 	c.Assert(certs, check.HasLen, 1)
 	certPem := certs[0]
 	caPath := filepath.Join(s.dataDir, defaults.CACertFile)
-	err = ioutil.WriteFile(caPath, certPem, teleport.FileMaskOwnerOnly)
+	err = os.WriteFile(caPath, certPem, teleport.FileMaskOwnerOnly)
 	c.Assert(err, check.IsNil)
 
 	// Attempt to register with valid CA path, should work.

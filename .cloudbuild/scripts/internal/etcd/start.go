@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -166,7 +165,7 @@ func waitForEtcdToStart(ctx context.Context, certDir string) error {
 // as started with Start()
 func newHTTPSTransport(certDir string) (*http.Client, error) {
 	caCertPath := path.Join(certDir, "ca-cert.pem")
-	caCert, err := ioutil.ReadFile(caCertPath)
+	caCert, err := os.ReadFile(caCertPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed reading CA cert from %s", caCertPath)
 	}

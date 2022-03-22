@@ -146,7 +146,7 @@ func TestLogin(t *testing.T) {
 			fakeDevs := &fakeDevices{devs: test.devs}
 			fakeDevs.assignU2FCallbacks()
 
-			mfaResp, err := wancli.Login(ctx, origin, assertion)
+			mfaResp, err := wancli.U2FLogin(ctx, origin, assertion)
 			switch hasErr := err != nil; {
 			case hasErr != test.wantErr:
 				t.Fatalf("Login returned err = %v, wantErr = %v", err, test.wantErr)
@@ -254,7 +254,7 @@ func TestLogin_errors(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 			defer cancel()
 
-			_, err := wancli.Login(ctx, test.origin, test.getAssertion())
+			_, err := wancli.U2FLogin(ctx, test.origin, test.getAssertion())
 			require.True(t, trace.IsBadParameter(err))
 		})
 	}
@@ -384,7 +384,9 @@ func (f *fakeDevice) Authenticate(req u2ftoken.AuthenticateRequest) (*u2ftoken.A
 		return nil, trace.Wrap(err)
 	}
 	var counter uint32
-	binary.Read(bytes.NewReader(rawResp[1:5]), binary.BigEndian, &counter)
+	if err := binary.Read(bytes.NewReader(rawResp[1:5]), binary.BigEndian, &counter); err != nil {
+		return nil, err
+	}
 	sign := rawResp[5:]
 
 	return &u2ftoken.AuthenticateResponse{
