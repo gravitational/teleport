@@ -411,6 +411,7 @@ func Run(args []string, opts ...cliOption) error {
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
+	ver.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
 	// ssh
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
@@ -675,7 +676,7 @@ func Run(args []string, opts ...cliOption) error {
 
 	switch command {
 	case ver.FullCommand():
-		utils.PrintVersion()
+		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
 	case bench.FullCommand():
@@ -773,6 +774,31 @@ func Run(args []string, opts ...cliOption) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+// onVersion prints version info.
+func onVersion(cf *CLIConf) error {
+	switch cf.Format {
+	case teleport.Text:
+		utils.PrintVersion()
+	case teleport.JSON:
+		versionInfo := struct {
+			Version string `json:"version"`
+			Gitref  string `json:"gitref"`
+			Runtime string `json:"runtime"`
+		}{
+			teleport.Version, teleport.Gitref, runtime.Version(),
+		}
+		fmt.Printf("%+v\n", versionInfo)
+		out, err := json.MarshalIndent(&versionInfo, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+	}
+	return nil
 }
 
 // onPlay replays a session with a given ID
