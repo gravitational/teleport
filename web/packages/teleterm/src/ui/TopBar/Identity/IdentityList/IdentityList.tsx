@@ -43,7 +43,8 @@ export function IdentityList(props: IdentityListProps) {
               key={i.uri}
               index={index}
               isSelected={i.active}
-              title={i.name}
+              userName={i.userName}
+              clusterName={i.clusterName}
               isSyncing={i.clusterSyncStatus}
               onSelect={() => props.onSelectCluster(i.uri)}
               onRemove={() => props.onRemoveCluster(i.uri)}

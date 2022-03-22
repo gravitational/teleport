@@ -6,8 +6,9 @@ import LinearProgress from 'teleterm/ui/components/LinearProgress';
 import { CircleCross } from 'design/Icon';
 
 interface ClusterItemProps {
-  title: string;
   index: number;
+  userName?: string;
+  clusterName: string;
   isSelected: boolean;
   isSyncing: boolean;
 
@@ -23,6 +24,10 @@ export function ClusterItem(props: ClusterItemProps) {
     onRun: props.onSelect,
   });
 
+  const title = props.userName
+    ? `${props.userName}@${props.clusterName}`
+    : props.clusterName;
+
   return (
     <ListItem
       onClick={props.onSelect}
@@ -31,8 +36,8 @@ export function ClusterItem(props: ClusterItemProps) {
       onMouseLeave={() => setIsHovered(false)}
     >
       <Flex justifyContent="space-between" alignItems="center" width="100%">
-        <Text typography="body1" title={props.title}>
-          {props.title}
+        <Text typography="body1" title={title}>
+          {title}
         </Text>
         {props.isSelected ? (
           <Label kind="success" ml={2}>
