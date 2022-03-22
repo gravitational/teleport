@@ -29,7 +29,7 @@ export const IdentitySelector = forwardRef<
           <UserIcon letter={props.userName[0]} />
         </Box>
       )}
-      <Text css={{ whiteSpace: 'nowrap' }} typography="subtitle1" title={text}>
+      <Text style={{ whiteSpace: 'nowrap' }} typography="subtitle1" title={text}>
         {text}
       </Text>
       <Icon ml={2} />
