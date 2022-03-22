@@ -9,9 +9,21 @@ config file using Teleport Helm charts.
 This setup can be useful when you already have an existing Teleport cluster and would like to start running it in Kubernetes, or when
 migrating your setup from a legacy version of the Helm charts.
 
-(!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
 
-## Step 3. Setting up a Teleport cluster with Helm using a custom config
+## Prerequisites
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+
+## Step 1/4. Install Helm
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
+
+## Step 2/4. Add the Teleport Helm chart repository
+
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+## Step 3/4. Setting up a Teleport cluster with Helm using a custom config
 
 In `custom` mode, the `teleport-cluster` Helm chart does not create a `ConfigMap` containing a `teleport.yaml` file for you, but
 expects that you will provide this yourself.
@@ -130,7 +142,7 @@ $ kubectl --namespace teleport get all
 # replicaset.apps/teleport-5c56b4d869   1         1         1       5h8m
 ```
 
-## Step 4. Create a Teleport user (optional)
+## Step 4/4. Create a Teleport user (optional)
 
 If you're not migrating an existing Teleport cluster, you'll need to create a user to be able to log into Teleport. This needs to be done on the
 Teleport auth server, so we can run the command using `kubectl`:
