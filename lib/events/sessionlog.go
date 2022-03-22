@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -236,7 +235,7 @@ func (sl *DiskSessionLogger) finalize() error {
 
 	// create a sentinel to signal completion
 	signalFile := filepath.Join(sl.sessionDir, fmt.Sprintf("%v.completed", sl.SessionID.String()))
-	err := ioutil.WriteFile(signalFile, []byte("completed"), 0640)
+	err := os.WriteFile(signalFile, []byte("completed"), 0640)
 	if err != nil {
 		log.Warningf("Failed creating signal file: %v.", err)
 	}
@@ -601,7 +600,7 @@ func (f *gzipWriter) Close() error {
 	var errors []error
 	if f.Writer != nil {
 		errors = append(errors, f.Writer.Close())
-		f.Writer.Reset(ioutil.Discard)
+		f.Writer.Reset(io.Discard)
 		writerPool.Put(f.Writer)
 		f.Writer = nil
 	}
@@ -618,7 +617,7 @@ func (f *gzipWriter) Close() error {
 // internal buffers to avoid too many objects on the heap
 var writerPool = sync.Pool{
 	New: func() interface{} {
-		w, _ := gzip.NewWriterLevel(ioutil.Discard, gzip.BestSpeed)
+		w, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
 		return w
 	},
 }
