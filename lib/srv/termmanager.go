@@ -23,7 +23,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const maxHistory = 1000
+const maxHistoryBytes = 1000
+const maxPausedHistoryBytes = 10000
 
 // TermManager handles the streams of terminal-like sessions.
 // It performs a number of tasks including:
@@ -70,17 +71,9 @@ func NewTermManager() *TermManager {
 
 func (g *TermManager) writeToClients(p []byte) int {
 	g.lastWasBroadcast = false
-	truncateFront := func(slice []byte, max int) []byte {
-		if len(slice) > max {
-			return slice[len(slice)-max:]
-		}
-
-		return slice
-	}
-
-	g.history = append(g.history, truncateFront(p, maxHistory)...)
-	if len(g.history) > maxHistory {
-		g.history = g.history[:maxHistory]
+	g.history = append(g.history, truncateFront(p, maxHistoryBytes)...)
+	if len(g.history) > maxHistoryBytes {
+		g.history = g.history[:maxHistoryBytes]
 	}
 
 	atomic.AddUint64(&g.countWritten, uint64(len(p)))
@@ -113,7 +106,12 @@ func (g *TermManager) Write(p []byte) (int, error) {
 	if g.on {
 		g.writeToClients(p)
 	} else {
-		g.buffer = append(g.buffer, p...)
+		// Only keep the last maxPausedHistoryBytes of stdout/stderr while the session is paused.
+		// The alternative is flushing to disk but this should be a pretty rare occurence and shouldn't be an issue in practice.
+		g.buffer = append(g.buffer, truncateFront(p, maxPausedHistoryBytes)...)
+		if len(g.buffer) > maxPausedHistoryBytes {
+			g.history = g.history[:maxPausedHistoryBytes]
+		}
 	}
 
 	return len(p), nil
@@ -285,4 +283,12 @@ func (g *TermManager) GetRecentHistory() []byte {
 	data := make([]byte, len(g.history))
 	data = append(data, g.history...)
 	return data
+}
+
+func truncateFront(slice []byte, max int) []byte {
+	if len(slice) > max {
+		return slice[len(slice)-max:]
+	}
+
+	return slice
 }
