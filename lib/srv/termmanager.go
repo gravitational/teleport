@@ -110,7 +110,7 @@ func (g *TermManager) Write(p []byte) (int, error) {
 		// The alternative is flushing to disk but this should be a pretty rare occurence and shouldn't be an issue in practice.
 		g.buffer = append(g.buffer, truncateFront(p, maxPausedHistoryBytes)...)
 		if len(g.buffer) > maxPausedHistoryBytes {
-			g.history = g.history[:maxPausedHistoryBytes]
+			g.buffer = g.buffer[:maxPausedHistoryBytes]
 		}
 	}
 
