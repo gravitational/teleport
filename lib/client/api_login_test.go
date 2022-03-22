@@ -173,9 +173,10 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
+			tc.Passwordless = test.pwdless
 
 			clock.Advance(30 * time.Second)
-			_, err = tc.Login(ctx, test.pwdless)
+			_, err = tc.Login(ctx)
 			require.NoError(t, err)
 		})
 	}

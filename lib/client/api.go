@@ -361,6 +361,11 @@ type Config struct {
 
 	// ExtraProxyHeaders is a collection of http headers to be included in requests to the WebProxy.
 	ExtraProxyHeaders map[string]string
+
+	// Passwordless enables passwordless authentication for TeleportClient.
+	// Affects the TeleportClient.Login and, indirectly, RetryWithRelogin
+	// functions.
+	Passwordless bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -527,8 +532,8 @@ func (p *ProfileStatus) AppNames() (result []string) {
 	return result
 }
 
-// RetryWithRelogin is a helper error handling method,
-// attempts to relogin and retry the function once
+// RetryWithRelogin is a helper error handling method, attempts to relogin and
+// retry the function once.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
 	err := fn()
 	if err == nil {
@@ -545,9 +550,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 	log.Debugf("Activating relogin on %v.", err)
 
-	// TODO(codingllama): Allow for the passwordless flag to drip down here?
-	//  We'd have to change it to a global flag, but that seems alright.
-	key, err := tc.Login(ctx, false /* pwdless */)
+	key, err := tc.Login(ctx)
 	if err != nil {
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.SSHProxyAddr)
@@ -2461,10 +2464,11 @@ func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingR
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
 //
+// If tc.Passwordless is set, then the passwordless authentication flow is used.
+//
 // The returned Key should typically be passed to ActivateKey in order to
 // update local agent state.
-//
-func (tc *TeleportClient) Login(ctx context.Context, pwdless bool) (*Key, error) {
+func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	// Ping the endpoint to see if it's up and find the type of authentication
 	// supported, also show the message of the day if available.
 	pr, err := tc.PingAndShowMOTD(ctx)
@@ -2482,7 +2486,7 @@ func (tc *TeleportClient) Login(ctx context.Context, pwdless bool) (*Key, error)
 	var response *auth.SSHLoginResponse
 
 	switch authType := pr.Auth.Type; {
-	case pwdless: // Takes precedence over other methods if set.
+	case tc.Passwordless: // Takes precedence over other methods if set.
 		// Do a few sanity checks before obeying.
 		switch {
 		case authType != constants.Local:
