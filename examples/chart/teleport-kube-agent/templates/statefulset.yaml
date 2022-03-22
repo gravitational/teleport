@@ -110,6 +110,9 @@ spec:
       containers:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
+        {{- if .Values.imagePullPolicy }}
+        imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
+        {{- end }}
         {{- if .Values.extraEnv }}
         env:
           {{- toYaml .Values.extraEnv | nindent 10 }}
