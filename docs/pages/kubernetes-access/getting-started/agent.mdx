@@ -3,35 +3,86 @@ title: Connect a Kubernetes Cluster to Teleport
 description: Connecting a Kubernetes cluster to Teleport
 ---
 
-<Admonition type="notice" title="Editions">
-You can use this guide with Teleport Open Source, Teleport Enterprise, and Teleport Cloud.
-</Admonition>
-
 ## Prerequisites
 
-- Installed and running Teleport cluster, self-hosted or cloud-hosted.
-- Tool `jq` to process `JSON` output.
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+- A running Teleport cluster. For details on how to set this up, see one of our
+  [Getting Started](../../getting-started.mdx) guides. 
+
+- The `jq` tool to process `JSON` output. This is available via common package managers.
+
+- The `tctl` admin tool version >= (=teleport.version=).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  See [Installation](../../installation.mdx) for details.
+
+  (!docs/pages/includes/tctl.mdx!)
+
+</TabItem>
+<TabItem
+  scope={["enterprise"]} label="Enterprise">
+
+- A running Teleport cluster. For details on how to set this up, see one of our
+  [Getting Started](../../getting-started.mdx) guides.
+
+- The `jq` tool to process `JSON` output. This is available via common package managers.
+
+- The `tctl` admin tool version >= (=teleport.version=), which you can download
+  by visiting the
+  [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  (!docs/pages/includes/tctl.mdx!)
+
+</TabItem>
+<TabItem scope={["cloud"]}
+  label="Teleport Cloud">
+
+- A Teleport Cloud account. If you do not have one, visit the
+  [sign up page](https://goteleport.com/signup/) to begin your free trial.
+
+- The `jq` tool to process `JSON` output. This is available via common package
+  managers.
+
+- The Enterprise version of the `tctl` admin tool. To download this, visit
+the [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  (!docs/pages/includes/tctl.mdx!)
+
+</TabItem>
+</Tabs>
 
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
 
-<Admonition type="notice" title="Enable Kubernetes for Self-Hosted">
-For self-hosted Teleport instances the `kube_listen_addr` setting in the `proxy_service` is required to enable Kubernetes Access.  This is already enabled for Cloud and the Teleport `teleport-cluster` helm chart.
-```yaml
-proxy_service:
-  # ...
-  public_addr: proxy.example.com:3080
-
-  kube_listen_addr: 0.0.0.0:3026  
-  ```  
-</Admonition>
-
 ## Deployment overview
 
-In this guide, we deploy a Teleport agent that connects kubernetes cluster `cookie` to
-Teleport cluster `tele.example.com`:
+In this guide, we deploy the Teleport Kubernetes Service, which connects
+Kubernetes cluster `cookie` to Teleport cluster `tele.example.com`:
+
+<Notice type="tip" scope={["cloud"]}>
+
+In your Teleport Cloud account, the name of your cluster will be your tenant
+domain name, e.g., `mytenant.teleport.sh`, rather than `teleport.example.com`.
+
+</Notice>
 
 <Figure align="left" bordered caption="Kubernetes agent dialing back to Teleport cluster">
   ![Kubernetes agent](../../../img/k8s/agent.svg)
@@ -39,30 +90,57 @@ Teleport cluster `tele.example.com`:
 
 ## Step 1/2. Get a join token
 
-Start a lightweight agent in your Kubernetes cluster `cookie` and connect it to `tele.example.com`.
-We would need a join token from `tele.example.com`:
+In order to start the Teleport Kubernetes Service, we will need to request a
+join token from the Teleport Auth Service:
 
 ```code
-# Create a join token for the cluster cookie to authenticate
+# Create a join token for the Teleport Kubernetes Service to authenticate
 $ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
 $ echo $TOKEN
 ```
 
 ## Step 2/2. Deploy teleport-kube-agent
 
-Switch `kubectl` to the Kubernetes cluster `cookie` and run:
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+Switch `kubectl` to the Kubernetes cluster `cookie` and run the following
+commands, assigning `PROXY_ADDR` to the address of your Auth Service or Proxy
+Service.
 
 ```code
 # Add teleport-agent chart to charts repository
+$ PROXY_ADDR=tele.example.com:443
 $ helm repo add teleport https://charts.releases.teleport.dev
 $ helm repo update
 
-# Install Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
+# Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
 $ CLUSTER='cookie'
-$ PROXY='tele.example.com:443 - replace me with your cluster'
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
+  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Switch `kubectl` to the Kubernetes cluster `cookie` and run the following
+commands, assigning `PROXY_ADDR` to the address of your Teleport Cloud tenant.
+
+```code
+# Add teleport-agent chart to charts repository
+$ PROXY_ADDR=mytenant.teleport.sh
+$ helm repo add teleport https://charts.releases.teleport.dev
+$ helm repo update
+
+# Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
+$ CLUSTER='cookie'
+$ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
+  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
+```
+
+</TabItem>
+</Tabs>
 
 List connected clusters using `tsh kube ls` and switch between
 them using `tsh kube login`:
@@ -78,7 +156,7 @@ $ tsh kube ls
 $ tsh kube login cookie
 # Logged into kubernetes cluster "cookie"
 
-# kubectl command executed on `cookie` but is routed through `tele.example.com` cluster.
+# kubectl command executed on `cookie` but is routed through the Teleport cluster.
 $ kubectl get pods
 ```
 

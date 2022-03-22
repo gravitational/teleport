@@ -23,7 +23,8 @@ tests:
       - equal:
           path: spec.template.metadata.annotations.kubernetes\.io/pod-different
           value: 4
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should have one replica when replicaCount is not set
     values:
@@ -32,7 +33,8 @@ tests:
       - equal:
           path: spec.replicas
           value: 1
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set (using .replicaCount, deprecated)
     values:
@@ -43,7 +45,8 @@ tests:
       - equal:
           path: spec.replicas
           value: 3
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set (using highAvailability.replicaCount)
     values:
@@ -55,7 +58,8 @@ tests:
       - equal:
           path: spec.replicas
           value: 3
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set affinity when set in values
     values:
@@ -64,7 +68,8 @@ tests:
     asserts:
       - isNotNull:
           path: spec.template.spec.affinity
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
     values:
@@ -82,7 +87,8 @@ tests:
           path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
       - isNull:
           path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set preferred affinity when more than one replica is used
     values:
@@ -99,7 +105,8 @@ tests:
           path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
       - isNull:
           path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set tolerations when set in values
     values:
@@ -108,7 +115,8 @@ tests:
     asserts:
       - isNotNull:
           path: spec.template.spec.tolerations
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set resources when set in values
     values:
@@ -127,7 +135,8 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 2Gi
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set SecurityContext
     values:
@@ -150,7 +159,8 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsUser
           value: 9807
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set image and tag correctly
     values:
@@ -161,7 +171,8 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: quay.io/gravitational/teleport:8.3.4
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount extraVolumes and extraVolumeMounts
     values:
@@ -179,7 +190,8 @@ tests:
             name: my-mount
             secret:
               secretName: mySecret
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set imagePullPolicy when set in values
     values:
@@ -190,7 +202,8 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: Always
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set environment when extraEnv set in values
     values:
@@ -205,7 +218,8 @@ tests:
           content:
             name: HTTPS_PROXY
             value: "http://username:password@my.proxy.host:3128"
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should provision initContainer correctly when set in values
     values:
@@ -233,7 +247,8 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].resources.requests.memory
           value: 2Gi
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should add insecureSkipProxyTLSVerify to args when set in values
     values:
@@ -244,7 +259,8 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: "--insecure"
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should expose diag port
     values:
@@ -256,7 +272,8 @@ tests:
             name: diag
             containerPort: 3000
             protocol: TCP
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set nodeSelector if set in values
     values:
@@ -267,7 +284,8 @@ tests:
           path: spec.template.spec.nodeSelector
           value:
             gravitational.io/k8s-role: node
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should not add emptyDir for data when using StatefulSet
     values:
@@ -278,7 +296,8 @@ tests:
           content:
             name: data
             emptyDir: {}
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should add volumeMount for data volume when using StatefulSet
     values:
@@ -289,7 +308,8 @@ tests:
           content:
             name: data
             mountPath: RELEASE-NAME-teleport-data
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should add volumeClaimTemplate for data volume when using StatefulSet
     values:
@@ -297,7 +317,8 @@ tests:
     asserts:
       - isNotNull:
           path: spec.volumeClaimTemplates[0].spec
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set storage.storageClassName when set in values
     values:
@@ -309,7 +330,8 @@ tests:
       - equal:
           path: spec.volumeClaimTemplates[0].spec.storageClassName
           value: helm-lint-storage-class
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set storage.requests when set in values
     values:
@@ -321,7 +343,8 @@ tests:
       - equal:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: 256Mi
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set serviceAccountName when set in values
     values:
@@ -331,7 +354,8 @@ tests:
       - equal:
           path: spec.template.spec.serviceAccountName
           value: teleport-kube-agent-sa
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set default serviceAccountName when not set in values
     values:
@@ -341,4 +365,5 @@ tests:
       - equal:
           path: spec.template.spec.serviceAccountName
           value: RELEASE-NAME
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec

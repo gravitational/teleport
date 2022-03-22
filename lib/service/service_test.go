@@ -18,8 +18,11 @@ package service
 import (
 	"context"
 	"fmt"
+<<<<<<< HEAD
 	"io/ioutil"
 	"net"
+=======
+>>>>>>> master
 	"net/http"
 	"os"
 	"strings"
@@ -104,16 +107,12 @@ func testMonitor(t *testing.T, sshEnabled bool, tests []monitorTest) {
 	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
-	cfg.DataDir, err = ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	defer os.RemoveAll(cfg.DataDir)
+	cfg.DataDir = t.TempDir()
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
-	cfg.Auth.StorageConfig.Params["path"], err = ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	defer os.RemoveAll(cfg.DataDir)
+	cfg.Auth.StorageConfig.Params["path"], err =  t.TempDir()
 	if sshEnabled {
 		cfg.SSH.Enabled = true
 		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
