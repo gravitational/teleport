@@ -349,18 +349,18 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Emit session leave event to both the Audit Log as well as over the
+	// "x-teleport-event" channel in the SSH connection. This needs to
+	// occur after the party has been removed to prevent writing to the
+	// leaving party's closed writer.
+	defer s.emitSessionLeaveEvent(party)
+
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	// Remove member from in-members representation of party.
 	if err := sess.removeParty(party); err != nil {
 		return trace.Wrap(err)
 	}
-
-	sess.mu.Unlock()
-	// Emit session leave event to both the Audit Log as well as over the
-	// "x-teleport-event" channel in the SSH connection.
-	s.emitSessionLeaveEvent(party)
-	sess.mu.Lock()
 
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit
