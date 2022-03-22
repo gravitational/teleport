@@ -30,13 +30,10 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
-// Login performs client-side, U2F-compatible Webauthn login.
-// This method blocks until either device authentication is successful or the
-// context is cancelled. Calling Login without a deadline or cancel condition
-// may cause it block forever.
-// The caller is expected to prompt the user for action before calling this
-// method.
-func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+// U2FLogin implements Login for U2F/CTAP1 devices.
+// The implementation is backed exclusively by Go code, making it useful in
+// scenarios where libfido2 is unavailable.
+func U2FLogin(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
 	switch {
 	case origin == "":
 		return nil, trace.BadParameter("origin required")

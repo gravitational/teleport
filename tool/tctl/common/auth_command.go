@@ -19,7 +19,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -306,12 +305,12 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = ioutil.WriteFile(a.genPubPath, pubBytes, 0600)
+	err = os.WriteFile(a.genPubPath, pubBytes, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = ioutil.WriteFile(a.genPrivPath, privBytes, 0600)
+	err = os.WriteFile(a.genPrivPath, privBytes, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -557,7 +556,7 @@ cockroach start \
 To enable mutual TLS on your Redis server, add the following to your redis.conf:
 
 tls-ca-cert-file /path/to/{{.output}}.cas
-tls-cert-file /path/to/{{.output}}.crt 
+tls-cert-file /path/to/{{.output}}.crt
 tls-key-file /path/to/{{.output}}.key
 tls-protocols "TLSv1.2 TLSv1.3"
 `))
