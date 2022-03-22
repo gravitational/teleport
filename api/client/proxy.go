@@ -24,7 +24,7 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
-	"github.com/siddontang/go/log"
+	log "github.com/sirupsen/logrus"
 )
 
 // DialProxy creates a connection to a server via an HTTP Proxy.
