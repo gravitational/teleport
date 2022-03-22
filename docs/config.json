@@ -345,10 +345,6 @@
               "slug": "/kubernetes-access/guides/federation/"
             },
             {
-              "title": "Migration",
-              "slug": "/kubernetes-access/guides/migration/"
-            },
-            {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
             }
@@ -1085,6 +1081,11 @@
     {
       "source": "/docs/best-practices/",
       "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/migration/",
+      "destination": "/kubernetes-access/introduction/",
       "permanent": true
     }
   ]
