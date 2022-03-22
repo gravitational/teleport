@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"net"
 	"sync"
+	"time"
 
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -64,6 +66,9 @@ type ClientConfig struct {
 	Log logrus.FieldLogger
 	// Clock is used to control connection cleanup ticker.
 	Clock clockwork.Clock
+	// GracefulShutdownTimout is used set the graceful shutdown
+	// duration limit.
+	GracefulShutdownTimeout time.Duration
 
 	// getConfigForServer updates the client tls config.
 	// configurable for testing purposes.
@@ -91,6 +96,10 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 
 	if c.Context == nil {
 		c.Context = context.Background()
+	}
+
+	if c.GracefulShutdownTimeout == 0 {
+		c.GracefulShutdownTimeout = defaults.DefaultGracefulShutdownTimeout
 	}
 
 	if c.ID == "" {
@@ -272,7 +281,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 
 	for _, id := range toDelete {
 		if conn, ok := c.conns[id]; ok {
-			c.closeConn(conn)
+			go c.shutdownConn(conn)
 		}
 	}
 	c.conns = toKeep
@@ -319,14 +328,47 @@ func (c *Client) Dial(
 	return conn, nil
 }
 
-// Close closes all existing client connections.
-func (c *Client) Close() error {
+// Shutdown gracefully shuts down all existing client connections.
+func (c *Client) Shutdown() {
+	c.Lock()
+	defer c.Unlock()
+
+	var wg sync.WaitGroup
+	for _, conn := range c.conns {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), c.config.GracefulShutdownTimeout)
+			defer cancel()
+
+			go func() {
+				if err := c.shutdownConn(conn); err != nil {
+					c.config.Log.Infof("proxy peer connection %+v graceful shutdown error: %+v", conn.id, err)
+				}
+			}()
+
+			select {
+			case <-conn.ctx.Done():
+			case <-timeoutCtx.Done():
+				if err := c.stopConn(conn); err != nil {
+					c.config.Log.Infof("proxy peer connection %+v close error: %+v", conn.id, err)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	c.cancel()
+}
+
+// Stop closes all existing client connections.
+func (c *Client) Stop() error {
 	c.Lock()
 	defer c.Unlock()
 
 	var errs []error
 	for _, conn := range c.conns {
-		if err := c.closeConn(conn); err != nil {
+		if err := c.stopConn(conn); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -334,14 +376,18 @@ func (c *Client) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
-// closeConn closes and removes a clientConn from cache.
-// This function is not thread safe.
-func (c *Client) closeConn(conn *clientConn) (err error) {
-	conn.cancel()
+// shutdownConn gracefully shuts down a clientConn
+// by waiting for open streams to finish.
+func (c *Client) shutdownConn(conn *clientConn) error {
 	conn.wg.Wait() // wait for streams to gracefully end
-	err = conn.Close()
-	delete(c.conns, conn.id)
-	return trace.Wrap(err)
+	conn.cancel()
+	return conn.Close()
+}
+
+// stopConn immediately closes a clientConn
+func (c *Client) stopConn(conn *clientConn) error {
+	conn.cancel()
+	return conn.Close()
 }
 
 // dial opens a new stream to one of the supplied proxy ids.
@@ -431,6 +477,7 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 	}
 
 	connCtx, cancel := context.WithCancel(c.ctx)
+	wg := new(sync.WaitGroup)
 
 	transportCreds := newProxyCredentials(credentials.NewTLS(tlsConfig))
 	conn, err := grpc.DialContext(
@@ -438,7 +485,7 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 		proxyPeerAddr,
 		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithStatsHandler(newStatsHandler(c.metrics)),
-		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, utils.GRPCClientStreamErrorInterceptor),
+		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, utils.GRPCClientStreamErrorInterceptor, streamCounterInterceptor(wg)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                peerKeepAlive,
 			Timeout:             peerTimeout,
@@ -454,7 +501,7 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 		ClientConn: conn,
 		ctx:        connCtx,
 		cancel:     cancel,
-		wg:         new(sync.WaitGroup),
+		wg:         wg,
 		id:         id,
 		addr:       proxyPeerAddr,
 	}, nil
@@ -470,11 +517,11 @@ func (c *Client) startStream(conn *clientConn) (clientapi.ProxyService_DialNodeC
 		return nil, trace.Wrap(err, "Error opening stream to proxy %+v", conn.id)
 	}
 
-	conn.wg.Add(1)
 	go func() {
 		<-conn.ctx.Done()
-		stream.CloseSend()
-		conn.wg.Done()
+		if err := stream.CloseSend(); err != nil {
+			c.config.Log.Debugf("error closing stream: %+v", err)
+		}
 	}()
 
 	return stream, nil

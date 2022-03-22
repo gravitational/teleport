@@ -97,7 +97,9 @@ func TestClientUpdate(t *testing.T) {
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
 	require.NoError(t, sendMsg(s1)) // stream is not broken across updates
-	require.Error(t, sendMsg(s2))   // stream fails because connection got closed
+	require.NoError(t, sendMsg(s2)) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
+
+	s2.CloseSend()
 
 	// watcher finds two servers with one broken connection
 	server2.Shutdown()
@@ -115,11 +117,14 @@ func TestClientUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
-	require.Error(t, sendMsg(s1)) // original stream is closed
+	require.NoError(t, sendMsg(s1)) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
 	s3, _, err := client.dial([]string{"s1"})
 	require.NoError(t, err)
 	require.NotNil(t, s3)
 	require.NoError(t, sendMsg(s3)) // new stream is working
+
+	s1.CloseSend()
+	s3.CloseSend()
 }
 
 func TestCAChange(t *testing.T) {
@@ -140,6 +145,7 @@ func TestCAChange(t *testing.T) {
 	require.NotNil(t, ogStream)
 
 	require.NoError(t, sendMsg(ogStream))
+	ogStream.CloseSend()
 
 	// server ca rotated
 	newServerCA := newSelfSignedCA(t)
@@ -174,6 +180,7 @@ func TestCAChange(t *testing.T) {
 	stream, err = client.startStream(conn)
 	require.NoError(t, err)
 	require.NoError(t, sendMsg(stream))
+	stream.CloseSend()
 
 	// for good measure, original stream should still be working
 	require.NoError(t, sendMsg(ogStream))
@@ -204,7 +211,9 @@ func TestCAChange(t *testing.T) {
 	stream, err = client.startStream(conn)
 	require.NoError(t, err)
 	require.NoError(t, sendMsg(stream))
+	stream.CloseSend()
 
 	// and one final time, original stream should still be working
 	require.NoError(t, sendMsg(ogStream))
+	ogStream.CloseSend()
 }

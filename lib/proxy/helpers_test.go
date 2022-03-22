@@ -76,7 +76,6 @@ func (s *mockProxyService) DialNode(stream clientapi.ProxyService_DialNodeServer
 	case err := <-errChan:
 		return err
 	}
-	return nil
 }
 
 // newSelfSignedCA creates a new CA for testing.
@@ -145,18 +144,19 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 	}
 
 	client, err := NewClient(ClientConfig{
-		ID:                 "client-proxy",
-		AuthClient:         mockAuthClient{},
-		AccessPoint:        &mockProxyAccessPoint{},
-		TLSConfig:          tlsConf,
-		Clock:              clockwork.NewFakeClock(),
-		getConfigForServer: getConfigForServer,
-		sync:               func() {},
+		ID:                      "client-proxy",
+		AuthClient:              mockAuthClient{},
+		AccessPoint:             &mockProxyAccessPoint{},
+		TLSConfig:               tlsConf,
+		Clock:                   clockwork.NewFakeClock(),
+		GracefulShutdownTimeout: time.Second,
+		getConfigForServer:      getConfigForServer,
+		sync:                    func() {},
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, client.Close())
+		client.Shutdown()
 	})
 
 	return client, tlsConf
