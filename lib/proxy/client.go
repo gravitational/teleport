@@ -323,7 +323,7 @@ func (c *Client) Dial(
 	}
 
 	conn := newStreamConn(stream, src, dst)
-	go conn.start()
+	go conn.run()
 
 	return conn, nil
 }
