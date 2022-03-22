@@ -358,8 +358,11 @@ $ kubectl --namespace teleport get all
 
 ## Step 6/7. Set up DNS
 
-You'll need to set up two DNS `A` records: `teleport.example.com` for the web UI, and `*.teleport.example.com`
-for web apps using [application access](../../../application-access/introduction.mdx).
+You'll need to set up a DNS `A` record for `teleport.example.com`.
+
+<Details title="Using Application Access?">
+(!docs/pages/includes/dns-app-access.mdx!)
+</Details>
 
 Here's how to do this using Google Cloud DNS:
 
