@@ -494,6 +494,8 @@ func findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAutho
 		toRotate = append(toRotate, key)
 	}
 
+	log.Warnf("Found duplicated CAs. Rotating %v", toRotate)
+
 	return toRotate
 }
 

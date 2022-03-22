@@ -629,12 +629,13 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 
 	teleportVer, err := semver.NewVersion(server.GetTeleportVersion())
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to parse Teleport version")
+		return nil, trace.Wrap(err, "failed to parse Teleport version")
 	}
 
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
-		CSR:                csr,
-		ClusterName:        identity.RouteToCluster,
+		CSR:         csr,
+		ClusterName: identity.RouteToCluster,
+		// TODO: Remove in Teleport 11.
 		SignWithDatabaseCA: teleportVer.LessThan(*semver.New("9.1.0")),
 	})
 	if err != nil {
@@ -668,7 +669,7 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, err := auth.ClientCertPool(ap, clusterName, types.HostCA, types.DatabaseCA, types.UserCA)
+		pool, err := auth.ClientCertPool(ap, clusterName, types.UserCA)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return nil, nil // Fall back to the default config.
