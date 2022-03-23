@@ -41,7 +41,7 @@ func newClientMetrics() (*clientMetrics, error) {
 				Namespace: "proxy_peer",
 				Subsystem: "client",
 				Name:      "dial_error_total",
-				Help:      "Total number of errors encountered dialling peer proxies.",
+				Help:      "Total number of errors encountered dialing peer proxies.",
 			},
 			[]string{"error_type"},
 		),
@@ -109,7 +109,6 @@ func newClientMetrics() (*clientMetrics, error) {
 
 	if err := utils.RegisterPrometheusCollectors(
 		cm.tunnelErrorCounter,
-
 		cm.connections,
 		cm.rpcs,
 		cm.rpcTotal,
