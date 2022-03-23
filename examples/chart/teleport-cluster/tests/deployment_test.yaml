@@ -13,7 +13,8 @@ tests:
       - equal:
           path: metadata.annotations.kubernetes\.io/deployment-different
           value: 3
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: sets Pod annotations when specified
     values:
@@ -25,7 +26,8 @@ tests:
       - equal:
           path: spec.template.metadata.annotations.kubernetes\.io/pod-different
           value: 4
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should not have more than one replica in standalone mode
     set:
@@ -35,7 +37,8 @@ tests:
       - equal:
           path: spec.replicas
           value: 1
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should have multiple replicas when replicaCount is set
     set:
@@ -47,7 +50,8 @@ tests:
       - equal:
           path: spec.replicas
           value: 3
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set affinity when set in values
     set:
@@ -67,7 +71,8 @@ tests:
     asserts:
       - isNotNull:
           path: spec.template.spec.affinity
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
     values:
@@ -79,7 +84,8 @@ tests:
           path: spec.template.spec.affinity.podAntiAffinity
       - isNotNull:
           path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set tolerations when set in values
     values:
@@ -87,7 +93,8 @@ tests:
     asserts:
       - isNotNull:
           path: spec.template.spec.tolerations
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set resources when set in values
     values:
@@ -105,7 +112,8 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 2Gi
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   # we can't use the dynamic chart version or appVersion as a variable in the tests,
   # so we override it manually and check that gets set instead
@@ -131,7 +139,8 @@ tests:
             name: license
             secret:
               secretName: license
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should not do enterprise things when when enterprise is not set in values
     set:
@@ -153,7 +162,8 @@ tests:
             name: license
             secret:
               secretName: license
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount GCP credentials in GCP mode
     values:
@@ -171,7 +181,8 @@ tests:
             name: gcp-credentials
             secret:
               secretName: teleport-gcp-credentials
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount GCP credentials for initContainer in GCP mode
     values:
@@ -184,7 +195,8 @@ tests:
             mountPath: /etc/teleport-secrets
             name: "gcp-credentials"
             readOnly: true
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount TLS certs when cert-manager is enabled
     values:
@@ -202,7 +214,8 @@ tests:
             name: teleport-tls
             secret:
               secretName: teleport-tls
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount TLS certs for initContainer when cert-manager is enabled
     values:
@@ -215,7 +228,8 @@ tests:
             mountPath: /etc/teleport-tls
             name: "teleport-tls"
             readOnly: true
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount ConfigMap for config in AWS mode
     values:
@@ -233,7 +247,8 @@ tests:
             name: config
             configMap:
               name: RELEASE-NAME
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount ConfigMap for config in GCP mode
     values:
@@ -251,7 +266,8 @@ tests:
             name: config
             configMap:
               name: RELEASE-NAME
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount ConfigMap for config in standalone mode
     set:
@@ -270,7 +286,8 @@ tests:
             name: config
             configMap:
               name: RELEASE-NAME
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount ConfigMap for config in custom mode
     set:
@@ -289,7 +306,8 @@ tests:
             name: config
             configMap:
               name: RELEASE-NAME
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount extraVolumes and extraVolumeMounts
     values:
@@ -306,7 +324,8 @@ tests:
             name: my-mount
             secret:
               secretName: mySecret
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount extraVolumes and extraVolumeMounts
     values:
@@ -323,7 +342,8 @@ tests:
             name: my-mount
             secret:
               secretName: mySecret
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should mount extraVolumes and extraVolumeMounts
     values:
@@ -340,7 +360,8 @@ tests:
             name: my-mount
             secret:
               secretName: mySecret
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set imagePullPolicy when set in values
     set:
@@ -350,7 +371,8 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: Always
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set environment when extraEnv set in values
     set:
@@ -364,7 +386,8 @@ tests:
           content:
             name: SSL_CERT_FILE
             value: "/etc/tls/some-cert-file.pem"
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should provision initContainer correctly when set in values
     values:
@@ -396,7 +419,8 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[0].resources.requests.memory
           value: 2Gi
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should add insecureSkipProxyTLSVerify to args when set in values
     set:
@@ -406,7 +430,8 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: "--insecure"
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should expose diag port
     set:
@@ -418,7 +443,8 @@ tests:
             name: diag
             containerPort: 3000
             protocol: TCP
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set postStart command if set in values
     set:
@@ -429,7 +455,8 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].lifecycle.postStart.exec.command
           value: ["/bin/echo", "test"]
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should add PersistentVolumeClaim as volume when in standalone mode
     set:
@@ -442,7 +469,8 @@ tests:
             name: data
             persistentVolumeClaim:
               claimName: RELEASE-NAME
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should add named PersistentVolumeClaim as volume when in standalone mode and standalone.existingClaimName is set
     values:
@@ -454,7 +482,8 @@ tests:
             name: data
             persistentVolumeClaim:
               claimName: teleport-storage
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should add emptyDir for data in AWS mode
     values:
@@ -465,7 +494,8 @@ tests:
           content:
             name: data
             emptyDir: {}
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should add emptyDir for data in GCP mode
     values:
@@ -476,7 +506,8 @@ tests:
           content:
             name: data
             emptyDir: {}
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should add emptyDir for data in custom mode
     set:
@@ -488,7 +519,8 @@ tests:
           content:
             name: data
             emptyDir: {}
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
 
   - it: should set priorityClassName when set in values
     values:
@@ -497,4 +529,5 @@ tests:
       - equal:
           path: spec.template.spec.priorityClassName
           value: system-cluster-critical
-      - matchSnapshot: {}
+      - matchSnapshot:
+          path: spec.template.spec
