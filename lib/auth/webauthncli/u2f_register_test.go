@@ -35,7 +35,6 @@ func TestRegister(t *testing.T) {
 	const rpID = "example.com"
 	const origin = "https://example.com"
 
-	// Prepare a few fake devices.
 	u2fKey, err := newFakeDevice("u2fkey" /* name */, "" /* appID */)
 	require.NoError(t, err)
 	registeredKey, err := newFakeDevice("regkey" /* name */, rpID /* appID */)
@@ -48,8 +47,17 @@ func TestRegister(t *testing.T) {
 			RPID: rpID,
 		},
 		Identity: &fakeIdentity{
-			User:    user,
-			Devices: []*types.MFADevice{registeredKey.mfaDevice},
+			User: user,
+			Devices: []*types.MFADevice{
+				// Fake a WebAuthn device record, as U2F devices are not excluded from registration.
+				{
+					Device: &types.MFADevice_Webauthn{
+						Webauthn: &types.WebauthnDevice{
+							CredentialId: registeredKey.key.KeyHandle,
+						},
+					},
+				},
+			},
 		},
 	}
 
