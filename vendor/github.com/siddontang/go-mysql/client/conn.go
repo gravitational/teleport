@@ -102,6 +102,11 @@ func (c *Conn) handshake() error {
 }
 
 func (c *Conn) Close() error {
+	if err := c.writeCommand(COM_QUIT); err != nil {
+		c.Conn.Close()
+		return errors.Trace(err)
+	}
+
 	return c.Conn.Close()
 }
 
