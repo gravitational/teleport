@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -45,6 +46,9 @@ func newWebClient(insecure bool, pool *x509.CertPool) *http.Client {
 			TLSClientConfig: &tls.Config{
 				RootCAs:            pool,
 				InsecureSkipVerify: insecure,
+			},
+			Proxy: func(req *http.Request) (*url.URL, error) {
+				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 			},
 		},
 	}
