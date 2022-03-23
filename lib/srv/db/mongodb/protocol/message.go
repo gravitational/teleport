@@ -96,6 +96,11 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 	if !ok {
 		return nil, nil, trace.BadParameter("failed to read message header %v", header)
 	}
+
+	if length-headerSizeBytes <= 0 {
+		return nil, nil, trace.BadParameter("invalid header %v", header)
+	}
+
 	// Then read the entire message body.
 	payload := make([]byte, length-headerSizeBytes)
 	if _, err := io.ReadFull(reader, payload); err != nil {

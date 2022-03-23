@@ -4,8 +4,6 @@ description: Dual Authorization for SSH and Kubernetes.
 videoBanner: b_iqJm_o15I
 ---
 
-# Dual Authorization
-
 You can set up Teleport to require require the approval of multiple team members to perform some critical actions.
 Here are the most common scenarios:
 
@@ -30,8 +28,8 @@ two team members for a privileged role `dbadmin`.
 
 ## Prerequisites
 
-- Installed [Teleport Enterprise](../../enterprise/introduction.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
-- [Tctl enterprise admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+- Installed [Teleport Enterprise](../../enterprise/introduction.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= 7.0.0
+- [Tctl enterprise admin tool](https://goteleport.com/teleport/download) >= 7.0.0
 - Mattermost installed.
 
 <Admonition
@@ -41,84 +39,42 @@ two team members for a privileged role `dbadmin`.
   ```code
   $ docker run --name mattermost-preview -d --publish 8065:8065 --add-host dockerhost:127.0.0.1 mattermost/mattermost-preview
   ```
+
 </Admonition>
 
 (!docs/pages/includes/tctl.mdx!)
 
 ## Set up Teleport bot
 
-<Tabs>
- <TabItem label="Mattermost">
+### Create a bot within Mattermost
 
-  Enable bot account creation in "System Console -> Integrations".
+Enable bot account creation in "System Console -> Integrations".
 
-  Toggle `Enable Bot Account Creation`.
+Toggle `Enable Bot Account Creation`.
 
-  ![Enable bots](../../../img/access-controls/dual-authz/mattermost-0-enable.png)
+![Enable bots](../../../img/access-controls/dual-authz/mattermost-0-enable.png)
 
-  Go back to your team settings, navigate to "Integrations -> Bot Accounts". Press "Add Bot Account".
+Go back to your team settings, navigate to "Integrations -> Bot Accounts". Press "Add Bot Account".
 
-  ![Enable bots](../../../img/access-controls/dual-authz/mattermost-1-bot.png)
+![Enable bots](../../../img/access-controls/dual-authz/mattermost-1-bot.png)
 
-  Add the "Post All" permission on the new account.
+Add the "Post All" permission on the new account.
 
-  ![Enable bots](../../../img/access-controls/dual-authz/mattermost-2-all-permissions@2x.png)
+![Enable bots](../../../img/access-controls/dual-authz/mattermost-2-all-permissions@2x.png)
 
-  Create the bot and save the access token.
+Create the bot and save the access token.
 
-  </TabItem>
-</Tabs>
+### Set up RBAC for the plugin
 
-Create a non-interactive bot `access-plugin` user and role.
+(!docs/pages/includes/plugins/rbac.mdx!)
 
-```yaml
-kind: user
-metadata:
-  name: access-plugin
-spec:
-  roles: ['access-plugin']
-version: v2
----
-kind: role
-version: v5
-metadata:
-  name: access-plugin
-spec:
-  allow:
-    rules:
-      - resources: ['access_request']
-        verbs: ['list', 'read']
-      - resources: ['access_plugin_data']
-        verbs: ['update']
-    # teleport currently refuses to issue certs for a user with 0 logins,
-    # this restriction may be lifted in future versions.
-    logins: ['access-plugin-not-used']
-```
+### Export the access-plugin identity files
 
-<Admonition
-  type="note"
-  title="Creating resources"
->
-  Here and below follow along and create yaml resources using `tctl create -f`:
+(!docs/pages/includes/plugins/identity-export.mdx!)
 
-  ```code
-  $ tctl create -f access.yaml
-  ```
-</Admonition>
+We'll reference the exported file(s) later when configuring the plugin.
 
-
-**Export access-plugin cert**
-
-Teleport Plugin uses the `access-plugin` role and user to perform the approval.
-We export the identify files, using `tctl auth sign`.
-
-```code
-$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=720h
-```
-
-Teleport will generate `auth.crt`, `auth.key`, and `auth.cas` - a certificate, a private key, and a set of CA certs respectively.
-
-**Install the plugin**
+### Install the plugin
 
 <Tabs>
 <TabItem label="Download">
@@ -146,11 +102,20 @@ Teleport will generate `auth.crt`, `auth.key`, and `auth.cas` - a certificate, a
 $ teleport-mattermost configure > /etc/teleport-mattermost.toml
 ```
 
-Update the config with Teleport address, Mattermost URL, and a bot token.
+Update the config with the Teleport address, Mattermost URL, and a bot token.
 
-```toml
-(!examples/resources/plugins/teleport-mattermost.toml!)
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+```yaml
+(!examples/resources/plugins/teleport-mattermost-self.toml!)
 ```
+</TabItem>
+<TabItem scope={["cloud"]} label="Cloud">
+```yaml
+(!examples/resources/plugins/teleport-mattermost-cloud.toml!)
+```
+</TabItem>
+</Tabs>
 
 ## Dual authorization
 
@@ -252,7 +217,7 @@ Bob can also assume granted access request roles using Web UI:
 
 ## Troubleshooting
 
-**Cert errors**
+### Cert errors in self-hosted deployments
 
 You may be getting certificate errors if Teleport's auth server is missing an address in the server certificate:
 

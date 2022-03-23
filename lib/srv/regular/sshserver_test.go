@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +29,7 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -74,8 +74,7 @@ var wildcardAllow = types.Labels{
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -279,7 +278,7 @@ const hostID = "00000000-0000-0000-0000-000000000000"
 func startReadAll(r io.Reader) <-chan []byte {
 	ch := make(chan []byte)
 	go func() {
-		data, _ := ioutil.ReadAll(r)
+		data, _ := io.ReadAll(r)
 		ch <- data
 	}()
 	return ch
@@ -449,7 +448,7 @@ func TestDirectTCPIP(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Make sure the response is what was expected.
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, []byte("hello, world\n"), body)
 }
@@ -620,7 +619,7 @@ func TestAgentForward(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a temp file to collect the shell output into:
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "teleport-agent-forward-test")
+	tmpFile, err := os.CreateTemp(os.TempDir(), "teleport-agent-forward-test")
 	require.NoError(t, err)
 	tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
@@ -632,7 +631,7 @@ func TestAgentForward(t *testing.T) {
 	// wait for the output
 	var socketPath string
 	require.Eventually(t, func() bool {
-		output, err := ioutil.ReadFile(tmpFile.Name())
+		output, err := os.ReadFile(tmpFile.Name())
 		if err == nil && len(output) != 0 {
 			socketPath = strings.TrimSpace(string(output))
 			return true
@@ -698,7 +697,7 @@ func TestX11Forward(t *testing.T) {
 	f.ssh.srv.x11 = &x11.ServerConfig{
 		Enabled:       true,
 		DisplayOffset: x11.DefaultDisplayOffset,
-		MaxDisplay:    x11.DefaultMaxDisplay,
+		MaxDisplay:    x11.DefaultMaxDisplays,
 	}
 
 	ctx := context.Background()
@@ -711,15 +710,47 @@ func TestX11Forward(t *testing.T) {
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	se, err := f.ssh.clt.NewSession()
-	require.NoError(t, err)
-	defer se.Close()
+	// Open two x11 sessions, the server should handle multiple
+	// concurrent X11 sessions.
+	serverDisplay := x11EchoSession(ctx, t, f.ssh.clt)
 
-	// Client requests x11 forwarding for the server session.
-	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	client2, err := ssh.Dial("tcp", f.ssh.srv.Addr(), f.ssh.cltConfig)
 	require.NoError(t, err)
-	err = x11.RequestForwarding(se, clientXAuthEntry)
+	serverDisplay2 := x11EchoSession(ctx, t, client2)
+
+	// Create multiple XServer requests, the server should
+	// handle multiple concurrent XServer requests.
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		x11EchoRequest(t, serverDisplay)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		x11EchoRequest(t, serverDisplay)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		x11EchoRequest(t, serverDisplay2)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		x11EchoRequest(t, serverDisplay2)
+	}()
+	wg.Wait()
+}
+
+// x11EchoSession creates a new ssh session and handles x11 forwarding for the session,
+// echoing XServer requests received back to the client. Returns the Display opened on the
+// session, which is set in $DISPLAY.
+func x11EchoSession(ctx context.Context, t *testing.T, clt *ssh.Client) x11.Display {
+	se, err := clt.NewSession()
 	require.NoError(t, err)
+	t.Cleanup(func() { se.Close() })
 
 	// Create a fake client XServer listener which echos
 	// back whatever it receives.
@@ -728,16 +759,19 @@ func TestX11Forward(t *testing.T) {
 	go func() {
 		for {
 			conn, err := fakeClientDisplay.Accept()
-			require.NoError(t, err)
+			if err != nil {
+				return
+			}
 			_, err = io.Copy(conn, conn)
 			require.NoError(t, err)
 			conn.Close()
 		}
 	}()
+	t.Cleanup(func() { fakeClientDisplay.Close() })
 
 	// Handle any x11 channel requests received from the server
 	// and start x11 forwarding to the client display.
-	err = x11.ServeChannelRequests(ctx, f.ssh.clt, func(ctx context.Context, nch ssh.NewChannel) {
+	err = x11.ServeChannelRequests(ctx, clt, func(ctx context.Context, nch ssh.NewChannel) {
 		sch, sin, err := nch.Accept()
 		require.NoError(t, err)
 		defer sch.Close()
@@ -758,6 +792,12 @@ func TestX11Forward(t *testing.T) {
 		err = x11.Forward(ctx, clientXConn, sch)
 		require.NoError(t, err)
 	})
+	require.NoError(t, err)
+
+	// Client requests x11 forwarding for the server session.
+	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+	require.NoError(t, err)
+	err = x11.RequestForwarding(se, clientXAuthEntry)
 	require.NoError(t, err)
 
 	// prepare to send virtual "keyboard input" into the shell:
@@ -794,6 +834,13 @@ func TestX11Forward(t *testing.T) {
 	// XServer should echo back anything written on it.
 	serverDisplay, err := x11.ParseDisplay(display)
 	require.NoError(t, err)
+
+	return serverDisplay
+}
+
+// x11EchoRequest sends a message to the serverDisplay and expects the
+// server to echo the message back to it.
+func x11EchoRequest(t *testing.T, serverDisplay x11.Display) {
 	conn, err := serverDisplay.Dial()
 	require.NoError(t, err)
 	defer conn.Close()
@@ -805,21 +852,6 @@ func TestX11Forward(t *testing.T) {
 	require.NoError(t, err)
 
 	echo, err := io.ReadAll(conn)
-	require.NoError(t, err)
-	require.Equal(t, msg, string(echo))
-	conn.Close()
-
-	// Make a new second connection to the XServer proxy
-	conn2, err := serverDisplay.Dial()
-	require.NoError(t, err)
-	defer conn2.Close()
-
-	_, err = conn2.Write([]byte(msg))
-	require.NoError(t, err)
-	err = conn2.CloseWrite()
-	require.NoError(t, err)
-
-	echo, err = io.ReadAll(conn2)
 	require.NoError(t, err)
 	require.Equal(t, msg, string(echo))
 }

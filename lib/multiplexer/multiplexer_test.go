@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -122,7 +121,7 @@ func TestMux(t *testing.T) {
 		re, err := client.Get(backend1.URL)
 		require.Nil(t, err)
 		defer re.Body.Close()
-		bytes, err := ioutil.ReadAll(re.Body)
+		bytes, err := io.ReadAll(re.Body)
 		require.Nil(t, err)
 		require.Equal(t, string(bytes), "backend 1")
 
@@ -345,7 +344,7 @@ func TestMux(t *testing.T) {
 		re, err := client.Get(backend1.URL)
 		require.Nil(t, err)
 		defer re.Body.Close()
-		bytes, err := ioutil.ReadAll(re.Body)
+		bytes, err := io.ReadAll(re.Body)
 		require.Nil(t, err)
 		require.Equal(t, string(bytes), "backend 1")
 
@@ -482,7 +481,7 @@ func TestMux(t *testing.T) {
 		re, err := client.Get(url)
 		require.Nil(t, err)
 		defer re.Body.Close()
-		bytes, err := ioutil.ReadAll(re.Body)
+		bytes, err := io.ReadAll(re.Body)
 		require.Nil(t, err)
 		require.Equal(t, string(bytes), "http backend")
 

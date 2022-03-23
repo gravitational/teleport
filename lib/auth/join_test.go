@@ -24,9 +24,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 )
 
 func TestAuth_RegisterUsingToken(t *testing.T) {
@@ -245,6 +249,118 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 			require.NoError(t, err)
 			if tc.certsAssertion != nil {
 				tc.certsAssertion(certs)
+			}
+		})
+	}
+}
+
+func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole, expiry time.Time) types.ProvisionToken {
+	t.Helper()
+	token, err := types.NewProvisionTokenFromSpec(tokenName, expiry, types.ProvisionTokenSpecV2{
+		Roles:   []types.SystemRole{role},
+		BotName: botName,
+	})
+	require.NoError(t, err, "could not create bot token")
+	return token
+}
+
+// TestRegister_Bot tests that a provision token can be used to generate
+// renewable certificates for a non-interactive user.
+func TestRegister_Bot(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+
+	botName := "test"
+	botResourceName := BotResourceName(botName)
+
+	_, err := createBotRole(context.Background(), srv.Auth(), "test", "bot-test", []string{})
+	require.NoError(t, err)
+
+	_, err = createBotUser(context.Background(), srv.Auth(), botName, botResourceName)
+	require.NoError(t, err)
+
+	later := srv.Clock().Now().Add(4 * time.Hour)
+
+	goodToken := newBotToken(t, "good-token", botName, types.RoleBot, later)
+	expiredToken := newBotToken(t, "expired", botName, types.RoleBot, srv.Clock().Now().Add(-1*time.Hour))
+	wrongKind := newBotToken(t, "wrong-kind", "", types.RoleNode, later)
+	wrongUser := newBotToken(t, "wrong-user", "llama", types.RoleBot, later)
+	invalidToken := newBotToken(t, "this-token-does-not-exist", botName, types.RoleBot, later)
+
+	err = srv.Auth().UpsertToken(context.Background(), goodToken)
+	require.NoError(t, err)
+	err = srv.Auth().UpsertToken(context.Background(), expiredToken)
+	require.NoError(t, err)
+	err = srv.Auth().UpsertToken(context.Background(), wrongKind)
+	require.NoError(t, err)
+	err = srv.Auth().UpsertToken(context.Background(), wrongUser)
+	require.NoError(t, err)
+
+	privateKey, publicKey, err := native.GenerateKeyPair("")
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		desc      string
+		token     types.ProvisionToken
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			desc:      "OK good token",
+			token:     goodToken,
+			assertErr: require.NoError,
+		},
+		{
+			desc:      "NOK expired token",
+			token:     expiredToken,
+			assertErr: require.Error,
+		},
+		{
+			desc:      "NOK wrong token kind",
+			token:     wrongKind,
+			assertErr: require.Error,
+		},
+		{
+			desc:      "NOK token for wrong user",
+			token:     wrongUser,
+			assertErr: require.Error,
+		},
+		{
+			desc:      "NOK invalid token",
+			token:     invalidToken,
+			assertErr: require.Error,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			certs, err := Register(RegisterParams{
+				Token: test.token.GetName(),
+				ID: IdentityID{
+					Role: types.RoleBot,
+				},
+				Servers:      []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: publicKey,
+			})
+			test.assertErr(t, err)
+
+			if err == nil {
+				require.NotEmpty(t, certs.SSH)
+				require.NotEmpty(t, certs.TLS)
+
+				// ensure token was removed
+				_, err = srv.Auth().GetToken(context.Background(), test.token.GetName())
+				require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+
+				// ensure cert is renewable
+				x509, err := tlsca.ParseCertificatePEM(certs.TLS)
+				require.NoError(t, err)
+				id, err := tlsca.FromSubject(x509.Subject, later)
+				require.NoError(t, err)
+				require.True(t, id.Renewable)
 			}
 		})
 	}

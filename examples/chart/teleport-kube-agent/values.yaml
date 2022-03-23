@@ -32,11 +32,27 @@ apps: []
 # Values that must be provided if Database access is enabled.
 ################################################################
 
+# At least one of 'databases' or 'awsDatabases' must be provided when database access
+# is enabled. See the README for more details.
+
+# Database auto-discovery mode (AWS only)
+# Details of at least one awsDatabase discovery pattern to be discovered
+# and proxied. Example:
+# awsDatabases:
+# - types: ["rds"]
+#   regions: ["us-east-1"]
+#   tags:
+#     "environment": "production"
+awsDatabases: []
+
+# Manual database configuration mode
 # Details of at least one database to be proxied. Example:
 # databases:
 #  - name: aurora
 #    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
 #    protocol: "postgres"
+#    static_labels:
+#      env: "prod"
 databases: []
 
 ################################################################
@@ -51,6 +67,7 @@ insecureSkipProxyTLSVerify: false
 
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
+# If anything is set under the "storage" key, this will be ignored.
 existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources
@@ -161,6 +178,12 @@ annotations:
   pod: {}
   # Annotations for the ServiceAccount object
   serviceAccount: {}
+
+# Extra arguments to pass to 'teleport start' for the main Teleport pod
+extraArgs: []
+
+# Extra environment to be configured on the Teleport pod
+extraEnv: []
 
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/

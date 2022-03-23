@@ -17,9 +17,11 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -146,6 +148,16 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	identity.ActiveRequests = accessRequestIDs
 	if _, ok := certificate.Extensions[teleport.CertExtensionDisallowReissue]; ok {
 		identity.DisallowReissue = true
+	}
+	if _, ok := certificate.Extensions[teleport.CertExtensionRenewable]; ok {
+		identity.Renewable = true
+	}
+	if generationStr, ok := certificate.Extensions[teleport.CertExtensionGeneration]; ok {
+		generation, err := strconv.ParseUint(generationStr, 10, 64)
+		if err != nil {
+			return IdentityContext{}, trace.Wrap(err)
+		}
+		identity.Generation = generation
 	}
 	return identity, nil
 }
@@ -496,7 +508,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca types.CertAuthorit
 // Certificate Authority and returns it.
 func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.PublicKey) (types.CertAuthority, error) {
 	// get all certificate authorities for given type
-	cas, err := h.c.AccessPoint.GetCertAuthorities(caType, false)
+	cas, err := h.c.AccessPoint.GetCertAuthorities(context.TODO(), caType, false)
 	if err != nil {
 		h.log.Warnf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)

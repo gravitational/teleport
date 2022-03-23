@@ -31,10 +31,8 @@ import (
 )
 
 func TestProcessKubeCSR(t *testing.T) {
-	defaultModules := modules.GetModules()
-	t.Cleanup(func() { modules.SetModules(defaultModules) })
-	modules.SetModules(&testModules{
-		features: modules.Features{
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
 			Kubernetes: true, // test requires kube feature is enabled
 		},
 	})

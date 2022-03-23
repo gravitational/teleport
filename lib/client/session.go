@@ -78,6 +78,9 @@ type NodeSession struct {
 
 	terminal *terminal.Terminal
 
+	// shouldClearOnExit marks whether or not the terminal should be cleared
+	// when the session ends.
+	shouldClearOnExit bool
 	// clientXAuthEntry contains xauth data which provides
 	// access to the client's local XServer.
 	clientXAuthEntry *x11.XAuthEntry
@@ -156,13 +159,24 @@ func newSession(client *NodeClient,
 
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
 
+	// Determine if terminal should clear on exit.
+	ns.shouldClearOnExit = isFIPS()
+	if client.Proxy != nil {
+		boring, err := client.Proxy.isAuthBoring(context.TODO())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ns.shouldClearOnExit = ns.shouldClearOnExit || boring
+	}
+
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
 	go func() {
 		defer ns.closeWait.Done()
 
 		<-ns.closer.C
-		if isFIPS() {
+
+		if ns.shouldClearOnExit {
 			if err := ns.terminal.Clear(); err != nil {
 				log.Warnf("Failed to clear screen: %v.", err)
 			}

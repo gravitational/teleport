@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -430,6 +429,8 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			routeToCluster: identity.RouteToCluster,
 			checker:        checker,
 			traits:         user.GetTraits(),
+			renewable:      identity.Renewable,
+			generation:     identity.Generation,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -485,8 +486,8 @@ func (a *TestAuthServer) Clock() clockwork.Clock {
 }
 
 // Trust adds other server host certificate authority as trusted
-func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap types.RoleMap) error {
-	remoteCA, err := remote.AuthServer.GetCertAuthority(types.CertAuthID{
+func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, roleMap types.RoleMap) error {
+	remoteCA, err := remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: remote.ClusterName,
 	}, false)
@@ -497,7 +498,7 @@ func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap types.RoleMap) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	remoteCA, err = remote.AuthServer.GetCertAuthority(types.CertAuthID{
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: remote.ClusterName,
 	}, false)
@@ -664,6 +665,8 @@ type TestIdentity struct {
 	TTL            time.Duration
 	AcceptedUsage  []string
 	RouteToCluster string
+	Renewable      bool
+	Generation     uint64
 }
 
 // TestUser returns TestIdentity for local user
@@ -673,6 +676,21 @@ func TestUser(username string) TestIdentity {
 			Username: username,
 			Identity: tlsca.Identity{Username: username},
 		},
+	}
+}
+
+// TestUser returns a TestIdentity for a local user
+// with renewable credentials.
+func TestRenewableUser(username string, generation uint64) TestIdentity {
+	return TestIdentity{
+		I: LocalUser{
+			Username: username,
+			Identity: tlsca.Identity{
+				Username: username,
+			},
+		},
+		Renewable:  true,
+		Generation: generation,
 	}
 }
 
@@ -905,7 +923,7 @@ type clt interface {
 
 // CreateRole creates a role without assigning any users. Used in tests.
 func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV5) (types.Role, error) {
-	role, err := types.NewRole(name, spec)
+	role, err := types.NewRoleV3(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1050,13 +1068,4 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	return user, role, nil
-}
-
-type testModules struct {
-	modules.Modules
-	features modules.Features
-}
-
-func (m *testModules) Features() modules.Features {
-	return m.features
 }

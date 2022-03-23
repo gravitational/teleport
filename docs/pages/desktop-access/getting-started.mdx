@@ -4,12 +4,6 @@ description: Connect Teleport to Active Directory and log into a Windows Desktop
 videoBanner: YvMqgcq0MTQ
 ---
 
-<Admonition type="warning" title="Warning">
-  Desktop Access is currently in Preview. Do not use this feature for any
-  critical infrastructure and keep a backup option for accessing your desktop
-  hosts.
-</Admonition>
-
 # Getting Started
 
 In this guide we will connect an Active Directory domain to Teleport using
@@ -21,11 +15,20 @@ This guide requires you to have:
 
 - An Active Directory domain, configured for LDAPS (Teleport requires an
   encrypted LDAP connection)
+
 - Access to a Domain Controller
-- An existing Teleport cluster and user, version 8.0 or newer
-  - See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport
-- A Linux server to run the Teleport Desktop Access service on
-  - You can reuse an existing server running any other Teleport instance
+
+- An existing Teleport cluster with one of the following versions:
+
+  **Open Source or Enterprise:** version 8.0 or newer
+
+  **Teleport Cloud:** version 9.0 or newer
+
+  See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport.
+
+- A Linux server to run the Teleport Desktop Access service on. 
+
+  You can reuse an existing server running any other Teleport instance.
 
 ## Step 1/6. Create a restrictive service account
 
@@ -95,7 +98,7 @@ dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuratio
 </Admonition>
 
 The Teleport service account is only needed to authenticate over LDAP, meaning
-that it needn't be able to login to Windows machines like an ordinary user.
+that it needn't be able to log in to Windows machines like an ordinary user.
 Restrict it from doing so by creating a new Group Policy Object (GPO) linked to
 your entire domain, and then deny it interactive login.
 
@@ -153,7 +156,7 @@ certificate-based smart card authentication, and ensuring RDP is enabled.
 
 1. Get the Teleport user CA certificate by running:
 
-```
+```code
 $ tctl auth export --type=windows > user-ca.cer
 ```
 
@@ -234,16 +237,16 @@ access.
 
 1. Publish the CA to LDAP:
 
-```
-$ certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
+```powershell
+certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
 ```
 
 2. Force the retrieval of the CA from LDAP. While this step is not required, it
    speeds up the process and allows you to proceed to the next steps without
    waiting for the certificate to propagate.
 
-```
-$ certutil -pulse
+```powershell
+certutil -pulse
 ```
 
 ### Enable the Smart Card service
@@ -356,7 +359,8 @@ the filepath to the `der_ca_file` configuration variable.
 
 In order to enable Desktop Access in Teleport, add the following section in
 `teleport.yaml` on your Linux server. For a detailed description of these
-configuration fields, see the [reference](./reference.mdx) page.
+configuration fields, see the
+[configuration reference](./reference/configuration.mdx) page.
 
 <Details title="Desktop Service Configuration" min="7.0" scopeOnly={true} scope={["oss", "enterprise"]}>
 ```yaml
@@ -380,7 +384,7 @@ providing a join token.
 
 First, generate a join token with the following command:
 
-```
+```code
 $ tctl tokens add --type=windowsdesktop
 ```
 
@@ -428,8 +432,13 @@ spec:
     windows_desktop_logins: ["Administrator"]
 ```
 
-See the [RBAC section](./reference.mdx#rbac) in the Reference documentation
-for more information about setting up Windows Desktop Access permissions.
+<Admonition type="warning" title="RBAC Configuration">
+Ensure that each Teleport user is only assigned Windows logins that they should
+be allowed to access.
+</Admonition>
+
+See the [RBAC page](./rbac.mdx) for more information about setting up
+Windows Desktop Access permissions.
 
 See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
 guide for instructions on how to create or update a user with a given role.

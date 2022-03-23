@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,18 +93,4 @@ func SetupSoftHSMTest(t *testing.T) Config {
 		Pin:        "password",
 	}
 	return *cachedConfig
-}
-
-type TestModules struct {
-	modules.Modules
-}
-
-func (t TestModules) Features() modules.Features {
-	return modules.Features{
-		HSM: true,
-	}
-}
-
-func (t TestModules) BuildType() string {
-	return modules.BuildEnterprise
 }

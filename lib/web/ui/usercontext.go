@@ -84,6 +84,8 @@ type userACL struct {
 	Billing access `json:"billing"`
 	// Clipboard defines whether the user can use a shared clipboard during windows desktop sessions.
 	Clipboard bool `json:"clipboard"`
+	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
+	DesktopSessionRecording bool `json:"desktopSessionRecording"`
 }
 
 type authType string
@@ -195,7 +197,7 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 }
 
 // NewUserContext returns user context
-func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features) (*UserContext, error) {
+func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled bool) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, types.KindSession)
 	roleAccess := newAccess(userRoles, ctx, types.KindRole)
@@ -214,34 +216,33 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	var billingAccess access
 	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
-
-		// disable access to preview features
-		desktopAccess = access{}
 	}
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
 	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
+	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
 
 	acl := userACL{
-		AccessRequests:  requestAccess,
-		AppServers:      appServerAccess,
-		DBServers:       dbServerAccess,
-		KubeServers:     kubeServerAccess,
-		Desktops:        desktopAccess,
-		AuthConnectors:  authConnectors,
-		TrustedClusters: trustedClusterAccess,
-		Sessions:        sessionAccess,
-		Roles:           roleAccess,
-		Events:          eventAccess,
-		SSHLogins:       logins,
-		WindowsLogins:   windowsLogins,
-		Users:           userAccess,
-		Tokens:          tokenAccess,
-		Nodes:           nodeAccess,
-		Billing:         billingAccess,
-		Clipboard:       clipboard,
+		AccessRequests:          requestAccess,
+		AppServers:              appServerAccess,
+		DBServers:               dbServerAccess,
+		KubeServers:             kubeServerAccess,
+		Desktops:                desktopAccess,
+		AuthConnectors:          authConnectors,
+		TrustedClusters:         trustedClusterAccess,
+		Sessions:                sessionAccess,
+		Roles:                   roleAccess,
+		Events:                  eventAccess,
+		SSHLogins:               logins,
+		WindowsLogins:           windowsLogins,
+		Users:                   userAccess,
+		Tokens:                  tokenAccess,
+		Nodes:                   nodeAccess,
+		Billing:                 billingAccess,
+		Clipboard:               clipboard,
+		DesktopSessionRecording: desktopSessionRecording,
 	}
 
 	// local user

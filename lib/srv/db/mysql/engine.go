@@ -242,19 +242,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		dialer,
 		connectOpt)
 	if err != nil {
-		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
-			return nil, trace.AccessDenied(`Could not connect to database:
-
-  %v
-
-Make sure that IAM auth is enabled for MySQL user %q and Teleport database
-agent's IAM policy has "rds-connect" permissions (note that IAM changes may
-take a few minutes to propagate):
-
-%v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
-		}
-		return nil, trace.Wrap(err)
+		return nil, common.ConvertConnectError(err, sessionCtx)
 	}
 	return conn, nil
 }
@@ -298,6 +286,28 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			return
 		case *protocol.Quit:
 			return
+
+		case *protocol.StatementPreparePacket:
+			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
+		case *protocol.StatementExecutePacket:
+			// TODO(greedy52) Number of parameters is required to parse
+			// paremeters out of the packet. Parameter definitions are required
+			// to properly format the parameters for including in the audit
+			// log. Both number of parameters and parameter definitions can be
+			// obtained from the response of COM_STMT_PREPARE.
+			e.Audit.EmitEvent(e.Context, makeStatementExecuteEvent(sessionCtx, pkt))
+		case *protocol.StatementSendLongDataPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementSendLongDataEvent(sessionCtx, pkt))
+		case *protocol.StatementClosePacket:
+			e.Audit.EmitEvent(e.Context, makeStatementCloseEvent(sessionCtx, pkt))
+		case *protocol.StatementResetPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementResetEvent(sessionCtx, pkt))
+		case *protocol.StatementFetchPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementFetchEvent(sessionCtx, pkt))
+		case *protocol.StatementBulkExecutePacket:
+			// TODO(greedy52) Number of parameters and parameter definitions
+			// are required. See above comments for StatementExecutePacket.
+			e.Audit.EmitEvent(e.Context, makeStatementBulkExecuteEvent(sessionCtx, pkt))
 		}
 		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
 		if err != nil {

@@ -114,7 +114,7 @@ type TestClientConfig struct {
 	RouteToDatabase tlsca.RouteToDatabase
 }
 
-// MakeTestClientCert returns TLS certificate suitable for configuring test
+// MakeTestClientTLSCert returns TLS certificate suitable for configuring test
 // database Postgres/MySQL clients.
 func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 	key, err := client.NewKey()
@@ -145,7 +145,7 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := config.AuthClient.GetCertAuthority(types.CertAuthID{
+	ca, err := config.AuthClient.GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: config.Cluster,
 	}, false)

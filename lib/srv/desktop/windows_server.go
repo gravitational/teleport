@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -112,7 +113,7 @@ type WindowsService struct {
 	// when desktop discovery is enabled.
 	// no synchronization is necessary because this is only read/written from
 	// the reconciler goroutine.
-	lastDiscoveryResults types.ResourcesWithLabels
+	lastDiscoveryResults types.ResourcesWithLabelsMap
 
 	// Windows hosts discovered via LDAP likely won't resolve with the
 	// default DNS resolver, so we need a custom resolver that will
@@ -162,6 +163,8 @@ type WindowsServiceConfig struct {
 	// Windows Desktops. If multiple filters are specified, they are ANDed
 	// together into a single search.
 	DiscoveryLDAPFilters []string
+	// Hostname of the windows desktop service
+	Hostname string
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -637,14 +640,12 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 			return trace.Wrap(s.closeCtx.Err())
 		default:
 		}
-
 		conn, err := lis.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 				return nil
 			}
 			return trace.Wrap(err)
-
 		}
 		proxyConn, ok := conn.(*tls.Conn)
 		if !ok {
@@ -721,12 +722,20 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-name", desktopName)
 
-	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
+	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
 	if err != nil {
 		log.WithError(err).Warning("Failed to fetch desktop by name")
 		sendTDPError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
+	if len(desktops) == 0 {
+		log.Error("no windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
+			desktopName)
+		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
+		return
+	}
+	desktop := desktops[0]
 
 	log = log.WithField("desktop-addr", desktop.GetAddr())
 	log.Debug("Connecting to Windows desktop")
@@ -788,9 +797,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
+		mfaParams := services.AccessMFAParams{
+			Verified:       identity.MFAVerified != "",
+			AlwaysRequired: authPref.GetRequireSessionMFA(),
+		}
 		return authCtx.Checker.CheckAccess(
 			desktop,
-			services.AccessMFAParams{Verified: true},
+			mfaParams,
 			services.NewWindowsLoginMatcher(login))
 	}
 
@@ -802,8 +815,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	defer cancel()
 
 	delay := timer()
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay)
-	tdpConn.OnRecv = s.makeTDPRecieveHandler(ctx, sw, delay)
+	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
+	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
@@ -818,7 +831,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		AllowClipboard: authCtx.Checker.DesktopClipboard(),
 	})
 	if err != nil {
-		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
@@ -846,22 +859,22 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
 		rdpc.Close()
-		s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
-	s.onSessionStart(ctx, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
+	s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
 	err = rdpc.Wait()
-	s.onSessionEnd(ctx, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
+	s.onSessionEnd(ctx, sw, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
 }
 
-func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64) func(m tdp.Message, b []byte) {
+func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		// TODO(zmb3): record audit events for clipboard usage
-		case byte(tdp.TypePNGFrame):
+		case byte(tdp.TypePNGFrame), byte(tdp.TypeError):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -880,14 +893,21 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
+		case byte(tdp.TypeClipboardData):
+			if clip, ok := m.(tdp.ClipboardData); ok {
+				// the TDP send handler emits a clipboard receive event, because we
+				// received clipboard data from the remote desktop and are sending
+				// it on the TDP connection
+				s.onClipboardReceive(ctx, emitter, id, sessionID, desktopAddr, int32(len(clip)))
+			}
 		}
 	}
 }
 
-func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, emitter events.Emitter, delay func() int64) func(m tdp.Message) {
+func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
+	id *tlsca.Identity, sessionID, desktopAddr string) func(m tdp.Message) {
 	return func(m tdp.Message) {
-		switch m.(type) {
-		// TODO(zmb3): record audit events for clipboard usage
+		switch msg := m.(type) {
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
@@ -908,6 +928,11 @@ func (s *WindowsService) makeTDPRecieveHandler(ctx context.Context, emitter even
 			} else if err := emitter.EmitAuditEvent(ctx, e); err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
+		case tdp.ClipboardData:
+			// the TDP receive handler emits a clipboard send event, because we
+			// received clipboard data from the user (over TDP) and are sending
+			// it to the remote desktop
+			s.onClipboardSend(ctx, emitter, id, sessionID, desktopAddr, int32(len(msg)))
 		}
 	}
 }
@@ -918,6 +943,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 		types.WindowsDesktopServiceSpecV3{
 			Addr:            s.cfg.Heartbeat.PublicAddr,
 			TeleportVersion: teleport.Version,
+			Hostname:        s.cfg.Hostname,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -946,6 +972,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
 				Domain: s.cfg.Domain,
+				HostID: s.cfg.Heartbeat.HostUUID,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -963,11 +990,9 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 // should be reasonably fast to do this scan on every heartbeat. However, with
 // a very large number of desktops in the cluster, this may use up a lot of CPU
 // time.
-//
-// TODO(zmb3): think of an alternative way to not duplicate desktop objects
-// coming from different windows_desktop_services.
 func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
-	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx)
+	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx,
+		types.WindowsDesktopFilter{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1006,7 +1031,7 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	// have to do it here.
 	//
 	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
-	ca, err := s.cfg.AccessPoint.GetCertAuthority(types.CertAuthID{
+	ca, err := s.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: s.clusterName,
 	}, false)
