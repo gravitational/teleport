@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -627,13 +626,12 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 		return nil, trace.Wrap(err)
 	}
 
-	teleportVer, err := semver.NewVersion(server.GetTeleportVersion())
+	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
+	// with UserCA where Teleport 10+ uses DatabaseCA.
+	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), "10.0.0")
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
 	}
-	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
-	// with UserCA where Teleport 10+ uses DatabaseCA.
-	ver10orAbove := !teleportVer.LessThan(*semver.New("10.0.0-dev"))
 
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
@@ -672,6 +670,7 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
+		// TODO: Remove UserCA in Teleport 12.
 		pool, err := auth.ClientCertPool(ap, clusterName, types.UserCA, types.DatabaseCA)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
