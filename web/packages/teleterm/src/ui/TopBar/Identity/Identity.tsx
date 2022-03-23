@@ -6,7 +6,7 @@ import { useIdentity } from './useIdentity';
 import { IdentityList } from './IdentityList/IdentityList';
 import { IdentitySelector } from './IdentitySelector/IdentitySelector';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
-import { EmptyIdentityList } from './EmptyIdentityList';
+import { EmptyIdentityList } from './EmptyIdentityList/EmptyIdentityList';
 
 export function Identity() {
   const selectorRef = useRef<HTMLButtonElement>();
@@ -84,6 +84,4 @@ const focusGrabber = (
 
 const Container = styled(Box)`
   background: ${props => props.theme.colors.primary.dark};
-  width: 350px;
-  padding-top: 12px;
 `;

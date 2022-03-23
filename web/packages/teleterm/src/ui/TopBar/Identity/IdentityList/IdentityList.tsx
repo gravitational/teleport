@@ -20,16 +20,20 @@ interface IdentityListProps {
 
 export function IdentityList(props: IdentityListProps) {
   return (
-    <>
-      <Flex px={'24px'} pb={2} justifyContent="space-between">
-        <Box>
-          <Text bold>{props.loggedInUser?.name}</Text>
-          <Text typography="body2" color="text.secondary">
-            {props.loggedInUser?.rolesList?.join(', ')}
-          </Text>
-        </Box>
-      </Flex>
-      <Separator />
+    <Box minWidth="200px" pt="12px">
+      {props.loggedInUser && (
+        <>
+          <Flex px="24px" pb={2} justifyContent="space-between">
+            <Box>
+              <Text bold>{props.loggedInUser.name}</Text>
+              <Text typography="body2" color="text.secondary">
+                {props.loggedInUser.rolesList.join(', ')}
+              </Text>
+            </Box>
+          </Flex>
+          <Separator />
+        </>
+      )}
       <KeyboardArrowsNavigation>
         <Box px={'12px'}>
           {props.clusters.map((i, index) => (
@@ -53,7 +57,7 @@ export function IdentityList(props: IdentityListProps) {
           />
         </Box>
       </KeyboardArrowsNavigation>
-    </>
+    </Box>
   );
 }
 

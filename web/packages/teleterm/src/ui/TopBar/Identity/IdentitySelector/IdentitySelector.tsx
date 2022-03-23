@@ -54,7 +54,7 @@ const Container = styled.button`
   flex-direction: row;
   padding: 0 12px;
   height: 100%;
-  max-width: 260px;
+  min-width: 0;
   border-radius: 4px;
   border-width: 1px;
   border-style: solid;

@@ -15,7 +15,7 @@ export function useIdentity() {
     ctx.commandLauncher.executeCommand('cluster-connect', {});
   }
 
-  async function logout(clusterUri: string): Promise<void> {
+  function logout(clusterUri: string): void {
     ctx.commandLauncher.executeCommand('cluster-logout', {clusterUri})
   }
 
