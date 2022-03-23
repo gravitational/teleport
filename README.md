@@ -1,5 +1,5 @@
 <div align="center">
-   <img src="./assets/img/gravitational-is-teleport-header.png" width=750/>
+   <img src="./assets/img/readme-header.png" width=750/>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/teleport/download">
       <img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver&label=Release&color=651FFF" />
