@@ -108,7 +108,10 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 	if req.Role == types.RoleBot {
 		// bots use this endpoint but get a user cert
 		// botResourceName must be set, enforced in CheckAndSetDefaults
-		botResourceName := provisionToken.GetBotName()
+		botName := provisionToken.GetBotName()
+
+		// Append `bot-` to the bot name to derive its username.
+		botResourceName := BotResourceName(botName)
 		expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
 
 		joinMethod := provisionToken.GetJoinMethod()
@@ -141,7 +144,7 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
 		}
 
-		log.Infof("Bot %q has joined the cluster.", botResourceName)
+		log.Infof("Bot %q has joined the cluster.", botName)
 		return certs, nil
 	}
 	// generate and return host certificate and keys

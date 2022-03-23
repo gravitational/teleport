@@ -45,8 +45,8 @@ func (f ContextDialerFunc) DialContext(ctx context.Context, network, addr string
 	return f(ctx, network, addr)
 }
 
-// NewDirectDialer makes a new dialer to connect directly to an Auth server.
-func NewDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+// newDirectDialer makes a new dialer to connect directly to an Auth server.
+func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return &net.Dialer{
 		Timeout:   dialTimeout,
 		KeepAlive: keepAlivePeriod,
@@ -56,8 +56,8 @@ func NewDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 // NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy, depending
 // on the environment.
 func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
-	dialer := NewDirectDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
 		if proxyAddr := proxy.GetProxyAddress(addr); proxyAddr != nil {
 			return DialProxyWithDialer(ctx, proxyAddr, addr, dialer)
 		}
@@ -70,7 +70,8 @@ func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	dialer := newTunnelDialer(ssh, keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
-		tunnelAddr, err := webclient.GetTunnelAddr(ctx, discoveryAddr, insecure, nil)
+		tunnelAddr, err := webclient.GetTunnelAddr(
+			&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -85,7 +86,7 @@ func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dura
 
 // newTunnelDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
 func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
-	dialer := NewDirectDialer(keepAlivePeriod, dialTimeout)
+	dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		conn, err = dialer.DialContext(ctx, network, addr)
 		if err != nil {
@@ -104,7 +105,8 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 // through the SSH reverse tunnel on the proxy.
 func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
-		tunnelAddr, err := webclient.GetTunnelAddr(ctx, discoveryAddr, insecure, nil)
+		tunnelAddr, err := webclient.GetTunnelAddr(
+			&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
