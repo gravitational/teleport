@@ -1277,15 +1277,6 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.WindowsDesktop.Enabled = true
 
-	// Support for reading an LDAP password from a file was dropped for Teleport 9.
-	// Check if this old option is still set and issue a clear error for one major version.
-	// DELETE IN 10.0 (zmb3)
-	if len(fc.WindowsDesktop.LDAP.PasswordFile) > 0 {
-		return trace.BadParameter("Support for password_file was deprecated in Teleport 9 " +
-			"in favor of certificate-based authentication. Remove the password_file field from " +
-			"teleport.yaml to fix this error.")
-	}
-
 	if fc.WindowsDesktop.ListenAddress != "" {
 		listenAddr, err := utils.ParseHostPortAddr(fc.WindowsDesktop.ListenAddress, int(defaults.WindowsDesktopListenPort))
 		if err != nil {
