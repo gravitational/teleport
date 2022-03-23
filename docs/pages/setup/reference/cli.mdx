@@ -738,7 +738,7 @@ These flags are available for all commands `--debug, --config`. Run
 # Adds teleport user "joe" with mappings to
 # OS users and {{ internal.logins }} to "joe" and "ubuntu"
 $ tctl users add joe --roles=access joe,ubuntu
-# Adds teleport user "joe" with mappings to editor role
+# Adds Teleport user "joe" with mappings to the editor role
 $ tctl users add joe --roles=editor
 ```
 
@@ -971,7 +971,7 @@ $ tctl tokens add --type=trusted_cluster --labels=env=prod
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type=node
-# Generate a join token for both a node and database service
+# Generate a join token for both a Node and the Database Service
 $ tctl tokens add --type=node,db
 # Generate an invite token for a kubernetes_service
 $ tctl tokens add --type=kube
