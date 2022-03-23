@@ -137,6 +137,19 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 	}
 	var exclusions []protocol.CredentialDescriptor
 	for _, dev := range devices {
+		// Skip existing U2F devices, letting users "upgrade" their registration is
+		// good for us.
+		if dev.GetU2F() != nil {
+			continue
+		}
+		// Skip resident/non-resident keys depending on whether it's a passwordless
+		// registration.
+		// Letting users have both allows them to "swap" between key types in the
+		// same device.
+		if webDev := dev.GetWebauthn(); webDev != nil && webDev.ResidentKey != passwordless {
+			continue
+		}
+
 		cred, ok := deviceToCredential(dev, true /* idOnly */)
 		if !ok {
 			continue
