@@ -969,10 +969,7 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
-	// Teleport 8 clients are still expecting the legacy JSON format.
-	// Teleport 9 clients handle both legacy and new.
-	// TODO(zmb3) return certs directly in Teleport 10
-	return LegacyCertsFromProto(certs), nil
+	return certs, nil
 }
 
 type registerNewAuthServerReq struct {
