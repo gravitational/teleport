@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -39,14 +40,26 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func TestTrustedClusterCRUD(t *testing.T) {
+type PresenceSuite struct {
+	bk backend.Backend
+}
+
+var _ = check.Suite(&PresenceSuite{})
+
+func (s *PresenceSuite) SetUpTest(c *check.C) {
+	var err error
+
+	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *PresenceSuite) TearDownTest(c *check.C) {
+	c.Assert(s.bk.Close(), check.IsNil)
+}
+
+func (s *PresenceSuite) TestTrustedClusterCRUD(c *check.C) {
 	ctx := context.Background()
-
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
-
-	presenceBackend := NewPresenceService(bk)
+	presenceBackend := NewPresenceService(s.bk)
 
 	tc, err := types.NewTrustedCluster("foo", types.TrustedClusterSpecV2{
 		Enabled:              true,
@@ -55,7 +68,7 @@ func TestTrustedClusterCRUD(t *testing.T) {
 		ProxyAddress:         "quux",
 		ReverseTunnelAddress: "quuz",
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// we just insert this one for get all
 	stc, err := types.NewTrustedCluster("bar", types.TrustedClusterSpecV2{
@@ -65,37 +78,37 @@ func TestTrustedClusterCRUD(t *testing.T) {
 		ProxyAddress:         "quuz",
 		ReverseTunnelAddress: "corge",
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// create trusted clusters
 	_, err = presenceBackend.UpsertTrustedCluster(ctx, tc)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	_, err = presenceBackend.UpsertTrustedCluster(ctx, stc)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// get trusted cluster make sure it's correct
 	gotTC, err := presenceBackend.GetTrustedCluster(ctx, "foo")
-	require.NoError(t, err)
-	require.Equal(t, "foo", gotTC.GetName())
-	require.True(t, gotTC.GetEnabled())
-	require.EqualValues(t, []string{"bar", "baz"}, gotTC.GetRoles())
-	require.Equal(t, "qux", gotTC.GetToken())
-	require.Equal(t, "quux", gotTC.GetProxyAddress())
-	require.Equal(t, "quuz", gotTC.GetReverseTunnelAddress())
+	c.Assert(err, check.IsNil)
+	c.Assert(gotTC.GetName(), check.Equals, "foo")
+	c.Assert(gotTC.GetEnabled(), check.Equals, true)
+	c.Assert(gotTC.GetRoles(), check.DeepEquals, []string{"bar", "baz"})
+	c.Assert(gotTC.GetToken(), check.Equals, "qux")
+	c.Assert(gotTC.GetProxyAddress(), check.Equals, "quux")
+	c.Assert(gotTC.GetReverseTunnelAddress(), check.Equals, "quuz")
 
 	// get all clusters
 	allTC, err := presenceBackend.GetTrustedClusters(ctx)
-	require.NoError(t, err)
-	require.Len(t, allTC, 2)
+	c.Assert(err, check.IsNil)
+	c.Assert(allTC, check.HasLen, 2)
 
 	// delete cluster
 	err = presenceBackend.DeleteTrustedCluster(ctx, "foo")
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// make sure it's really gone
 	_, err = presenceBackend.GetTrustedCluster(ctx, "foo")
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.NotFound("key /trustedclusters/foo is not found"))
+	c.Assert(err, check.NotNil)
+	c.Assert(trace.IsNotFound(err), check.Equals, true)
 }
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
@@ -1116,64 +1129,4 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 		require.Empty(t, resp.NextKey)
 		require.Equal(t, 3, resp.TotalCount)
 	})
-}
-
-func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
-	ctx := context.Background()
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
-	presence := NewPresenceService(bk)
-
-	maxLeases := 5
-	leases := make([]*types.SemaphoreLease, maxLeases)
-
-	// Acquire max number of leases
-	request := types.AcquireSemaphoreRequest{
-		SemaphoreKind: "test",
-		SemaphoreName: "test",
-		MaxLeases:     int64(maxLeases),
-		Expires:       time.Now().Add(time.Hour),
-		Holder:        "test",
-	}
-	for i := range leases {
-		lease, err := presence.AcquireSemaphore(ctx, request)
-		require.NoError(t, err)
-		require.NotNil(t, lease)
-
-		leases[i] = lease
-	}
-
-	// Validate a semaphore exists with the correct number of leases
-	semaphores, err := presence.GetSemaphores(ctx, types.SemaphoreFilter{
-		SemaphoreKind: "test",
-		SemaphoreName: "test",
-	})
-	require.NoError(t, err)
-	require.Len(t, semaphores, 1)
-	require.Len(t, semaphores[0].LeaseRefs(), maxLeases)
-
-	// Cancel the leases concurrently and ensure that all
-	// cancellations are honored
-	errCh := make(chan error, maxLeases)
-	for _, l := range leases {
-		l := l
-		go func() {
-			errCh <- presence.CancelSemaphoreLease(ctx, *l)
-		}()
-	}
-
-	for i := 0; i < maxLeases; i++ {
-		err := <-errCh
-		require.NoError(t, err)
-	}
-
-	// Validate the semaphore still exists but all leases were removed
-	semaphores, err = presence.GetSemaphores(ctx, types.SemaphoreFilter{
-		SemaphoreKind: "test",
-		SemaphoreName: "test",
-	})
-	require.NoError(t, err)
-	require.Len(t, semaphores, 1)
-	require.Empty(t, semaphores[0].LeaseRefs())
 }

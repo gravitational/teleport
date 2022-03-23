@@ -36,10 +36,7 @@ func TestCreateNodeJoinToken(t *testing.T) {
 		return "some-token-id", nil
 	}
 
-	token, err := createJoinToken(context.Background(), m, types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	})
+	token, err := createScriptJoinToken(context.Background(), m)
 	require.NoError(t, err)
 
 	require.Equal(t, defaults.NodeJoinTokenTTL, token.Expiry.Sub(time.Now().UTC()).Round(time.Second))

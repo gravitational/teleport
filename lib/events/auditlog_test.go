@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -330,7 +331,7 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	c.Assert(alog.Close(), check.IsNil)
 
 	// read back what's been written:
-	bytes, err := os.ReadFile(logfile)
+	bytes, err := ioutil.ReadFile(logfile)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(bytes), check.Equals,
 		fmt.Sprintf("{\"apples?\":\"yes\",\"event\":\"user.joined\",\"time\":\"%s\",\"uid\":\"%s\"}\n",
@@ -370,7 +371,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		c.Assert(dt, check.Equals, time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
 
 		// read back what's been written:
-		bytes, err := os.ReadFile(logfile)
+		bytes, err := ioutil.ReadFile(logfile)
 		c.Assert(err, check.IsNil)
 		contents, err := json.Marshal(event)
 		contents = append(contents, '\n')
@@ -378,7 +379,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		c.Assert(string(bytes), check.Equals, string(contents))
 
 		// read back the contents using symlink
-		bytes, err = os.ReadFile(filepath.Join(alog.localLog.SymlinkDir, SymlinkFilename))
+		bytes, err = ioutil.ReadFile(filepath.Join(alog.localLog.SymlinkDir, SymlinkFilename))
 		c.Assert(err, check.IsNil)
 		c.Assert(string(bytes), check.Equals, string(contents))
 
@@ -431,7 +432,7 @@ func (a *AuditTestSuite) TestLegacyHandler(c *check.C) {
 	// Download the session in the old format
 	ctx := context.TODO()
 
-	tarball, err := os.CreateTemp("", "teleport-legacy")
+	tarball, err := ioutil.TempFile("", "teleport-legacy")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(tarball.Name())
 

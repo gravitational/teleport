@@ -20,6 +20,7 @@ limitations under the License.
 package cgroup
 
 import (
+	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -50,7 +51,7 @@ func (s *Suite) TestCreate(c *check.C) {
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir, err := os.MkdirTemp("", "cgroup-test")
+	dir, err := ioutil.TempDir("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)
 
@@ -102,7 +103,7 @@ func (s *Suite) TestCleanup(c *check.C) {
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir, err := os.MkdirTemp("", "cgroup-test")
+	dir, err := ioutil.TempDir("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)
 

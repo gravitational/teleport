@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -284,7 +285,7 @@ func TestExport(t *testing.T) {
 	parts, err := uploader.GetParts(uploads[0].ID)
 	require.NoError(t, err)
 
-	f, err := os.CreateTemp("", "")
+	f, err := ioutil.TempFile("", "")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 

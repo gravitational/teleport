@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"io"
+	"io/ioutil"
 	"strings"
 	"time"
 
@@ -101,7 +102,7 @@ func ValidateArchive(reader io.Reader, serverID string) error {
 
 		// Skip over any file in the archive that doesn't contain session events.
 		if !strings.HasSuffix(header.Name, eventsSuffix) {
-			_, err = io.Copy(io.Discard, tarball)
+			_, err = io.Copy(ioutil.Discard, tarball)
 			if err != nil {
 				return trace.Wrap(err)
 			}

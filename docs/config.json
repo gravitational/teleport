@@ -279,6 +279,10 @@
           "slug": "/server-access/guides/",
           "entries": [
             {
+              "title": "Ansible",
+              "slug": "/server-access/guides/ansible/"
+            },
+            {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
             },
@@ -345,6 +349,10 @@
               "slug": "/kubernetes-access/guides/federation/"
             },
             {
+              "title": "Migration",
+              "slug": "/kubernetes-access/guides/migration/"
+            },
+            {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
             }
@@ -378,17 +386,7 @@
         },
         {
           "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/",
-          "entries": [
-            {
-              "title": "teleport-cluster",
-              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
-            },
-            {
-               "title": "teleport-kube-agent",
-               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
-            }
-          ]
+          "slug": "/kubernetes-access/helm/reference/"
         },
         {
           "title": "Access Controls",
@@ -451,10 +449,6 @@
             {
               "title": "Self-Hosted CockroachDB",
               "slug": "/database-access/guides/cockroachdb-self-hosted/"
-            },
-            {
-              "title": "Self-Hosted Redis",
-              "slug": "/database-access/guides/redis/"
             },
             {
               "title": "SQL Server (Preview)",
@@ -523,76 +517,12 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Access Controls",
-          "slug": "/desktop-access/rbac/"
-        },
-        {
-          "title": "Reference",
-          "slug": "/desktop-access/reference/",
-          "entries": [
-            {
-              "title": "Configuration",
-              "slug": "/desktop-access/reference/configuration/"
-            },
-            {
-              "title": "Audit Events",
-              "slug": "/desktop-access/reference/audit/"
-            },
-            {
-              "title": "Clipboard Sharing",
-              "slug": "/desktop-access/reference/clipboard/"
-            },
-            {
-              "title": "Session Recording",
-              "slug": "/desktop-access/reference/sessions/"
-            },
-            {
-              "title": "CLI",
-              "slug": "/desktop-access/reference/cli/"
-            }
-          ]
+          "title": "Configuration",
+          "slug": "/desktop-access/reference/configuration/"
         },
         {
           "title": "Troubleshooting",
           "slug": "/desktop-access/troubleshooting/"
-        }
-      ]
-    },
-    {
-      "icon": "wand",
-      "title": "Machine ID",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/machine-id/introduction/"
-        },
-        {
-          "title": "Getting Started",
-          "slug": "/machine-id/getting-started/"
-        },
-        {
-          "title": "Reference",
-          "slug": "/machine-id/reference/",
-          "entries": [
-            {
-              "title": "Configuration",
-              "slug": "/machine-id/reference/configuration/"
-            },
-            {
-              "title": "CLI",
-              "slug": "/machine-id/reference/cli/"
-            }
-          ]
-        },
-        {
-          "title": "Guides",
-          "slug": "/machine-id/guides/",
-          "entries": [
-            {
-              "title": "Machine ID with Ansible",
-              "slug": "/machine-id/guides/ansible/"
-            }
-          ]
         }
       ]
     },
@@ -1091,11 +1021,6 @@
     {
       "source": "/docs/best-practices/",
       "destination": "/contributing/documentation/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/guides/migration/",
-      "destination": "/kubernetes-access/introduction/",
       "permanent": true
     }
   ]

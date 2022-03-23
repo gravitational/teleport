@@ -91,10 +91,10 @@ func TestProxyConnectionLimiting(t *testing.T) {
 			t.Run("limit can be hit", func(t *testing.T) {
 				for i := 0; i < connLimitNumber; i++ {
 					// Try to connect to the database.
-					dbConn, err := tt.connect()
+					pgConn, err := tt.connect()
 					require.NoError(t, err)
 
-					connsClosers = append(connsClosers, dbConn)
+					connsClosers = append(connsClosers, pgConn)
 				}
 
 				// This connection should go over the limit.
@@ -114,9 +114,9 @@ func TestProxyConnectionLimiting(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create a new connection. We do not expect an error here as we have just closed one.
-				dbConn, err := tt.connect()
+				pgConn, err := tt.connect()
 				require.NoError(t, err)
-				connsClosers = append(connsClosers, dbConn)
+				connsClosers = append(connsClosers, pgConn)
 
 				// Here the limit should be reached again.
 				_, err = tt.connect()

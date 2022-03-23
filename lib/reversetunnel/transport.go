@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -92,8 +93,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
-	resp, err := webclient.Find(
-		&webclient.Config{Context: ctx, ProxyAddr: addr.Addr, Insecure: t.InsecureSkipTLSVerify})
+	resp, err := webclient.Find(ctx, addr.Addr, t.InsecureSkipTLSVerify, nil)
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel
 		// address thus the ping call will always fail.
@@ -379,13 +379,9 @@ func (p *transport) getConn(servers []string, r *sshutils.DialReq) (net.Conn, bo
 			return nil, false, trace.Wrap(err)
 		}
 
-		// Connections to applications and databases should never occur over
-		// a direct dial, return right away.
-		switch r.ConnType {
-		case types.AppTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
-		case types.DatabaseTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
+		// Connections to applications should never occur over a direct dial, return right away.
+		if r.ConnType == types.AppTunnel {
+			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
 		}
 
 		errTun := err
@@ -445,7 +441,7 @@ func (p *transport) directDial(servers []string, serverID string) (net.Conn, err
 	for _, addr := range servers {
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
-			return conn, nil
+			return newEmitConn(p.closeContext, conn, p.emitter, strings.Split(serverID, ".")[0]), nil
 		}
 
 		errors = append(errors, err)

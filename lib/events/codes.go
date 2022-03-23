@@ -16,8 +16,6 @@ limitations under the License.
 
 package events
 
-import apievents "github.com/gravitational/teleport/api/types/events"
-
 // Event describes an audit log event.
 type Event struct {
 	// Name is the event name.
@@ -502,7 +500,4 @@ const (
 	// RenewableCertificateGenerationMismatchCode is the renewable cert
 	// generation mismatch code.
 	RenewableCertificateGenerationMismatchCode = "TCB00W"
-
-	// UnknownCode is used when an event of unknown type is encountered.
-	UnknownCode = apievents.UnknownCode
 )

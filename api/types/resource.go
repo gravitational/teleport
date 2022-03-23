@@ -90,21 +90,14 @@ type ResourceWithLabels interface {
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 
-// ResourcesWithLabelsMap is like ResourcesWithLabels, but a map from resource name to its value.
-type ResourcesWithLabelsMap map[string]ResourceWithLabels
-
-// ToMap returns these databases as a map keyed by database name.
-func (r ResourcesWithLabels) ToMap() ResourcesWithLabelsMap {
-	rm := make(ResourcesWithLabelsMap, len(r))
-
-	// there may be duplicate resources in the input list.
-	// by iterating from end to start, the first resource of given name wins.
-	for i := len(r) - 1; i >= 0; i-- {
-		resource := r[i]
-		rm[resource.GetName()] = resource
+// Find returns resource with the specified name or nil.
+func (r ResourcesWithLabels) Find(name string) ResourceWithLabels {
+	for _, resource := range r {
+		if resource.GetName() == name {
+			return resource
+		}
 	}
-
-	return rm
+	return nil
 }
 
 // Len returns the slice length.
@@ -153,32 +146,6 @@ func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 		dbs = append(dbs, db)
 	}
 	return dbs, nil
-}
-
-// AsWindowsDesktops converts each resource into type WindowsDesktop.
-func (r ResourcesWithLabels) AsWindowsDesktops() ([]WindowsDesktop, error) {
-	desktops := make([]WindowsDesktop, 0, len(r))
-	for _, resource := range r {
-		desktop, ok := resource.(WindowsDesktop)
-		if !ok {
-			return nil, trace.BadParameter("expected types.WindowsDesktop, got: %T", resource)
-		}
-		desktops = append(desktops, desktop)
-	}
-	return desktops, nil
-}
-
-// AsKubeClusters converts each resource into type KubeCluster.
-func (r ResourcesWithLabels) AsKubeClusters() ([]KubeCluster, error) {
-	clusters := make([]KubeCluster, 0, len(r))
-	for _, resource := range r {
-		cluster, ok := resource.(KubeCluster)
-		if !ok {
-			return nil, trace.BadParameter("expected types.KubeCluster, got: %T", resource)
-		}
-		clusters = append(clusters, cluster)
-	}
-	return clusters, nil
 }
 
 // GetVersion returns resource version

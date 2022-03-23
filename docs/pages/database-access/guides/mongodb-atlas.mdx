@@ -28,7 +28,7 @@ In this guide you will:
 (!docs/pages/includes/database-access/token.mdx!)
 
 <Tabs>
-<TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
+<TabItem label="Self Hosted" scope={["enterprise","oss"]}>
 Start the Teleport Database Service, pointing the `--auth-server` flag at the address of your Teleport Proxy Service:
 
 ```code
@@ -74,7 +74,7 @@ If you're starting the Database Agent with a YAML configuration instead of CLI f
 the following config is equivalent to the `teleport db start` command shown earlier:
 
 <Tabs>
-<TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
+<TabItem label="Self Hosted" scope={["enterprise","oss"]}>
 ```yaml
 teleport:
   auth_token: "/tmp/token"
@@ -193,7 +193,7 @@ certificate with `CN=alice` subject.
 Log into your Teleport cluster and see available databases:
 
 <Tabs>
-<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+<TabItem scope={["enterprise", "oss"]} label="Self Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice

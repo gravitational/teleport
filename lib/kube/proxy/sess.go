@@ -302,9 +302,6 @@ type session struct {
 
 	// PresenceEnabled is set to true if MFA based presence is required.
 	PresenceEnabled bool
-
-	// Set if we should broadcast information about participant requirements to the session.
-	displayParticipantRequirements bool
 }
 
 // newSession creates a new session in pending mode.
@@ -337,38 +334,28 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	s := &session{
-		ctx:                            ctx,
-		forwarder:                      forwarder,
-		req:                            req,
-		params:                         params,
-		id:                             id,
-		parties:                        make(map[uuid.UUID]*party),
-		partiesHistorical:              make(map[uuid.UUID]*party),
-		log:                            log,
-		io:                             io,
-		state:                          types.SessionState_SessionStatePending,
-		accessEvaluator:                accessEvaluator,
-		emitter:                        events.NewDiscardEmitter(),
-		tty:                            tty,
-		terminalSizeQueue:              newMultiResizeQueue(),
-		started:                        false,
-		sess:                           sess,
-		closeC:                         make(chan struct{}),
-		initiator:                      initiator.ID,
-		expires:                        time.Now().UTC().Add(time.Hour * 24),
-		PresenceEnabled:                ctx.Identity.GetIdentity().MFAVerified != "",
-		stateUpdate:                    sync.NewCond(&sync.Mutex{}),
-		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
+		ctx:               ctx,
+		forwarder:         forwarder,
+		req:               req,
+		params:            params,
+		id:                id,
+		parties:           make(map[uuid.UUID]*party),
+		partiesHistorical: make(map[uuid.UUID]*party),
+		log:               log,
+		io:                io,
+		state:             types.SessionState_SessionStatePending,
+		accessEvaluator:   accessEvaluator,
+		emitter:           events.NewDiscardEmitter(),
+		tty:               tty,
+		terminalSizeQueue: newMultiResizeQueue(),
+		started:           false,
+		sess:              sess,
+		closeC:            make(chan struct{}),
+		initiator:         initiator.ID,
+		expires:           time.Now().UTC().Add(time.Hour * 24),
+		PresenceEnabled:   ctx.Identity.GetIdentity().MFAVerified != "",
+		stateUpdate:       sync.NewCond(&sync.Mutex{}),
 	}
-
-	go func() {
-		if _, open := <-s.io.TerminateNotifier(); open {
-			err := s.Close()
-			if err != nil {
-				s.log.Errorf("Failed to close session: %v.", err)
-			}
-		}
-	}()
 
 	err = s.trackerCreate(initiator, policySets)
 	if err != nil {
@@ -382,7 +369,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 // to fulfill the access requirements again.
 func (s *session) waitOnAccess() {
 	s.io.Off()
-	s.BroadcastMessage("Session paused, Waiting for required participants...")
+	s.io.BroadcastMessage("Session paused, Waiting for required participants...")
 
 	s.stateUpdate.L.Lock()
 	defer s.stateUpdate.L.Unlock()
@@ -401,7 +388,7 @@ outer:
 		s.stateUpdate.Wait()
 	}
 
-	s.BroadcastMessage("Resuming session...")
+	s.io.BroadcastMessage("Resuming session...")
 	s.io.On()
 }
 
@@ -445,7 +432,10 @@ func (s *session) launch() error {
 	}()
 
 	s.log.Debugf("Launching session: %v", s.id)
-	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
+
+	if s.tty {
+		s.io.BroadcastMessage("Launching session...")
+	}
 
 	q := s.req.URL.Query()
 	request := &remoteCommandRequest{
@@ -531,7 +521,10 @@ func (s *session) launch() error {
 		case <-time.After(time.Until(s.expires)):
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			s.BroadcastMessage("Session expired, closing...")
+
+			if s.tty {
+				s.io.BroadcastMessage("Session expired, closing...")
+			}
 
 			err := s.Close()
 			if err != nil {
@@ -905,7 +898,10 @@ func (s *session) join(p *party) error {
 	}
 
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-	s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
+
+	if s.tty {
+		s.io.BroadcastMessage(fmt.Sprintf("User %v joined the session.", p.Ctx.User.GetName()))
+	}
 
 	if p.Mode == types.SessionModeratorMode {
 		go func() {
@@ -939,28 +935,16 @@ func (s *session) join(p *party) error {
 			}()
 		} else if !s.tty {
 			return trace.AccessDenied("insufficient permissions to launch non-interactive session")
-		} else if len(s.parties) == 1 {
-			base := "Waiting for required participants..."
-
-			if s.displayParticipantRequirements {
-				s.BroadcastMessage(base+"\r\n%v", s.accessEvaluator.PrettyRequirementsList())
-			} else {
-				s.BroadcastMessage(base)
+		} else {
+			s.stateUpdate.L.Lock()
+			if s.state == types.SessionState_SessionStatePending {
+				s.io.BroadcastMessage("Waiting for required participants...")
 			}
+			s.stateUpdate.L.Unlock()
 		}
 	}
 
 	return nil
-}
-
-func (s *session) BroadcastMessage(format string, args ...interface{}) {
-	if s.accessEvaluator.IsModerated() && s.tty {
-		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
-
-		if err != nil {
-			s.log.Debugf("Failed to broadcast message: %v", err)
-		}
-	}
 }
 
 // leave removes a party from the session.
@@ -984,7 +968,9 @@ func (s *session) leave(id uuid.UUID) error {
 	s.io.DeleteReader(stringID)
 	s.io.DeleteWriter(stringID)
 
-	s.BroadcastMessage("User %v left the session.", party.Ctx.User.GetName())
+	if s.tty {
+		s.io.BroadcastMessage(fmt.Sprintf("User %v left the session.", party.Ctx.User.GetName()))
+	}
 
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
@@ -1100,7 +1086,10 @@ func (s *session) Close() error {
 	defer s.mu.Unlock()
 
 	s.closeOnce.Do(func() {
-		s.BroadcastMessage("Closing session...")
+		if s.tty {
+			s.io.BroadcastMessage("Closing session...")
+		}
+
 		s.stateUpdate.L.Lock()
 		defer s.stateUpdate.L.Unlock()
 		s.state = types.SessionState_SessionStateTerminated

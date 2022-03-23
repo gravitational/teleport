@@ -724,7 +724,7 @@ func (s *server) findLocalCluster(sconn *ssh.ServerConn) (*localSite, error) {
 }
 
 func (s *server) getTrustedCAKeysByID(id types.CertAuthID) ([]ssh.PublicKey, error) {
-	ca, err := s.localAccessPoint.GetCertAuthority(context.TODO(), id, false)
+	ca, err := s.localAccessPoint.GetCertAuthority(id, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

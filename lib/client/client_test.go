@@ -20,6 +20,7 @@ package client
 import (
 	"context"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"strings"
@@ -121,7 +122,7 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 	c.Assert(err, check.IsNil)
 	clientErrCh := make(chan error, 3)
 	go func(con net.Conn) {
-		_, err := io.Copy(io.Discard, con)
+		_, err := io.Copy(ioutil.Discard, con)
 		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
 			err = nil
 		}
@@ -155,7 +156,7 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 	localCon, err = net.Dial("tcp", localSrv.Addr().String())
 	c.Assert(err, check.IsNil)
 	go func(con net.Conn) {
-		_, err := io.Copy(io.Discard, con)
+		_, err := io.Copy(ioutil.Discard, con)
 		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
 			err = nil
 		}

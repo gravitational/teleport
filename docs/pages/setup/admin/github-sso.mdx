@@ -1,146 +1,112 @@
 ---
-title: Set up Single Sign-On with GitHub
+title: GitHub SSO
 description: Setting up Github SSO
 videoBanner: XjgN2WWFCX8
 ---
 
-This guide explains how to set up Github Single Sign On (SSO) for Teleport.
+This guide explains how to set up Github SSO with Open Source, Enterprise Teleport,
+self-hosted or cloud.
 
 ## Prerequisites
 
-<Tabs>
-<TabItem scope={["oss"]} label="Self-Hosted">
-- Install Teleport and the `tctl` admin tool version >= (=teleport.version=).
-
-  See [Installation](../../installation.mdx) for details.
-
-- Create and register a GitHub OAuth App. To do so, follow the instructions in
-  GitHub's documentation.
-
-  [Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
-
-  Ensure that your OAuth App's "Authentication callback URL" is
-  `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the public
-  address of the Teleport Proxy Service. 
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-- Install Teleport and the `tctl` admin tool version >= (=teleport.version=).
-
-  To download Teleport Enterprise, visit the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-  
-- Create and register a GitHub OAuth App. To do so, follow the instructions in
-  GitHub's documentation.
-
-  [Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
-
-  Ensure that your OAuth App's "Authentication callback URL" is
-  `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the public
-  address of the Teleport Proxy Service. 
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Cloud">
-
-- Sign up for a Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- Create and register a GitHub OAuth App. To do so, follow the instructions in GitHub's documentation. 
-
-  [Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
-
-  Ensure that your OAuth App's "Authentication callback URL" is
-  `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the domain
-  name of your Teleport Cloud tenant (e.g., mytenant.teleport.sh).
-
-</TabItem>
-</Tabs>
+- Installed [Teleport](../../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/2. Create a GitHub authentication connector
+<Admonition type="note">
+For cloud, login with a teleport user with editor privileges:
+```code
+# tsh logs you in and receives short-lived certificates
+$ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
+# try out the connection
+$ tctl get nodes
+```
+</Admonition>
 
-Define a GitHub authentication connector by creating a file called `github.yaml`
-with the following content:
+## Step 1/2. Create Github connector
+
+Define a Github connector:
 
 ```yaml
+# Create a file called github.yaml:
 kind: github
 version: v3
 metadata:
-  # Connector name that will be used with `tsh --auth=github login`
+  # connector name that will be used with `tsh --auth=github login`
   name: github
 spec:
-  # Client ID of your GitHub OAuth App
+  # Client ID of Github OAuth app
   client_id: <client-id>
-  # Client secret of your GitHub OAuth App
+  # Client secret of Github OAuth app
   client_secret: <client-secret>
-  # Connector display name that will be shown on the Web UI login screen
-  display: GitHub
+  # Connector display name that will be shown on web UI login screen
+  display: Github
   # Callback URL that will be called after successful authentication
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
   # Mapping of org/team memberships onto allowed logins and roles
   teams_to_logins:
-    - organization: octocats # GitHub organization name
-      team: admins # GitHub team name within that organization
-      # Maps octocats/admins to the "access" Teleport role
+    - organization: octocats # Github organization name
+      team: admins # Github team name within that organization
+      # maps octocats/admins to teleport role access
       logins:
         - access
 ```
 
-The values of `client_id`, `client_secret`, and `redirect_url` come from the
-GitHub OAuth App you created earlier.
+To obtain a client ID and client secret, please follow Github documentation on
+how to [create and register an OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
 
-Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
+Be sure to set the "Authorization callback URL" to the same value as `redirect_url` in the resource spec.
 
-[Github OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
+Teleport will request only the `read:org` OAuth scope, you can read more about
+[Github OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
 
-Finally, create the connector using `tctl`:
+Finally, create the connector using [`tctl`](../reference/cli.mdx#tctl)
+[resource](../reference/resources.mdx) management command:
 
 ```code
 $ tctl create github.yaml
 ```
 
 <Admonition type="tip">
-  When going through the GitHub authentication flow for the first time,
+  When going through the Github authentication flow for the first time,
   the application must be granted access to all organizations that are
   present in the "teams to logins" mapping, otherwise Teleport will not be
-  able to determine team memberships for these organizations.
+  able to determine team memberships for these orgs.
 </Admonition>
 
 ## Step 2/2. Configure authentication preference
 
-Configure the Teleport Auth Service to enable the GitHub authentication
-connector.
+Configure Teleport Auth Service Github for authentication:
 
-Create a file called `cap.yaml` with the following content:
-
-```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  type: github
-  webauthn:
-    rp_id: 'example.teleport.sh'
-version: v2
-```
-
-Create the resource:
-
-```code
-$ tctl create -f cap.yaml
-```
-
-<Details scope={["enterprise", "oss"]} scopeOnly={true} opened title="Static configuration file">
-
-You can also edit your Teleport configuration file to include the following:
-
-```yaml
-# Snippet from /etc/teleport.yaml
-auth_service:
-  authentication:
+<Tabs>
+  <TabItem label="Static Config (self-hosted)">
+  ```yaml
+  # Snippet from /etc/teleport.yaml
+  auth_service:
+    authentication:
+      type: github
+  ```
+  </TabItem>
+  <TabItem label="Dynamic resources (all editions)">
+  Create a file `cap.yaml`:
+  ```yaml
+  kind: cluster_auth_preference
+  metadata:
+    name: cluster-auth-preference
+  spec:
     type: github
-```
-</Details>
+    webauthn:
+      rp_id: 'example.teleport.sh'
+  version: v2
+  ```
 
-You can now log in with Teleport using GitHub SSO.
+  Create a resource:
+
+  ```code
+  $ tctl create -f cap.yaml
+  ```
+  </TabItem>
+</Tabs>
+
+You can now login with Teleport using `github` SSO.

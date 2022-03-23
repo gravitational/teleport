@@ -242,7 +242,19 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		dialer,
 		connectOpt)
 	if err != nil {
-		return nil, common.ConvertConnectError(err, sessionCtx)
+		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
+			return nil, trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that IAM auth is enabled for MySQL user %q and Teleport database
+agent's IAM policy has "rds-connect" permissions (note that IAM changes may
+take a few minutes to propagate):
+
+%v
+`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
+		}
+		return nil, trace.Wrap(err)
 	}
 	return conn, nil
 }

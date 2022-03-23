@@ -404,17 +404,10 @@ pub unsafe extern "C" fn update_clipboard(
 
     match lock.cliprdr {
         Some(ref mut clip) => match clip.update_clipboard(data) {
-            Ok(messages) => {
-                for message in messages {
-                    if let Err(e) = lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
-                        return to_cgo_error(format!(
-                            "failed writing cliprdr format list: {:?}",
-                            e
-                        ));
-                    }
-                }
-                CGO_OK
-            }
+            Ok(message) => match lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
+                Ok(()) => CGO_OK,
+                Err(e) => to_cgo_error(format!("failed writing cliprdr format list: {:?}", e)),
+            },
             Err(e) => to_cgo_error(format!("failed updating clipboard: {:?}", e)),
         },
         None => CGO_OK,
@@ -458,7 +451,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             .unwrap()
             .read(|rdp_event| match rdp_event {
                 RdpEvent::Bitmap(bitmap) => {
-                    let mut cbitmap = match CGOBitmap::try_from(bitmap) {
+                    let cbitmap = match CGOBitmap::try_from(bitmap) {
                         Ok(cb) => cb,
                         Err(e) => {
                             error!(
@@ -469,7 +462,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
                         }
                     };
                     unsafe {
-                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOError;
+                        err = handle_bitmap(client_ref, cbitmap) as CGOError;
                     };
                 }
                 // These should never really be sent by the server to us.
@@ -696,7 +689,8 @@ unsafe fn from_cgo_error(e: CGOError) -> String {
 // comments.
 extern "C" {
     fn free_go_string(s: *mut c_char);
-    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
+    fn handle_bitmap(client_ref: usize, b: CGOBitmap) -> CGOError;
+
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
 }
 

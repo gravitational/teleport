@@ -14,8 +14,6 @@ spec:
     metadata:
       labels:
         teleport-role: proxy
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "3434"
     spec:
       volumes:
         - name: config

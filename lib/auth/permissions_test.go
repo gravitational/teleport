@@ -66,13 +66,13 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(srv.AuthServer, "test-user", []string{})
+	user, _, err := CreateUserAndRole(srv.AuthServer, "test-user", []string{})
 	require.NoError(t, err)
 	localUser := LocalUser{
 		Username: user.GetName(),
 		Identity: tlsca.Identity{
 			Username:       user.GetName(),
-			Groups:         []string{role.GetName()},
+			Groups:         []string{"test-role-1"},
 			MFAVerified:    "mfa-device-id",
 			ActiveRequests: []string{"test-request"},
 		},

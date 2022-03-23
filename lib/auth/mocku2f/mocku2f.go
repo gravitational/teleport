@@ -143,14 +143,6 @@ func CreateWithKeyHandle(keyHandle []byte) (*Key, error) {
 	}, nil
 }
 
-// SetPasswordless sets common passwordless options in Key.
-// Options are AllowResidentKey, IgnoreAllowedCredentials and SetUV.
-func (muk *Key) SetPasswordless() {
-	muk.AllowResidentKey = true         // Passwordless keys must be resident.
-	muk.IgnoreAllowedCredentials = true // Empty for passwordless challenges.
-	muk.SetUV = true                    // UV required for passwordless.
-}
-
 func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterResponse, error) {
 	appIDHash := sha256.Sum256([]byte(req.AppID))
 
@@ -209,7 +201,7 @@ func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterRes
 		return nil, trace.Wrap(err)
 	}
 
-	flags := uint8(u2fRegistrationFlags)
+	var flags = uint8(u2fRegistrationFlags)
 	if muk.SetUV {
 		// Mimic WebAuthn flags if SetUV is true.
 		flags = uint8(protocol.FlagUserPresent | protocol.FlagUserVerified | protocol.FlagAttestedCredentialData)

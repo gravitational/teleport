@@ -18,7 +18,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -34,12 +33,8 @@ import (
 )
 
 type (
-	OTPPrompt func(ctx context.Context, out io.Writer, in prompt.Reader, question string) (string, error)
-	WebPrompt func(
-		ctx context.Context,
-		origin, user string,
-		assertion *wanlib.CredentialAssertion,
-		prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error)
+	OTPPrompt func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error)
+	WebPrompt func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
 )
 
 // PlatformPrompt groups functions that prompt the user for inputs.
@@ -64,29 +59,13 @@ func (pp *PlatformPrompt) Swap(otp OTPPrompt, web WebPrompt) {
 
 var prompts = (&PlatformPrompt{}).Reset()
 
-type noopPrompt struct{}
-
-func (p noopPrompt) PromptPIN() (string, error) {
-	// TODO(codingllama): Revisit? There may be authenticators out there that disagree.
-	// The main issue with PIN prompts in MFA is that prompts.OTP hijacks Stdin,
-	// so we'd have to make that into a password read and redirect it into either
-	// an OTP (not sensitive) or a PIN (sensitive).
-	return "", errors.New("PIN not supported for MFA")
-}
-
-func (p noopPrompt) PromptAdditionalTouch() error {
-	return errors.New("additional touches not supported for MFA")
-}
-
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
 //
 // If promptDevicePrefix is set, it will be printed in prompts before "security
 // key" or "device". This is used to emphasize between different kinds of
 // devices, like registered vs new.
-func PromptMFAChallenge(
-	ctx context.Context,
-	proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
@@ -169,9 +148,7 @@ func PromptMFAChallenge(
 		go func() {
 			defer wg.Done()
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
-			const user = ""       // No ambiguity in MFA prompts.
-			var prompt noopPrompt // No PINs or additional touches required for MFA.
-			resp, _, err := prompts.Webauthn(ctx, origin, user, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), prompt)
+			resp, err := prompts.Webauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()
 	}

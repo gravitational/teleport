@@ -105,15 +105,6 @@ func TestCheckLatest(t *testing.T) {
 			},
 			wantErr: require.NoError,
 		},
-		{ // see https://github.com/gravitational/teleport/issues/10800
-			desc: "pass-pre-release",
-			tag:  "v8.3.3",
-			releases: []string{
-				"v9.0.0-beta.1",
-				"v8.3.2",
-			},
-			wantErr: require.NoError,
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {

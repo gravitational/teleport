@@ -106,21 +106,6 @@ func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Data
 	}
 	databases := make(types.Databases, 0, len(instances))
 	for _, instance := range instances {
-		if !services.IsRDSInstanceSupported(instance) {
-			f.log.Debugf("RDS instance %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
-				aws.StringValue(instance.DBInstanceIdentifier),
-				aws.StringValue(instance.Engine),
-				aws.StringValue(instance.EngineVersion))
-			continue
-		}
-
-		if !services.IsRDSInstanceAvailable(instance) {
-			f.log.Debugf("The current status of RDS instance %q is %q. Skipping.",
-				aws.StringValue(instance.DBInstanceIdentifier),
-				aws.StringValue(instance.DBInstanceStatus))
-			continue
-		}
-
 		database, err := services.NewDatabaseFromRDSInstance(instance)
 		if err != nil {
 			f.log.Warnf("Could not convert RDS instance %q to database resource: %v.",
@@ -210,13 +195,6 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 			continue
 		}
 
-		if !services.IsRDSClusterAvailable(cluster) {
-			f.log.Debugf("The current status of Aurora cluster %q is %q. Skipping.",
-				aws.StringValue(cluster.DBClusterIdentifier),
-				aws.StringValue(cluster.Status))
-			continue
-		}
-
 		// Add a database from primary endpoint
 		database, err := services.NewDatabaseFromRDSCluster(cluster)
 		if err != nil {
@@ -283,8 +261,7 @@ func rdsFilters() []*rds.Filter {
 		Name: aws.String("engine"),
 		Values: aws.StringSlice([]string{
 			services.RDSEnginePostgres,
-			services.RDSEngineMySQL,
-			services.RDSEngineMariaDB}),
+			services.RDSEngineMySQL}),
 	}}
 }
 

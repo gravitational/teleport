@@ -39,39 +39,25 @@ type PullRequest struct {
 	Number int  `json:"number"`
 
 	// UnsafeHead can be attacker controlled and should not be used in any
-	// security sensitive context. For example, don't use it when crafting a URL
-	// to send a request to or an access decision. See the following link for
-	// more details:
+	// security sensitive context. See the following link for more details:
 	//
 	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
-	UnsafeHead Branch `json:"head"`
-
-	// UnsafeHead can be attacker controlled and should not be used in any
-	// security sensitive context. For example, don't use it when crafting a URL
-	// to send a request to or an access decision. See the following link for
-	// more details:
-	//
-	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
-	UnsafeBase Branch `json:"base"`
+	UnsafeHead Head `json:"head"`
 }
 
 type User struct {
 	Login string `json:"login"`
 }
 
-type Branch struct {
+type Head struct {
 	// UnsafeSHA can be attacker controlled and should not be used in any
-	// security sensitive context. For example, don't use it when crafting a URL
-	// to send a request to or an access decision. See the following link for
-	// more details:
+	// security sensitive context. See the following link for more details:
 	//
 	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
 	UnsafeSHA string `json:"sha"`
 
 	// UnsafeRef can be attacker controlled and should not be used in any
-	// security sensitive context. For example, don't use it when crafting a URL
-	// to send a request to or an access decision. See the following link for
-	// more details:
+	// security sensitive context. See the following link for more details:
 	//
 	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
 	UnsafeRef string `json:"ref"`

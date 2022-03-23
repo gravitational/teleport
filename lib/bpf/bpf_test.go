@@ -23,6 +23,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -68,7 +69,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir, err := os.MkdirTemp("", "cgroup-test")
+	dir, err := ioutil.TempDir("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)
 
@@ -170,7 +171,7 @@ func (s *Suite) TestObfuscate(c *check.C) {
 	// has been executed.
 	go func() {
 		// Create temporary file.
-		file, err := os.CreateTemp("", "test-script")
+		file, err := ioutil.TempFile("", "test-script")
 		c.Assert(err, check.IsNil)
 		defer os.Remove(file.Name())
 
@@ -247,7 +248,7 @@ func (s *Suite) TestScript(c *check.C) {
 	// has been executed.
 	go func() {
 		// Create temporary file.
-		file, err := os.CreateTemp("", "test-script")
+		file, err := ioutil.TempFile("", "test-script")
 		c.Assert(err, check.IsNil)
 		defer os.Remove(file.Name())
 

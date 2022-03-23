@@ -16,19 +16,15 @@ limitations under the License.
 
 package services
 
-import (
-	"context"
-
-	"github.com/gravitational/teleport/api/types"
-)
+import "github.com/gravitational/teleport/api/types"
 
 // AuthorityGetter defines interface for fetching cert authority resources.
 type AuthorityGetter interface {
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...MarshalOption) ([]types.CertAuthority, error)
 }
 
 // Trust is responsible for managing certificate authorities

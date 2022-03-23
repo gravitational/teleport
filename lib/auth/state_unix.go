@@ -36,7 +36,6 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 	litebk, err := lite.NewWithConfig(ctx, lite.Config{
 		Path:      path,
 		EventsOff: true,
-		Sync:      lite.SyncFull,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

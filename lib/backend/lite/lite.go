@@ -21,11 +21,10 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"net/url"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -40,42 +39,29 @@ import (
 )
 
 const (
-	// BackendName is the name of this backend.
+	// BackendName is the name of this backend
 	BackendName = "sqlite"
 	// AlternativeName is another name of this backend.
-	AlternativeName = "dir"
-
-	// SyncOff disables file system sync after writing.
-	SyncOff = "OFF"
-	// SyncFull fsyncs the database file on disk after every write.
-	SyncFull = "FULL"
-
-	// JournalMemory keeps the rollback journal in memory instead of storing it
-	// on disk.
-	JournalMemory = "MEMORY"
-)
-
-const (
-	// defaultDirMode is the mode of the newly created directories that are part
-	// of the Path
-	defaultDirMode os.FileMode = 0770
-
-	// defaultDBFile is the file name of the sqlite db in the directory
-	// specified by Path
-	defaultDBFile            = "sqlite.db"
-	slowTransactionThreshold = time.Second
-
-	// defaultSync is the default value for Sync
-	defaultSync = SyncOff
-
-	// defaultBusyTimeout is the default value for BusyTimeout, in ms
-	defaultBusyTimeout = 10000
+	AlternativeName                      = "dir"
+	defaultDirMode           os.FileMode = 0770
+	defaultDBFile                        = "sqlite.db"
+	slowTransactionThreshold             = time.Second
+	syncOFF                              = "OFF"
+	busyTimeout                          = 10000
 )
 
 // GetName is a part of backend API and it returns SQLite backend type
 // as it appears in `storage/type` section of Teleport YAML
 func GetName() string {
 	return BackendName
+}
+
+func init() {
+	sql.Register(BackendName, &sqlite3.SQLiteDriver{
+		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+			return nil
+		},
+	})
 }
 
 // Config structure represents configuration section
@@ -91,12 +77,15 @@ type Config struct {
 	EventsOff bool `json:"events_off,omitempty"`
 	// Clock allows to override clock used in the backend
 	Clock clockwork.Clock `json:"-"`
-	// Sync sets the synchronous pragma
+	// Sync sets synchronous pragrma
 	Sync string `json:"sync,omitempty"`
 	// BusyTimeout sets busy timeout in milliseconds
 	BusyTimeout int `json:"busy_timeout,omitempty"`
-	// Journal sets the journal_mode pragma
-	Journal string `json:"journal,omitempty"`
+	// Memory turns memory mode of the database
+	Memory bool `json:"memory"`
+	// MemoryName sets the name of the database,
+	// set to "sqlite.db" by default
+	MemoryName string `json:"memory_name"`
 	// Mirror turns on mirror mode for the backend,
 	// which will use record IDs for Put and PutRange passed from
 	// the resources, not generate a new one
@@ -106,7 +95,7 @@ type Config struct {
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to sqlite
 func (cfg *Config) CheckAndSetDefaults() error {
-	if cfg.Path == "" {
+	if cfg.Path == "" && !cfg.Memory {
 		return trace.BadParameter("specify directory path to the database using 'path' parameter")
 	}
 	if cfg.BufferSize == 0 {
@@ -119,67 +108,15 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	if cfg.Sync == "" {
-		cfg.Sync = defaultSync
+		cfg.Sync = syncOFF
 	}
 	if cfg.BusyTimeout == 0 {
-		cfg.BusyTimeout = defaultBusyTimeout
+		cfg.BusyTimeout = busyTimeout
+	}
+	if cfg.MemoryName == "" {
+		cfg.MemoryName = defaultDBFile
 	}
 	return nil
-}
-
-// ConnectionURI returns a connection string usable with sqlite according to the
-// Config.
-func (cfg *Config) ConnectionURI() string {
-	params := url.Values{}
-	params.Set("_busy_timeout", strconv.Itoa(cfg.BusyTimeout))
-	// The _txlock parameter is parsed by go-sqlite to determine if (all)
-	// transactions should be started with `BEGIN DEFERRED` (the default, same
-	// as `BEGIN`), `BEGIN IMMEDIATE` or `BEGIN EXCLUSIVE`.
-	//
-	// The way we use sqlite relies entirely on the busy timeout handler (also
-	// configured through the connection URL, with the _busy_timeout parameter)
-	// to address concurrency problems, and treats any SQLITE_BUSY errors as a
-	// fatal issue with the database; however, in scenarios with multiple
-	// readwriters it is possible to still get a busy error even with a generous
-	// busy timeout handler configured, as two transactions that both start off
-	// with a SELECT - thus acquiring a SHARED lock, see
-	// https://www.sqlite.org/lockingv3.html#transaction_control - then attempt
-	// to upgrade to a RESERVED lock to upsert or delete something can end up
-	// requiring one of the two transactions to forcibly rollback to avoid a
-	// deadlock, which is signaled by the sqlite engine with a SQLITE_BUSY error
-	// returned to one of the two. When that happens, a concurrent-aware program
-	// can just try the transaction again a few times - making sure to disregard
-	// what was read before the transaction actually committed.
-	//
-	// As we're not really interested in concurrent sqlite access (process
-	// storage has very little written to, sharing a sqlite database as the
-	// backend between two auths is not really supported, and caches shouldn't
-	// ever run on the same underlying sqlite backend) we instead start every
-	// transaction with `BEGIN IMMEDIATE`, which grabs a RESERVED lock
-	// immediately (waiting for the busy timeout in case some other connection
-	// to the database has the lock) at the beginning of the transaction, thus
-	// avoiding any spurious SQLITE_BUSY error that can happen halfway through a
-	// transaction.
-	//
-	// If we end up requiring better concurrent access to sqlite in the future
-	// we should consider enabling Write-Ahead Logging mode, to actually allow
-	// for reads to happen at the same time as writes, adding some amount of
-	// retries to inTransaction, and double-checking that all uses of it
-	// correctly handle the possibility of the transaction being restarted.
-	params.Set("_txlock", "immediate")
-	if cfg.Sync != "" {
-		params.Set("_sync", cfg.Sync)
-	}
-	if cfg.Journal != "" {
-		params.Set("_journal", cfg.Journal)
-	}
-
-	u := url.URL{
-		Scheme:   "file",
-		Opaque:   url.QueryEscape(filepath.Join(cfg.Path, defaultDBFile)),
-		RawQuery: params.Encode(),
-	}
-	return u.String()
 }
 
 // New returns a new instance of sqlite backend
@@ -198,18 +135,23 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectionURI := cfg.ConnectionURI()
-	// Ensure that the path to the root directory exists.
-	err := os.MkdirAll(cfg.Path, defaultDirMode)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+	var connectorURL string
+	if !cfg.Memory {
+		// Ensure that the path to the root directory exists.
+		err := os.MkdirAll(cfg.Path, defaultDirMode)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+		fullPath := filepath.Join(cfg.Path, defaultDBFile)
+		connectorURL = fmt.Sprintf("file:%v?_busy_timeout=%v&_sync=%v", fullPath, cfg.BusyTimeout, cfg.Sync)
+	} else {
+		connectorURL = fmt.Sprintf("file:%v?mode=memory", cfg.MemoryName)
 	}
-	db, err := sql.Open("sqlite3", cfg.ConnectionURI())
+	db, err := sql.Open(BackendName, connectorURL)
 	if err != nil {
-		return nil, trace.Wrap(err, "error opening URI: %v", connectionURI)
+		return nil, trace.Wrap(err, "error opening URI: %v", connectorURL)
 	}
-	// serialize access to sqlite, as we're using immediate transactions anyway,
-	// and in-memory go locks are faster than sqlite locks
+	// serialize access to sqlite to avoid database is locked errors
 	db.SetMaxOpenConns(1)
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),
@@ -224,9 +166,9 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		ctx:    closeCtx,
 		cancel: cancel,
 	}
-	l.Debugf("Connected to: %v, poll stream period: %v", connectionURI, cfg.PollStreamPeriod)
+	l.Debugf("Connected to: %v, poll stream period: %v", connectorURL, cfg.PollStreamPeriod)
 	if err := l.createSchema(); err != nil {
-		return nil, trace.Wrap(err, "error creating schema: %v", connectionURI)
+		return nil, trace.Wrap(err, "error creating schema: %v", connectorURL)
 	}
 	if err := l.showPragmas(); err != nil {
 		l.Warningf("Failed to show pragma settings: %v.", err)
@@ -239,6 +181,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 type Backend struct {
 	Config
 	*log.Entry
+	backend.NoMigrations
 	db *sql.DB
 	// clock is used to generate time,
 	// could be swapped in tests for fixed time
@@ -256,22 +199,17 @@ type Backend struct {
 // parameters, when called, logs some key PRAGMA values
 func (l *Backend) showPragmas() error {
 	return l.inTransaction(l.ctx, func(tx *sql.Tx) error {
-		var journalMode string
-		row := tx.QueryRowContext(l.ctx, "PRAGMA journal_mode;")
-		if err := row.Scan(&journalMode); err != nil {
+		row := tx.QueryRowContext(l.ctx, "PRAGMA synchronous;")
+		var syncValue string
+		if err := row.Scan(&syncValue); err != nil {
 			return trace.Wrap(err)
 		}
-		row = tx.QueryRowContext(l.ctx, "PRAGMA synchronous;")
-		var synchronous string
-		if err := row.Scan(&synchronous); err != nil {
-			return trace.Wrap(err)
-		}
-		var busyTimeout string
+		var timeoutValue string
 		row = tx.QueryRowContext(l.ctx, "PRAGMA busy_timeout;")
-		if err := row.Scan(&busyTimeout); err != nil {
+		if err := row.Scan(&timeoutValue); err != nil {
 			return trace.Wrap(err)
 		}
-		l.Debugf("journal_mode=%v, synchronous=%v, busy_timeout=%v", journalMode, synchronous, busyTimeout)
+		l.Debugf("Synchronous: %v, busy timeout: %v", syncValue, timeoutValue)
 		return nil
 	})
 }

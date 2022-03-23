@@ -36,7 +36,7 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/token.mdx!)
 <Tabs>
-<TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
+<TabItem label="Self Hosted" scope={["enterprise","oss"]}>
 Start the Teleport Database Service, pointing the `--auth-server` flag to the address of your Teleport Proxy Service:
 
 ```code
@@ -142,7 +142,7 @@ Log into your Teleport cluster. Your CockroachDB cluster should appear in the
 list of available databases:
 
 <Tabs>
-<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+<TabItem scope={["enterprise", "oss"]} label="Self Hosted">
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls

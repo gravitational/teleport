@@ -178,65 +178,6 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 	})
 }
 
-// TestProxyRouteToDatabase tests db connection with protocol registered without any handler.
-// ALPN router leverages empty handler to route the connection to DBHandler
-// based on TLS RouteToDatabase identity entry.
-func TestProxyRouteToDatabase(t *testing.T) {
-	t.Parallel()
-	const (
-		databaseHandleResponse = "database handler response"
-	)
-
-	suite := NewSuite(t)
-	clientCert := mustGenCertSignedWithCA(t, suite.ca,
-		withIdentity(tlsca.Identity{
-			Username: "test-user",
-			Groups:   []string{"test-group"},
-			RouteToDatabase: tlsca.RouteToDatabase{
-				ServiceName: "mongo-test-database",
-			},
-		}),
-	)
-
-	suite.router.AddDBTLSHandler(func(ctx context.Context, conn net.Conn) error {
-		defer conn.Close()
-		_, err := fmt.Fprint(conn, databaseHandleResponse)
-		require.NoError(t, err)
-		return nil
-	})
-	suite.router.Add(HandlerDecs{
-		MatchFunc: MatchByProtocol(common.ProtocolReverseTunnel),
-	})
-
-	suite.Start(t)
-
-	t.Run("dial with user certs with RouteToDatabase info", func(t *testing.T) {
-		conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-			NextProtos: []string{string(common.ProtocolReverseTunnel)},
-			RootCAs:    suite.GetCertPool(),
-			ServerName: "localhost",
-			Certificates: []tls.Certificate{
-				clientCert,
-			},
-		})
-		require.NoError(t, err)
-		mustReadFromConnection(t, conn, databaseHandleResponse)
-		mustCloseConnection(t, conn)
-	})
-
-	t.Run("dial with no user certs", func(t *testing.T) {
-		conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-			NextProtos: []string{string(common.ProtocolReverseTunnel)},
-			RootCAs:    suite.GetCertPool(),
-			ServerName: "localhost",
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, conn.Close())
-		})
-	})
-}
-
 // TestLocalProxyPostgresProtocol tests Proxy Postgres connection  forwarded by LocalProxy.
 // Client connects to LocalProxy with raw connection where downstream Proxy connection is upgraded to TLS with
 // ALPN value set to ProtocolPostgres.

@@ -1,5 +1,0 @@
-authToken: auth-token
-proxyAddr: proxy.example.com:3080
-roles: kube
-kubeClusterName: test-kube-cluster
-existingDataVolume: teleport-kube-agent-data

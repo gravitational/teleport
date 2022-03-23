@@ -17,7 +17,7 @@ limitations under the License.
 package utils
 
 import (
-	"os"
+	"io/ioutil"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -31,7 +31,7 @@ func ReadToken(token string) (string, error) {
 		return token, nil
 	}
 	// treat it as a file
-	out, err := os.ReadFile(token)
+	out, err := ioutil.ReadFile(token)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}

@@ -38,7 +38,7 @@ the following services.
 | - | - | - | - |
 | `-d, --debug` | none | none | enable verbose logging to stderr |
 | `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally. |
-| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, auth, node, db, app` or `windowsdesktop` | start listed services/roles. These roles are explained in the [Teleport Architecture](../../architecture/overview.mdx) document. |
+| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](../../architecture/overview.mdx) document. |
 | `--pid-file` | none | **string** filepath | create a PID file at the path |
 | `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT |
 | `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP |
@@ -309,42 +309,6 @@ $ tsh play --format=pty 1fe153d1-ce8b-4ef4-9908-6539457ba4ad.tar
 
 # Playing back a session in json format using jq to filter on events
 $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.event
-```
-
-### tsh proxy app
-
-Starts a local TLS proxy for Application Access connections.
-You can use this proxy to connect to an application repeatedly after a single login to your Teleport cluster,
-which is especially useful for interacting with an application via a CLI.
-
-```code
-$ tsh proxy app [<flags>] <app>
-```
-
-#### Arguments
-`<app>`
-
-- `app` The name of the application to start the local proxy for. To see a list of available applications, run `tsh apps ls`.
-
-#### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `--port` | none | port number | Specify the source port for the local proxy |
-
-#### [Global Flags](#tsh-global-flags)
-
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
-Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
-
-#### Examples
-```code
-$ tsh proxy app <app>
-
-# Proxy a connection to grafana on local port 10700
-$ tsh proxy --port 10700 app grafana &
-# Proxying connections to grafana on 127.0.0.1:10700
-$ curl http://127.0.0.1:10700/api/users
 ```
 
 ### tsh scp
@@ -938,7 +902,7 @@ $ tctl nodes add [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--roles` | `node` | `proxy, auth, node, db, app` or `windowsdesktop` | Comma-separated list of roles for the new node to assume |
+| `--roles` | `node` | `node,auth` or `proxy` | Comma-separated list of roles for the new node to assume |
 | `--ttl` | 30m | relative duration like 5s, 2m, or 3h | Time to live for a generated token |
 | `--token` | none | **string** token value | A custom token to use, auto-generated if not provided. Should match token set with `teleport start --token` |
 
@@ -989,9 +953,9 @@ $ tctl tokens add --type=TYPE [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
+| `--type` | none | `trusted_cluster`, `node`, `proxy` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
-| `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
+| `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
 
 #### [Global Flags](#tctl-global-flags)
 
@@ -1323,37 +1287,6 @@ Print cluster version:
 
 ```code
 tctl version
-```
-
-## Resource filtering
-
-Both `tsh` and `tctl` allow you to filter `nodes`, `apps`, `db`, and `kube` resources using the `--search` and `--query` flags.
-
-The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
-
-The `--query` flag allows you to perform more sophisticated searches using a [predicate language](predicate-language.mdx#resource-filtering).
-
-In both cases, you can further refine the results by appending a list of comma-separated labels to the command. For example:
-
-```bash
-$ tsh ls --search=foo,bar labelKey1=labelValue1,labelKey2=labelValue2
-```
-
-### Filter Examples
-
-```bash
-# List all nodes
-$ tsh ls
-
-# List nodes using label argument
-$ tsh ls env=staging,os=mac
-
-# List nodes using search keywords
-$ tsh ls --search=staging,mac
-
-# List nodes using predicate language. This query searches for nodes with labels
-# with key `env` equal to `staging` and key `os` equal to `mac`.
-$ tsh ls --query='labels.env == "staging" && equals(labels.os, "mac")'
 ```
 
 ## Experimental features

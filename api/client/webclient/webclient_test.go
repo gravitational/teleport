@@ -52,15 +52,14 @@ func TestPlainHttpFallback(t *testing.T) {
 			desc:    "Ping",
 			handler: newPingHandler("/webapi/ping"),
 			actionUnderTest: func(addr string, insecure bool) error {
-				_, err := Ping(
-					&Config{Context: context.Background(), ProxyAddr: addr, Insecure: insecure})
+				_, err := Ping(context.Background(), addr, insecure, nil /*pool*/, "")
 				return err
 			},
 		}, {
 			desc:    "Find",
 			handler: newPingHandler("/webapi/find"),
 			actionUnderTest: func(addr string, insecure bool) error {
-				_, err := Find(&Config{Context: context.Background(), ProxyAddr: addr, Insecure: insecure})
+				_, err := Find(context.Background(), addr, insecure, nil /*pool*/)
 				return err
 			},
 		},
@@ -105,7 +104,7 @@ func TestPlainHttpFallback(t *testing.T) {
 
 func TestGetTunnelAddr(t *testing.T) {
 	t.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
-	tunnelAddr, err := GetTunnelAddr(&Config{Context: context.Background(), ProxyAddr: "", Insecure: false})
+	tunnelAddr, err := GetTunnelAddr(context.Background(), "", true, nil)
 	require.NoError(t, err)
 	require.Equal(t, "tunnel.example.com:4024", tunnelAddr)
 }
@@ -293,33 +292,22 @@ func TestExtract(t *testing.T) {
 
 func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	client, err := newWebClient(&Config{
-		Context:   context.Background(),
-		ProxyAddr: "localhost:3080",
-	})
-	require.NoError(t, err)
+	client := newWebClient(false /* insecure */, nil /* pool */)
 	// resp should be nil, so there will be no body to close.
 	//nolint:bodyclose
-	resp, err := client.Get("https://fakedomain.example.com")
+	resp, err := client.Get("https://example.com")
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakeproxy.example.com")
 	require.Contains(t, err.Error(), "no such host")
 }
 
 func TestNewWebClientNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	t.Setenv("NO_PROXY", "fakedomain.example.com")
-	client, err := newWebClient(&Config{
-		Context:   context.Background(),
-		ProxyAddr: "localhost:3080",
-	})
+	t.Setenv("NO_PROXY", "example.com")
+	client := newWebClient(false /* insecure */, nil /* pool */)
+	resp, err := client.Get("https://example.com")
 	require.NoError(t, err)
-	//nolint:bodyclose
-	resp, err := client.Get("https://fakedomain.example.com")
-	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
-	require.NotContains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
-	require.Contains(t, err.Error(), "no such host")
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

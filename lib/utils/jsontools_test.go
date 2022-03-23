@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,8 +28,8 @@ import (
 // operations that depend on the byte ordering fail (e.g. CompareAndSwap).
 func TestMarshalMapConsistency(t *testing.T) {
 	value := map[string]string{
-		types.TeleportNamespace + "/foo": "1234",
-		types.TeleportNamespace + "/bar": "5678",
+		"teleport.dev/foo": "1234",
+		"teleport.dev/bar": "5678",
 	}
 
 	compareTo, err := FastMarshal(value)

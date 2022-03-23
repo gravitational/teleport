@@ -44,7 +44,7 @@ func BotResourceName(botName string) string {
 
 // createBotRole creates a role from a bot template with the given parameters.
 func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (types.Role, error) {
-	role, err := types.NewRoleV3(resourceName, types.RoleSpecV5{
+	role, err := types.NewRole(resourceName, types.RoleSpecV5{
 		Options: types.RoleOptions{
 			// TODO: inherit TTLs from cert length?
 			MaxSessionTTL: types.Duration(12 * time.Hour),
@@ -242,7 +242,7 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 // random dynamic provision token which allows bots to join with the given
 // botName. Returns the token and any error.
 func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBotRequest) (types.ProvisionToken, error) {
-	botName := req.Name
+	resourceName := BotResourceName(req.Name)
 
 	// if the request includes a TokenID it should already exist
 	if req.TokenID != "" {
@@ -258,9 +258,9 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 			return nil, trace.BadParameter("token %q is not valid for role %q",
 				req.TokenID, types.RoleBot)
 		}
-		if provisionToken.GetBotName() != botName {
+		if provisionToken.GetBotName() != resourceName {
 			return nil, trace.BadParameter("token %q is valid for bot with name %q, not %q",
-				req.TokenID, provisionToken.GetBotName(), botName)
+				req.TokenID, provisionToken.GetBotName(), resourceName)
 		}
 		switch provisionToken.GetJoinMethod() {
 		case types.JoinMethodToken, types.JoinMethodIAM:
@@ -286,7 +286,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 	tokenSpec := types.ProvisionTokenSpecV2{
 		Roles:      []types.SystemRole{types.RoleBot},
 		JoinMethod: types.JoinMethodToken,
-		BotName:    botName,
+		BotName:    resourceName,
 	}
 	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
 	if err != nil {

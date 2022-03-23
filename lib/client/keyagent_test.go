@@ -19,6 +19,7 @@ package client
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -548,7 +549,7 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 func startDebugAgent(t *testing.T) error {
 	// Create own tmp dir instead of using t.TmpDir
 	// because net.Listen("unix", path) has dir path length limitation
-	tempDir, err := os.MkdirTemp("", "teleport-test")
+	tempDir, err := ioutil.TempDir("", "teleport-test")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.RemoveAll(tempDir)

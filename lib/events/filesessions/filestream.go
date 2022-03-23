@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -95,6 +96,9 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+	if len(parts) == 0 {
+		return trace.BadParameter("need at least one part to complete the upload")
+	}
 	if err := checkUpload(upload); err != nil {
 		return trace.Wrap(err)
 	}
@@ -123,26 +127,30 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		}
 	}()
 
-	writePartToFile := func(path string) error {
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if err := file.Close(); err != nil {
-				h.WithError(err).Errorf("failed to close file %q", path)
-			}
-		}()
+	files := make([]*os.File, 0, len(parts))
+	readers := make([]io.Reader, 0, len(parts))
 
-		_, err = io.Copy(f, file)
-		return err
-	}
+	defer func() {
+		for i := 0; i < len(files); i++ {
+			if err := files[i].Close(); err != nil {
+				h.WithError(err).Errorf("Failed to close file %q.", files[i].Name())
+			}
+		}
+	}()
 
 	for _, part := range parts {
 		partPath := h.partPath(upload, part.Number)
-		if err := writePartToFile(partPath); err != nil {
-			return trace.Wrap(err)
+		file, err := os.Open(partPath)
+		if err != nil {
+			return trace.Wrap(err, "failed to open part file for upload")
 		}
+		files = append(files, file)
+		readers = append(readers, file)
+	}
+
+	_, err = io.Copy(f, io.MultiReader(readers...))
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	err = h.Config.OnBeforeComplete(ctx, upload)
@@ -199,7 +207,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
 	var uploads []events.StreamUpload
 
-	dirs, err := os.ReadDir(h.uploadsPath())
+	dirs, err := ioutil.ReadDir(h.uploadsPath())
 	if err != nil {
 		err = trace.ConvertSystemError(err)
 		// The upload folder may not exist if there are no uploads yet.
@@ -218,7 +226,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			h.WithError(err).Warningf("Skipping upload %v with bad format.", uploadID)
 			continue
 		}
-		files, err := os.ReadDir(filepath.Join(h.uploadsPath(), dir.Name()))
+		files, err := ioutil.ReadDir(filepath.Join(h.uploadsPath(), dir.Name()))
 		if err != nil {
 			err = trace.ConvertSystemError(err)
 			if trace.IsNotFound(err) {
@@ -235,16 +243,10 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			h.Warningf("Skipping upload %v, not a directory.", uploadID)
 			continue
 		}
-
-		info, err := dir.Info()
-		if err != nil {
-			h.WithError(err).Warningf("Skipping upload %v: cannot read file info", uploadID)
-			continue
-		}
 		uploads = append(uploads, events.StreamUpload{
 			SessionID: session.ID(filepath.Base(files[0].Name())),
 			ID:        uploadID,
-			Initiated: info.ModTime(),
+			Initiated: dir.ModTime(),
 		})
 	}
 	sort.Slice(uploads, func(i, j int) bool {

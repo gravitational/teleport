@@ -14,7 +14,7 @@ Here's an overview of what we will do:
 2. Download and install Teleport (=teleport.version=) and connect it to the Aurora database.
 3. Connect to the Aurora database via Teleport.
 
-## Step 1/3. Set up Aurora
+## Step 1/3. Setup Aurora
 
 In order to allow Teleport connections to an Aurora instance, it needs to support
 IAM authentication.
@@ -73,28 +73,33 @@ GRANT rds_iam TO alice;
 For more information about connecting to the PostgreSQL instance directly,
 see Amazon [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ConnectToPostgreSQLInstance.html).
 
-## Step 2/3. Set up Teleport
+## Step 2/3. Setup Teleport
 
 Teleport Database Access is available starting from `6.0.0` release.
 
 Download the appropriate version of Teleport for your platform from
 our [downloads page](https://goteleport.com/teleport/download).
 
-
-### Configure TLS
-
 Teleport requires a valid TLS certificate to operate and can fetch one automatically
-using Let's Encrypt.
+using Let's Encrypt [ACME](https://letsencrypt.org/how-it-works/) protocol.
 
-(!docs/pages/includes/acme.mdx!)
+We will assume that you have configured DNS records for `teleport.example.com` and
+`*.teleport.example.com` to point to the node where you're launching Teleport.
 
-We will assume that you have configured a DNS record for `teleport.example.com` to point to the node where you're launching Teleport.
+Let's generate a Teleport config with ACME enabled:
 
-<Details title="Using Application Access?">
-(!docs/pages/includes/dns-app-access.mdx!)
-</Details>
+```code
+$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com > /tmp/teleport.yaml
+```
 
-### Start Teleport
+<Admonition
+  type="warning"
+  title="Web Proxy Port"
+>
+  Teleport's ACME protocol integration currently requires web proxy to run on
+  port 443 so open /tmp/teleport.yaml and update `proxy_service.web_listen_addr`
+  and `proxy_service.public_addr` to use port 443 instead of the default 3080.
+</Admonition>
 
 Now start Teleport and point it to your Aurora database instance. Make sure to
 update the database endpoint and region appropriately.
@@ -113,10 +118,8 @@ $ sudo teleport start --config=/tmp/teleport.yaml \
   title="AWS Credentials"
 >
   The node that connects to the database should have AWS credentials configured
-  with the policy from [step 1](#step-13-set-up-aurora).
+  with the policy from [step 1](#step-13-setup-aurora).
 </Admonition>
-
-### Create a user and role
 
 Create the role that will allow a user to connect to any database using any
 database account:

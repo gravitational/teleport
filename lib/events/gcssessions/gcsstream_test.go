@@ -34,40 +34,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func TestUploadFromPath(t *testing.T) {
-	for _, test := range []struct {
-		path                string
-		sessionID, uploadID string
-		assertErr           require.ErrorAssertionFunc
-	}{
-		{
-			path:      "uploads/73de0358-2a40-4940-ae26-0c06877e35d9/cf9e08d5-6651-4ddd-a472-52d2286d6bb4.upload",
-			sessionID: "cf9e08d5-6651-4ddd-a472-52d2286d6bb4",
-			uploadID:  "73de0358-2a40-4940-ae26-0c06877e35d9",
-			assertErr: require.NoError,
-		},
-		{
-			path:      "uploads/73de0358-2a40-4940-ae26-0c06877e35d9/cf9e08d5-6651-4ddd-a472-52d2286d6bb4.BADEXTENSION",
-			assertErr: require.Error,
-		},
-		{
-			path:      "no-dir.upload",
-			assertErr: require.Error,
-		},
-	} {
-		t.Run(test.path, func(t *testing.T) {
-			upload, err := uploadFromPath(test.path)
-			test.assertErr(t, err)
-			if test.sessionID != "" {
-				require.Equal(t, test.sessionID, string(upload.SessionID))
-			}
-			if test.uploadID != "" {
-				require.Equal(t, test.uploadID, upload.ID)
-			}
-		})
-	}
-}
-
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
 	ctx := context.Background()

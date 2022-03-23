@@ -16,6 +16,7 @@ package test
 
 import (
 	"context"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -104,7 +105,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	err = stream.Complete(ctx)
 	require.Nil(t, err)
 
-	f, err := os.CreateTemp("", string(sid))
+	f, err := ioutil.TempFile("", string(sid))
 	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -171,7 +172,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	err = stream.Complete(ctx)
 	require.Nil(t, err, "Complete after resume should succeed")
 
-	f, err := os.CreateTemp("", string(sid))
+	f, err := ioutil.TempFile("", string(sid))
 	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()

@@ -176,9 +176,6 @@ func (h *HandlerDecs) handle(ctx context.Context, conn net.Conn, info Connection
 	if h.HandlerWithConnInfo != nil {
 		return h.HandlerWithConnInfo(ctx, conn, info)
 	}
-	if h.Handler == nil {
-		return trace.BadParameter("failed to find ALPN handler for ALPN: %v, SNI %v", info.ALPN, info.SNI)
-	}
 	return h.Handler(ctx, conn)
 }
 
@@ -437,6 +434,15 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
 }
 
+func isDBTLSProtocol(protocol common.Protocol) bool {
+	switch protocol {
+	case common.ProtocolMongoDB, common.ProtocolRedisDB:
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
 	if shouldRouteToKubeService(clientHelloInfo.ServerName) {
 		if p.cfg.Router.kubeHandler == nil {
@@ -458,7 +464,7 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 
 	for _, v := range clientProtocols {
 		protocol := common.Protocol(v)
-		if common.IsDBTLSProtocol(protocol) {
+		if isDBTLSProtocol(protocol) {
 			return &HandlerDecs{
 				MatchFunc:           MatchByProtocol(protocol),
 				HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,

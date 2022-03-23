@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -173,7 +174,7 @@ func TestProxySSHDial(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{"alice"},
 		},
@@ -319,7 +320,7 @@ func createAgent(t *testing.T) string {
 	// Create own tmp dir instead of using t.TmpDir
 	// because  net.Listen("unix", path) has dir path length limitation and
 	// the t.TmpDir calls creates tmp dir with test name.
-	sockDir, err := os.MkdirTemp("", "test")
+	sockDir, err := ioutil.TempDir("", "test")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.RemoveAll(sockDir)
@@ -374,7 +375,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "ssh_config")
-	err = os.WriteFile(configPath, buff.Bytes(), 0600)
+	err = ioutil.WriteFile(configPath, buff.Bytes(), 0600)
 	require.NoError(t, err)
 
 	return configPath

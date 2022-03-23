@@ -125,11 +125,6 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return convertGCSError(err)
 	}
 
-	// If there are no parts to complete, move to cleanup
-	if len(parts) == 0 {
-		return h.cleanupUpload(ctx, upload)
-	}
-
 	objects := h.partsToObjects(upload, parts)
 	for len(objects) > maxParts {
 		h.Logger.Debugf("Got %v objects for upload %v, performing temp merge.",
@@ -370,7 +365,7 @@ func uploadFromPath(path string) (*events.StreamUpload, error) {
 	if err := sessionID.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parts := strings.Split(strings.TrimSuffix(dir, slash), slash)
+	parts := strings.Split(dir, slash)
 	if len(parts) < 2 {
 		return nil, trace.BadParameter("expected format uploads/<upload-id>, got %v", dir)
 	}

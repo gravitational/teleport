@@ -729,13 +729,7 @@ func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) er
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.current = newCurrent
-
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
-	case p.DatabasesC <- databases:
-	}
-
+	p.DatabasesC <- databases
 	return nil
 }
 
@@ -750,10 +744,7 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 	switch event.Type {
 	case types.OpDelete:
 		delete(p.current, event.Resource.GetName())
-		select {
-		case <-ctx.Done():
-		case p.DatabasesC <- databasesToSlice(p.current):
-		}
+		p.DatabasesC <- databasesToSlice(p.current)
 	case types.OpPut:
 		database, ok := event.Resource.(types.Database)
 		if !ok {
@@ -761,11 +752,7 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 			return
 		}
 		p.current[database.GetName()] = database
-		select {
-		case <-ctx.Done():
-		case p.DatabasesC <- databasesToSlice(p.current):
-		}
-
+		p.DatabasesC <- databasesToSlice(p.current)
 	default:
 		p.Log.Warnf("Unsupported event type %s.", event.Type)
 		return
@@ -858,12 +845,7 @@ func (p *appCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.current = newCurrent
-
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
-	case p.AppsC <- apps:
-	}
+	p.AppsC <- apps
 	return nil
 }
 
@@ -879,12 +861,6 @@ func (p *appCollector) processEventAndUpdateCurrent(ctx context.Context, event t
 	case types.OpDelete:
 		delete(p.current, event.Resource.GetName())
 		p.AppsC <- appsToSlice(p.current)
-
-		select {
-		case <-ctx.Done():
-		case p.AppsC <- appsToSlice(p.current):
-		}
-
 	case types.OpPut:
 		app, ok := event.Resource.(types.Application)
 		if !ok {
@@ -892,11 +868,7 @@ func (p *appCollector) processEventAndUpdateCurrent(ctx context.Context, event t
 			return
 		}
 		p.current[app.GetName()] = app
-
-		select {
-		case <-ctx.Done():
-		case p.AppsC <- appsToSlice(p.current):
-		}
+		p.AppsC <- appsToSlice(p.current)
 	default:
 		p.Log.Warnf("Unsupported event type %s.", event.Type)
 		return
@@ -989,7 +961,7 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	)
 
 	if c.WatchHostCA {
-		host, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.HostCA, false)
+		host, err := c.AuthorityGetter.GetCertAuthorities(types.HostCA, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1000,7 +972,7 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	}
 
 	if c.WatchUserCA {
-		user, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.UserCA, false)
+		user, err := c.AuthorityGetter.GetCertAuthorities(types.UserCA, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1015,11 +987,7 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	c.user = newUser
 	c.lock.Unlock()
 
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
-	case c.CertAuthorityC <- casToSlice(newHost, newUser):
-	}
+	c.CertAuthorityC <- casToSlice(newHost, newUser)
 	return nil
 }
 
@@ -1040,10 +1008,7 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			delete(c.user, event.Resource.GetName())
 		}
 
-		select {
-		case <-ctx.Done():
-		case c.CertAuthorityC <- casToSlice(c.host, c.user):
-		}
+		c.CertAuthorityC <- casToSlice(c.host, c.user)
 	case types.OpPut:
 		ca, ok := event.Resource.(types.CertAuthority)
 		if !ok {
@@ -1058,10 +1023,7 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			c.user[ca.GetName()] = ca
 		}
 
-		select {
-		case <-ctx.Done():
-		case c.CertAuthorityC <- casToSlice(c.host, c.user):
-		}
+		c.CertAuthorityC <- casToSlice(c.host, c.user)
 	default:
 		c.Log.Warnf("Unsupported event type %s.", event.Type)
 		return

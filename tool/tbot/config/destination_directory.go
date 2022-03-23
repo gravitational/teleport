@@ -19,19 +19,16 @@ package config
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 
-	"github.com/gravitational/teleport/tool/tbot/botfs"
+	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
 
 // DestinationDirectory is a Destination that writes to the local filesystem
 type DestinationDirectory struct {
-	Path     string             `yaml:"path,omitempty"`
-	Symlinks botfs.SymlinksMode `yaml:"symlinks,omitempty"`
-	ACLs     botfs.ACLMode      `yaml:"acls,omitempty"`
+	Path string `yaml:"path,omitempty"`
 }
 
 func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
@@ -61,142 +58,23 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 		return trace.BadParameter("destination path must not be empty")
 	}
 
-	secureSupported, err := botfs.HasSecureWriteSupport()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	aclsSupported, err := botfs.HasACLSupport()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	switch dd.Symlinks {
-	case "":
-		if secureSupported {
-			// We expect Openat2 to be available, so try to use it by default.
-			dd.Symlinks = botfs.SymlinksSecure
-		} else {
-			// TrySecure will print a warning on fallback.
-			dd.Symlinks = botfs.SymlinksTrySecure
-		}
-	case botfs.SymlinksInsecure, botfs.SymlinksTrySecure:
-		// valid
-	case botfs.SymlinksSecure:
-		if !secureSupported {
-			return trace.BadParameter("symlink mode %q not supported on this system", dd.Symlinks)
-		}
-	default:
-		return trace.BadParameter("invalid symlinks mode: %q", dd.Symlinks)
-	}
-
-	switch dd.ACLs {
-	case "":
-		if aclsSupported {
-			// Unlike openat2(), we can't ever depend on ACLs being available.
-			// We'll only ever try to use them, end users can opt-in to a hard
-			// ACL check if they wish.
-			dd.ACLs = botfs.ACLTry
-		} else {
-			// if aclsSupported == false here, we know it will never work, so
-			// don't bother trying.
-			dd.ACLs = botfs.ACLOff
-		}
-	case botfs.ACLOff, botfs.ACLTry:
-		// valid
-	case botfs.ACLRequired:
-		if !aclsSupported {
-			return trace.BadParameter("acls mode %q not supported on this system", dd.ACLs)
-		}
-	default:
-		return trace.BadParameter("invalid acls mode: %q", dd.ACLs)
-	}
-
 	return nil
 }
 
-func (dd *DestinationDirectory) Init() error {
-	// Create the directory if needed.
-	stat, err := os.Stat(dd.Path)
-	if trace.IsNotFound(err) {
-		if err := os.MkdirAll(dd.Path, botfs.DefaultDirMode); err != nil {
-			return trace.Wrap(err)
-		}
-		log.Infof("Created directory %q", dd.Path)
-	} else if err != nil {
+func (dd *DestinationDirectory) Write(name string, data []byte, modeHint destination.ModeHint) error {
+	// TODO: honor modeHint?
+	if err := os.WriteFile(filepath.Join(dd.Path, name), data, 0600); err != nil {
 		return trace.Wrap(err)
-	} else if !stat.IsDir() {
-		return trace.BadParameter("Path %q already exists and is not a directory", dd.Path)
 	}
-
 	return nil
-}
-
-func (dd *DestinationDirectory) Verify(keys []string) error {
-	aclsSupported, err := botfs.HasACLSupport()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	currentUser, err := user.Current()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	stat, err := os.Stat(dd.Path)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ownedByBot, err := botfs.IsOwnedBy(stat, currentUser)
-	if trace.IsNotImplemented(err) {
-		// If file owners aren't supported, ACLs certainly aren't. Just bail.
-		// (Subject to change if we ever try to support Windows ACLs.)
-		return nil
-	} else if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Make sure it's worth warning about ACLs for this destination. If ACLs
-	// are disabled, unsupported, or the destination is owned by the bot
-	// (implying the user is not trying to use ACLs), just bail.
-	if dd.ACLs == botfs.ACLOff || !aclsSupported || ownedByBot {
-		return nil
-	}
-
-	errors := []error{}
-	for _, key := range keys {
-		path := filepath.Join(dd.Path, key)
-
-		errors = append(errors, botfs.VerifyACL(path, &botfs.ACLOptions{
-			BotUser: currentUser,
-		}))
-	}
-
-	aggregate := trace.NewAggregate(errors...)
-	if dd.ACLs == botfs.ACLRequired {
-		// Hard fail if ACLs are specifically requested and there are errors.
-		return aggregate
-	}
-
-	if aggregate != nil {
-		log.Warnf("Destination %q has unexpected ACLs: %v", dd.Path, aggregate)
-	}
-
-	return nil
-}
-
-func (dd *DestinationDirectory) Write(name string, data []byte) error {
-	return trace.Wrap(botfs.Write(filepath.Join(dd.Path, name), data, dd.Symlinks))
 }
 
 func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
-	data, err := botfs.Read(filepath.Join(dd.Path, name), dd.Symlinks)
+	b, err := os.ReadFile(filepath.Join(dd.Path, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return data, nil
+	return b, nil
 }
 
 func (dd *DestinationDirectory) String() string {

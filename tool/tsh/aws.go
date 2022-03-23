@@ -23,6 +23,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"os/exec"
@@ -291,7 +292,7 @@ func newTempSelfSignedLocalCert() (*tempSelfSignedLocalCert, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	f, err := os.CreateTemp("", "*_aws_local_proxy_cert.pem")
+	f, err := ioutil.TempFile("", "*_aws_local_proxy_cert.pem")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

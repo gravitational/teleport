@@ -22,12 +22,8 @@ import (
 	"text/template"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 
 	"github.com/gravitational/kingpin"
@@ -41,13 +37,6 @@ type DBCommand struct {
 	// format is the output format (text, json or yaml).
 	format string
 
-	searchKeywords string
-	predicateExpr  string
-	labels         string
-
-	// verbose sets whether full table output should be shown for labels
-	verbose bool
-
 	// dbList implements the "tctl db ls" subcommand.
 	dbList *kingpin.CmdClause
 }
@@ -58,11 +47,7 @@ func (c *DBCommand) Initialize(app *kingpin.Application, config *service.Config)
 
 	db := app.Command("db", "Operate on databases registered with the cluster.")
 	c.dbList = db.Command("ls", "List all databases registered with the cluster.")
-	c.dbList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
-	c.dbList.Arg("labels", labelHelp).StringVar(&c.labels)
-	c.dbList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
-	c.dbList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
-	c.dbList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
+	c.dbList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default("text").StringVar(&c.format)
 }
 
 // TryRun attempts to run subcommands like "db ls".
@@ -78,51 +63,26 @@ func (c *DBCommand) TryRun(cmd string, client auth.ClientI) (match bool, err err
 
 // ListDatabases prints the list of database proxies that have recently sent
 // heartbeats to the cluster.
-func (c *DBCommand) ListDatabases(clt auth.ClientI) error {
-	ctx := context.TODO()
-
-	labels, err := libclient.ParseLabelSpec(c.labels)
+func (c *DBCommand) ListDatabases(client auth.ClientI) error {
+	servers, err := client.GetDatabaseServers(context.TODO(), apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	var servers []types.DatabaseServer
-	resources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
-		ResourceType:        types.KindDatabaseServer,
-		Labels:              labels,
-		PredicateExpression: c.predicateExpr,
-		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
-	})
-	switch {
-	// Underlying ListResources for db servers not available, use fallback.
-	// Using filter flags with older auth will silently do nothing.
-	//
-	// DELETE IN 11.0.0
-	case trace.IsNotImplemented(err):
-		servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	case err != nil:
-		return trace.Wrap(err)
-	default:
-		servers, err = types.ResourcesWithLabels(resources).AsDatabaseServers()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	coll := &databaseServerCollection{servers: servers, verbose: c.verbose}
+	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		err = coll.writeText(os.Stdout)
 	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		err = coll.writeJSON(os.Stdout)
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		err = coll.writeYAML(os.Stdout)
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}.

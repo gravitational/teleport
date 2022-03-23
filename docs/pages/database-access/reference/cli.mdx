@@ -38,53 +38,6 @@ $ teleport db start \
 | `--gcp-project-id` | (Only for Cloud SQL) GCP Cloud SQL project identifier. |
 | `--gcp-instance-id` | (Only for Cloud SQL) GCP Cloud SQL instance identifier.|
 
-## teleport db configure create
-
-Creates a sample Database Service configuration.
-
-```code
-$ teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
-$ teleport db configure create \
-  --token=/tmp/token \
-  --proxy=proxy.example.com:3080 \
-  --name=example \
-  --protocol=postgres \
-  --uri=postgres://postgres.example.com:5432 \
-  --labels=env=prod
-```
-
-| Flag | Description |
-| - | - |
-| `--proxy` | Teleport Proxy Service address to connect to. Default: `0.0.0.0:3080`. |
-| `--token` | Invitation token to register with the Auth Service. Default: none. |
-| `--rds-discovery` | List of AWS regions the agent will discover for RDS/Aurora instances. |
-| `--redshift-discovery` | List of AWS regions the agent will discover for Redshift instances. |
-| `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
-| `--name` | Name of the proxied database. |
-| `--protocol` | Proxied database protocol. Supported are: [postgres mysql mongodb cockroachdb redis sqlserver]. |
-| `--uri` | Address the proxied database is reachable at. |
-| `--labels` | Comma-separated list of labels for the database, for example env=dev,dept=it |
-| `-o/--output` | Write to stdout with `-o=stdout`, the default config file with `-o=file`, or a custom path with `-o=file:///path` |
-
-## teleport db configure bootstrap
-
-Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.
-
-```code
-$ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-user TeleportUser
-$ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-role TeleportRole
-$ teleport db configure bootstrap -c /etc/teleport.yaml --manual
-```
-
-| Flag | Description |
-| - | - |
-| `-c/--config` | Path to a configuration file. Default: `/etc/teleport.yaml`. |
-| `--manual` | When executed in "manual" mode, this command will print the instructions to complete the configuration instead of applying them directly. |
-| `--policy-name` | Name of the Teleport Database Service policy. Default: "DatabaseAccess" |
-| `--confirm` | Do not prompt the user and auto-confirm all actions. |
-| `--attach-to-role` | Role name to attach the policy to. Mutually exclusive with `--attach-to-user`. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
-| `--attach-to-user` | User name to attach the policy to. Mutually exclusive with `--attach-to-role`. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
-
 ## tctl auth sign
 
 When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,

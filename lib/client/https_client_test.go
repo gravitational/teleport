@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,24 +28,21 @@ func TestNewInsecureWebClientHTTPProxy(t *testing.T) {
 	client := NewInsecureWebClient()
 	// resp should be nil, so there will be no body to close.
 	//nolint:bodyclose
-	resp, err := client.Get("https://fakedomain.example.com")
+	resp, err := client.Get("https://example.com")
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakeproxy.example.com")
 	require.Contains(t, err.Error(), "no such host")
 }
 
 func TestNewInsecureWebClientNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	t.Setenv("NO_PROXY", "fakedomain.example.com")
+	t.Setenv("NO_PROXY", "example.com")
 	client := NewInsecureWebClient()
-	//nolint:bodyclose
-	resp, err := client.Get("https://fakedomain.example.com")
-	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
-	require.NotContains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
-	require.Contains(t, err.Error(), "no such host")
+	resp, err := client.Get("https://example.com")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestNewClientWithPoolHTTPProxy(t *testing.T) {
@@ -52,22 +50,19 @@ func TestNewClientWithPoolHTTPProxy(t *testing.T) {
 	client := newClientWithPool(nil)
 	// resp should be nil, so there will be no body to close.
 	//nolint:bodyclose
-	resp, err := client.Get("https://fakedomain.example.com")
+	resp, err := client.Get("https://example.com")
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.Contains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakeproxy.example.com")
 	require.Contains(t, err.Error(), "no such host")
 }
 
 func TestNewClientWithPoolNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	t.Setenv("NO_PROXY", "fakedomain.example.com")
+	t.Setenv("NO_PROXY", "example.com")
 	client := newClientWithPool(nil)
-	//nolint:bodyclose
-	resp, err := client.Get("https://fakedomain.example.com")
-	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
-	require.NotContains(t, err.Error(), "proxyconnect")
-	require.Contains(t, err.Error(), "lookup fakedomain.example.com")
-	require.Contains(t, err.Error(), "no such host")
+	resp, err := client.Get("https://example.com")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

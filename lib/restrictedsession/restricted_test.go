@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"regexp"
@@ -192,7 +193,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	s.cgroupDir, err = os.MkdirTemp("", "cgroup-test")
+	s.cgroupDir, err = ioutil.TempDir("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 
 	// Create BPF service since we piggy-back on it

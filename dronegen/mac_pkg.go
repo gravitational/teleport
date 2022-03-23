@@ -16,7 +16,6 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
@@ -57,8 +56,8 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 				"APPLE_USERNAME":    {fromSecret: "APPLE_USERNAME"},
 				"APPLE_PASSWORD":    {fromSecret: "APPLE_PASSWORD"},
 				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
-				"OSS_TARBALL_PATH":  {raw: filepath.Join(p.Workspace.Path, "go/artifacts")},
-				"ENT_TARBALL_PATH":  {raw: filepath.Join(p.Workspace.Path, "go/artifacts")},
+				"OSS_TARBALL_PATH":  {raw: "/tmp/build-darwin-amd64-pkg/go/artifacts"},
+				"ENT_TARBALL_PATH":  {raw: "/tmp/build-darwin-amd64-pkg/go/artifacts"},
 				"OS":                {raw: b.os},
 				"ARCH":              {raw: b.arch},
 			},

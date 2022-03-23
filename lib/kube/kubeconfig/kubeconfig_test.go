@@ -17,6 +17,7 @@ package kubeconfig
 import (
 	"crypto/x509/pkix"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -38,7 +39,7 @@ import (
 )
 
 func setup(t *testing.T) (string, clientcmdapi.Config) {
-	f, err := os.CreateTemp("", "kubeconfig")
+	f, err := ioutil.TempFile("", "kubeconfig")
 	if err != nil {
 		t.Fatalf("failed to create temp kubeconfig file: %v", err)
 	}

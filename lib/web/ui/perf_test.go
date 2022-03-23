@@ -19,6 +19,8 @@ package ui
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -77,8 +79,12 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 				bk, err = memory.New(memory.Config{})
 				require.NoError(b, err)
 			} else {
+				dir, err := ioutil.TempDir("", "teleport")
+				require.NoError(b, err)
+				defer os.RemoveAll(dir)
+
 				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
-					Path: b.TempDir(),
+					Path: dir,
 				})
 				require.NoError(b, err)
 			}

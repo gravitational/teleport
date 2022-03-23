@@ -253,6 +253,9 @@ func (s *Reporter) Clock() clockwork.Clock {
 	return s.Backend.Clock()
 }
 
+// Migrate runs the necessary data migrations for this backend.
+func (s *Reporter) Migrate(ctx context.Context) error { return s.Backend.Migrate(ctx) }
+
 type topRequestsCacheKey struct {
 	component string
 	key       string

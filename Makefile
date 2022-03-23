@@ -462,7 +462,7 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-ci test-api test-go test-rust
+test: test-sh test-ci test-api test-go test-rust
 
 # Runs bot Go tests.
 #
@@ -474,19 +474,6 @@ test-bot:
 
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
-
-# Google Cloud Build uses a weird homedir and Helm can't pick up plugins by default there,
-# so override the plugin location via environment variable when running in CI.
-.PHONY: test-helm
-test-helm:
-	@if [ -d /builder/home ]; then export HELM_PLUGINS=/root/.local/share/helm/plugins; fi; \
-		helm unittest examples/chart/teleport-cluster && \
-		helm unittest examples/chart/teleport-kube-agent
-
-.PHONY: test-helm-update-snapshots
-test-helm-update-snapshots:
-	helm unittest -u examples/chart/teleport-cluster
-	helm unittest -u examples/chart/teleport-kube-agent
 
 #
 # Runs all Go tests except integration, called by CI/CD.

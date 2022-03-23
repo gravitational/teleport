@@ -88,8 +88,6 @@ func TestMFADeviceManagement(t *testing.T) {
 	require.NoError(t, err)
 	webKey2.PreferRPID = true
 	const webDev2Name = "webauthn2"
-	const pwdlessDevName = "pwdless"
-
 	addTests := []struct {
 		desc string
 		opts mfaAddTestOpts
@@ -231,41 +229,6 @@ func TestMFADeviceManagement(t *testing.T) {
 				},
 			},
 		},
-		{
-			desc: "add passwordless device",
-			opts: mfaAddTestOpts{
-				initReq: &proto.AddMFADeviceRequestInit{
-					DeviceName:  pwdlessDevName,
-					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
-				},
-				authHandler:  devs.webAuthHandler,
-				checkAuthErr: require.NoError,
-				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-					require.NotNil(t, challenge.GetWebauthn(), "WebAuthn challenge cannot be nil")
-
-					key, err := mocku2f.Create()
-					require.NoError(t, err)
-					key.PreferRPID = true
-					key.SetPasswordless()
-
-					ccr, err := key.SignCredentialCreation(webOrigin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
-					require.NoError(t, err)
-
-					return &proto.MFARegisterResponse{
-						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
-						},
-					}
-				},
-				checkRegisterErr: require.NoError,
-				assertRegisteredDev: func(t *testing.T, dev *types.MFADevice) {
-					// Do a few simple device checks - lib/auth/webauthn goes in depth.
-					require.NotNil(t, dev.GetWebauthn(), "WebAuthnDevice cannot be nil")
-					require.True(t, true, dev.GetWebauthn().ResidentKey, "ResidentKey should be set to true")
-				},
-			},
-		},
 	}
 	for _, tt := range addTests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -283,7 +246,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, deviceNames, []string{pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name})
+	require.Equal(t, deviceNames, []string{devs.TOTPName, devs.WebName, webDev2Name})
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
@@ -355,16 +318,6 @@ func TestMFADeviceManagement(t *testing.T) {
 					DeviceName: devs.TOTPName,
 				},
 				authHandler: devs.totpAuthHandler,
-				checkErr:    require.NoError,
-			},
-		},
-		{
-			desc: "delete pwdless device by name",
-			opts: mfaDeleteTestOpts{
-				initReq: &proto.DeleteMFADeviceRequestInit{
-					DeviceName: pwdlessDevName,
-				},
-				authHandler: devs.webAuthHandler,
 				checkErr:    require.NoError,
 			},
 		},
@@ -1881,11 +1834,11 @@ func TestListResources(t *testing.T) {
 
 	testCases := map[string]struct {
 		resourceType   string
-		createResource func(name string, clt *Client) error
+		createResource func(name string) error
 	}{
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string) error {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: name,
 				}, types.DatabaseServerSpecV3{
@@ -1904,7 +1857,7 @@ func TestListResources(t *testing.T) {
 		},
 		"ApplicationServers": {
 			resourceType: types.KindAppServer,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string) error {
 				app, err := types.NewAppV3(types.Metadata{
 					Name: name,
 				}, types.AppSpecV3{
@@ -1931,7 +1884,7 @@ func TestListResources(t *testing.T) {
 		},
 		"KubeService": {
 			resourceType: types.KindKubeService,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string) error {
 				server, err := types.NewServer(name, types.KindKubeService, types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{
 						{Name: name, StaticLabels: map[string]string{"name": name}},
@@ -1946,7 +1899,7 @@ func TestListResources(t *testing.T) {
 		},
 		"Node": {
 			resourceType: types.KindNode,
-			createResource: func(name string, clt *Client) error {
+			createResource: func(name string) error {
 				server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
 				if err != nil {
 					return err
@@ -1956,25 +1909,10 @@ func TestListResources(t *testing.T) {
 				return err
 			},
 		},
-		"WindowsDesktops": {
-			resourceType: types.KindWindowsDesktop,
-			createResource: func(name string, clt *Client) error {
-				desktop, err := types.NewWindowsDesktopV3(name, nil,
-					types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
-				if err != nil {
-					return err
-				}
-
-				return clt.UpsertWindowsDesktop(ctx, desktop)
-			},
-		},
 	}
 
 	for name, test := range testCases {
-		name := name
-		test := test
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
 			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 				ResourceType: test.resourceType,
 				Namespace:    apidefaults.Namespace,
@@ -1985,9 +1923,9 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resp.NextKey)
 
 			// create two resources
-			err = test.createResource("foo", clt)
+			err = test.createResource("foo")
 			require.NoError(t, err)
-			err = test.createResource("bar", clt)
+			err = test.createResource("bar")
 			require.NoError(t, err)
 
 			resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -1999,20 +1937,6 @@ func TestListResources(t *testing.T) {
 			require.Len(t, resp.Resources, 2)
 			require.Empty(t, resp.NextKey)
 			require.Empty(t, resp.TotalCount)
-
-			// Test types.KindKubernetesCluster
-			if test.resourceType == types.KindKubeService {
-				test.resourceType = types.KindKubernetesCluster
-				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-					ResourceType: test.resourceType,
-					Namespace:    apidefaults.Namespace,
-					Limit:        100,
-				})
-				require.NoError(t, err)
-				require.Len(t, resp.Resources, 2)
-				require.Empty(t, resp.NextKey)
-				require.Empty(t, resp.TotalCount)
-			}
 
 			// Test listing with NeedTotalCount flag.
 			if test.resourceType != types.KindKubeService {
@@ -2042,75 +1966,62 @@ func TestListResources(t *testing.T) {
 func TestCustomRateLimiting(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	tests := []struct {
-		name  string
-		burst int
-		fn    func(*Client) error
+	cases := []struct {
+		name string
+		fn   func(*Client) error
 	}{
 		{
 			name: "RPC ChangeUserAuthentication",
 			fn: func(clt *Client) error {
-				_, err := clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
-				return err
-			},
-		},
-		{
-			name:  "RPC CreateAuthenticateChallenge",
-			burst: defaults.LimiterPasswordlessBurst,
-			fn: func(clt *Client) error {
-				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
+				_, err := clt.ChangeUserAuthentication(context.Background(), &proto.ChangeUserAuthenticationRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC GetAccountRecoveryToken",
 			fn: func(clt *Client) error {
-				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})
+				_, err := clt.GetAccountRecoveryToken(context.Background(), &proto.GetAccountRecoveryTokenRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC StartAccountRecovery",
 			fn: func(clt *Client) error {
-				_, err := clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
+				_, err := clt.StartAccountRecovery(context.Background(), &proto.StartAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC VerifyAccountRecovery",
 			fn: func(clt *Client) error {
-				_, err := clt.VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{})
+				_, err := clt.VerifyAccountRecovery(context.Background(), &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
 		},
 	}
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create new instance per test case, to troubleshoot which test case
-			// specifically failed, otherwise multiple cases can fail from running
-			// cases in parallel.
+			// For now since we only have one custom rate limit,
+			// test limit for 1 request per minute with bursts up to 10 requests.
+			const maxAttempts = 11
+			var err error
+
+			// Create new instance per test case, to troubleshoot
+			// which test case specifically failed, otherwise
+			// multiple cases can fail from running cases in parallel.
 			srv := newTestTLSServer(t)
 			clt, err := srv.NewClient(TestNop())
 			require.NoError(t, err)
 
-			var attempts int
-			if test.burst == 0 {
-				attempts = 10 // Good for most tests.
-			} else {
-				attempts = test.burst
+			for i := 0; i < maxAttempts; i++ {
+				err = c.fn(clt)
+				require.Error(t, err)
 			}
-
-			for i := 0; i < attempts; i++ {
-				err = test.fn(clt)
-				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-IsLimitExceeded", err)
-			}
-
-			err = test.fn(clt)
-			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+			require.True(t, trace.IsLimitExceeded(err))
 		})
 	}
 }

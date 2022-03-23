@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -55,7 +56,7 @@ func logResponseBody(level logrus.Level, bodyStream io.Reader) {
 	//     context originally supplied to the request that initiated this
 	//     response, so no need to have an independent reading timeout
 	//     here.
-	body, err := io.ReadAll(io.LimitReader(bodyStream, maxPingBodySize))
+	body, err := ioutil.ReadAll(io.LimitReader(bodyStream, maxPingBodySize))
 	if err != nil {
 		// This is only for debugging purposes, so it's safe to just give up here.
 		log.WithError(err).Debug("Could not read failed racer response body")

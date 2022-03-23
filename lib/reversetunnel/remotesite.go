@@ -89,7 +89,7 @@ type remoteSite struct {
 
 func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 	// check if all cert authorities are initiated and if everything is OK
-	ca, err := s.srv.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
+	ca, err := s.srv.localAccessPoint.GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -493,7 +493,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 					continue
 				}
 
-				if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, localCA); err != nil {
+				if err := s.remoteClient.RotateExternalCertAuthority(localCA); err != nil {
 					s.WithError(err).Warn("Failed to rotate external ca")
 					return trace.Wrap(err)
 				}
@@ -505,7 +505,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 					continue
 				}
 
-				oldRemoteCA, err := s.localClient.GetCertAuthority(s.ctx, types.CertAuthID{
+				oldRemoteCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
 					Type:       types.HostCA,
 					DomainName: remoteCA.GetClusterName(),
 				}, false)

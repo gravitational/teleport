@@ -17,6 +17,7 @@ limitations under the License.
 package identity
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -56,12 +57,8 @@ const (
 	// PublicKeyKey is the ssh public key, required for successful SSH connections.
 	PublicKeyKey = "key.pub"
 
-	// TokenHashKey is the key where a hash of the onboarding token will be stored.
-	TokenHashKey = "tokenhash"
-
-	// WriteTestKey is the key for a file used to check that the destination is
-	// writable.
-	WriteTestKey = ".write-test"
+	// MetadataKey is the name under which additional metadata exists in a destination.
+	MetadataKey = "meta"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -72,10 +69,10 @@ var log = logrus.WithFields(logrus.Fields{
 // identity. This is derived from Teleport's usual auth.Identity with small
 // modifications to work with user rather than host certificates.
 type Identity struct {
-	// PrivateKeyBytes is a PEM encoded private key
-	PrivateKeyBytes []byte
-	// PublicKeyBytes contains bytes of the original SSH public key
-	PublicKeyBytes []byte
+	// KeyBytes is a PEM encoded private key
+	KeyBytes []byte
+	// SSHPublicKeyBytes contains bytes of the original SSH public key
+	SSHPublicKeyBytes []byte
 	// CertBytes is a PEM encoded SSH host cert
 	CertBytes []byte
 	// TLSCertBytes is a PEM encoded TLS x509 client certificate
@@ -87,39 +84,19 @@ type Identity struct {
 	SSHCACertBytes [][]byte
 	// KeySigner is an SSH host certificate signer
 	KeySigner ssh.Signer
-	// SSHCert is a parsed SSH certificate
-	SSHCert *ssh.Certificate
-	// X509Cert is an X509 client certificate
-	X509Cert *x509.Certificate
+	// Cert is a parsed SSH certificate
+	Cert *ssh.Certificate
+	// XCert is X509 client certificate
+	XCert *x509.Certificate
 	// ClusterName is a name of host's cluster
 	ClusterName string
-	// TokenHashBytes is the hash of the original join token
-	TokenHashBytes []byte
-}
-
-// LoadIdentityParams contains parameters beyond proto.Certs needed to load a
-// stored identity.
-type LoadIdentityParams struct {
-	PrivateKeyBytes []byte
-	PublicKeyBytes  []byte
-	TokenHashBytes  []byte
-}
-
-// Params returns the LoadIdentityParams for this Identity, which are the
-// local-only parameters to be carried over to a renewed identity.
-func (i *Identity) Params() *LoadIdentityParams {
-	return &LoadIdentityParams{
-		PrivateKeyBytes: i.PrivateKeyBytes,
-		PublicKeyBytes:  i.PublicKeyBytes,
-		TokenHashBytes:  i.TokenHashBytes,
-	}
 }
 
 // String returns user-friendly representation of the identity.
 func (i *Identity) String() string {
 	var out []string
-	if i.X509Cert != nil {
-		out = append(out, fmt.Sprintf("cert(%v issued by %v:%v)", i.X509Cert.Subject.CommonName, i.X509Cert.Issuer.CommonName, i.X509Cert.Issuer.SerialNumber))
+	if i.XCert != nil {
+		out = append(out, fmt.Sprintf("cert(%v issued by %v:%v)", i.XCert.Subject.CommonName, i.XCert.Issuer.CommonName, i.XCert.Issuer.SerialNumber))
 	}
 	for j := range i.TLSCACertsBytes {
 		cert, err := tlsca.ParseCertificatePEM(i.TLSCACertsBytes[j])
@@ -167,7 +144,7 @@ func (i *Identity) HasTLSConfig() bool {
 
 // HasPrincipals returns whether identity has principals
 func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
-	set := utils.StringsSet(i.SSHCert.ValidPrincipals)
+	set := utils.StringsSet(i.Cert.ValidPrincipals)
 	for _, principal := range additionalPrincipals {
 		if _, ok := set[principal]; !ok {
 			return false
@@ -178,10 +155,10 @@ func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
 
 // HasDNSNames returns true if TLS certificate has required DNS names
 func (i *Identity) HasDNSNames(dnsNames []string) bool {
-	if i.X509Cert == nil {
+	if i.XCert == nil {
 		return false
 	}
-	set := utils.StringsSet(i.X509Cert.DNSNames)
+	set := utils.StringsSet(i.XCert.DNSNames)
 	for _, dnsName := range dnsNames {
 		if _, ok := set[dnsName]; !ok {
 			return false
@@ -197,7 +174,7 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	if !i.HasTLSConfig() {
 		return nil, trace.NotFound("no TLS credentials setup for this identity")
 	}
-	tlsCert, err := tls.X509KeyPair(i.TLSCertBytes, i.PrivateKeyBytes)
+	tlsCert, err := tls.X509KeyPair(i.TLSCertBytes, i.KeyBytes)
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}
@@ -234,208 +211,185 @@ func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(i.SSHCert.ValidPrincipals) < 1 {
+	if len(i.Cert.ValidPrincipals) < 1 {
 		return nil, trace.BadParameter("user cert has no valid principals")
 	}
 	return &ssh.ClientConfig{
-		User:            i.SSHCert.ValidPrincipals[0],
+		User:            i.Cert.ValidPrincipals[0],
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultDialTimeout,
 	}, nil
 }
 
-// ReadIdentityFromStore reads stored identity credentials
-func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs, kinds ...ArtifactKind) (*Identity, error) {
-	var identity Identity
-	if ContainsKind(KindSSH, kinds) {
-		if len(certs.SSH) == 0 {
-			return nil, trace.BadParameter("identity requires SSH certificates but they are unset")
-		}
+// ReadIdentityFromKeyPair reads SSH and TLS identity from key pair.
+func ReadIdentityFromKeyPair(privateKey []byte, publicKey []byte, certs *proto.Certs) (*Identity, error) {
+	identity, err := ReadSSHIdentityFromKeyPair(privateKey, publicKey, certs.SSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		err := ReadSSHIdentityFromKeyPair(&identity, params.PrivateKeyBytes, params.PrivateKeyBytes, certs.SSH)
+	if len(certs.SSHCACerts) != 0 {
+		identity.SSHCACertBytes = certs.SSHCACerts
+	}
+
+	if len(certs.TLSCACerts) != 0 {
+		// Parse the key pair to verify that identity parses properly for future use.
+		i, err := ReadTLSIdentityFromKeyPair(privateKey, certs.TLS, certs.TLSCACerts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if len(certs.SSHCACerts) != 0 {
-			identity.SSHCACertBytes = certs.SSHCACerts
-		}
+		identity.XCert = i.XCert
+		identity.TLSCertBytes = certs.TLS
+		identity.TLSCACertsBytes = certs.TLSCACerts
 	}
 
-	if ContainsKind(KindTLS, kinds) {
-		if len(certs.TLSCACerts) == 0 || len(certs.TLS) == 0 {
-			return nil, trace.BadParameter("identity requires TLS certificates but they are empty")
-		}
-
-		// Parse the key pair to verify that identity parses properly for future use.
-		if err := ReadTLSIdentityFromKeyPair(&identity, params.PrivateKeyBytes, certs.TLS, certs.TLSCACerts); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	identity.PublicKeyBytes = params.PublicKeyBytes
-	identity.PrivateKeyBytes = params.PrivateKeyBytes
-	identity.TokenHashBytes = params.TokenHashBytes
-
-	return &identity, nil
+	return identity, nil
 }
 
 // ReadTLSIdentityFromKeyPair reads TLS identity from key pair
-func ReadTLSIdentityFromKeyPair(identity *Identity, keyBytes, certBytes []byte, caCertsBytes [][]byte) error {
+func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byte) (*Identity, error) {
 	if len(keyBytes) == 0 {
-		return trace.BadParameter("missing private key")
+		return nil, trace.BadParameter("missing private key")
 	}
 
 	if len(certBytes) == 0 {
-		return trace.BadParameter("missing certificate")
+		return nil, trace.BadParameter("missing certificate")
 	}
 
 	cert, err := tlsca.ParseCertificatePEM(certBytes)
 	if err != nil {
-		return trace.Wrap(err, "failed to parse TLS certificate")
+		return nil, trace.Wrap(err, "failed to parse TLS certificate")
 	}
 
 	if len(cert.Issuer.Organization) == 0 {
-		return trace.BadParameter("missing CA organization")
+		return nil, trace.BadParameter("missing CA organization")
 	}
 
 	clusterName := cert.Issuer.Organization[0]
 	if clusterName == "" {
-		return trace.BadParameter("misssing cluster name")
+		return nil, trace.BadParameter("misssing cluster name")
 	}
-
-	identity.ClusterName = clusterName
-	identity.PrivateKeyBytes = keyBytes
-	identity.TLSCertBytes = certBytes
-	identity.TLSCACertsBytes = caCertsBytes
-	identity.X509Cert = cert
-
+	identity := &Identity{
+		ClusterName:     clusterName,
+		KeyBytes:        keyBytes,
+		TLSCertBytes:    certBytes,
+		TLSCACertsBytes: caCertsBytes,
+		XCert:           cert,
+	}
 	// The passed in ciphersuites don't appear to matter here since the returned
 	// *tls.Config is never actually used?
 	_, err = identity.TLSConfig(utils.DefaultCipherSuites())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	return identity, nil
 }
 
 // ReadSSHIdentityFromKeyPair reads identity from initialized keypair
-func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, certBytes []byte) error {
+func ReadSSHIdentityFromKeyPair(keyBytes, publicKeyBytes, certBytes []byte) (*Identity, error) {
 	if len(keyBytes) == 0 {
-		return trace.BadParameter("PrivateKey: missing private key")
+		return nil, trace.BadParameter("PrivateKey: missing private key")
 	}
 
 	if len(publicKeyBytes) == 0 {
-		return trace.BadParameter("PublicKey: missing public key")
+		return nil, trace.BadParameter("PublicKey: missing public key")
 	}
 
 	if len(certBytes) == 0 {
-		return trace.BadParameter("Cert: missing parameter")
+		return nil, trace.BadParameter("Cert: missing parameter")
 	}
 
 	cert, err := apisshutils.ParseCertificate(certBytes)
 	if err != nil {
-		return trace.BadParameter("failed to parse server certificate: %v", err)
+		return nil, trace.BadParameter("failed to parse server certificate: %v", err)
 	}
 
 	signer, err := ssh.ParsePrivateKey(keyBytes)
 	if err != nil {
-		return trace.BadParameter("failed to parse private key: %v", err)
+		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}
 	// this signer authenticates using certificate signed by the cert authority
 	// not only by the public key
 	certSigner, err := ssh.NewCertSigner(cert, signer)
 	if err != nil {
-		return trace.BadParameter("unsupported private key: %v", err)
+		return nil, trace.BadParameter("unsupported private key: %v", err)
 	}
 
 	// check principals on certificate
 	if len(cert.ValidPrincipals) < 1 {
-		return trace.BadParameter("valid principals: at least one valid principal is required")
+		return nil, trace.BadParameter("valid principals: at least one valid principal is required")
 	}
 	for _, validPrincipal := range cert.ValidPrincipals {
 		if validPrincipal == "" {
-			return trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+			return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
 		}
 	}
 
 	clusterName := cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster]
 	if clusterName == "" {
-		return trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
+		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
 	}
 
-	identity.ClusterName = clusterName
-	identity.PrivateKeyBytes = keyBytes
-	identity.PublicKeyBytes = publicKeyBytes
-	identity.CertBytes = certBytes
-	identity.KeySigner = certSigner
-	identity.SSHCert = cert
-
-	return nil
-}
-
-// VerifyWrite attempts to write to the .write-test artifact inside the given
-// destination. It should be called before attempting a renewal to help ensure
-// we won't then fail to save the identity.
-func VerifyWrite(dest destination.Destination) error {
-	return trace.Wrap(dest.Write(WriteTestKey, []byte{}))
-}
-
-// ListKeys returns a list of artifact keys that will be written given a list
-// of artifacts.
-func ListKeys(kinds ...ArtifactKind) []string {
-	keys := []string{}
-	for _, artifact := range GetArtifacts() {
-		if !artifact.Matches(kinds...) {
-			continue
-		}
-
-		keys = append(keys, artifact.Key)
-	}
-
-	return keys
+	return &Identity{
+		ClusterName:       clusterName,
+		KeyBytes:          keyBytes,
+		SSHPublicKeyBytes: publicKeyBytes,
+		CertBytes:         certBytes,
+		KeySigner:         certSigner,
+		Cert:              cert,
+	}, nil
 }
 
 // SaveIdentity saves a bot identity to a destination.
-func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind) error {
-	for _, artifact := range GetArtifacts() {
-		// Only store artifacts matching one of the set kinds.
-		if !artifact.Matches(kinds...) {
-			continue
-		}
-
-		data := artifact.ToBytes(id)
-
-		log.Debugf("Writing %s", artifact.Key)
-		if err := d.Write(artifact.Key, data); err != nil {
-			return trace.WrapWithMessage(err, "could not write to %v", artifact.Key)
+func SaveIdentity(id *Identity, d destination.Destination) error {
+	for _, data := range []struct {
+		name     string
+		data     []byte
+		modeHint destination.ModeHint
+	}{
+		{TLSCertKey, id.TLSCertBytes, destination.ModeHintSecret},
+		{SSHCertKey, id.CertBytes, destination.ModeHintSecret},
+		{TLSCACertsKey, bytes.Join(id.TLSCACertsBytes, []byte("$")), destination.ModeHintSecret},
+		{SSHCACertsKey, bytes.Join(id.SSHCACertBytes, []byte("$")), destination.ModeHintSecret},
+		{PrivateKeyKey, id.KeyBytes, destination.ModeHintSecret},
+		{PublicKeyKey, id.SSHPublicKeyBytes, destination.ModeHintUnspecified},
+	} {
+		log.Debugf("Writing %s", data.name)
+		if err := d.Write(data.name, data.data, data.modeHint); err != nil {
+			return trace.Wrap(err, "could not write to %v", data.name)
 		}
 	}
-
 	return nil
 }
 
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(d destination.Destination, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(d destination.Destination) (*Identity, error) {
+	var key, sshPublicKey, tlsCA, sshCA []byte
 	var certs proto.Certs
-	var params LoadIdentityParams
+	var err error
 
-	for _, artifact := range GetArtifacts() {
-		// Only attempt to load artifacts matching one of the specified kinds
-		if !artifact.Matches(kinds...) {
-			continue
-		}
-
-		data, err := d.Read(artifact.Key)
+	for _, item := range []struct {
+		name string
+		out  *[]byte
+	}{
+		{TLSCertKey, &certs.TLS},
+		{SSHCertKey, &certs.SSH},
+		{TLSCACertsKey, &tlsCA},
+		{SSHCACertsKey, &sshCA},
+		{PrivateKeyKey, &key},
+		{PublicKeyKey, &sshPublicKey},
+	} {
+		*item.out, err = d.Read(item.name)
 		if err != nil {
-			return nil, trace.WrapWithMessage(err, "could not read artifact %q from destination %s", artifact.Key, d)
+			return nil, trace.Wrap(err, "could not read %v", item.name)
 		}
-
-		artifact.FromBytes(&certs, &params, data)
 	}
+
+	certs.SSHCACerts = bytes.Split(sshCA, []byte("$"))
+	certs.TLSCACerts = bytes.Split(tlsCA, []byte("$"))
 
 	log.Debugf("Loaded %d SSH CA certs and %d TLS CA certs", len(certs.SSHCACerts), len(certs.TLSCACerts))
 
-	return ReadIdentityFromStore(&params, &certs, kinds...)
+	return ReadIdentityFromKeyPair(key, sshPublicKey, &certs)
 }

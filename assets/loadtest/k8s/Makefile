@@ -115,7 +115,7 @@ install-teleport: install-auth install-proxy install-node install-iot-node
 .PHONY: delete-teleport
 delete-teleport: delete-tc delete-nodes delete-proxy delete-auth
 
-# installs grafana, influxdb, and prometheus
+# installs grafana and influxdb
 .PHONY: install-monitor
 install-monitor:
 	kubectl create configmap grafana-config -n loadtest \
@@ -128,16 +128,13 @@ install-monitor:
 	kubectl apply -f influxdb.yaml
 	@make expand-yaml FILENAME=grafana
 	kubectl apply -f grafana-gen.yaml
-	@make expand-yaml FILENAME=prometheus
-	kubectl apply -f prometheus-gen.yaml
 
-# deletes grafana, influxdb, and prometheus deployments, services and configmaps
+# deletes grafana and influxdb deployments, services and configmaps
 .PHONY: delete-monitor
 delete-monitor:
 	kubectl delete -f influxdb.yaml --ignore-not-found
 	kubectl delete -f grafana-gen.yaml --ignore-not-found
 	kubectl delete configmap grafana-config -n loadtest --ignore-not-found
-	kubectl delete -f prometheus-gen.yaml --ignore-not-found
 
 # installs an etcd cluster
 .PHONY: install-etcd

@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -64,7 +65,7 @@ func TestHTTPSendFile(t *testing.T) {
 	require.NoError(t, err)
 	err = runSCP(cmd, "-v", "-t", outDir)
 	require.NoError(t, err)
-	bytesReceived, err := os.ReadFile(filepath.Join(outDir, "filename"))
+	bytesReceived, err := ioutil.ReadFile(filepath.Join(outDir, "filename"))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(string(bytesReceived), string(expectedBytes)))
 }
@@ -73,7 +74,7 @@ func TestHTTPReceiveFile(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "target")
 
 	contents := []byte("hello, file contents!")
-	err := os.WriteFile(source, contents, 0666)
+	err := ioutil.WriteFile(source, contents, 0666)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
@@ -90,7 +91,7 @@ func TestHTTPReceiveFile(t *testing.T) {
 	err = runSCP(cmd, "-v", "-f", source)
 	require.NoError(t, err)
 
-	data, err := io.ReadAll(w.Body)
+	data, err := ioutil.ReadAll(w.Body)
 	contentLengthStr := strconv.Itoa(len(data))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(string(data), string(contents)))
@@ -427,7 +428,7 @@ func TestInvalidDir(t *testing.T) {
 			doneC := make(chan struct{})
 			// Service stderr
 			go func() {
-				io.Copy(io.Discard, stderr)
+				io.Copy(ioutil.Discard, stderr)
 				close(doneC)
 			}()
 
@@ -451,7 +452,7 @@ func TestVerifyDirectoryModeFailsWithFile(t *testing.T) {
 	// Create temporary directory with a file "target" in it.
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
-	err := os.WriteFile(target, []byte{}, 0666)
+	err := ioutil.WriteFile(target, []byte{}, 0666)
 	require.NoError(t, err)
 
 	cmd, err := CreateCommand(
@@ -477,7 +478,7 @@ func TestVerifyDirectoryModeIsRequiredForDirectory(t *testing.T) {
 	// Create temporary directory with a file "target" in it.
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
-	err := os.WriteFile(target, []byte{}, 0666)
+	err := ioutil.WriteFile(target, []byte{}, 0666)
 	require.NoError(t, err)
 
 	cmd, err := CreateCommand(
@@ -665,7 +666,7 @@ func validateSCPContents(t *testing.T, expected *testFS, actual FileSystem) {
 		rc, err := actual.OpenFile(path)
 		require.NoError(t, err)
 		defer rc.Close()
-		bytes, err := io.ReadAll(rc)
+		bytes, err := ioutil.ReadAll(rc)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(fileinfo.contents.String(), string(bytes)))
 	}

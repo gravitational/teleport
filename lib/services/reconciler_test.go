@@ -156,11 +156,11 @@ func TestReconciler(t *testing.T) {
 				Matcher: func(rwl types.ResourceWithLabels) bool {
 					return MatchResourceLabels(test.selectors, rwl)
 				},
-				GetCurrentResources: func() types.ResourcesWithLabelsMap {
-					return test.registeredResources.ToMap()
+				GetCurrentResources: func() types.ResourcesWithLabels {
+					return test.registeredResources
 				},
-				GetNewResources: func() types.ResourcesWithLabelsMap {
-					return test.newResources.ToMap()
+				GetNewResources: func() types.ResourcesWithLabels {
+					return test.newResources
 				},
 				OnCreate: func(ctx context.Context, r types.ResourceWithLabels) error {
 					onCreateCalls = append(onCreateCalls, r)

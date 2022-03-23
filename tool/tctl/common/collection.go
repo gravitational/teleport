@@ -41,8 +41,7 @@ type ResourceCollection interface {
 }
 
 type roleCollection struct {
-	roles   []types.Role
-	verbose bool
+	roles []types.Role
 }
 
 func (r *roleCollection) resources() (res []types.Resource) {
@@ -53,26 +52,17 @@ func (r *roleCollection) resources() (res []types.Resource) {
 }
 
 func (r *roleCollection) writeText(w io.Writer) error {
-	var rows [][]string
+	t := asciitable.MakeTable([]string{"Role", "Allowed to login as", "Node Labels", "Access to resources"})
 	for _, r := range r.roles {
 		if r.GetName() == constants.DefaultImplicitRole {
 			continue
 		}
-		rows = append(rows, []string{
+		t.AddRow([]string{
 			r.GetMetadata().Name,
 			strings.Join(r.GetLogins(types.Allow), ","),
 			printNodeLabels(r.GetNodeLabels(types.Allow)),
 			printActions(r.GetRules(types.Allow))})
 	}
-
-	headers := []string{"Role", "Allowed to login as", "Node Labels", "Access to resources"}
-	var t asciitable.Table
-	if r.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Access to resources")
-	}
-
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -126,7 +116,6 @@ func printNodeLabels(labels types.Labels) string {
 
 type serverCollection struct {
 	servers []types.Server
-	verbose bool
 }
 
 func (s *serverCollection) resources() (r []types.Resource) {
@@ -137,35 +126,13 @@ func (s *serverCollection) resources() (r []types.Resource) {
 }
 
 func (s *serverCollection) writeText(w io.Writer) error {
-	var rows [][]string
-	for _, se := range s.servers {
-		labels := stripInternalTeleportLabels(s.verbose, se.GetAllLabels())
-		rows = append(rows, []string{
-			se.GetHostname(), se.GetName(), se.GetAddr(), labels, se.GetTeleportVersion(),
+	t := asciitable.MakeTable([]string{"Nodename", "UUID", "Address", "Labels"})
+	for _, s := range s.servers {
+		t.AddRow([]string{
+			s.GetHostname(), s.GetName(), s.GetAddr(), s.LabelsString(),
 		})
 	}
-	headers := []string{"Host", "UUID", "Public Address", "Labels", "Version"}
-	var t asciitable.Table
-	if s.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-
-	}
 	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (s *serverCollection) writeYaml(w io.Writer) error {
-	return utils.WriteYAML(w, s.servers)
-}
-
-func (s *serverCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(s.resources(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
 	return trace.Wrap(err)
 }
 
@@ -474,7 +441,6 @@ func (c *semaphoreCollection) writeText(w io.Writer) error {
 
 type appServerCollection struct {
 	servers []types.AppServer
-	verbose bool
 }
 
 func (a *appServerCollection) resources() (r []types.Resource) {
@@ -485,21 +451,13 @@ func (a *appServerCollection) resources() (r []types.Resource) {
 }
 
 func (a *appServerCollection) writeText(w io.Writer) error {
-	var rows [][]string
+	t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
 	for _, server := range a.servers {
 		app := server.GetApp()
-		labels := stripInternalTeleportLabels(a.verbose, app.GetAllLabels())
-		rows = append(rows, []string{
-			server.GetHostname(), app.GetName(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion()})
+		t.AddRow([]string{
+			app.GetName(), server.GetHostname(), app.GetPublicAddr(), app.GetURI(), app.LabelsString(),
+		})
 	}
-	var t asciitable.Table
-	headers := []string{"Host", "Name", "Public Address", "URI", "Labels", "Version"}
-	if a.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -522,8 +480,7 @@ func (a *appServerCollection) writeYAML(w io.Writer) error {
 }
 
 type appCollection struct {
-	apps    []types.Application
-	verbose bool
+	apps []types.Application
 }
 
 func (c *appCollection) resources() (r []types.Resource) {
@@ -534,18 +491,11 @@ func (c *appCollection) resources() (r []types.Resource) {
 }
 
 func (c *appCollection) writeText(w io.Writer) error {
-	var rows [][]string
+	t := asciitable.MakeTable([]string{"Name", "Description", "URI", "Public Address", "Labels"})
 	for _, app := range c.apps {
-		labels := stripInternalTeleportLabels(c.verbose, app.GetAllLabels())
-		rows = append(rows, []string{
-			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), labels, app.GetVersion()})
-	}
-	headers := []string{"Name", "Description", "URI", "Public Address", "Labels", "Version"}
-	var t asciitable.Table
-	if c.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+		t.AddRow([]string{
+			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), app.LabelsString(),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -640,7 +590,6 @@ func (c *netRestrictionsCollection) writeText(w io.Writer) error {
 
 type databaseServerCollection struct {
 	servers []types.DatabaseServer
-	verbose bool
 }
 
 func (c *databaseServerCollection) resources() (r []types.Resource) {
@@ -651,24 +600,16 @@ func (c *databaseServerCollection) resources() (r []types.Resource) {
 }
 
 func (c *databaseServerCollection) writeText(w io.Writer) error {
-	var rows [][]string
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels", "Hostname", "Version"})
 	for _, server := range c.servers {
-		labels := stripInternalTeleportLabels(c.verbose, server.GetDatabase().GetAllLabels())
-		rows = append(rows, []string{
-			server.GetHostname(),
+		t.AddRow([]string{
 			server.GetDatabase().GetName(),
 			server.GetDatabase().GetProtocol(),
 			server.GetDatabase().GetURI(),
-			labels,
+			server.GetDatabase().LabelsString(),
+			server.GetHostname(),
 			server.GetTeleportVersion(),
 		})
-	}
-	headers := []string{"Host", "Name", "Protocol", "URI", "Labels", "Version"}
-	var t asciitable.Table
-	if c.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -693,7 +634,6 @@ func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 
 type databaseCollection struct {
 	databases []types.Database
-	verbose   bool
 }
 
 func (c *databaseCollection) resources() (r []types.Resource) {
@@ -704,19 +644,11 @@ func (c *databaseCollection) resources() (r []types.Resource) {
 }
 
 func (c *databaseCollection) writeText(w io.Writer) error {
-	var rows [][]string
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "URI", "Labels"})
 	for _, database := range c.databases {
-		labels := stripInternalTeleportLabels(c.verbose, database.GetAllLabels())
-		rows = append(rows, []string{
-			database.GetName(), database.GetProtocol(), database.GetURI(), labels,
+		t.AddRow([]string{
+			database.GetName(), database.GetProtocol(), database.GetURI(), database.LabelsString(),
 		})
-	}
-	headers := []string{"Name", "Protocol", "URI", "Labels"}
-	var t asciitable.Table
-	if c.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -791,59 +723,6 @@ func (c *windowsDesktopCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-type windowsDesktopAndService struct {
-	desktop types.WindowsDesktop
-	service types.WindowsDesktopService
-}
-
-type windowsDesktopAndServiceCollection struct {
-	desktops []windowsDesktopAndService
-	verbose  bool
-}
-
-func stripInternalTeleportLabels(verbose bool, labels map[string]string) string {
-	if verbose { // remove teleport.dev labels unless we're in verbose mode.
-		return types.LabelsAsString(labels, nil)
-	}
-	for key := range labels {
-		if strings.HasPrefix(key, types.TeleportNamespace+"/") {
-			delete(labels, key)
-		}
-	}
-	return types.LabelsAsString(labels, nil)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeText(w io.Writer) error {
-	var rows [][]string
-	for _, d := range c.desktops {
-		labels := stripInternalTeleportLabels(c.verbose, d.desktop.GetAllLabels())
-		rows = append(rows, []string{d.service.GetHostname(), d.desktop.GetAddr(),
-			d.desktop.GetDomain(), labels, d.service.GetTeleportVersion()})
-	}
-	headers := []string{"Host", "Address", "AD Domain", "Labels", "Version"}
-	var t asciitable.Table
-	if c.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.desktops)
-}
-
-func (c *windowsDesktopAndServiceCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.desktops, "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
-}
-
 type tokenCollection struct {
 	tokens []types.ProvisionToken
 }
@@ -863,48 +742,4 @@ func (c *tokenCollection) writeText(w io.Writer) error {
 		}
 	}
 	return nil
-}
-
-type kubeServerCollection struct {
-	servers []types.Server
-	verbose bool
-}
-
-func (c *kubeServerCollection) writeText(w io.Writer) error {
-	var rows [][]string
-	for _, server := range c.servers {
-		kubes := server.GetKubernetesClusters()
-		for _, kube := range kubes {
-			labels := stripInternalTeleportLabels(c.verbose,
-				types.CombineLabels(kube.StaticLabels, kube.DynamicLabels))
-			rows = append(rows, []string{
-				kube.Name,
-				labels,
-				server.GetTeleportVersion(),
-			})
-		}
-	}
-	headers := []string{"Cluster", "Labels", "Version"}
-	var t asciitable.Table
-	if c.verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *kubeServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.servers)
-}
-
-func (c *kubeServerCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.servers, "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
 }

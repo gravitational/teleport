@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	osfs "io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,10 +50,6 @@ const (
 	// keyFilePerms is the default permissions applied to key files (.cert, .key, pub)
 	// under ~/.tsh
 	keyFilePerms os.FileMode = 0600
-
-	// tshConfigFileName is the name of the directory containing the
-	// tsh config file.
-	tshConfigFileName = "config"
 )
 
 // LocalKeyStore interface allows for different storage backends for tsh to
@@ -183,7 +180,7 @@ func (fs *FSLocalKeyStore) writeBytes(bytes []byte, fp string) error {
 		fs.log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
-	err := os.WriteFile(fp, bytes, keyFilePerms)
+	err := ioutil.WriteFile(fp, bytes, keyFilePerms)
 	if err != nil {
 		fs.log.Error(err)
 	}
@@ -226,26 +223,8 @@ func (fs *FSLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) err
 
 // DeleteKeys removes all session keys.
 func (fs *FSLocalKeyStore) DeleteKeys() error {
-
-	files, err := os.ReadDir(fs.KeyDir)
-	if err != nil {
+	if err := os.RemoveAll(fs.KeyDir); err != nil {
 		return trace.ConvertSystemError(err)
-	}
-	for _, file := range files {
-		if file.IsDir() && file.Name() == tshConfigFileName {
-			continue
-		}
-		if file.IsDir() {
-			err := os.RemoveAll(filepath.Join(fs.KeyDir, file.Name()))
-			if err != nil {
-				return trace.ConvertSystemError(err)
-			}
-			continue
-		}
-		err := os.Remove(filepath.Join(fs.KeyDir, file.Name()))
-		if err != nil {
-			return trace.ConvertSystemError(err)
-		}
 	}
 	return nil
 }
@@ -259,22 +238,22 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		}
 	}
 
-	if _, err := os.ReadDir(fs.KeyDir); err != nil && trace.IsNotFound(err) {
+	if _, err := ioutil.ReadDir(fs.KeyDir); err != nil && trace.IsNotFound(err) {
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	priv, err := os.ReadFile(fs.UserKeyPath(idx))
+	priv, err := ioutil.ReadFile(fs.UserKeyPath(idx))
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
-	pub, err := os.ReadFile(fs.sshCAsPath(idx))
+	pub, err := ioutil.ReadFile(fs.sshCAsPath(idx))
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
 	tlsCertFile := fs.tlsCertPath(idx)
-	tlsCert, err := os.ReadFile(tlsCertFile)
+	tlsCert, err := ioutil.ReadFile(tlsCertFile)
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
@@ -330,14 +309,14 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 
 	if info.IsDir() {
 		certDataMap := map[string][]byte{}
-		certFiles, err := os.ReadDir(certPath)
+		certFiles, err := ioutil.ReadDir(certPath)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
 		for _, certFile := range certFiles {
 			name := keypaths.TrimCertPathSuffix(certFile.Name())
 			if isCert := name != certFile.Name(); isCert {
-				data, err := os.ReadFile(filepath.Join(certPath, certFile.Name()))
+				data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
 				if err != nil {
 					return trace.ConvertSystemError(err)
 				}
@@ -347,7 +326,7 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 		return o.updateKeyWithMap(key, certDataMap)
 	}
 
-	certBytes, err := os.ReadFile(certPath)
+	certBytes, err := ioutil.ReadFile(certPath)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -637,7 +616,7 @@ func matchesWildcard(hostname, pattern string) bool {
 
 // GetKnownHostKeys returns all known public keys from `known_hosts`.
 func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
-	bytes, err := os.ReadFile(fs.knownHostsPath())
+	bytes, err := ioutil.ReadFile(fs.knownHostsPath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -744,7 +723,7 @@ func (fs *fsLocalNonSessionKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]b
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := ioutil.ReadFile(path)
 		for len(data) > 0 {
 			if err != nil {
 				return trace.Wrap(err)

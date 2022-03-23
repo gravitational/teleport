@@ -237,7 +237,7 @@ func setupPostgres(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *tes
 	})
 
 	go func() {
-		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
+		for conn := range testCtx.proxyConn {
 			go server1.HandleConnection(conn)
 		}
 	}()
@@ -282,7 +282,7 @@ func setupMySQL(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	})
 
 	go func() {
-		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
+		for conn := range testCtx.proxyConn {
 			go server1.HandleConnection(conn)
 		}
 	}()
@@ -307,9 +307,7 @@ func setupMongo(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	})
 	require.NoError(t, err)
 	go mongoServer.Serve()
-	t.Cleanup(func() {
-		require.NoError(t, mongoServer.Close())
-	})
+	t.Cleanup(func() { mongoServer.Close() })
 
 	mongoDB, err := types.NewDatabaseV3(types.Metadata{
 		Name: "mongo",
@@ -327,12 +325,9 @@ func setupMongo(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	server1 := testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: types.Databases{mongoDB},
 	})
-	t.Cleanup(func() {
-		require.NoError(t, server1.Close())
-	})
 
 	go func() {
-		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
+		for conn := range testCtx.proxyConn {
 			go server1.HandleConnection(conn)
 		}
 	}()
@@ -468,11 +463,10 @@ func TestTLSConfiguration(t *testing.T) {
 						})
 
 						mongoConn, err := testCtx.mongoClient(ctx, "bob", "mongo", "admin")
-						t.Cleanup(func() {
-							err = mongoConn.Disconnect(ctx)
-							require.NoError(t, err)
-						})
 						if tt.errMsg == "" {
+							require.NoError(t, err)
+
+							err = mongoConn.Disconnect(ctx)
 							require.NoError(t, err)
 						} else {
 							require.Error(t, err)

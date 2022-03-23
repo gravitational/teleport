@@ -291,14 +291,7 @@ func (s DatabaseServers) Len() int { return len(s) }
 
 // Less compares database servers by name and host ID.
 func (s DatabaseServers) Less(i, j int) bool {
-	switch {
-	case s[i].GetName() < s[j].GetName():
-		return true
-	case s[i].GetName() > s[j].GetName():
-		return false
-	default:
-		return s[i].GetHostID() < s[j].GetHostID()
-	}
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
 }
 
 // Swap swaps two database servers.

@@ -58,9 +58,7 @@ func WebClientResolver(ctx context.Context, addrs []utils.NetAddr, insecureTLS b
 		for _, addr := range addrs {
 			// In insecure mode, any certificate is accepted. In secure mode the hosts
 			// CAs are used to validate the certificate on the proxy.
-			tunnelAddr, err := webclient.GetTunnelAddr(
-				&webclient.Config{Context: ctx, ProxyAddr: addr.String(), Insecure: insecureTLS})
-
+			tunnelAddr, err := webclient.GetTunnelAddr(ctx, addr.String(), insecureTLS, nil)
 			if err != nil {
 				errs = append(errs, err)
 				continue

@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"encoding/pem"
 	"errors"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -231,7 +232,7 @@ func TestDBInfoHasChanged(t *testing.T) {
 			require.NoError(t, err)
 
 			certPath := filepath.Join(t.TempDir(), "mongo_db_cert.pem")
-			require.NoError(t, os.WriteFile(certPath, certBytes, 0600))
+			require.NoError(t, ioutil.WriteFile(certPath, certBytes, 0600))
 
 			cliConf := &CLIConf{DatabaseUser: tc.databaseUserName, DatabaseName: tc.databaseName}
 			got, err := dbInfoHasChanged(cliConf, certPath)

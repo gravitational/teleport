@@ -14,9 +14,6 @@ spec:
     metadata:
       labels:
         teleport-role: auth
-        backend: firestore
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "3434"
     spec:
       volumes:
         - name: config

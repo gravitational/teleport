@@ -20,7 +20,7 @@ limitations under the License.
 package utils
 
 import (
-	"io"
+	"io/ioutil"
 	"log/syslog"
 	"os"
 
@@ -46,6 +46,6 @@ func SwitchLoggerToSyslog(logger *log.Logger) error {
 	}
 	logger.AddHook(hook)
 	// ... and disable stderr:
-	logger.SetOutput(io.Discard)
+	logger.SetOutput(ioutil.Discard)
 	return nil
 }

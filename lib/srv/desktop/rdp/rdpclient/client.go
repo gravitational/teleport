@@ -362,17 +362,13 @@ func (c *Client) start() {
 					return
 				}
 			case tdp.ClipboardData:
-				if len(m) > 0 {
-					if err := cgoError(C.update_clipboard(
-						c.rustClient,
-						(*C.uint8_t)(unsafe.Pointer(&m[0])),
-						C.uint32_t(len(m)),
-					)); err != nil {
-						c.cfg.Log.Warningf("Failed forwarding RDP clipboard data: %v", err)
-						return
-					}
-				} else {
-					c.cfg.Log.Warning("Recieved an empty clipboard message")
+				if err := cgoError(C.update_clipboard(
+					c.rustClient,
+					(*C.uint8_t)(unsafe.Pointer(&m[0])),
+					C.uint32_t(len(m)),
+				)); err != nil {
+					c.cfg.Log.Warningf("Failed forwarding RDP clipboard data: %v", err)
+					return
 				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
@@ -382,23 +378,17 @@ func (c *Client) start() {
 }
 
 //export handle_bitmap
-func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOError {
+func handle_bitmap(handle C.uintptr_t, cb C.CGOBitmap) C.CGOError {
 	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
-func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOError {
+func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a bitmap was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	// use unsafe.Slice here instead of C.GoBytes, because unsafe.Slice
-	// creates a Go slice backed by data managed from Rust - it does not
-	// copy. This way we only need one copy into img.Pix below.
-	ptr := unsafe.Pointer(cb.data_ptr)
-	uptr := (*uint8)(ptr)
-	data := unsafe.Slice(uptr, C.int(cb.data_len))
-
+	data := C.GoBytes(unsafe.Pointer(cb.data_ptr), C.int(cb.data_len))
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
 	// a byte slice with 4-byte segments representing pixels (RGBA).

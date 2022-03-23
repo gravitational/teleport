@@ -23,14 +23,13 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"strconv"
+
 	"strings"
 	"time"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -293,12 +292,11 @@ type ExecOptions struct {
 	ExecutablePodFn  polymorphichelpers.AttachablePodForObjectFunc
 	restClientGetter genericclioptions.RESTClientGetter
 
-	Pod                            *corev1.Pod
-	Executor                       RemoteExecutor
-	PodClient                      coreclient.PodsGetter
-	GetPodTimeout                  time.Duration
-	Config                         *restclient.Config
-	displayParticipantRequirements bool
+	Pod           *corev1.Pod
+	Executor      RemoteExecutor
+	PodClient     coreclient.PodsGetter
+	GetPodTimeout time.Duration
+	Config        *restclient.Config
 }
 
 // Run executes a validated remote execution against a pod.
@@ -367,8 +365,7 @@ func (p *ExecOptions) Run() error {
 			Resource("pods").
 			Name(pod.Name).
 			Namespace(pod.Namespace).
-			SubResource("exec").
-			Param("displayParticipantRequirements", strconv.FormatBool(p.displayParticipantRequirements))
+			SubResource("exec")
 		req.VersionedParams(&corev1.PodExecOptions{
 			Container: containerName,
 			Command:   p.Command,
@@ -386,16 +383,15 @@ func (p *ExecOptions) Run() error {
 
 type kubeExecCommand struct {
 	*kingpin.CmdClause
-	target                         string
-	container                      string
-	filename                       string
-	quiet                          bool
-	stdin                          bool
-	tty                            bool
-	reason                         string
-	invited                        string
-	command                        []string
-	displayParticipantRequirements bool
+	target    string
+	container string
+	filename  string
+	quiet     bool
+	stdin     bool
+	tty       bool
+	reason    string
+	invited   string
+	command   []string
 }
 
 func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
@@ -410,7 +406,6 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
 	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
 	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
-	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.displayParticipantRequirements)
 	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
 	c.Arg("command", "Command to execute in the container").Required().StringsVar(&c.command)
 	return c
@@ -439,7 +434,6 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	p.Builder = f.NewBuilder
 	p.restClientGetter = f
 	p.Executor = &DefaultRemoteExecutor{}
-	p.displayParticipantRequirements = c.displayParticipantRequirements
 	p.Namespace, p.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return trace.Wrap(err)
@@ -595,26 +589,16 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 
 type kubeLSCommand struct {
 	*kingpin.CmdClause
-	labels         string
-	predicateExpr  string
-	searchKeywords string
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of kubernetes clusters"),
 	}
-	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
-	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
-	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	return c
 }
 
 func (c *kubeLSCommand) run(cf *CLIConf) error {
-	cf.SearchKeywords = c.searchKeywords
-	cf.UserHost = c.labels
-	cf.PredicateExpression = c.predicateExpr
-
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -731,27 +715,10 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		}
 		teleportCluster = cn.GetClusterName()
 
-		kubeClusters, err = kubeutils.ListKubeClusterNamesWithFilters(ctx, ac, proto.ListResourcesRequest{
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-			Labels:              tc.Labels,
-		})
+		kubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
 		if err != nil {
-			// ListResources for kube service not availalbe, provide fallback.
-			// Fallback does not support filters, so if users
-			// provide them, it does nothing.
-			//
-			// DELETE IN 11.0.0
-			if trace.IsNotImplemented(err) {
-				kubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				return nil
-			}
 			return trace.Wrap(err)
 		}
-
 		return nil
 	})
 	if err != nil {

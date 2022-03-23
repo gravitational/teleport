@@ -254,7 +254,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			KubeUsers:  []string{k8User},
 		},
 	}
-	kubeRole, err := types.NewRoleV3(k8RoleName, kubeRoleSpec)
+	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
 
 	suite := newProxySuite(t,
@@ -306,7 +306,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 			KubeUsers:  []string{k8User},
 		},
 	}
-	kubeRole, err := types.NewRoleV3(k8RoleName, kubeRoleSpec)
+	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
 
 	suite := newProxySuite(t,

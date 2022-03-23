@@ -1,35 +1,22 @@
-<Details 
-title="Make sure you can connect to Teleport" 
-scope={["oss", "enterprise"]} 
-scopeOnly={true}
-opened={true}
->
+<Details title="Before you begin: verify connectivity" opened={false}>
 
-Verify that your Teleport client is connected by running the following on your
-Auth Service host:
+Verify that your Teleport client is connected:
 
 ```code
 $ tctl status
+
 # Cluster  tele.example.com
 # Version  (=teleport.version=)
 # CA pin   sha256:sha-hash-here
 ```
-</Details>
-<Details 
-title="Make sure you can connect to Teleport" 
-scope={["cloud"]}
-scopeOnly={true}
-opened={true}
->
 
-To connect to Teleport, log in to your cluster using `tsh`, then use `tctl`
-remotely:
+<Notice title="Connecting to the cloud" type="note" scope={["cloud"]}>
+To try this flow in the cloud, login into your cluster using `tsh`, then use `tctl` remotely:
 
 ```code
-$ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
+$ tsh login --proxy=myinstance.teleport.sh
 $ tctl status
-# Cluster  myinstance.teleport.sh
-# Version  (=teleport.version=)
-# CA pin   sha256:sha-hash-here
 ```
+</Notice>
+
 </Details>

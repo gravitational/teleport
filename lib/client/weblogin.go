@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"os"
 	"os/exec"
 	"runtime"
 	"time"
@@ -87,8 +86,6 @@ type SSOLoginConsoleResponse struct {
 type MFAChallengeRequest struct {
 	User string `json:"user"`
 	Pass string `json:"pass"`
-	// Passwordless explicitly requests a passwordless/usernameless challenge.
-	Passwordless bool `json:"passwordless"`
 }
 
 // CreateSSHCertReq are passed by web client
@@ -237,7 +234,7 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 
 	if insecure {
 		// Skip https cert verification, print a warning that this is insecure.
-		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
+		fmt.Printf("WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
 		opts = append(opts, roundtrip.HTTPClient(NewInsecureWebClient()))
 	} else if pool != nil {
 		// use custom set of trusted CAs
@@ -292,17 +289,17 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO) (*auth.SSHLoginRes
 	}
 	if execCmd != nil {
 		if err := execCmd.Start(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
+			fmt.Printf("Failed to open a browser window for login: %v\n", err)
 		}
 	}
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
 	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
 	if login.Browser == teleport.BrowserNone {
-		fmt.Fprintf(os.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
+		fmt.Printf("Use the following URL to authenticate:\n %v\n", clickableURL)
 	} else {
-		fmt.Fprintf(os.Stderr, "If browser window does not open automatically, open it by ")
-		fmt.Fprintf(os.Stderr, "clicking on the link:\n %v\n", clickableURL)
+		fmt.Printf("If browser window does not open automatically, open it by ")
+		fmt.Printf("clicking on the link:\n %v\n", clickableURL)
 	}
 
 	select {
@@ -434,5 +431,12 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req t
 		return nil, trace.Wrap(err)
 	}
 
-	return &certs, nil
+	// If we got certs, we're done, however, we may be talking to a Teleport 9 or earlier server,
+	// which still sends back the legacy JSON format.
+	if len(certs.SSH) > 0 && len(certs.TLS) > 0 {
+		return &certs, nil
+	}
+
+	// DELETE IN 10.0.0 (zmb3)
+	return auth.UnmarshalLegacyCerts(resp.Bytes())
 }

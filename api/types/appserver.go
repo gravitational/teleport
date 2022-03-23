@@ -304,14 +304,7 @@ func (s AppServers) Len() int { return len(s) }
 
 // Less compares app servers by name and host ID.
 func (s AppServers) Less(i, j int) bool {
-	switch {
-	case s[i].GetName() < s[j].GetName():
-		return true
-	case s[i].GetName() > s[j].GetName():
-		return false
-	default:
-		return s[i].GetHostID() < s[j].GetHostID()
-	}
+	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
 }
 
 // Swap swaps two app servers.

@@ -1,14 +1,8 @@
 {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
-{{- if .Values.teleportVersionOverride -}}
-  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride -}}
-{{- else -}}
-  {{- $_ := set . "teleportVersion" .Chart.Version -}}
-{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}
-  namespace: {{ .Release.Namespace }}
   {{- if .Values.annotations.config }}
   annotations:
     {{- toYaml .Values.annotations.config | nindent 4 }}

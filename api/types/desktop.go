@@ -17,8 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"sort"
-
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
@@ -31,8 +29,6 @@ type WindowsDesktopService interface {
 	GetAddr() string
 	// GetVersion returns the teleport binary version of this service.
 	GetTeleportVersion() string
-	// GetHostname returns the hostname of this service
-	GetHostname() string
 }
 
 var _ WindowsDesktopService = &WindowsDesktopServiceV3{}
@@ -97,11 +93,6 @@ func (s *WindowsDesktopServiceV3) SetOrigin(origin string) {
 // GetAllLabels returns the resources labels.
 func (s *WindowsDesktopServiceV3) GetAllLabels() map[string]string {
 	return s.Metadata.Labels
-}
-
-// GetHostname returns the windows hostname of this service.
-func (s *WindowsDesktopServiceV3) GetHostname() string {
-	return s.Spec.Hostname
 }
 
 // MatchSearch goes through select field values and tries to
@@ -226,92 +217,4 @@ func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
 		return false
 	}
 	return true
-}
-
-// WindowsDesktops represents a list of windows desktops.
-type WindowsDesktops []WindowsDesktop
-
-// Len returns the slice length.
-func (s WindowsDesktops) Len() int { return len(s) }
-
-// Less compares desktops by name and host ID.
-func (s WindowsDesktops) Less(i, j int) bool {
-	switch {
-	case s[i].GetName() < s[j].GetName():
-		return true
-	case s[i].GetName() > s[j].GetName():
-		return false
-	default:
-		return s[i].GetHostID() < s[j].GetHostID()
-	}
-}
-
-// Swap swaps two windows desktops.
-func (s WindowsDesktops) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-
-// SortByCustom custom sorts by given sort criteria.
-func (s WindowsDesktops) SortByCustom(sortBy SortBy) error {
-	if sortBy.Field == "" {
-		return nil
-	}
-
-	isDesc := sortBy.IsDesc
-	switch sortBy.Field {
-	case ResourceMetadataName:
-		sort.SliceStable(s, func(i, j int) bool {
-			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
-		})
-	case ResourceSpecAddr:
-		sort.SliceStable(s, func(i, j int) bool {
-			return stringCompare(s[i].GetAddr(), s[j].GetAddr(), isDesc)
-		})
-	default:
-		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindWindowsDesktop)
-	}
-
-	return nil
-}
-
-// AsResources returns windows desktops as type resources with labels.
-func (s WindowsDesktops) AsResources() []ResourceWithLabels {
-	resources := make([]ResourceWithLabels, 0, len(s))
-	for _, server := range s {
-		resources = append(resources, ResourceWithLabels(server))
-	}
-	return resources
-}
-
-// GetFieldVals returns list of select field values.
-func (s WindowsDesktops) GetFieldVals(field string) ([]string, error) {
-	vals := make([]string, 0, len(s))
-	switch field {
-	case ResourceMetadataName:
-		for _, server := range s {
-			vals = append(vals, server.GetName())
-		}
-	case ResourceSpecAddr:
-		for _, server := range s {
-			vals = append(vals, server.GetAddr())
-		}
-	default:
-		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindWindowsDesktop)
-	}
-
-	return vals, nil
-}
-
-// ListWindowsDesktopsResponse is a response type to ListWindowsDesktops.
-type ListWindowsDesktopsResponse struct {
-	Desktops []WindowsDesktop
-	NextKey  string
-}
-
-// ListWindowsDesktopsRequest is a request type to ListWindowsDesktops.
-type ListWindowsDesktopsRequest struct {
-	WindowsDesktopFilter
-	Limit                         int
-	StartKey, PredicateExpression string
-	Labels                        map[string]string
-	SearchKeywords                []string
-	SortBy                        SortBy
 }

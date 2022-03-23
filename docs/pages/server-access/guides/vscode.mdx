@@ -11,25 +11,6 @@ This guide explains how to use Teleport and Visual Studio Code's remote SSH exte
 - [tsh client tool](https://goteleport.com/teleport/download) >= (=teleport.version=).
 - OpenSSH client.
 - Visual Studio Code with the [Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh#_system-requirements)
-for the Remote - SSH extension.
-- The Teleport Auth Service and Proxy Service, deployed on your own infrastructure or managed via Teleport Cloud.
-- One or more Teleport Nodes with Server Access enabled. If you have not yet done this, read the [Server Access Getting Started Guide](../getting-started.mdx) to learn how.
-
-<Details 
-scopeOnly={true}
-scope={["oss", "enterprise"]}
-opened={false}
-title="Haven't deployed the Auth and Proxy Services?" >
-Follow one of our [getting started](../getting-started.mdx) guides to learn how to deploy the Teleport Auth Service and Proxy Service in your environment.
-</Details>
-
-<Details 
-scopeOnly={true}
-scope={["cloud"]}
-opened={false}
-title="Not yet a Teleport customer?" >
-Sign up for a [free trial](/signup/) of Teleport Cloud to get started.
-</Details>
 
 <Admonition type="note">
 Linux and MacOS clients should rely on their operating system-provided OpenSSH
@@ -38,10 +19,9 @@ older clients can use `ssh.exe` from either [Git for Windows][git] or
 Microsoft's [Win32-OpenSSH project][win32-openssh].
 </Admonition>
 
+## Step 1/3. First-time Setup
 
-## Step 1/3. First-time setup
-
-Configure your local SSH client to access Teleport Nodes, assigning the `--proxy` flag to the address of your Teleport Proxy Service (e.g., `mytenant.teleport.sh` for Teleport Cloud users).
+Configure your local SSH client to access Teleport nodes:
 
 ```code
 # log in to your proxy:
@@ -50,7 +30,6 @@ $ tsh login --proxy proxy.foo.example.com --user alice
 # generate the OpenSSH config for the proxy:
 $ tsh config --proxy proxy.foo.example.com
 ```
-
 
 Append the resulting configuration snippet into your SSH config file located
 in the path below:
@@ -74,15 +53,17 @@ in the path below:
   </TabItem>
 </Tabs>
 
-You should be able to connect to the desired node using following command, replacing `user` with the username you would like to assume on the node.
+You should be able to connect to the desired node using following command:
 
 ```code
-$ ssh user@[node name].[cluster name]
+ssh user@[node name].[cluster name]
 ```
 
-<Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">
-The SSH config you generated earlier instructs your SSH client to run `tsh proxy ssh` to access a Node in your Teleport cluster. However, running an `ssh` command against the Teleport Proxy Service at `yourtenant.teleport.sh` will result in an error.
-</Details>
+For example, this should work:
+
+```code
+$ ssh alice@node000.foo.example.com
+```
 
 <Admonition type="note">
 Teleport's certificates expire fairly quickly, after which SSH
@@ -120,12 +101,12 @@ gear icon:
   ![VS Code sidebar with the Remote Explorer pane open and Configure highlighted](../../../img/vscode/remote-configure.png)
 </Figure>
 
-VS code will prompt you for your SSH config file.
+VS code will prompt you SSH config file.
 
-Select the one we generated during Step 1 and open it in the editor.
+Select the one we generated during step 1 and open it in the editor.
 
 <Admonition type="warning">
-Do not use VS Code's SSH config helper. If prompted for an SSH command,
+Do not use VS Code's SSH config helper; if prompted for an SSH command,
 close the dialog and select the "Configure" icon instead.
 </Admonition>
 
@@ -139,20 +120,21 @@ Host node000.foo.example.com
 When finished, save the file. If the added host doesn't automatically appear in
 the list, select the Refresh button.
 
-## Step 3/3. Start a Remote Development session
+## Step 3/3. Start a Remote Development Session
 
-Start a Remote Development session by right-clicking on any host added above and selecting either "Connect to..." option:
+Start a remote development session by right
+clicking on any host added above and selecting either "Connect to..." option:
 
-<Figure align="left" bordered caption="Connect to a Node">
+<Figure align="left" bordered caption="Connect to a node">
 ![Connecting to a Teleport host in VS Code](../../../img/vscode/connect.png)
 </Figure>
 
-On first connect, you'll be prompted to configure the remote OS. Select the
+On first connect, you'll be prompted to configure the remote OS; select the
 proper platform and VS Code will install its server-side component. When it
 completes, you should be left with a working editor:
 
 <Figure align="left" bordered caption="Connected VS Code">
-![VS Code connected to a Teleport Node](../../../img/vscode/connected-editor.png)
+![VS Code connected to a Teleport node](../../../img/vscode/connected-editor.png)
 </Figure>
 
 The status indicator in the bottom left highlights the currently connected remote host.
@@ -174,9 +156,6 @@ This guide makes use of `tsh config`, added in Teleport 7.0; refer to the
 
 [Manually configure an OpenSSH client](./openssh.mdx#manual-setup)
 to use the VS Code's remote SSH extension with older Teleport clients.
-
-## Further reading
-- [VS Code Remote Development](https://code.visualstudio.com/docs/remote/remote-overview)
 
 [remote-ssh]: https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh
 [win10]: https://docs.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse

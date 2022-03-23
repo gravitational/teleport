@@ -18,7 +18,7 @@ package utils
 
 import (
 	"bytes"
-	"io"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -104,7 +104,7 @@ func (s *UtilsSuite) TestHostUUID(c *check.C) {
 	// newlines are getting ignored
 	dir = c.MkDir()
 	id := "id-with-newline\n"
-	err = os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
+	err = ioutil.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
 	c.Assert(err, check.IsNil)
 	out, err := ReadHostUUID(dir)
 	c.Assert(err, check.IsNil)
@@ -502,7 +502,7 @@ func (s *UtilsSuite) TestReadToken(c *check.C) {
 
 	dir := c.MkDir()
 	tokenPath := filepath.Join(dir, "token")
-	err = os.WriteFile(tokenPath, []byte("shmoken"), 0644)
+	err = ioutil.WriteFile(tokenPath, []byte("shmoken"), 0644)
 	c.Assert(err, check.IsNil)
 
 	tok, err = ReadToken(tokenPath)
@@ -542,7 +542,7 @@ func (s *UtilsSuite) TestRepeatReader(c *check.C) {
 		},
 	}
 	for _, tc := range tcs {
-		data, err := io.ReadAll(NewRepeatReader(tc.repeat, tc.count))
+		data, err := ioutil.ReadAll(NewRepeatReader(tc.repeat, tc.count))
 		c.Assert(err, check.IsNil)
 		c.Assert(string(data), check.Equals, tc.expected)
 	}

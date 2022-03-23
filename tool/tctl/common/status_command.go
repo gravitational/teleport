@@ -49,7 +49,7 @@ func (c *StatusCommand) Initialize(app *kingpin.Application, config *service.Con
 func (c *StatusCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.status.FullCommand():
-		err = c.Status(context.Background(), client)
+		err = c.Status(client)
 	default:
 		return false, nil
 	}
@@ -57,29 +57,29 @@ func (c *StatusCommand) TryRun(cmd string, client auth.ClientI) (match bool, err
 }
 
 // Status is called to execute "status" CLI command.
-func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
-	pingRsp, err := client.Ping(ctx)
+func (c *StatusCommand) Status(client auth.ClientI) error {
+	pingRsp, err := client.Ping(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	serverVersion := pingRsp.ServerVersion
 	clusterName := pingRsp.ClusterName
 
-	var authorities []types.CertAuthority
+	authorities := []types.CertAuthority{}
 
-	hostCAs, err := client.GetCertAuthorities(ctx, types.HostCA, false)
+	hostCAs, err := client.GetCertAuthorities(types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	authorities = append(authorities, hostCAs...)
 
-	userCAs, err := client.GetCertAuthorities(ctx, types.UserCA, false)
+	userCAs, err := client.GetCertAuthorities(types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	authorities = append(authorities, userCAs...)
 
-	jwtKeys, err := client.GetCertAuthorities(ctx, types.JWTSigner, false)
+	jwtKeys, err := client.GetCertAuthorities(types.JWTSigner, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

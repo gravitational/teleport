@@ -19,6 +19,7 @@ package filesessions
 
 import (
 	"context"
+	"io/ioutil"
 	"os"
 	"testing"
 
@@ -39,7 +40,9 @@ func TestMain(m *testing.M) {
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	dir := t.TempDir()
+	dir, err := ioutil.TempDir("", "teleport-streams")
+	require.Nil(t, err)
+	defer os.RemoveAll(dir)
 
 	handler, err := NewHandler(Config{
 		Directory: dir,

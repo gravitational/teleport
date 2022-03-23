@@ -156,7 +156,7 @@ certificate-based smart card authentication, and ensuring RDP is enabled.
 
 1. Get the Teleport user CA certificate by running:
 
-```code
+```
 $ tctl auth export --type=windows > user-ca.cer
 ```
 
@@ -237,16 +237,16 @@ access.
 
 1. Publish the CA to LDAP:
 
-```powershell
-certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
+```
+$ certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
 ```
 
 2. Force the retrieval of the CA from LDAP. While this step is not required, it
    speeds up the process and allows you to proceed to the next steps without
    waiting for the certificate to propagate.
 
-```powershell
-certutil -pulse
+```
+$ certutil -pulse
 ```
 
 ### Enable the Smart Card service
@@ -384,7 +384,7 @@ providing a join token.
 
 First, generate a join token with the following command:
 
-```code
+```
 $ tctl tokens add --type=windowsdesktop
 ```
 

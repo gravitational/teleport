@@ -42,7 +42,7 @@ variable "email" {
 }
 
 
-// SSH key name to provision instances with
+// SSH key name to provision instances withx
 variable "key_name" {
   type = string
 }

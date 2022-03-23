@@ -247,16 +247,6 @@ test-sh: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) BATSFLAGS=$(BATSFLAGS) test-sh"
 
-.PHONY:test-helm
-test-helm: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) test-helm"
-
-.PHONY:test-helm-update-snapshots
-test-helm-update-snapshots:
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) test-helm-update-snapshots"
-
 .PHONY:integration
 integration: buildbox
 	docker run \

@@ -67,7 +67,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 		accessPoint:      accessPoint,
 		certificateCache: certificateCache,
 		domainName:       domainName,
-		remoteConns:      make(map[connKey][]*remoteConn),
+		remoteConns:      make(map[connKey]*remoteConn),
 		clock:            srv.Clock,
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentReverseTunnelServer,
@@ -89,6 +89,8 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 //
 // it implements RemoteSite interface
 type localSite struct {
+	sync.Mutex
+
 	log        log.FieldLogger
 	domainName string
 	srv        *server
@@ -102,11 +104,8 @@ type localSite struct {
 	// certificateCache caches host certificates for the forwarding server.
 	certificateCache *certificateCache
 
-	// remoteConns maps UUID and connection type to remote connections, oldest to newest.
-	remoteConns map[connKey][]*remoteConn
-
-	// remoteConnsMtx protects remoteConns.
-	remoteConnsMtx sync.Mutex
+	// remoteConns maps UUID and connection type to an remote connection.
+	remoteConns map[connKey]*remoteConn
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
@@ -118,8 +117,8 @@ type localSite struct {
 
 // GetTunnelsCount always the number of tunnel connections to this cluster.
 func (s *localSite) GetTunnelsCount() int {
-	s.remoteConnsMtx.Lock()
-	defer s.remoteConnsMtx.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	return len(s.remoteConns)
 }
@@ -204,7 +203,7 @@ func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	}
 	s.log.Debugf("Succeeded dialing %v.", params)
 
-	return conn, nil
+	return newEmitConn(s.srv.ctx, conn, s.client, s.srv.ID), nil
 }
 
 // IsClosed always returns false because localSite is never closed.
@@ -350,8 +349,8 @@ with the cluster.`
 }
 
 func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
-	s.remoteConnsMtx.Lock()
-	defer s.remoteConnsMtx.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	rconn := newRemoteConn(&connConfig{
 		conn:             conn,
@@ -366,7 +365,7 @@ func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.C
 		uuid:     nodeID,
 		connType: connType,
 	}
-	s.remoteConns[key] = append(s.remoteConns[key], rconn)
+	s.remoteConns[key] = rconn
 
 	return rconn, nil
 }
@@ -375,13 +374,10 @@ func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.C
 // list so that remote connection can notify the remote agent
 // about the list update
 func (s *localSite) fanOutProxies(proxies []types.Server) {
-	s.remoteConnsMtx.Lock()
-	defer s.remoteConnsMtx.Unlock()
-
-	for _, conns := range s.remoteConns {
-		for _, conn := range conns {
-			conn.updateProxies(proxies)
-		}
+	s.Lock()
+	defer s.Unlock()
+	for _, conn := range s.remoteConns {
+		conn.updateProxies(proxies)
 	}
 }
 
@@ -450,22 +446,14 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 }
 
 func (s *localSite) getRemoteConn(dreq *sshutils.DialReq) (*remoteConn, error) {
-	s.remoteConnsMtx.Lock()
-	defer s.remoteConnsMtx.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	// Loop over all connections and remove and invalid connections from the
 	// connection map.
-	for key, conns := range s.remoteConns {
-		validConns := conns[:0]
-		for _, conn := range conns {
-			if !conn.isInvalid() {
-				validConns = append(validConns, conn)
-			}
-		}
-		if len(validConns) == 0 {
+	for key := range s.remoteConns {
+		if s.remoteConns[key].isInvalid() {
 			delete(s.remoteConns, key)
-		} else {
-			s.remoteConns[key] = validConns
 		}
 	}
 
@@ -473,17 +461,15 @@ func (s *localSite) getRemoteConn(dreq *sshutils.DialReq) (*remoteConn, error) {
 		uuid:     dreq.ServerID,
 		connType: dreq.ConnType,
 	}
-	if len(s.remoteConns[key]) == 0 {
+	rconn, ok := s.remoteConns[key]
+	if !ok {
 		return nil, trace.NotFound("no %v reverse tunnel for %v found", dreq.ConnType, dreq.ServerID)
 	}
-
-	conns := s.remoteConns[key]
-	for i := len(conns) - 1; i >= 0; i-- {
-		if conns[i].isReady() {
-			return conns[i], nil
-		}
+	if !rconn.isReady() {
+		return nil, trace.NotFound("%v is offline: no active %v tunnels found", dreq.ConnType, dreq.ServerID)
 	}
-	return nil, trace.NotFound("%v is offline: no active %v tunnels found", dreq.ConnType, dreq.ServerID)
+
+	return rconn, nil
 }
 
 func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq) (net.Conn, error) {

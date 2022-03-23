@@ -1,41 +1,29 @@
 <Tabs> 
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-Download the latest version of Teleport for your platform from our
-[downloads page](https://goteleport.com/teleport/download) and follow the
-installation [instructions](../../installation.mdx).
-
+<TabItem scope={["oss","enterprise"]} label="Self Hosted">
 Teleport requires a valid TLS certificate to operate and can fetch one
 automatically using Let's Encrypt's ACME protocol. Before Let's Encrypt can
 issue a TLS certificate for the Teleport Proxy host's domain, the ACME protocol
 must verify that an HTTPS server is reachable on port 443 of the host.  
 
-You can configure the Teleport Proxy service to complete the Let's Encrypt
-verification process when it starts up.
+We will assume that you have configured DNS records for `teleport.example.com`
+and `*.teleport.example.com` to point to your Teleport node.
 
-Run the following `teleport configure` command, where `tele.example.com` is the
-domain name of your Teleport cluster and `user@example.com` is an email address
-used for notifications (you can use any domain):
+<Admonition type="note" title="Web Proxy Port">
+To support the ACME protocol, Teleport Proxy must listen on port 443, rather
+than the default port 3080.
+</Admonition>
+
+Download the latest version of Teleport for your platform from our
+[downloads page](https://goteleport.com/teleport/download) and follow the
+installation [instructions](../../installation.mdx).
+
+Generate a Teleport configuration file with ACME enabled:
 
 ```code
-teleport configure --acme --acme-email=user@example.com --cluster-name=tele.example.com > /etc/teleport.yaml
+$ teleport configure --cluster-name=teleport.example.com --acme --acme-email=alice@example.com -o file
 ```
 
-The `--acme`, `--acme-email`, and `--cluster-name` flags will add the following
-settings to your Teleport configuration file:
-
-```yaml
-proxy_service:
-  enabled: "yes"
-  web_listen_addr: :443
-  public_addr: tele.example.com:443
-  acme:
-    enabled: "yes"
-    email: user@example.com
-```
-
-Port 443 on your Teleport Proxy Service host must allow traffic from all sources.
-
-Next, start the Teleport Auth and Proxy Services:
+Start the Teleport Auth and Proxy services:
 
 ```code
 $ sudo teleport start

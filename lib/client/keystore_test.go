@@ -21,6 +21,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -401,19 +402,6 @@ func TestAddKey_withoutSSHCert(t *testing.T) {
 	require.Len(t, keyCopy.DBTLSCerts, 1)
 }
 
-func TestConfigDirNotDeleted(t *testing.T) {
-	s, cleanup := newTest(t)
-	t.Cleanup(cleanup)
-	idx := KeyIndex{"host.a", "bob", "root"}
-	s.store.AddKey(s.makeSignedKey(t, idx, false))
-	configPath := filepath.Join(s.storeDir, "config")
-	require.NoError(t, os.Mkdir(configPath, 0700))
-	require.NoError(t, s.store.DeleteKeys())
-	require.DirExists(t, configPath)
-
-	require.NoDirExists(t, filepath.Join(s.storeDir, "keys"))
-}
-
 type keyStoreTest struct {
 	storeDir  string
 	store     *FSLocalKeyStore
@@ -505,7 +493,7 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 }
 
 func newTest(t *testing.T) (keyStoreTest, func()) {
-	dir, err := os.MkdirTemp("", "teleport-keystore")
+	dir, err := ioutil.TempDir("", "teleport-keystore")
 	require.NoError(t, err)
 
 	store, err := NewFSLocalKeyStore(dir)

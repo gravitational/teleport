@@ -1291,7 +1291,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 
 func triggerLoginLock(t *testing.T, srv *Server, username string) {
 	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
-		_, _, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
+		_, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
 			Username: username,
 			OTP:      &OTPCreds{},
 		})

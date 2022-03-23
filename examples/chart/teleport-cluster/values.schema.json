@@ -32,36 +32,6 @@
             "type": "string",
             "default": "local"
         },
-        "authenticationSecondFactor": {
-            "$id": "#/properties/authenticationSecondFactor",
-            "type": "object",
-            "required": [],
-            "properties": {
-                "secondFactor": {
-                    "$id": "#/properties/authenticationSecondFactor/properties/secondFactor",
-                    "type": "string",
-                    "enum": ["off", "on", "otp", "optional", "webauthn"],
-                    "default": "otp"
-                },
-                "webauthn": {
-                    "$id": "#/properties/authenticationSecondFactor/properties/webauthn",
-                    "type": "object",
-                    "required": [],
-                    "properties": {
-                        "attestationAllowedCas": {
-                            "$id": "#/properties/authenticationSecondFactor/properties/webauthn/properties/attestationAllowedCas",
-                            "type": "array",
-                            "default": []
-                        },
-                        "attestationDeniedCas": {
-                            "$id": "#/properties/authenticationSecondFactor/properties/webauthn/properties/attestationDeniedCas",
-                            "type": "array",
-                            "default": []
-                        }
-                    }
-                }
-            }
-        },
         "proxyListenerMode": {
             "$id": "#/properties/proxyListenerMode",
             "type": "string",

@@ -51,7 +51,7 @@ func (b *Bot) labels(ctx context.Context) ([]string, error) {
 	var labels []string
 
 	// The branch name is unsafe, but here we are simply adding a label.
-	if strings.HasPrefix(b.c.Environment.UnsafeHead, "branch/") {
+	if strings.HasPrefix(b.c.Environment.UnsafeBranch, "branch/") {
 		log.Println("Label: Found backport branch.")
 		labels = append(labels, "backport")
 	}

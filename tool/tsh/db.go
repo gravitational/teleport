@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"sort"
@@ -42,7 +43,7 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	var databases []types.Database
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		databases, err = tc.ListDatabases(cf.Context, nil /* custom filter */)
+		databases, err = tc.ListDatabases(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -409,12 +410,7 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.Database, error) {
 	var databases []types.Database
 	err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		allDatabases, err := tc.ListDatabases(cf.Context, &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
-		})
-		// Kept for fallback in case an older auth does not apply filters.
-		// DELETE IN 11.0.0
+		allDatabases, err := tc.ListDatabases(cf.Context)
 		for _, database := range allDatabases {
 			if database.GetName() == dbName {
 				databases = append(databases, database)
@@ -473,7 +469,7 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		return false, nil
 	}
 
-	buff, err := os.ReadFile(certPath)
+	buff, err := ioutil.ReadFile(certPath)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

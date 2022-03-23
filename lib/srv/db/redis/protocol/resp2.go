@@ -20,15 +20,11 @@
 package protocol
 
 import (
-	"reflect"
 	"strconv"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/trace"
 )
-
-// ErrCmdNotSupported is returned when an unsupported Redis command is sent to Teleport proxy.
-var ErrCmdNotSupported = trace.NotImplemented("command not supported")
 
 // WriteCmd writes Redis commands passed as vals to Redis wire form.
 // Most types are covered by go-redis implemented WriteArg() function. Types override by this function are:
@@ -99,20 +95,16 @@ func WriteCmd(wr *redis.Writer, vals interface{}) error {
 		if err := writeUinteger(wr, val); err != nil {
 			return trace.Wrap(err)
 		}
+	case []string:
+		if err := writeStringSlice(wr, val); err != nil {
+			return trace.Wrap(err)
+		}
+	case []interface{}:
+		if err := writeSlice(wr, val); err != nil {
+			return trace.Wrap(err)
+		}
 	case interface{}:
-		var err error
-		v := reflect.ValueOf(val)
-
-		if v.Kind() == reflect.Ptr {
-			v = v.Elem()
-		}
-
-		if v.Kind() == reflect.Slice {
-			err = writeSlice(wr, val)
-		} else {
-			err = wr.WriteArg(val)
-		}
-
+		err := wr.WriteArg(val)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -140,25 +132,37 @@ func writeError(wr *redis.Writer, prefix string, val error) error {
 	return nil
 }
 
-// writeSlice converts a slice to Redis wire form.
-func writeSlice(wr *redis.Writer, vals interface{}) error {
-	v := reflect.ValueOf(vals)
-
-	if v.Kind() != reflect.Slice {
-		return trace.BadParameter("expected slice, passed %T", vals)
-	}
-
+// writeSlice converts []interface{} to Redis wire form.
+func writeSlice(wr *redis.Writer, vals []interface{}) error {
 	if err := wr.WriteByte(redis.ArrayReply); err != nil {
 		return trace.Wrap(err)
 	}
-
-	n := v.Len()
+	n := len(vals)
 	if err := wr.WriteLen(n); err != nil {
 		return trace.Wrap(err)
 	}
 
-	for i := 0; i < n; i++ {
-		if err := WriteCmd(wr, v.Index(i).Interface()); err != nil {
+	for _, v0 := range vals {
+		if err := WriteCmd(wr, v0); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// writeStringSlice converts a string slice to Redis wire form.
+func writeStringSlice(wr *redis.Writer, vals []string) error {
+	if err := wr.WriteByte(redis.ArrayReply); err != nil {
+		return trace.Wrap(err)
+	}
+	n := len(vals)
+	if err := wr.WriteLen(n); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, v0 := range vals {
+		if err := WriteCmd(wr, v0); err != nil {
 			return trace.Wrap(err)
 		}
 	}

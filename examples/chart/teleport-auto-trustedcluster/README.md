@@ -1,8 +1,3 @@
-# WARNING
-
-This chart is **deprecated** and no longer actively maintained or supported by Teleport.
-We recommend the use of the [teleport-cluster](../teleport-cluster/README.md) chart instead.
-
 # Teleport
 
 [Gravitational Teleport](https://github.com/gravitational/teleport) is a modern SSH/Kubernetes API proxy server for

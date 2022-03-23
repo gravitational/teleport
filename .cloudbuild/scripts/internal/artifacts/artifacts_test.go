@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,7 +35,7 @@ func write(t *testing.T, data []byte, path ...string) string {
 	t.Helper()
 	filePath := filepath.Join(path...)
 	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0777))
-	require.NoError(t, os.WriteFile(filePath, data, 0644))
+	require.NoError(t, ioutil.WriteFile(filePath, data, 0644))
 	return filePath
 }
 

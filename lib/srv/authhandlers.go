@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -508,7 +507,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca types.CertAuthorit
 // Certificate Authority and returns it.
 func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.PublicKey) (types.CertAuthority, error) {
 	// get all certificate authorities for given type
-	cas, err := h.c.AccessPoint.GetCertAuthorities(context.TODO(), caType, false)
+	cas, err := h.c.AccessPoint.GetCertAuthorities(caType, false)
 	if err != nil {
 		h.log.Warnf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)

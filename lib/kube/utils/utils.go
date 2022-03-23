@@ -21,8 +21,6 @@ import (
 	"encoding/hex"
 	"sort"
 
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
@@ -153,36 +151,11 @@ type KubeServicesPresence interface {
 
 // KubeClusterNames returns a sorted list of unique kubernetes clusters
 // registered in p.
-//
-// DELETE IN 11.0.0, replaced by ListKubeClusterNamesWithFilters
 func KubeClusterNames(ctx context.Context, p KubeServicesPresence) ([]string, error) {
 	kss, err := p.GetKubeServices(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return extractAndSortKubeClusterNames(kss), nil
-}
-
-// ListKubeClusterNamesWithFilters returns a sorted list of unique kubernetes clusters
-// registered in p.
-func ListKubeClusterNamesWithFilters(ctx context.Context, p client.ListResourcesClient, req proto.ListResourcesRequest) ([]string, error) {
-	req.ResourceType = types.KindKubeService
-	var kss []types.Server
-
-	resources, err := client.GetResourcesWithFilters(ctx, p, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	kss, err = types.ResourcesWithLabels(resources).AsServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return extractAndSortKubeClusterNames(kss), nil
-}
-
-func extractAndSortKubeClusterNames(kss []types.Server) []string {
 	kubeClusters := make(map[string]struct{})
 	for _, ks := range kss {
 		for _, kc := range ks.GetKubernetesClusters() {
@@ -194,7 +167,7 @@ func extractAndSortKubeClusterNames(kss []types.Server) []string {
 		kubeClusterNames = append(kubeClusterNames, n)
 	}
 	sort.Strings(kubeClusterNames)
-	return kubeClusterNames
+	return kubeClusterNames, nil
 }
 
 // CheckOrSetKubeCluster validates kubeClusterName if it's set, or a sane

@@ -20,7 +20,7 @@ package utils
 import (
 	"context"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -95,7 +95,7 @@ func newClient(timeout time.Duration) *http.Client {
 
 // bodyText helper returns a body string from an http response
 func bodyText(resp *http.Response) string {
-	bytes, err := io.ReadAll(resp.Body)
+	bytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return ""
 	}

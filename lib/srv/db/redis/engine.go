@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 
 	"github.com/go-redis/redis/v8"
@@ -43,10 +44,6 @@ func newEngine(ec common.EngineConfig) common.Engine {
 	}
 }
 
-// redisClientFactoryFn is a prototype that takes Redis username and password and return a new
-// Redis client.
-type redisClientFactoryFn func(username, password string) (redis.UniversalClient, error)
-
 // Engine implements common.Engine.
 type Engine struct {
 	// EngineConfig is the common database engine configuration.
@@ -57,10 +54,6 @@ type Engine struct {
 	clientReader *redis.Reader
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-	// newClient returns a new client connection
-	newClient redisClientFactoryFn
-	// redisClient is a current connection to Redis server.
-	redisClient redis.UniversalClient
 }
 
 // InitializeConnection initializes the database connection.
@@ -146,20 +139,41 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	// Initialize newClient factory function with current connection state.
-	e.newClient, err = e.getNewClientFn(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Create new client without username or password. Those will be added when we receive AUTH command.
-	e.redisClient, err = e.newClient("", "")
+	connectionOptions, err := ParseRedisAddress(sessionCtx.Database.GetURI())
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
+	}
+
+	var (
+		redisConn      redis.UniversalClient
+		connectionAddr = fmt.Sprintf("%s:%s", connectionOptions.address, connectionOptions.port)
+	)
+
+	// TODO(jakub): Use system CA bundle if connecting to AWS.
+	// TODO(jakub): Investigate Redis Sentinel.
+	switch connectionOptions.mode {
+	case Standalone:
+		redisConn = redis.NewClient(&redis.Options{
+			Addr:      connectionAddr,
+			TLSConfig: tlsConfig,
+		})
+	case Cluster:
+		redisConn = redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs:     []string{connectionAddr},
+			TLSConfig: tlsConfig,
+		})
+	default:
+		// We've checked that while validating the config, but checking again can help with regression.
+		return trace.BadParameter("incorrect connection mode %s", connectionOptions.mode)
 	}
 
 	defer func() {
-		if err := e.redisClient.Close(); err != nil {
+		if err := redisConn.Close(); err != nil {
 			e.Log.Errorf("Failed to close Redis connection: %v.", err)
 		}
 	}()
@@ -167,54 +181,16 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
-	if err := e.process(ctx); err != nil {
+	if err := e.process(ctx, redisConn); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-// getNewClientFn returns a partial Redis client factory function.
-func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session) (redisClientFactoryFn, error) {
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connectionOptions, err := ParseRedisAddress(sessionCtx.Database.GetURI())
-	if err != nil {
-		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
-	}
-
-	return func(username, password string) (redis.UniversalClient, error) {
-		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, username, password)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return redisClient, nil
-	}, nil
-}
-
-// reconnect closes the current Redis server connection and creates a new one pre-authenticated
-// with provided username and password.
-func (e *Engine) reconnect(username, password string) (redis.UniversalClient, error) {
-	err := e.redisClient.Close()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to close Redis connection")
-	}
-
-	e.redisClient, err = e.newClient(username, password)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return e.redisClient, nil
-}
-
 // process is the main processing function for Redis. It reads commands from connected client and passes them to
 // a Redis instance. This function returns when a server closes a connection or in case of connection error.
-func (e *Engine) process(ctx context.Context) error {
+func (e *Engine) process(ctx context.Context, redisClient redis.UniversalClient) error {
 	for {
 		// Read commands from connected client.
 		cmd, err := e.readClientCmd(ctx)
@@ -223,7 +199,7 @@ func (e *Engine) process(ctx context.Context) error {
 		}
 
 		// send valid commands to Redis instance/cluster.
-		err = e.processCmd(ctx, cmd)
+		err = e.processCmd(ctx, redisClient, cmd)
 		// go-redis returns some errors as err and some as cmd.Err().
 		// Function below maps errors that should be returned to the
 		// client as value or return them as err if we should terminate

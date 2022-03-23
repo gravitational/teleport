@@ -19,8 +19,6 @@ package backend
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestParams(t *testing.T) {
@@ -36,22 +34,5 @@ func TestParams(t *testing.T) {
 	path := p.GetString("path")
 	if path != expectedPath {
 		t.Errorf("expected 'path' to be '%v', got '%v'", expectedPath, path)
-	}
-}
-
-func TestRangeEnd(t *testing.T) {
-	for _, test := range []struct {
-		key, expected string
-	}{
-		{"abc", "abd"},
-		{"/foo/bar", "/foo/bas"},
-		{"/xyz", "/xy{"},
-		{"\xFF", "\x00"},
-		{"\xFF\xFF\xFF", "\x00"},
-	} {
-		t.Run(test.key, func(t *testing.T) {
-			end := RangeEnd([]byte(test.key))
-			require.Equal(t, test.expected, string(end))
-		})
 	}
 }
