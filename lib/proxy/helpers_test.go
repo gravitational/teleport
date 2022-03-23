@@ -26,6 +26,7 @@ import (
 	"time"
 
 	clientapi "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -57,13 +58,47 @@ type mockProxyAccessPoint struct {
 type mockProxyService struct{}
 
 func (s *mockProxyService) DialNode(stream clientapi.ProxyService_DialNodeServer) error {
-	errChan := make(chan error)
-	defer close(errChan)
+	sendErr := make(chan error)
+	recvErr := make(chan error)
+
+	frame, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if frame.GetDialRequest() == nil {
+		return trace.BadParameter("invalid dial request")
+	}
+
+	err = stream.Send(&clientapi.Frame{
+		Message: &clientapi.Frame_ConnectionEstablished{
+			ConnectionEstablished: &clientapi.ConnectionEstablished{},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	go func() {
 		for {
 			if _, err := stream.Recv(); err != nil {
-				errChan <- err
+				recvErr <- err
+				close(recvErr)
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			err := stream.Send(&clientapi.Frame{
+				Message: &clientapi.Frame_Data{
+					&clientapi.Data{Bytes: []byte("pong")},
+				},
+			})
+			if err != nil {
+				sendErr <- err
+				close(sendErr)
 				return
 			}
 		}
@@ -71,9 +106,10 @@ func (s *mockProxyService) DialNode(stream clientapi.ProxyService_DialNodeServer
 
 	select {
 	case <-stream.Context().Done():
-		<-errChan
 		return stream.Context().Err()
-	case err := <-errChan:
+	case err := <-recvErr:
+		return err
+	case err := <-sendErr:
 		return err
 	}
 }
@@ -204,10 +240,24 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	return server, tlsConf, ts
 }
 
-func sendMsg(stream clientapi.ProxyService_DialNodeClient) error {
-	return stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_Data{
-			&clientapi.Data{Bytes: []byte("test")},
+func sendDialRequest(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {
+	err := stream.Send(&clientapi.Frame{
+		Message: &clientapi.Frame_DialRequest{
+			DialRequest: &clientapi.DialRequest{},
 		},
 	})
+	require.NoError(t, err)
+
+	frame, err := stream.Recv()
+	require.NoError(t, err)
+	require.NotNil(t, frame.GetConnectionEstablished())
+}
+
+func sendMsg(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {
+	err := stream.Send(&clientapi.Frame{
+		Message: &clientapi.Frame_Data{
+			&clientapi.Data{Bytes: []byte("ping")},
+		},
+	})
+	require.NoError(t, err)
 }

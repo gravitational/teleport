@@ -41,7 +41,7 @@ func TestClientConn(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
-	require.NoError(t, sendMsg(stream))
+	sendDialRequest(t, stream)
 	stream.CloseSend()
 
 	// dial second server
@@ -85,19 +85,19 @@ func TestClientUpdate(t *testing.T) {
 	s1, _, err := client.dial([]string{"s1"})
 	require.NoError(t, err)
 	require.NotNil(t, s1)
-	require.NoError(t, sendMsg(s1))
+	sendDialRequest(t, s1)
 	s2, _, err := client.dial([]string{"s2"})
 	require.NoError(t, err)
 	require.NotNil(t, s2)
-	require.NoError(t, sendMsg(s2))
+	sendDialRequest(t, s2)
 
 	// watcher finds one of the two servers
 	err = client.updateConnections([]types.Server{def1})
 	require.NoError(t, err)
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
-	require.NoError(t, sendMsg(s1)) // stream is not broken across updates
-	require.NoError(t, sendMsg(s2)) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
+	sendMsg(t, s1) // stream is not broken across updates
+	sendMsg(t, s2) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
 
 	s2.CloseSend()
 
@@ -107,7 +107,7 @@ func TestClientUpdate(t *testing.T) {
 	require.NoError(t, err) // server2 is in a transient failure state but not reported as an error
 	require.Len(t, client.conns, 2)
 	require.Contains(t, client.conns, "s1")
-	require.NoError(t, sendMsg(s1)) // stream is still going strong
+	sendMsg(t, s1) // stream is still going strong
 	_, _, err = client.dial([]string{"s2"})
 	require.Error(t, err) // can't dial server2, obviously
 
@@ -117,11 +117,11 @@ func TestClientUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
-	require.NoError(t, sendMsg(s1)) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
+	sendMsg(t, s1) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
 	s3, _, err := client.dial([]string{"s1"})
 	require.NoError(t, err)
 	require.NotNil(t, s3)
-	require.NoError(t, sendMsg(s3)) // new stream is working
+	sendDialRequest(t, s3) // new stream is working
 
 	s1.CloseSend()
 	s3.CloseSend()
@@ -144,7 +144,7 @@ func TestCAChange(t *testing.T) {
 	require.True(t, cached)
 	require.NotNil(t, ogStream)
 
-	require.NoError(t, sendMsg(ogStream))
+	sendDialRequest(t, ogStream)
 	ogStream.CloseSend()
 
 	// server ca rotated
@@ -161,7 +161,7 @@ func TestCAChange(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, ogStream)
-	require.NoError(t, sendMsg(ogStream))
+	sendDialRequest(t, ogStream)
 
 	// new connection should fail because client tls config still references old
 	// RootCAs.
@@ -179,11 +179,11 @@ func TestCAChange(t *testing.T) {
 	require.NotNil(t, conn)
 	stream, err = client.startStream(conn)
 	require.NoError(t, err)
-	require.NoError(t, sendMsg(stream))
+	sendDialRequest(t, stream)
 	stream.CloseSend()
 
 	// for good measure, original stream should still be working
-	require.NoError(t, sendMsg(ogStream))
+	sendMsg(t, ogStream)
 
 	// client ca rotated
 	newClientCA := newSelfSignedCA(t)
@@ -210,10 +210,10 @@ func TestCAChange(t *testing.T) {
 	require.NotNil(t, conn)
 	stream, err = client.startStream(conn)
 	require.NoError(t, err)
-	require.NoError(t, sendMsg(stream))
+	sendDialRequest(t, stream)
 	stream.CloseSend()
 
 	// and one final time, original stream should still be working
-	require.NoError(t, sendMsg(ogStream))
+	sendMsg(t, ogStream)
 	ogStream.CloseSend()
 }
