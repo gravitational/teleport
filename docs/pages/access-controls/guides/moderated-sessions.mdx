@@ -6,27 +6,32 @@ h1: Moderated Sessions
 
 ## Introduction
 
-Moderated Sessions allows Teleport administrators to
-define requirements for other users to be present in a Server or Kubernetes Access session. Depending on the requirements, these users can observe the session in real time, participate in the session, and terminate the session at will.
+Moderated Sessions allows Teleport administrators to define requirements for
+other users to be present in a Server or Kubernetes Access session. Depending on
+the requirements, these users can observe the session in real time, participate
+in the session, and terminate the session at will.
 
 ### Use cases
 
 Moderated Sessions are useful in the following scenarios:
-- When you have stringent security requirements and need to have people watching over user-initiated sessions on a set of servers.
-- When you want to share a terminal with someone else to be able to instruct or collaborate.
+- When you have stringent security requirements and need to have people watching
+  over user-initiated sessions on a set of servers.
+- When you want to share a terminal with someone else to be able to instruct or
+  collaborate.
 
 ## Policies
 
-Moderated Sessions makes use of RBAC policies to allow for fine grained control over
-who can join a session and who is required to be present to start one.
+Moderated Sessions makes use of RBAC policies to allow for fine grained control
+over who can join a session and who is required to be present to start one.
 
 The system is based around **require policies** and **allow policies**. 
 
-Require policies define a set of conditions that must be a met for a session to start or run.
-A minimum of one policy from each relevant role the user has must match for the session to start.
+Require policies define a set of conditions that must be a met for a session to
+start or run. A minimum of one policy from each relevant role the user has must
+match for the session to start.
 
-Allow policies are used to define what sessions a user can join
-and under what conditions they may join a session.
+Allow policies are used to define what sessions a user can join and under what
+conditions they may join a session.
 
 ## Configuring Moderated Sessions
 
@@ -46,12 +51,12 @@ The following are required options for `require_session_join`:
 
 #### Example
 
-The policy below specifies that the `prod-access` role
-must have a minimum of two users with the role `auditor` and the mode `moderator` present in the session
-to start it. The policy applies to SSH and Kubernetes sessions only.
+The policy below specifies that the `prod-access` role must have a minimum of
+two users with the role `auditor` and the mode `moderator` present in the
+session to start it. The policy applies to SSH and Kubernetes sessions only.
 
-When a user with this require policy starts a session, it will be pending
-until the policy is fulfilled. 
+When a user with this require policy starts a session, it will be pending until
+the policy is fulfilled. 
 
 ```yaml
 kind: role
@@ -82,8 +87,9 @@ The following are required options for `join_sessions`:
 
 #### Example
 
-The following allow policy attaches to the role `auditor` and allows one to join
-SSH and Kubernetes sessions started by a user with the role `prod-access` as a moderator or observer.
+The following allow policy attaches to the role `auditor` and allows one to
+join SSH and Kubernetes sessions started by a user with the role `prod-access`
+as a moderator or observer.
 
 ```yaml
 kind: role
@@ -100,82 +106,100 @@ spec:
 
 ### Filters
 
-Filter expressions allow for more detailed control over the scope of an allow policy or require policy.
+Filter expressions allow for more detailed control over the scope of an allow
+policy or require policy.
 
-Require policies can specify which users they consider as valid with a filter expression.
-The filter context has a `user` object defined with the set fields `roles` and `name`.
+Require policies can specify which users they consider as valid with a filter
+expression. The filter context has a `user` object defined with the set fields
+`roles` and `name`.
 
-Here is an example of a filter expression that evaluates to true if the user is Adam or if the user has the trait `cs-observe`:
+Here is an example of a filter expression that evaluates to true if the user is
+Adam or if the user has the trait `cs-observe`:
 
 ```
 equals(user.name, "adam") || contains(user.roles, "cs-observe")
 ```
 
-A filter expression is a string statement used to define logic based on a set of input variables.
-The filter expressions follow a restricted subset of Go syntax and supports
-the following functions and operators:
-- `contains(set, item)`: Returns true if the item is in the set, otherwise false. The set can be a string or an array.
-- `equals(a, b)`: Returns true if the two values are equal, otherwise returns false.
+A filter expression is a string statement used to define logic based on a set of
+input variables. The filter expressions follow a restricted subset of Go syntax
+and supports the following functions and operators:
+
+- `contains(set, item)`: Returns true if the item is in the set, otherwise
+  false. The set can be a string or an array.
+- `equals(a, b)`: Returns true if the two values are equal, otherwise returns
+  false.
 - `![expr]`: Negates a boolean expression.
 - `[expr] && [expr]`: Performs a logical AND on two boolean expressions.
 - `[expr] || [expr]`: Performs a logical OR on two boolean expressions.
 
 ### Session kinds
 
-Require and allow policies have to specify which sessions they apply to. Valid options are `ssh` and `k8s`.
+Require and allow policies have to specify which sessions they apply to. Valid
+options are `ssh` and `k8s`.
 
 - `ssh` policies apply to all SSH sessions on a node running the Teleport SSH server.
 - `k8s` policies apply to all Kubernetes sessions on clusters connected to Teleport.
 
 ### Participant modes
+
 A participant joining a session will always have one of three modes:
 
-- `peer`: Can join and collaborate in a session. They can view output and send input.
-- `moderator`: Can join and watch a session. They can view output and forcefully terminate the session at will.
-- `observer`: Can join and watch a session. They cannot control the session in any way.
+- `peer`: Can join and collaborate in a session. They can view output and send
+  input.
+- `moderator`: Can join and watch a session. They can view output and
+  forcefully terminate the session at will.
+- `observer`: Can join and watch a session. They cannot control the session in
+  any way.
 
-When joining a session with `tsh join` or `tsh kube join`, a user can specify a mode with the `--mode <mode>` flag
-, where the mode is one of `peer`, `moderator` or `observer`. By default, the mode is `peer` for SSH and
+When joining a session with `tsh join` or `tsh kube join`, a user can specify a
+mode with the `--mode <mode>` flag , where the mode is one of `peer`,
+`moderator` or `observer`. By default, the mode is `peer` for SSH and
 `moderator` for Kubernetes sessions.
 
-A participant may leave a session with the shortcut `c` while in observer or moderator mode.
-When in moderator mode, a participant may also forcefully terminate the session at any point in time
-with the shortcut `t`.
+A participant may leave a session with the shortcut `c` while in observer or
+moderator mode. When in moderator mode, a participant may also forcefully
+terminate the session at any point in time with the shortcut `t`.
 
 ### Require policy count
 
-Require policies can have a variable amount of users that need to match the filter expression
-in order to satisfy the policy. The `count` field of a require policy is a positive integer
-value that specifies the minimum amount of users this policy requires.
+Require policies can have a variable amount of users that need to match the
+filter expression in order to satisfy the policy. The `count` field of a require
+policy is a positive integer value that specifies the minimum amount of users
+this policy requires.
 
 ## Backwards compatibility with Server Access
 
-Previously, Server Access did not include controls over which users can join a session.
-To work around this, RBAC rules are ignored for users that only have V4 roles (`version: v4` in the role specification).
-New roles are created as V5. V4 roles are upgraded when they are modified in the UI.
-If a user has any attached V5 roles (`version: v5` in the role specification), the new RBAC access checks will be enforced.
+Previously, Server Access did not include controls over which users can join a
+session. To work around this, RBAC rules are ignored for users that only have
+V4 roles (`version: v4` in the role specification). New roles are created as
+V5. V4 roles are upgraded when they are modified in the UI. If a user has any
+attached V5 roles (`version: v5` in the role specification), the new RBAC access
+checks will be enforced.
 
 ## MFA-based presence
 
-When `per_session_mfa` is set to `true` via [role or cluster settings](../../access-controls/guides/per-session-mfa.mdx), Teleport enforces
-MFA-based presence checks for moderators.
-This requires that all moderators wishing to join have a configured U2F or WebAuthn MFA token.
+When `per_session_mfa` is set to `true` via [role or cluster
+settings](../../access-controls/guides/per-session-mfa.mdx), Teleport enforces
+MFA-based presence checks for moderators. This requires that all moderators
+wishing to join have a configured U2F or WebAuthn MFA token.
 
-Every 30 seconds, Teleport will issue a prompt to the user in the terminal, asking them
-to press their MFA token in the next 15 seconds. This will happen continously during the session
-and exists so that moderators are always present and watching a given session.
+Every 30 seconds, Teleport will issue a prompt to the user in the terminal,
+asking them to press their MFA token in the next 15 seconds. This will happen
+continously during the session and exists so that moderators are always present
+and watching a given session.
 
-If no MFA input is received within 60 seconds, the user is kicked
-from the session which may pause it, if RBAC policies are no longer met.
+If no MFA input is received within 60 seconds, the user is kicked from the
+session which may pause it, if RBAC policies are no longer met.
 
 ## Session invites
 
-When starting an interactive SSH or Kubernetes session using `tsh ssh` or `tsh kube exec` respectively,
-one may supply a `--reason <reason>` and/or an `--invited <users>` flag where `<reason>`
-is a string and `<users>` is a comma-separated list of usernames.
+When starting an interactive SSH or Kubernetes session using `tsh ssh` or `tsh
+kube exec` respectively, one may supply a `--reason <reason>` and/or an
+`--invited <users>` flag where `<reason>` is a string and `<users>` is a
+comma-separated list of usernames.
 
-This information can be picked up by a third party integration and may for example be used to
-enable notifications over some external communication system.
+This information can be picked up by a third party integration and may for
+example be used to enable notifications over some external communication system.
 
 ## RFD
 
