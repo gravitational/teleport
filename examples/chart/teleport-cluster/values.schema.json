@@ -19,7 +19,8 @@
         "imagePullPolicy",
         "initContainers",
         "resources",
-        "tolerations"
+        "tolerations",
+        "probeTimeoutSeconds"
     ],
     "properties": {
         "clusterName": {
