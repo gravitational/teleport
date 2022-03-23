@@ -1,8 +1,8 @@
 <div align="center">
-   <img src="https://goteleport.com/blog/images/2020/gravitational-is-teleport-header.png" width=750/>
+   <img src="https://user-images.githubusercontent.com/23505832/159782338-1dc775df-0683-4a49-a14f-7386b62ebc2c.png" width=750/>
    <div align="center" style="padding: 25px">
-      <a href="https://goteleport.com/docs/">
-      <img src="https://img.shields.io/badge/Teleport-8.0-651FFF.svg" />
+      <a href="https://goteleport.com/download/">
+      <img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver" />
       </a>
       <a href="https://golang.org/">
       <img src="https://img.shields.io/badge/Go-1.17-7fd5ea.svg" />
