@@ -585,6 +585,43 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
   </TabItem>
 </Tabs>
 
+### `highAvailability.certManager.addDomainWildcard`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `bool` | `true` | ❌ | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addDomainWildcard` to `false` will not set the domain wildcard field in the certificate signing request to the issuing CA.
+This is useful, if you can't use DNS-01 challenge.
+
+<Admonition type="note" title="Enabling common name field">
+    You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+    See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+    and the relevant sections of the [AWS](../guides/aws.mdx#step-47-install-and-configure-cert-manager) and [GCP](../guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+</Admonition>
+
+<Tabs>
+    <TabItem label="values.yaml">
+        ```yaml
+        highAvailability:
+        certManager:
+        enabled: true
+        addCommonName: true
+        addDomainWildcard: true
+        issuerName: letsencrypt-production
+        ```
+    </TabItem>
+    <TabItem label="--set">
+        ```code
+        $ --set highAvailability.certManager.enabled=true \
+        --set highAvailability.certManager.addCommonName=true \
+        --set highAvailability.certManager.addDomainWildcard=true \
+        --set highAvailability.certManager.issuerName=letsencrypt-production
+        ```
+    </TabItem>
+</Tabs>
+
 ### `highAvailability.certManager.issuerName`
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |

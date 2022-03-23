@@ -145,6 +145,8 @@ highAvailability:
   certManager:
     # If set to true, a common name matching the cluster name will be set in the certificate signing request. This is mandatory for some CAs.
     addCommonName: false
+    # If set to false, the wildcard DNS SAN will not be added to the certificate signing request.
+    addDomainWildcard: true
     # If set to true, use cert-manager to get certificates for Teleport to use for TLS termination
     enabled: false
     # Name of the Issuer/ClusterIssuer to use for certs

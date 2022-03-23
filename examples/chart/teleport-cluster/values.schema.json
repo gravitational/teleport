@@ -251,6 +251,11 @@
                             "type": "boolean",
                             "default": "false"
                         },
+                        "addDomainWildcard": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/addDomainWildcard",
+                            "type": "boolean",
+                            "default": "true"
+                        },
                         "enabled": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
                             "type": "boolean",

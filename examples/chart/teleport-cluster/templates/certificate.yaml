@@ -13,7 +13,9 @@ spec:
   {{- end }}
   dnsNames:
   - {{ quote $domain }}
+  {{- if .Values.highAvailability.certManager.addDomainWildcard }}
   - {{ quote $domainWildcard }}
+  {{- end }}
   issuerRef:
     name: {{ required "highAvailability.certManager.issuerName is required in chart values" .Values.highAvailability.certManager.issuerName }}
     kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" .Values.highAvailability.certManager.issuerKind }}
