@@ -148,7 +148,10 @@ type mfaAddCommand struct {
 	*kingpin.CmdClause
 	devName string
 	devType string
-	pwdless bool
+	// pwdless is nil if unset, true/false if explicitly set.
+	// If passwordless is not supported it's always set to false.
+	// The default behavior is the same as false.
+	pwdless *bool
 }
 
 func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
@@ -158,9 +161,22 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
 		StringVar(&c.devType)
+
 	if wancli.IsFIDO2Available() {
-		c.Flag("allow-passwordless", "Allow passwordless logins").BoolVar(&c.pwdless)
+		var allowPwdless bool
+		c.Flag("allow-passwordless", "Allow passwordless logins").
+			Action(func(_ *kingpin.ParseContext) error {
+				// If the callback is called it means that the flag was explicitly set,
+				// so we can copy its contents to the command.
+				c.pwdless = &allowPwdless
+				return nil
+			}).
+			BoolVar(&allowPwdless)
+	} else {
+		allowPwdless := false
+		c.pwdless = &allowPwdless
 	}
+
 	return c
 }
 
@@ -215,15 +231,18 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("device name can not be empty")
 	}
 
-	if wancli.IsFIDO2Available() && !c.pwdless {
+	// If passwordless is supported but unset then ask the user.
+	if c.pwdless == nil {
 		answer, err := prompt.PickOne(ctx, os.Stdout, stdin, "Allow passwordless logins", []string{"YES", "NO"})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.pwdless = answer == "yes"
+		val := answer == "YES"
+		c.pwdless = &val
 	}
+	pwdless := c.pwdless != nil && *c.pwdless
 
-	dev, err := c.addDeviceRPC(ctx, tc, c.devName, devType, c.pwdless, stdin)
+	dev, err := c.addDeviceRPC(ctx, tc, c.devName, devType, pwdless, stdin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
