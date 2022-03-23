@@ -178,7 +178,6 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	err := Run([]string{
 		"login",
 		"--insecure",
-		"--debug",
 		"--auth", s.connector.GetName(),
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		s.root.Config.Auth.ClusterName.GetClusterName(),

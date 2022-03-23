@@ -2276,7 +2276,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}, nil
 }
 
-func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, addr string) (*ssh.Client, error) {
+func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
 	cfg := tc.Config
 	clientTLSConf, err := tc.loadTLSConfig()
 	if err != nil {
@@ -2286,11 +2286,11 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
 
-	tlsConn, err := tls.Dial("tcp", addr, clientTLSConf)
+	tlsConn, err := tls.Dial("tcp", proxyAddr, clientTLSConf)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to dial tls %v", addr)
+		return nil, trace.Wrap(err, "failed to dial tls %v", proxyAddr)
 	}
-	c, chans, reqs, err := ssh.NewClientConn(tlsConn, addr, sshConfig)
+	c, chans, reqs, err := ssh.NewClientConn(tlsConn, proxyAddr, sshConfig)
 	if err != nil {
 		// tlsConn is closed inside ssh.NewClientConn function
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", addr)
@@ -2307,7 +2307,7 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
 	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
 	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
-		log.Infof("Connecting proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
+		log.Infof("Connecting to proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
 		c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, tc.Config.WebProxyAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2335,7 +2335,7 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 		}
 	}
 
-	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
+	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 	client, err := ssh.Dial("tcp", sshProxyAddr, sshConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
