@@ -121,7 +121,7 @@ func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error
 // Redshift endpoint for AWS China regions.
 //
 // Redshift endpoints look like this for AWS China regions:
-// redshift-cluster-2.abcdefghijklmnop.redshift.cn-north-2.amazonaws.com.cn
+// redshift-cluster-2.abcdefghijklmnop.redshift.cn-north-1.amazonaws.com.cn
 func parseRedshiftCNEndpoint(endpoint string) (clusterID, region string, err error) {
 	parts := strings.Split(endpoint, ".")
 	if !strings.HasSuffix(endpoint, AWSCNEndpointSuffix) || len(parts) != 7 || parts[2] != RedshiftServiceName {
