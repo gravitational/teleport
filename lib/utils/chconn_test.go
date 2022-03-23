@@ -19,7 +19,7 @@ package utils
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"testing"
@@ -60,7 +60,7 @@ func TestChConn(t *testing.T) {
 		go func() {
 			// Nothing is sent on the channel so this will block until the
 			// read is canceled by the deadline set below.
-			_, err := ioutil.ReadAll(chConn)
+			_, err := io.ReadAll(chConn)
 			doneCh <- err
 		}()
 		// Set the read deadline in the past and make sure that the read

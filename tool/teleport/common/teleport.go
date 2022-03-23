@@ -62,7 +62,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLogger(utils.LoggingForDaemon, log.ErrorLevel)
-	app = utils.InitCLIParser("teleport", "Clustered SSH service. Learn more at https://goteleport.com/teleport")
+	app = utils.InitCLIParser("teleport", "Teleport Access Plane. Learn more at https://goteleport.com")
 
 	// define global flags:
 	var (
@@ -296,6 +296,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// parse CLI commands+flags:
 	command, err := app.Parse(options.Args)
 	if err != nil {
+		app.Usage(options.Args)
 		utils.FatalError(err)
 	}
 
