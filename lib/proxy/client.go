@@ -299,7 +299,7 @@ func (c *Client) Dial(
 ) (net.Conn, error) {
 	stream, _, err := c.dial(proxyIDs)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConnectionProblem(err, "error dialling peer proxies %s", proxyIDs)
 	}
 
 	// send dial request as the first frame
@@ -320,6 +320,16 @@ func (c *Client) Dial(
 		},
 	}); err != nil {
 		return nil, trace.Wrap(err)
+		return nil, trace.ConnectionProblem(err, "error sending dial frame")
+	}
+
+	msg, err := stream.Recv()
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, "error receiving dial response")
+	}
+
+	if msg.GetConnectionEstablished() == nil {
+		return nil, trace.ConnectionProblem(nil, "received malformed connection established frame")
 	}
 
 	conn := newStreamConn(stream, src, dst)
