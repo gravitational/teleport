@@ -294,6 +294,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
 
 	// parse CLI commands+flags:
+	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
 	if err != nil {
 		app.Usage(options.Args)
