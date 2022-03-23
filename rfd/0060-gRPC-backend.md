@@ -3,7 +3,7 @@ authors: Michael McAllister (michael.mcallister@goteleport.com)
 state: draft
 ---
 
-# RFD 56 - gRPC Backend
+# RFD 60 - gRPC Backend
 
 ## What
 

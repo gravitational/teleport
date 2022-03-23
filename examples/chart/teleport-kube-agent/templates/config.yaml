@@ -8,6 +8,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
   {{- if .Values.annotations.config }}
   annotations:
     {{- toYaml .Values.annotations.config | nindent 4 }}

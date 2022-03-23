@@ -26,6 +26,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -38,11 +39,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -291,8 +294,14 @@ type CLIConf struct {
 	// JoinMode is the participant mode someone is joining a session as.
 	JoinMode string
 
+	// Passwordless instructs tsh to do passwordless login.
+	Passwordless bool
+
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
+
+	// ExtraProxyHeaders is configuration read from the .tsh/config/config.yaml file.
+	ExtraProxyHeaders []ExtraProxyHeaders
 }
 
 // Stdout returns the stdout writer.
@@ -377,6 +386,9 @@ func Run(args []string, opts ...cliOption) error {
 	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
+	if wancli.IsFIDO2Available() {
+		app.Flag("pwdless", "Do passwordless login").BoolVar(&cf.Passwordless)
+	}
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
@@ -410,7 +422,9 @@ func Run(args []string, opts ...cliOption) error {
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.HelpFlag.Short('h')
+
 	ver := app.Command("version", "Print the version")
+
 	// ssh
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
@@ -624,8 +638,10 @@ func Run(args []string, opts ...cliOption) error {
 	}
 
 	// parse CLI commands+flags:
+	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
+		app.Usage(args)
 		return trace.Wrap(err)
 	}
 
@@ -671,6 +687,15 @@ func Run(args []string, opts ...cliOption) error {
 	}
 
 	setEnvFlags(&cf, os.Getenv)
+
+	confOptions, err := loadConfig(cf.HomePath)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err, "failed to load tsh config from %s",
+			filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath))
+	}
+	if confOptions != nil {
+		cf.ExtraProxyHeaders = confOptions.ExtraHeaders
+	}
 
 	switch command {
 	case ver.FullCommand():
@@ -1957,10 +1982,27 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
+	c.Passwordless = cf.Passwordless
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
 	if err := setClientWebProxyAddr(cf, c); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if c.ExtraProxyHeaders == nil {
+		c.ExtraProxyHeaders = map[string]string{}
+	}
+	for _, proxyHeaders := range cf.ExtraProxyHeaders {
+		proxyGlob := utils.GlobToRegexp(proxyHeaders.Proxy)
+		proxyRegexp, err := regexp.Compile(proxyGlob)
+		if err != nil {
+			return nil, trace.Wrap(err, "invalid proxy glob %q in tsh configuration file", proxyGlob)
+		}
+		if proxyRegexp.MatchString(c.WebProxyAddr) {
+			for k, v := range proxyHeaders.Headers {
+				c.ExtraProxyHeaders[k] = v
+			}
+		}
 	}
 
 	if len(fPorts) > 0 {
