@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -46,7 +46,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	_, err := handler.Upload(context.TODO(), id, bytes.NewBuffer([]byte(val)))
 	require.Nil(t, err)
 
-	f, err := ioutil.TempFile("", string(id))
+	f, err := os.CreateTemp("", string(id))
 	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -57,7 +57,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	_, err = f.Seek(0, 0)
 	require.Nil(t, err)
 
-	data, err := ioutil.ReadAll(f)
+	data, err := io.ReadAll(f)
 	require.Nil(t, err)
 	require.Equal(t, string(data), val)
 }
@@ -66,7 +66,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
-	f, err := ioutil.TempFile("", string(id))
+	f, err := os.CreateTemp("", string(id))
 	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
