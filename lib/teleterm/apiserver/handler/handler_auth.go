@@ -29,23 +29,27 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Local != nil {
-		if err := cluster.LocalLogin(ctx, req.Local.User, req.Local.Password, req.Local.Token); err != nil {
+	if req.Params == nil {
+		return nil, trace.BadParameter("missing login parameters")
+	}
+
+	switch params := req.Params.(type) {
+	case *api.LoginRequest_Local:
+		if err := cluster.LocalLogin(ctx, params.Local.User, params.Local.Password, params.Local.Token); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		return &api.EmptyResponse{}, nil
-	}
-
-	if req.Sso != nil {
-		if err := cluster.SSOLogin(ctx, req.Sso.ProviderType, req.Sso.ProviderName); err != nil {
+	case *api.LoginRequest_Sso:
+		if err := cluster.SSOLogin(ctx, params.Sso.ProviderType, params.Sso.ProviderName); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		return &api.EmptyResponse{}, nil
+	default:
+		return nil, trace.BadParameter("unsupported login parameters")
 	}
 
-	return nil, trace.BadParameter("missing login parameters")
 }
 
 // Logout logs a user out from a cluster
