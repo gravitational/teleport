@@ -172,7 +172,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 		defer cancel()
 		ctx = timeoutCtx
 	}
-	conn, err := apiclient.DialProxy(ctx, d.proxyAddr, address)
+	conn, err := apiclient.DialProxy(ctx, d.proxyAddr.Host, address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,7 +194,7 @@ func (d proxyDial) DialTimeout(network, address string, timeout time.Duration) (
 // SSH connection.
 func (d proxyDial) Dial(network string, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	// Build a proxy connection first.
-	pconn, err := apiclient.DialProxy(context.Background(), d.proxyAddr, addr)
+	pconn, err := apiclient.DialProxy(context.Background(), d.proxyAddr.Host, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
