@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509/pkix"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,11 +41,7 @@ import (
 func TestAuthSignKubeconfig(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := ioutil.TempDir("", "auth_command_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
@@ -237,7 +232,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			// Generate kubeconfig.
-			err := tt.ac.generateUserKeys(client)
+			err := tt.ac.generateUserKeys(context.Background(), client)
 			tt.assertErr(t, err)
 
 			// Validate kubeconfig contents.
@@ -288,7 +283,7 @@ func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.U
 	c.userCertsReq = &userCertsReq
 	return c.userCerts, nil
 }
-func (c *mockClient) GetCertAuthorities(types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *mockClient) GetCertAuthorities(context.Context, types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
 	return c.cas, nil
 }
 func (c *mockClient) GetProxies() ([]types.Server, error) {
@@ -402,7 +397,7 @@ func TestCheckKubeCluster(t *testing.T) {
 				leafCluster:  tt.leafCluster,
 				outputFormat: tt.outputFormat,
 			}
-			err := a.checkKubeCluster(client)
+			err := a.checkKubeCluster(context.Background(), client)
 			tt.assertErr(t, err)
 			require.Equal(t, tt.want, a.kubeCluster)
 		})
@@ -539,7 +534,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 				genTTL:        time.Hour,
 			}
 
-			err = ac.generateDatabaseKeysForKey(authClient, key)
+			err = ac.generateDatabaseKeysForKey(context.Background(), authClient, key)
 			if test.genKeyErrMsg == "" {
 				require.NoError(t, err)
 			} else {
@@ -556,19 +551,19 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			require.Equal(t, test.outServerNames[0], authClient.dbCertsReq.ServerName)
 
 			if len(test.outKey) > 0 {
-				keyBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outKeyFile))
+				keyBytes, err := os.ReadFile(filepath.Join(test.inOutDir, test.outKeyFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outKey, keyBytes, "keys match")
 			}
 
 			if len(test.outCert) > 0 {
-				certBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outCertFile))
+				certBytes, err := os.ReadFile(filepath.Join(test.inOutDir, test.outCertFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outCert, certBytes, "certificates match")
 			}
 
 			if len(test.outCA) > 0 {
-				caBytes, err := ioutil.ReadFile(filepath.Join(test.inOutDir, test.outCAFile))
+				caBytes, err := os.ReadFile(filepath.Join(test.inOutDir, test.outCAFile))
 				require.NoError(t, err)
 				require.Equal(t, test.outCA, caBytes, "CA certificates match")
 			}
@@ -652,7 +647,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 				genTTL:        time.Hour,
 				appName:       tc.appName,
 			}
-			err = ac.generateUserKeys(authClient)
+			err = ac.generateUserKeys(context.Background(), authClient)
 			tc.assertErr(t, err)
 			if err != nil {
 				return
@@ -667,7 +662,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 			require.Equal(t, proto.UserCertsRequest_App, authClient.userCertsReq.Usage)
 			require.Equal(t, expectedRouteToApp, authClient.userCertsReq.RouteToApp)
 
-			certBytes, err := ioutil.ReadFile(filepath.Join(tc.outDir, tc.outFileBase+".crt"))
+			certBytes, err := os.ReadFile(filepath.Join(tc.outDir, tc.outFileBase+".crt"))
 			require.NoError(t, err)
 			require.Equal(t, authClient.userCerts.TLS, certBytes, "certificates match")
 		})

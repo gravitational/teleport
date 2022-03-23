@@ -22,7 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -254,7 +254,7 @@ func parseSAMLInResponseTo(response string) (string, error) {
 	err := doc.ReadFromBytes(raw)
 	if err != nil {
 		// Attempt to inflate the response in case it happens to be compressed (as with one case at saml.oktadev.com)
-		buf, err := ioutil.ReadAll(flate.NewReader(bytes.NewReader(raw)))
+		buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(raw)))
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -427,7 +427,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 
 	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
-		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
@@ -455,7 +455,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(types.CertAuthID{
+		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)

@@ -43,6 +43,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -137,11 +138,12 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 			defer cancel()
 
 			client.Prompts.Swap(
-				func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error) {
+				func(ctx context.Context, out io.Writer, in prompt.Reader, question string) (string, error) {
 					return test.solveOTP(ctx)
 				},
-				func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
-					return test.solveWebauthn(ctx, origin, assertion)
+				func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, _ wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+					resp, err := test.solveWebauthn(ctx, origin, assertion)
+					return resp, "", err
 				},
 			)
 
@@ -186,7 +188,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 
 	user, err := types.NewUser("llama")
 	require.NoError(t, err)
-	role, err := types.NewRole(user.GetName(), types.RoleSpecV5{
+	role, err := types.NewRoleV3(user.GetName(), types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{user.GetName()},
 		},
