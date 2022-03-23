@@ -315,8 +315,8 @@ func checkBpfLsm() error {
 		return trace.Wrap(err)
 	}
 
-	for _, mod := range strings.Split(string(csv), ",") {
-		if mod == "bpf" {
+	for _, mod := range bytes.Split(csv, []byte(",")) {
+		if bytes.Equal(mod, []byte("bpf")) {
 			return nil
 		}
 	}
