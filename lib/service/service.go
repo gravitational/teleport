@@ -364,7 +364,7 @@ func (process *TeleportProcess) onHeartbeat(component string) func(err error) {
 	}
 }
 
-// ComponentsCount returns the number of components enabled.
+// ComponentCount returns the number of components enabled (based on the configuration) that will send heartbeats.
 func (process *TeleportProcess) ComponentCount() int {
 	return process.Config.ComponentCount()
 }

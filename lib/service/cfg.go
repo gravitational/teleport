@@ -302,7 +302,7 @@ func (cfg *Config) DebugDumpToYAML() string {
 	return string(out)
 }
 
-// ComponentsCount returns the number of components enabled.
+// ComponentCount returns the number of components enabled (based on the configuration) that will send heartbeats.
 func (cfg *Config) ComponentCount() int {
 	componentCount := 0
 

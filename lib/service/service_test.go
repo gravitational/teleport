@@ -108,7 +108,7 @@ func testMonitor(t *testing.T, sshEnabled bool, tests []monitorTest) {
 	cfg.Auth.Enabled = true
 	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
-	cfg.Auth.StorageConfig.Params["path"] =  t.TempDir()
+	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	if sshEnabled {
 		cfg.SSH.Enabled = true
 		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
