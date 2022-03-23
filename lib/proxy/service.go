@@ -80,7 +80,9 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	}
 
 	err = stream.Send(&proto.Frame{
-		Message: &proto.Frame_ConnectionEstablished{},
+		Message: &proto.Frame_ConnectionEstablished{
+			ConnectionEstablished: &proto.ConnectionEstablished{},
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
