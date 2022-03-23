@@ -86,6 +86,13 @@ func (f *redshiftFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 	var databases types.Databases
 	for _, cluster := range clusters {
+		if !services.IsRedshiftClusterAvailable(cluster) {
+			f.log.Debugf("The current status of Redshift cluster %q is %q. Skipping.",
+				aws.StringValue(cluster.ClusterIdentifier),
+				aws.StringValue(cluster.ClusterStatus))
+			continue
+		}
+
 		database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 		if err != nil {
 			f.log.Infof("Could not convert Redshift cluster %q to database resource: %v.",

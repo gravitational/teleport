@@ -24,7 +24,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -190,7 +189,7 @@ func (w *PlaybackWriter) SessionChunks() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer grChunk.Close()
-	stream, err = ioutil.ReadAll(grChunk)
+	stream, err = io.ReadAll(grChunk)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
