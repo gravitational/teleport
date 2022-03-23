@@ -343,6 +343,7 @@ func (l *SessionRecording) CheckAndSetDefaults() error {
 
 // UploadSessionRecording persists the session recording locally or to third
 // party storage.
+// TODO(zmb3): I don't think this is ever called anymore - remove it
 func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -356,11 +357,15 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 		return trace.Wrap(err)
 	}
 	l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
-	return l.EmitAuditEventLegacy(SessionUploadE, EventFields{
-		EventID:        uuid.New().String(),
-		SessionEventID: string(r.SessionID),
-		URL:            url,
-		EventIndex:     SessionUploadIndex,
+	return l.EmitAuditEvent(context.TODO(), &apievents.SessionUpload{
+		Metadata: apievents.Metadata{
+			Index: SessionUploadIndex,
+			ID:    uuid.New().String(),
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(r.SessionID),
+		},
+		SessionURL: url,
 	})
 }
 
