@@ -19,8 +19,9 @@ package db
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
@@ -81,7 +82,7 @@ func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte
 	// It's already downloaded.
 	if err == nil {
 		s.log.Debugf("Loaded CA certificate %v.", filePath)
-		return ioutil.ReadFile(filePath)
+		return os.ReadFile(filePath)
 	}
 	// Otherwise download it.
 	s.log.Debugf("Downloading CA certificate for %v.", database)
@@ -90,7 +91,7 @@ func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte
 		return nil, trace.Wrap(err)
 	}
 	// Save to the filesystem.
-	err = ioutil.WriteFile(filePath, bytes, teleport.FileMaskOwnerOnly)
+	err = os.WriteFile(filePath, bytes, teleport.FileMaskOwnerOnly)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,7 +159,7 @@ func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, error) {
 		return nil, trace.BadParameter("status code %v when fetching from %q",
 			resp.StatusCode, downloadURL)
 	}
-	bytes, err := ioutil.ReadAll(resp.Body)
+	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
