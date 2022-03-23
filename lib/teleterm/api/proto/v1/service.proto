@@ -74,10 +74,13 @@ message LogoutRequest { string cluster_uri = 1; }
 message LoginRequest {
     // cluster_uri is the cluster uri
     string cluster_uri = 1;
-    // local holds parameters for local logins
-    LocalParams local = 2;
-    // sso holds parameters for sso logins
-    SsoParams sso = 3;
+
+    oneof params {
+      // local holds parameters for local logins
+      LocalParams local = 2;
+      // sso holds parameters for sso logins
+      SsoParams sso = 3;
+    }
 
     // LocalParams describes parameters for local user logins
     message LocalParams {
