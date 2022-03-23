@@ -139,6 +139,7 @@ func Run(commands []CLICommand) {
 	// parse CLI commands+flags:
 	selectedCmd, err := app.Parse(os.Args[1:])
 	if err != nil {
+		app.Usage(os.Args[1:])
 		utils.FatalError(err)
 	}
 
