@@ -319,7 +319,6 @@ func (c *Client) Dial(
 			},
 		},
 	}); err != nil {
-		return nil, trace.Wrap(err)
 		return nil, trace.ConnectionProblem(err, "error sending dial frame")
 	}
 
