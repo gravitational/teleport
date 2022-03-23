@@ -22,6 +22,7 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -285,7 +287,9 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	}
 
 	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.TLSRoutingEnabled {
-		opts = append(opts, proxy.WithALPNDialer())
+		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
+			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		}))
 	}
 
 	for _, authMethod := range a.authMethods {
