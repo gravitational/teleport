@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -65,7 +64,7 @@ var testConfigs testConfigFiles
 func writeTestConfigs() error {
 	var err error
 
-	testConfigs.tempDir, err = ioutil.TempDir("", "teleport-config")
+	testConfigs.tempDir, err = os.MkdirTemp("", "teleport-config")
 	if err != nil {
 		return err
 	}
@@ -669,7 +668,7 @@ func TestApplyConfig(t *testing.T) {
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
-	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
+	u2fCAFromFile, err := os.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
 		Kind:    types.KindClusterAuthPreference,
