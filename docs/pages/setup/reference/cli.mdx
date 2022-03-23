@@ -38,7 +38,7 @@ the following services.
 | - | - | - | - |
 | `-d, --debug` | none | none | enable verbose logging to stderr |
 | `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally. |
-| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](../../architecture/overview.mdx) document. |
+| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, auth, node, db, app` or `windowsdesktop` | start listed services/roles. These roles are explained in the [Teleport Architecture](../../architecture/overview.mdx) document. |
 | `--pid-file` | none | **string** filepath | create a PID file at the path |
 | `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT |
 | `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP |
@@ -902,7 +902,7 @@ $ tctl nodes add [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--roles` | `node` | `node,auth` or `proxy` | Comma-separated list of roles for the new node to assume |
+| `--roles` | `node` | `proxy, auth, node, db, app` or `windowsdesktop` | Comma-separated list of roles for the new node to assume |
 | `--ttl` | 30m | relative duration like 5s, 2m, or 3h | Time to live for a generated token |
 | `--token` | none | **string** token value | A custom token to use, auto-generated if not provided. Should match token set with `teleport start --token` |
 
@@ -953,7 +953,7 @@ $ tctl tokens add --type=TYPE [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--type` | none | `trusted_cluster`, `node`, `proxy` | Type of token to add |
+| `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
 
