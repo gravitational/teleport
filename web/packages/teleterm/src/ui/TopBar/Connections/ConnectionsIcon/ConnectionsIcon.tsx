@@ -6,6 +6,7 @@ import { ConnectionsIconStatusIndicator } from './ConnectionsIconStatusIndicator
 
 interface ConnectionsIconProps {
   isAnyConnectionActive: boolean;
+
   onClick(): void;
 }
 
@@ -13,7 +14,9 @@ export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
   (props, ref) => {
     return (
       <Container ref={ref}>
-        <ConnectionsIconStatusIndicator connected={props.isAnyConnectionActive} />
+        <ConnectionsIconStatusIndicator
+          connected={props.isAnyConnectionActive}
+        />
         <StyledButton
           onClick={props.onClick}
           kind="secondary"
@@ -21,7 +24,7 @@ export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
           m="auto"
           title="Connections"
         >
-          <Cluster fontSize={14} />
+          <Cluster fontSize={16} />
         </StyledButton>
       </Container>
     );
