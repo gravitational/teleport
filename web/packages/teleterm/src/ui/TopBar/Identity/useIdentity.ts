@@ -16,18 +16,7 @@ export function useIdentity() {
   }
 
   async function logout(clusterUri: string): Promise<void> {
-    await ctx.clustersService.logout(clusterUri);
-    await ctx.clustersService.removeCluster(clusterUri);
-
-    if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
-      const [firstConnectedWorkspace] =
-        ctx.workspacesService.getConnectedWorkspacesClustersUri();
-      if (firstConnectedWorkspace) {
-        await ctx.workspacesService.setActiveWorkspace(firstConnectedWorkspace);
-      } else {
-        await ctx.workspacesService.setActiveWorkspace(null);
-      }
-    }
+    ctx.commandLauncher.executeCommand('cluster-logout', {clusterUri})
   }
 
   function getActiveRootCluster(): Cluster | undefined {

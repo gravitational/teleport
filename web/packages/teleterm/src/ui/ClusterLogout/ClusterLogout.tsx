@@ -21,15 +21,16 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import * as Alerts from 'design/Alert';
-import { Text, ButtonPrimary, ButtonSecondary } from 'design';
-import { State, Props, useClusterRemove } from './useClusterRemove';
+import { ButtonIcon, ButtonPrimary, Text } from 'design';
+import { Props, State, useClusterLogout } from './useClusterLogout';
+import { Close } from 'design/Icon';
 
 export default function Container(props: Props) {
-  const state = useClusterRemove(props);
-  return <ClusterRemove {...state} />;
+  const state = useClusterLogout(props);
+  return <ClusterLogout {...state} />;
 }
 
-export function ClusterRemove({
+export function ClusterLogout({
   status,
   onClose,
   statusText,
@@ -41,41 +42,41 @@ export function ClusterRemove({
       open={true}
       onClose={onClose}
       dialogCss={() => ({
-        maxWidth: '380px',
+        maxWidth: '400px',
         width: '100%',
       })}
     >
-      <DialogHeader>
-        <Text typography="h4" css={{ whiteSpace: 'nowrap' }}>
-          Remove Cluster {clusterTitle}
+      <DialogHeader justifyContent="space-between" mb={0}>
+        <Text typography="h5" bold style={{ whiteSpace: 'nowrap' }}>
+          Log out from cluster {clusterTitle}
         </Text>
+        <ButtonIcon
+          disabled={status === 'processing'}
+          onClick={onClose}
+          color="text.secondary"
+        >
+          <Close fontSize={5} />
+        </ButtonIcon>
       </DialogHeader>
-      <DialogContent>
-        <Text color="text.secondary" typography="h5">
-          Are you sure you want to remove cluster?
+      <DialogContent mb={4}>
+        <Text color="text.secondary" typography="body1">
+          Are you sure you want to log out?
         </Text>
         {status === 'error' && <Alerts.Danger mb={5} children={statusText} />}
       </DialogContent>
       <DialogFooter>
         <ButtonPrimary
+          kind="warning"
           disabled={status === 'processing'}
-          mr="3"
+          size="large"
+          block={true}
           onClick={e => {
             e.preventDefault();
             removeCluster();
           }}
         >
-          Remove
+          Log out
         </ButtonPrimary>
-        <ButtonSecondary
-          disabled={status === 'processing'}
-          onClick={e => {
-            e.preventDefault();
-            onClose();
-          }}
-        >
-          Cancel
-        </ButtonSecondary>
       </DialogFooter>
     </DialogConfirmation>
   );
