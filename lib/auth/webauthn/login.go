@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"sort"
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
@@ -63,10 +64,7 @@ type loginFlow struct {
 }
 
 func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*CredentialAssertion, error) {
-	switch {
-	case f.Webauthn.Disabled:
-		return nil, trace.BadParameter("webauthn disabled")
-	case user == "" && !passwordless:
+	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
 
@@ -84,6 +82,17 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Sort non-resident keys first, which may cause clients to favor them for
+		// MFA in some scenarios (eg, tsh).
+		sort.Slice(devices, func(i, j int) bool {
+			dev1, dev2 := devices[i], devices[j]
+			web1, web2 := dev1.GetWebauthn(), dev2.GetWebauthn()
+			resident1 := web1 != nil && web1.ResidentKey
+			resident2 := web2 != nil && web2.ResidentKey
+			return !resident1 && resident2
+		})
+
 		u = newWebUser(user, webID, true /* credentialIDOnly */, devices)
 
 		// Let's make sure we have at least one registered credential here, since we
@@ -170,8 +179,6 @@ func beginLogin(
 
 func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
 	switch {
-	case f.Webauthn.Disabled:
-		return nil, "", trace.BadParameter("webauthn disabled")
 	case user == "" && !passwordless:
 		return nil, "", trace.BadParameter("user required")
 	case resp == nil:

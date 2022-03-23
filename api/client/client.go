@@ -275,18 +275,20 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}
 }
 
-type connectFunc func(ctx context.Context, params connectParams) (*Client, error)
-type connectParams struct {
-	cfg       Config
-	addr      string
-	tlsConfig *tls.Config
-	dialer    ContextDialer
-	sshConfig *ssh.ClientConfig
-}
+type (
+	connectFunc   func(ctx context.Context, params connectParams) (*Client, error)
+	connectParams struct {
+		cfg       Config
+		addr      string
+		tlsConfig *tls.Config
+		dialer    ContextDialer
+		sshConfig *ssh.ClientConfig
+	}
+)
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -875,9 +877,14 @@ func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*type
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
 func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	resources, err := c.GetResources(ctx, defaults.Namespace, types.KindKubeService)
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		ResourceType: types.KindKubeService,
+	})
 	if err != nil {
-		// DELETE IN 10.0
+		// Underlying ListResources for kube service was not available, use fallback.
+		//
+		// DELETE IN 11.0.0
 		if trace.IsNotImplemented(err) {
 			return c.getKubeServicesFallback(ctx)
 		}
@@ -885,14 +892,9 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	servers := make([]types.Server, len(resources))
-	for i, resource := range resources {
-		srv, ok := resource.(types.Server)
-		if !ok {
-			return nil, trace.BadParameter("expected Server resource, got %T", resource)
-		}
-
-		servers[i] = srv
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return servers, nil
@@ -917,8 +919,14 @@ func (c *Client) getKubeServicesFallback(ctx context.Context) ([]types.Server, e
 
 // GetApplicationServers returns all registered application servers.
 func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	resources, err := c.GetResources(ctx, namespace, types.KindAppServer)
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		Namespace:    namespace,
+		ResourceType: types.KindAppServer,
+	})
 	if err != nil {
+		// Underlying ListResources for app server was not available, use fallback.
+		//
+		// DELETE IN 11.0.0
 		if trace.IsNotImplemented(err) {
 			servers, err := c.getApplicationServersFallback(ctx, namespace)
 			if err != nil {
@@ -931,14 +939,9 @@ func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([
 		return nil, trace.Wrap(err)
 	}
 
-	servers := make([]types.AppServer, len(resources))
-	for i, resource := range resources {
-		appServer, ok := resource.(types.AppServer)
-		if !ok {
-			return nil, trace.BadParameter("expected AppServer resource, got %T", resource)
-		}
-
-		servers[i] = appServer
+	servers, err := types.ResourcesWithLabels(resources).AsAppServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// In addition, we need to fetch legacy application servers.
@@ -1176,8 +1179,14 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
-	resources, err := c.GetResources(ctx, namespace, types.KindDatabaseServer)
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		Namespace:    namespace,
+		ResourceType: types.KindDatabaseServer,
+	})
 	if err != nil {
+		// Underlying ListResources for db server was not available, use fallback.
+		//
+		// DELETE IN 11.0.0
 		if trace.IsNotImplemented(err) {
 			servers, err := c.getDatabaseServersFallback(ctx, namespace)
 			if err != nil {
@@ -1190,14 +1199,9 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]ty
 		return nil, trace.Wrap(err)
 	}
 
-	servers := make([]types.DatabaseServer, len(resources))
-	for i, resource := range resources {
-		databaseServer, ok := resource.(types.DatabaseServer)
-		if !ok {
-			return nil, trace.BadParameter("expected DatabaseServer resource, got %T", resource)
-		}
-
-		servers[i] = databaseServer
+	servers, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return servers, nil
@@ -1622,17 +1626,46 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	return GetNodesWithLabels(ctx, c, namespace, nil)
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    namespace,
+	})
+	if err != nil {
+		// Underlying ListResources for nodes was not available, use fallback.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			servers, err := GetNodesWithLabels(ctx, c, namespace, nil)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return servers, nil
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
 }
 
 // NodeClient is an interface used by GetNodesWithLabels to abstract over implementations of
 // the ListNodes method.
+//
+// DELETE IN 11.0.0 with GetNodesWithLabels (used in both api/client/client.go and lib/auth/httpfallback.go)
+// replaced by ListResourcesClient
 type NodeClient interface {
 	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 }
 
 // GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  In addition to
 // iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+//
+// DELETE IN 11.0.0 replaced by GetResourcesWithFilters.
 func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	// Retrieve the complete list of nodes in chunks.
 	var (
@@ -1677,8 +1710,8 @@ func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, l
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
 // ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
-func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
-	resources, nextKey, err := c.ListResources(ctx, proto.ListResourcesRequest{
+func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
+	resp, err := c.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindNode,
 		Namespace:    req.Namespace,
 		StartKey:     req.StartKey,
@@ -1693,8 +1726,8 @@ func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nod
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers := make([]types.Server, len(resources))
-	for i, resource := range resources {
+	servers := make([]types.Server, len(resp.Resources))
+	for i, resource := range resp.Resources {
 		server, ok := resource.(*types.ServerV2)
 		if !ok {
 			return nil, "", trace.BadParameter("invalid node type %T", resource)
@@ -1703,7 +1736,7 @@ func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nod
 		servers[i] = server
 	}
 
-	return servers, nextKey, nil
+	return servers, resp.NextKey, nil
 }
 
 // listNodesFallback previous implementation of `ListNodes` function using
@@ -2386,17 +2419,17 @@ func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAu
 // `GetResources` function.
 // It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
 // message size.
-func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error) {
+func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	resp, err := c.grpc.ListResources(ctx, &req, c.callOpts...)
 	if err != nil {
-		return nil, "", trail.FromGRPC(err)
+		return nil, trail.FromGRPC(err)
 	}
 
-	resources = make([]types.ResourceWithLabels, len(resp.GetResources()))
+	resources := make([]types.ResourceWithLabels, len(resp.GetResources()))
 	for i, respResource := range resp.GetResources() {
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
@@ -2407,17 +2440,32 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetNode()
 		case types.KindKubeService:
 			resources[i] = respResource.GetKubeService()
+		case types.KindWindowsDesktop:
+			resources[i] = respResource.GetWindowsDesktop()
+		case types.KindKubernetesCluster:
+			resources[i] = respResource.GetKubeCluster()
 		default:
-			return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
 	}
 
-	return resources, resp.NextKey, nil
+	return &types.ListResourcesResponse{
+		Resources:  resources,
+		NextKey:    resp.NextKey,
+		TotalCount: int(resp.TotalCount),
+	}, nil
 }
 
-// GetResources retrieves all pages from ListResourcesPage and return all
-// resources.
-func (c *Client) GetResources(ctx context.Context, namespace, resourceType string) ([]types.ResourceWithLabels, error) {
+// ListResourcesClient is an interface used by GetResourcesWithFilters to abstract over implementations of
+// the ListResources method.
+type ListResourcesClient interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+// GetResourcesWithFilters is a helper for getting a list of resources with optional filtering. In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, error) {
+	// Retrieve the complete list of resources in chunks.
 	var (
 		resources []types.ResourceWithLabels
 		startKey  string
@@ -2425,15 +2473,20 @@ func (c *Client) GetResources(ctx context.Context, namespace, resourceType strin
 	)
 
 	for {
-		listResources, nextKey, err := c.ListResources(ctx, proto.ListResourcesRequest{
-			Namespace:    namespace,
-			ResourceType: resourceType,
-			StartKey:     startKey,
-			Limit:        chunkSize,
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:           req.Namespace,
+			ResourceType:        req.ResourceType,
+			StartKey:            startKey,
+			Limit:               chunkSize,
+			Labels:              req.Labels,
+			SearchKeywords:      req.SearchKeywords,
+			PredicateExpression: req.PredicateExpression,
 		})
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
+				// Cut chunkSize in half if gRPC max message size is exceeded.
 				chunkSize = chunkSize / 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if chunkSize == 0 {
 					return nil, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
 				}
@@ -2444,9 +2497,9 @@ func (c *Client) GetResources(ctx context.Context, namespace, resourceType strin
 			return nil, trail.FromGRPC(err)
 		}
 
-		startKey = nextKey
-		resources = append(resources, listResources...)
-		if startKey == "" || len(listResources) == 0 {
+		startKey = resp.NextKey
+		resources = append(resources, resp.Resources...)
+		if startKey == "" || len(resp.Resources) == 0 {
 			break
 		}
 
@@ -2473,7 +2526,6 @@ func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionT
 	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &empty.Empty{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
-
 	}
 
 	var sessions []types.SessionTracker

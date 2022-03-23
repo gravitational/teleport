@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/x509"
-	"encoding/json"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -111,11 +110,11 @@ type RegisterParams struct {
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
-	// EC2IdentityDocument is used for Simplified Node Joining to prove the
-	// identity of a joining EC2 instance.
-	EC2IdentityDocument []byte
 	// JoinMethod is the joining method used for this register request.
 	JoinMethod types.JoinMethod
+	// ec2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	ec2IdentityDocument []byte
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -140,6 +139,14 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 	token, err := utils.ReadToken(params.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// add EC2 Identity Document to params if required for given join method
+	if params.JoinMethod == types.JoinMethodEC2 {
+		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
@@ -218,7 +225,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				DNSNames:             params.DNSNames,
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.EC2IdentityDocument,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -264,7 +271,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				DNSNames:             params.DNSNames,
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.EC2IdentityDocument,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
 			})
 	}
 	return certs, trace.Wrap(err)
@@ -512,40 +519,4 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	}
 
 	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
-}
-
-// LegacyCerts is equivalent to proto.Certs, but uses
-// JSON keys expected by old clients (7.x and earlier)
-// DELETE in 9.0.0 (Joerger/zmb3)
-type LegacyCerts struct {
-	SSHCert    []byte   `json:"cert"`
-	TLSCert    []byte   `json:"tls_cert"`
-	TLSCACerts [][]byte `json:"tls_ca_certs"`
-	SSHCACerts [][]byte `json:"ssh_ca_certs"`
-}
-
-// LegacyCertsFromProto converts proto.Certs to LegacyCerts.
-// DELETE in 10.0.0 (Joerger/zmb3)
-func LegacyCertsFromProto(c *proto.Certs) *LegacyCerts {
-	return &LegacyCerts{
-		SSHCert:    c.SSH,
-		TLSCert:    c.TLS,
-		SSHCACerts: c.SSHCACerts,
-		TLSCACerts: c.TLSCACerts,
-	}
-}
-
-// UnmarshalLegacyCerts unmarshals the a legacy certs response as proto.Certs.
-// DELETE in 10.0.0 (Joerger/zmb3)
-func UnmarshalLegacyCerts(bytes []byte) (*proto.Certs, error) {
-	var lc LegacyCerts
-	if err := json.Unmarshal(bytes, &lc); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &proto.Certs{
-		SSH:        lc.SSHCert,
-		TLS:        lc.TLSCert,
-		TLSCACerts: lc.TLSCACerts,
-		SSHCACerts: lc.SSHCACerts,
-	}, nil
 }

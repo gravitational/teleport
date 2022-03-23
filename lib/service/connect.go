@@ -320,9 +320,9 @@ func (process *TeleportProcess) newWatcher(conn *Connector, watch types.Watch) (
 // TLS client this method uses the local auth server.
 func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertAuthID, loadPrivateKeys bool) (types.CertAuthority, error) {
 	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
-		return process.localAuth.GetCertAuthority(id, loadPrivateKeys)
+		return process.localAuth.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
 	}
-	return conn.Client.GetCertAuthority(id, loadPrivateKeys)
+	return conn.Client.GetCertAuthority(process.ExitContext(), id, loadPrivateKeys)
 }
 
 // reRegister receives new identity credentials for proxy, node and auth.
@@ -379,14 +379,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 
-		var ec2IdentityDocument []byte
-		if process.Config.JoinMethod == types.JoinMethodEC2 {
-			ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
 		process.log.Infof("Joining the cluster with a secure token.")
 		const reason = "first-time-connect"
 		keyPair, err := process.generateKeyPair(role, reason)
@@ -407,7 +399,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
-			EC2IdentityDocument:  ec2IdentityDocument,
 			JoinMethod:           process.Config.JoinMethod,
 		})
 		if err != nil {

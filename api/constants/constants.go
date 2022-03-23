@@ -134,9 +134,10 @@ const (
 	SecondFactorOTP = SecondFactorType("otp")
 	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
 	// required for all users.
+	// U2F is marked for removal. It currently works as an alias for "webauthn".
 	SecondFactorU2F = SecondFactorType("u2f")
-	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA is
-	// required for all users.
+	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA
+	// is required for all users.
 	SecondFactorWebauthn = SecondFactorType("webauthn")
 	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
 	// required for all users.
@@ -187,4 +188,16 @@ const (
 	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
+)
+
+const (
+	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
+	HTTPSProxy = "HTTPS_PROXY"
+
+	// HTTPProxy is an environment variable pointing to a HTTP proxy.
+	HTTPProxy = "HTTP_PROXY"
+
+	// NoProxy is an environment variable matching the cases
+	// when HTTPS_PROXY or HTTP_PROXY is ignored
+	NoProxy = "NO_PROXY"
 )
