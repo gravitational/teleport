@@ -124,6 +124,14 @@ func WithUploaderRequestOptions(opts ...request.Option) func(*Uploader) {
 // The Uploader structure that calls Upload(). It is safe to call Upload()
 // on this structure for multiple objects and across concurrent goroutines.
 // Mutating the Uploader's properties is not safe to be done concurrently.
+//
+// The ContentMD5 member for pre-computed MD5 checksums will be ignored for
+// multipart uploads. Objects that will be uploaded in a single part, the
+// ContentMD5 will be used.
+//
+// The Checksum members for pre-computed checksums will be ignored for
+// multipart uploads. Objects that will be uploaded in a single part, will
+// include the checksum member in the request.
 type Uploader struct {
 	// The buffer size (in bytes) to use when buffering data into chunks and
 	// sending them as parts to S3. The minimum allowed part size is 5MB, and
@@ -391,6 +399,10 @@ func (u *uploader) upload() (*UploadOutput, error) {
 
 // init will initialize all default options.
 func (u *uploader) init() error {
+	if err := validateSupportedARNType(aws.StringValue(u.in.Bucket)); err != nil {
+		return err
+	}
+
 	if u.cfg.Concurrency == 0 {
 		u.cfg.Concurrency = DefaultUploadConcurrency
 	}

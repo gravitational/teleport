@@ -24,6 +24,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/trace"
@@ -58,7 +59,6 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 	}
 
 	t.Run("upsert, get, delete recovery codes", func(t *testing.T) {
-		t.Parallel()
 		username := "someuser"
 
 		rc1, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username)
@@ -98,8 +98,36 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 	})
 
 	t.Run("deleting user deletes recovery codes", func(t *testing.T) {
-		t.Parallel()
 		username := "someuser2"
+
+		// Create a user.
+		userResource := &types.UserV2{}
+		userResource.SetName(username)
+		err := identity.CreateUser(userResource)
+		require.NoError(t, err)
+
+		// Test codes exist for user.
+		rc1, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username)
+		require.NoError(t, err)
+		err = identity.UpsertRecoveryCodes(ctx, username, rc1)
+		require.NoError(t, err)
+		codes, err := identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
+		require.NoError(t, err)
+		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
+
+		// Test deletion of recovery code along with user.
+		err = identity.DeleteUser(ctx, username)
+		require.NoError(t, err)
+		_, err = identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("deleting user ending with 'z'", func(t *testing.T) {
+		// enable the sanitizer, and use a key ending with z,
+		// which will produce an invalid backend key when we
+		// compute the end range
+		username := "xyz"
+		identity.Backend = backend.NewSanitizer(identity.Backend)
 
 		// Create a user.
 		userResource := &types.UserV2{}
@@ -135,7 +163,6 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 	time3 := time1.Add(4 * time.Minute)
 
 	t.Run("create, get, and delete recovery attempts", func(t *testing.T) {
-		t.Parallel()
 		username := "someuser"
 
 		// Test creation of recovery attempt.
@@ -163,7 +190,6 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 	})
 
 	t.Run("deleting user deletes recovery attempts", func(t *testing.T) {
-		t.Parallel()
 		username := "someuser2"
 
 		// Create a user, to test deletion of recovery attempts with user.

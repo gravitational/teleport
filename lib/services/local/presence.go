@@ -796,6 +796,13 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 	return trace.Wrap(err)
 }
 
+// this combination of backoff parameters leads to worst-case total time spent
+// in backoff between 1200ms and 2400ms depending on jitter.  tests are in
+// place to verify that this is sufficient to resolve a 20-lease contention
+// event, which is worse than should ever occur in practice.
+const baseBackoff = time.Millisecond * 300
+const leaseRetryAttempts int64 = 6
+
 // AcquireSemaphore attempts to acquire the specified semaphore.  AcquireSemaphore will automatically handle
 // retry on contention.  If the semaphore has already reached MaxLeases, or there is too much contention,
 // a LimitExceeded error is returned (contention in this context means concurrent attempts to update the
@@ -803,13 +810,6 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 // is the only semaphore method that handles retries internally.  This is because this method both blocks
 // user-facing operations, and contains multiple different potential contention points.
 func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
-	// this combination of backoff parameters leads to worst-case total time spent
-	// in backoff between 1200ms and 2400ms depending on jitter.  tests are in
-	// place to verify that this is sufficient to resolve a 20-lease contention
-	// event, which is worse than should ever occur in practice.
-	const baseBackoff = time.Millisecond * 300
-	const acquireAttempts int64 = 6
-
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -824,7 +824,7 @@ func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.Acquir
 	key := backend.Key(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)
 
 Acquire:
-	for i := int64(0); i < acquireAttempts; i++ {
+	for i := int64(0); i < leaseRetryAttempts; i++ {
 		if i > 0 {
 			// Not our first attempt, apply backoff. If we knew that we were only in
 			// contention with one other acquire attempt we could retry immediately
@@ -995,40 +995,59 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 		return trace.BadParameter("the lease %v has expired at %v", lease.LeaseID, lease.Expires)
 	}
 
-	key := backend.Key(semaphoresPrefix, lease.SemaphoreKind, lease.SemaphoreName)
-	item, err := s.Get(ctx, key)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	sem, err := services.UnmarshalSemaphore(item.Value)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := sem.Cancel(lease); err != nil {
-		return trace.Wrap(err)
-	}
-
-	newValue, err := services.MarshalSemaphore(sem)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	newItem := backend.Item{
-		Key:     key,
-		Value:   newValue,
-		Expires: sem.Expiry(),
-	}
-
-	_, err = s.CompareAndSwap(ctx, *item, newItem)
-	if err != nil {
-		if trace.IsCompareFailed(err) {
-			return trace.CompareFailed("semaphore %v/%v has been concurrently updated, try again", sem.GetSubKind(), sem.GetName())
+	for i := int64(0); i < leaseRetryAttempts; i++ {
+		if i > 0 {
+			// Not our first attempt, apply backoff. If we knew that we were only in
+			// contention with one other cancel attempt we could retry immediately
+			// since we got here because some other attempt *succeeded*.  It is safer,
+			// however, to assume that we are under high contention and attempt to
+			// spread out retries via random backoff.
+			select {
+			case <-time.After(s.jitter(baseBackoff * time.Duration(i))):
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			}
 		}
-		return trace.Wrap(err)
+
+		key := backend.Key(semaphoresPrefix, lease.SemaphoreKind, lease.SemaphoreName)
+		item, err := s.Get(ctx, key)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		sem, err := services.UnmarshalSemaphore(item.Value)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := sem.Cancel(lease); err != nil {
+			return trace.Wrap(err)
+		}
+
+		newValue, err := services.MarshalSemaphore(sem)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		newItem := backend.Item{
+			Key:     key,
+			Value:   newValue,
+			Expires: sem.Expiry(),
+		}
+
+		_, err = s.CompareAndSwap(ctx, *item, newItem)
+		switch {
+		case err == nil:
+			return nil
+		case trace.IsCompareFailed(err):
+			// semaphore was concurrently updated
+			continue
+		default:
+			return trace.Wrap(err)
+		}
 	}
-	return nil
+
+	return trace.LimitExceeded("too much contention on semaphore %s/%s", lease.SemaphoreKind, lease.SemaphoreName)
 }
 
 // GetSemaphores returns all semaphores matching the supplied filter.
@@ -1437,6 +1456,22 @@ func (s *PresenceService) GetWindowsDesktopServices(ctx context.Context) ([]type
 		srvs[i] = s
 	}
 	return srvs, nil
+}
+
+func (s *PresenceService) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	result, err := s.Get(ctx, backend.Key(windowsDesktopServicesPrefix, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	service, err := services.UnmarshalWindowsDesktopService(
+		result.Value,
+		services.WithResourceID(result.ID),
+		services.WithExpires(result.Expires),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return service, nil
 }
 
 // UpsertWindowsDesktopService registers new Windows desktop service.
