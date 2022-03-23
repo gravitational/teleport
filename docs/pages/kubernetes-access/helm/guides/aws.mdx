@@ -6,9 +6,21 @@ description: Install and configure an HA Teleport cluster using an AWS EKS clust
 In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and AWS products (DynamoDB and S3).
 
-(!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
 
-## Step 3. Set up AWS IAM configuration
+## Prerequisites
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+
+## Step 1/7. Install Helm
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
+
+## Step 2/7. Add the Teleport Helm chart repository
+
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+## Step 3/7. Set up AWS IAM configuration
 
 For Teleport to be able to create the DynamoDB tables, indexes, and the S3 storage bucket it needs,
 you'll need to configure AWS IAM policies to allow access.
@@ -153,7 +165,7 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
-## Step 4. Install and configure cert-manager
+## Step 4/7. Install and configure cert-manager
 
 Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
 
@@ -216,7 +228,7 @@ $ kubectl create namespace teleport
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
-## Step 5. Set values to configure the cluster
+## Step 5/7. Set values to configure the cluster
 
 There are two different ways to configure the `teleport-cluster` Helm chart to use `aws` mode - using a `values.yaml` file, or using `--set`
 on the command line.
@@ -299,7 +311,7 @@ $ kubectl --namespace teleport get all
 # replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ```
 
-## Step 6. Set up DNS
+## Step 6/7. Set up DNS
 
 You'll need to set up a DNS `A` record for `teleport.example.com`. In our example, this record is an alias to an ELB.
 
@@ -367,7 +379,7 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 # "INSYNC"
 ```
 
-## Step 7. Create a Teleport user
+## Step 7/7. Create a Teleport user
 
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
