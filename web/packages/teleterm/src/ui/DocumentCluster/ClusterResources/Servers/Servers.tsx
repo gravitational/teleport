@@ -18,8 +18,9 @@ import React from 'react';
 import { useServers, State } from './useServers';
 import * as types from 'teleterm/ui/services/clusters/types';
 import Table, { Cell } from 'design/DataTable';
-import { ButtonBorder } from 'design';
 import { renderLabelCell } from '../renderLabelCell';
+import MenuSshLogin from 'shared/components/MenuSshLogin';
+import { MenuSshLoginTheme } from './MenuSshLoginTheme';
 
 export default function Container() {
   const state = useServers();
@@ -27,7 +28,7 @@ export default function Container() {
 }
 
 function ServerList(props: State) {
-  const { servers = [], connect } = props;
+  const { servers = [], getSshLogins, connect } = props;
   return (
     <Table
       columns={[
@@ -49,7 +50,11 @@ function ServerList(props: State) {
         },
         {
           altKey: 'connect-btn',
-          render: server => renderConnectCell(server.uri, connect),
+          render: server =>
+            renderConnectCell(
+              () => getSshLogins(server.uri),
+              login => connect(server.uri, login)
+            ),
         },
       ]}
       emptyText="No Nodes Found"
@@ -60,19 +65,25 @@ function ServerList(props: State) {
 }
 
 const renderConnectCell = (
-  serverUri: string,
-  connect: (serverUri: string) => void
+  getSshLogins: () => string[],
+  onConnect: (login: string) => void
 ) => {
   return (
     <Cell align="right">
-      <ButtonBorder
-        size="small"
-        onClick={() => {
-          connect(serverUri);
-        }}
-      >
-        Connect
-      </ButtonBorder>
+      <MenuSshLoginTheme>
+        <MenuSshLogin
+          onOpen={() => getSshLogins().map(login => ({ login, url: '' }))}
+          onSelect={(e, login) => onConnect(login)}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          anchorOrigin={{
+            vertical: 'center',
+            horizontal: 'right',
+          }}
+        />
+      </MenuSshLoginTheme>
     </Cell>
   );
 };

@@ -17,7 +17,6 @@
 import React from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import GatewayCreate from 'teleterm/ui/GatewayCreate';
-import ServerConnect from 'teleterm/ui/ServerConnect';
 import ClusterRemove from '../ClusterRemove/ClusterRemove';
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 
@@ -49,10 +48,6 @@ export default function ModalsHost() {
 
   if (dialog.kind === 'create-gateway') {
     return <GatewayCreate {...dialog} onClose={handleClose} />;
-  }
-
-  if (dialog.kind === 'server-connect') {
-    return <ServerConnect serverUri={dialog.serverUri} onClose={handleClose} />;
   }
 
   return null;

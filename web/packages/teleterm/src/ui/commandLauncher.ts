@@ -19,14 +19,6 @@ import { routing } from 'teleterm/ui/uri';
 import { tsh } from 'teleterm/ui/services/clusters/types';
 
 const commands = {
-  // For handling the "Connect" button next to a server.
-  ssh: {
-    displayName: '',
-    description: '',
-    run(ctx: IAppContext, args: { serverUri: string }) {
-      ctx.modalsService.openProxySshDialog(args.serverUri);
-    },
-  },
   // For handling "tsh ssh" executed from the command bar.
   'tsh-ssh': {
     displayName: '',

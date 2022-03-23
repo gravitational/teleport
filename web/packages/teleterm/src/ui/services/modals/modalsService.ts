@@ -41,13 +41,6 @@ export class ModalsService extends ImmutableStore<Dialog> {
     }));
   }
 
-  openProxySshDialog(serverUri: string) {
-    this.setState(() => ({
-      kind: 'server-connect',
-      serverUri,
-    }));
-  }
-
   openClusterConnectDialog(
     clusterUri?: string,
     onSuccess?: (clusterUri: string) => void
@@ -93,14 +86,8 @@ export interface DialogClusterRemove {
   clusterTitle: string;
 }
 
-export interface DialogServerConnect {
-  kind: 'server-connect';
-  serverUri: string;
-}
-
 export type Dialog =
   | DialogBase
   | DialogClusterConnect
   | DialogNewGateway
-  | DialogServerConnect
   | DialogClusterRemove;

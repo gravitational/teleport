@@ -156,7 +156,7 @@ const Input = styled.input(
   border: 1px solid ${theme.colors.subtle};
   border-radius: 4px;
   box-sizing: border-box;
-  color: #263238;
+  color: ${theme.colors.grey[900]};
   height: 32px;
   outline: none;
 
