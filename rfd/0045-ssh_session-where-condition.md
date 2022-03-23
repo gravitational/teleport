@@ -12,8 +12,7 @@ Manage access to active sessions (resource kind `ssh_session`) by RBAC
 for session recordings list/read* provides access management for session
 recordings (resource kind `session`).
 
-These deny checks are to be employed on top of the new RBAC rules for listing and joining
-sessions introduced in [RFD 43](https://github.com/gravitational/teleport/blob/master/rfd/0043-kubeaccess-multiparty.md). This means that the user must pass both the resource checks introduced in this RFD and the RBAC `join_policy` checks from RFD 43 in order to join a session.
+These deny checks are to be employed on top of the new RBAC rules for listing and joining sessions introduced in [RFD 43](https://github.com/gravitational/teleport/blob/master/rfd/0043-kubeaccess-multiparty.md). This means that the user must pass both the resource checks introduced in this RFD and the RBAC `join_policy` checks from RFD 43 in order to join a session.
 
 ## Why
 
