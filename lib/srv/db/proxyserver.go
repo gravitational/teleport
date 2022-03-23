@@ -631,12 +631,15 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
 	}
+	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
+	// with UserCA where Teleport 10+ uses DatabaseCA.
+	ver10orAbove := !teleportVer.LessThan(*semver.New("10.0.0-dev"))
 
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
 		ClusterName: identity.RouteToCluster,
-		// TODO: Remove in Teleport 11.
-		SignWithDatabaseCA: teleportVer.LessThan(*semver.New("9.1.0")),
+		// TODO: Remove in Teleport 12.
+		SignWithDatabaseCA: ver10orAbove,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

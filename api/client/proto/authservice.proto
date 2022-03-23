@@ -758,7 +758,7 @@ message DatabaseCSRRequest {
     // SignWithDatabaseCA if set to true will use Database CA to sign the created certificate.
     // This flag was created to enable Database CA for new proxies and don't break old one that
     // are still using UserCA.
-    // DELETE IN 11.0.
+    // DELETE IN 12.0.
     bool SignWithDatabaseCA = 3 [ (gogoproto.jsontag) = "sign_with_database_ca" ];
 }
 
