@@ -477,7 +477,6 @@ github.com/gravitational/reporting v0.0.0-20210923183620-237377721140/go.mod h1:
 github.com/gravitational/roundtrip v1.0.1 h1:eD/y0av12Gu9VIwNgPY/ltmpeVk0Azek/yIJvOPuTuY=
 github.com/gravitational/roundtrip v1.0.1/go.mod h1:qccpLd30tAJVSpx7aOEEnws4ZT3njPwdbtT8lNQxbAs=
 github.com/gravitational/trace v1.1.16-0.20220114165159-14a9a7dd6aaf/go.mod h1:zXqxTI6jXDdKnlf8s+nT+3c8LrwUEy3yNpO4XJL90lA=
-github.com/gravitational/trace v1.1.17 h1:BkF30oLm1aKMZ5SPVbnlVbYtYEsG26zHxA4dJ+Z46dM=
 github.com/gravitational/trace v1.1.17/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
 github.com/gravitational/trace v1.1.18 h1:Ulobib6xd5g1ct+ZC01HPAEvODws7QerjuTY9L4U8pY=
 github.com/gravitational/trace v1.1.18/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
