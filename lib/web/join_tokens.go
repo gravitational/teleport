@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
@@ -56,13 +57,38 @@ type scriptSettings struct {
 	appURI         string
 }
 
-func (h *Handler) createScriptJoinTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+// createTokenRequest is the expected request body of
+// the endpoint to create token
+type createTokenRequest struct {
+	Roles types.SystemRoles `json:"roles"`
+}
+
+func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req createTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return createScriptJoinToken(r.Context(), clt)
+	return createJoinToken(r.Context(), clt, req.Roles)
+}
+
+func (h *Handler) createNodeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles := types.SystemRoles{
+		types.RoleNode,
+		types.RoleApp,
+	}
+
+	return createJoinToken(r.Context(), clt, roles)
 }
 
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
@@ -130,13 +156,10 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 	return nil, nil
 }
 
-func createScriptJoinToken(ctx context.Context, m nodeAPIGetter) (*nodeJoinToken, error) {
+func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
 	req := auth.GenerateTokenRequest{
-		Roles: types.SystemRoles{
-			types.RoleNode,
-			types.RoleApp,
-		},
-		TTL: defaults.NodeJoinTokenTTL,
+		Roles: roles,
+		TTL:   defaults.NodeJoinTokenTTL,
 	}
 
 	token, err := m.GenerateToken(ctx, req)
