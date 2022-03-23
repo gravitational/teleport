@@ -347,3 +347,16 @@ tests:
           value: RELEASE-NAME
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: should set probeTimeoutSeconds when set in values
+    values:
+      - ../.lint/probe-timeout-seconds.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+      - matchSnapshot:
+          path: spec.template.spec
