@@ -95,23 +95,6 @@ func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 	return cfg
 }
 
-func (a *ServerWithRoles) withStaticRoles() (actionConfig, error) {
-	user, err := a.authServer.GetUser(a.context.User.GetName(), false)
-	if err != nil {
-		return actionConfig{}, trace.Wrap(err)
-	}
-
-	checker, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
-	if err != nil {
-		return actionConfig{}, trace.Wrap(err)
-	}
-
-	return actionConfig{context: Context{
-		User:    user,
-		Checker: checker,
-	}}, nil
-}
-
 func (c actionConfig) action(namespace, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("no verbs provided for authorization check on resource %q", resource)
@@ -1665,17 +1648,7 @@ func (a *ServerWithRoles) getProxyPublicAddr() string {
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
-	cfg, err := a.withStaticRoles()
-	if err != nil {
-		return err
-	}
-	if err := cfg.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
-		if trace.IsAccessDenied(err) {
-			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete) == nil {
-				// the user would've had permission with the roles granted by access requests
-				return trace.WrapWithMessage(err, "access request deletion through elevated roles is not allowed")
-			}
-		}
+	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAccessRequest(ctx, name)
@@ -2688,6 +2661,21 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 	}
 
 	// Some options are only available with enterprise subscription
+	if err := checkRoleFeatureSupport(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// access predicate syntax is not checked as part of normal role validation in order
+	// to allow the available namespaces to be extended without breaking compatibility with
+	// older nodes/proxies (which do not need to ever evaluate said predicates).
+	if err := services.ValidateAccessPredicates(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpsertRole(ctx, role)
+}
+
+func checkRoleFeatureSupport(role types.Role) error {
 	features := modules.GetModules().Features()
 	options := role.GetOptions()
 	allowReq, allowRev := role.GetAccessRequestConditions(types.Allow), role.GetAccessReviewConditions(types.Allow)
@@ -2706,16 +2694,9 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 	case features.AdvancedAccessWorkflows == false && !allowRev.IsZero():
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
+	default:
+		return nil
 	}
-
-	// access predicate syntax is not checked as part of normal role validation in order
-	// to allow the available namespaces to be extended without breaking compatibility with
-	// older nodes/proxies (which do not need to ever evaluate said predicates).
-	if err := services.ValidateAccessPredicates(role); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.UpsertRole(ctx, role)
 }
 
 // GetRole returns role by name
@@ -4206,7 +4187,6 @@ func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop)
 func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) error {
 	return a.context.Checker.CheckAccess(w,
 		// MFA is not required for operations on desktop resources
-		// TODO(zmb3): per-session MFA for desktops will be added after general availability
 		services.AccessMFAParams{Verified: true},
 		// Note: we don't use the Windows login matcher here, as we won't know what OS user
 		// the user is trying to log in as until they initiate the connection.

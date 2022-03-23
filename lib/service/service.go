@@ -26,7 +26,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1579,7 +1578,6 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 			lite.Config{
 				Path:             path,
 				EventsOff:        !cfg.events,
-				Memory:           false,
 				Mirror:           true,
 				PollStreamPeriod: 100 * time.Millisecond,
 			})
@@ -2188,7 +2186,7 @@ func (process *TeleportProcess) initMetricsService() error {
 
 		pool := x509.NewCertPool()
 		for _, caCertPath := range process.Config.Metrics.CACerts {
-			caCert, err := ioutil.ReadFile(caCertPath)
+			caCert, err := os.ReadFile(caCertPath)
 			if err != nil {
 				return trace.Wrap(err, "failed to read prometheus CA certificate %+v", caCertPath)
 			}
@@ -3800,10 +3798,16 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 			process.log.Warnf("Error waiting for all services to complete: %v", err)
 		}
 		process.log.Debug("All supervisor functions are completed.")
-		localAuth := process.getLocalAuth()
-		if localAuth != nil {
-			if err := process.localAuth.Close(); err != nil {
+
+		if localAuth := process.getLocalAuth(); localAuth != nil {
+			if err := localAuth.Close(); err != nil {
 				process.log.Warningf("Failed closing auth server: %v.", err)
+			}
+		}
+
+		if process.storage != nil {
+			if err := process.storage.Close(); err != nil {
+				process.log.Warningf("Failed closing process storage: %v.", err)
 			}
 		}
 	}()
@@ -3827,9 +3831,9 @@ func (process *TeleportProcess) Close() error {
 	process.Config.Keygen.Close()
 
 	var errors []error
-	localAuth := process.getLocalAuth()
-	if localAuth != nil {
-		errors = append(errors, process.localAuth.Close())
+
+	if localAuth := process.getLocalAuth(); localAuth != nil {
+		errors = append(errors, localAuth.Close())
 	}
 
 	if process.storage != nil {
@@ -3850,7 +3854,7 @@ func validateConfig(cfg *Config) error {
 	}
 
 	if cfg.Console == nil {
-		cfg.Console = ioutil.Discard
+		cfg.Console = io.Discard
 	}
 
 	if len(cfg.AuthServers) == 0 {
@@ -3904,10 +3908,10 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err)
 	}
 
-	if err := ioutil.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
+	if err := os.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
-	if err := ioutil.WriteFile(certPath, creds.Cert, 0600); err != nil {
+	if err := os.WriteFile(certPath, creds.Cert, 0600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
 	return nil
@@ -4008,7 +4012,8 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 	for {
 		select {
 		case <-ticker.C:
-			publicAddr, err := findPublicAddr(authClient, a)
+			publicAddr, err := app.FindPublicAddr(authClient, a.PublicAddr, a.Name)
+
 			if err == nil {
 				return publicAddr, nil
 			}
@@ -4016,37 +4021,6 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 			return "", trace.BadParameter("timed out waiting for proxy with public address")
 		}
 	}
-}
-
-// findPublicAddr tries to resolve the public address of the proxy of this cluster.
-func findPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
-	// If the application has a public address already set, use it.
-	if a.PublicAddr != "" {
-		return a.PublicAddr, nil
-	}
-
-	// Fetch list of proxies, if first has public address set, use it.
-	servers, err := authClient.GetProxies()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if len(servers) == 0 {
-		return "", trace.BadParameter("cluster has no proxied registered, at least one proxy must be registered for application access")
-	}
-	if servers[0].GetPublicAddr() != "" {
-		addr, err := utils.ParseAddr(servers[0].GetPublicAddr())
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return fmt.Sprintf("%v.%v", a.Name, addr.Host()), nil
-	}
-
-	// Fall back to cluster name.
-	cn, err := authClient.GetClusterName()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return fmt.Sprintf("%v.%v", a.Name, cn.GetClusterName()), nil
 }
 
 // newHTTPFileSystem creates a new HTTP file system for the web handler.
