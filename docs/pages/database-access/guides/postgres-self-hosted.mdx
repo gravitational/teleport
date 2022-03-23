@@ -111,43 +111,17 @@ tunnel.
 
 ### Start Database service with config file
 
-Below is an example of a database service configuration file that proxies
-a single self-hosted PostgreSQL database:
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
-```yaml
-teleport:
-  data_dir: /var/lib/teleport-db
-  nodename: test
-  # Proxy address to connect to. Note that it has to be the proxy address
-  # because database service always connects to the cluster over reverse
-  # tunnel.
-  auth_servers:
-  - teleport.example.com:3080
-db_service:
-  enabled: "yes"
-  # This section contains definitions of all databases proxied by this
-  # service, can contain multiple items.
-  databases:
-    # Name of the database proxy instance, used to reference in CLI.
-  - name: "example"
-    # Free-form description of the database proxy instance.
-    description: "Example PostgreSQL"
-    # Database protocol.
-    protocol: "postgres"
-    # Database address, PostgreSQL server endpoint in this case.
-    #
-    # Note: this URI's hostname must match the host name specified via --host
-    # flag to tctl auth sign command.
-    uri: "postgres.example.com:5432"
-    # Labels to assign to the database, used in RBAC.
-    static_labels:
-      env: dev
-auth_service:
-  enabled: "no"
-ssh_service:
-  enabled: "no"
-proxy_service:
-  enabled: "no"
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=teleport.example.com:3080 \
+   --name=test \
+   --protocol=postgres \
+   --uri=postgres.example.com:5432 \
+   --labels=env=dev
 ```
 
 <Admonition
@@ -205,7 +179,7 @@ $ tsh db login --db-user=postgres --db-name=postgres example
 Once logged in, connect to the database:
 
 ```code
-$ tsh db connect aurora
+$ tsh db connect example
 ```
 
 <Admonition type="note" title="Note">

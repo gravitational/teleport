@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -970,10 +969,7 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
-	// Teleport 8 clients are still expecting the legacy JSON format.
-	// Teleport 9 clients handle both legacy and new.
-	// TODO(zmb3) return certs directly in Teleport 10
-	return LegacyCertsFromProto(certs), nil
+	return certs, nil
 }
 
 type registerNewAuthServerReq struct {
@@ -997,7 +993,7 @@ func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.RotateCertAuthority(req); err != nil {
+	if err := auth.RotateCertAuthority(r.Context(), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -1042,7 +1038,7 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.RotateExternalCertAuthority(ca); err != nil {
+	if err := auth.RotateExternalCertAuthority(r.Context(), ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -1053,7 +1049,7 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := auth.GetCertAuthorities(types.CertAuthType(p.ByName("type")), loadKeys)
+	certs, err := auth.GetCertAuthorities(r.Context(), types.CertAuthType(p.ByName("type")), loadKeys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1077,7 +1073,7 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 		Type:       types.CertAuthType(p.ByName("type")),
 		DomainName: p.ByName("domain"),
 	}
-	ca, err := auth.GetCertAuthority(id, loadKeys)
+	ca, err := auth.GetCertAuthority(r.Context(), id, loadKeys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1829,7 +1825,7 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 
 // HTTP POST /:version/sessions/:id/slice
 func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

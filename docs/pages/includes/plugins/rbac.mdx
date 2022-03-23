@@ -1,0 +1,60 @@
+Using an existing Teleport cluster, create the following `user` and `role` resources with the command below, replacing `YAML_PATH` with the path to each resource spec.
+
+```
+$ tctl create -f YAML_PATH.yaml
+```
+
+<Details opened={true} 
+  scopeOnly={true}
+  scope={["cloud"]}
+>
+Teleport Cloud requires authenticating with a role that has [`impersonation`](https://goteleport.com/docs/access-controls/guides/impersonation/) rights and can create the `access-plugin` role and user. Log in with `tsh` with a user that has this role or has a role with these `allow` rules.
+
+```
+kind: role
+version: v4
+metadata:
+  name: plugin-admin
+spec:
+  allow:
+    impersonate:
+      roles:
+      - access-plugin
+      users:
+      - access-plugin
+    rules:
+      - resources: ['roles']
+        verbs: ['create','update','read','list','delete']
+      - resources: ['user']
+        verbs: ['create','update','read','list','delete']
+
+```
+</Details>
+
+
+Create a non-interactive bot `access-plugin` user and role.
+
+```yaml
+kind: user
+metadata:
+  name: access-plugin
+spec:
+  roles: ['access-plugin']
+version: v2
+---
+kind: role
+version: v4
+metadata:
+  name: access-plugin
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['list', 'read']
+      - resources: ['access_plugin_data']
+        verbs: ['update']
+```
+
+<Admonition type="tip">
+  If you're using other plugins, you might want to create different users and roles for different plugins
+</Admonition>

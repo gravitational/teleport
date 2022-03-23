@@ -76,8 +76,6 @@ func TestServerSorter(t *testing.T) {
 	for _, c := range cases {
 		c := c
 		t.Run(fmt.Sprintf("%s desc", c.name), func(t *testing.T) {
-			t.Parallel()
-
 			sortBy := SortBy{Field: c.fieldName, IsDesc: true}
 			servers := Servers(makeServers(testValsUnordered, c.fieldName))
 			require.NoError(t, servers.SortByCustom(sortBy))
@@ -87,8 +85,6 @@ func TestServerSorter(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("%s asc", c.name), func(t *testing.T) {
-			t.Parallel()
-
 			sortBy := SortBy{Field: c.fieldName}
 			servers := Servers(makeServers(testValsUnordered, c.fieldName))
 			require.NoError(t, servers.SortByCustom(sortBy))

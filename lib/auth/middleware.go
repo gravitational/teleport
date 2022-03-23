@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -319,6 +320,7 @@ func (a *Middleware) Wrap(h http.Handler) {
 
 func getCustomRate(endpoint string) *ratelimit.RateSet {
 	switch endpoint {
+	// Account recovery RPCs.
 	case
 		"/proto.AuthService/ChangeUserAuthentication",
 		"/proto.AuthService/GetAccountRecoveryToken",
@@ -331,8 +333,18 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 			return nil
 		}
 		return rates
+	// Passwordless RPCs (potential unauthenticated challenge generation).
+	case "/proto.AuthService/CreateAuthenticateChallenge":
+		const period = defaults.LimiterPasswordlessPeriod
+		const average = defaults.LimiterPasswordlessAverage
+		const burst = defaults.LimiterPasswordlessBurst
+		rates := ratelimit.NewRateSet()
+		if err := rates.Add(period, average, burst); err != nil {
+			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
+			return nil
+		}
+		return rates
 	}
-
 	return nil
 }
 
@@ -570,14 +582,15 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 
 // ClientCertPool returns trusted x509 cerificate authority pool
 func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
+	ctx := context.TODO()
 	pool := x509.NewCertPool()
 	var authorities []types.CertAuthority
 	if clusterName == "" {
-		hostCAs, err := client.GetCertAuthorities(types.HostCA, false)
+		hostCAs, err := client.GetCertAuthorities(ctx, types.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userCAs, err := client.GetCertAuthorities(types.UserCA, false)
+		userCAs, err := client.GetCertAuthorities(ctx, types.UserCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -585,12 +598,14 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 		authorities = append(authorities, userCAs...)
 	} else {
 		hostCA, err := client.GetCertAuthority(
+			ctx,
 			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
 			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userCA, err := client.GetCertAuthority(
+			ctx,
 			types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
 			false)
 		if err != nil {
