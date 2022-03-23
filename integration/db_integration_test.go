@@ -211,6 +211,61 @@ func TestDatabaseAccessMongoRootCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestDatabaseAccessMongoConnectionCount tests if mongo service releases
+// resource after a mongo client disconnect.
+func TestDatabaseAccessMongoConnectionCount(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	connectMongoClient := func(t *testing.T) (serverConnectionCount int32) {
+		// Connect to the database service in root cluster.
+		client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+			AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+			AuthServer: pack.root.cluster.Process.GetAuthServer(),
+			Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+			Cluster:    pack.root.cluster.Secrets.SiteName,
+			Username:   pack.root.user.GetName(),
+			RouteToDatabase: tlsca.RouteToDatabase{
+				ServiceName: pack.root.mongoService.Name,
+				Protocol:    pack.root.mongoService.Protocol,
+				Username:    "admin",
+			},
+		})
+		require.NoError(t, err)
+
+		// Execute a query.
+		_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+		require.NoError(t, err)
+
+		// Get a server connection count before disconnect.
+		serverConnectionCount = pack.root.mongo.GetActiveConnectionsCount()
+
+		// Disconnect.
+		err = client.Disconnect(context.Background())
+		require.NoError(t, err)
+
+		return serverConnectionCount
+	}
+
+	// Get connection count while the first client is connected.
+	initialConnectionCount := connectMongoClient(t)
+
+	// Check if active connections count is not growing over time when new
+	// clients connect to the mongo server.
+	clientCount := 8
+	for i := 0; i < clientCount; i++ {
+		// Note that connection count per client fluctuates between 6 and 9.
+		// Use InDelta to avoid flaky test.
+		require.InDelta(t, initialConnectionCount, connectMongoClient(t), 3)
+	}
+
+	// Wait until the server reports no more connections. This usually happens
+	// really quick but wait a little longer just in case.
+	waitUntilNoConnections := func() bool {
+		return 0 == pack.root.mongo.GetActiveConnectionsCount()
+	}
+	require.Eventually(t, waitUntilNoConnections, 5*time.Second, 100*time.Millisecond)
+}
+
 // TestDatabaseAccessMongoLeafCluster tests a scenario where a user connects
 // to a Mongo database running in a leaf cluster.
 func TestDatabaseAccessMongoLeafCluster(t *testing.T) {
@@ -743,7 +798,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p.setupUsersAndRoles(t)
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := p.leaf.cluster.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+	ca, err := p.leaf.cluster.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: p.root.cluster.Secrets.SiteName,
 	}, false)

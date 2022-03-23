@@ -25,8 +25,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -36,6 +40,13 @@ type AppsCommand struct {
 
 	// format is the output format (text, json, or yaml)
 	format string
+
+	searchKeywords string
+	predicateExpr  string
+	labels         string
+
+	// verbose sets whether full table output should be shown for labels
+	verbose bool
 
 	// appsList implements the "tctl apps ls" subcommand.
 	appsList *kingpin.CmdClause
@@ -47,7 +58,11 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	apps := app.Command("apps", "Operate on applications registered with the cluster.")
 	c.appsList = apps.Command("ls", "List all applications registered with the cluster.")
-	c.appsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default("text").StringVar(&c.format)
+	c.appsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
+	c.appsList.Arg("labels", labelHelp).StringVar(&c.labels)
+	c.appsList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
+	c.appsList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
+	c.appsList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 }
 
 // TryRun attempts to run subcommands like "apps ls".
@@ -63,27 +78,52 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
-func (c *AppsCommand) ListApps(client auth.ClientI) error {
-	servers, err := client.GetApplicationServers(context.TODO(), apidefaults.Namespace)
+func (c *AppsCommand) ListApps(clt auth.ClientI) error {
+	ctx := context.TODO()
+
+	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := &appServerCollection{servers: servers}
+
+	var servers []types.AppServer
+	resources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		Labels:              labels,
+		PredicateExpression: c.predicateExpr,
+		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
+	})
+	switch {
+	// Underlying ListResources for app servers not available, use fallback.
+	// Using filter flags with older auth will silently do nothing.
+	//
+	// DELETE IN 11.0.0
+	case trace.IsNotImplemented(err):
+		servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case err != nil:
+		return trace.Wrap(err)
+	default:
+		servers, err = types.ResourcesWithLabels(resources).AsAppServers()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	coll := &appServerCollection{servers: servers, verbose: c.verbose}
 
 	switch c.format {
 	case teleport.Text:
-		err = coll.writeText(os.Stdout)
+		return trace.Wrap(coll.writeText(os.Stdout))
 	case teleport.JSON:
-		err = coll.writeJSON(os.Stdout)
+		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
-		err = coll.writeYAML(os.Stdout)
+		return trace.Wrap(coll.writeYAML(os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}.
