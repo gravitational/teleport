@@ -2,10 +2,10 @@
    <img src="https://goteleport.com/blog/images/2020/gravitational-is-teleport-header.png" width=750/>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/docs/">
-      <img src="https://img.shields.io/badge/Teleport-8.0-651FFF.svg" />
+      <img src="https://img.shields.io/badge/Teleport-9.0-651FFF.svg" />
       </a>
       <a href="https://golang.org/">
-      <img src="https://img.shields.io/badge/Go-1.17-7fd5ea.svg" />
+      <img src="https://img.shields.io/github/go-mod/go-version/gravitational/teleport" />
       </a>
       <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
       <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />
