@@ -131,9 +131,13 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	if !modules.GetModules().Features().ModeratedSessions {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+	for _, policySet := range req.HostPolicies {
+		if len(policySet.RequireSessionJoin) != 0 {
+			if !modules.GetModules().Features().ModeratedSessions {
+				return nil, trace.AccessDenied(
+					"this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			}
+		}
 	}
 
 	now := time.Now().UTC()
