@@ -165,9 +165,6 @@ spec:
       # is approved, the response team member will assume a restricted
       # version of the db-admin-role, which only has access to the specific 
       # resources they were approved for.
-      # delegate details of the existing permissions to a special
-      # role that specifies that access.
-      # E.g the role can have only one logins: root parameter and that's all.
       search_as_roles: [db-admin-role]
 ```
 
