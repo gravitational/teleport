@@ -319,13 +319,13 @@ func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
 	}
 
 	app.UsageTemplate(createUsageTemplate(
-		usageTemplateWithCommandPrintfWidth(app, context),
+		withCommandPrintfWidth(app, context),
 	))
 }
 
-// usageTemplateWithCommandPrintfWidth returns an usage template option that
+// withCommandPrintfWidth returns an usage template option that
 // updates command printf width if longer than default.
-func usageTemplateWithCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseContext) func(*usageTemplateOptions) {
+func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseContext) func(*usageTemplateOptions) {
 	return func(opt *usageTemplateOptions) {
 		var commands []*kingpin.CmdModel
 		if context.SelectedCommand != nil {
