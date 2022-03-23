@@ -17,10 +17,12 @@ limitations under the License.
 package events
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -68,6 +70,7 @@ func (s *ForwarderConfig) CheckAndSetDefaults() error {
 }
 
 // NewForwarder returns a new instance of session forwarder
+// TODO(zmb3): this is not used outside of tests - remove it
 func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -115,6 +118,12 @@ func (l *Forwarder) Close() error {
 	}
 	l.isClosed = true
 	return l.sessionLogger.Finalize()
+}
+
+// EmitAuditEvent is not implemented
+// Events are forwarded to the auth server and is then emitted from there
+func (r *Forwarder) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return trace.NotImplemented("not implemented")
 }
 
 // EmitAuditEventLegacy emits audit event
