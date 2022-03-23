@@ -117,7 +117,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 		}
 	case format.Tar:
 		return trace.BadParameter(
-			"to review the events in format of teleport before version 4.4, extract the tarball and look inside")
+			"to review events in format of Teleport before version 4.4, extract the tarball and look inside")
 	default:
 		return trace.BadParameter("unsupported format %v", format)
 	}
