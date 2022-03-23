@@ -86,9 +86,7 @@ func (p noopPrompt) PromptPIN() (string, error) {
 	return "", nil
 }
 
-func (p noopPrompt) PromptAdditionalTouch() error {
-	return nil
-}
+func (p noopPrompt) PromptTouch() {}
 
 // pinCancelPrompt exercises cancellation after device selection.
 type pinCancelPrompt struct {
@@ -101,9 +99,8 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 	return p.pin, nil
 }
 
-func (p pinCancelPrompt) PromptAdditionalTouch() error {
+func (p pinCancelPrompt) PromptTouch() {
 	// 2nd touch never happens
-	return nil
 }
 
 func TestFIDO2Login(t *testing.T) {
@@ -1266,9 +1263,8 @@ func (f *fakeFIDO2Device) PromptPIN() (string, error) {
 	return f.pin, nil
 }
 
-func (f *fakeFIDO2Device) PromptAdditionalTouch() error {
+func (f *fakeFIDO2Device) PromptTouch() {
 	f.setUP()
-	return nil
 }
 
 func (f *fakeFIDO2Device) credentialID() []byte {

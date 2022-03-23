@@ -185,9 +185,7 @@ func fido2Login(
 		if passwordless {
 			// Ask for another touch before the assertion, we used the first touch
 			// in the Credentials() call.
-			if err := prompt.PromptAdditionalTouch(); err != nil {
-				return trace.Wrap(err)
-			}
+			prompt.PromptTouch()
 		}
 
 		opts := &libfido2.AssertionOpts{
@@ -553,6 +551,9 @@ func runOnFIDO2Devices(
 		return trace.Wrap(err)
 	}
 
+	// Ask for touch before select step.
+	prompt.PromptTouch()
+
 	// Be optimistic at first and assume there is no PIN.
 	// We'll get requiresPIN = true if the user picks a PIN-protected device.
 	var pin string
@@ -574,9 +575,7 @@ func runOnFIDO2Devices(
 	// Ask for an additional touch after PIN.
 	// Works for most flows (except passwordless).
 	if !skipAdditionalPrompt {
-		if err := prompt.PromptAdditionalTouch(); err != nil {
-			return trace.Wrap(err)
-		}
+		prompt.PromptTouch()
 	}
 
 	// Run the callback again with the informed PIN.
