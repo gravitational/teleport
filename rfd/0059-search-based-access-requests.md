@@ -58,14 +58,12 @@ option that is available alongside the “select access to roles” option.
 Alice uses standard (fuzzy search) or advanced search (labels) to enter the
 resource name.
 
-She finds a single resource or a group of resources by that name and clicks
+She finds a single resource (e.g. "db-1") or a group of resources by that name and clicks
 "request access".
 
-Teleport identifies that access to the node “db-1” is managed by team
-“db-admins” based on Alice's role which allowed her to search for this node.
-
-An access request is created and sent to the "db-admins" team members via slack,
-email or other configured channel.
+An access request is created. It is sent to the "db-admins" team members via slack,
+email or other configured channel based on the labels on the requested resources
+(we will add label-based routing to access request plugins).
 
 There are two thresholds set in access requests for this group of resources.
 When both Ivan and Mary approve the request, Alice is granted access for one
