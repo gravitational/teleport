@@ -490,24 +490,12 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	sortSessions := sortSessions(filteredSessions)
-	sort.Sort(&sortSessions)
+	sort.Slice(filteredSessions, func(i, j int) bool {
+		return filteredSessions[i].GetCreated().Before(filteredSessions[j].GetCreated())
+	})
+
 	printSessions(filteredSessions)
 	return nil
-}
-
-type sortSessions []types.SessionTracker
-
-func (s *sortSessions) Len() int {
-	return len(*s)
-}
-
-func (s *sortSessions) Less(i, j int) bool {
-	return (*s)[i].GetCreated().Before((*s)[j].GetCreated())
-}
-
-func (s *sortSessions) Swap(i, j int) {
-	(*s)[i], (*s)[j] = (*s)[j], (*s)[i]
 }
 
 func printSessions(sessions []types.SessionTracker) {
