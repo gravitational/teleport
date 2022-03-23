@@ -2586,7 +2586,7 @@ func (l pwdlessPrompt) PromptAdditionalTouch() error {
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {
-	webClient, _, err := initClient(tc.WebProxyAddr, tc.InsecureSkipVerify, loopbackPool(tc.WebProxyAddr))
+	webClient, webURL, err := initClient(tc.WebProxyAddr, tc.InsecureSkipVerify, loopbackPool(tc.WebProxyAddr))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2611,14 +2611,9 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
 	}
 
-	origin := tc.WebProxyAddr
-	if !strings.HasPrefix(origin, "https://") {
-		origin = "https://" + origin
-	}
 	prompt := pwdlessPrompt{Out: tc.Stderr}
-
 	fmt.Fprintln(tc.Stderr, "Tap your security key")
-	mfaResp, _, err := prompts.Webauthn(ctx, origin, tc.Username, challenge.WebauthnChallenge, prompt)
+	mfaResp, _, err := prompts.Webauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
