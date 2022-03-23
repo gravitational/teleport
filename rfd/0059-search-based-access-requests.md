@@ -159,9 +159,12 @@ spec:
         - ".*": "{{external.claims['group']}}"
   allow:
     request:
-      # search_as_roles will allow a member of the response team
-      # to search resources that they will be allowed to request
-      # access to as a member of db-admin-role
+      # search_as_roles allows a member of the response team
+      # to search for resources accessible to users with the db-admin-role,
+      # which they will be allowed to request access to. If the access request
+      # is approved, the response team member will assume a restricted
+      # version of the db-admin-role, which only has access to the specific 
+      # resources they were approved for.
       # delegate details of the existing permissions to a special
       # role that specifies that access.
       # E.g the role can have only one logins: root parameter and that's all.
@@ -169,7 +172,7 @@ spec:
 ```
 
 Users will assume the role db-admin-role when searching for nodes in the search
-UI and will also receive the certificate with this role if access request is
+UI and will also receive the certificate with this role (but restricted to the specific resources they requested) if access request is
 granted.
 
 ```yaml
@@ -202,14 +205,14 @@ This makes sure that the role is scoped to a static list of resources that never
 changes for this certificate.
 
 ```
-Assumed-role: [db-admin]
+Assumed-role: [db-admin-role]
 Resource-UUIDs: [uuid-1, uuid-2]
 ```
 
 ### Trusted clusters
 
 Leaf clusters will use standard role mapping to validate the cert issued by the
-root. If the leaf cluster role maps root cluster’s “db-admin” to the same role
+root. If the leaf cluster role maps root cluster’s “db-admin-role” to the same role
 using cluster mapping:
 
 ```yaml
