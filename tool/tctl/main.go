@@ -21,6 +21,7 @@ import (
 )
 
 func main() {
+	// Note: these commands should be kept in sync with e/tool/tctl/main.go.
 	commands := []common.CLICommand{
 		&common.UserCommand{},
 		&common.NodeCommand{},
