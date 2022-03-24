@@ -579,6 +579,10 @@ var (
 	// StartRoles is default roles teleport assumes when started via 'start' command
 	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
 
+	// DefaultJoinMethod is the default method a node will join the cluster, by
+	// presenting a secret token.
+	DefaultJoinMethod = "token"
+
 	// ETCDPrefix is default key in ETCD clustered configurations
 	ETCDPrefix = "/teleport"
 

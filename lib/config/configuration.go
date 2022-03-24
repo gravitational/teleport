@@ -68,6 +68,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
+	// --join-method flag
+	JoinMethod string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
 	// --listen-ip flag
