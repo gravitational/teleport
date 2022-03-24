@@ -195,7 +195,7 @@ func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 		go func() {
 			defer clientConn.Close()
 			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
-			if err != nil {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				s.log.WithError(err).Warn("Failed to handle Postgres client connection.")
 			}
 		}()
@@ -242,7 +242,9 @@ func (s *ProxyServer) ServeMongo(listener net.Listener, tlsConfig *tls.Config) e
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
 			if err := tlsConn.Handshake(); err != nil {
-				s.log.WithError(err).Error("Mongo TLS handshake failed.")
+				if !utils.IsOKNetworkError(err) {
+					s.log.WithError(err).Error("Mongo TLS handshake failed.")
+				}
 				return
 			}
 			err := s.handleConnection(tlsConn)

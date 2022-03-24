@@ -52,24 +52,25 @@ func New(p client.ConfigProvider, cfgs ...*aws.Config) *DynamoDBStreams {
 	if c.SigningNameDerived || len(c.SigningName) == 0 {
 		c.SigningName = "dynamodb"
 	}
-	return newClient(*c.Config, c.Handlers, c.PartitionID, c.Endpoint, c.SigningRegion, c.SigningName)
+	return newClient(*c.Config, c.Handlers, c.PartitionID, c.Endpoint, c.SigningRegion, c.SigningName, c.ResolvedRegion)
 }
 
 // newClient creates, initializes and returns a new service client instance.
-func newClient(cfg aws.Config, handlers request.Handlers, partitionID, endpoint, signingRegion, signingName string) *DynamoDBStreams {
+func newClient(cfg aws.Config, handlers request.Handlers, partitionID, endpoint, signingRegion, signingName, resolvedRegion string) *DynamoDBStreams {
 	svc := &DynamoDBStreams{
 		Client: client.New(
 			cfg,
 			metadata.ClientInfo{
-				ServiceName:   ServiceName,
-				ServiceID:     ServiceID,
-				SigningName:   signingName,
-				SigningRegion: signingRegion,
-				PartitionID:   partitionID,
-				Endpoint:      endpoint,
-				APIVersion:    "2012-08-10",
-				JSONVersion:   "1.0",
-				TargetPrefix:  "DynamoDBStreams_20120810",
+				ServiceName:    ServiceName,
+				ServiceID:      ServiceID,
+				SigningName:    signingName,
+				SigningRegion:  signingRegion,
+				PartitionID:    partitionID,
+				Endpoint:       endpoint,
+				APIVersion:     "2012-08-10",
+				ResolvedRegion: resolvedRegion,
+				JSONVersion:    "1.0",
+				TargetPrefix:   "DynamoDBStreams_20120810",
 			},
 			handlers,
 		),
