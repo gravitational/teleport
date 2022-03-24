@@ -161,8 +161,12 @@
               "slug": "/setup/guides/ec2-tags/"
             },
             {
-              "title": "Joining Nodes in AWS",
-              "slug": "/setup/guides/joining-nodes-aws/"
+              "title": "Joining Nodes via AWS IAM",
+              "slug": "/setup/guides/joining-nodes-aws-iam/"
+            },
+            {
+              "title": "Joining Nodes via AWS EC2",
+              "slug": "/setup/guides/joining-nodes-aws-ec2/"
             }
           ]
         },
@@ -378,7 +382,17 @@
         },
         {
           "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/"
+          "slug": "/kubernetes-access/helm/reference/",
+          "entries": [
+            {
+              "title": "teleport-cluster",
+              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
+            },
+            {
+               "title": "teleport-kube-agent",
+               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+            }
+          ]
         },
         {
           "title": "Access Controls",
@@ -559,6 +573,20 @@
         {
           "title": "Getting Started",
           "slug": "/machine-id/getting-started/"
+        },
+        {
+          "title": "Reference",
+          "slug": "/machine-id/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/machine-id/reference/cli/"
+            }
+          ]
         },
         {
           "title": "Guides",
@@ -1072,6 +1100,11 @@
     {
       "source": "/kubernetes-access/guides/migration/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/guides/joining-nodes-aws/",
+      "destination": "/setup/guides/joining-nodes-aws-iam/",
       "permanent": true
     }
   ]

@@ -22,7 +22,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"io/ioutil"
 	"sort"
 	"sync"
 	"time"
@@ -966,7 +965,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			r.padding = int64(binary.BigEndian.Uint64(r.sizeBytes[:Int64Size]))
-			gzipReader, err := newGzipReader(ioutil.NopCloser(io.LimitReader(r.reader, int64(partSize))))
+			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(r.reader, int64(partSize))))
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
 			}
@@ -988,7 +987,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
 				if r.padding != 0 {
-					skipped, err := io.CopyBuffer(ioutil.Discard, io.LimitReader(r.reader, r.padding), r.messageBytes[:])
+					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, r.padding), r.messageBytes[:])
 					if err != nil {
 						return nil, r.setError(trace.ConvertSystemError(err))
 					}
@@ -1163,7 +1162,7 @@ func (m *MemoryUploader) CompleteUpload(ctx context.Context, upload StreamUpload
 
 // UploadPart uploads part and returns the part
 func (m *MemoryUploader) UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error) {
-	data, err := ioutil.ReadAll(partBody)
+	data, err := io.ReadAll(partBody)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1248,7 +1247,7 @@ func (m *MemoryUploader) Upload(ctx context.Context, sessionID session.ID, readC
 	if ok {
 		return "", trace.AlreadyExists("session %q already exists", sessionID)
 	}
-	data, err := ioutil.ReadAll(readCloser)
+	data, err := io.ReadAll(readCloser)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}

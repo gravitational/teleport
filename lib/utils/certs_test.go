@@ -17,7 +17,7 @@ limitations under the License.
 package utils
 
 import (
-	"io/ioutil"
+	"os"
 
 	"github.com/gravitational/trace"
 
@@ -34,7 +34,7 @@ func (s *CertsSuite) TestRejectsInvalidPEMData(c *check.C) {
 }
 
 func (s *CertsSuite) TestRejectsSelfSignedCertificate(c *check.C) {
-	certificateChainBytes, err := ioutil.ReadFile("../../fixtures/certs/ca.pem")
+	certificateChainBytes, err := os.ReadFile("../../fixtures/certs/ca.pem")
 	c.Assert(err, check.IsNil)
 
 	certificateChain, err := ReadCertificateChain(certificateChainBytes)
