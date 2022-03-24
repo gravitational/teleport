@@ -19,51 +19,6 @@ exports[`empty state 1`] = `
 
 .c11 {
   line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 224px;
-}
-
-.c11:active {
-  opacity: 0.56;
-}
-
-.c11:hover,
-.c11:focus {
-  background: #651FFF;
-}
-
-.c11:active {
-  background: #354AA4;
-}
-
-.c11:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c12 {
-  line-height: 1.5;
   border-radius: 4px;
   display: inline-flex;
   justify-content: center;
@@ -93,33 +48,33 @@ exports[`empty state 1`] = `
   color: rgba(255,255,255,0.87);
 }
 
-.c12:hover {
+.c11:hover {
   opacity: 1;
 }
 
-.c12:active {
+.c11:active {
   opacity: .24;
 }
 
-.c12 > span {
+.c11 > span {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c12:hover,
-.c12:focus {
+.c11:hover,
+.c11:focus {
   border-color: #FFFFFF;
   color: #FFFFFF;
 }
 
-.c12:disabled {
+.c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c12:hover,
-.c12:focus {
+.c11:hover,
+.c11:focus {
   border-color: #FFFFFF;
   color: #FFFFFF;
 }
@@ -142,6 +97,7 @@ exports[`empty state 1`] = `
   margin-bottom: 24px;
   margin-left: auto;
   margin-right: auto;
+  height: 160px;
 }
 
 .c8 {
@@ -243,6 +199,7 @@ exports[`empty state 1`] = `
         >
           <img
             class="c7"
+            height="160px"
             src="file_stub"
           />
           <div
@@ -264,16 +221,8 @@ exports[`empty state 1`] = `
         <div
           class="c10"
         >
-          <button
-            class="c11"
-            kind="primary"
-            width="224px"
-          >
-            Add 
-            kubernetes
-          </button>
           <a
-            class="c12"
+            class="c11"
             href="https://goteleport.com/docs/kubernetes-access/guides"
             rel="noreferrer"
             target="_blank"

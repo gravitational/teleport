@@ -142,6 +142,7 @@ exports[`empty state for enterprise, can create 1`] = `
   margin-bottom: 24px;
   margin-left: auto;
   margin-right: auto;
+  height: 160px;
 }
 
 .c8 {
@@ -243,6 +244,7 @@ exports[`empty state for enterprise, can create 1`] = `
         >
           <img
             class="c7"
+            height="160px"
             src="file_stub"
           />
           <div

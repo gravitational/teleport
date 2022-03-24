@@ -1,23 +1,68 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`empty state for enterprise, can create 1`] = `
-.c5 {
+.c6 {
   box-sizing: border-box;
   max-width: 600px;
 }
 
-.c6 {
+.c7 {
   box-sizing: border-box;
   margin-bottom: 24px;
   text-align: center;
 }
 
-.c10 {
+.c11 {
   box-sizing: border-box;
   text-align: center;
 }
 
-.c11 {
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  width: 240px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -44,25 +89,25 @@ exports[`empty state for enterprise, can create 1`] = `
   width: 224px;
 }
 
-.c11:active {
+.c12:active {
   opacity: 0.56;
 }
 
-.c11:hover,
-.c11:focus {
+.c12:hover,
+.c12:focus {
   background: #651FFF;
 }
 
-.c11:active {
+.c12:active {
   background: #354AA4;
 }
 
-.c11:disabled {
+.c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c12 {
+.c13 {
   line-height: 1.5;
   border-radius: 4px;
   display: inline-flex;
@@ -93,38 +138,38 @@ exports[`empty state for enterprise, can create 1`] = `
   color: rgba(255,255,255,0.87);
 }
 
-.c12:hover {
+.c13:hover {
   opacity: 1;
 }
 
-.c12:active {
+.c13:active {
   opacity: .24;
 }
 
-.c12 > span {
+.c13 > span {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c12:hover,
-.c12:focus {
+.c13:hover,
+.c13:focus {
   border-color: #FFFFFF;
   color: #FFFFFF;
 }
 
-.c12:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c12:hover,
-.c12:focus {
+.c13:hover,
+.c13:focus {
   border-color: #FFFFFF;
   color: #FFFFFF;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
@@ -136,15 +181,16 @@ exports[`empty state for enterprise, can create 1`] = `
   border-radius: 8px;
 }
 
-.c7 {
+.c8 {
   display: block;
   outline: none;
   margin-bottom: 24px;
   margin-left: auto;
   margin-right: auto;
+  height: 160px;
 }
 
-.c8 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -156,7 +202,7 @@ exports[`empty state for enterprise, can create 1`] = `
   font-weight: 700;
 }
 
-.c9 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 14px;
@@ -164,7 +210,7 @@ exports[`empty state for enterprise, can create 1`] = `
   font-weight: 400;
 }
 
-.c3 {
+.c4 {
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
@@ -230,30 +276,39 @@ exports[`empty state for enterprise, can create 1`] = `
       >
         Databases
       </div>
+      <button
+        class="c3"
+        kind="primary"
+        title=""
+        width="240px"
+      >
+        Add Database
+      </button>
     </div>
     <div
-      class="c3 sc-AxirZ c4"
+      class="c4 sc-AxirZ c5"
       width="100%"
     >
       <div
-        class="c5"
+        class="c6"
       >
         <div
-          class="c6"
+          class="c7"
         >
           <img
-            class="c7"
+            class="c8"
+            height="160px"
             src="file_stub"
           />
           <div
-            class="c8"
+            class="c9"
             font-size="24"
             font-weight="700"
           >
             Add your first database to Teleport
           </div>
           <div
-            class="c9"
+            class="c10"
             font-size="14"
             font-weight="400"
             style="opacity: 0.6;"
@@ -262,10 +317,10 @@ exports[`empty state for enterprise, can create 1`] = `
           </div>
         </div>
         <div
-          class="c10"
+          class="c11"
         >
           <button
-            class="c11"
+            class="c12"
             kind="primary"
             width="224px"
           >
@@ -273,7 +328,7 @@ exports[`empty state for enterprise, can create 1`] = `
             database
           </button>
           <a
-            class="c12"
+            class="c13"
             href="https://goteleport.com/docs/database-access/guides/"
             rel="noreferrer"
             target="_blank"
@@ -428,52 +483,7 @@ exports[`failed 1`] = `
 `;
 
 exports[`open source loaded 1`] = `
-.c3 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 240px;
-}
-
-.c3:active {
-  opacity: 0.56;
-}
-
-.c3:hover,
-.c3:focus {
-  background: #651FFF;
-}
-
-.c3:active {
-  background: #354AA4;
-}
-
-.c3:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c15 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -501,40 +511,40 @@ exports[`open source loaded 1`] = `
   padding: 0px 16px;
 }
 
-.c15:active {
+.c14:active {
   opacity: 0.56;
 }
 
-.c15:hover,
-.c15:focus {
+.c14:hover,
+.c14:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c15:active {
+.c14:active {
   opacity: 0.24;
 }
 
-.c15:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c11 {
+.c10 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c13 {
+.c12 {
   display: inline-block;
   transition: color .3s;
   color: #FFFFFF;
 }
 
-.c14 {
+.c13 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -551,7 +561,7 @@ exports[`open source loaded 1`] = `
   margin-right: 4px;
 }
 
-.c8 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -562,12 +572,12 @@ exports[`open source loaded 1`] = `
   color: #FFFFFF;
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c7 {
+.c6 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
@@ -615,7 +625,7 @@ exports[`open source loaded 1`] = `
   padding-bottom: 24px;
 }
 
-.c12 {
+.c11 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -629,39 +639,39 @@ exports[`open source loaded 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c12 > thead > tr > th,
-.c12 > tbody > tr > th,
-.c12 > tfoot > tr > th,
-.c12 > thead > tr > td,
-.c12 > tbody > tr > td,
-.c12 > tfoot > tr > td {
+.c11 > thead > tr > th,
+.c11 > tbody > tr > th,
+.c11 > tfoot > tr > th,
+.c11 > thead > tr > td,
+.c11 > tbody > tr > td,
+.c11 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c12 > thead > tr > th:first-child,
-.c12 > tbody > tr > th:first-child,
-.c12 > tfoot > tr > th:first-child,
-.c12 > thead > tr > td:first-child,
-.c12 > tbody > tr > td:first-child,
-.c12 > tfoot > tr > td:first-child {
+.c11 > thead > tr > th:first-child,
+.c11 > tbody > tr > th:first-child,
+.c11 > tfoot > tr > th:first-child,
+.c11 > thead > tr > td:first-child,
+.c11 > tbody > tr > td:first-child,
+.c11 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c12 > thead > tr > th:last-child,
-.c12 > tbody > tr > th:last-child,
-.c12 > tfoot > tr > th:last-child,
-.c12 > thead > tr > td:last-child,
-.c12 > tbody > tr > td:last-child,
-.c12 > tfoot > tr > td:last-child {
+.c11 > thead > tr > th:last-child,
+.c11 > tbody > tr > th:last-child,
+.c11 > tfoot > tr > th:last-child,
+.c11 > thead > tr > td:last-child,
+.c11 > tbody > tr > td:last-child,
+.c11 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c12 > tbody > tr > td {
+.c11 > tbody > tr > td {
   vertical-align: baseline;
 }
 
-.c12 > thead > tr > th {
+.c11 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -675,34 +685,34 @@ exports[`open source loaded 1`] = `
   white-space: nowrap;
 }
 
-.c12 > thead > tr > th .c10 {
+.c11 > thead > tr > th .c9 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c12 > tbody > tr > td {
+.c11 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c12 tbody tr {
+.c11 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c12 tbody tr:hover {
+.c11 tbody tr:hover {
   background-color: rgb(37,49,98);
 }
 
-.c12 tbody > tr:last-child td:first-child {
+.c11 tbody > tr:last-child td:first-child {
   border-bottom-left-radius: 8px;
 }
 
-.c12 tbody > tr:last-child td:last-child {
+.c11 tbody > tr:last-child td:last-child {
   border-bottom-right-radius: 8px;
 }
 
-.c4 {
+.c3 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -714,32 +724,32 @@ exports[`open source loaded 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c9 {
+.c8 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c9 .c10 {
+.c8 .c9 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c9:hover .c10,
-.c9:focus .c10 {
+.c8:hover .c9,
+.c8:focus .c9 {
   opacity: 1;
 }
 
-.c9:disabled {
+.c8:disabled {
   cursor: default;
 }
 
-.c9:disabled .c10 {
+.c8:disabled .c9 {
   opacity: 0.1;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   font-size: 12px;
   min-width: 200px;
@@ -754,15 +764,15 @@ exports[`open source loaded 1`] = `
   padding-right: 16px;
 }
 
-.c5:hover,
-.c5:focus,
-.c5:active {
+.c4:hover,
+.c4:focus,
+.c4:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c5::placeholder {
+.c4::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
 }
@@ -778,31 +788,23 @@ exports[`open source loaded 1`] = `
     >
       Databases
     </div>
-    <button
-      class="c3"
-      kind="primary"
-      title=""
-      width="240px"
-    >
-      Add Database
-    </button>
   </div>
   <nav
-    class="c4"
+    class="c3"
   >
     <input
-      class="c5"
+      class="c4"
       placeholder="SEARCH..."
       value=""
     />
     <div
-      class="c6"
+      class="c5"
     >
       <div
-        class="c7"
+        class="c6"
       >
         <div
-          class="c8"
+          class="c7"
           color="primary.contrastText"
         >
           SHOWING 
@@ -821,26 +823,26 @@ exports[`open source loaded 1`] = `
         </div>
       </div>
       <div
-        class="c6"
+        class="c5"
       >
         <button
-          class="c9"
+          class="c8"
           disabled=""
           title="Previous page"
         >
           <span
-            class="c10 c11 icon icon-arrow-left-circle "
+            class="c9 c10 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c9"
+          class="c8"
           disabled=""
           title="Next page"
         >
           <span
-            class="c10 c11 icon icon-arrow-right-circle "
+            class="c9 c10 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
@@ -849,7 +851,7 @@ exports[`open source loaded 1`] = `
     </div>
   </nav>
   <table
-    class="c12"
+    class="c11"
   >
     <thead>
       <tr>
@@ -857,7 +859,7 @@ exports[`open source loaded 1`] = `
           <a>
             Name
             <span
-              class="c10 c13 icon icon-chevron-up "
+              class="c9 c12 icon icon-chevron-up "
               color="light"
             />
           </a>
@@ -866,7 +868,7 @@ exports[`open source loaded 1`] = `
           <a>
             Description
             <span
-              class="c10 c13 icon icon-chevrons-expand-vertical "
+              class="c9 c12 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
@@ -875,7 +877,7 @@ exports[`open source loaded 1`] = `
           <a>
             Type
             <span
-              class="c10 c13 icon icon-chevrons-expand-vertical "
+              class="c9 c12 icon icon-chevrons-expand-vertical "
               color="light"
             />
           </a>
@@ -899,13 +901,13 @@ exports[`open source loaded 1`] = `
         </td>
         <td>
           <div
-            class="c14"
+            class="c13"
             kind="secondary"
           >
             cluster: root
           </div>
           <div
-            class="c14"
+            class="c13"
             kind="secondary"
           >
             env: aws
@@ -915,7 +917,7 @@ exports[`open source loaded 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c14"
             kind="border"
           >
             Connect
@@ -934,13 +936,13 @@ exports[`open source loaded 1`] = `
         </td>
         <td>
           <div
-            class="c14"
+            class="c13"
             kind="secondary"
           >
             cluster: root
           </div>
           <div
-            class="c14"
+            class="c13"
             kind="secondary"
           >
             env: aws
@@ -950,7 +952,7 @@ exports[`open source loaded 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c14"
             kind="border"
           >
             Connect
@@ -969,13 +971,13 @@ exports[`open source loaded 1`] = `
         </td>
         <td>
           <div
-            class="c14"
+            class="c13"
             kind="secondary"
           >
             cluster: env
           </div>
           <div
-            class="c14"
+            class="c13"
             kind="secondary"
           >
             value: gcp
@@ -985,7 +987,7 @@ exports[`open source loaded 1`] = `
           align="right"
         >
           <button
-            class="c15"
+            class="c14"
             kind="border"
           >
             Connect
@@ -998,7 +1000,7 @@ exports[`open source loaded 1`] = `
 `;
 
 exports[`readonly empty state 1`] = `
-.c3 {
+.c4 {
   box-sizing: border-box;
   max-width: 664px;
   margin-left: auto;
@@ -1010,7 +1012,52 @@ exports[`readonly empty state 1`] = `
   border-radius: 12px;
 }
 
-.c4 {
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  width: 240px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -1020,13 +1067,13 @@ exports[`readonly empty state 1`] = `
   margin-bottom: 16px;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c6 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1086,24 +1133,33 @@ exports[`readonly empty state 1`] = `
       >
         Databases
       </div>
+      <button
+        class="c3"
+        disabled=""
+        kind="primary"
+        title="You do not have access to add a database"
+        width="240px"
+      >
+        Add Database
+      </button>
     </div>
     <div
-      class="c3"
+      class="c4"
       color="text.primary"
     >
       <div
-        class="c4"
+        class="c5"
       >
         No Databases Found
       </div>
       <div
-        class="c5"
+        class="c6"
       >
         Either there are no 
         databases
          in the "
         <span
-          class="c6"
+          class="c7"
         >
           im-a-cluster
         </span>
