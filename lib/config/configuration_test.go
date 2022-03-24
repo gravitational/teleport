@@ -2133,3 +2133,52 @@ func TestTLSCert(t *testing.T) {
 		})
 	}
 }
+
+func TestJoinMethod(t *testing.T) {
+	tt := []struct {
+		desc               string
+		cli                CommandLineFlags
+		expectedJoinMethod types.JoinMethod
+	}{
+		{
+			desc: "defaults correctly",
+			cli: CommandLineFlags{
+				Roles: "node",
+			},
+			expectedJoinMethod: types.JoinMethodUnspecified,
+		},
+		{
+			desc: "token method on cli is correctly set",
+			cli: CommandLineFlags{
+				Roles:      "node",
+				JoinMethod: "token",
+			},
+			expectedJoinMethod: "token",
+		},
+		{
+			desc: "IAM method on cli is correctly set",
+			cli: CommandLineFlags{
+				Roles:      "node",
+				JoinMethod: "iam",
+			},
+			expectedJoinMethod: types.JoinMethodIAM,
+		},
+		{
+			desc: "EC2 method on cli is correctly set",
+			cli: CommandLineFlags{
+				Roles:      "node",
+				JoinMethod: "ec2",
+			},
+			expectedJoinMethod: types.JoinMethodEC2,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+			err := Configure(&tc.cli, cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedJoinMethod, cfg.JoinMethod)
+		})
+	}
+}
