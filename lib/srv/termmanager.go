@@ -107,7 +107,7 @@ func (g *TermManager) Write(p []byte) (int, error) {
 		g.writeToClients(p)
 	} else {
 		// Only keep the last maxPausedHistoryBytes of stdout/stderr while the session is paused.
-		// The alternative is flushing to disk but this should be a pretty rare occurence and shouldn't be an issue in practice.
+		// The alternative is flushing to disk but this should be a pretty rare occurrence and shouldn't be an issue in practice.
 		g.buffer = truncateFront(append(g.buffer, p...), maxPausedHistoryBytes)
 	}
 
