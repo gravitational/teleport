@@ -54,6 +54,22 @@ fetching just the groups with direct membership is also supported. The preferred
 behavior is selected depending on the OAuth scopes granted to the service
 account associated with the connector.
 
+<Admonition type="note">
+  Because of an inherent limitation in Google APIs, fetching transitive groups
+  requires view permissions on all transitive groups that users belong to; as
+  that is not possible for users that belong to groups external to the
+  workspace, those users will not be able to log in to Teleport.
+
+  We recommend blocking access to external groups at the workspace level
+  (following [these instructions](https://support.google.com/a/answer/9468710))
+  when using the transitive group feature.
+
+  The [Groups Inspection](https://admin.google.com/ac/groupsinspection) page in
+  the Google Admin Console has the same limitations as Teleport in this regard,
+  and can be used as a first step to diagnose login issues pertaining to the
+  transitive groups feature.
+</Admonition>
+
 <Details title="Version Warning: Before 8.1.2" opened={false}>
 Teleport versions prior to 8.1.2 only support fetching groups with direct
 membership with the
