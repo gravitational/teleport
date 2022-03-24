@@ -64,3 +64,17 @@ func TestHistoryKept(t *testing.T) {
 	kept := data[len(data)-maxHistoryBytes:]
 	require.Equal(t, m.GetRecentHistory(), kept)
 }
+
+func TestBufferedKeptt(t *testing.T) {
+	m := NewTermManager()
+
+	data := make([]byte, 20000)
+	rand.Read(data)
+
+	n, err := m.Write(data)
+	require.NoError(t, err)
+	require.Equal(t, len(data), n)
+
+	kept := data[len(data)-maxPausedHistoryBytes:]
+	require.Equal(t, m.buffer, kept)
+}
