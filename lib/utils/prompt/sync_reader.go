@@ -24,7 +24,7 @@ import (
 
 // StdinSync returns a synchronous reader to os.Stdin.
 // It is safe for use mixed with other methods that read Stdin, albeit not
-// concurrently, but doesn't respect context cancelletion.
+// concurrently, but doesn't respect context cancellation.
 func StdinSync() *SyncReader {
 	return &SyncReader{Reader: os.Stdin}
 }
