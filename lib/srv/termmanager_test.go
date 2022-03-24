@@ -59,9 +59,13 @@ func TestHistoryKept(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(data), n)
 
-	n, err = m.Write(data)
+	n, err = m.Write(data[:len(data)/2])
 	require.NoError(t, err)
-	require.Equal(t, len(data), n)
+	require.Equal(t, len(data)/2, n)
+
+	n, err = m.Write(data[len(data)/2:])
+	require.NoError(t, err)
+	require.Equal(t, len(data)/2, n)
 
 	kept := data[len(data)-maxHistoryBytes:]
 	require.Equal(t, m.GetRecentHistory(), kept)
