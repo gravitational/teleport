@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -155,35 +155,30 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		passwordFromConsole func(ctx context.Context) (string, error)
 		solveWebauthn       func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
 		pwdless             bool
-		wantUserPrompts     int
 	}{
 		{
 			name:                "OTP device login",
 			secondFactor:        constants.SecondFactorOptional,
 			passwordFromConsole: chainPasswordFns(userPasswordFn, solveOTP),
 			solveWebauthn:       noopWebauthnFn,
-			wantUserPrompts:     2, // password + OTP
 		},
 		{
 			name:                "Webauthn device login",
 			secondFactor:        constants.SecondFactorOptional,
 			passwordFromConsole: chainPasswordFns(userPasswordFn, noopPasswordFn),
 			solveWebauthn:       solveWebauthn,
-			wantUserPrompts:     2, // password + OTP (not answered)
 		},
 		{
 			name:                "Webauthn device with PIN", // a bit hypothetical, but _could_ happen.
 			secondFactor:        constants.SecondFactorOptional,
-			passwordFromConsole: chainPasswordFns(userPasswordFn, userPINFn),
+			passwordFromConsole: chainPasswordFns(userPasswordFn, noopPasswordFn /* OTP */, userPINFn),
 			solveWebauthn:       solvePIN,
-			wantUserPrompts:     2, // password + OTP-turned-PIN
 		},
 		{
-			name:            "passwordless login",
-			secondFactor:    constants.SecondFactorOptional,
-			solveWebauthn:   solvePwdless,
-			pwdless:         true,
-			wantUserPrompts: 0,
+			name:          "passwordless login",
+			secondFactor:  constants.SecondFactorOptional,
+			solveWebauthn: solvePwdless,
+			pwdless:       true,
 		},
 	}
 	for _, test := range tests {
@@ -191,14 +186,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
-			// wg is used to ensure that fake prompt functions exit cleanly before the
-			// test ends.
-			// PromptMFAChallenge can't do this because the stdin hijack doesn't
-			// always return.
-			var wg sync.WaitGroup
-			wg.Add(test.wantUserPrompts)
 			client.PasswordFromConsole = func(ctx context.Context) (string, error) {
-				defer wg.Done()
 				return test.passwordFromConsole(ctx)
 			}
 			*client.PromptWebauthn = func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
@@ -221,18 +209,16 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
 			require.NoError(t, err)
-
-			cancel()
-			wg.Wait()
 		})
 	}
 }
 
 func chainPasswordFns(fns ...func(ctx context.Context) (string, error)) func(context.Context) (string, error) {
-	i := 0
+	var count int32
 	return func(ctx context.Context) (string, error) {
+		i := atomic.AddInt32(&count, 1)
+		i-- // start from zero
 		val, err := fns[i](ctx)
-		i++
 		return val, err
 	}
 }

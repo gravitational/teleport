@@ -22,7 +22,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
@@ -34,49 +33,22 @@ import (
 // promptWebauthn provides indirection for tests.
 var promptWebauthn = wancli.Login
 
-type stdinRead struct {
-	value string
-	err   error
-}
-
-// stdinHijack hijacks stdin for a single password-like read.
-// After startRead is called the read will be sent to the C channel.
-type stdinHijack struct {
-	C       chan stdinRead
-	started int32
-}
-
-func (h *stdinHijack) startRead() {
-	if !atomic.CompareAndSwapInt32(&h.started, 0, 1) {
-		return // Already started
-	}
-	h.C = make(chan stdinRead)
-	go func() {
-		value, err := PasswordFromConsole(context.Background())
-		h.C <- stdinRead{value: value, err: err}
-	}()
-}
-
 // mfaPrompt implements wancli.LoginPrompt for MFA logins.
 // In most cases authenticators shouldn't require PINs or additional touches for
 // MFA, but the implementation exists in case we find some unusual
 // authenticators out there.
 type mfaPrompt struct {
-	// stdin and cancel are used in case of PIN reads.
-	stdin  *stdinHijack
-	cancel context.CancelFunc
+	ctx       context.Context
+	otpCancel context.CancelFunc
 }
 
 func (p *mfaPrompt) PromptPIN() (string, error) {
-	p.cancel()          // cancel OTP read, if any
-	p.stdin.startRead() // as late as possible, in case it's not needed
-	fmt.Fprintln(os.Stderr, "Enter your security key PIN:")
-	read := <-p.stdin.C
-	return read.value, read.err
+	p.otpCancel()
+	return ReadPassword(p.ctx, os.Stderr, "Enter your security key PIN:")
 }
 
 func (p *mfaPrompt) PromptAdditionalTouch() error {
-	fmt.Fprintf(os.Stderr, "Tap your security key again to complete login")
+	fmt.Fprintln(os.Stderr, "Tap your security key again to complete login")
 	return nil
 }
 
@@ -85,7 +57,9 @@ func (p *mfaPrompt) PromptAdditionalTouch() error {
 // If promptDevicePrefix is set, it will be printed in prompts before "security
 // key" or "device". This is used to emphasize between different kinds of
 // devices, like registered vs new.
-// Note that PromptMFAChallenge hijacks stdin for a possible OTP/PIN read.
+// PromptMFAChallenge makes an attempt to read OTPs from prompt.Stdin and
+// abandons the read if the user chooses WebAuthn instead. For this reason
+// callers must use prompt.Stdin exclusively after calling this function.
 func PromptMFAChallenge(
 	ctx context.Context,
 	proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
@@ -129,11 +103,11 @@ func PromptMFAChallenge(
 		wg.Wait()
 	}
 
+	// Use otpCtx and otpCancel to cancel an ongoing OTP read.
 	otpCtx, otpCancel := context.WithCancel(ctx)
 	defer otpCancel()
 
 	// Fire TOTP goroutine.
-	stdin := &stdinHijack{}
 	if hasTOTP {
 		wg.Add(1)
 		go func() {
@@ -147,24 +121,18 @@ func PromptMFAChallenge(
 				}
 			}
 
-			stdin.startRead()
-			select {
-			case <-otpCtx.Done():
-				respC <- response{kind: kind, err: otpCtx.Err()}
+			otp, err := PasswordFromConsole(otpCtx)
+			if err != nil {
+				respC <- response{kind: kind, err: err}
 				return
-			case read := <-stdin.C:
-				if read.err != nil {
-					respC <- response{kind: kind, err: read.err}
-					return
-				}
-				respC <- response{
-					kind: kind,
-					resp: &proto.MFAAuthenticateResponse{
-						Response: &proto.MFAAuthenticateResponse_TOTP{
-							TOTP: &proto.TOTPResponse{Code: read.value},
-						},
+			}
+			respC <- response{
+				kind: kind,
+				resp: &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{Code: otp},
 					},
-				}
+				},
 			}
 		}()
 	} else if !quiet {
@@ -182,7 +150,7 @@ func PromptMFAChallenge(
 			defer wg.Done()
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
 			const user = ""
-			prompt := &mfaPrompt{stdin: stdin, cancel: otpCancel}
+			prompt := &mfaPrompt{ctx: ctx, otpCancel: otpCancel}
 			resp, _, err := promptWebauthn(ctx, origin, user, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), prompt)
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()
