@@ -129,6 +129,83 @@ By default no devices are forbidden.
 
 `proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`.
 
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  proxyListenerMode: multiplex
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set proxyListenerMode=multiplex
+  ```
+  </TabItem>
+</Tabs>
+
+## `separatePostgresListener`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `bool` | `false` | no | `proxy_service.postgres_listen_addr` | ❌ |
+
+`separatePostgresListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
+over a separate TLS listener to Teleport's web UI.
+
+When `separatePostgresListener` is `false` (the default), PostgreSQL traffic will be directed to port 443 (the default Teleport web
+UI port). This works in situations when Teleport is terminating its own TLS traffic, i.e. when using certificates from LetsEncrypt
+or providing a certificate/private key pair via Teleport's `proxy_service.https_keypairs` config.
+
+When `separatePostgresListener` is `true`, PostgreSQL traffic will be directed to a separate Postgres-only listener on port 5432.
+This also adds the port to the `Service` that the chart creates. This is useful when terminating TLS at a load balancer
+in front of Teleport, such as when using AWS ACM.
+
+These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  separatePostgresListener: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set separatePostgresListener=true
+  ```
+  </TabItem>
+</Tabs>
+
+## `separateMongoListener`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `bool` | `false` | no | `proxy_service.mongo_listen_addr` | ❌ |
+
+`separateMongoListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
+over a separate TLS listener to Teleport's web UI.
+
+When `separateMongoListener` is `false` (the default), MongoDB traffic will be directed to port 443 (the default Teleport web
+UI port). This works in situations when Teleport is terminating its own TLS traffic, i.e. when using certificates from LetsEncrypt
+or providing a certificate/private key pair via Teleport's `proxy_service.https_keypairs` config.
+
+When `separateMongoListener` is `true`, MongoDB traffic will be directed to a separate Mongo-only listener on port 27017.
+This also adds the port to the `Service` that the chart creates. This is useful when terminating TLS at a load balancer
+in front of Teleport, such as when using AWS ACM.
+
+These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  separateMongoListener: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set separateMongoListener=true
+  ```
+  </TabItem>
+</Tabs>
+
 ## `enterprise`
 
 | Type | Default value | Can be used in `custom` mode? |
