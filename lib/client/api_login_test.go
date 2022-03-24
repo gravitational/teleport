@@ -197,7 +197,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			// always return.
 			var wg sync.WaitGroup
 			wg.Add(test.wantUserPrompts)
-			client.PasswordFromConsole = func() (string, error) {
+			client.PasswordFromConsole = func(ctx context.Context) (string, error) {
 				defer wg.Done()
 				return test.passwordFromConsole(ctx)
 			}

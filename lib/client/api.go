@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
@@ -2595,15 +2596,16 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 }
 
 type pwdlessPrompt struct {
-	Out io.Writer
+	ctx context.Context
+	out io.Writer
 }
 
-func (l pwdlessPrompt) PromptPIN() (string, error) {
-	return ReadPassword(l.Out, "Enter your security key PIN:")
+func (p *pwdlessPrompt) PromptPIN() (string, error) {
+	return ReadPassword(p.ctx, p.out, "Enter your security key PIN:")
 }
 
-func (l pwdlessPrompt) PromptAdditionalTouch() error {
-	fmt.Fprintln(l.Out, "Tap your security key again to complete login")
+func (p *pwdlessPrompt) PromptAdditionalTouch() error {
+	fmt.Fprintln(p.out, "Tap your security key again to complete login")
 	return nil
 }
 
@@ -2633,7 +2635,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
 	}
 
-	prompt := pwdlessPrompt{Out: tc.Stderr}
+	prompt := &pwdlessPrompt{ctx: ctx, out: tc.Stderr}
 	fmt.Fprintln(tc.Stderr, "Tap your security key")
 	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
 	if err != nil {
@@ -2891,7 +2893,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		// use might enter at the prompt. Whatever the user enters will
 		// be simply discarded, and the user can still CTRL+C out if they
 		// disagree.
-		_, err := PasswordFromConsole()
+		_, err := PasswordFromConsole(context.Background())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3224,23 +3226,23 @@ func Username() (string, error) {
 
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP() (token string, err error) {
-	return ReadPassword(tc.Stderr, "Enter your OTP token:")
+	return ReadPassword(context.Background(), tc.Stderr, "Enter your OTP token:")
 }
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
-	return ReadPassword(tc.Stderr, fmt.Sprintf("Enter password for Teleport user %v:", tc.Config.Username))
+	return ReadPassword(context.Background(), tc.Stderr, fmt.Sprintf("Enter password for Teleport user %v:", tc.Config.Username))
 }
 
 // ReadPassword reads a password-like string from stdin.
 // out is used to write user prompts.
 // question is the prompt question, without a newline at the end. An empty
 // question prints nothing to out.
-func ReadPassword(out io.Writer, question string) (string, error) {
+func ReadPassword(ctx context.Context, out io.Writer, question string) (string, error) {
 	if question != "" {
 		fmt.Fprintln(out, question)
 	}
-	pwd, err := PasswordFromConsole()
+	pwd, err := PasswordFromConsole(ctx)
 	if err != nil {
 		fmt.Fprintln(out, err)
 		return "", trace.Wrap(err)
@@ -3324,7 +3326,7 @@ var PasswordFromConsole = passwordFromConsole
 
 // passwordFromConsole reads from stdin without echoing typed characters to
 // stdout.
-func passwordFromConsole() (string, error) {
+func passwordFromConsole(ctx context.Context) (string, error) {
 	fd := int(os.Stdin.Fd())
 	state, err := term.GetState(fd)
 
@@ -3346,7 +3348,7 @@ func passwordFromConsole() (string, error) {
 	}
 	defer close(closeCh)
 
-	bytes, err := term.ReadPassword(fd)
+	bytes, err := prompt.Stdin().ReadPassword(ctx)
 	return string(bytes), err
 }
 

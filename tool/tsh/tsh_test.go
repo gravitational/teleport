@@ -1269,7 +1269,7 @@ func withClusterName(t *testing.T, n string) testServerOptFunc {
 
 func withMOTD(t *testing.T, motd string) testServerOptFunc {
 	oldPwd := client.PasswordFromConsole
-	client.PasswordFromConsole = func() (string, error) {
+	client.PasswordFromConsole = func(context.Context) (string, error) {
 		return "", nil
 	}
 	t.Cleanup(func() { client.PasswordFromConsole = oldPwd })

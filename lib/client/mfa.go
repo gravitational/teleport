@@ -52,7 +52,7 @@ func (h *stdinHijack) startRead() {
 	}
 	h.C = make(chan stdinRead)
 	go func() {
-		value, err := PasswordFromConsole()
+		value, err := PasswordFromConsole(context.Background())
 		h.C <- stdinRead{value: value, err: err}
 	}()
 }
