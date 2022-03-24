@@ -161,8 +161,12 @@
               "slug": "/setup/guides/ec2-tags/"
             },
             {
-              "title": "Joining Nodes in AWS",
-              "slug": "/setup/guides/joining-nodes-aws/"
+              "title": "Joining Nodes via AWS IAM",
+              "slug": "/setup/guides/joining-nodes-aws-iam/"
+            },
+            {
+              "title": "Joining Nodes via AWS EC2",
+              "slug": "/setup/guides/joining-nodes-aws-ec2/"
             }
           ]
         },
@@ -1096,6 +1100,11 @@
     {
       "source": "/kubernetes-access/guides/migration/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/guides/joining-nodes-aws/",
+      "destination": "/setup/guides/joining-nodes-aws-iam/",
       "permanent": true
     }
   ]
