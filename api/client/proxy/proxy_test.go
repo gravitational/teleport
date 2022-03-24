@@ -124,7 +124,7 @@ func TestGetProxyAddress(t *testing.T) {
 func TestProxyAwareRoundTripper(t *testing.T) {
 	t.Setenv("HTTP_PROXY", "http://localhost:8888")
 	rt := HTTPFallbackRoundTripper{
-		Transport: http.Transport{
+		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},

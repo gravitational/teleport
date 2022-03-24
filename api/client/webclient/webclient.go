@@ -86,7 +86,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		},
 	}
 	return &http.Client{
-		Transport: proxy.NewHTTPFallbackRoundTripper(transport, cfg.Insecure),
+		Transport: proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
 	}, nil
 }
 

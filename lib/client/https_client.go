@@ -45,7 +45,7 @@ func NewInsecureWebClient() *http.Client {
 		},
 	}
 	return &http.Client{
-		Transport: apiproxy.NewHTTPFallbackRoundTripper(transport, true),
+		Transport: apiproxy.NewHTTPFallbackRoundTripper(&transport, true),
 	}
 }
 

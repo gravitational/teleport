@@ -68,10 +68,10 @@ func parse(addr string) (*url.URL, error) {
 // HTTPFallbackRoundTripper is a wrapper for http.Transport that downgrades requests
 // to plain HTTP when using a plain HTTP proxy at localhost.
 type HTTPFallbackRoundTripper struct {
-	http.Transport
+	*http.Transport
 }
 
-func NewHTTPFallbackRoundTripper(transport http.Transport, insecure bool) *HTTPFallbackRoundTripper {
+func NewHTTPFallbackRoundTripper(transport *http.Transport, insecure bool) *HTTPFallbackRoundTripper {
 	rt := HTTPFallbackRoundTripper{
 		Transport: transport,
 	}
