@@ -3687,9 +3687,10 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 	}
 
 	protoResp := &proto.ListResourcesResponse{
-		NextKey:    resp.NextKey,
-		Resources:  make([]*proto.PaginatedResource, len(resp.Resources)),
-		TotalCount: int32(resp.TotalCount),
+		NextKey:      resp.NextKey,
+		Resources:    make([]*proto.PaginatedResource, len(resp.Resources)),
+		TotalCount:   int32(resp.TotalCount),
+		HasResources: resp.HasResources,
 	}
 
 	for i, resource := range resp.Resources {

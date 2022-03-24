@@ -1506,6 +1506,15 @@ message ListResourcesResponse {
     string NextKey = 2 [ (gogoproto.jsontag) = "next_key,omitempty" ];
     // TotalCount is the total number of resources available after filter, if any.
     int32 TotalCount = 3 [ (gogoproto.jsontag) = "total_count,omitempty" ];
+    // HasResources is a flag that indicates if a user has access to any resources after RBAC checks
+    // and before any filter is applied. The Web UI has several empty states that depending on this
+    // flag and users access rules, shows different views:
+    //   - No resources and user has read + write access (this means no resource was added)
+    //   - No resources and user has read only access (may mean no resource was added, or user has
+    //   no access to any resource)
+    //   - Has resources but empty list means the user has access to resources but after filter was
+    //   applied, no results were found
+    bool HasResources = 4 [ (gogoproto.jsontag) = "has_resources,omitempty" ];
 }
 
 // CreateSessionTrackerRequest is a request to create a new session.

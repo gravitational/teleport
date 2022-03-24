@@ -2312,3 +2312,90 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.IsDecreasing(t, names)
 	})
 }
+
+func TestListResources_HasResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	baseReq := proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Limit:        20,
+	}
+
+	// Test with no resources.
+	resp, err := clt.ListResources(ctx, baseReq)
+	require.NoError(t, err)
+	require.Empty(t, resp.Resources)
+	require.Empty(t, resp.HasResources)
+
+	// Insert some test nodes.
+	for i := 0; i < 5; i++ {
+		name := uuid.New().String()
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, 5)
+
+	// Permit user to list all nodes.
+	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// List all nodes with real pagination path.
+	resp, err = clt.ListResources(ctx, baseReq)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Resources)
+	require.True(t, resp.HasResources)
+
+	// List all nodes with fake pagination path.
+	customReq := baseReq
+	customReq.NeedTotalCount = true
+	resp, err = clt.ListResources(ctx, customReq)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Resources)
+	require.True(t, resp.HasResources)
+
+	// Test a filter that produces no results, but user has access to resources.
+	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType:   types.KindNode,
+		Limit:          2,
+		SearchKeywords: []string{"not-found"},
+	})
+	require.NoError(t, err)
+	require.Empty(t, resp.Resources)
+	require.True(t, resp.HasResources)
+
+	// Deny user any access.
+	role.SetNodeLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// No access with real pagination path.
+	resp, err = clt.ListResources(ctx, baseReq)
+	require.NoError(t, err)
+	require.Empty(t, resp.Resources)
+	require.False(t, resp.HasResources)
+
+	// No access with fake pagination path.
+	resp, err = clt.ListResources(ctx, customReq)
+	require.NoError(t, err)
+	require.Empty(t, resp.Resources)
+	require.False(t, resp.HasResources)
+}

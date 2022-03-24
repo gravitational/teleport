@@ -2452,9 +2452,10 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 	}
 
 	return &types.ListResourcesResponse{
-		Resources:  resources,
-		NextKey:    resp.NextKey,
-		TotalCount: int(resp.TotalCount),
+		Resources:    resources,
+		NextKey:      resp.NextKey,
+		TotalCount:   int(resp.TotalCount),
+		HasResources: resp.HasResources,
 	}, nil
 }
 

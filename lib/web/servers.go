@@ -45,9 +45,10 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(clusters),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:        ui.MakeKubeClusters(clusters),
+		StartKey:     resp.NextKey,
+		TotalCount:   resp.TotalCount,
+		HasResources: resp.HasResources,
 	}, nil
 }
 
@@ -75,9 +76,10 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:        ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
+		StartKey:     resp.NextKey,
+		TotalCount:   resp.TotalCount,
+		HasResources: resp.HasResources,
 	}, nil
 }
 
@@ -100,9 +102,10 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDesktops(windowsDesktops),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:        ui.MakeDesktops(windowsDesktops),
+		StartKey:     resp.NextKey,
+		TotalCount:   resp.TotalCount,
+		HasResources: resp.HasResources,
 	}, nil
 }
 

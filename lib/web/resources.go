@@ -337,6 +337,9 @@ type listResourcesGetResponse struct {
 	// TotalCount is the total count of resources available
 	// after filter.
 	TotalCount int `json:"totalCount"`
+	// HasResources is a flag that indicates if a user has any
+	// resource to access before filter is applied.
+	HasResources bool `json:"hasResources"`
 }
 
 type resourcesAPIGetter interface {

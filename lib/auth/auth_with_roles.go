@@ -921,18 +921,27 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.PredicateExpression = ""
 
 	var resources []types.ResourceWithLabels
+	hasResources := false
 	resp, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.ResourceWithLabels) (bool, error) {
+		accessibleResources := make([]types.ResourceWithLabels, 0, len(nextPage))
 		for _, resource := range nextPage {
-			if len(resources) == limit {
-				break
-			}
-
 			if err := a.checkAccessToResource(resource); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
-
 				return false, trace.Wrap(err)
+			}
+
+			accessibleResources = append(accessibleResources, resource)
+		}
+
+		if !hasResources {
+			hasResources = len(accessibleResources) > 0
+		}
+
+		for _, resource := range accessibleResources {
+			if len(resources) == limit {
+				break
 			}
 
 			switch match, err := services.MatchResourceByFilters(resource, filter); {
@@ -950,8 +959,9 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	return &types.ListResourcesResponse{
-		Resources: resources,
-		NextKey:   resp.NextKey,
+		Resources:    resources,
+		NextKey:      resp.NextKey,
+		HasResources: hasResources,
 	}, nil
 }
 
@@ -1071,6 +1081,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	resp.HasResources = len(resources) > 0
 
 	return resp, nil
 }
