@@ -23,7 +23,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -384,6 +383,11 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
+	conf.ExtraProxyHeaders = []ExtraProxyHeaders{
+		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
+		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
+		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
+	}
 	tc, err = makeClient(&conf, true)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
@@ -402,6 +406,10 @@ func TestMakeClient(t *testing.T) {
 			SrcPort: 8080,
 		},
 	}, tc.Config.DynamicForwardedPorts)
+
+	require.Equal(t,
+		map[string]string{"A": "B", "C": "D"},
+		tc.ExtraProxyHeaders)
 
 	_, proxy := makeTestServers(t)
 
@@ -982,58 +990,6 @@ func TestKubeConfigUpdate(t *testing.T) {
 			values, err := buildKubeConfigUpdate(testcase.cf, testcase.kubeStatus)
 			testcase.errorAssertion(t, err)
 			require.Equal(t, testcase.expectedValues, values)
-		})
-	}
-}
-
-func TestMakeTableWithTruncatedColumn(t *testing.T) {
-	// os.Stdin.Fd() fails during go test, so width is defaulted to 80
-	columns := []string{"column1", "column2", "column3"}
-	rows := [][]string{[]string{strings.Repeat("cell1", 6), strings.Repeat("cell2", 6), strings.Repeat("cell3", 6)}}
-
-	testCases := []struct {
-		truncatedColumn string
-		expectedWidth   int
-		expectedOutput  []string
-	}{
-		{
-			truncatedColumn: "column2",
-			expectedWidth:   80,
-			expectedOutput: []string{
-				"column1                        column2           column3                        ",
-				"------------------------------ ----------------- ------------------------------ ",
-				"cell1cell1cell1cell1cell1cell1 cell2cell2cell... cell3cell3cell3cell3cell3cell3 ",
-				"",
-			},
-		},
-		{
-			truncatedColumn: "column3",
-			expectedWidth:   80,
-			expectedOutput: []string{
-				"column1                        column2                        column3           ",
-				"------------------------------ ------------------------------ ----------------- ",
-				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell... ",
-				"",
-			},
-		},
-		{
-			truncatedColumn: "no column match",
-			expectedWidth:   93,
-			expectedOutput: []string{
-				"column1                        column2                        column3                        ",
-				"------------------------------ ------------------------------ ------------------------------ ",
-				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell3cell3cell3cell3 ",
-				"",
-			},
-		},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.truncatedColumn, func(t *testing.T) {
-			table := makeTableWithTruncatedColumn(columns, rows, testCase.truncatedColumn)
-			rows := strings.Split(table.AsBuffer().String(), "\n")
-			require.Len(t, rows, 4)
-			require.Len(t, rows[2], testCase.expectedWidth)
-			require.Equal(t, testCase.expectedOutput, rows)
 		})
 	}
 }

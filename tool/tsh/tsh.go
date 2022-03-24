@@ -26,6 +26,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -34,11 +35,11 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -292,6 +293,9 @@ type CLIConf struct {
 
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
+
+	// ExtraProxyHeaders is configuration read from the .tsh/config/config.yaml file.
+	ExtraProxyHeaders []ExtraProxyHeaders
 }
 
 // Stdout returns the stdout writer.
@@ -349,8 +353,6 @@ const (
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
 	proxyDefaultResolutionTimeout = 2 * time.Second
-
-	teleportNamespace = "teleport.dev"
 )
 
 // cliOption is used in tests to inject/override configuration within Run
@@ -662,6 +664,15 @@ func Run(args []string, opts ...cliOption) error {
 	}
 
 	setEnvFlags(&cf, os.Getenv)
+
+	confOptions, err := loadConfig(cf.HomePath)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err, "failed to load tsh config from %s",
+			filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath))
+	}
+	if confOptions != nil {
+		cf.ExtraProxyHeaders = confOptions.ExtraHeaders
+	}
 
 	switch command {
 	case ver.FullCommand():
@@ -1432,7 +1443,7 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 			rows = append(rows,
 				[]string{n.GetHostname(), getAddr(n), sortedLabels(n.GetAllLabels())})
 		}
-		t = makeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
 }
@@ -1442,7 +1453,7 @@ func sortedLabels(labels map[string]string) string {
 	var namespaced []string
 	var result []string
 	for key, val := range labels {
-		if strings.HasPrefix(key, teleportNamespace+"/") {
+		if strings.HasPrefix(key, types.TeleportNamespace+"/") {
 			teleportNamespaced = append(teleportNamespaced, key)
 			continue
 		}
@@ -1495,58 +1506,10 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool)
 			labels := sortedLabels(app.GetAllLabels())
 			rows = append(rows, []string{name, desc, addr, labels})
 		}
-		t := makeTableWithTruncatedColumn(
+		t := asciitable.MakeTableWithTruncatedColumn(
 			[]string{"Application", "Description", "Public Address", "Labels"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
-}
-
-func makeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) asciitable.Table {
-	width, _, err := term.GetSize(int(os.Stdin.Fd()))
-	if err != nil {
-		width = 80
-	}
-	truncatedColMinSize := 16
-	maxColWidth := (width - truncatedColMinSize) / (len(columnOrder) - 1)
-	t := asciitable.MakeTable([]string{})
-	totalLen := 0
-	columns := []asciitable.Column{}
-
-	for collIndex, colName := range columnOrder {
-		column := asciitable.Column{
-			Title:         colName,
-			MaxCellLength: len(colName),
-		}
-		if colName == truncatedColumn { // truncated column is handled separately in next loop
-			columns = append(columns, column)
-			continue
-		}
-		for _, row := range rows {
-			cellLen := row[collIndex]
-			if len(cellLen) > column.MaxCellLength {
-				column.MaxCellLength = len(cellLen)
-			}
-		}
-		if column.MaxCellLength > maxColWidth {
-			column.MaxCellLength = maxColWidth
-			totalLen += column.MaxCellLength + 4 // "...<space>"
-		} else {
-			totalLen += column.MaxCellLength + 1 // +1 for column separator
-		}
-		columns = append(columns, column)
-	}
-
-	for _, column := range columns {
-		if column.Title == truncatedColumn {
-			column.MaxCellLength = width - totalLen - len("... ")
-		}
-		t.AddColumn(column)
-	}
-
-	for _, row := range rows {
-		t.AddRow(row)
-	}
-	return t
 }
 
 func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
@@ -1591,7 +1554,7 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 				connect,
 			})
 		}
-		t := makeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
+		t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
 }
@@ -1979,6 +1942,22 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	// loaded addresses, override the values
 	if err := setClientWebProxyAddr(cf, c); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if c.ExtraProxyHeaders == nil {
+		c.ExtraProxyHeaders = map[string]string{}
+	}
+	for _, proxyHeaders := range cf.ExtraProxyHeaders {
+		proxyGlob := utils.GlobToRegexp(proxyHeaders.Proxy)
+		proxyRegexp, err := regexp.Compile(proxyGlob)
+		if err != nil {
+			return nil, trace.Wrap(err, "invalid proxy glob %q in tsh configuration file", proxyGlob)
+		}
+		if proxyRegexp.MatchString(c.WebProxyAddr) {
+			for k, v := range proxyHeaders.Headers {
+				c.ExtraProxyHeaders[k] = v
+			}
+		}
 	}
 
 	if len(fPorts) > 0 {
