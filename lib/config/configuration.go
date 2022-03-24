@@ -1770,6 +1770,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Databases.Enabled = strings.Contains(clf.Roles, defaults.RoleDatabase)
 	}
 
+	// apply --join-method flag:
+	if clf.JoinMethod != "" {
+		cfg.JoinMethod = types.JoinMethod(clf.JoinMethod)
+	}
+
 	// apply --auth-server flag:
 	if len(clf.AuthServerAddr) > 0 {
 		if cfg.Auth.Enabled {
