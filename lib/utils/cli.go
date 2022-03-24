@@ -22,7 +22,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"math"
 	"os"
@@ -61,7 +60,7 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 			log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 			log.SetOutput(os.Stderr)
 		} else {
-			log.SetOutput(ioutil.Discard)
+			log.SetOutput(io.Discard)
 		}
 	case LoggingForDaemon:
 		log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
@@ -83,7 +82,7 @@ func InitLoggerForTests() {
 		return
 	}
 	logger.SetLevel(log.WarnLevel)
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 }
 
 // NewLoggerForTests creates a new logger for test environment
@@ -293,7 +292,55 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app.HelpFlag.NoEnvar()
 
 	// set our own help template
-	return app.UsageTemplate(defaultUsageTemplate)
+	return app.UsageTemplate(createUsageTemplate())
+}
+
+// createUsageTemplate creates an usage template for kingpin applications.
+func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
+	opt := &usageTemplateOptions{
+		commandPrintfWidth: defaultCommandPrintfWidth,
+	}
+
+	for _, optFunc := range opts {
+		optFunc(opt)
+	}
+	return fmt.Sprintf(defaultUsageTemplate, opt.commandPrintfWidth)
+}
+
+// UpdateAppUsageTemplate updates usage template for kingpin applications by
+// pre-parsing the arguments then applying any changes to the usage template if
+// necessary.
+func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
+	// If ParseContext fails, kingpin will not show usage so there is no need
+	// to update anything here. See app.Parse for more details.
+	context, err := app.ParseContext(args)
+	if err != nil {
+		return
+	}
+
+	app.UsageTemplate(createUsageTemplate(
+		withCommandPrintfWidth(app, context),
+	))
+}
+
+// withCommandPrintfWidth returns an usage template option that
+// updates command printf width if longer than default.
+func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseContext) func(*usageTemplateOptions) {
+	return func(opt *usageTemplateOptions) {
+		var commands []*kingpin.CmdModel
+		if context.SelectedCommand != nil {
+			commands = context.SelectedCommand.Model().FlattenedCommands()
+		} else {
+			commands = app.Model().FlattenedCommands()
+		}
+
+		for _, command := range commands {
+			if !command.Hidden && len(command.FullCommand) > opt.commandPrintfWidth {
+				opt.commandPrintfWidth = len(command.FullCommand)
+			}
+		}
+
+	}
 }
 
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
@@ -381,8 +428,19 @@ func needsQuoting(text string) bool {
 	return false
 }
 
-// Usage template with compactly formatted commands.
-var defaultUsageTemplate = `{{define "FormatCommand"}}\
+// usageTemplateOptions defines options to format the usage template.
+type usageTemplateOptions struct {
+	// commandPrintfWidth is the width of the command name with padding, for
+	//   {{.FullCommand | printf "%%-%ds"}}
+	commandPrintfWidth int
+}
+
+// defaultCommandPrintfWidth is the default command printf width.
+const defaultCommandPrintfWidth = 12
+
+// defaultUsageTemplate is a fmt format that defines the usage template with
+// compactly formatted commands. Should be only used in createUsageTemplate.
+const defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{if .FlagSummary}} {{.FlagSummary}}{{end}}\
 {{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
 {{end}}\
@@ -390,7 +448,7 @@ var defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{define "FormatCommands"}}\
 {{range .FlattenedCommands}}\
 {{if not .Hidden}}\
-  {{.FullCommand | printf "%-12s" }}{{if .Default}} (Default){{end}} {{ .Help }}
+  {{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end}}\
 {{end}}\
 {{end}}\

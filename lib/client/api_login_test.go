@@ -43,10 +43,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	log "github.com/sirupsen/logrus"
 )
 
-func TestTeleportClient_Login_localMFALogin(t *testing.T) {
+func TestTeleportClient_Login_local(t *testing.T) {
 	// Silence logging during this test.
 	lvl := log.GetLevel()
 	t.Cleanup(func() {
@@ -60,6 +61,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 	sa := newStandaloneTeleport(t, clock)
 	username := sa.Username
 	password := sa.Password
+	webID := sa.WebAuthnID
 	device := sa.Device
 	otpKey := sa.OTPKey
 
@@ -110,6 +112,13 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 			},
 		}, nil
 	}
+	solvePwdless := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+		resp, err := solveWebauthn(ctx, origin, assertion)
+		if err == nil {
+			resp.GetWebauthn().Response.UserHandle = webID
+		}
+		return resp, err
+	}
 
 	ctx := context.Background()
 	tests := []struct {
@@ -117,18 +126,26 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 		secondFactor  constants.SecondFactorType
 		solveOTP      func(context.Context) (string, error)
 		solveWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
+		pwdless       bool
 	}{
 		{
-			name:          "OK OTP device login",
+			name:          "OTP device login",
 			secondFactor:  constants.SecondFactorOptional,
 			solveOTP:      solveOTP,
 			solveWebauthn: promptWebauthnNoop,
 		},
 		{
-			name:          "OK Webauthn device login",
+			name:          "WebAuthn device login",
 			secondFactor:  constants.SecondFactorOptional,
 			solveOTP:      promptOTPNoop,
 			solveWebauthn: solveWebauthn,
+		},
+		{
+			name:          "passwordless login",
+			secondFactor:  constants.SecondFactorOptional,
+			solveOTP:      promptOTPNoop,
+			solveWebauthn: solvePwdless,
+			pwdless:       true,
 		},
 	}
 	for _, test := range tests {
@@ -137,11 +154,12 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 			defer cancel()
 
 			client.Prompts.Swap(
-				func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error) {
+				func(ctx context.Context, out io.Writer, in prompt.Reader, question string) (string, error) {
 					return test.solveOTP(ctx)
 				},
-				func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
-					return test.solveWebauthn(ctx, origin, assertion)
+				func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, _ wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+					resp, err := test.solveWebauthn(ctx, origin, assertion)
+					return resp, "", err
 				},
 			)
 
@@ -155,6 +173,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
+			tc.Passwordless = test.pwdless
 
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
@@ -166,6 +185,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 type standaloneBundle struct {
 	AuthAddr, ProxyWebAddr string
 	Username, Password     string
+	WebAuthnID             []byte
 	Device                 *mocku2f.Key
 	OTPKey                 string
 	Auth, Proxy            *service.TeleportProcess
@@ -244,14 +264,18 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, err)
 	tokenID := token.GetName()
 	res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-		TokenID:    tokenID,
-		DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	require.NoError(t, err)
+	cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+	webID := cc.Response.User.ID
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
+	device.SetPasswordless()
 	const origin = "https://localhost"
-	ccr, err := device.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(res.GetWebauthn()))
+	ccr, err := device.SignCredentialCreation(origin, cc)
 	require.NoError(t, err)
 	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     tokenID,
@@ -296,6 +320,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		ProxyWebAddr: proxyWebAddr.String(),
 		Username:     username,
 		Password:     password,
+		WebAuthnID:   webID,
 		Device:       device,
 		OTPKey:       otpKey,
 		Auth:         authProcess,
