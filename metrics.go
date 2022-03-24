@@ -49,6 +49,9 @@ const (
 	// MetricFailedLoginAttempts counts failed login attempts
 	MetricFailedLoginAttempts = "failed_login_attempts_total"
 
+	// MetricConnectToNodeAttempts counts ssh attempts
+	MetricConnectToNodeAttempts = "connect_to_node_attempts_total"
+
 	// MetricFailedConnectToNodeAttempts counts failed ssh attempts
 	MetricFailedConnectToNodeAttempts = "failed_connect_to_node_attempts_total"
 
