@@ -294,7 +294,7 @@ const (
 
 	// UploadGracePeriod is a period after which non-completed
 	// upload is considered abandoned and will be completed by the reconciler
-	UploadGracePeriod = 24 * time.Hour
+	UploadGracePeriod = 30 * 24 * time.Hour
 
 	// InactivityFlushPeriod is a period of inactivity
 	// that triggers upload of the data - flush.

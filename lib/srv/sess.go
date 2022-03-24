@@ -1213,7 +1213,7 @@ func (s *session) addParty(p *party) error {
 	}
 
 	// Register this party as one of the session writers (output will go to it).
-	s.writer.addWriter(string(p.id), p, true)
+	s.writer.addWriter(string(p.id), p, false)
 	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
