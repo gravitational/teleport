@@ -38,15 +38,14 @@ func NewInsecureWebClient() *http.Client {
 	// Because Teleport clients can't be configured (yet), they take the default
 	// list of cipher suites from Go.
 	tlsConfig := utils.TLSConfig(nil)
-	tlsConfig.InsecureSkipVerify = true
-
+	transport := http.Transport{
+		TLSClientConfig: tlsConfig,
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		},
+	}
 	return &http.Client{
-		Transport: &apiproxy.ProxyAwareRoundTripper{Transport: http.Transport{
-			TLSClientConfig: tlsConfig,
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-			},
-		}},
+		Transport: apiproxy.NewHTTPFallbackRoundTripper(transport, true),
 	}
 }
 
@@ -57,12 +56,12 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 	tlsConfig.RootCAs = pool
 
 	return &http.Client{
-		Transport: &apiproxy.ProxyAwareRoundTripper{Transport: http.Transport{
+		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
 			Proxy: func(req *http.Request) (*url.URL, error) {
 				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 			},
-		}},
+		},
 	}
 }
 

@@ -77,17 +77,17 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &http.Client{
-		Transport: &proxy.ProxyAwareRoundTripper{Transport: http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:            cfg.Pool,
-				InsecureSkipVerify: cfg.Insecure,
-			},
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-			},
+	transport := http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs: cfg.Pool,
 		},
-		}}, nil
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		},
+	}
+	return &http.Client{
+		Transport: proxy.NewHTTPFallbackRoundTripper(transport, cfg.Insecure),
+	}, nil
 }
 
 // doWithFallback attempts to execute an HTTP request using https, and then
