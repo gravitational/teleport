@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/tool/tbot/destination"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -42,10 +41,6 @@ type FileDescription struct {
 	// IsDir designates whether this describes a subdirectory inside the
 	// destination.
 	IsDir bool
-
-	// ModeHint describes the intended permissions for this data, for
-	// Destination backends where permissions are relevant.
-	ModeHint destination.ModeHint
 }
 
 // Template defines functions for dynamically writing additional files to

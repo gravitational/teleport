@@ -446,13 +446,14 @@ func TestClusterName(t *testing.T) {
 }
 
 func TestCASigningAlg(t *testing.T) {
+	ctx := context.Background()
 	verifyCAs := func(auth *Server, alg string) {
-		hostCAs, err := auth.GetCertAuthorities(types.HostCA, false)
+		hostCAs, err := auth.GetCertAuthorities(ctx, types.HostCA, false)
 		require.NoError(t, err)
 		for _, ca := range hostCAs {
 			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
 		}
-		userCAs, err := auth.GetCertAuthorities(types.UserCA, false)
+		userCAs, err := auth.GetCertAuthorities(ctx, types.UserCA, false)
 		require.NoError(t, err)
 		for _, ca := range userCAs {
 			require.Equal(t, sshutils.GetSigningAlgName(ca), alg)
@@ -635,7 +636,7 @@ func TestMigrateCertAuthorities(t *testing.T) {
 	var caSpecs []types.CertAuthoritySpecV2
 	for _, typ := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
 		t.Run(fmt.Sprintf("verify %v CA", typ), func(t *testing.T) {
-			cas, err := as.GetCertAuthorities(typ, true)
+			cas, err := as.GetCertAuthorities(ctx, typ, true)
 			require.NoError(t, err)
 			require.Len(t, cas, 1)
 			caSpecs = append(caSpecs, cas[0].(*types.CertAuthorityV2).Spec)
@@ -857,7 +858,7 @@ func TestIdentityChecker(t *testing.T) {
 	clusterName, err := authServer.GetDomainName()
 	require.NoError(t, err)
 
-	ca, err := authServer.GetCertAuthority(types.CertAuthID{
+	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	}, true)

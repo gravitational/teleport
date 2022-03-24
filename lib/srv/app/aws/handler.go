@@ -185,20 +185,6 @@ func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *h
 	}
 }
 
-// resolveEndpoint extracts the aws-service on and aws-region from the request authorization header
-// and resolves the aws-service and aws-region to AWS endpoint.
-func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
-	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resolvedEndpoint, err := endpoints.DefaultResolver().EndpointFor(awsAuthHeader.Service, awsAuthHeader.Region)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &resolvedEndpoint, nil
-}
-
 // prepareSignedRequest creates a new HTTP request and rewrites the header from the original request and returns a new
 // HTTP request signed by STS AWS API.
 func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.ResolvedEndpoint, identity *tlsca.Identity) (*http.Request, error) {

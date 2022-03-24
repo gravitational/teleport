@@ -279,10 +279,6 @@
           "slug": "/server-access/guides/",
           "entries": [
             {
-              "title": "Ansible",
-              "slug": "/server-access/guides/ansible/"
-            },
-            {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
             },
@@ -347,10 +343,6 @@
             {
               "title": "Federation",
               "slug": "/kubernetes-access/guides/federation/"
-            },
-            {
-              "title": "Migration",
-              "slug": "/kubernetes-access/guides/migration/"
             },
             {
               "title": "Standalone",
@@ -451,6 +443,10 @@
               "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
             {
+              "title": "Self-Hosted Redis",
+              "slug": "/database-access/guides/redis/"
+            },
+            {
               "title": "SQL Server (Preview)",
               "slug": "/database-access/guides/sql-server-ad/"
             },
@@ -517,12 +513,76 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Configuration",
-          "slug": "/desktop-access/reference/configuration/"
+          "title": "Access Controls",
+          "slug": "/desktop-access/rbac/"
+        },
+        {
+          "title": "Reference",
+          "slug": "/desktop-access/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/desktop-access/reference/configuration/"
+            },
+            {
+              "title": "Audit Events",
+              "slug": "/desktop-access/reference/audit/"
+            },
+            {
+              "title": "Clipboard Sharing",
+              "slug": "/desktop-access/reference/clipboard/"
+            },
+            {
+              "title": "Session Recording",
+              "slug": "/desktop-access/reference/sessions/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/desktop-access/reference/cli/"
+            }
+          ]
         },
         {
           "title": "Troubleshooting",
           "slug": "/desktop-access/troubleshooting/"
+        }
+      ]
+    },
+    {
+      "icon": "wand",
+      "title": "Machine ID",
+      "entries": [
+        {
+          "title": "Introduction",
+          "slug": "/machine-id/introduction/"
+        },
+        {
+          "title": "Getting Started",
+          "slug": "/machine-id/getting-started/"
+        },
+        {
+          "title": "Reference",
+          "slug": "/machine-id/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/machine-id/reference/cli/"
+            }
+          ]
+        },
+        {
+          "title": "Guides",
+          "slug": "/machine-id/guides/",
+          "entries": [
+            {
+              "title": "Machine ID with Ansible",
+              "slug": "/machine-id/guides/ansible/"
+            }
+          ]
         }
       ]
     },
@@ -760,7 +820,7 @@
     }
   ],
   "variables": {
-    "version": "7.0",
+    "version": "9.0",
     "helm": {
       "version": "3.4.2"
     },
@@ -812,14 +872,14 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "7.0.0",
+      "version": "9.0.0",
       "golang": "1.16",
       "plugin": {
-        "version": "7.0.0"
+        "version": "9.0.0"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:7"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:9",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:9"
     }
   },
   "redirects": [
@@ -1021,6 +1081,11 @@
     {
       "source": "/docs/best-practices/",
       "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/migration/",
+      "destination": "/kubernetes-access/introduction/",
       "permanent": true
     }
   ]

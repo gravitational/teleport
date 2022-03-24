@@ -1074,6 +1074,44 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 	})
 }
 
+func TestGenerateUserCertWithCertExtension(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
+	require.NoError(t, err)
+
+	extension := types.CertExtension{
+		Name:  "abc",
+		Value: "cde",
+		Type:  types.CertExtensionType_SSH,
+		Mode:  types.CertExtensionMode_EXTENSION,
+	}
+	options := role.GetOptions()
+	options.CertExtensions = []*types.CertExtension{&extension}
+	role.SetOptions(options)
+
+	keygen := testauthority.New()
+	_, pub, err := keygen.GetNewKeyPairFromPool()
+	require.NoError(t, err)
+	certReq := certRequest{
+		user:      user,
+		checker:   services.NewRoleSet(role),
+		publicKey: pub,
+	}
+	certs, err := p.a.generateUserCert(certReq)
+	require.NoError(t, err)
+
+	key, err := sshutils.ParseCertificate(certs.SSH)
+	require.NoError(t, err)
+
+	val, ok := key.Extensions[extension.Name]
+	require.True(t, ok)
+	require.Equal(t, extension.Value, val)
+}
+
 func TestGenerateUserCertWithLocks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

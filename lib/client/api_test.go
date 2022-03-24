@@ -34,8 +34,7 @@ func TestMain(m *testing.M) {
 }
 
 // register test suite
-type APITestSuite struct {
-}
+type APITestSuite struct{}
 
 // bootstrap check
 func TestClientAPI(t *testing.T) { check.TestingT(t) }
@@ -277,7 +276,6 @@ func (s *APITestSuite) TestPortsParsing(c *check.C) {
 }
 
 func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
-
 	tests := []struct {
 		spec    []string
 		isError bool
@@ -497,6 +495,80 @@ func TestApplyProxySettings(t *testing.T) {
 			err := tc.applyProxySettings(test.settingsIn)
 			require.NoError(t, err)
 			require.EqualValues(t, test.tcConfigOut, tc.Config)
+		})
+	}
+}
+
+func TestParseSearchKeywords(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		spec     string
+		expected []string
+	}{
+		{
+			name: "empty input",
+			spec: "",
+		},
+		{
+			name:     "simple input",
+			spec:     "foo",
+			expected: []string{"foo"},
+		},
+		{
+			name:     "complex input",
+			spec:     `"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
+			expected: []string{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
+		},
+		{
+			name:     "unicode input",
+			spec:     `"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
+			expected: []string{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := ParseSearchKeywords(tc.spec, ',')
+			require.Equal(t, tc.expected, m)
+		})
+	}
+
+	// Test default delimiter (which is a comma)
+	m := ParseSearchKeywords("foo,bar", rune(0))
+	require.Equal(t, []string{"foo", "bar"}, m)
+}
+
+func TestParseSearchKeywords_SpaceDelimiter(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		spec     string
+		expected []string
+	}{
+		{
+			name:     "simple input",
+			spec:     "foo",
+			expected: []string{"foo"},
+		},
+		{
+			name:     "complex input",
+			spec:     `foo,bar "some phrase's" baz=qux's "some other  phrase" " another one  "`,
+			expected: []string{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
+		},
+		{
+			name:     "unicode input",
+			spec:     `服务器环境=测试,操作系统类别 Linux  机房=华北 `,
+			expected: []string{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := ParseSearchKeywords(tc.spec, ' ')
+			require.Equal(t, tc.expected, m)
 		})
 	}
 }

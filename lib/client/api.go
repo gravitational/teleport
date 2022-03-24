@@ -171,6 +171,12 @@ type Config struct {
 	// Remote host to connect
 	Host string
 
+	// SearchKeywords host to connect
+	SearchKeywords []string
+
+	// PredicateExpression host to connect
+	PredicateExpression string
+
 	// Labels represent host Labels
 	Labels map[string]string
 
@@ -348,6 +354,13 @@ type Config struct {
 
 	// Invited is a list of people invited to a session.
 	Invited []string
+
+	// DisplayParticipantRequirements is set if debug information about participants requirements
+	// should be printed in moderated sessions.
+	DisplayParticipantRequirements bool
+
+	// ExtraProxyHeaders is a collection of http headers to be included in requests to the WebProxy.
+	ExtraProxyHeaders map[string]string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -465,7 +478,6 @@ func (p *ProfileStatus) DatabaseCertPathForCluster(clusterName string, databaseN
 // It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(name string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
-
 }
 
 // KubeConfigPath returns path to the specified kubeconfig for this profile.
@@ -1243,7 +1255,12 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 		retval = make([]string, 0)
 	)
 	if tc.Labels != nil && len(tc.Labels) > 0 {
-		nodes, err = proxy.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
+		nodes, err = proxy.FindNodesByFilters(ctx, proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1503,7 +1520,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
 	}
-	var notFoundErrorMessage = fmt.Sprintf("session '%s' not found or it has ended", sessionID)
+	notFoundErrorMessage := fmt.Sprintf("session '%s' not found or it has ended", sessionID)
 
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
@@ -1894,17 +1911,8 @@ func isRemoteDest(name string) bool {
 	return strings.ContainsRune(name, ':')
 }
 
-// ListNodes returns a list of nodes connected to a proxy
-func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error) {
-	var err error
-	// userhost is specified? that must be labels
-	if tc.Host != "" {
-		tc.Labels, err = ParseLabelSpec(tc.Host)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
+// ListNodesWithFilters returns a list of nodes connected to a proxy
+func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Server, error) {
 	// connect to the proxy and ask it to return a full list of servers
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
@@ -1912,23 +1920,48 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error)
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
+	servers, err := proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
+		Namespace:           tc.Namespace,
+		Labels:              tc.Labels,
+		SearchKeywords:      tc.SearchKeywords,
+		PredicateExpression: tc.PredicateExpression,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
 }
 
-// ListAppServers returns a list of application servers.
-func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.AppServer, error) {
+// ListAppServersWithFilters returns a list of application servers.
+func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.GetAppServers(ctx, tc.Namespace)
+	filter := customFilter
+	if filter == nil {
+		filter = &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		}
+	}
+
+	servers, err := proxyClient.FindAppServersByFilters(ctx, *filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
 }
 
 // ListApps returns all registered applications.
-func (tc *TeleportClient) ListApps(ctx context.Context) ([]types.Application, error) {
-	servers, err := tc.ListAppServers(ctx)
+func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Application, error) {
+	servers, err := tc.ListAppServersWithFilters(ctx, customFilter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1959,19 +1992,35 @@ func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string
 	return proxyClient.DeleteAppSession(ctx, sessionID)
 }
 
-// ListDatabaseServers returns all registered database proxy servers.
-func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.DatabaseServer, error) {
+// ListDatabaseServersWithFilters returns all registered database proxy servers.
+func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	return proxyClient.GetDatabaseServers(ctx, tc.Namespace)
+
+	filter := customFilter
+	if filter == nil {
+		filter = &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		}
+	}
+
+	servers, err := proxyClient.FindDatabaseServersByFilters(ctx, *filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
 }
 
 // ListDatabases returns all registered databases.
-func (tc *TeleportClient) ListDatabases(ctx context.Context) ([]types.Database, error) {
-	servers, err := tc.ListDatabaseServers(ctx)
+func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Database, error) {
+	servers, err := tc.ListDatabaseServersWithFilters(ctx, customFilter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1990,13 +2039,15 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.FindServersByLabels(ctx, tc.Namespace, nil)
+	return proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
+		Namespace: tc.Namespace,
+	})
 }
 
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
 func (tc *TeleportClient) runCommandOnNodes(
-	ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
-
+	ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string,
+) error {
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
 		go func(address string) {
@@ -2063,7 +2114,7 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 	env := make(map[string]string)
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
-
+	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(tc.Config.DisplayParticipantRequirements)
 	encoded, err := json.Marshal(&tc.Config.Invited)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2544,12 +2595,13 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	if tc.lastPing != nil {
 		return tc.lastPing, nil
 	}
-	pr, err := webclient.Ping(
-		ctx,
-		tc.WebProxyAddr,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr),
-		tc.AuthConnector)
+	pr, err := webclient.Ping(&webclient.Config{
+		Context:       ctx,
+		ProxyAddr:     tc.WebProxyAddr,
+		Insecure:      tc.InsecureSkipVerify,
+		Pool:          loopbackPool(tc.WebProxyAddr),
+		ConnectorName: tc.AuthConnector,
+		ExtraHeaders:  tc.ExtraProxyHeaders})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2557,7 +2609,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
 		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
-			fmt.Printf(`
+			fmt.Fprintf(tc.Config.Stderr, `
 			WARNING
 			Detected potentially incompatible client and server versions.
 			Minimum client version supported by the server is %v but you are using %v.
@@ -2581,16 +2633,19 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 // confirmation from the user.
 func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 	motd, err := webclient.GetMOTD(
-		ctx,
-		tc.WebProxyAddr,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr))
+		&webclient.Config{
+			Context:      ctx,
+			ProxyAddr:    tc.WebProxyAddr,
+			Insecure:     tc.InsecureSkipVerify,
+			Pool:         loopbackPool(tc.WebProxyAddr),
+			ExtraHeaders: tc.ExtraProxyHeaders})
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if motd.Text != "" {
-		fmt.Printf("%s\nPress [ENTER] to continue.\n", motd.Text)
+		fmt.Fprintf(tc.Config.Stderr, "%s\nPress [ENTER] to continue.\n", motd.Text)
 		// We're re-using the password reader for user acknowledgment for
 		// aesthetic purposes, because we want to hide any garbage the
 		// use might enter at the prompt. Whatever the user enters will
@@ -2625,7 +2680,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	}
 
 	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(types.HostCA, false)
+	return clt.GetCertAuthorities(ctx, types.HostCA, false)
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
@@ -3044,7 +3099,7 @@ func Username() (string, error) {
 
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP() (token string, err error) {
-	fmt.Printf("Enter your OTP token:\n")
+	fmt.Fprintf(tc.Config.Stderr, "Enter your OTP token:\n")
 	token, err = lineFromConsole()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
@@ -3055,7 +3110,7 @@ func (tc *TeleportClient) AskOTP() (token string, err error) {
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
-	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
+	fmt.Fprintf(tc.Config.Stderr, "Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsoleFn()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
@@ -3176,10 +3231,10 @@ func lineFromConsole() (string, error) {
 // ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
 // { "name" -> "value", "long name" -> "quoted value" }
 func ParseLabelSpec(spec string) (map[string]string, error) {
-	tokens := []string{}
-	var openQuotes = false
+	var tokens []string
+	openQuotes := false
 	var tokenStart, assignCount int
-	var specLen = len(spec)
+	specLen := len(spec)
 	// tokenize the label spec:
 	for i, ch := range spec {
 		endOfToken := false
@@ -3215,6 +3270,44 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 		labels[tokens[i]] = tokens[i+1]
 	}
 	return labels, nil
+}
+
+// ParseSearchKeywords parses a string ie: foo,bar,"quoted value"` into a slice of
+// strings: ["foo", "bar", "quoted value"].
+// Almost a replica to ParseLabelSpec, but with few modifications such as
+// allowing a custom delimiter. Defaults to comma delimiter if not defined.
+func ParseSearchKeywords(spec string, customDelimiter rune) []string {
+	delimiter := customDelimiter
+	if delimiter == 0 {
+		delimiter = rune(',')
+	}
+
+	var tokens []string
+	openQuotes := false
+	var tokenStart int
+	specLen := len(spec)
+	// tokenize the label search:
+	for i, ch := range spec {
+		endOfToken := false
+		if i+utf8.RuneLen(ch) == specLen {
+			i += utf8.RuneLen(ch)
+			endOfToken = true
+		}
+		switch ch {
+		case '"':
+			openQuotes = !openQuotes
+		case delimiter:
+			if !openQuotes {
+				endOfToken = true
+			}
+		}
+		if endOfToken && i > tokenStart {
+			tokens = append(tokens, strings.TrimSpace(strings.Trim(spec[tokenStart:i], `"`)))
+			tokenStart = i + 1
+		}
+	}
+
+	return tokens
 }
 
 // Executes the given command on the client machine (localhost). If no command is given,
@@ -3353,7 +3446,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		}
 	}
 
-	var errorCh = make(chan error)
+	errorCh := make(chan error)
 	player := newSessionPlayer(sessionEvents, stream, term)
 	// keys:
 	const (
