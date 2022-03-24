@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -92,23 +93,6 @@ func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 		opt(&cfg)
 	}
 	return cfg
-}
-
-func (a *ServerWithRoles) withStaticRoles() (actionConfig, error) {
-	user, err := a.authServer.GetUser(a.context.User.GetName(), false)
-	if err != nil {
-		return actionConfig{}, trace.Wrap(err)
-	}
-
-	checker, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
-	if err != nil {
-		return actionConfig{}, trace.Wrap(err)
-	}
-
-	return actionConfig{context: Context{
-		User:    user,
-		Checker: checker,
-	}}, nil
 }
 
 func (c actionConfig) action(namespace, resource string, verbs ...string) error {
@@ -198,7 +182,7 @@ func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid sessi
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
 }
 
-// actionForKindSSHSession is a special checker that grants access to active
+// actionForKindSSHSession is a special checker that grants access to active SSH
 // sessions.  It can allow access to a specific session based on the `where`
 // section of the user's access rule for kind `ssh_session`.
 func (a *ServerWithRoles) actionForKindSSHSession(namespace, verb string, sid session.ID) error {
@@ -399,28 +383,28 @@ func (a *ServerWithRoles) CreateCertAuthority(ca types.CertAuthority) error {
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
-func (a *ServerWithRoles) RotateCertAuthority(req RotateRequest) error {
+func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.authServer.clock); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.RotateCertAuthority(req)
+	return a.authServer.RotateCertAuthority(ctx, req)
 }
 
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is called by a remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
-func (a *ServerWithRoles) RotateExternalCertAuthority(ca types.CertAuthority) error {
+func (a *ServerWithRoles) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if ca == nil {
 		return trace.BadParameter("missing certificate authority")
 	}
-	ctx := &services.Context{User: a.context.User, Resource: ca}
-	if err := a.actionWithContext(ctx, apidefaults.Namespace, types.KindCertAuthority, types.VerbRotate); err != nil {
+	sctx := &services.Context{User: a.context.User, Resource: ca}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, types.VerbRotate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.RotateExternalCertAuthority(ca)
+	return a.authServer.RotateExternalCertAuthority(ctx, ca)
 }
 
 // UpsertCertAuthority updates existing cert authority or updates the existing one.
@@ -444,7 +428,7 @@ func (a *ServerWithRoles) CompareAndSwapCertAuthority(new, existing types.CertAu
 	return a.authServer.CompareAndSwapCertAuthority(new, existing)
 }
 
-func (a *ServerWithRoles) GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbList, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -453,10 +437,10 @@ func (a *ServerWithRoles) GetCertAuthorities(caType types.CertAuthType, loadKeys
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetCertAuthorities(caType, loadKeys, opts...)
+	return a.authServer.GetCertAuthorities(ctx, caType, loadKeys, opts...)
 }
 
-func (a *ServerWithRoles) GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -465,7 +449,7 @@ func (a *ServerWithRoles) GetCertAuthority(id types.CertAuthID, loadKeys bool, o
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetCertAuthority(id, loadKeys, opts...)
+	return a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
 }
 
 func (a *ServerWithRoles) GetDomainName() (string, error) {
@@ -877,14 +861,33 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 }
 
 // ListResources returns a paginated list of resources filtered by user access.
-func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// ListResources request coming through this auth layer gets request filters
+	// stripped off and saved to be applied later after items go through rbac checks.
+	// The list that gets returned from the backend comes back unfiltered and as
+	// we apply request filters, we might make multiple trips to get more subsets to
+	// reach our limit, which is fine b/c we can start query with our next key.
+	//
+	// But since sorting and counting totals requires us to work with entire list upfront,
+	// special handling is needed in this layer b/c if we try to mimic the "subset" here,
+	// we will be making unnecessary trips and doing needless work of deserializing every
+	// item for every subset.
+	if req.RequiresFakePagination() {
+		resp, err := a.listResourcesWithSort(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return resp, nil
+	}
+
+	// Start real pagination.
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	limit := int(req.Limit)
 	actionVerbs := []string{types.VerbList, types.VerbRead}
-
 	switch req.ResourceType {
 	case types.KindNode:
 		// We are checking list only for Nodes to keep backwards compatibility.
@@ -894,14 +897,14 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService:
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop:
 
 	default:
-		return nil, "", trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
 	if err := a.action(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Perform the label/search/expr filtering here (instead of at the backend
@@ -918,7 +921,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.PredicateExpression = ""
 
 	var resources []types.ResourceWithLabels
-	nextKey, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.ResourceWithLabels) (bool, error) {
+	resp, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.ResourceWithLabels) (bool, error) {
 		for _, resource := range nextPage {
 			if len(resources) == limit {
 				break
@@ -943,10 +946,13 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return len(resources) == limit, nil
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return resources, nextKey, nil
+	return &types.ListResourcesResponse{
+		Resources: resources,
+		NextKey:   resp.NextKey,
+	}, nil
 }
 
 func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
@@ -968,9 +974,110 @@ func (a *ServerWithRoles) checkAccessToResource(resource types.Resource) error {
 		default:
 			return trace.BadParameter("could not check access to server type %q", resource.GetKind())
 		}
+	case types.WindowsDesktop:
+		return a.checkAccessToWindowsDesktop(r)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
+}
+
+// listResourcesWithSort retrieves all resources of a certain resource type with rbac applied
+// then afterwards applies request sorting and filtering.
+func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resources []types.ResourceWithLabels
+	switch req.ResourceType {
+	case types.KindNode:
+		nodes, err := a.GetNodes(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.Servers(nodes)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindAppServer:
+		appservers, err := a.GetApplicationServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.AppServers(appservers)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindDatabaseServer:
+		dbservers, err := a.GetDatabaseServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.DatabaseServers(dbservers)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindKubernetesCluster:
+		kubeservices, err := a.GetKubeServices(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Extract kube clusters into its own list.
+		clusters := []types.KubeCluster{}
+		for _, svc := range kubeservices {
+			for _, legacyCluster := range svc.GetKubernetesClusters() {
+				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster(svc.GetNamespace(), legacyCluster)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				clusters = append(clusters, cluster)
+			}
+		}
+
+		sortedClusters := types.KubeClusters(types.DeduplicateKubeClusters(clusters))
+		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedClusters.AsResources()
+
+	case types.KindWindowsDesktop:
+		windowsdesktops, err := a.GetWindowsDesktops(ctx, req.GetWindowsDesktopFilter())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		desktops := types.WindowsDesktops(windowsdesktops)
+		if err := desktops.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = desktops.AsResources()
+
+	default:
+		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
+	}
+
+	// Apply request filters and get pagination info.
+	resp, err := local.FakePaginate(resources, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
+// ListWindowsDesktops not implemented: can only be called locally.
+func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // ListNodes returns a paginated list of nodes filtered by user access.
@@ -1541,17 +1648,7 @@ func (a *ServerWithRoles) getProxyPublicAddr() string {
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
-	cfg, err := a.withStaticRoles()
-	if err != nil {
-		return err
-	}
-	if err := cfg.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
-		if trace.IsAccessDenied(err) {
-			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete) == nil {
-				// the user would've had permission with the roles granted by access requests
-				return trace.WrapWithMessage(err, "access request deletion through elevated roles is not allowed")
-			}
-		}
+	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAccessRequest(ctx, name)
@@ -1641,8 +1738,8 @@ func (a *ServerWithRoles) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 }
 
 func (a *ServerWithRoles) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-
+	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+) ([]byte, error) {
 	if err := a.action(apidefaults.Namespace, types.KindHostCert, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2494,23 +2591,22 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
 }
 
-func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (*apievents.SessionEnd, error) {
-	sessionEvents, err := a.alog.GetSessionEvents(namespace, sid, 0, false)
+func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (apievents.AuditEvent, error) {
+	sessionEvents, _, err := a.alog.SearchSessionEvents(time.Time{}, a.authServer.clock.Now().UTC(),
+		defaults.EventsIterationLimit, types.EventOrderAscending, "",
+		&types.WhereExpr{Equals: types.WhereExpr2{
+			L: &types.WhereExpr{Field: events.SessionEventID},
+			R: &types.WhereExpr{Literal: sid.String()},
+		}},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	for _, ef := range sessionEvents {
-		if ef.GetType() == events.SessionEndEvent {
-			event, err := events.FromEventFields(ef)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if sessionEnd, ok := event.(*apievents.SessionEnd); ok {
-				return sessionEnd, nil
-			}
-		}
+	if len(sessionEvents) == 1 {
+		return sessionEvents[0], nil
 	}
-	return nil, trace.NotFound("session.end event not found for session ID %q", sid)
+
+	return nil, trace.NotFound("session end event not found for session ID %q", sid)
 }
 
 // GetNamespaces returns a list of namespaces
@@ -2565,6 +2661,21 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 	}
 
 	// Some options are only available with enterprise subscription
+	if err := checkRoleFeatureSupport(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// access predicate syntax is not checked as part of normal role validation in order
+	// to allow the available namespaces to be extended without breaking compatibility with
+	// older nodes/proxies (which do not need to ever evaluate said predicates).
+	if err := services.ValidateAccessPredicates(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpsertRole(ctx, role)
+}
+
+func checkRoleFeatureSupport(role types.Role) error {
 	features := modules.GetModules().Features()
 	options := role.GetOptions()
 	allowReq, allowRev := role.GetAccessRequestConditions(types.Allow), role.GetAccessReviewConditions(types.Allow)
@@ -2583,16 +2694,9 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 	case features.AdvancedAccessWorkflows == false && !allowRev.IsZero():
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
+	default:
+		return nil
 	}
-
-	// access predicate syntax is not checked as part of normal role validation in order
-	// to allow the available namespaces to be extended without breaking compatibility with
-	// older nodes/proxies (which do not need to ever evaluate said predicates).
-	if err := services.ValidateAccessPredicates(role); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.UpsertRole(ctx, role)
 }
 
 // GetRole returns role by name
@@ -3391,7 +3495,7 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 
-	session, err := a.authServer.generateAppToken(req.Username, req.Roles, req.URI, req.Expires)
+	session, err := a.authServer.generateAppToken(ctx, req.Username, req.Roles, req.URI, req.Expires)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -4083,7 +4187,6 @@ func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop)
 func (a *ServerWithRoles) checkAccessToWindowsDesktop(w types.WindowsDesktop) error {
 	return a.context.Checker.CheckAccess(w,
 		// MFA is not required for operations on desktop resources
-		// TODO(zmb3): per-session MFA for desktops will be added after general availability
 		services.AccessMFAParams{Verified: true},
 		// Note: we don't use the Windows login matcher here, as we won't know what OS user
 		// the user is trying to log in as until they initiate the connection.

@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -100,7 +99,7 @@ func RoundtripWithConn(conn net.Conn) (string, error) {
 		return "", err
 	}
 	defer re.Body.Close()
-	out, err := ioutil.ReadAll(re.Body)
+	out, err := io.ReadAll(re.Body)
 	if err != nil {
 		return "", err
 	}
