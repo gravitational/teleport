@@ -25,7 +25,15 @@ import database from './assets/database.png';
 import desktop from './assets/desktop.png';
 import stack from './assets/stack.png';
 
-function getAccentImage(entityType: string): string {
+type ResourseTypes =
+  | 'application'
+  | 'database'
+  | 'desktop'
+  | 'kubernetes'
+  | 'server'
+  | 'stack';
+
+function getAccentImage(resourceType: ResourseTypes): string {
   const accentImages = {
     application: application,
     database: database,
@@ -33,13 +41,13 @@ function getAccentImage(entityType: string): string {
     kubernetes: stack,
     server: stack,
   };
-  return accentImages[entityType];
+  return accentImages[resourceType];
 }
 
 export default function Empty(props: Props) {
   const { canCreate, onClick, clusterId, emptyStateInfo } = props;
 
-  const { byline, docsURL, entityType, readOnly, title } = emptyStateInfo;
+  const { byline, docsURL, resourceType, readOnly, title } = emptyStateInfo;
 
   // always show the welcome for enterprise users who have access to create an app
   if (!canCreate) {
@@ -80,7 +88,13 @@ export default function Empty(props: Props) {
     >
       <Box maxWidth={600}>
         <Box mb={4} textAlign="center">
-          <Image src={getAccentImage(entityType)} ml="auto" mr="auto" mb={4} />
+          <Image
+            src={getAccentImage(resourceType)}
+            ml="auto"
+            mr="auto"
+            mb={4}
+            height="160px"
+          />
           <Text typography="h5" mb={2} fontWeight={700} fontSize={24}>
             {title}
           </Text>
@@ -89,9 +103,11 @@ export default function Empty(props: Props) {
           </Text>
         </Box>
         <Box textAlign="center">
-          <ButtonPrimary onClick={onClick} width="224px">
-            Add {entityType}
-          </ButtonPrimary>
+          {onClick && (
+            <ButtonPrimary onClick={onClick} width="224px">
+              Add {resourceType}
+            </ButtonPrimary>
+          )}
           <ButtonOutlined
             size="medium"
             as="a"
@@ -112,7 +128,7 @@ export default function Empty(props: Props) {
 export type EmptyStateInfo = {
   byline: string;
   docsURL: string;
-  entityType: string;
+  resourceType: ResourseTypes;
   readOnly: {
     title: string;
     resource: string;
@@ -122,7 +138,7 @@ export type EmptyStateInfo = {
 
 export type Props = {
   canCreate: boolean;
-  onClick(): void;
+  onClick?: () => void;
   clusterId: string;
   emptyStateInfo: EmptyStateInfo;
 };

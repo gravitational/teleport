@@ -27,7 +27,7 @@ const props: Props = {
     byline:
       'Teleport Server Access consolidates SSH access across all environments.',
     docsURL: 'https://goteleport.com/docs/server-access/getting-started/',
-    entityType: 'server',
+    resourceType: 'server',
     readOnly: {
       title: 'No Servers Found',
       resource: 'servers',

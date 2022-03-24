@@ -48,6 +48,7 @@ export function Desktops(props: State) {
   } = props;
 
   const isEmpty = attempt.status === 'success' && desktops.length === 0;
+  const hasDesktops = attempt.status === 'success' && desktops.length > 0;
 
   return (
     <FeatureBox>
@@ -60,7 +61,7 @@ export function Desktops(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      {!isEmpty && (
+      {hasDesktops && (
         <>
           <DesktopList
             desktops={desktops}
@@ -75,7 +76,6 @@ export function Desktops(props: State) {
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
-          onClick={() => window.open(DOC_URL)}
           emptyStateInfo={emptyStateInfo}
         />
       )}
@@ -88,9 +88,9 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Desktop Access provides graphical desktop access to remote Windows hosts.',
   docsURL: DOC_URL,
-  entityType: 'desktop',
+  resourceType: 'desktop',
   readOnly: {
     title: 'No Desktops Found',
-    resource: 'applications',
+    resource: 'desktops',
   },
 };

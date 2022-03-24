@@ -51,16 +51,14 @@ export function Databases(props: State) {
     authType,
   } = props;
 
-  const isEmpty =
-    (attempt.status === 'success' || attempt.status === 'processing') &&
-    databases.length === 0;
+  const isEmpty = attempt.status === 'success' && databases.length === 0;
   const hasDatabases = attempt.status === 'success' && databases.length > 0;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
-        {!isEmpty && attempt.status !== 'processing' && (
+        {!hasDatabases && attempt.status !== 'processing' && (
           <ButtonAdd
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
@@ -110,7 +108,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Database Access provides secure access to PostgreSQL, MySQL, MariaDB, MongoDB, Redis, and Microsoft SQL Server.',
   docsURL: 'https://goteleport.com/docs/database-access/guides/',
-  entityType: 'database',
+  resourceType: 'database',
   readOnly: {
     title: 'No Databases Found',
     resource: 'databases',

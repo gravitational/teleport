@@ -85,7 +85,6 @@ export function Kubes(props: State) {
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
-          onClick={() => window.open(DOC_URL)}
           emptyStateInfo={emptyStateInfo}
         />
       )}
@@ -98,7 +97,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Kubenetes Access provides secure access to Kubernetes clusters.',
   docsURL: DOC_URL,
-  entityType: 'kubernetes',
+  resourceType: 'kubernetes',
   readOnly: {
     title: 'No Kubernetes Clusters Found',
     resource: 'kubernetes clusters',

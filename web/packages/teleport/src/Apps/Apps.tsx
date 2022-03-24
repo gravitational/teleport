@@ -87,7 +87,7 @@ const emptyStateInfo: EmptyStateInfo = {
   byline:
     'Teleport Application Access provides secure access to internal applications.',
   docsURL: 'https://goteleport.com/docs/application-access/getting-started/',
-  entityType: 'application',
+  resourceType: 'application',
   readOnly: {
     title: 'No Applications Found',
     resource: 'applications',
