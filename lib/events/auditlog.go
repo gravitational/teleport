@@ -181,19 +181,8 @@ type AuditLogConfig struct {
 	// ExternalLog is a pluggable external log service
 	ExternalLog IAuditLog
 
-	// EventC is evnets channel for testing purposes, not used if empty
-	EventsC chan *AuditLogEvent
-
 	// Context is audit log context
 	Context context.Context
-}
-
-// AuditLogEvent is an internal audit log event
-type AuditLogEvent struct {
-	// Type is an event type
-	Type string
-	// Error is an event error
-	Error error
 }
 
 // CheckAndSetDefaults checks and sets defaults
