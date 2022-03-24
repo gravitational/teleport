@@ -668,7 +668,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 		start = time.Now()
 		l.log.Debugf("Converting %v to playback format.", tarballPath)
 		protoReader := NewProtoReader(tarball)
-		_, err = WriteForPlayback(l.Context, sid, protoReader, l.playbackDir)
+		_, err = WriteForSSHPlayback(l.Context, sid, protoReader, l.playbackDir)
 		if err != nil {
 			l.log.WithError(err).Error("Failed to convert.")
 			return trace.Wrap(err)
