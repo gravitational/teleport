@@ -2431,14 +2431,8 @@ func (tc *TeleportClient) LogoutAll() error {
 	return nil
 }
 
-// Login logs the user into a Teleport cluster by talking to a Teleport proxy.
-//
-// The returned Key should typically be passed to ActivateKey in order to
-// update local agent state.
-//
-func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
-	// Ping the endpoint to see if it's up and find the type of authentication
-	// supported.
+// PingAndShowMOTD pings the Teleport Proxy and displays the Message Of The Day if it's available.
+func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingResponse, error) {
 	pr, err := tc.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2449,6 +2443,21 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+	return pr, nil
+}
+
+// Login logs the user into a Teleport cluster by talking to a Teleport proxy.
+//
+// The returned Key should typically be passed to ActivateKey in order to
+// update local agent state.
+//
+func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
+	// Ping the endpoint to see if it's up and find the type of authentication
+	// supported, also show the message of the day if available.
+	pr, err := tc.PingAndShowMOTD(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// generate a new keypair. the public key will be signed via proxy if client's
@@ -2641,7 +2650,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		// use might enter at the prompt. Whatever the user enters will
 		// be simply discarded, and the user can still CTRL+C out if they
 		// disagree.
-		_, err := passwordFromConsole()
+		_, err := passwordFromConsoleFn()
 		if err != nil {
 			return trace.Wrap(err)
 		}
