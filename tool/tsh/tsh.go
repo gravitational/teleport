@@ -443,6 +443,7 @@ func Run(args []string, opts ...cliOption) error {
 	lsApps.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	lsApps.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
@@ -1516,7 +1517,23 @@ func sortedLabels(labels map[string]string) string {
 	return strings.Join(append(result, namespaced...), ",")
 }
 
-func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
+func showApps(apps []types.Application, active []tlsca.RouteToApp, format string, verbose bool) error {
+	switch strings.ToLower(format) {
+	case teleport.Text:
+		showAppsAsText(apps, active, verbose)
+	case teleport.JSON:
+		out, err := json.MarshalIndent(apps, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+	}
+	return nil
+}
+
+func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
 	// In verbose mode, print everything on a single line and include host UUID.
 	// In normal mode, chunk the labels, print two per line and allow multiple
 	// lines per node.
@@ -2505,8 +2522,7 @@ func onApps(cf *CLIConf) error {
 		return apps[i].GetName() < apps[j].GetName()
 	})
 
-	showApps(apps, profile.Apps, cf.Verbose)
-	return nil
+	return trace.Wrap(showApps(apps, profile.Apps, cf.Format, cf.Verbose))
 }
 
 // onEnvironment handles "tsh env" command.
