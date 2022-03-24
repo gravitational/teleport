@@ -23,7 +23,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// maxHistoryBytes is the maximum bytes that are retained as history and broadcasted to new clients.
 const maxHistoryBytes = 1000
+
+// maxPausedHistoryBytes is maximum bytes that are buffered when a session is paused.
 const maxPausedHistoryBytes = 10000
 
 // TermManager handles the streams of terminal-like sessions.
