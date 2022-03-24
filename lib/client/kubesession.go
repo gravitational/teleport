@@ -210,9 +210,8 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, mode types.SessionParticipantM
 					case escape.ErrTooMuchBufferedData:
 						fmt.Fprintf(s.term.Stderr(), "\r\nerror: %v\r\nremote peer may be unreachable, check your connectivity\r\n", trace.Wrap(err))
 					default:
-						fmt.Fprintf(s.term.Stderr(), "\r\nerror: %v\r\n", trace.Wrap(err))
+						fmt.Fprintf(s.term.Stderr(), "\r\nerror: %v\r\n", err)
 					}
-					s.cancel()
 				})
 			}
 
