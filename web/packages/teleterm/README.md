@@ -143,6 +143,6 @@ lib/teleterm/api/protogen/
 
 ```sh
 $ cd teleport
-$ rm -rf ./../webapps/packages/teleterm/src/services/tshd/v1/ && cp -R lib/teleterm/api/protogen/js/v1/ ./../webapps/packages/teleterm/src/services/tshd/
+$ rm -rf ./../webapps/packages/teleterm/src/services/tshd/v1/ && cp -R lib/teleterm/api/protogen/js/v1 ./../webapps/packages/teleterm/src/services/tshd/v1
 ```
 

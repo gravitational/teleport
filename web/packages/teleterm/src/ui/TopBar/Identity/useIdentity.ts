@@ -44,7 +44,8 @@ export function useIdentity() {
     .filter(c => !c.leaf)
     .map(cluster => ({
       active: cluster.uri === ctx.workspacesService.getRootClusterUri(),
-      name: cluster.name,
+      clusterName: cluster.name,
+      userName: cluster.loggedInUser?.name,
       uri: cluster.uri,
       connected: cluster.connected,
       clusterSyncStatus: ctx.clustersService.getClusterSyncStatus(cluster.uri)
@@ -63,7 +64,8 @@ export function useIdentity() {
 
 export interface IdentityRootCluster {
   active: boolean;
-  name: string;
+  clusterName: string;
+  userName: string;
   uri: string;
   connected: boolean;
   clusterSyncStatus: boolean;

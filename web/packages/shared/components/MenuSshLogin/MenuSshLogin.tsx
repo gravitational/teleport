@@ -20,7 +20,7 @@ import { NavLink } from 'react-router-dom';
 import Menu, { MenuItem } from 'design/Menu';
 import { space } from 'design/system';
 import { MenuSshLoginProps } from './types';
-import { ButtonBorder } from 'design';
+import { ButtonBorder, Flex } from 'design';
 import { CarrotDown } from 'design/Icon';
 
 class MenuSshLogin extends React.Component<MenuSshLoginProps> {
@@ -100,7 +100,7 @@ export const LoginItemList = ({ logins, onClick, onKeyPress }) => {
         key={key}
         px="2"
         mx="2"
-        as={NavLink}
+        as={url ? NavLink : StyledButton}
         to={url}
         onClick={(e: Event) => {
           onClick(e, login);
@@ -112,7 +112,7 @@ export const LoginItemList = ({ logins, onClick, onKeyPress }) => {
   });
 
   return (
-    <React.Fragment>
+    <Flex flexDirection="column">
       <Input
         p="2"
         m="2"
@@ -123,9 +123,15 @@ export const LoginItemList = ({ logins, onClick, onKeyPress }) => {
         autoComplete="off"
       />
       {$menuItems}
-    </React.Fragment>
+    </Flex>
   );
 };
+
+const StyledButton = styled.button`
+  color: inherit;
+  border: none;
+  flex: 1;
+`;
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
@@ -150,7 +156,7 @@ const Input = styled.input(
   border: 1px solid ${theme.colors.subtle};
   border-radius: 4px;
   box-sizing: border-box;
-  color: #263238;
+  color: ${theme.colors.grey[900]};
   height: 32px;
   outline: none;
 

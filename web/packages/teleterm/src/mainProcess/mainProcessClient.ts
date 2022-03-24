@@ -1,5 +1,4 @@
 import { ipcRenderer } from 'electron';
-import { openClusterContextMenu } from './contextMenus/clusterContextMenu';
 import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
 import { MainProcessClient } from './types';
 import { createConfigServiceClient } from '../services/config';
@@ -11,7 +10,6 @@ export default function createMainProcessClient(): MainProcessClient {
       return ipcRenderer.sendSync('main-process-get-runtime-settings');
     },
     openTerminalContextMenu,
-    openClusterContextMenu,
     openTabContextMenu,
     configService: createConfigServiceClient(),
   };

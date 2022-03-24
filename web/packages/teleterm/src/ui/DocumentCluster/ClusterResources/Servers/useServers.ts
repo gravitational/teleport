@@ -15,16 +15,39 @@ limitations under the License.
 */
 
 import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export function useServers() {
-  const ctx = useClusterContext();
-  const servers = ctx.getServers();
-  const syncStatus = ctx.getSyncStatus().servers;
+  const appContext = useAppContext();
+  const clusterContext = useClusterContext();
+  const servers = clusterContext.getServers();
+  const syncStatus = clusterContext.getSyncStatus().servers;
+
+  function getSshLogins(serverUri: string): string[] {
+    const cluster = appContext.clustersService.findClusterByResource(serverUri);
+    return cluster?.loggedInUser?.sshLoginsList || [];
+  }
+
+  function connect(serverUri: string, login: string): void {
+    const server = appContext.clustersService.getServer(serverUri);
+
+    const rootCluster =
+      appContext.clustersService.findRootClusterByResource(serverUri);
+    const documentsService =
+      appContext.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
+    const doc = documentsService.createTshNodeDocument(serverUri);
+    doc.title = `${login}@${server.hostname}`;
+    doc.login = login;
+
+    documentsService.add(doc);
+    documentsService.setLocation(doc.uri);
+  }
 
   return {
-    connect: ctx.connectServer,
     servers,
     syncStatus,
+    getSshLogins,
+    connect,
   };
 }
 

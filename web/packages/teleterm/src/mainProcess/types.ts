@@ -18,7 +18,6 @@ export type RuntimeSettings = {
 export type MainProcessClient = {
   getRuntimeSettings(): RuntimeSettings;
   openTerminalContextMenu(): void;
-  openClusterContextMenu(options: ClusterContextMenuOptions): void;
   openTabContextMenu(options: TabContextMenuOptions): void;
   configService: ConfigService;
 };
@@ -41,17 +40,9 @@ export interface TabContextMenuOptions {
   onDuplicatePty(): void;
 }
 
-export const ClusterContextMenuEventChannel = 'ClusterContextMenuEventChannel';
 export const TerminalContextMenuEventChannel = 'TerminalContextMenuEventChannel';
 export const TabContextMenuEventChannel = 'TabContextMenuEventChannel';
 export const ConfigServiceEventChannel = 'ConfigServiceEventChannel';
-
-export enum ClusterContextMenuEventType {
-  Refresh = 'Refresh',
-  Login = 'Login',
-  Logout = 'Logout',
-  Remove = 'Remove',
-}
 
 export enum TabContextMenuEventType {
   Close = 'Close',
