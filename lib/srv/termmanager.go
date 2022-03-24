@@ -71,10 +71,7 @@ func NewTermManager() *TermManager {
 
 func (g *TermManager) writeToClients(p []byte) int {
 	g.lastWasBroadcast = false
-	g.history = append(g.history, truncateFront(p, maxHistoryBytes)...)
-	if len(g.history) > maxHistoryBytes {
-		g.history = g.history[:maxHistoryBytes]
-	}
+	g.history = truncateFront(append(g.history, p...), maxHistoryBytes)
 
 	atomic.AddUint64(&g.countWritten, uint64(len(p)))
 	for key, w := range g.writers {
@@ -108,10 +105,7 @@ func (g *TermManager) Write(p []byte) (int, error) {
 	} else {
 		// Only keep the last maxPausedHistoryBytes of stdout/stderr while the session is paused.
 		// The alternative is flushing to disk but this should be a pretty rare occurence and shouldn't be an issue in practice.
-		g.buffer = append(g.buffer, truncateFront(p, maxPausedHistoryBytes)...)
-		if len(g.buffer) > maxPausedHistoryBytes {
-			g.buffer = g.buffer[:maxPausedHistoryBytes]
-		}
+		g.buffer = truncateFront(append(g.buffer, p...), maxPausedHistoryBytes)
 	}
 
 	return len(p), nil
