@@ -96,7 +96,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
 		Short('r').
 		StringVar(&ccf.Roles)
-	start.Flag("join-method", "Method used for new nodes to join the cluster").StringVar(&ccf.JoinMethod)
+	start.Flag("join-method", "Method to use to join the cluster, can be \"token\", \"ec2\", or \"iam\"").
+		EnumVar(&ccf.JoinMethod, "token", "ec2", "iam")
 	start.Flag("pid-file",
 		"Full path to the PID file. By default no PID file will be created").StringVar(&ccf.PIDFile)
 	start.Flag("advertise-ip",
