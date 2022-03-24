@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
@@ -81,16 +81,13 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	cfg.InsecureSkipVerify = true
 
 	// Reset functions after tests.
-	oldPwd, oldWebauthn := client.PasswordFromConsole, *client.PromptWebauthn
+	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
 	t.Cleanup(func() {
-		client.PasswordFromConsole = oldPwd
+		prompt.SetStdin(oldStdin)
 		*client.PromptWebauthn = oldWebauthn
 	})
 
-	userPasswordFn := func(ctx context.Context) (string, error) {
-		return password, nil
-	}
-	noopPasswordFn := func(ctx context.Context) (string, error) {
+	waitForCancelFn := func(ctx context.Context) (string, error) {
 		<-ctx.Done() // wait for timeout
 		return "", ctx.Err()
 	}
@@ -150,33 +147,34 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	ctx := context.Background()
 	tests := []struct {
-		name                string
-		secondFactor        constants.SecondFactorType
-		passwordFromConsole func(ctx context.Context) (string, error)
-		solveWebauthn       func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
-		pwdless             bool
+		name          string
+		secondFactor  constants.SecondFactorType
+		inputReader   *prompt.FakeReader
+		solveWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		pwdless       bool
 	}{
 		{
-			name:                "OTP device login",
-			secondFactor:        constants.SecondFactorOptional,
-			passwordFromConsole: chainPasswordFns(userPasswordFn, solveOTP),
-			solveWebauthn:       noopWebauthnFn,
+			name:          "OTP device login",
+			secondFactor:  constants.SecondFactorOptional,
+			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
+			solveWebauthn: noopWebauthnFn,
 		},
 		{
-			name:                "Webauthn device login",
-			secondFactor:        constants.SecondFactorOptional,
-			passwordFromConsole: chainPasswordFns(userPasswordFn, noopPasswordFn),
-			solveWebauthn:       solveWebauthn,
+			name:          "Webauthn device login",
+			secondFactor:  constants.SecondFactorOptional,
+			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
+			solveWebauthn: solveWebauthn,
 		},
 		{
-			name:                "Webauthn device with PIN", // a bit hypothetical, but _could_ happen.
-			secondFactor:        constants.SecondFactorOptional,
-			passwordFromConsole: chainPasswordFns(userPasswordFn, noopPasswordFn /* OTP */, userPINFn),
-			solveWebauthn:       solvePIN,
+			name:          "Webauthn device with PIN", // a bit hypothetical, but _could_ happen.
+			secondFactor:  constants.SecondFactorOptional,
+			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn).AddReply(userPINFn),
+			solveWebauthn: solvePIN,
 		},
 		{
 			name:          "passwordless login",
 			secondFactor:  constants.SecondFactorOptional,
+			inputReader:   prompt.NewFakeReader(), // no inputs
 			solveWebauthn: solvePwdless,
 			pwdless:       true,
 		},
@@ -186,9 +184,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
-			client.PasswordFromConsole = func(ctx context.Context) (string, error) {
-				return test.passwordFromConsole(ctx)
-			}
+			prompt.SetStdin(test.inputReader)
 			*client.PromptWebauthn = func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
 				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
 				return resp, "", err
@@ -210,16 +206,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			_, err = tc.Login(ctx)
 			require.NoError(t, err)
 		})
-	}
-}
-
-func chainPasswordFns(fns ...func(ctx context.Context) (string, error)) func(context.Context) (string, error) {
-	var count int32
-	return func(ctx context.Context) (string, error) {
-		i := atomic.AddInt32(&count, 1)
-		i-- // start from zero
-		val, err := fns[i](ctx)
-		return val, err
 	}
 }
 
