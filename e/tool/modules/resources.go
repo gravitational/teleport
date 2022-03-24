@@ -8,27 +8,6 @@ import (
 
 // register marshaler/unmarshaler pairs for enterprise-only resources.
 func init() {
-	// Register marshaler for role resources.
-	services.RegisterResourceMarshaler(types.KindRole, func(r types.Resource, opts ...services.MarshalOption) ([]byte, error) {
-		rsc, ok := r.(types.Role)
-		if !ok {
-			return nil, trace.BadParameter("expected Role, got %T", r)
-		}
-		raw, err := services.MarshalRole(rsc, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return raw, nil
-	})
-	// Register unmarshaler for role resources.
-	services.RegisterResourceUnmarshaler(types.KindRole, func(b []byte, opts ...services.MarshalOption) (types.Resource, error) {
-		rsc, err := services.UnmarshalRole(b, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return rsc, nil
-	})
-
 	// Register marshaler for oidc connector resources.
 	services.RegisterResourceMarshaler(types.KindOIDCConnector, func(r types.Resource, opts ...services.MarshalOption) ([]byte, error) {
 		rsc, ok := r.(types.OIDCConnector)

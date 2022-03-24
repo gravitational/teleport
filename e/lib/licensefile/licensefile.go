@@ -2,7 +2,7 @@ package licensefile
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws"
@@ -28,7 +28,7 @@ func ReadAndActivate(filePath string) (*LicenseFile, error) {
 		return nil, trace.BadParameter("missing license file path")
 	}
 
-	bytes, err := ioutil.ReadFile(filePath)
+	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to read license file: %v", filePath)
 	}
