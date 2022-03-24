@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -205,6 +204,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("SSHTracker", suite.bind(testSSHTracker))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -607,7 +607,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 			// if we are looking for the output in a file, look in the file
 			// otherwise check stdout and stderr for the expected output
 			if tt.outFile {
-				bytes, err := ioutil.ReadFile(tempfile)
+				bytes, err := os.ReadFile(tempfile)
 				require.NoError(t, err)
 				require.Contains(t, string(bytes), tt.outContains)
 			} else {
@@ -787,6 +787,38 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	// attempting to run a command by uuid should succeed.
 	_, err = runCommand(t, teleportSvr, []string{"echo", "Hello there!"}, ClientConfig{Login: suite.me.Username, Cluster: Site, Host: uuid1}, 1)
 	require.NoError(t, err)
+}
+
+// testSSHTracker verifies that an SSH session creates a tracker for sessions.
+func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+	teleport := suite.newTeleport(t, nil, true)
+	defer teleport.StopAll()
+
+	site := teleport.GetSiteAPI(Site)
+	require.NotNil(t, site)
+
+	personA := NewTerminal(250)
+	cl, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+	cl.Stdout = personA
+	cl.Stdin = personA
+	personA.Type("\aecho hi\n\r")
+	go cl.SSH(ctx, []string{}, false)
+
+	condition := func() bool {
+		// verify that the tracker was created
+		trackers, err := site.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		return len(trackers) == 1
+	}
+
+	// wait for the tracker to be created
+	require.Eventually(t, condition, time.Minute, time.Millisecond*100)
 }
 
 // testInteractive covers SSH into shell and joining the same session from another client
@@ -1510,7 +1542,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 	// The known_hosts file should have two certificates, the way bytes.Split
 	// works that means the output will be 3 (2 certs + 1 empty).
-	buffer, err := ioutil.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
+	buffer, err := os.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
 	require.NoError(t, err)
 	parts := bytes.Split(buffer, []byte("\n"))
 	require.Len(t, parts, 3)
@@ -1521,7 +1553,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		if info.IsDir() {
 			return nil
 		}
-		buffer, err = ioutil.ReadFile(path)
+		buffer, err = os.ReadFile(path)
 		require.NoError(t, err)
 		ok := roots.AppendCertsFromPEM(buffer)
 		require.True(t, ok)
@@ -1905,28 +1937,28 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cid := types.CertAuthID{Type: types.UserCA, DomainName: tt.mainClusterName}
-			mainUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
+			mainUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(ctx, cid, true)
 			tt.outChkMainUserCA(t, err)
 			if err == nil {
 				tt.outChkMainUserCAPrivateKey(t, mainUserCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 
 			cid = types.CertAuthID{Type: types.HostCA, DomainName: tt.mainClusterName}
-			mainHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
+			mainHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(ctx, cid, true)
 			tt.outChkMainHostCA(t, err)
 			if err == nil {
 				tt.outChkMainHostCAPrivateKey(t, mainHostCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 
 			cid = types.CertAuthID{Type: types.UserCA, DomainName: tt.auxClusterName}
-			auxUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
+			auxUserCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(ctx, cid, true)
 			tt.outChkAuxUserCA(t, err)
 			if err == nil {
 				tt.outChkAuxUserCAPrivateKey(t, auxUserCAs.GetActiveKeys().SSH[0].PrivateKey)
 			}
 
 			cid = types.CertAuthID{Type: types.HostCA, DomainName: tt.auxClusterName}
-			auxHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(cid, true)
+			auxHostCAs, err := tt.inCluster.Process.GetAuthServer().GetCertAuthority(ctx, cid, true)
 			tt.outChkAuxHostCA(t, err)
 			if err == nil {
 				tt.outChkAuxHostCAPrivateKey(t, auxHostCAs.GetActiveKeys().SSH[0].PrivateKey)
@@ -3220,7 +3252,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		controlDir, err := ioutil.TempDir("", "teleport-")
+		controlDir, err := os.MkdirTemp("", "teleport-")
 		require.NoError(t, err)
 		defer os.RemoveAll(controlDir)
 		controlPath := filepath.Join(controlDir, "control-path")
@@ -3678,13 +3710,13 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service started. Setting rotation state to %v", types.RotationPhaseUpdateClients)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
-	hostCA, err := svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
+	hostCA, err := svc.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
@@ -3693,7 +3725,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// update clients
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -3720,13 +3752,13 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
-	hostCA, err = svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
+	hostCA, err = svc.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
@@ -3749,13 +3781,13 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
 	// complete rotation
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
 	require.NoError(t, err)
 
-	hostCA, err = svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
+	hostCA, err = svc.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
@@ -3827,7 +3859,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Service started. Setting rotation state to %q.", types.RotationPhaseInit)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
@@ -3839,7 +3871,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Setting rotation state to %q.", types.RotationPhaseUpdateClients)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -3865,7 +3897,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
@@ -3878,7 +3910,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseRollback)
 
 	// complete rotation
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseRollback,
 		Mode:        types.RotationModeManual,
 	})
@@ -4011,7 +4043,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Setting rotation state to %v", types.RotationPhaseInit)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
@@ -4062,7 +4094,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// update clients
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
@@ -4082,7 +4114,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
@@ -4109,7 +4141,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
 	// complete rotation
-	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
@@ -4147,6 +4179,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 // TestRotateChangeSigningAlg tests the change of CA signing algorithm on
 // manual rotation.
 func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	// Start with an instance using default signing alg.
 	tconf := suite.rotationConfig(true)
 	teleport := suite.newTeleportInstance()
@@ -4195,18 +4228,18 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	assertSigningAlg := func(svc *service.TeleportProcess, alg string) {
-		hostCA, err := svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
+		hostCA, err := svc.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{Type: types.HostCA, DomainName: Site}, false)
 		require.NoError(t, err)
 		require.Equal(t, alg, sshutils.GetSigningAlgName(hostCA))
 
-		userCA, err := svc.GetAuthServer().GetCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: Site}, false)
+		userCA, err := svc.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{Type: types.UserCA, DomainName: Site}, false)
 		require.NoError(t, err)
 		require.Equal(t, alg, sshutils.GetSigningAlgName(userCA))
 	}
 
 	rotate := func(svc *service.TeleportProcess, mode string) *service.TeleportProcess {
 		t.Logf("Rotation phase: %q.", types.RotationPhaseInit)
-		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 			TargetPhase: types.RotationPhaseInit,
 			Mode:        mode,
 		})
@@ -4217,7 +4250,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 
 		t.Logf("Rotation phase: %q.", types.RotationPhaseUpdateClients)
-		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 			TargetPhase: types.RotationPhaseUpdateClients,
 			Mode:        mode,
 		})
@@ -4228,7 +4261,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 
 		t.Logf("Rotation phase: %q.", types.RotationPhaseUpdateServers)
-		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 			TargetPhase: types.RotationPhaseUpdateServers,
 			Mode:        mode,
 		})
@@ -4239,7 +4272,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 
 		t.Logf("rotation phase: %q", types.RotationPhaseStandby)
-		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+		err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 			TargetPhase: types.RotationPhaseStandby,
 			Mode:        mode,
 		})
@@ -5832,7 +5865,7 @@ func TestTraitsPropagation(t *testing.T) {
 	})
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := lc.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+	ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: rc.Secrets.SiteName,
 	}, false)

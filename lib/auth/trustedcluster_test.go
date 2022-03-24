@@ -194,7 +194,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	)
 
 	for _, returnedCA := range resp.CAs {
-		localCA, err := a.GetCertAuthority(types.CertAuthID{
+		localCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       returnedCA.GetType(),
 			DomainName: localClusterName,
 		}, false)
@@ -207,7 +207,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	require.Len(t, rcs, 1)
 	require.Equal(t, leafClusterCA.GetName(), rcs[0].GetName())
 
-	hostCAs, err := a.GetCertAuthorities(types.HostCA, false)
+	hostCAs, err := a.GetCertAuthorities(ctx, types.HostCA, false)
 	require.NoError(t, err)
 	require.Len(t, hostCAs, 2)
 	require.ElementsMatch(t,
@@ -219,7 +219,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	require.Empty(t, hostCAs[1].GetRoles())
 	require.Empty(t, hostCAs[1].GetRoleMap())
 
-	userCAs, err := a.GetCertAuthorities(types.UserCA, false)
+	userCAs, err := a.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, userCAs, 1)
 	require.Equal(t, localClusterName, userCAs[0].GetName())
