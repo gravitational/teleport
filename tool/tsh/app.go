@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -92,9 +93,13 @@ func onAppLogin(cf *CLIConf) error {
 			"awsCmd":     "s3 ls",
 		})
 	}
+	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return appLoginTpl.Execute(os.Stdout, map[string]string{
 		"appName": app.GetName(),
-		"curlCmd": formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster),
+		"curlCmd": curlCmd,
 	})
 }
 
@@ -196,39 +201,59 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Print(formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, ""))
+	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Print(conf)
 	return nil
 }
 
-func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) string {
+func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) (string, error) {
+	uri := fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
 	switch format {
 	case appFormatURI:
-		return fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
+		return uri, nil
 	case appFormatCA:
-		return profile.CACertPathForCluster(cluster)
+		return profile.CACertPathForCluster(cluster), nil
 	case appFormatCert:
-		return profile.AppCertPath(appName)
+		return profile.AppCertPath(appName), nil
 	case appFormatKey:
-		return profile.KeyPath()
+		return profile.KeyPath(), nil
 	case appFormatCURL:
 		return fmt.Sprintf(`curl \
   --cacert %v \
   --cert %v \
   --key %v \
-  https://%v:%v`,
+  %v`,
 			profile.CACertPathForCluster(cluster),
 			profile.AppCertPath(appName),
 			profile.KeyPath(),
-			appPublicAddr,
-			tc.WebProxyPort())
+			uri), nil
+	case appFormatJSON:
+		appConfig := struct {
+			Name string `json:"name"`
+			URI  string `json:"uri"`
+			CA   string `json:"ca"`
+			Cert string `json:"cert"`
+			Key  string `json:"key"`
+		}{
+			appName, uri, profile.CACertPathForCluster(cluster),
+			profile.AppCertPath(appName), profile.KeyPath(),
+		}
+		out, err := json.MarshalIndent(appConfig, "", "  ")
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("%s\n", string(out)), nil
 	}
 	return fmt.Sprintf(`Name:      %v
-URI:       https://%v:%v
+URI:       %v
 CA:        %v
 Cert:      %v
 Key:       %v
-`, appName, appPublicAddr, tc.WebProxyPort(), profile.CACertPathForCluster(cluster),
-		profile.AppCertPath(appName), profile.KeyPath())
+`, appName, uri, profile.CACertPathForCluster(cluster),
+		profile.AppCertPath(appName), profile.KeyPath()), nil
 }
 
 // pickActiveApp returns the app the current profile is logged into.
@@ -271,4 +296,6 @@ const (
 	appFormatKey = "key"
 	// appFormatCURL prints app curl command.
 	appFormatCURL = "curl"
+	// appFormatJSON prints app URI, CA cert path, cert path and key path in JSON format.
+	appFormatJSON = "json"
 )
