@@ -67,7 +67,7 @@ func TestHistoryKept(t *testing.T) {
 	require.Equal(t, m.GetRecentHistory(), kept)
 }
 
-func TestBufferedKeptt(t *testing.T) {
+func TestBufferedKept(t *testing.T) {
 	m := NewTermManager()
 
 	data := make([]byte, 20000)
