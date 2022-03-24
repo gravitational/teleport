@@ -274,7 +274,7 @@ func (g *TermManager) Close() {
 func (g *TermManager) GetRecentHistory() []byte {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	data := make([]byte, len(g.history))
+	data := make([]byte, 0, len(g.history))
 	data = append(data, g.history...)
 	return data
 }

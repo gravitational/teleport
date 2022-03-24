@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"crypto/rand"
 	"io"
 	"testing"
 	"time"
@@ -47,4 +48,19 @@ func TestCTRLCCapture(t *testing.T) {
 	case <-time.After(time.Second * 10):
 		t.Fatal("terminateNotifier should've seen an event")
 	}
+}
+
+func TestHistoryKept(t *testing.T) {
+	m := NewTermManager()
+	m.On()
+
+	data := make([]byte, 10000)
+	rand.Read(data)
+
+	n, err := m.Write(data)
+	require.NoError(t, err)
+	require.Equal(t, len(data), n)
+
+	kept := data[len(data)-maxHistoryBytes:]
+	require.Equal(t, m.GetRecentHistory(), kept)
 }
