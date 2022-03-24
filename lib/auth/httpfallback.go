@@ -549,6 +549,9 @@ type nodeClient interface {
 
 // GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  This is essentially
 // a wrapper around client.GetNodesWithLabels that performs fallback on NotImplemented errors.
+//
+// DELETE IN 11.0.0, this function is only called by lib/client/client.go (*ProxyClient).FindServersByLabels
+// which is also marked for deletion (replaced by FindNodesByFilters).
 func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	nodes, err := client.GetNodesWithLabels(ctx, clt, namespace, labels)
 	if err == nil || !trace.IsNotImplemented(err) {
@@ -574,6 +577,8 @@ func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, l
 }
 
 // GetNodes returns the list of servers registered in the cluster.
+//
+// DELETE IN 11.0.0, replaced by GetResourcesWithFilters
 func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
 		if !trace.IsNotImplemented(err) {

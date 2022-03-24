@@ -70,36 +70,28 @@ func Run(args []string) error {
 
 	app := utils.InitCLIParser("tbot", "tbot: Teleport Machine ID").Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
-	app.Flag("config", "tbot.yaml path").Short('c').StringVar(&cf.ConfigPath)
+	app.Flag("config", "Path to a configuration file. Defaults to `/etc/tbot.yaml` if unspecified.").Short('c').StringVar(&cf.ConfigPath)
 
 	versionCmd := app.Command("version", "Print the version")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
-	startCmd.Flag("auth-server", "Specify the Teleport auth server host").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	startCmd.Flag("auth-server", "Address of the Teleport Auth Server (On-Prem installs) or Proxy Server (Cloud installs).").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
 	startCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
-	startCmd.Flag("ca-pin", "A repeatable auth server CA hash to pin; used on first connect.").StringsVar(&cf.CAPins)
-	startCmd.Flag("data-dir", "Directory to store internal bot data.").StringVar(&cf.DataDir)
-	startCmd.Flag("destination-dir", "Directory to write generated certificates").StringVar(&cf.DestinationDir)
-	startCmd.Flag("certificate-ttl", "TTL of generated certificates").Default("60m").DurationVar(&cf.CertificateTTL)
-	startCmd.Flag("renewal-interval", "Interval at which certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
-	startCmd.Flag("join-method", "Method to use to join the cluster.").Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, "token", "iam")
+	startCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
+	startCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
+	startCmd.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&cf.DestinationDir)
+	startCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").Default("60m").DurationVar(&cf.CertificateTTL)
+	startCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
+	startCmd.Flag("join-method", "Method to use to join the cluster, can be \"token\" or \"iam\".").Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, "token", "iam")
 	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
-	initCmd.Flag("destination-dir", "If NOT using a config file, specify the destination directory.").StringVar(&cf.DestinationDir)
-	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, specify which to initialize.").StringVar(&cf.InitDir)
+	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)
+	initCmd.Flag("owner", "Defines Linux \"user:group\" owner of \"--destination-dir\". Defaults to the Linux user running tbot if unspecified.").StringVar(&cf.Owner)
+	initCmd.Flag("bot-user", "Enables POSIX ACLs and defines Linux user that can read/write short-lived certificates to \"--destination-dir\".").StringVar(&cf.BotUser)
+	initCmd.Flag("reader-user", "Enables POSIX ACLs and defines Linux user that will read short-lived certificates from \"--destination-dir\".").StringVar(&cf.ReaderUser)
+	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, controls which destination dir to configure.").StringVar(&cf.InitDir)
 	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination.").BoolVar(&cf.Clean)
-	initCmd.Flag("reader-user", "If ACLs are in use, name of the Unix user "+
-		"that will read from the destination.",
-	).StringVar(&cf.ReaderUser)
-	initCmd.Flag("bot-user", "If ACLs are in use, name of the bot Unix user "+
-		"which should have write access to the destination.",
-	).StringVar(&cf.BotUser)
-	initCmd.Flag("owner", "Name of the user:group that will own the "+
-		"destination. If ACLs are in use, must be different from the reader "+
-		"user and defaults to nobody:nobody. Otherwise, assumes the current "+
-		"user.",
-	).StringVar(&cf.Owner)
 
 	configCmd := app.Command("config", "Parse and dump a config file").Hidden()
 
@@ -107,6 +99,7 @@ func Run(args []string) error {
 
 	command, err := app.Parse(args)
 	if err != nil {
+		app.Usage(args)
 		return trace.Wrap(err)
 	}
 
