@@ -314,9 +314,11 @@ $ kubectl --namespace teleport get all
 
 ## Step 6/7. Set up DNS
 
-You'll need to set up two DNS `A` records: `teleport.example.com` for the web UI, and `*.teleport.example.com`
-for web apps using [application access](../../../application-access/introduction.mdx). In our example, both records are
-aliases to an ELB.
+You'll need to set up a DNS `A` record for `teleport.example.com`. In our example, this record is an alias to an ELB.
+
+<Details title="Using Application Access?">
+(!docs/pages/includes/dns-app-access.mdx!)
+</Details>
 
 Here's how to do this in a hosted zone with AWS Route 53:
 
@@ -456,4 +458,4 @@ $ helm --namespace cert-manager uninstall cert-manager
 You can follow our [Getting Started with Teleport guide](../../../setup/guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
 Teleport cluster.
 
-See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
+See the [high availability section of our Helm chart reference](../reference/teleport-cluster.mdx#highavailability) for more details on high availability.
