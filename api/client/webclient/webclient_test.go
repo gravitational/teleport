@@ -293,7 +293,11 @@ func TestExtract(t *testing.T) {
 
 func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
-	client := newWebClient(false /* insecure */, nil /* pool */)
+	client, err := newWebClient(&Config{
+		Context:   context.Background(),
+		ProxyAddr: "localhost:3080",
+	})
+	require.NoError(t, err)
 	// resp should be nil, so there will be no body to close.
 	//nolint:bodyclose
 	resp, err := client.Get("https://fakedomain.example.com")
@@ -307,7 +311,11 @@ func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 func TestNewWebClientNoProxy(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "fakeproxy.example.com:9999")
 	t.Setenv("NO_PROXY", "fakedomain.example.com")
-	client := newWebClient(false /* insecure */, nil /* pool */)
+	client, err := newWebClient(&Config{
+		Context:   context.Background(),
+		ProxyAddr: "localhost:3080",
+	})
+	require.NoError(t, err)
 	//nolint:bodyclose
 	resp, err := client.Get("https://fakedomain.example.com")
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
