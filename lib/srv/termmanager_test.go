@@ -55,9 +55,11 @@ func TestHistoryKept(t *testing.T) {
 	m.On()
 
 	data := make([]byte, 10000)
-	rand.Read(data)
+	n, err := rand.Read(data)
+	require.NoError(t, err)
+	require.Equal(t, len(data), n)
 
-	n, err := m.Write(data)
+	n, err = m.Write(data)
 	require.NoError(t, err)
 	require.Equal(t, len(data), n)
 
@@ -69,9 +71,11 @@ func TestBufferedKeptt(t *testing.T) {
 	m := NewTermManager()
 
 	data := make([]byte, 20000)
-	rand.Read(data)
+	n, err := rand.Read(data)
+	require.NoError(t, err)
+	require.Equal(t, len(data), n)
 
-	n, err := m.Write(data)
+	n, err = m.Write(data)
 	require.NoError(t, err)
 	require.Equal(t, len(data), n)
 
