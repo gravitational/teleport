@@ -149,10 +149,10 @@ export default function createClient(addr: string) {
     },
 
     async login(params: types.LoginParams, abortSignal?: types.TshAbortSignal) {
-      const ssoParams = params.oss
+      const ssoParams = params.sso
         ? new api.LoginRequest.SsoParams()
-            .setProviderName(params.oss.providerName)
-            .setProviderType(params.oss.providerType)
+            .setProviderName(params.sso.providerName)
+            .setProviderType(params.sso.providerType)
         : null;
 
       const localParams = params.local
@@ -163,10 +163,15 @@ export default function createClient(addr: string) {
         : null;
 
       return withAbort(abortSignal, callRef => {
-        const req = new api.LoginRequest()
-          .setClusterUri(params.clusterUri)
-          .setSso(ssoParams)
-          .setLocal(localParams);
+        const req = new api.LoginRequest().setClusterUri(params.clusterUri);
+
+        // LoginRequest has oneof on `Local` and `Sso`, which means that setting one of them clears
+        // the other.
+        if (ssoParams) {
+          req.setSso(ssoParams);
+        } else {
+          req.setLocal(localParams);
+        }
 
         return new Promise<void>((resolve, reject) => {
           callRef.current = tshd.login(req, err => {

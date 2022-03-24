@@ -792,7 +792,7 @@ proto.teleport.terminal.v1.ACL.deserializeBinaryFromReader = function(msg, reade
       reader.readMessage(value,proto.teleport.terminal.v1.ResourceAccess.deserializeBinaryFromReader);
       msg.setKubeservers(value);
       break;
-    case 13:
+    case 12:
       var value = new proto.teleport.terminal.v1.ResourceAccess;
       reader.readMessage(value,proto.teleport.terminal.v1.ResourceAccess.deserializeBinaryFromReader);
       msg.setAccessRequests(value);
@@ -917,7 +917,7 @@ proto.teleport.terminal.v1.ACL.serializeBinaryToWriter = function(message, write
   f = message.getAccessRequests();
   if (f != null) {
     writer.writeMessage(
-      13,
+      12,
       f,
       proto.teleport.terminal.v1.ResourceAccess.serializeBinaryToWriter
     );
@@ -1333,12 +1333,12 @@ proto.teleport.terminal.v1.ACL.prototype.hasKubeservers = function() {
 
 
 /**
- * optional ResourceAccess access_requests = 13;
+ * optional ResourceAccess access_requests = 12;
  * @return {?proto.teleport.terminal.v1.ResourceAccess}
  */
 proto.teleport.terminal.v1.ACL.prototype.getAccessRequests = function() {
   return /** @type{?proto.teleport.terminal.v1.ResourceAccess} */ (
-    jspb.Message.getWrapperField(this, proto.teleport.terminal.v1.ResourceAccess, 13));
+    jspb.Message.getWrapperField(this, proto.teleport.terminal.v1.ResourceAccess, 12));
 };
 
 
@@ -1347,7 +1347,7 @@ proto.teleport.terminal.v1.ACL.prototype.getAccessRequests = function() {
  * @return {!proto.teleport.terminal.v1.ACL} returns this
 */
 proto.teleport.terminal.v1.ACL.prototype.setAccessRequests = function(value) {
-  return jspb.Message.setWrapperField(this, 13, value);
+  return jspb.Message.setWrapperField(this, 12, value);
 };
 
 
@@ -1365,7 +1365,7 @@ proto.teleport.terminal.v1.ACL.prototype.clearAccessRequests = function() {
  * @return {boolean}
  */
 proto.teleport.terminal.v1.ACL.prototype.hasAccessRequests = function() {
-  return jspb.Message.getField(this, 13) != null;
+  return jspb.Message.getField(this, 12) != null;
 };
 
 

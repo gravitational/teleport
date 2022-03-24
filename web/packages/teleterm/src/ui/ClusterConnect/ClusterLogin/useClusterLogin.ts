@@ -57,7 +57,7 @@ export default function useClusterLogin(props: Props) {
     promptSsoStatus(true);
     login({
       clusterUri,
-      oss: {
+      sso: {
         providerName: provider.name,
         providerType: provider.type,
       },

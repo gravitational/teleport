@@ -94,6 +94,8 @@ export class LoginRequest extends jspb.Message {
     setSso(value?: LoginRequest.SsoParams): LoginRequest;
 
 
+    getParamsCase(): LoginRequest.ParamsCase;
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LoginRequest.AsObject;
     static toObject(includeInstance: boolean, msg: LoginRequest): LoginRequest.AsObject;
@@ -164,6 +166,16 @@ export namespace LoginRequest {
             providerType: string,
             providerName: string,
         }
+    }
+
+
+    export enum ParamsCase {
+        PARAMS_NOT_SET = 0,
+    
+    LOCAL = 2,
+
+    SSO = 3,
+
     }
 
 }

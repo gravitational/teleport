@@ -48,7 +48,7 @@ export type TshAbortSignal = {
 
 export type LoginParams = {
   clusterUri: string;
-  oss?: {
+  sso?: {
     providerType: string;
     providerName: string;
   };
