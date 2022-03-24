@@ -1127,10 +1127,7 @@ func (process *TeleportProcess) initAuthService() error {
 	} else {
 		// check if session recording has been disabled. note, we will continue
 		// logging audit events, we just won't record sessions.
-		recordSessions := true
 		if cfg.Auth.SessionRecordingConfig.GetMode() == types.RecordOff {
-			recordSessions = false
-
 			warningMessage := "Warning: Teleport session recording have been turned off. " +
 				"This is dangerous, you will not be able to save and playback sessions."
 			process.log.Warn(warningMessage)
@@ -1160,12 +1157,11 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		auditServiceConfig := events.AuditLogConfig{
-			Context:        process.ExitContext(),
-			DataDir:        filepath.Join(cfg.DataDir, teleport.LogsDir),
-			RecordSessions: recordSessions,
-			ServerID:       cfg.HostUUID,
-			UploadHandler:  uploadHandler,
-			ExternalLog:    externalLog,
+			Context:       process.ExitContext(),
+			DataDir:       filepath.Join(cfg.DataDir, teleport.LogsDir),
+			ServerID:      cfg.HostUUID,
+			UploadHandler: uploadHandler,
+			ExternalLog:   externalLog,
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
