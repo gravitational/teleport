@@ -801,12 +801,13 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		ServerVersion: teleport.Version,
 	}
 
+	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
 	if connectorName == constants.Local {
-		as, err := localSettings(cap)
+		response.Auth, err = localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.Auth = as
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -814,6 +815,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = oidcSettings(oidcConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -821,6 +823,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = samlSettings(samlConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -828,6 +831,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = githubSettings(githubConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -883,33 +887,23 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get auth type & second factor type
-	authType := constants.Local
-	secondFactor := constants.SecondFactorOff
-	localAuth := true
-	cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
-	if err != nil {
+	var authSettings ui.WebConfigAuthSettings
+	if cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context()); err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
+		authSettings = ui.WebConfigAuthSettings{
+			Providers:        authProviders,
+			SecondFactor:     constants.SecondFactorOff,
+			LocalAuthEnabled: true,
+			AuthType:         constants.Local,
+		}
 	} else {
-		authType = cap.GetType()
-		secondFactor = cap.GetSecondFactor()
-		localAuth = cap.GetAllowLocalAuth()
-	}
-
-	// disable joining sessions if proxy session recording is enabled
-	canJoinSessions := true
-	recCfg, err := h.cfg.ProxyClient.GetSessionRecordingConfig(r.Context())
-	if err != nil {
-		h.log.WithError(err).Error("Cannot retrieve SessionRecordingConfig.")
-	} else {
-		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
-	}
-
-	authSettings := ui.WebConfigAuthSettings{
-		Providers:         authProviders,
-		SecondFactor:      secondFactor,
-		LocalAuthEnabled:  localAuth,
-		AuthType:          authType,
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		authSettings = ui.WebConfigAuthSettings{
+			Providers:         authProviders,
+			SecondFactor:      cap.GetSecondFactor(),
+			LocalAuthEnabled:  cap.GetAllowLocalAuth(),
+			AuthType:          cap.GetType(),
+			PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		}
 	}
 
 	// get tunnel address to display on cloud instances
@@ -921,6 +915,15 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		} else {
 			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
 		}
+	}
+
+	// disable joining sessions if proxy session recording is enabled
+	canJoinSessions := true
+	recCfg, err := h.cfg.ProxyClient.GetSessionRecordingConfig(r.Context())
+	if err != nil {
+		h.log.WithError(err).Error("Cannot retrieve SessionRecordingConfig.")
+	} else {
+		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
 	}
 
 	webCfg := ui.WebConfig{
