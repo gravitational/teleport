@@ -49,13 +49,9 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 		config.CipherSuites = cipherSuites
 	}
 
-	// Pick the servers preferred ciphersuite, not the clients.
-	config.PreferServerCipherSuites = true
-
 	config.MinVersion = tls.VersionTLS12
 	config.SessionTicketsDisabled = false
-	config.ClientSessionCache = tls.NewLRUClientSessionCache(
-		DefaultLRUCapacity)
+	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
 }
 
 // CreateTLSConfiguration sets up default TLS configuration
