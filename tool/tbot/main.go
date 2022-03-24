@@ -71,6 +71,7 @@ func Run(args []string) error {
 	app := utils.InitCLIParser("tbot", "tbot: Teleport Machine ID").Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "Path to a configuration file. Defaults to `/etc/tbot.yaml` if unspecified.").Short('c').StringVar(&cf.ConfigPath)
+	app.HelpFlag.Short('h')
 
 	versionCmd := app.Command("version", "Print the version")
 
@@ -97,6 +98,7 @@ func Run(args []string) error {
 
 	watchCmd := app.Command("watch", "Watch a destination directory for changes.").Hidden()
 
+	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)
