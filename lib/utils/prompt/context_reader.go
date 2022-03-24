@@ -17,109 +17,259 @@ limitations under the License.
 package prompt
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"io"
+	"os"
 	"sync"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/term"
+
+	log "github.com/sirupsen/logrus"
 )
 
-// ErrReaderClosed is returned from ContextReader.Read after it was closed.
+// ErrReaderClosed is returned from ContextReader.ReadContext after it is
+// closed.
 var ErrReaderClosed = errors.New("ContextReader has been closed")
 
-// ContextReader is a wrapper around io.Reader where each individual
-// ReadContext call can be canceled using a context.
-type ContextReader struct {
-	r     io.Reader
-	data  chan []byte
-	close chan struct{}
+// ErrNotTerminal is returned by password reads attempted in non-terminal
+// readers.
+var ErrNotTerminal = errors.New("underlying reader is not a terminal")
 
-	mu  sync.RWMutex
-	err error
+type readOutcome struct {
+	value []byte
+	err   error
 }
 
-// NewContextReader creates a new ContextReader wrapping r. Callers should not
-// use r after creating this ContextReader to avoid loss of data (the last read
-// will be lost).
-//
-// Callers are responsible for closing the ContextReader to release associated
-// resources.
-func NewContextReader(r io.Reader) *ContextReader {
-	cr := &ContextReader{
-		r:     r,
-		data:  make(chan []byte),
-		close: make(chan struct{}),
+type readerState int
+
+const (
+	readerStateIdle readerState = iota
+	readerStateClean
+	readerStatePassword
+	readerStateClosed
+)
+
+// ContextReader is a wrapper around an underlying io.Reader or terminal that
+// allows reads to be abandoned. An abandoned read may be reclaimed by future
+// callers.
+// ContextReader instances are not safe for concurrent use, callers may block
+// indefinitely and reads may be lost.
+type ContextReader struct {
+	// reader is used for clean reads.
+	reader io.Reader
+	// fd is used for password reads.
+	// Only present if the underlying reader is a terminal, otherwise set to -1.
+	fd int
+
+	closed chan struct{}
+	reads  chan readOutcome
+
+	mu                *sync.Mutex
+	cond              *sync.Cond
+	previousTermState *term.State
+	state             readerState
+}
+
+// NewContextReader creates a new ContextReader wrapping rd.
+// Callers should avoid reading from rd after the ContextReader is used, as
+// abandoned calls may be in progress. It is safe to read from rd if one can
+// guarantee that no calls where abandoned.
+// Calling ContextReader.Close attempts to release resources, but note that
+// ongoing reads cannot be interrupted.
+func NewContextReader(rd io.Reader) *ContextReader {
+	fd := -1
+	if f, ok := rd.(*os.File); ok {
+		val := int(f.Fd())
+		if term.IsTerminal(val) {
+			fd = val
+		}
 	}
-	go cr.read()
+
+	mu := &sync.Mutex{}
+	cond := sync.NewCond(mu)
+	cr := &ContextReader{
+		reader: bufio.NewReader(rd),
+		fd:     fd,
+		closed: make(chan struct{}),
+		reads:  make(chan readOutcome), // unbuffered
+		mu:     mu,
+		cond:   cond,
+	}
+	go cr.processReads()
 	return cr
 }
 
-func (r *ContextReader) setErr(err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.err != nil {
-		// Keep only the first encountered error.
-		return
-	}
-	r.err = err
-}
-
-func (r *ContextReader) getErr() error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.err
-}
-
-func (r *ContextReader) read() {
-	defer close(r.data)
+func (cr *ContextReader) processReads() {
+	defer close(cr.reads)
 
 	for {
-		// Allocate a new buffer for every read because we need to send it to
-		// another goroutine.
-		buf := make([]byte, 4*1024) // 4kB, matches Linux page size.
-		n, err := r.r.Read(buf)
-		r.setErr(err)
-		buf = buf[:n]
-		if n == 0 {
+		cr.mu.Lock()
+		for cr.state == readerStateIdle {
+			cr.cond.Wait()
+		}
+		// Stop the reading loop? Once closed, forever closed.
+		if cr.state == readerStateClosed {
+			cr.mu.Unlock()
 			return
 		}
+		// React to the state that took us out of idleness.
+		// We can't hold the lock during the entire read, so we obey the last state
+		// observed.
+		state := cr.state
+		cr.mu.Unlock()
+
+		var value []byte
+		var err error
+		switch state {
+		case readerStateClean:
+			const bufferSize = 4096
+			value = make([]byte, bufferSize)
+			var n int
+			n, err = cr.reader.Read(value)
+			value = value[:n]
+		case readerStatePassword:
+			value, err = term.ReadPassword(cr.fd)
+		}
+		cr.mu.Lock()
+		cr.previousTermState = nil // A finalized read resets the terminal.
+		switch cr.state {
+		case readerStateClosed: // Don't transition from closed.
+		default:
+			cr.state = readerStateIdle
+		}
+		cr.mu.Unlock()
+
 		select {
-		case <-r.close:
+		case <-cr.closed:
+			log.Warnf("ContextReader closed during ongoing read, dropping %v bytes", len(value))
 			return
-		case r.data <- buf:
+		case cr.reads <- readOutcome{value: value, err: err}:
 		}
 	}
 }
 
-// ReadContext returns the next chunk of output from the reader. If ctx is
-// canceled before any data is available, ReadContext will return too. If r
-// was closed, ReadContext will return immediately with ErrReaderClosed.
-func (r *ContextReader) ReadContext(ctx context.Context) ([]byte, error) {
+// ReadContext returns the next chunk of output from the reader.
+// If ctx is canceled before the read completes, the current read is abandoned
+// and may be reclaimed by future callers.
+// It is not safe to read from the underlying reader after a read is abandoned,
+// nor is it safe to concurrently call ReadContext.
+func (cr *ContextReader) ReadContext(ctx context.Context) ([]byte, error) {
+	if err := cr.fireCleanRead(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cr.waitForRead(ctx)
+}
+
+func (cr *ContextReader) fireCleanRead() error {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
+
+	switch cr.state {
+	case readerStateIdle: // OK, transition and broadcast.
+		cr.state = readerStateClean
+		cr.cond.Broadcast()
+	case readerStateClean: // OK, ongoing read.
+	case readerStatePassword: // OK, ongoing read.
+		// Attempt to reset terminal state to non-password.
+		if cr.previousTermState != nil {
+			state := cr.previousTermState
+			cr.previousTermState = nil
+			if err := term.Restore(cr.fd, state); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	case readerStateClosed:
+		return ErrReaderClosed
+	}
+	return nil
+}
+
+func (cr *ContextReader) waitForRead(ctx context.Context) ([]byte, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-r.close:
-		// Close was called, unblock immediately.
-		// r.data might still be blocked if it's blocked on the Read call.
-		return nil, r.getErr()
-	case buf, ok := <-r.data:
-		if !ok {
-			// r.data was closed, so the read goroutine has finished.
-			// No more data will be available, return the latest error.
-			return nil, r.getErr()
-		}
-		return buf, nil
+	case <-cr.closed:
+		return nil, ErrReaderClosed
+	case read := <-cr.reads:
+		return read.value, read.err
 	}
 }
 
-// Close releases the background resources of r. All ReadContext calls will
-// unblock immediately.
-func (r *ContextReader) Close() {
-	select {
-	case <-r.close:
-		// Already closed, do nothing.
-		return
-	default:
-		close(r.close)
-		r.setErr(ErrReaderClosed)
+// ReadPassword reads a password from the underlying reader, provided that the
+// reader is a terminal.
+// It follows the semantics of ReadContext.
+func (cr *ContextReader) ReadPassword(ctx context.Context) ([]byte, error) {
+	if cr.fd == -1 {
+		return nil, ErrNotTerminal
 	}
+	if err := cr.firePasswordRead(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cr.waitForRead(ctx)
+}
+
+func (cr *ContextReader) firePasswordRead() error {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
+
+	switch cr.state {
+	case readerStateIdle: // OK, transition and broadcast.
+		// Save present terminal state, so it may be restored in case the read goes
+		// from password to clean.
+		state, err := term.GetState(cr.fd)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cr.previousTermState = state
+		cr.state = readerStatePassword
+		cr.cond.Broadcast()
+	case readerStateClean: // OK, ongoing clean read.
+		// TODO(codingllama): Transition the terminal to password read?
+		log.Warn("prompt: Clean read reused by password read")
+	case readerStatePassword: // OK, ongoing password read.
+	case readerStateClosed:
+		return ErrReaderClosed
+	}
+	return nil
+}
+
+// Close closes the context reader, attempting to release resources and aborting
+// ongoing and future ReadContext calls.
+// Background reads that are already blocked cannot be interrupted, thus Close
+// doesn't guarantee a release of all resources.
+func (cr *ContextReader) Close() error {
+	cr.mu.Lock()
+	switch cr.state {
+	case readerStateClosed: // OK, already closed.
+	default:
+		cr.state = readerStateClosed
+		close(cr.closed) // interrupt blocked sends.
+		cr.cond.Broadcast()
+	}
+	cr.mu.Unlock()
+	return nil
+}
+
+// PasswordReader is a ContextReader that reads passwords from the underlying
+// terminal.
+type PasswordReader ContextReader
+
+// Password returns a PasswordReader from a ContextReader.
+// The returned PasswordReader is only functional if the underlying reader is a
+// terminal.
+func (cr *ContextReader) Password() *PasswordReader {
+	return (*PasswordReader)(cr)
+}
+
+// ReadContext reads a password from the underlying reader, provided that the
+// reader is a terminal. It is equivalent to ContextReader.ReadPassword.
+// It follows the semantics of ReadContext.
+func (pr *PasswordReader) ReadContext(ctx context.Context) ([]byte, error) {
+	cr := (*ContextReader)(pr)
+	return cr.ReadPassword(ctx)
 }
