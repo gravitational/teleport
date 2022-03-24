@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/term"
 )
 
 func TestContextReader(t *testing.T) {
@@ -105,5 +106,106 @@ func TestContextReader(t *testing.T) {
 		buf, err = cr.ReadContext(ctx)
 		require.ErrorIs(t, err, io.EOF)
 		require.Empty(t, buf)
+	})
+}
+
+func TestContextReader_ReadPassword(t *testing.T) {
+	resetTermAfterTests(t)
+
+	pr, pw := io.Pipe()
+	write := func(t *testing.T, s string) {
+		_, err := pw.Write([]byte(s))
+		assert.NoError(t, err, "Write failed")
+	}
+
+	restoreCalled := false
+	termIsTerminal = func(fd int) bool {
+		return true
+	}
+	termGetState = func(fd int) (*term.State, error) {
+		return &term.State{}, nil
+	}
+	termReadPassword = func(fd int) ([]byte, error) {
+		const bufLen = 1024 // arbitrary, big enough for our data
+		data := make([]byte, bufLen)
+		n, err := pr.Read(data)
+		data = data[:n]
+		return data, err
+	}
+	termRestore = func(fd int, oldState *term.State) error {
+		restoreCalled = true
+		return nil
+	}
+
+	cr := NewContextReader(pr)
+	cr.fd = 15 // arbitrary, doesn't matter because term functions are mocked.
+
+	ctx := context.Background()
+	t.Run("read password", func(t *testing.T) {
+		const want = "llama45"
+		go write(t, want)
+
+		got, err := cr.ReadPassword(ctx)
+		require.NoError(t, err, "ReadPassword failed")
+		assert.Equal(t, want, string(got), "ReadPassword mismatch")
+	})
+
+	t.Run("intertwine reads", func(t *testing.T) {
+		const want1 = "hello, world"
+		go write(t, want1)
+		got, err := cr.ReadPassword(ctx)
+		require.NoError(t, err, "ReadPassword failed")
+		assert.Equal(t, want1, string(got), "ReadPassword mismatch")
+
+		const want2 = "goodbye, world"
+		go write(t, want2)
+		got, err = cr.ReadContext(ctx)
+		require.NoError(t, err, "ReadContext failed")
+		assert.Equal(t, want2, string(got), "ReadContext mismatch")
+	})
+
+	t.Run("password read turned clean", func(t *testing.T) {
+		require.False(t, restoreCalled, "restoreCalled sanity check failed")
+
+		cancelCtx, cancel := context.WithCancel(ctx)
+		go func() {
+			time.Sleep(1 * time.Millisecond) // give ReadPassword time to block
+			cancel()
+		}()
+		got, err := cr.ReadPassword(cancelCtx)
+		require.ErrorIs(t, err, context.Canceled, "ReadPassword returned unexpected error")
+		require.Empty(t, got, "ReadPassword mismatch")
+
+		// Reclaim as clean read.
+		const want = "abandoned pwd read"
+		go func() {
+			// Once again, give ReadContext time to block.
+			// This way we force a restore.
+			time.Sleep(1 * time.Millisecond)
+			write(t, want)
+		}()
+		got, err = cr.ReadContext(ctx)
+		require.NoError(t, err, "ReadContext failed")
+		assert.Equal(t, want, string(got), "ReadContext mismatch")
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		require.NoError(t, cr.Close(), "Close errored")
+
+		_, err := cr.ReadPassword(ctx)
+		require.ErrorIs(t, err, ErrReaderClosed, "ReadPassword returned unexpected error")
+	})
+}
+
+func resetTermAfterTests(t *testing.T) {
+	oldIsTerm := termIsTerminal
+	oldGetState := termGetState
+	oldReadPwd := termReadPassword
+	oldRestore := termRestore
+	t.Cleanup(func() {
+		termIsTerminal = oldIsTerm
+		termGetState = oldGetState
+		termReadPassword = oldReadPwd
+		termRestore = oldRestore
 	})
 }
