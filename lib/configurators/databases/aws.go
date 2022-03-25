@@ -17,9 +17,9 @@ package databases
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/trace"
@@ -451,7 +451,7 @@ func hasRedshiftDatabases(flags BootstrapFlags, fileConfig *config.FileConfig) b
 
 	// Check if there is any static Redshift database configured.
 	for _, database := range fileConfig.Databases.Databases {
-		if strings.Contains(database.URI, types.RedshiftEndpointSuffix) {
+		if awsutils.IsRedshiftEndpoint(database.URI) {
 			return true
 		}
 	}
