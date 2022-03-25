@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded 1`] = `
-.c14 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -30,22 +30,22 @@ exports[`loaded 1`] = `
   height: 24px;
 }
 
-.c14:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c14:hover,
-.c14:focus {
+.c15:hover,
+.c15:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c14:active {
+.c15:active {
   opacity: 0.24;
 }
 
-.c14:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -57,7 +57,7 @@ exports[`loaded 1`] = `
   font-size: 16px;
 }
 
-.c13 {
+.c14 {
   display: inline-block;
   transition: color .3s;
   margin-right: 16px;
@@ -67,7 +67,7 @@ exports[`loaded 1`] = `
   font-size: 14px;
 }
 
-.c15 {
+.c16 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -291,10 +291,14 @@ exports[`loaded 1`] = `
   font-size: 12px;
 }
 
-.c12 {
+.c13 {
   display: flex;
   align-items: center;
   min-width: 130px;
+}
+
+.c12 tbody > tr > td {
+  vertical-align: middle;
 }
 
 <div
@@ -371,7 +375,7 @@ exports[`loaded 1`] = `
     </div>
   </nav>
   <table
-    class="c11"
+    class="c11 c12"
   >
     <thead>
       <tr>
@@ -397,10 +401,10 @@ exports[`loaded 1`] = `
       <tr>
         <td>
           <div
-            class="c12"
+            class="c13"
           >
             <a
-              class="c9 c13 icon icon-terminal "
+              class="c9 c14 icon icon-terminal "
               color="light"
               font-size="2"
               href="/web/cluster/one/console/session/sid0"
@@ -428,13 +432,13 @@ exports[`loaded 1`] = `
           align="right"
         >
           <button
-            class="c14"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c9 c15 icon icon-caret-down "
+              class="c9 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />

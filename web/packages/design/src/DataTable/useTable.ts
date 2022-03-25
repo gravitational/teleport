@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import isMatch, { MatchCallback } from 'design/utils/match';
-import { displayDate, displayDateTime } from 'shared/services/loc';
 import paginateData from './Pager/paginateData';
 import { TableProps, TableColumn } from './types';
 
