@@ -24,7 +24,6 @@ import (
 	"embed"
 	"encoding/binary"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/gravitational/teleport"
