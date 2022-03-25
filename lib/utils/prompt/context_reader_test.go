@@ -112,8 +112,6 @@ func TestContextReader(t *testing.T) {
 }
 
 func TestContextReader_ReadPassword(t *testing.T) {
-	resetTermAfterTests(t)
-
 	pr, pw := io.Pipe()
 	write := func(t *testing.T, s string) {
 		t.Helper()
@@ -121,30 +119,13 @@ func TestContextReader_ReadPassword(t *testing.T) {
 		assert.NoError(t, err, "Write failed")
 	}
 
-	restoreCalled := false
-	termIsTerminal = func(fd int) bool {
-		return true
-	}
-	termGetState = func(fd int) (*term.State, error) {
-		return &term.State{}, nil
-	}
-	termReadPassword = func(fd int) ([]byte, error) {
-		const bufLen = 1024 // arbitrary, big enough for our data
-		data := make([]byte, bufLen)
-		n, err := pr.Read(data)
-		data = data[:n]
-		return data, err
-	}
-	termRestore = func(fd int, oldState *term.State) error {
-		restoreCalled = true
-		return nil
-	}
-
 	devNull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0666)
 	require.NoError(t, err, "Failed to open %v", os.DevNull)
 	defer devNull.Close()
 
+	term := &fakeTerm{reader: pr}
 	cr := NewContextReader(pr)
+	cr.xTerm = term
 	cr.fd = int(devNull.Fd()) // arbitrary, doesn't matter because term functions are mocked.
 
 	ctx := context.Background()
@@ -172,7 +153,7 @@ func TestContextReader_ReadPassword(t *testing.T) {
 	})
 
 	t.Run("password read turned clean", func(t *testing.T) {
-		require.False(t, restoreCalled, "restoreCalled sanity check failed")
+		require.False(t, term.restoreCalled, "restoreCalled sanity check failed")
 
 		cancelCtx, cancel := context.WithCancel(ctx)
 		go func() {
@@ -194,6 +175,7 @@ func TestContextReader_ReadPassword(t *testing.T) {
 		got, err = cr.ReadContext(ctx)
 		require.NoError(t, err, "ReadContext failed")
 		assert.Equal(t, want, string(got), "ReadContext mismatch")
+		assert.True(t, term.restoreCalled, "term.Restore not called")
 	})
 
 	t.Run("Close", func(t *testing.T) {
@@ -204,15 +186,28 @@ func TestContextReader_ReadPassword(t *testing.T) {
 	})
 }
 
-func resetTermAfterTests(t *testing.T) {
-	oldIsTerm := termIsTerminal
-	oldGetState := termGetState
-	oldReadPwd := termReadPassword
-	oldRestore := termRestore
-	t.Cleanup(func() {
-		termIsTerminal = oldIsTerm
-		termGetState = oldGetState
-		termReadPassword = oldReadPwd
-		termRestore = oldRestore
-	})
+type fakeTerm struct {
+	reader        io.Reader
+	restoreCalled bool
+}
+
+func (t *fakeTerm) GetState(fd int) (*term.State, error) {
+	return &term.State{}, nil
+}
+
+func (t *fakeTerm) IsTerminal(fd int) bool {
+	return true
+}
+
+func (t *fakeTerm) ReadPassword(fd int) ([]byte, error) {
+	const bufLen = 1024 // arbitrary, big enough for test data
+	data := make([]byte, bufLen)
+	n, err := t.reader.Read(data)
+	data = data[:n]
+	return data, err
+}
+
+func (t *fakeTerm) Restore(fd int, oldState *term.State) error {
+	t.restoreCalled = true
+	return nil
 }

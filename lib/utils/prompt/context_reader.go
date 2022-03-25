@@ -52,12 +52,31 @@ const (
 	readerStateClosed
 )
 
-var (
-	termGetState     = term.GetState
-	termIsTerminal   = term.IsTerminal
-	termReadPassword = term.ReadPassword
-	termRestore      = term.Restore
-)
+// xTermI aggregates methods from /x/term for easy mocking.
+type xTermI interface {
+	GetState(fd int) (*term.State, error)
+	IsTerminal(fd int) bool
+	ReadPassword(fd int) ([]byte, error)
+	Restore(fd int, oldState *term.State) error
+}
+
+type xTerm struct{}
+
+func (xTerm) GetState(fd int) (*term.State, error) {
+	return term.GetState(fd)
+}
+
+func (xTerm) IsTerminal(fd int) bool {
+	return term.IsTerminal(fd)
+}
+
+func (xTerm) ReadPassword(fd int) ([]byte, error) {
+	return term.ReadPassword(fd)
+}
+
+func (xTerm) Restore(fd int, oldState *term.State) error {
+	return term.Restore(fd, oldState)
+}
 
 // ContextReader is a wrapper around an underlying io.Reader or terminal that
 // allows reads to be abandoned. An abandoned read may be reclaimed by future
@@ -65,6 +84,8 @@ var (
 // ContextReader instances are not safe for concurrent use, callers may block
 // indefinitely and reads may be lost.
 type ContextReader struct {
+	xTerm xTermI
+
 	// reader is used for clean reads.
 	reader io.Reader
 	// fd is used for password reads.
@@ -87,10 +108,12 @@ type ContextReader struct {
 // Calling ContextReader.Close attempts to release resources, but note that
 // ongoing reads cannot be interrupted.
 func NewContextReader(rd io.Reader) *ContextReader {
+	xt := xTerm{}
+
 	fd := -1
 	if f, ok := rd.(*os.File); ok {
 		val := int(f.Fd())
-		if termIsTerminal(val) {
+		if xt.IsTerminal(val) {
 			fd = val
 		}
 	}
@@ -98,6 +121,7 @@ func NewContextReader(rd io.Reader) *ContextReader {
 	mu := &sync.Mutex{}
 	cond := sync.NewCond(mu)
 	cr := &ContextReader{
+		xTerm:  xt,
 		reader: bufio.NewReader(rd),
 		fd:     fd,
 		closed: make(chan struct{}),
@@ -138,7 +162,7 @@ func (cr *ContextReader) processReads() {
 			n, err = cr.reader.Read(value)
 			value = value[:n]
 		case readerStatePassword:
-			value, err = termReadPassword(cr.fd)
+			value, err = cr.xTerm.ReadPassword(cr.fd)
 		}
 		cr.mu.Lock()
 		cr.previousTermState = nil // A finalized read resets the terminal.
@@ -185,7 +209,7 @@ func (cr *ContextReader) fireCleanRead() error {
 		if cr.previousTermState != nil {
 			state := cr.previousTermState
 			cr.previousTermState = nil
-			if err := termRestore(cr.fd, state); err != nil {
+			if err := cr.xTerm.Restore(cr.fd, state); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -228,7 +252,7 @@ func (cr *ContextReader) firePasswordRead() error {
 	case readerStateIdle: // OK, transition and broadcast.
 		// Save present terminal state, so it may be restored in case the read goes
 		// from password to clean.
-		state, err := termGetState(cr.fd)
+		state, err := cr.xTerm.GetState(cr.fd)
 		if err != nil {
 			return trace.Wrap(err)
 		}
