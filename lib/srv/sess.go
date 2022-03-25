@@ -1735,7 +1735,6 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		ClusterName:  s.scx.ClusterName,
 		Login:        "root",
 		Initiator:    initator,
-		Expires:      time.Now().UTC().Add(time.Hour * 24),
 		HostUser:     initator.User,
 		Reason:       reason,
 		Invited:      invited,
@@ -1743,7 +1742,27 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 	}
 
 	_, err := s.registry.auth.CreateSessionTracker(s.serverCtx, req)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start go routine to push back session expiration while session is still active.
+	go func() {
+		ticker := s.scx.srv.GetClock().NewTicker(defaults.SessionTrackerTTL / 6)
+		defer ticker.Stop()
+		for {
+			select {
+			case time := <-ticker.Chan():
+				if err := s.trackerUpdateExpiry(time.Add(defaults.SessionTrackerTTL)); err != nil {
+					s.log.WithError(err).Warningf("Failed to update session tracker expiration.")
+				}
+			case <-s.closeC:
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (s *session) trackerAddParticipant(participant *party) error {
@@ -1799,6 +1818,24 @@ func (s *session) trackerUpdateState(state types.SessionState) error {
 		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
 			UpdateState: &proto.SessionTrackerUpdateState{
 				State: state,
+			},
+		},
+	}
+
+	err := s.registry.auth.UpdateSessionTracker(s.serverCtx, req)
+	return trace.Wrap(err)
+}
+
+func (s *session) trackerUpdateExpiry(expires time.Time) error {
+	if s.registry.auth == nil {
+		return nil
+	}
+
+	req := &proto.UpdateSessionTrackerRequest{
+		SessionID: s.id.String(),
+		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
+			UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
+				Expires: &expires,
 			},
 		},
 	}

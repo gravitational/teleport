@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -81,7 +82,11 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 			return trace.Wrap(err)
 		}
 
-		item := backend.Item{Key: backend.Key(sessionPrefix, sessionID), Value: sessionJSON}
+		item := backend.Item{
+			Key:     backend.Key(sessionPrefix, sessionID),
+			Value:   sessionJSON,
+			Expires: session.Expiry(),
+		}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {
 			select {
@@ -142,7 +147,6 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 	}
 
 	now := time.Now().UTC()
-
 	spec := types.SessionTrackerSpecV1{
 		SessionID:         req.ID,
 		Kind:              req.Type,
@@ -165,12 +169,22 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 		return nil, trace.Wrap(err)
 	}
 
+	// By default, resource expiration should match session expiration.
+	session.SetExpiry(session.GetExpires())
+	if session.Expiry().IsZero() {
+		session.SetExpiry(now.Add(defaults.SessionTrackerTTL))
+	}
+
 	json, err := marshalSession(session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	item := backend.Item{Key: backend.Key(sessionPrefix, session.GetSessionID()), Value: json}
+	item := backend.Item{
+		Key:     backend.Key(sessionPrefix, session.GetSessionID()),
+		Value:   json,
+		Expires: session.Expiry(),
+	}
 	_, err = s.bk.Put(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -197,10 +211,17 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			switch update := req.Update.(type) {
 			case *proto.UpdateSessionTrackerRequest_UpdateState:
 				session.SetState(update.UpdateState.State)
+				if update.UpdateState.State == types.SessionState_SessionStateTerminated {
+					// Mark session tracker for deletion.
+					session.SetExpiry(time.Now())
+				}
+
 			case *proto.UpdateSessionTrackerRequest_AddParticipant:
 				session.AddParticipant(*update.AddParticipant.Participant)
 			case *proto.UpdateSessionTrackerRequest_RemoveParticipant:
 				session.RemoveParticipant(update.RemoveParticipant.ParticipantID)
+			case *proto.UpdateSessionTrackerRequest_UpdateExpiry:
+				session.SetExpiry(*update.UpdateExpiry.Expires)
 			}
 		default:
 			return trace.BadParameter("unrecognized session version %T", session)
@@ -211,7 +232,11 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			return trace.Wrap(err)
 		}
 
-		item := backend.Item{Key: backend.Key(sessionPrefix, req.SessionID), Value: sessionJSON}
+		item := backend.Item{
+			Key:     backend.Key(sessionPrefix, req.SessionID),
+			Value:   sessionJSON,
+			Expires: session.Expiry(),
+		}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {
 			select {
