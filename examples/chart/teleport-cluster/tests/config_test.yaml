@@ -12,16 +12,6 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
-  - it: matches snapshot for acme-off.yaml
-    values:
-      - ../.lint/acme-off.yaml
-    asserts:
-      - hasDocuments:
-          count: 1
-      - isKind:
-          of: ConfigMap
-      - matchSnapshot: {}
-
   - it: matches snapshot for acme-on.yaml
     values:
       - ../.lint/acme-on.yaml
@@ -262,6 +252,26 @@ tests:
   - it: matches snapshot for service.yaml
     values:
       - ../.lint/service.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for separate-mongo-listener.yaml
+    values:
+      - ../.lint/separate-mongo-listener.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for separate-postgres-listener.yaml
+    values:
+      - ../.lint/separate-postgres-listener.yaml
     asserts:
       - hasDocuments:
           count: 1
