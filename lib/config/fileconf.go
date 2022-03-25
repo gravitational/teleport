@@ -508,6 +508,11 @@ type Auth struct {
 	// determines if the proxy will check the host key of the client or not.
 	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
+	// SessionUploadGracePeriod is the time after which the session upload completer
+	// will attempt to upload a session recording. This is used to ensure that abandonded
+	// session recordings still get uploaded.
+	SessionUploadGracePeriod time.Duration `yaml:"session_upload_grace_period"`
+
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
 	LicenseFile string `yaml:"license_file,omitempty"`

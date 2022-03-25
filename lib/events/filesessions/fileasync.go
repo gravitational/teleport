@@ -59,6 +59,9 @@ type UploaderConfig struct {
 	Component string
 	// AuditLog is used for storing logs
 	AuditLog events.IAuditLog
+	// GracePeriod is the period after which uploads are considered
+	// abandoned and will be completed
+	GracePeriod time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -104,9 +107,10 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	// completer scans for uploads that have been initiated, but not completed
 	// by the client (aborted or crashed) and completes them
 	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-		Uploader:  handler,
-		AuditLog:  cfg.AuditLog,
-		Unstarted: true,
+		Uploader:    handler,
+		AuditLog:    cfg.AuditLog,
+		Unstarted:   true,
+		GracePeriod: cfg.GracePeriod,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

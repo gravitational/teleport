@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -41,6 +42,12 @@ type SessionRecordingConfig interface {
 
 	// SetProxyChecksHostKeys sets if the proxy will check host keys.
 	SetProxyChecksHostKeys(bool)
+
+	// GetUploadGracePeriod gets the session upload grace period.
+	GetUploadGracePeriod() time.Duration
+
+	// SetUploadGracePeriod sets the session upload grace period.
+	SetUploadGracePeriod(time.Duration)
 }
 
 // NewSessionRecordingConfigFromConfigFile is a convenience method to create
@@ -159,6 +166,16 @@ func (c *SessionRecordingConfigV2) SetProxyChecksHostKeys(t bool) {
 	c.Spec.ProxyChecksHostKeys = NewBoolOption(t)
 }
 
+// GetUploadGracePeriod gets the session upload grace period.
+func (c *SessionRecordingConfigV2) GetUploadGracePeriod() time.Duration {
+	return c.Spec.UploadGracePeriod.Duration()
+}
+
+// SetUploadGracePeriod sets the session upload grace period.
+func (c *SessionRecordingConfigV2) SetUploadGracePeriod(d time.Duration) {
+	c.Spec.UploadGracePeriod = Duration(d)
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *SessionRecordingConfigV2) setStaticFields() {
 	c.Kind = KindSessionRecordingConfig
@@ -183,6 +200,9 @@ func (c *SessionRecordingConfigV2) CheckAndSetDefaults() error {
 	}
 	if c.Spec.ProxyChecksHostKeys == nil {
 		c.Spec.ProxyChecksHostKeys = NewBoolOption(true)
+	}
+	if c.Spec.UploadGracePeriod == 0 {
+		c.Spec.UploadGracePeriod = Duration(defaults.UploadGracePeriod)
 	}
 
 	// Check that the session recording mode is set to a valid value.

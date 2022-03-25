@@ -371,6 +371,16 @@ auth_service:
     # (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
     proxy_checks_host_keys: yes
 
+    # If a session upload hasn't been uploaded for longer than the grace period,
+    # the server will attempt to force the upload to completion. This ensures
+    # that all session uploads will be completed, even if abandoned due to a server
+    # error. If a session lives longer than the grace period, it will be forced to close.
+    #
+    # In synchronous session recording modes, the grace period is not used.
+    #
+    # Default is 24 hours.
+    session_upload_grace_period: "24h"
+
     # Determines if SSH sessions to cluster nodes are forcefully terminated
     # after no activity from a client (idle client).
     # Examples: "30m", "1h" or "1h30m"

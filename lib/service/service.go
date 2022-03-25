@@ -1192,9 +1192,10 @@ func (process *TeleportProcess) initAuthService() error {
 	var uploadCompleter *events.UploadCompleter
 	if uploadHandler != nil {
 		uploadCompleter, err = events.NewUploadCompleter(events.UploadCompleterConfig{
-			Uploader:  uploadHandler,
-			Component: teleport.ComponentAuth,
-			AuditLog:  process.auditLog,
+			Uploader:    uploadHandler,
+			Component:   teleport.ComponentAuth,
+			AuditLog:    process.auditLog,
+			GracePeriod: cfg.Auth.SessionRecordingConfig.GetUploadGracePeriod(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1968,7 +1969,7 @@ func (process *TeleportProcess) initSSH() error {
 		// init uploader service for recording SSH node, if proxy is not
 		// enabled on this node, because proxy stars uploader service as well
 		if !cfg.Proxy.Enabled {
-			if err := process.initUploaderService(authClient, conn.Client); err != nil {
+			if err := process.initUploaderService(authClient, conn.Client, recConfig.GetUploadGracePeriod()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2089,7 +2090,7 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 
 // initUploadService starts a file-based uploader that scans the local streaming logs directory
 // (data/log/upload/streaming/default/)
-func (process *TeleportProcess) initUploaderService(streamer events.Streamer, auditLog events.IAuditLog) error {
+func (process *TeleportProcess) initUploaderService(streamer events.Streamer, auditLog events.IAuditLog, gracePeriod time.Duration) error {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
 	})
@@ -2129,10 +2130,11 @@ func (process *TeleportProcess) initUploaderService(streamer events.Streamer, au
 	}
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		ScanDir:  filepath.Join(streamingDir...),
-		Streamer: streamer,
-		AuditLog: auditLog,
-		EventsC:  process.Config.UploadEventsC,
+		ScanDir:     filepath.Join(streamingDir...),
+		Streamer:    streamer,
+		AuditLog:    auditLog,
+		EventsC:     process.Config.UploadEventsC,
+		GracePeriod: gracePeriod,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3304,7 +3306,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		warnOnErr(conn.Close(), log)
 		log.Infof("Exited.")
 	})
-	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
+
+	recConfig, err := accessPoint.GetSessionRecordingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := process.initUploaderService(accessPoint, conn.Client, recConfig.GetUploadGracePeriod()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -3556,9 +3564,14 @@ func (process *TeleportProcess) initApps() {
 			process.waitForAppDepend()
 		}
 
+		recConfig, err := accessPoint.GetSessionRecordingConfig(process.ExitContext())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Start uploader that will scan a path on disk and upload completed
 		// sessions to the Auth Server.
-		if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
+		if err := process.initUploaderService(accessPoint, conn.Client, recConfig.GetUploadGracePeriod()); err != nil {
 			return trace.Wrap(err)
 		}
 

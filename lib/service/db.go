@@ -74,9 +74,14 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 	}
 
+	recConfig, err := accessPoint.GetSessionRecordingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the auth server.
-	err = process.initUploaderService(accessPoint, conn.Client)
+	err = process.initUploaderService(accessPoint, conn.Client, recConfig.GetUploadGracePeriod())
 	if err != nil {
 		return trace.Wrap(err)
 	}

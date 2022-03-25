@@ -114,3 +114,9 @@ const (
 	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
 	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
 )
+
+const (
+	// UploadGracePeriod is a period after which non-completed
+	// upload is considered abandoned and will be completed by the reconciler
+	UploadGracePeriod = 24 * time.Hour
+)

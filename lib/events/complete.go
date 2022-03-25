@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -60,7 +61,7 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Uploader")
 	}
 	if cfg.GracePeriod == 0 {
-		cfg.GracePeriod = defaults.UploadGracePeriod
+		cfg.GracePeriod = apidefaults.UploadGracePeriod
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentAuth

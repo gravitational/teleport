@@ -969,6 +969,15 @@ message SessionRecordingConfigSpecV2 {
         (gogoproto.jsontag) = "proxy_checks_host_keys",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    // UploadGracePeriod is the time after which the session upload completer
+    // will attempt to upload a session recording. This is used to ensure
+    // that abandonded session recordings still get uploaded.
+    int64 UploadGracePeriod = 3 [
+        (gogoproto.jsontag) = "upload_grace_period",
+        (gogoproto.casttype) = "Duration",
+        (gogoproto.nullable) = true
+    ];
 }
 
 // AuthPreferenceV2 implements the AuthPreference interface.

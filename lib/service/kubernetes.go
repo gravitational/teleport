@@ -83,9 +83,14 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		return trace.Wrap(err)
 	}
 
+	recConfig, err := accessPoint.GetSessionRecordingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the Auth Server.
-	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
+	if err := process.initUploaderService(accessPoint, conn.Client, recConfig.GetUploadGracePeriod()); err != nil {
 		return trace.Wrap(err)
 	}
 

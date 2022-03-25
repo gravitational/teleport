@@ -595,6 +595,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode:                fc.Auth.SessionRecording,
 		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
+		UploadGracePeriod:   types.Duration(fc.Auth.SessionUploadGracePeriod),
 	})
 	if err != nil {
 		return trace.Wrap(err)
