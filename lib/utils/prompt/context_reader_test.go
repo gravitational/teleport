@@ -125,7 +125,7 @@ func TestContextReader_ReadPassword(t *testing.T) {
 
 	term := &fakeTerm{reader: pr}
 	cr := NewContextReader(pr)
-	cr.xTerm = term
+	cr.term = term
 	cr.fd = int(devNull.Fd()) // arbitrary, doesn't matter because term functions are mocked.
 
 	ctx := context.Background()
