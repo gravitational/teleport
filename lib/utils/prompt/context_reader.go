@@ -198,7 +198,7 @@ func (cr *ContextReader) fireCleanRead() error {
 func (cr *ContextReader) waitForRead(ctx context.Context) ([]byte, error) {
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, trace.Wrap(ctx.Err())
 	case <-cr.closed:
 		return nil, ErrReaderClosed
 	case read := <-cr.reads:

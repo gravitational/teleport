@@ -19,6 +19,7 @@ package prompt
 import (
 	"context"
 	"io"
+	"os"
 	"testing"
 	"time"
 
@@ -33,6 +34,7 @@ func TestContextReader(t *testing.T) {
 	t.Cleanup(func() { pw.Close() })
 
 	write := func(t *testing.T, s string) {
+		t.Helper()
 		_, err := pw.Write([]byte(s))
 		assert.NoError(t, err, "Write failed")
 	}
@@ -114,6 +116,7 @@ func TestContextReader_ReadPassword(t *testing.T) {
 
 	pr, pw := io.Pipe()
 	write := func(t *testing.T, s string) {
+		t.Helper()
 		_, err := pw.Write([]byte(s))
 		assert.NoError(t, err, "Write failed")
 	}
@@ -137,8 +140,12 @@ func TestContextReader_ReadPassword(t *testing.T) {
 		return nil
 	}
 
+	devNull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0666)
+	require.NoError(t, err, "Failed to open %v", os.DevNull)
+	defer devNull.Close()
+
 	cr := NewContextReader(pr)
-	cr.fd = 15 // arbitrary, doesn't matter because term functions are mocked.
+	cr.fd = int(devNull.Fd()) // arbitrary, doesn't matter because term functions are mocked.
 
 	ctx := context.Background()
 	t.Run("read password", func(t *testing.T) {
