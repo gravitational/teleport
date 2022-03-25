@@ -6,9 +6,21 @@ description: Install and configure an HA Teleport cluster using an AWS EKS clust
 In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and AWS products (DynamoDB and S3).
 
-(!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
 
-## Step 3. Set up AWS IAM configuration
+## Prerequisites
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+
+## Step 1/7. Install Helm
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
+
+## Step 2/7. Add the Teleport Helm chart repository
+
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+## Step 3/7. Set up AWS IAM configuration
 
 For Teleport to be able to create the DynamoDB tables, indexes, and the S3 storage bucket it needs,
 you'll need to configure AWS IAM policies to allow access.
@@ -51,7 +63,8 @@ You'll need to replace these values in the policy example below:
                 "dynamodb:GetShardIterator",
                 "dynamodb:GetItem",
                 "dynamodb:UpdateTable",
-                "dynamodb:GetRecords"
+                "dynamodb:GetRecords",
+                "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
                 "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend",
@@ -73,7 +86,8 @@ You'll need to replace these values in the policy example below:
                 "dynamodb:Query",
                 "dynamodb:UpdateItem",
                 "dynamodb:DescribeTimeToLive",
-                "dynamodb:UpdateTable"
+                "dynamodb:UpdateTable",
+                "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
                 "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-events",
@@ -153,7 +167,7 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
-## Step 4. Install and configure cert-manager
+## Step 4/7. Install and configure cert-manager
 
 Reference: [`cert-manager` docs](https://cert-manager.io/docs/)
 
@@ -216,7 +230,7 @@ $ kubectl create namespace teleport
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
-## Step 5. Set values to configure the cluster
+## Step 5/7. Set values to configure the cluster
 
 There are two different ways to configure the `teleport-cluster` Helm chart to use `aws` mode - using a `values.yaml` file, or using `--set`
 on the command line.
@@ -300,11 +314,13 @@ $ kubectl --namespace teleport get all
 # replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ```
 
-## Step 6. Set up DNS
+## Step 6/7. Set up DNS
 
-You'll need to set up two DNS `A` records: `teleport.example.com` for the web UI, and `*.teleport.example.com`
-for web apps using [application access](../../../application-access/introduction.mdx). In our example, both records are
-aliases to an ELB.
+You'll need to set up a DNS `A` record for `teleport.example.com`. In our example, this record is an alias to an ELB.
+
+<Details title="Using Application Access?">
+(!docs/pages/includes/dns-app-access.mdx!)
+</Details>
 
 Here's how to do this in a hosted zone with AWS Route 53:
 
@@ -322,7 +338,7 @@ $ MY_CLUSTER_REGION='us-west-2'
 $ MYZONE="$(aws route53 list-hosted-zones-by-name --dns-name="${MYZONE_DNS?}" | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)"
 $ MYELB="$(kubectl --namespace "${NAMESPACE?}" get "service/${RELEASE_NAME?}" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')"
 $ MYELB_NAME="${MYELB%%-*}"
-$ MYELB_ZONE="$(aws elb describe-load-balancers --region "${MY_CLUSTER_REGION?}" --load-balancer-names "${MYELB_NAME?}" | jq -r '.LoadBalancerDescriptions[0].CanonicalHostedZoneNameID')"
+$ MYELB_ZONE="$(aws elbv2 describe-load-balancers --region "${MY_CLUSTER_REGION?}" --names "${MYELB_NAME?}" | jq -r '.LoadBalancers[0].CanonicalHostedZoneId')"
 
 # Create a JSON file changeset for AWS.
 $ jq -n --arg dns "${MYDNS?}" --arg elb "${MYELB?}" --arg elbz "${MYELB_ZONE?}" \
@@ -366,7 +382,7 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 # "INSYNC"
 ```
 
-## Step 7. Create a Teleport user
+## Step 7/7. Create a Teleport user
 
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
@@ -444,4 +460,4 @@ $ helm --namespace cert-manager uninstall cert-manager
 You can follow our [Getting Started with Teleport guide](../../../setup/guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
 Teleport cluster.
 
-See the [high availability section of our Helm chart reference](../reference.mdx#highavailability) for more details on high availability.
+See the [high availability section of our Helm chart reference](../reference/teleport-cluster.mdx#highavailability) for more details on high availability.

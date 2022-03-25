@@ -18,7 +18,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -88,15 +87,11 @@ func TestMonitor(t *testing.T) {
 	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
-	cfg.DataDir, err = ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	defer os.RemoveAll(cfg.DataDir)
+	cfg.DataDir = t.TempDir()
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"], err = ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	defer os.RemoveAll(cfg.DataDir)
+	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
@@ -347,6 +342,8 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"proxy-kube-public-2",
 			},
 			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
 				"*.proxy-public-1",
 				"*.proxy-public-2",
 				"*.proxy-kube-public-1",
@@ -360,7 +357,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"auth-public-1",
 				"auth-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleAdmin,
@@ -369,7 +369,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"auth-public-1",
 				"auth-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleNode,
@@ -393,7 +396,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"kube-public-1",
 				"kube-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleApp,
@@ -401,7 +407,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"global-hostname",
 				"global-uuid",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.SystemRole("unknown"),
