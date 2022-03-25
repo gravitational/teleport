@@ -4554,7 +4554,7 @@ type DatabaseCSRRequest struct {
 	// SignWithDatabaseCA if set to true will use Database CA to sign the created certificate.
 	// This flag was created to enable Database CA for new proxies and don't break old one that
 	// are still using UserCA.
-	// DELETE IN 12.0.
+	// DELETE IN 11.0.
 	SignWithDatabaseCA   bool     `protobuf:"varint,3,opt,name=SignWithDatabaseCA,proto3" json:"sign_with_database_ca"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
