@@ -31,6 +31,7 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/keys-pub/go-libfido2"
 	"github.com/stretchr/testify/assert"
@@ -86,6 +87,22 @@ func (p noopPrompt) PromptPIN() (string, error) {
 }
 
 func (p noopPrompt) PromptAdditionalTouch() error {
+	return nil
+}
+
+// pinCancelPrompt exercises cancellation after device selection.
+type pinCancelPrompt struct {
+	pin    string
+	cancel context.CancelFunc
+}
+
+func (p *pinCancelPrompt) PromptPIN() (string, error) {
+	p.cancel()
+	return p.pin, nil
+}
+
+func (p pinCancelPrompt) PromptAdditionalTouch() error {
+	// 2nd touch never happens
 	return nil
 }
 
@@ -364,6 +381,33 @@ func TestFIDO2Login(t *testing.T) {
 			wantErr: context.DeadlineExceeded.Error(),
 		},
 		{
+			name:    "NOK single candidate times out",
+			timeout: 10 * time.Millisecond,
+			fido2:   newFakeFIDO2(auth1, pin1),
+			setUP:   func() {}, // no interaction
+			createAssertion: func() *wanlib.CredentialAssertion {
+				cp := *baseAssertion
+				cp.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+					{CredentialID: auth1.credentialID()},
+				}
+				return &cp
+			},
+			wantErr: context.DeadlineExceeded.Error(),
+		},
+		{
+			name:   "NOK cancel after PIN",
+			fido2:  newFakeFIDO2(auth1, pin1),
+			setUP:  pin1.setUP,
+			prompt: &pinCancelPrompt{pin: pin1.pin}, // cancel set on test body
+			createAssertion: func() *wanlib.CredentialAssertion {
+				cp := *baseAssertion
+				cp.Response.AllowedCredentials = nil
+				cp.Response.UserVerification = protocol.VerificationRequired
+				return &cp
+			},
+			wantErr: context.Canceled.Error(),
+		},
+		{
 			name:  "passwordless pin",
 			fido2: newFakeFIDO2(pin3),
 			setUP: pin3.setUP,
@@ -471,8 +515,25 @@ func TestFIDO2Login(t *testing.T) {
 			if prompt == nil {
 				prompt = noopPrompt{}
 			}
+			if pp, ok := prompt.(*pinCancelPrompt); ok {
+				pp.cancel = cancel
+			}
 
-			mfaResp, _, err := wancli.FIDO2Login(ctx, origin, test.user, test.createAssertion(), prompt)
+			// Run FIDO2Login asynchronously, so we can fail the test if it hangs.
+			// mfaResp and err checked below.
+			var mfaResp *proto.MFAAuthenticateResponse
+			var err error
+			done := make(chan struct{})
+			go func() {
+				mfaResp, _, err = wancli.FIDO2Login(ctx, origin, test.user, test.createAssertion(), prompt)
+				close(done)
+			}()
+			select {
+			case <-done: // OK, proceed.
+			case <-time.After(timeout + 1*time.Second):
+				t.Fatal("Timed out waiting for FIDO2Login")
+			}
+
 			switch {
 			case test.wantErr != "" && err == nil:
 				t.Fatalf("FIDO2Login returned err = nil, wantErr %q", test.wantErr)
