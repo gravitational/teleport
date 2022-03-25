@@ -1571,13 +1571,6 @@ func TestWindowsDesktopService(t *testing.T) {
 				}
 			},
 		},
-		{
-			desc:        "NOK - uses deprecated password_file field",
-			expectError: require.Error,
-			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.LDAP.PasswordFile = "/path/to/some/file"
-			},
-		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			fc := &FileConfig{}

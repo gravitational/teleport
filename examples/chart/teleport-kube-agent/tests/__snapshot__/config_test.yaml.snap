@@ -29,6 +29,7 @@ does not generate a config for clusterrole.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 does not generate a config for pdb.yaml:
   1: |
     apiVersion: v1
@@ -60,6 +61,7 @@ does not generate a config for pdb.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot and tests for annotations.yaml:
   1: |
     apiVersion: v1
@@ -94,6 +96,7 @@ matches snapshot and tests for annotations.yaml:
         kubernetes.io/config: test-annotation
         kubernetes.io/config-different: 2
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for affinity.yaml:
   1: |
     apiVersion: v1
@@ -125,6 +128,7 @@ matches snapshot for affinity.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for all-v5.yaml:
   1: |
     apiVersion: v1
@@ -163,6 +167,7 @@ matches snapshot for all-v5.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for all-v6.yaml:
   1: |
     apiVersion: v1
@@ -204,6 +209,7 @@ matches snapshot for all-v6.yaml:
         kubernetes.io/config: test-annotation
         kubernetes.io/config-different: 2
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for aws-databases.yaml:
   1: |
     apiVersion: v1
@@ -234,6 +240,7 @@ matches snapshot for aws-databases.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for backwards-compatibility.yaml:
   1: |
     apiVersion: v1
@@ -265,6 +272,7 @@ matches snapshot for backwards-compatibility.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for db.yaml:
   1: |
     apiVersion: v1
@@ -295,6 +303,7 @@ matches snapshot for db.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for imagepullsecrets.yaml:
   1: |
     apiVersion: v1
@@ -326,6 +335,7 @@ matches snapshot for imagepullsecrets.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for initcontainers.yaml:
   1: |
     apiVersion: v1
@@ -357,6 +367,7 @@ matches snapshot for initcontainers.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for log-basic.yaml:
   1: |
     apiVersion: v1
@@ -388,6 +399,7 @@ matches snapshot for log-basic.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for log-extra.yaml:
   1: |
     apiVersion: v1
@@ -419,6 +431,7 @@ matches snapshot for log-extra.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for log-legacy.yaml:
   1: |
     apiVersion: v1
@@ -450,6 +463,7 @@ matches snapshot for log-legacy.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for node-selector.yaml:
   1: |
     apiVersion: v1
@@ -481,6 +495,7 @@ matches snapshot for node-selector.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for pdb.yaml:
   1: |
     apiVersion: v1
@@ -512,6 +527,7 @@ matches snapshot for pdb.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for resources.yaml:
   1: |
     apiVersion: v1
@@ -543,6 +559,7 @@ matches snapshot for resources.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for stateful.yaml:
   1: |
     apiVersion: v1
@@ -574,6 +591,7 @@ matches snapshot for stateful.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for tolerations.yaml:
   1: |
     apiVersion: v1
@@ -605,6 +623,7 @@ matches snapshot for tolerations.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for volumes.yaml:
   1: |
     apiVersion: v1
@@ -636,3 +655,4 @@ matches snapshot for volumes.yaml:
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
+      namespace: NAMESPACE
