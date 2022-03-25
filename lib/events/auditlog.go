@@ -148,10 +148,6 @@ type AuditLogConfig struct {
 	// RotationPeriod defines how frequently to rotate the log file
 	RotationPeriod time.Duration
 
-	// SessionIdlePeriod defines the period after which sessions will be considered
-	// idle (and audit log will free up some resources)
-	SessionIdlePeriod time.Duration
-
 	// Clock is a clock either real one or used in tests
 	Clock clockwork.Clock
 
@@ -204,9 +200,6 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	}
 	if a.RotationPeriod == 0 {
 		a.RotationPeriod = defaults.LogRotationPeriod
-	}
-	if a.SessionIdlePeriod == 0 {
-		a.SessionIdlePeriod = defaults.SessionIdlePeriod
 	}
 	if a.DirMask == nil {
 		mask := os.FileMode(teleport.DirMaskSharedGroup)
