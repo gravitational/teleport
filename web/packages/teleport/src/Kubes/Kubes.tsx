@@ -53,7 +53,7 @@ export function Kubes(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Kubernetes</FeatureHeaderTitle>
-        {!isEmpty && attempt.status !== 'processing' && (
+        {hasKubes && (
           <ButtonPrimary
             as="a"
             width="240px"

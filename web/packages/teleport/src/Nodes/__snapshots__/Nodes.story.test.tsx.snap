@@ -293,7 +293,7 @@ exports[`empty state 1`] = `
 `;
 
 exports[`failed 1`] = `
-.c5 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -310,59 +310,8 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c5 a {
+.c3 a {
   color: #FFFFFF;
-}
-
-.c4 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 240px;
-}
-
-.c4:active {
-  opacity: 0.56;
-}
-
-.c4:hover,
-.c4:focus {
-  background: #651FFF;
-}
-
-.c4:active {
-  background: #354AA4;
-}
-
-.c4:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c3 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
 }
 
 .c1 {
@@ -417,21 +366,9 @@ exports[`failed 1`] = `
     >
       Servers
     </div>
-    <div
-      class="c3"
-    >
-      <button
-        class="c4"
-        kind="primary"
-        title=""
-        width="240px"
-      >
-        Add Server
-      </button>
-    </div>
   </div>
   <div
-    class="c5"
+    class="c3"
     kind="danger"
   >
     some error message

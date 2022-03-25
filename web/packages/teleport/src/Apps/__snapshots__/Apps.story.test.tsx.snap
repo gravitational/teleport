@@ -293,7 +293,7 @@ exports[`empty state for enterprise, can create 1`] = `
 `;
 
 exports[`failed state 1`] = `
-.c4 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -310,53 +310,8 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
 }
 
-.c4 a {
+.c3 a {
   color: #FFFFFF;
-}
-
-.c3 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 240px;
-}
-
-.c3:active {
-  opacity: 0.56;
-}
-
-.c3:hover,
-.c3:focus {
-  background: #651FFF;
-}
-
-.c3:active {
-  background: #354AA4;
-}
-
-.c3:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
 }
 
 .c1 {
@@ -412,17 +367,9 @@ exports[`failed state 1`] = `
       >
         Applications
       </div>
-      <button
-        class="c3"
-        kind="primary"
-        title=""
-        width="240px"
-      >
-        Add Application
-      </button>
     </div>
     <div
-      class="c4"
+      class="c3"
       kind="danger"
     >
       some error message

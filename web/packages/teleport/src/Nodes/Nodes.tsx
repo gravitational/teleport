@@ -70,10 +70,7 @@ export function Nodes(props: State) {
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
         {hasNodes && (
           <Flex alignItems="center">
-            {hasNodes && (
-              <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
-            )}
-
+            <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
             <ButtonAdd
               isLeafCluster={isLeafCluster}
               canCreate={canCreate}

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box } from 'design';
+import { Indicator, Box, ButtonPrimary } from 'design';
 import { Danger } from 'design/Alert';
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -54,6 +54,17 @@ export function Desktops(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Desktops</FeatureHeaderTitle>
+        {hasDesktops && (
+          <ButtonPrimary
+            as="a"
+            width="240px"
+            target="_blank"
+            href={DOC_URL}
+            rel="noreferrer"
+          >
+            View documentation
+          </ButtonPrimary>
+        )}
       </FeatureHeader>
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
