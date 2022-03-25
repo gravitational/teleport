@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -160,7 +161,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 	// Receive makes sure all events are recevied in the same order as they are sent
 	t.Run("Receive", func(t *testing.T) {
-		chanEmitter := &channelEmitter{eventsCh: make(chan apievents.AuditEvent, len(events))}
+		chanEmitter := eventstest.NewChannelEmitter(len(events))
 		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner: chanEmitter,
 		})
@@ -176,7 +177,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 		for i := 0; i < len(events); i++ {
 			select {
-			case event := <-chanEmitter.eventsCh:
+			case event := <-chanEmitter.C():
 				require.Equal(t, events[i], event)
 			case <-time.After(time.Second):
 				t.Fatalf("timeout at event %v", i)
@@ -243,19 +244,6 @@ type counterEmitter struct {
 func (c *counterEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	c.count.Inc()
 	return nil
-}
-
-type channelEmitter struct {
-	eventsCh chan apievents.AuditEvent
-}
-
-func (c *channelEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case c.eventsCh <- event:
-		return nil
-	}
 }
 
 // TestExport tests export to JSON format.
