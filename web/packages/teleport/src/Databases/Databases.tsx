@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box, Text, Link } from 'design';
+import { Indicator, Box } from 'design';
 import { Danger } from 'design/Alert';
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -58,11 +58,13 @@ export function Databases(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
-        <ButtonAdd
-          isLeafCluster={isLeafCluster}
-          canCreate={canCreate}
-          onClick={showAddDialog}
-        />
+        {hasDatabases && (
+          <ButtonAdd
+            isLeafCluster={isLeafCluster}
+            canCreate={canCreate}
+            onClick={showAddDialog}
+          />
+        )}
       </FeatureHeader>
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -102,23 +104,11 @@ export function Databases(props: State) {
 }
 
 const emptyStateInfo: EmptyStateInfo = {
-  title: 'ADD YOUR FIRST DATABASE',
-  description: (
-    <Text>
-      Consolidate access to databases running behind NAT, prevent data
-      exfiltration, meet compliance requirements, and have complete visibility
-      into access and behavior. Follow{' '}
-      <Link
-        target="_blank"
-        href="https://goteleport.com/docs/database-access/guides/"
-      >
-        the documentation
-      </Link>{' '}
-      to get started.
-    </Text>
-  ),
-  videoLink: 'https://www.youtube.com/watch?v=PCYyTecSzCY',
-  buttonText: 'ADD DATABASE',
+  title: 'Add your first database to Teleport',
+  byline:
+    'Teleport Database Access provides secure access to PostgreSQL, MySQL, MariaDB, MongoDB, Redis, and Microsoft SQL Server.',
+  docsURL: 'https://goteleport.com/docs/database-access/guides/',
+  resourceType: 'database',
   readOnly: {
     title: 'No Databases Found',
     resource: 'databases',

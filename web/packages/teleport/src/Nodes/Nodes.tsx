@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box, Flex, Text } from 'design';
+import { Indicator, Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
 import {
   FeatureBox,
@@ -68,16 +68,16 @@ export function Nodes(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
-        <Flex alignItems="center">
-          {hasNodes && (
+        {hasNodes && (
+          <Flex alignItems="center">
             <QuickLaunch width="280px" onPress={onSshEnter} mr={3} />
-          )}
-          <ButtonAdd
-            isLeafCluster={isLeafCluster}
-            canCreate={canCreate}
-            onClick={showAddNode}
-          />
-        </Flex>
+            <ButtonAdd
+              isLeafCluster={isLeafCluster}
+              canCreate={canCreate}
+              onClick={showAddNode}
+            />
+          </Flex>
+        )}
       </FeatureHeader>
       {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
@@ -108,14 +108,11 @@ export function Nodes(props: State) {
 }
 
 const emptyStateInfo: EmptyStateInfo = {
-  title: 'ADD YOUR FIRST SERVER',
-  description: (
-    <Text>
-      Instant SSH access for engineers with native security and compliance.
-    </Text>
-  ),
-  buttonText: 'ADD SERVER',
-  videoLink: 'https://www.youtube.com/watch?v=tUXYtwP-Kvw',
+  title: 'Add your first server to Teleport',
+  byline:
+    'Teleport Server Access consolidates SSH access across all environments.',
+  docsURL: 'https://goteleport.com/docs/server-access/getting-started/',
+  resourceType: 'server',
   readOnly: {
     title: 'No Servers Found',
     resource: 'servers',

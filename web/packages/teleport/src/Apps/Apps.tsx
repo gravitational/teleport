@@ -16,7 +16,7 @@
 
 import React from 'react';
 import { Danger } from 'design/Alert';
-import { Indicator, Box, Text, Link } from 'design';
+import { Indicator, Box } from 'design';
 import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
@@ -54,11 +54,13 @@ export function Apps(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Applications</FeatureHeaderTitle>
-        <ButtonAdd
-          isLeafCluster={isLeafCluster}
-          canCreate={canCreate}
-          onClick={showAddApp}
-        />
+        {hasApps && (
+          <ButtonAdd
+            isLeafCluster={isLeafCluster}
+            canCreate={canCreate}
+            onClick={showAddApp}
+          />
+        )}
       </FeatureHeader>
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -81,22 +83,11 @@ export function Apps(props: State) {
 }
 
 const emptyStateInfo: EmptyStateInfo = {
-  title: 'ADD YOUR FIRST APPLICATION',
-  description: (
-    <Text>
-      {`Quick access to web applications running behind NAT and firewalls with
-      security and compliance. Follow `}
-      <Link
-        target="_blank"
-        href="https://goteleport.com/docs/application-access/getting-started/"
-      >
-        the documentation
-      </Link>
-      {' to get started.'}
-    </Text>
-  ),
-  videoLink: 'https://www.youtube.com/watch?v=HkBQY-uWIbU',
-  buttonText: 'ADD APPLICATION',
+  title: 'Add your first application to Teleport',
+  byline:
+    'Teleport Application Access provides secure access to internal applications.',
+  docsURL: 'https://goteleport.com/docs/application-access/getting-started/',
+  resourceType: 'application',
   readOnly: {
     title: 'No Applications Found',
     resource: 'applications',

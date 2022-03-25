@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Indicator, Box } from 'design';
+import { Indicator, Box, ButtonPrimary } from 'design';
 import { Danger } from 'design/Alert';
 import useTeleport from 'teleport/useTeleport';
 import {
@@ -23,8 +23,11 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import DesktopList from './DesktopList';
 import useDesktops, { State } from './useDesktops';
+
+const DOC_URL = 'https://goteleport.com/docs/desktop-access/getting-started/';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -38,14 +41,30 @@ export function Desktops(props: State) {
     username,
     clusterId,
     desktops,
+    canCreate,
+    isLeafCluster,
     getWindowsLoginOptions,
     openRemoteDesktopTab,
   } = props;
+
+  const isEmpty = attempt.status === 'success' && desktops.length === 0;
+  const hasDesktops = attempt.status === 'success' && desktops.length > 0;
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Desktops</FeatureHeaderTitle>
+        {hasDesktops && (
+          <ButtonPrimary
+            as="a"
+            width="240px"
+            target="_blank"
+            href={DOC_URL}
+            rel="noreferrer"
+          >
+            View documentation
+          </ButtonPrimary>
+        )}
       </FeatureHeader>
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -53,7 +72,7 @@ export function Desktops(props: State) {
         </Box>
       )}
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      {attempt.status === 'success' && (
+      {hasDesktops && (
         <>
           <DesktopList
             desktops={desktops}
@@ -64,6 +83,25 @@ export function Desktops(props: State) {
           />
         </>
       )}
+      {isEmpty && (
+        <Empty
+          clusterId={clusterId}
+          canCreate={canCreate && !isLeafCluster}
+          emptyStateInfo={emptyStateInfo}
+        />
+      )}
     </FeatureBox>
   );
 }
+
+const emptyStateInfo: EmptyStateInfo = {
+  title: 'Add your first Windows desktop to Teleport',
+  byline:
+    'Teleport Desktop Access provides graphical desktop access to remote Windows hosts.',
+  docsURL: DOC_URL,
+  resourceType: 'desktop',
+  readOnly: {
+    title: 'No Desktops Found',
+    resource: 'desktops',
+  },
+};

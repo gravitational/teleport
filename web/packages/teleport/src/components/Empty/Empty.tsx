@@ -16,29 +16,43 @@ limitations under the License.
 
 import React from 'react';
 
-import { Text, Box, Flex, ButtonPrimary, Link } from 'design';
+import { Text, Box, Flex, ButtonPrimary, ButtonOutlined } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
-import * as Icons from 'design/Icon';
-import empty from './assets';
+
+import application from './assets/appplication.png';
+import database from './assets/database.png';
+import desktop from './assets/desktop.png';
+import stack from './assets/stack.png';
+
+type ResourceType =
+  | 'application'
+  | 'database'
+  | 'desktop'
+  | 'kubernetes'
+  | 'server';
+
+function getAccentImage(resourceType: ResourceType): string {
+  const accentImages = {
+    application: application,
+    database: database,
+    desktop: desktop,
+    kubernetes: stack,
+    server: stack,
+  };
+  return accentImages[resourceType];
+}
 
 export default function Empty(props: Props) {
   const { canCreate, onClick, clusterId, emptyStateInfo } = props;
 
-  const {
-    title,
-    description,
-    buttonText,
-    videoLink,
-    readOnly,
-  } = emptyStateInfo;
+  const { byline, docsURL, resourceType, readOnly, title } = emptyStateInfo;
 
   // always show the welcome for enterprise users who have access to create an app
   if (!canCreate) {
     return (
       <Box
         p={8}
-        mt={4}
         mx="auto"
         maxWidth="664px"
         textAlign="center"
@@ -62,70 +76,68 @@ export default function Empty(props: Props) {
 
   return (
     <Card
-      p={4}
+      p={8}
+      pt={5}
       as={Flex}
-      maxWidth="900px"
       width="100%"
-      mt={4}
       mx="auto"
-      bg="primary.main"
+      bg="primary.light"
+      alignItems="center"
+      justifyContent="center"
     >
-      <Flex
-        as={Link}
-        mr={4}
-        maxWidth="296px"
-        maxHeight="176px"
-        bg="primary.dark"
-        p={4}
-        borderRadius={8}
-        alignItems="center"
-        justifyContent="center"
-        style={{ position: 'relative' }}
-        target="_blank"
-        href={videoLink}
-      >
-        <Image width="220px" src={empty} />
-        <Flex
-          style={{ position: 'absolute' }}
-          flexDirection="column"
-          alignItems="center"
-          mt={3}
-        >
-          <Icons.CirclePlay mb={3} fontSize="64px" />
-          <Text color="text.primary" fontWeight={700}>
-            WATCH THE QUICKSTART
-          </Text>
-        </Flex>
-      </Flex>
-      <Box>
-        <Box mb={4}>
-          <Text typography="h3" mb={2} fontWeight={700} fontSize={14}>
+      <Box maxWidth={600}>
+        <Box mb={4} textAlign="center">
+          <Image
+            src={getAccentImage(resourceType)}
+            ml="auto"
+            mr="auto"
+            mb={4}
+            height="160px"
+          />
+          <Text typography="h5" mb={2} fontWeight={700} fontSize={24}>
             {title}
           </Text>
-          {description}
+          <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
+            {byline}
+          </Text>
         </Box>
-        <ButtonPrimary onClick={onClick} width="224px">
-          {buttonText}
-        </ButtonPrimary>
+        <Box textAlign="center">
+          {onClick && (
+            <ButtonPrimary onClick={onClick} width="224px">
+              Add {resourceType}
+            </ButtonPrimary>
+          )}
+          <ButtonOutlined
+            size="medium"
+            as="a"
+            href={docsURL}
+            target="_blank"
+            width="224px"
+            ml={4}
+            rel="noreferrer"
+          >
+            View Documentation
+          </ButtonOutlined>
+        </Box>
       </Box>
     </Card>
   );
 }
 
 export type EmptyStateInfo = {
-  title: string;
-  description: JSX.Element;
-  buttonText: string;
-  videoLink: string;
+  byline: string;
+  docsURL: string;
+  resourceType: ResourceType;
   readOnly: {
     title: string;
     resource: string;
   };
+  title: string;
 };
 
 export type Props = {
   canCreate: boolean;
-  onClick(): void;
+  onClick?: () => void;
   clusterId: string;
   emptyStateInfo: EmptyStateInfo;
 };

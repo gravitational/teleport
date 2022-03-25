@@ -1,208 +1,136 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`empty state 1`] = `
-.c12 {
+.c5 {
   box-sizing: border-box;
+  max-width: 600px;
 }
 
-.c13 {
+.c6 {
   box-sizing: border-box;
   margin-bottom: 24px;
-}
-
-.c3 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
   text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 240px;
-}
-
-.c3:active {
-  opacity: 0.56;
-}
-
-.c3:hover,
-.c3:focus {
-  background: #651FFF;
-}
-
-.c3:active {
-  background: #354AA4;
-}
-
-.c3:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c17 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 224px;
-}
-
-.c17:active {
-  opacity: 0.56;
-}
-
-.c17:hover,
-.c17:focus {
-  background: #651FFF;
-}
-
-.c17:active {
-  background: #354AA4;
-}
-
-.c17:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
 }
 
 .c10 {
-  display: inline-block;
-  transition: color .3s;
-  margin-bottom: 16px;
-  color: #FFFFFF;
-  font-size: 64px;
+  box-sizing: border-box;
+  text-align: center;
 }
 
-.c5 {
+.c11 {
+  line-height: 1.5;
+  border-radius: 4px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid;
   box-sizing: border-box;
-  max-width: 900px;
-  margin-top: 24px;
+  background-color: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: bold;
+  outline: none;
+  opacity: .56;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all .3s;
+  -webkit-font-smoothing: antialiased;
+  border-color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-left: 24px;
+  width: 224px;
+  border-color: rgba(255,255,255,0.87);
+  color: rgba(255,255,255,0.87);
+}
+
+.c11:hover {
+  opacity: 1;
+}
+
+.c11:active {
+  opacity: .24;
+}
+
+.c11 > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c11:hover,
+.c11:focus {
+  border-color: #FFFFFF;
+  color: #FFFFFF;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c11:hover,
+.c11:focus {
+  border-color: #FFFFFF;
+  color: #FFFFFF;
+}
+
+.c4 {
+  box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
-  padding: 24px;
+  padding: 56px;
+  padding-top: 32px;
   width: 100%;
-  background-color: #1C254D;
+  background-color: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
-.c6 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  margin-right: 24px;
-  padding: 24px;
-  background-color: #111B48;
-}
-
-.c16 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
+.c7 {
+  display: block;
+  outline: none;
+  margin-bottom: 24px;
+  margin-left: auto;
+  margin-right: auto;
+  height: 160px;
 }
 
 .c8 {
-  display: block;
-  outline: none;
-  width: 220px;
-}
-
-.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.87);
-  font-weight: 700;
-}
-
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  font-size: 14px;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  font-size: 24px;
   margin: 0px;
   margin-bottom: 8px;
   font-weight: 700;
 }
 
-.c15 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 14px;
   margin: 0px;
+  font-weight: 400;
 }
 
-.c4 {
+.c3 {
   box-sizing: border-box;
-  max-width: 900px;
-  margin-top: 24px;
   margin-left: auto;
   margin-right: auto;
-  padding: 24px;
+  padding: 56px;
+  padding-top: 32px;
   width: 100%;
-  background-color: #1C254D;
-  display: flex;
-}
-
-.c7 {
-  box-sizing: border-box;
-  max-width: 296px;
-  margin-right: 24px;
-  padding: 24px;
-  max-height: 176px;
-  background-color: #111B48;
-  border-radius: 8px;
+  background-color: #222C59;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.c9 {
-  box-sizing: border-box;
-  margin-top: 16px;
-  display: flex;
-  align-items: center;
-  flex-direction: column;
 }
 
 .c1 {
@@ -258,88 +186,53 @@ exports[`empty state 1`] = `
       >
         Kubernetes
       </div>
-      <a
-        class="c3"
-        href="https://goteleport.com/docs/kubernetes-access/guides"
-        kind="primary"
-        rel="noreferrer"
-        target="_blank"
-        width="240px"
-      >
-        View documentation
-      </a>
     </div>
     <div
-      class="c4 sc-AxirZ c5"
+      class="c3 sc-AxirZ c4"
       width="100%"
     >
-      <a
-        class="c6 c7"
-        href="https://www.youtube.com/watch?v=2diX_UAmJ1c"
-        rel="noreferrer"
-        style="position: relative;"
-        target="_blank"
+      <div
+        class="c5"
       >
-        <img
-          class="c8"
-          src="file_stub"
-          width="220px"
-        />
         <div
-          class="c9"
-          style="position: absolute;"
+          class="c6"
         >
-          <span
-            class="c10 icon icon-play-circle "
-            color="light"
-            font-size="64px"
+          <img
+            class="c7"
+            height="160px"
+            src="file_stub"
           />
           <div
-            class="c11"
-            color="text.primary"
+            class="c8"
+            font-size="24"
             font-weight="700"
           >
-            WATCH THE QUICKSTART
+            Add your first Kubernetes cluster to Teleport
           </div>
-        </div>
-      </a>
-      <div
-        class="c12"
-      >
-        <div
-          class="c13"
-        >
           <div
-            class="c14"
+            class="c9"
             font-size="14"
-            font-weight="700"
+            font-weight="400"
+            style="opacity: 0.6;"
           >
-            ADD YOUR FIRST KUBERNETES CLUSTER
-          </div>
-          <div
-            class="c15"
-          >
-            Fast, secure access to Kubernetes clusters. Follow
-             
-            <a
-              class="c16"
-              href="https://goteleport.com/docs/kubernetes-access/guides"
-              rel="noreferrer"
-              target="_blank"
-            >
-              the documentation
-            </a>
-             
-            to connect your first cluster.
+            Teleport Kubenetes Access provides secure access to Kubernetes clusters.
           </div>
         </div>
-        <button
-          class="c17"
-          kind="primary"
-          width="224px"
+        <div
+          class="c10"
         >
-          VIEW DOCUMENTATION
-        </button>
+          <a
+            class="c11"
+            href="https://goteleport.com/docs/kubernetes-access/guides"
+            rel="noreferrer"
+            target="_blank"
+            width="224px"
+          >
+            <span>
+              View Documentation
+            </span>
+          </a>
+        </div>
       </div>
     </div>
   </div>
@@ -347,7 +240,7 @@ exports[`empty state 1`] = `
 `;
 
 exports[`failed 1`] = `
-.c4 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -364,53 +257,8 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c4 a {
+.c3 a {
   color: #FFFFFF;
-}
-
-.c3 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 240px;
-}
-
-.c3:active {
-  opacity: 0.56;
-}
-
-.c3:hover,
-.c3:focus {
-  background: #651FFF;
-}
-
-.c3:active {
-  background: #354AA4;
-}
-
-.c3:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
 }
 
 .c1 {
@@ -465,19 +313,9 @@ exports[`failed 1`] = `
     >
       Kubernetes
     </div>
-    <a
-      class="c3"
-      href="https://goteleport.com/docs/kubernetes-access/guides"
-      kind="primary"
-      rel="noreferrer"
-      target="_blank"
-      width="240px"
-    >
-      View documentation
-    </a>
   </div>
   <div
-    class="c4"
+    class="c3"
     kind="danger"
   >
     server error
@@ -1017,10 +855,9 @@ exports[`loaded 1`] = `
 `;
 
 exports[`readonly empty state 1`] = `
-.c4 {
+.c3 {
   box-sizing: border-box;
   max-width: 664px;
-  margin-top: 24px;
   margin-left: auto;
   margin-right: auto;
   padding: 56px;
@@ -1030,52 +867,7 @@ exports[`readonly empty state 1`] = `
   border-radius: 12px;
 }
 
-.c3 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  width: 240px;
-}
-
-.c3:active {
-  opacity: 0.56;
-}
-
-.c3:hover,
-.c3:focus {
-  background: #651FFF;
-}
-
-.c3:active {
-  background: #354AA4;
-}
-
-.c3:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c5 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -1085,13 +877,13 @@ exports[`readonly empty state 1`] = `
   margin-bottom: 16px;
 }
 
-.c6 {
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c7 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1151,34 +943,24 @@ exports[`readonly empty state 1`] = `
       >
         Kubernetes
       </div>
-      <a
-        class="c3"
-        href="https://goteleport.com/docs/kubernetes-access/guides"
-        kind="primary"
-        rel="noreferrer"
-        target="_blank"
-        width="240px"
-      >
-        View documentation
-      </a>
     </div>
     <div
-      class="c4"
+      class="c3"
       color="text.primary"
     >
       <div
-        class="c5"
+        class="c4"
       >
         No Kubernetes Clusters Found
       </div>
       <div
-        class="c6"
+        class="c5"
       >
         Either there are no 
         kubernetes clusters
          in the "
         <span
-          class="c7"
+          class="c6"
         >
           im-a-cluster
         </span>

@@ -19,7 +19,7 @@ import styled from 'styled-components';
 import { space, width } from 'design/system';
 import defaultTheme from 'design/theme';
 
-const ButtonOutlined = ({ children, setRef, ...props }) => {
+const ButtonOutlined = ({ children, setRef, ...props } = {setRef: undefined}) => {
   return (
     <StyledButton {...props} ref={setRef}>
       <span>{children}</span>
