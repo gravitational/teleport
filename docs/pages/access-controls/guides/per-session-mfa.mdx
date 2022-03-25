@@ -12,10 +12,12 @@ security feature that protects users against compromises of their on-disk
 Teleport certificates.
 
 <Admonition type="note">
-  Per-session MFA checks don't apply to regular Teleport logins (`tsh login` or
-  logging into the Web UI). We encourage you to enable login MFA in your SSO
-  provider and/or for all [local Teleport
-  users](../../setup/reference/authentication.mdx#local).
+
+  In addition to per-session MFA, enable login MFA in your SSO provider and/or
+  for all [local Teleport
+  users](../../setup/reference/authentication.mdx#local-no-authentication-connector)
+  to improve security.
+
 </Admonition>
 
 <Admonition type="warning">
@@ -34,6 +36,20 @@ Teleport certificates.
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH from the Teleport Web UI)
+
+<Admonition type="note" title="Per-session MFA with FIPS">
+Teleport FIPS builds disable local users. To configure WebAuthn in order to use
+per-session MFA with FIPS builds, provide the following in your `teleport.yaml`:
+
+```yaml
+teleport:
+  auth_service:
+    local_auth: false
+    second_factor: optional
+    webauthn:
+      rp_id: teleport.example.com
+```
+</Admonition>
 
 ## Configuration
 
