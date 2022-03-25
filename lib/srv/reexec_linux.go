@@ -70,6 +70,9 @@ func reexecCommandOSTweaks(cmd *exec.Cmd) {
 	// to children.
 	cmd.SysProcAttr.Pdeathsig = syscall.SIGQUIT
 
+	// replace the path on disk (which might not exist, or refer to an
+	// upgraded version of teleport) with reexecPath, which contains
+	// some path that refers to the specific binary we're running
 	if reexecPath != "" {
 		cmd.Path = reexecPath
 	}
