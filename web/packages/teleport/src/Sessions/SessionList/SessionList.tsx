@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import styled from 'styled-components';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import cfg from 'teleport/config';
@@ -25,7 +26,7 @@ export default function SessionList(props: Props) {
   const { sessions, pageSize = 100 } = props;
 
   return (
-    <Table
+    <StyledTable
       data={sessions}
       columns={[
         {
@@ -127,3 +128,9 @@ function participantMatcher(
     });
   }
 }
+
+const StyledTable = styled(Table)`
+  tbody > tr > td {
+    vertical-align: middle;
+  }
+` as typeof Table;
