@@ -476,6 +476,7 @@ func Run(args []string, opts ...cliOption) error {
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
 	dbList.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	dbList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	dbList.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
 	dbList.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
@@ -1575,7 +1576,27 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	}
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
+func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, format string, verbose bool) error {
+	switch strings.ToLower(format) {
+	case teleport.Text:
+		showDatabasesAsText(clusterFlag, databases, active, verbose)
+	case teleport.JSON:
+		data := struct {
+			Active    []tlsca.RouteToDatabase `json:"active"`
+			Databases []types.Database        `json:"databases"`
+		}{active, databases}
+		out, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+	}
+	return nil
+}
+
+func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
 		for _, database := range databases {

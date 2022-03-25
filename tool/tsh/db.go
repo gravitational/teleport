@@ -61,8 +61,7 @@ func onListDatabases(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	showDatabases(cf.SiteName, databases, activeDatabases, cf.Verbose)
-	return nil
+	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, cf.Format, cf.Verbose))
 }
 
 // onDatabaseLogin implements "tsh db login" command.
