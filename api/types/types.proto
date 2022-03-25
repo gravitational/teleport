@@ -2793,6 +2793,8 @@ message WindowsDesktopServiceSpecV3 {
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
     // TeleportVersion is teleport binary version running this service.
     string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
+    // Hostname is the desktop service hostname.
+    string Hostname = 3 [ (gogoproto.jsontag) = "hostname" ];
 }
 
 // WindowsDesktopFilter are filters to apply when searching for windows desktops.
