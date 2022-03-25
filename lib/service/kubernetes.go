@@ -20,6 +20,9 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
@@ -29,8 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 func (process *TeleportProcess) initKubernetes() {
@@ -57,7 +58,7 @@ func (process *TeleportProcess) initKubernetes() {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
 
-		//process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
+		process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
 		err := process.initKubernetesService(log, conn)
 		if err != nil {
 			warnOnErr(conn.Close(), log)
