@@ -2325,7 +2325,7 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	}
 
 	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
-	client, err := makeProxySSHClientDirect(tc, sshConfig)
+	client, err := makeProxySSHClientDirect(tc, sshConfig, sshProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
 	}
@@ -2333,9 +2333,9 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	return client, nil
 }
 
-func makeProxySSHClientDirect(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+func makeProxySSHClientDirect(tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
 	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr)
-	return dialer.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
+	return dialer.Dial("tcp", proxyAddr, sshConfig)
 }
 
 func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
@@ -2347,6 +2347,28 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
 	return dialer.Dial("tcp", proxyAddr, sshConfig)
+}
+
+func makeProxySSHClientWithTLSWrapper2(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
+	cfg := tc.Config
+	clientTLSConf, err := tc.loadTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
+
+	tlsConn, err := tls.Dial("tcp", proxyAddr, clientTLSConf)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to dial tls %v", proxyAddr)
+	}
+	c, chans, reqs, err := ssh.NewClientConn(tlsConn, proxyAddr, sshConfig)
+	if err != nil {
+		// tlsConn is closed inside ssh.NewClientConn function
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", proxyAddr)
+	}
+	return ssh.NewClient(c, chans, reqs), nil
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {
@@ -3308,8 +3330,12 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusters := []string{rootCluster}
+	if tc.SiteName != "" && rootCluster != tc.SiteName {
+		clusters = append(clusters, tc.SiteName)
+	}
 
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{rootCluster})
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
