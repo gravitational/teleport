@@ -402,7 +402,4 @@ type ListResourcesResponse struct {
 	NextKey string
 	// TotalCount is the total number of resources available as a whole.
 	TotalCount int
-	// HasResources is a flag that indicates if a user has any
-	// resource to access before filter is applied.
-	HasResources bool
 }

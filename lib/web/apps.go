@@ -76,9 +76,8 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Identity:          identity,
 			Apps:              types.DeduplicateApps(apps),
 		}),
-		StartKey:     resp.NextKey,
-		TotalCount:   resp.TotalCount,
-		HasResources: resp.HasResources,
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 

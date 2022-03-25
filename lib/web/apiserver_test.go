@@ -750,10 +750,9 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 }
 
 type clusterNodesGetResponse struct {
-	Items        []ui.Server `json:"items"`
-	StartKey     string      `json:"startKey"`
-	TotalCount   int         `json:"totalCount"`
-	HasResources bool        `json:"hasResources"`
+	Items      []ui.Server `json:"items"`
+	StartKey   string      `json:"startKey"`
+	TotalCount int         `json:"totalCount"`
 }
 
 func TestClusterNodesGet(t *testing.T) {
@@ -773,7 +772,6 @@ func TestClusterNodesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
 	require.Len(t, nodes.Items, 1)
 	require.Equal(t, 1, nodes.TotalCount)
-	require.True(t, nodes.HasResources)
 
 	// Get nodes using shortcut.
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
@@ -2026,53 +2024,6 @@ func TestTokenGeneration(t *testing.T) {
 	}
 }
 
-func TestClusterDesktopsGet(t *testing.T) {
-	env := newWebPack(t, 1)
-
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
-
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "desktops")
-
-	type testResponse struct {
-		Items        []ui.Desktop `json:"items"`
-		TotalCount   int          `json:"totalCount"`
-		HasResources bool         `json:"hasResources"`
-	}
-
-	// No desktops registered.
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
-	require.NoError(t, err)
-	resp := testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Empty(t, resp.Items)
-	require.Empty(t, resp.TotalCount)
-	require.Empty(t, resp.HasResources)
-
-	// Register a desktop.
-	desktop, err := types.NewWindowsDesktopV3("foo", map[string]string{"test-field": "test-value"}, types.WindowsDesktopSpecV3{
-		Addr:   "bar",
-		HostID: "baz",
-	})
-	require.NoError(t, err)
-	require.NoError(t, env.server.Auth().UpsertWindowsDesktop(context.Background(), desktop))
-
-	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
-	require.NoError(t, err)
-
-	resp = testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 1)
-	require.True(t, resp.HasResources)
-	require.Equal(t, resp.TotalCount, 1)
-	require.EqualValues(t, ui.Desktop{
-		OS:     constants.WindowsOS,
-		Name:   "foo",
-		Addr:   "bar",
-		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
-	}, resp.Items[0])
-}
-
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
@@ -2084,17 +2035,15 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	type testResponse struct {
-		Items        []ui.Database `json:"items"`
-		TotalCount   int           `json:"totalCount"`
-		HasResources bool          `json:"hasResources"`
+		Items      []ui.Database `json:"items"`
+		TotalCount int           `json:"totalCount"`
 	}
 
 	// No db registered.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Empty(t, resp.Items)
-	require.Empty(t, resp.TotalCount)
-	require.False(t, resp.HasResources)
+	require.Len(t, resp.Items, 0)
+
 	// Register a database.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:   "test-db-name",
@@ -2118,7 +2067,6 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
 	require.Equal(t, 1, resp.TotalCount)
-	require.True(t, resp.HasResources)
 	require.EqualValues(t, ui.Database{
 		Name:     "test-db-name",
 		Desc:     "test-description",
@@ -2139,17 +2087,14 @@ func TestClusterKubesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	type testResponse struct {
-		Items        []ui.KubeCluster `json:"items"`
-		TotalCount   int              `json:"totalCount"`
-		HasResources bool             `json:"hasResources"`
+		Items      []ui.KubeCluster `json:"items"`
+		TotalCount int              `json:"totalCount"`
 	}
 
 	// No kube registered.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Empty(t, resp.Items)
-	require.Empty(t, resp.TotalCount)
-	require.Empty(t, resp.HasResources)
+	require.Len(t, resp.Items, 0)
 
 	// Register a kube service.
 	_, err = env.server.Auth().UpsertKubeServiceV2(context.Background(), &types.ServerV2{
@@ -2179,7 +2124,6 @@ func TestClusterKubesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
 	require.Equal(t, 1, resp.TotalCount)
-	require.True(t, resp.HasResources)
 	require.EqualValues(t, ui.KubeCluster{
 		Name:   "test-kube-name",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -2193,19 +2137,9 @@ func TestClusterAppsGet(t *testing.T) {
 	pack := proxy.authPack(t, "test-user@example.com")
 
 	type testResponse struct {
-		Items        []ui.App `json:"items"`
-		TotalCount   int      `json:"totalCount"`
-		HasResources bool     `json:"hasResources"`
+		Items      []ui.App `json:"items"`
+		TotalCount int      `json:"totalCount"`
 	}
-
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
-	require.NoError(t, err)
-	resp := testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Empty(t, resp.Items)
-	require.Empty(t, resp.TotalCount)
-	require.Empty(t, resp.HasResources)
 
 	resource := &types.AppServerV3{
 		Metadata: types.Metadata{Name: "test-app"},
@@ -2228,19 +2162,19 @@ func TestClusterAppsGet(t *testing.T) {
 	}
 
 	// Register a app service.
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
+	_, err := env.server.Auth().UpsertApplicationServer(context.Background(), resource)
 	require.NoError(t, err)
 
 	// Make the call.
-	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
 	// Test correct response.
-	resp = testResponse{}
+	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
 	require.Equal(t, 1, resp.TotalCount)
-	require.True(t, resp.HasResources)
 	require.EqualValues(t, ui.App{
 		Name:        resource.Spec.App.GetName(),
 		Description: resource.Spec.App.GetDescription(),
