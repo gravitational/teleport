@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
+	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -3380,6 +3381,12 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	tconf := s.rotationConfig(true)
 	config, err := t.GenerateConfig(nil, tconf)
 	c.Assert(err, check.IsNil)
+
+	// Enable Kubernetes service to test issue where the `KubernetesReady` event was not properly propagated
+	// and in the case where Kube service was enabled cert rotation flow was broken.
+	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
+	enableKubernetesService(c, config)
+	defer kubeproxy.TestOnlySkipSelfPermissionCheck(false)
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
