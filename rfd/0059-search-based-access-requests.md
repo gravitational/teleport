@@ -38,7 +38,8 @@ The existing “role-based” access requests and the new “search-based” acc
 requests proposed here are useful for two different scenarios:
 
 - Sometimes it is helpful to request elevated roles in the system, like
-  `db-admin`, to perform some system upgrades, or system wide-troubleshooting.
+  `db-admin`. For example, Alice may need to run a Ansible playbook on all
+  machines in a given class, or perform some system upgrades or troubleshooting.
   In this case, role-based access requests work great.
 
 - In other cases, it’s helpful to request access to a subset of resources. In
