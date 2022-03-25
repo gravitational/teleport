@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package grpc implements a gRPC API that calls another service that
+// Package grpcclient implements a gRPC API that calls another service that
 // implements the Teleport backend requirements.
 package grpcclient
