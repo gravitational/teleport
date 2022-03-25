@@ -743,7 +743,6 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
-
 	defaultSettings, err := defaultAuthenticationSettings(r.Context(), h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
