@@ -2349,28 +2349,6 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	return dialer.Dial("tcp", proxyAddr, sshConfig)
 }
 
-func makeProxySSHClientWithTLSWrapper2(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
-	cfg := tc.Config
-	clientTLSConf, err := tc.loadTLSConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
-
-	tlsConn, err := tls.Dial("tcp", proxyAddr, clientTLSConf)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to dial tls %v", proxyAddr)
-	}
-	c, chans, reqs, err := ssh.NewClientConn(tlsConn, proxyAddr, sshConfig)
-	if err != nil {
-		// tlsConn is closed inside ssh.NewClientConn function
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", proxyAddr)
-	}
-	return ssh.NewClient(c, chans, reqs), nil
-}
-
 func (tc *TeleportClient) rootClusterName() (string, error) {
 	if tc.localAgent == nil {
 		return "", trace.NotFound("cannot load root cluster name without local agent")
