@@ -35,7 +35,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 // TestProtoStreamer tests edge cases of proto streamer implementation
@@ -139,14 +138,13 @@ func TestWriterEmitter(t *testing.T) {
 }
 
 func TestAsyncEmitter(t *testing.T) {
-	clock := clockwork.NewRealClock()
 	events := GenerateTestSession(SessionParams{PrintEvents: 20})
 
 	// Slow tests that async emitter does not block
 	// on slow emitters
 	t.Run("Slow", func(t *testing.T) {
 		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
-			Inner: &slowEmitter{clock: clock, timeout: time.Hour},
+			Inner: eventstest.NewSlowEmitter(time.Hour),
 		})
 		require.NoError(t, err)
 		defer emitter.Close()
@@ -187,7 +185,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 	// Close makes sure that close cancels operations and context
 	t.Run("Close", func(t *testing.T) {
-		counter := &counterEmitter{count: atomic.NewInt64(0)}
+		counter := eventstest.NewCountingEmitter()
 		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner:      counter,
 			BufferSize: len(events),
@@ -207,7 +205,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 		// context will not wait until all events have been submitted
 		emitter.Close()
-		require.True(t, int(counter.count.Load()) <= len(events))
+		require.True(t, int(counter.Count()) <= len(events))
 
 		// make sure context is done to prevent context leaks
 		select {
@@ -225,25 +223,6 @@ func TestAsyncEmitter(t *testing.T) {
 			}
 		}
 	})
-}
-
-type slowEmitter struct {
-	clock   clockwork.Clock
-	timeout time.Duration
-}
-
-func (s *slowEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	<-s.clock.After(s.timeout)
-	return nil
-}
-
-type counterEmitter struct {
-	count *atomic.Int64
-}
-
-func (c *counterEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	c.count.Inc()
-	return nil
 }
 
 // TestExport tests export to JSON format.
