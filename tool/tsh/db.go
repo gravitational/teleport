@@ -17,12 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"sort"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -213,9 +215,22 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for k, v := range env {
-		fmt.Printf("export %v=%v\n", k, v)
+
+	switch strings.ToLower(cf.Format) {
+	case teleport.Text:
+		for k, v := range env {
+			fmt.Printf("export %v=%v\n", k, v)
+		}
+	case teleport.JSON:
+		out, err := json.MarshalIndent(env, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
 	}
+
 	return nil
 }
 
