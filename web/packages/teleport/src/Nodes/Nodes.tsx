@@ -108,7 +108,7 @@ export function Nodes(props: State) {
 }
 
 const emptyStateInfo: EmptyStateInfo = {
-  title: 'Add your first Linux server to Teleport',
+  title: 'Add your first server to Teleport',
   byline:
     'Teleport Server Access consolidates SSH access across all environments.',
   docsURL: 'https://goteleport.com/docs/server-access/getting-started/',

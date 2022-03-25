@@ -25,14 +25,14 @@ import database from './assets/database.png';
 import desktop from './assets/desktop.png';
 import stack from './assets/stack.png';
 
-type ResourceTypes =
+type ResourceType =
   | 'application'
   | 'database'
   | 'desktop'
   | 'kubernetes'
   | 'server';
 
-function getAccentImage(resourceType: ResourceTypes): string {
+function getAccentImage(resourceType: ResourceType): string {
   const accentImages = {
     application: application,
     database: database,
@@ -127,7 +127,7 @@ export default function Empty(props: Props) {
 export type EmptyStateInfo = {
   byline: string;
   docsURL: string;
-  resourceType: ResourceTypes;
+  resourceType: ResourceType;
   readOnly: {
     title: string;
     resource: string;
