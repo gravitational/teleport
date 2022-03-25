@@ -924,6 +924,8 @@ type CertAuthorityWatcherConfig struct {
 	WatchHostCA bool
 	// WatchUserCA indicates that the watcher should monitor types.UserCA
 	WatchUserCA bool
+
+	WatchDatabaseCA bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -1010,6 +1012,17 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 		}
 	}
 
+	if c.WatchDatabaseCA {
+		user, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.DatabaseCA, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newUser = make(map[string]types.CertAuthority, len(user))
+		for _, ca := range user {
+			newUser[ca.GetName()] = ca
+		}
+	}
+
 	c.lock.Lock()
 	c.host = newHost
 	c.user = newUser
@@ -1039,6 +1052,9 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 		if c.WatchUserCA && event.Resource.GetSubKind() == string(types.UserCA) {
 			delete(c.user, event.Resource.GetName())
 		}
+		if c.WatchDatabaseCA && event.Resource.GetSubKind() == string(types.DatabaseCA) {
+			delete(c.user, event.Resource.GetName())
+		}
 
 		select {
 		case <-ctx.Done():
@@ -1055,6 +1071,9 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			c.host[ca.GetName()] = ca
 		}
 		if c.WatchUserCA && ca.GetType() == types.UserCA {
+			c.user[ca.GetName()] = ca
+		}
+		if c.WatchDatabaseCA && ca.GetType() == types.DatabaseCA {
 			c.user[ca.GetName()] = ca
 		}
 

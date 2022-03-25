@@ -742,9 +742,10 @@ func TestCertAuthorityWatcher(t *testing.T) {
 				Events: local.NewEventsService(bk),
 			},
 		},
-		CertAuthorityC: make(chan []types.CertAuthority, 10),
-		WatchUserCA:    true,
-		WatchHostCA:    true,
+		CertAuthorityC:  make(chan []types.CertAuthority, 10),
+		WatchUserCA:     true,
+		WatchHostCA:     true,
+		WatchDatabaseCA: true,
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
