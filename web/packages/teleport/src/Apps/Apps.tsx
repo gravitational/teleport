@@ -54,7 +54,7 @@ export function Apps(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Applications</FeatureHeaderTitle>
-        {!isEmpty && attempt.status !== 'processing' && (
+        {hasApps && (
           <ButtonAdd
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}

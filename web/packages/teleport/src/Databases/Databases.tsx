@@ -58,7 +58,7 @@ export function Databases(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
-        {!hasDatabases && attempt.status !== 'processing' && (
+        {hasDatabases && (
           <ButtonAdd
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
