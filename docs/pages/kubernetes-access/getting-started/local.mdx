@@ -18,15 +18,18 @@ While it is possible to expose the dashboard outside the cluster using the
 `kubectl proxy` command, in our demo the dashboard will only be accessible via
 Teleport.
 
-The **Teleport Auth Service** is the certificate authority for your cluster. It
-issues certificates and conducts authentication challenges. The **Teleport Proxy
-Service** is the cluster frontend, and handles user requests, forwards user
-credentials to the Auth Service, and communicates with other Teleport
-instances—called **Nodes**—that enable access to your infrastructure.
+We will deploy the following Teleport components:
 
-In our demo, one Node is a pod that runs Teleport's Application Service to
-enable access to Kubernetes Dashboard for authorized end-users. A second pod
-runs the Teleport Auth Service and Proxy Service.
+- **Teleport Auth Service:** The certificate authority for your cluster. It
+issues certificates and conducts authentication challenges. 
+- **Teleport Proxy Service:** The cluster frontend, which handles user requests,
+  forwards user credentials to the Auth Service, and communicates with Teleport
+  instances that enable access to specific resources in your infrastructure.
+- **Teleport Application Service:** Enables access to Kubernetes Dashboard for
+  authorized end-users. 
+  
+One pod will run the Auth Service and Proxy Service, and a second pod will run
+the Application Service.
 
 ## Prerequisites
 
@@ -225,7 +228,7 @@ In the Teleport Web UI, enter a password and scan the QR code with your OTP
 application to create your user.
 
 <Details title="Don't want to use MFA in your local demo?" opened={false}>
-We recommend requiring a second factor for all Teleport users. However, for
+We recommend requiring MFA for all Teleport users. However, for
 convenience while setting up your local demo, you can run the following command
 to create a dynamic configuration resource that disables MFA for your demo user:
 
@@ -270,18 +273,18 @@ This token will expire in 60 minutes.
 ...
 ```
 
-Copy the join token so you can assign it to `JOIN_TOKEN` below, then launch the
+Copy the invite token so you can assign it to `INVITE_TOKEN` below, then launch the
 Teleport Application service:
 
 ```code
 # If you need to retrieve this again you can run "tctl tokens ls"
-$ JOIN_TOKEN=<token>
+$ INVITE_TOKEN=<token>
 $ PROXY_ADDR="$(kubectl get service teleport-cluster -o jsonpath="{.spec.clusterIP}"):443"
 $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --namespace teleport-cluster \
   --set roles=app \
   --set proxyAddr=${PROXY_ADDR?} \
-  --set authToken=${JOIN_TOKEN?} \
+  --set authToken=${INVITE_TOKEN?} \
   --set "apps[0].name"="kube-dash" \
   --set "apps[0].uri"=https://${DASH_ADDR?} \
   --set insecureSkipProxyTLSVerify=true
