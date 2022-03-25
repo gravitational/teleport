@@ -42,10 +42,13 @@ module.exports = {
     development: {
       plugins: [
         ...plugins,
-        'babel-plugin-styled-components',
+        ['babel-plugin-styled-components', { displayName: true, ssr: false }],
       ],
     },
   },
   presets: makePresents(),
-  plugins,
+  plugins: [
+    ...plugins,
+    ['babel-plugin-styled-components', { displayName: false, ssr: false }],
+  ],
 };

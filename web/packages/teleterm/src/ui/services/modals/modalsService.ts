@@ -80,8 +80,8 @@ export interface DialogClusterConnect {
   onSuccess?(clusterUri: string): void;
 }
 
-export interface DialogClusterRemove {
-  kind: 'cluster-remove';
+export interface DialogClusterLogout {
+  kind: 'cluster-logout';
   clusterUri: string;
   clusterTitle: string;
 }
@@ -90,4 +90,4 @@ export type Dialog =
   | DialogBase
   | DialogClusterConnect
   | DialogNewGateway
-  | DialogClusterRemove;
+  | DialogClusterLogout;

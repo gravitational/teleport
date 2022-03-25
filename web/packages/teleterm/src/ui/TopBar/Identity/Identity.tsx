@@ -6,7 +6,7 @@ import { useIdentity } from './useIdentity';
 import { IdentityList } from './IdentityList/IdentityList';
 import { IdentitySelector } from './IdentitySelector/IdentitySelector';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
-import { EmptyIdentityList } from './EmptyIdentityList';
+import { EmptyIdentityList } from './EmptyIdentityList/EmptyIdentityList';
 
 export function Identity() {
   const selectorRef = useRef<HTMLButtonElement>();
@@ -16,7 +16,6 @@ export function Identity() {
     rootClusters,
     changeRootCluster,
     logout,
-    removeCluster,
     addCluster,
   } = useIdentity();
 
@@ -41,7 +40,7 @@ export function Identity() {
         onClick={togglePopover}
         isOpened={isPopoverOpened}
         userName={loggedInUser?.name}
-        hostName={activeRootCluster?.name}
+        clusterName={activeRootCluster?.name}
       />
       <Popover
         open={isPopoverOpened}
@@ -57,7 +56,6 @@ export function Identity() {
               clusters={rootClusters}
               onSelectCluster={changeRootCluster}
               onLogout={logout}
-              onRemoveCluster={removeCluster}
               onAddCluster={addCluster}
             />
           ) : (
@@ -86,6 +84,4 @@ const focusGrabber = (
 
 const Container = styled(Box)`
   background: ${props => props.theme.colors.primary.dark};
-  width: 280px;
-  padding: 12px 0;
 `;

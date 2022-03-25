@@ -3,11 +3,12 @@ import React, { forwardRef } from 'react';
 import { Box, Text } from 'design';
 import styled from 'styled-components';
 import { UserIcon } from './UserIcon';
+import { PamIcon } from './PamIcon';
 
 interface IdentitySelectorProps {
   isOpened: boolean;
   userName: string;
-  hostName: string;
+  clusterName: string;
 
   onClick(): void;
 }
@@ -16,22 +17,28 @@ export const IdentitySelector = forwardRef<
   HTMLButtonElement,
   IdentitySelectorProps
 >((props, ref) => {
-  const text =
-    props.userName && props.hostName
-      ? `${props.userName}@${props.hostName}`
-      : 'Select Root Cluster';
+  const isSelected = props.userName && props.clusterName;
+  const text = isSelected && `${props.userName}@${props.clusterName}`;
   const Icon = props.isOpened ? SortAsc : SortDesc;
 
   return (
     <Container isOpened={props.isOpened} ref={ref} onClick={props.onClick}>
-      {props.userName && (
-        <Box mr={2}>
-          <UserIcon letter={props.userName[0]} />
-        </Box>
+      {isSelected ? (
+        <>
+          <Box mr={2}>
+            <UserIcon letter={props.userName[0]} />
+          </Box>
+          <Text
+            style={{ whiteSpace: 'nowrap' }}
+            typography="subtitle1"
+            title={text}
+          >
+            {text}
+          </Text>
+        </>
+      ) : (
+        <PamIcon />
       )}
-      <Text style={{ whiteSpace: 'nowrap' }} typography="subtitle1" title={text}>
-        {text}
-      </Text>
       <Icon ml={2} />
     </Container>
   );
@@ -47,7 +54,7 @@ const Container = styled.button`
   flex-direction: row;
   padding: 0 12px;
   height: 100%;
-  max-width: 220px;
+  min-width: 0;
   border-radius: 4px;
   border-width: 1px;
   border-style: solid;

@@ -22,7 +22,13 @@ export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
         isClusterSelected={!!props.clusterName}
         title={text}
       >
-        <Text css={{ whiteSpace: 'nowrap' }}>{text}</Text>
+        <Text
+          css={`
+            white-space: nowrap;
+          `}
+        >
+          {text}
+        </Text>
         <SortIcon fontSize={12} ml={3} />
       </Container>
     );
@@ -42,7 +48,7 @@ const Container = styled.button`
   justify-content: space-between;
   align-items: center;
   padding: 0 12px;
-  opacity: ${props => props.isClusterSelected ? 1 : 0.6};
+  opacity: ${props => (props.isClusterSelected ? 1 : 0.6)};
   cursor: pointer;
 
   &:hover,

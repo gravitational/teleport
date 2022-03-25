@@ -17,7 +17,7 @@
 import React from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import GatewayCreate from 'teleterm/ui/GatewayCreate';
-import ClusterRemove from '../ClusterRemove/ClusterRemove';
+import ClusterLogout from '../ClusterLogout/ClusterLogout';
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 
 export default function ModalsHost() {
@@ -36,9 +36,9 @@ export default function ModalsHost() {
     );
   }
 
-  if (dialog.kind === 'cluster-remove') {
+  if (dialog.kind === 'cluster-logout') {
     return (
-      <ClusterRemove
+      <ClusterLogout
         clusterUri={dialog.clusterUri}
         clusterTitle={dialog.clusterTitle}
         onClose={handleClose}

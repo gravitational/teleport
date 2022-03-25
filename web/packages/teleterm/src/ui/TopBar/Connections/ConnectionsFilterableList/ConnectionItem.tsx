@@ -43,7 +43,10 @@ export function ConnectionItem(props: ConnectionItemProps) {
     <ListItem
       onClick={props.onActivate}
       isActive={isActive}
-      css={{ padding: '6px 8px', height: 'unset' }}
+      css={`
+        padding: 6px 8px;
+        height: unset;
+      `}
     >
       <ConnectionStatusIndicator mr={3} connected={props.item.connected} />
       <Flex
@@ -59,20 +62,25 @@ export function ConnectionItem(props: ConnectionItemProps) {
             bold
             color="text.primary"
             title={props.item.title}
-            css={{ lineHeight: '16px', whiteSpace: 'normal' }}
+            css={`
+              line-height: 16px;
+              white-space: normal;
+            `}
           >
             {props.item.title}
           </Text>
           <Text
             color="text.secondary"
             typography="body2"
-            css={{ whiteSpace: 'normal' }}
+            css={`
+              white-space: normal;
+            `}
           >
             {props.item.clusterName}
           </Text>
         </Flex>
         <ButtonIcon
-          mr="-10px"
+          mr="-3px"
           color="text.placeholder"
           title={actionIcon.title}
           onClick={e => {
