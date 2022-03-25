@@ -38,6 +38,8 @@ var ErrReaderClosed = errors.New("ContextReader has been closed")
 // readers.
 var ErrNotTerminal = errors.New("underlying reader is not a terminal")
 
+const bufferSize = 4096
+
 type readOutcome struct {
 	value []byte
 	err   error
@@ -157,7 +159,6 @@ func (cr *ContextReader) processReads() {
 		var err error
 		switch state {
 		case readerStateClean:
-			const bufferSize = 4096
 			value = make([]byte, bufferSize)
 			var n int
 			n, err = cr.reader.Read(value)
