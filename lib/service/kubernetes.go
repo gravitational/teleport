@@ -57,6 +57,7 @@ func (process *TeleportProcess) initKubernetes() {
 			return trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
 
+		//process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
 		err := process.initKubernetesService(log, conn)
 		if err != nil {
 			warnOnErr(conn.Close(), log)
