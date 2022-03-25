@@ -46,6 +46,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const eventBufferSize = 1024
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
@@ -165,7 +167,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.eventsC = make(chan Event, 100)
+	p.eventsC = make(chan Event, eventBufferSize)
 
 	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
 	if err != nil {
@@ -2332,6 +2334,10 @@ func TestRelativeExpiry(t *testing.T) {
 	const checkInterval = time.Second
 	const nodeCount = int64(100)
 
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
+
 	ctx := context.Background()
 
 	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
@@ -2350,7 +2356,10 @@ func TestRelativeExpiry(t *testing.T) {
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
-		// Check that information has been replicated to the cache.
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := int64(0); i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
