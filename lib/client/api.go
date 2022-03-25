@@ -29,20 +29,17 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/signal"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -2601,7 +2598,7 @@ type pwdlessPrompt struct {
 }
 
 func (p *pwdlessPrompt) PromptPIN() (string, error) {
-	return ReadPassword(p.ctx, p.out, "Enter your security key PIN:")
+	return prompt.Password(p.ctx, p.out, prompt.Stdin(), "Enter your security key PIN")
 }
 
 func (p *pwdlessPrompt) PromptAdditionalTouch() error {
@@ -2893,7 +2890,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		// use might enter at the prompt. Whatever the user enters will
 		// be simply discarded, and the user can still CTRL+C out if they
 		// disagree.
-		_, err := PasswordFromConsole(context.Background())
+		_, err := prompt.Stdin().ReadPassword(context.Background())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3226,28 +3223,14 @@ func Username() (string, error) {
 
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP() (token string, err error) {
-	return ReadPassword(context.Background(), tc.Stderr, "Enter your OTP token:")
+	return prompt.Password(context.Background(), tc.Stderr, prompt.Stdin(), "Enter your OTP token")
 }
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
-	return ReadPassword(context.Background(), tc.Stderr, fmt.Sprintf("Enter password for Teleport user %v:", tc.Config.Username))
-}
-
-// ReadPassword reads a password-like string from stdin.
-// out is used to write user prompts.
-// question is the prompt question, without a newline at the end. An empty
-// question prints nothing to out.
-func ReadPassword(ctx context.Context, out io.Writer, question string) (string, error) {
-	if question != "" {
-		fmt.Fprintln(out, question)
-	}
-	pwd, err := PasswordFromConsole(ctx)
-	if err != nil {
-		fmt.Fprintln(out, err)
-		return "", trace.Wrap(err)
-	}
-	return pwd, nil
+	return prompt.Password(
+		context.Background(), tc.Stderr, prompt.Stdin(),
+		fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
 }
 
 // DELETE IN: 4.1.0
@@ -3317,39 +3300,6 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
 	return tlsConfig, nil
-}
-
-// PasswordFromConsole reads from stdin without echoing typed characters to
-// stdout.
-// The var declaration allows tests to mock the console interaction.
-var PasswordFromConsole = passwordFromConsole
-
-// passwordFromConsole reads from stdin without echoing typed characters to
-// stdout.
-func passwordFromConsole(ctx context.Context) (string, error) {
-	fd := int(os.Stdin.Fd())
-	state, err := term.GetState(fd)
-
-	// intercept Ctr+C and restore terminal
-	sigCh := make(chan os.Signal, 1)
-	closeCh := make(chan int)
-	if err != nil {
-		log.Warnf("failed reading terminal state: %v", err)
-	} else {
-		signal.Notify(sigCh, syscall.SIGINT)
-		go func() {
-			select {
-			case <-sigCh:
-				_ = term.Restore(fd, state)
-				os.Exit(1)
-			case <-closeCh:
-			}
-		}()
-	}
-	defer close(closeCh)
-
-	bytes, err := prompt.Stdin().ReadPassword(ctx)
-	return string(bytes), err
 }
 
 // ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like

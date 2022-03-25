@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -44,7 +45,7 @@ type mfaPrompt struct {
 
 func (p *mfaPrompt) PromptPIN() (string, error) {
 	p.otpCancel()
-	return ReadPassword(p.ctx, os.Stderr, "Enter your security key PIN:")
+	return prompt.Password(p.ctx, os.Stderr, prompt.Stdin(), "Enter your security key PIN")
 }
 
 func (p *mfaPrompt) PromptAdditionalTouch() error {
@@ -113,15 +114,16 @@ func PromptMFAChallenge(
 		go func() {
 			defer wg.Done()
 			const kind = "TOTP"
+			var msg string
 			if !quiet {
 				if hasWebauthn {
-					fmt.Fprintf(os.Stderr, "Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device\n", promptDevicePrefix, promptDevicePrefix)
+					msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
 				} else {
-					fmt.Fprintf(os.Stderr, "Enter an OTP code from a %sdevice\n", promptDevicePrefix)
+					msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
 				}
 			}
 
-			otp, err := PasswordFromConsole(otpCtx)
+			otp, err := prompt.Password(otpCtx, os.Stderr, prompt.Stdin(), msg)
 			if err != nil {
 				respC <- response{kind: kind, err: err}
 				return
