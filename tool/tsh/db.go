@@ -24,7 +24,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -217,11 +216,11 @@ func onDatabaseEnv(cf *CLIConf) error {
 	}
 
 	switch strings.ToLower(cf.Format) {
-	case teleport.Text:
+	case dbFormatText:
 		for k, v := range env {
 			fmt.Printf("export %v=%v\n", k, v)
 		}
-	case teleport.JSON:
+	case dbFormatJSON:
 		out, err := json.MarshalIndent(env, "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
@@ -273,6 +272,27 @@ func onDatabaseConfig(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		fmt.Println(cmd.Path, strings.Join(cmd.Args[1:], " "))
+	case dbFormatJSON:
+		data := struct {
+			Name     string `json:"name"`
+			Host     string `json:"host"`
+			Port     int    `json:"port"`
+			User     string `json:"user,omitempty"`
+			Database string `json:"database,omitempty"`
+			CA       string `json:"ca"`
+			Cert     string `json:"cert"`
+			Key      string `json:"key"`
+		}{
+			database.ServiceName, host, port, database.Username,
+			database.Database, profile.CACertPathForCluster(rootCluster),
+			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
+			profile.KeyPath(),
+		}
+		out, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
 	default:
 		fmt.Printf(`Name:      %v
 Host:      %v
@@ -643,4 +663,6 @@ const (
 	dbFormatText = "text"
 	// dbFormatCommand prints database connection command.
 	dbFormatCommand = "cmd"
+	// dbFormatJSON prints database info as JSON.
+	dbFormatJSON = "json"
 )
