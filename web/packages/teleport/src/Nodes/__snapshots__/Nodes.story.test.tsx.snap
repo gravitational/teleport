@@ -252,7 +252,7 @@ exports[`empty state 1`] = `
             font-size="24"
             font-weight="700"
           >
-            Add your first Linux server to Teleport
+            Add your first server to Teleport
           </div>
           <div
             class="c9"
