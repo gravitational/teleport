@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
@@ -115,6 +117,138 @@ func TestDatabaseAccessPostgresLeafCluster(t *testing.T) {
 
 	// Disconnect.
 	err = client.Close(context.Background())
+	require.NoError(t, err)
+}
+
+func TestDatabaseRotateTrustedCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+	pack.waitForLeaf(t)
+
+	var (
+		ctx             = context.Background()
+		rootCluster     = pack.root.cluster
+		authServer      = rootCluster.Process.GetAuthServer()
+		clusterRootName = rootCluster.Secrets.SiteName
+		clusterLeafName = pack.leaf.cluster.Secrets.SiteName
+	)
+
+	currentDbCA, err := pack.root.dbAuthClient.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: clusterRootName,
+	}, false)
+	require.NoError(t, err)
+
+	// waitForPhase waits until rootCluster cluster detects the rotation
+	waitForPhase := func(phase string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), rootCluster.Process.Config.PollingPeriod*3)
+		defer cancel()
+
+		watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentProxy,
+				Clock:     pack.clock,
+				Client:    rootCluster.GetSiteAPI(clusterLeafName),
+			},
+			WatchDatabaseCA: true,
+		})
+		if err != nil {
+			return err
+		}
+		defer watcher.Close()
+
+		var lastPhase string
+		for i := 0; i < 10; i++ {
+			select {
+			case <-ctx.Done():
+				return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
+			case cas := <-watcher.CertAuthorityC:
+				for _, ca := range cas {
+					if ca.GetClusterName() == clusterRootName &&
+						ca.GetType() == types.DatabaseCA &&
+						ca.GetRotation().Phase == phase {
+						return nil
+					}
+					lastPhase = ca.GetRotation().Phase
+				}
+			}
+		}
+		return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
+	}
+
+	err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.DatabaseCA,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	err = waitForPhase(types.RotationPhaseInit)
+	require.NoError(t, err)
+
+	err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.DatabaseCA,
+		TargetPhase: types.RotationPhaseUpdateClients,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	err = waitForPhase(types.RotationPhaseUpdateClients)
+	require.NoError(t, err)
+
+	err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.DatabaseCA,
+		TargetPhase: types.RotationPhaseUpdateServers,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	err = waitForPhase(types.RotationPhaseUpdateServers)
+	require.NoError(t, err)
+
+	err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.DatabaseCA,
+		TargetPhase: types.RotationStateStandby,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	err = waitForPhase(types.RotationStateStandby)
+	require.NoError(t, err)
+
+	rotatedDbCA, err := pack.root.dbAuthClient.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: clusterRootName,
+	}, false)
+	require.NoError(t, err)
+
+	// Sanity check. Check if the key was really rotated.
+	require.NotEqual(t, currentDbCA.GetActiveKeys(), rotatedDbCA.GetActiveKeys())
+
+	// Connect to the database service in leaf cluster via root cluster.
+	dbClient, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Cluster:    pack.leaf.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.leaf.postgresService.Name,
+			Protocol:    pack.leaf.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := dbClient.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.leaf.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.root.postgres.QueryCount())
+
+	// Disconnect.
+	err = dbClient.Close(context.Background())
 	require.NoError(t, err)
 }
 
@@ -806,6 +940,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
+	rcConf.PollingPeriod = 5 * time.Second
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -818,6 +953,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
+	lcConf.PollingPeriod = 5 * time.Second
 	if opts.leafConfig != nil {
 		opts.rootConfig(lcConf)
 	}

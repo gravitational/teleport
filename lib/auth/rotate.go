@@ -291,7 +291,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 	// a rotation state of "" gets stored as "standby" after
 	// CheckAndSetDefaults, so if `ca` came in with a zeroed rotation we must do
 	// this before checking if `updated` is the same as `existing` or the check
-	// will fail for no reason (CheckAndSetDefaults is idempotent so it's fine
+	// will fail for no reason (CheckAndSetDefaults is idempotent, so it's fine
 	// to call it both here and in CompareAndSwapCertAuthority)
 	updated.SetRotation(ca.GetRotation())
 	if err := updated.CheckAndSetDefaults(); err != nil {

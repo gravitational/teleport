@@ -234,6 +234,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	for i := range cfg.Authorities {
 		ca := cfg.Authorities[i]
+
+		// Remove private key from leaf clusters.
+		if domainName != ca.GetClusterName() {
+			ca = ca.Clone()
+			types.RemoveCASecrets(ca)
+		}
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.

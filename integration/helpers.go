@@ -384,7 +384,7 @@ func (s *InstanceSecrets) GetIdentity() *auth.Identity {
 	return i
 }
 
-// GetSiteAPI() is a helper which returns an API endpoint to a site with
+// GetSiteAPI is a helper which returns an API endpoint to a site with
 // a given name. i endpoint implements HTTP-over-SSH access to the
 // site's auth server.
 func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {

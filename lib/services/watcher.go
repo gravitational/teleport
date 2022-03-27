@@ -973,9 +973,10 @@ type CertAuthorityWatcher struct {
 // caCollector accompanies resourceWatcher when monitoring cert authority resources.
 type caCollector struct {
 	CertAuthorityWatcherConfig
-	host map[string]types.CertAuthority
-	user map[string]types.CertAuthority
-	lock sync.RWMutex
+	host     map[string]types.CertAuthority
+	user     map[string]types.CertAuthority
+	database map[string]types.CertAuthority
+	lock     sync.RWMutex
 }
 
 // resourceKind specifies the resource kind to watch.
@@ -988,6 +989,7 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	var (
 		newHost map[string]types.CertAuthority
 		newUser map[string]types.CertAuthority
+		newDB   map[string]types.CertAuthority
 	)
 
 	if c.WatchHostCA {
@@ -1013,25 +1015,26 @@ func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	}
 
 	if c.WatchDatabaseCA {
-		user, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.DatabaseCA, false)
+		db, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.DatabaseCA, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		newUser = make(map[string]types.CertAuthority, len(user))
-		for _, ca := range user {
-			newUser[ca.GetName()] = ca
+		newDB = make(map[string]types.CertAuthority, len(db))
+		for _, ca := range db {
+			newDB[ca.GetName()] = ca
 		}
 	}
 
 	c.lock.Lock()
 	c.host = newHost
 	c.user = newUser
+	c.database = newDB
 	c.lock.Unlock()
 
 	select {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
-	case c.CertAuthorityC <- casToSlice(newHost, newUser):
+	case c.CertAuthorityC <- casToSlice(newHost, newUser, newDB):
 	}
 	return nil
 }
@@ -1053,12 +1056,12 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			delete(c.user, event.Resource.GetName())
 		}
 		if c.WatchDatabaseCA && event.Resource.GetSubKind() == string(types.DatabaseCA) {
-			delete(c.user, event.Resource.GetName())
+			delete(c.database, event.Resource.GetName())
 		}
 
 		select {
 		case <-ctx.Done():
-		case c.CertAuthorityC <- casToSlice(c.host, c.user):
+		case c.CertAuthorityC <- casToSlice(c.host, c.user, c.database):
 		}
 	case types.OpPut:
 		ca, ok := event.Resource.(types.CertAuthority)
@@ -1074,12 +1077,12 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			c.user[ca.GetName()] = ca
 		}
 		if c.WatchDatabaseCA && ca.GetType() == types.DatabaseCA {
-			c.user[ca.GetName()] = ca
+			c.database[ca.GetName()] = ca
 		}
 
 		select {
 		case <-ctx.Done():
-		case c.CertAuthorityC <- casToSlice(c.host, c.user):
+		case c.CertAuthorityC <- casToSlice(c.host, c.user, c.database):
 		}
 	default:
 		c.Log.Warnf("Unsupported event type %s.", event.Type)
@@ -1091,18 +1094,17 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 func (c *caCollector) GetCurrent() []types.CertAuthority {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return casToSlice(c.host, c.user)
+	return casToSlice(c.host, c.user, c.database)
 }
 
 func (c *caCollector) notifyStale() {}
 
-func casToSlice(host map[string]types.CertAuthority, user map[string]types.CertAuthority) []types.CertAuthority {
-	slice := make([]types.CertAuthority, 0, len(host)+len(user))
-	for _, ca := range host {
-		slice = append(slice, ca)
-	}
-	for _, ca := range user {
-		slice = append(slice, ca)
+func casToSlice(certs ...map[string]types.CertAuthority) []types.CertAuthority {
+	slice := make([]types.CertAuthority, 0)
+	for _, cert := range certs {
+		for _, ca := range cert {
+			slice = append(slice, ca)
+		}
 	}
 	return slice
 }
