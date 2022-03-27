@@ -4,30 +4,32 @@ description: How to set up single sign-on (SSO) for SSH using Gravitational Tele
 h1: Single Sign-On (SSO) for SSH
 ---
 
-Users of the Enterprise edition of Teleport can login with SSH, Kubernetes, Databases and Web applications
-through a Single Sign-On (SSO) provider used the rest of the organization.
+The Enterprise edition of Teleport, self-hosted or Teleport Cloud, allows for using a organization's
+Single Sign-On (SSO) provider to authenticate and authorize accessing 
+SSH, Kubernetes, Databases, Desktops and Web applications.  Teleport Enterprise supports OIDC and SAML protocols
+for SSO providers in addition to the OpenSource [GitHub SSO](../setup/admin/github-sso.mdx) support.
 
 <TileSet>
   <Tile icon="bolt" title="Azure Active Directory (AD)" href="./sso/azuread.mdx">
-    Configure Azure Active Directory SSO for SSH, Kubernetes, Database and Web apps.
+    Configure Azure Active Directory SSO for SSH, Kubernetes, Database, Desktops and Web apps.
   </Tile>
   <Tile icon="bolt" title="Active Directory (ADFS)" href="./sso/adfs.mdx">
-    Configure Windows Active Directory SSO for SSH, Kubernetes, Database and Web apps.
+    Configure Windows Active Directory SSO for SSH, Kubernetes, Database, Desktops and Web apps.
   </Tile>
   <Tile icon="bolt" title="Google Workspace" href="./sso/google-workspace.mdx">
-    Configure Gsuite SSO for SSH, Kubernetes, Database and Web apps.
+    Configure Google Workspace SSO for SSH, Kubernetes, Database, Desktops and Web apps.
   </Tile>
   <Tile icon="bolt" title="GitLab" href="./sso/gitlab.mdx">
-    Configure Gitlab SSO for SSH, Kubernetes, Database and Web apps.
+    Configure GitLab SSO for SSH, Kubernetes, Database, Desktops and Web apps.
   </Tile>
   <Tile icon="bolt" title="OneLogin" href="./sso/one-login.mdx">
-    Configure OneLogin SSO for SSH, Kubernetes, Database and Web apps.
+    Configure OneLogin SSO for SSH, Kubernetes, Database, Desktops and Web apps.
   </Tile>
   <Tile icon="bolt" title="OIDC" href="./sso/oidc.mdx">
-    Configure OIDC SSO for SSH, Kubernetes, Database and Web apps.
+    Configure OIDC SSO for SSH, Kubernetes, Database, Desktops and Web apps.
   </Tile>
   <Tile icon="bolt" title="Okta" href="./sso/okta.mdx">
-    Configure Okta SSO for SSH, Kubernetes, Database and Web apps.
+    Configure Okta SSO for SSH, Kubernetes, Database, Desktops and Web apps.
   </Tile>
 </TileSet>
 
@@ -224,17 +226,14 @@ SAML and OIDC types:
 ## Troubleshooting
 
 Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator
-must be able to:
+confirms:
 
-- Ensure that HTTP/TLS certificates are configured properly for both Teleport
+- Ensure that HTTPS/TLS certificates are configured properly for both Teleport
   proxy and the SSO provider.
 - Be able to see what SAML/OIDC claims and values are getting exported and passed
   by the SSO provider to Teleport.
 - Be able to see how Teleport maps the received claims to role mappings as defined
   in the connector.
-
-If something is not working, we recommend to:
-
 - Double-check the host names, tokens and TCP ports in a connector definition.
-- Look into Teleport's audit log for claim mapping problems. It is usually stored on the
-  auth server in the `/var/lib/teleport/log` directory.ad
+
+(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
