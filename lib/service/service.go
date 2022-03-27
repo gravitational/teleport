@@ -26,7 +26,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1128,10 +1127,7 @@ func (process *TeleportProcess) initAuthService() error {
 	} else {
 		// check if session recording has been disabled. note, we will continue
 		// logging audit events, we just won't record sessions.
-		recordSessions := true
 		if cfg.Auth.SessionRecordingConfig.GetMode() == types.RecordOff {
-			recordSessions = false
-
 			warningMessage := "Warning: Teleport session recording have been turned off. " +
 				"This is dangerous, you will not be able to save and playback sessions."
 			process.log.Warn(warningMessage)
@@ -1161,12 +1157,11 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		auditServiceConfig := events.AuditLogConfig{
-			Context:        process.ExitContext(),
-			DataDir:        filepath.Join(cfg.DataDir, teleport.LogsDir),
-			RecordSessions: recordSessions,
-			ServerID:       cfg.HostUUID,
-			UploadHandler:  uploadHandler,
-			ExternalLog:    externalLog,
+			Context:       process.ExitContext(),
+			DataDir:       filepath.Join(cfg.DataDir, teleport.LogsDir),
+			ServerID:      cfg.HostUUID,
+			UploadHandler: uploadHandler,
+			ExternalLog:   externalLog,
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
@@ -2099,38 +2094,30 @@ func (process *TeleportProcess) initUploaderService(streamer events.Streamer, au
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// prepare dirs for uploader
-	streamingDir := []string{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingLogsDir, apidefaults.Namespace}
-	paths := [][]string{
-		// DELETE IN (5.1.0)
-		// this directory will no longer be used after migration to 5.1.0
-		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.SessionLogsDir, apidefaults.Namespace},
-		// This directory will remain to be used after migration to 5.1.0
-		streamingDir,
-	}
-	for _, path := range paths {
-		for i := 1; i < len(path); i++ {
-			dir := filepath.Join(path[:i+1]...)
-			log.Infof("Creating directory %v.", dir)
-			err := os.Mkdir(dir, 0755)
-			err = trace.ConvertSystemError(err)
-			if err != nil {
-				if !trace.IsAlreadyExists(err) {
-					return trace.Wrap(err)
-				}
+
+	// prepare dir for uploader
+	path := []string{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingLogsDir, apidefaults.Namespace}
+	for i := 1; i < len(path); i++ {
+		dir := filepath.Join(path[:i+1]...)
+		log.Infof("Creating directory %v.", dir)
+		err := os.Mkdir(dir, 0755)
+		err = trace.ConvertSystemError(err)
+		if err != nil {
+			if !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
 			}
-			if uid != nil && gid != nil {
-				log.Infof("Setting directory %v owner to %v:%v.", dir, *uid, *gid)
-				err := os.Chown(dir, *uid, *gid)
-				if err != nil {
-					return trace.ConvertSystemError(err)
-				}
+		}
+		if uid != nil && gid != nil {
+			log.Infof("Setting directory %v owner to %v:%v.", dir, *uid, *gid)
+			err := os.Chown(dir, *uid, *gid)
+			if err != nil {
+				return trace.ConvertSystemError(err)
 			}
 		}
 	}
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		ScanDir:  filepath.Join(streamingDir...),
+		ScanDir:  filepath.Join(path...),
 		Streamer: streamer,
 		AuditLog: auditLog,
 		EventsC:  process.Config.UploadEventsC,
@@ -2187,7 +2174,7 @@ func (process *TeleportProcess) initMetricsService() error {
 
 		pool := x509.NewCertPool()
 		for _, caCertPath := range process.Config.Metrics.CACerts {
-			caCert, err := ioutil.ReadFile(caCertPath)
+			caCert, err := os.ReadFile(caCertPath)
 			if err != nil {
 				return trace.Wrap(err, "failed to read prometheus CA certificate %+v", caCertPath)
 			}
@@ -3855,7 +3842,7 @@ func validateConfig(cfg *Config) error {
 	}
 
 	if cfg.Console == nil {
-		cfg.Console = ioutil.Discard
+		cfg.Console = io.Discard
 	}
 
 	if len(cfg.AuthServers) == 0 {
@@ -3909,10 +3896,10 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err)
 	}
 
-	if err := ioutil.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
+	if err := os.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
-	if err := ioutil.WriteFile(certPath, creds.Cert, 0600); err != nil {
+	if err := os.WriteFile(certPath, creds.Cert, 0600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
 	return nil

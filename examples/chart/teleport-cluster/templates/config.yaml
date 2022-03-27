@@ -4,6 +4,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
   {{- if .Values.annotations.config }}
   annotations:
     {{- toYaml .Values.annotations.config | nindent 4 }}
@@ -98,6 +99,14 @@ data:
   {{- if not .Values.proxyListenerMode }}
       kube_listen_addr: 0.0.0.0:3026
       mysql_listen_addr: 0.0.0.0:3036
+    {{- if .Values.separatePostgresListener }}
+      postgres_listen_addr: 0.0.0.0:5432
+      postgres_public_addr: {{ .Values.clusterName }}:5432
+    {{- end }}
+    {{- if .Values.separateMongoListener }}
+      mongo_listen_addr: 0.0.0.0:27017
+      mongo_public_addr: {{ .Values.clusterName }}:27017
+    {{- end }}
   {{- end }}
       enabled: true
   {{- if .Values.highAvailability.certManager.enabled }}
