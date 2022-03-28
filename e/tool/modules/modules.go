@@ -40,6 +40,7 @@ func (p *enterpriseModules) Features() modules.Features {
 		App:                     p.license.GetCloud().Value() || p.license.GetSupportsApplicationAccess().Value(),
 		DB:                      p.license.GetCloud().Value() || p.license.GetSupportsDatabaseAccess().Value(),
 		Desktop:                 p.license.GetCloud().Value() || p.license.GetSupportsDesktopAccess().Value(),
+		ModeratedSessions:       p.license.GetCloud().Value() || p.license.GetSupportsModeratedSessions().Value(),
 		Cloud:                   p.license.GetCloud().Value(),
 		OIDC:                    true,
 		SAML:                    true,
