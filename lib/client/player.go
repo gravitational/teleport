@@ -189,14 +189,21 @@ func (p *sessionPlayer) playRange(from, to int) {
 		to = len(p.sessionEvents)
 	}
 	// clear screen between runs:
-	// os.Stdout.Write([]byte("\x1bc"))
+	os.Stdout.Write([]byte("\x1bc"))
 
 	// playback goroutine:
 	go func() {
+		var i int
+
 		defer func() {
 			p.Lock()
 			p.setState(stateStopped)
 			p.Unlock()
+
+			// played last event?
+			if i == len(p.sessionEvents) {
+				p.stopOnce.Do(func() { close(p.stopC) })
+			}
 		}()
 
 		p.Lock()
@@ -204,7 +211,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 		p.Unlock()
 
 		prev := time.Duration(0)
-		i, offset, bytes := 0, 0, 0
+		offset, bytes := 0, 0
 		for i = 0; i < to; i++ {
 			if p.stopRequested() {
 				return
@@ -217,7 +224,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 			case events.SessionPrintEvent:
 				// delay is only necessary once we've caught up to the "from" event
 				if i >= from {
-					p.applyDelay(&prev, e)
+					prev = p.applyDelay(prev, e)
 				}
 				offset = e.GetInt("offset")
 				bytes = e.GetInt("bytes")
@@ -234,20 +241,18 @@ func (p *sessionPlayer) playRange(from, to int) {
 			default:
 				continue
 			}
+			p.Lock()
 			p.position = i
-		}
-		// played last event?
-		if i == len(p.sessionEvents) {
-			// we defer here so the stop notification happens after the deferred final state update
-			defer p.stopOnce.Do(func() { close(p.stopC) })
+			p.Unlock()
 		}
 	}()
 }
 
-// applyDelay waits until it is time to play back the current event (e).
-func (p *sessionPlayer) applyDelay(previousTimestamp *time.Duration, e events.EventFields) {
+// applyDelay waits until it is time to play back the current event.
+// It returns the duration from the start of the session up until the current event.
+func (p *sessionPlayer) applyDelay(previousTimestamp time.Duration, e events.EventFields) time.Duration {
 	eventTime := time.Duration(e.GetInt("ms") * int(time.Millisecond))
-	delay := eventTime - *previousTimestamp
+	delay := eventTime - previousTimestamp
 
 	// make playback smoother:
 	switch {
@@ -263,5 +268,5 @@ func (p *sessionPlayer) applyDelay(previousTimestamp *time.Duration, e events.Ev
 
 	timestampFrame(p.term, e.GetString("time"))
 	p.clock.Sleep(delay)
-	*previousTimestamp = eventTime
+	return eventTime
 }
