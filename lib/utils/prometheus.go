@@ -65,7 +65,7 @@ func CreateGRPCServerMetrics(latencyEnabled bool, labels prometheus.Labels) *om.
 	serverOpts := []om.ServerMetricsOption{om.WithServerCounterOptions(om.WithConstLabels(labels))}
 	if latencyEnabled {
 		histOpts := []om.HistogramOption{
-			om.WithHistogramBuckets([]float64{0.001, 0.01, 0.1, 0.5, 1, 5, 10}),
+			om.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 14)),
 			om.WithHistogramConstLabels(labels),
 		}
 		serverOpts = append(serverOpts, om.WithServerHandlingTimeHistogram(histOpts...))
@@ -80,7 +80,7 @@ func CreateGRPCClientMetrics(latencyEnabled bool, labels prometheus.Labels) *om.
 	clientOpts := []om.ClientMetricsOption{om.WithClientCounterOptions(om.WithConstLabels(labels))}
 	if latencyEnabled {
 		histOpts := []om.HistogramOption{
-			om.WithHistogramBuckets([]float64{0.001, 0.01, 0.1, 0.5, 1, 5, 10}),
+			om.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 14)),
 			om.WithHistogramConstLabels(labels),
 		}
 		clientOpts = append(clientOpts, om.WithClientHandlingTimeHistogram(histOpts...))

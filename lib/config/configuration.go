@@ -628,10 +628,6 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	if fc.Auth.OptionalMetrics != nil {
-		cfg.Auth.OptionalMetrics = fc.Auth.OptionalMetrics
-	}
-
 	return nil
 }
 
@@ -868,9 +864,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Proxy.ACME = *acme
 
-	if fc.Proxy.OptionalMetrics != nil {
-		cfg.Proxy.OptionalMetrics = fc.Proxy.OptionalMetrics
-	}
 	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
@@ -1234,6 +1227,10 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.Metrics.ListenAddr = addr
+
+	if fc.Metrics.OptionalMetrics != nil {
+		cfg.Metrics.OptionalMetrics = fc.Metrics.OptionalMetrics
+	}
 
 	if !fc.Metrics.MTLSEnabled() {
 		return nil

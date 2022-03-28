@@ -1363,7 +1363,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	go mux.Serve()
-	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Auth.OptionalMetrics.GRPCServerLatency}
+	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.OptionalMetrics.GRPCServerLatency}
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,

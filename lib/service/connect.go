@@ -18,12 +18,17 @@ package service
 
 import (
 	"crypto/tls"
+	"github.com/gravitational/teleport/api/metadata"
+	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
 	"math"
 	"path/filepath"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	mw "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -848,7 +853,7 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
 	logger.Debug("Attempting to connect to Auth Server directly.")
-	directClient, err := process.newClientDirect(authServers, tlsConfig)
+	directClient, err := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
 	if err == nil {
 		logger.Debug("Connected to Auth Server with direct connection.")
 		return directClient, nil
@@ -920,10 +925,23 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 	return clt, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config) (*auth.Client, error) {
+func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{auth.ClientTimeout(process.Config.ClientTimeout)}
+	}
+
+	var dialOpts []grpc.DialOption
+	if role == types.RoleProxy {
+		grpcMetrics := utils.CreateGRPCClientMetrics(process.Config.Metrics.OptionalMetrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
+		err := utils.RegisterPrometheusCollectors(grpcMetrics)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dialOpts = append(dialOpts, []grpc.DialOption{
+			grpc.WithUnaryInterceptor(mw.ChainUnaryClient(metadata.UnaryClientInterceptor, om.UnaryClientInterceptor(grpcMetrics))),
+			grpc.WithStreamInterceptor(mw.ChainStreamClient(metadata.StreamClientInterceptor, om.StreamClientInterceptor(grpcMetrics))),
+		}...)
 	}
 
 	clt, err := auth.NewClient(apiclient.Config{
@@ -931,6 +949,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		DialOpts: dialOpts,
 	}, cltParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)

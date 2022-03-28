@@ -414,8 +414,14 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 // limiting, authenticates requests, and passes the user information as context
 // metadata.
 func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
+	if a.GRPCMetrics != nil {
+		return utils.ChainUnaryServerInterceptors(
+			om.UnaryServerInterceptor(a.GRPCMetrics),
+			utils.ErrorConvertUnaryInterceptor,
+			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
+			a.withAuthenticatedUserUnaryInterceptor)
+	}
 	return utils.ChainUnaryServerInterceptors(
-		om.UnaryServerInterceptor(a.GRPCMetrics),
 		utils.ErrorConvertUnaryInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor)
@@ -425,8 +431,14 @@ func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 // limiting, authenticates requests, and passes the user information as context
 // metadata.
 func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
+	if a.GRPCMetrics != nil {
+		return utils.ChainStreamServerInterceptors(
+			om.StreamServerInterceptor(a.GRPCMetrics),
+			utils.ErrorConvertStreamInterceptor,
+			a.Limiter.StreamServerInterceptor,
+			a.withAuthenticatedUserStreamInterceptor)
+	}
 	return utils.ChainStreamServerInterceptors(
-		om.StreamServerInterceptor(a.GRPCMetrics),
 		utils.ErrorConvertStreamInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor)
