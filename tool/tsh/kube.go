@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -371,7 +372,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	}
 
 	if cf.HomePath != "" {
-		v.Exec.Env[homeEnvVar] = cf.HomePath
+		v.Exec.Env[types.HomeEnvVar] = cf.HomePath
 	}
 
 	// Only switch the current context if kube-cluster is explicitly set on the command line.
