@@ -17,7 +17,9 @@ limitations under the License.
 package utils
 
 import (
+	"errors"
 	"strings"
+	"syscall"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
@@ -34,7 +36,7 @@ func IsUseOfClosedNetworkError(err error) bool {
 }
 
 // IsFailedToSendCloseNotifyError returns true if the provided error is the
-// "tls: failed to send closeNofify".
+// "tls: failed to send closeNotify".
 func IsFailedToSendCloseNotifyError(err error) bool {
 	if err == nil {
 		return false
@@ -46,4 +48,13 @@ func IsFailedToSendCloseNotifyError(err error) bool {
 // operation is one of those that usually indicate normal connection close.
 func IsOKNetworkError(err error) bool {
 	return trace.IsEOF(err) || IsUseOfClosedNetworkError(err) || IsFailedToSendCloseNotifyError(err)
+}
+
+// IsConnectionRefused returns true if the given err is "connection refused" error.
+func IsConnectionRefused(err error) bool {
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return errno == syscall.ECONNREFUSED
+	}
+	return false
 }

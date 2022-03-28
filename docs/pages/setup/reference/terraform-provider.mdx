@@ -31,15 +31,15 @@ terraform {
 
 The provider supports the following options:
 
-| Name                    | Type       | Description                                               |
-|-------------------------|------------|-----------------------------------------------------------|
-|                   `addr`|     string | Teleport auth or proxy host:port                          |
-|              `cert_path`|     string | Path to Teleport certificate file                         |
-|     `identity_file_path`|     string | Path to Teleport identity file                            |
-|               `key_path`|     string | Path to Teleport key file                                 |
-|            `profile_dir`|     string | Teleport profile path                                     |
-|           `profile_name`|     string | Teleport profile name                                     |
-|           `root_ca_path`|     string | Path to Teleport CA file                                  |
+| Name                    | Type       | Description                                           | Environment Variable             |
+|-------------------------|------------|-------------------------------------------------------|----------------------------------|
+|                   `addr`|     string | Teleport auth or proxy address in "host:port" format. | `TF_TELEPORT_ADDR`               |
+|              `cert_path`|     string | Path to Teleport certificate file.                    | `TF_TELEPORT_CERT`               |
+|     `identity_file_path`|     string | Path to Teleport identity file.                       | `TF_TELEPORT_IDENTITY_FILE_PATH` |
+|               `key_path`|     string | Path to Teleport key file.                            | `TF_TELEPORT_KEY`                |
+|            `profile_dir`|     string | Teleport profile path.                                | `TF_TELEPORT_PROFILE_PATH`       |
+|           `profile_name`|     string | Teleport profile name.                                | `TF_TELEPORT_PROFILE_NAME`       |
+|           `root_ca_path`|     string | Path to Teleport CA file.                             | `TF_TELEPORT_ROOT_CA`            |
 
 You need to specify either:
 
@@ -167,6 +167,9 @@ Metadata specifies a resource name, description, labels and optional expiry date
 |              `namespace`|     string |          | Resource namespace ("default" by default) |
 |                `expires`|     string |          | Expiry time in RFC8829 format             |
 
+**version**
+
+`version` is an optional string that specifies the role version (default `v3`). 
 
 **spec**
 

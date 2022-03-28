@@ -27,10 +27,43 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Client implements the GitHub API.
+type Client interface {
+	// RequestReviewers is used to assign reviewers to a Pull Request.
+	RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error
+
+	// ListReviews is used to list all submitted reviews for a PR.
+	ListReviews(ctx context.Context, organization string, repository string, number int) ([]github.Review, error)
+
+	// ListReviewers returns a list of reviewers that have yet to submit a review.
+	ListReviewers(ctx context.Context, organization string, repository string, number int) ([]string, error)
+
+	// GetPullRequest returns a specific Pull Request.
+	GetPullRequest(ctx context.Context, organization string, repository string, number int) (github.PullRequest, error)
+
+	// ListPullRequests returns a list of Pull Requests.
+	ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]github.PullRequest, error)
+
+	// ListFiles is used to list all the files within a Pull Request.
+	ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error)
+
+	// AddLabels will add labels to an Issue or Pull Request.
+	AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error
+
+	// ListWorkflows lists all workflows within a repository.
+	ListWorkflows(ctx context.Context, organization string, repository string) ([]github.Workflow, error)
+
+	// ListWorkflowRuns is used to list all workflow runs for an ID.
+	ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]github.Run, error)
+
+	// DeleteWorkflowRun is used to delete a workflow run.
+	DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error
+}
+
 // Config contains configuration for the bot.
 type Config struct {
 	// GitHub is a GitHub client.
-	GitHub github.Client
+	GitHub Client
 
 	// Environment holds information about the workflow run event.
 	Environment *env.Environment
@@ -83,7 +116,7 @@ func (b *Bot) parseChanges(ctx context.Context) (bool, bool, error) {
 	}
 
 	for _, file := range files {
-		if hasDocs(file) {
+		if strings.HasPrefix(file, "docs/") {
 			docs = true
 		} else {
 			code = true
@@ -91,14 +124,4 @@ func (b *Bot) parseChanges(ctx context.Context) (bool, bool, error) {
 
 	}
 	return docs, code, nil
-}
-
-func hasDocs(filename string) bool {
-	if strings.HasPrefix(filename, "vendor/") {
-		return false
-	}
-	return strings.HasPrefix(filename, "docs/") ||
-		strings.HasSuffix(filename, ".md") ||
-		strings.HasSuffix(filename, ".mdx") ||
-		strings.HasPrefix(filename, "rfd/")
 }

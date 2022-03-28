@@ -29,11 +29,12 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -156,8 +157,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
 		TLS:               server.cfg.TLS,
 		APIConfig:         cfg.APIConfig,
-		UnaryInterceptor:  authMiddleware.UnaryInterceptor,
-		StreamInterceptor: authMiddleware.StreamInterceptor,
+		UnaryInterceptor:  authMiddleware.UnaryInterceptor(),
+		StreamInterceptor: authMiddleware.StreamInterceptor(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -317,41 +318,9 @@ func (a *Middleware) Wrap(h http.Handler) {
 	a.Handler = h
 }
 
-// UnaryInterceptor is GPRC unary interceptor that authenticates requests
-// and passes the user information as context metadata
-func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-	peerInfo, ok := peer.FromContext(ctx)
-	if !ok {
-		return nil, trace.AccessDenied("missing authentication")
-	}
-	// Limit requests per second and simultaneous connection by client IP.
-	clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
-	if err != nil {
-		log.WithError(err).Debugf("Failed to get client IP.")
-		return nil, trace.BadParameter("missing client IP")
-	}
-	if err := a.Limiter.RegisterRequestWithCustomRate(clientIP, getCustomRate(info.FullMethod)); err != nil {
-		return nil, trace.LimitExceeded("rate limit exceeded")
-	}
-	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
-		return nil, trace.LimitExceeded("connection limit exceeded")
-	}
-	defer a.Limiter.ConnLimiter.Release(clientIP, 1)
-	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
-
-	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
-	if !ok {
-		return nil, trace.AccessDenied("missing authentication")
-	}
-	user, err := a.GetUser(tlsInfo.State)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return handler(context.WithValue(ctx, ContextUser, user), req)
-}
-
 func getCustomRate(endpoint string) *ratelimit.RateSet {
 	switch endpoint {
+	// Account recovery RPCs.
 	case
 		"/proto.AuthService/ChangeUserAuthentication",
 		"/proto.AuthService/GetAccountRecoveryToken",
@@ -364,40 +333,80 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 			return nil
 		}
 		return rates
+	// Passwordless RPCs (potential unauthenticated challenge generation).
+	case "/proto.AuthService/CreateAuthenticateChallenge":
+		const period = defaults.LimiterPasswordlessPeriod
+		const average = defaults.LimiterPasswordlessAverage
+		const burst = defaults.LimiterPasswordlessBurst
+		rates := ratelimit.NewRateSet()
+		if err := rates.Add(period, average, burst); err != nil {
+			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
+			return nil
+		}
+		return rates
 	}
-
 	return nil
 }
 
-// StreamInterceptor is GPRC unary interceptor that authenticates requests
-// and passes the user information as context metadata
-func (a *Middleware) StreamInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	peerInfo, ok := peer.FromContext(serverStream.Context())
+// withAuthenticatedUser returns a new context with the ContextUser field set to
+// the caller's user identity as authenticated by their client TLS certificate.
+func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context, error) {
+	peerInfo, ok := peer.FromContext(ctx)
 	if !ok {
-		return trace.AccessDenied("missing authentication")
+		return nil, trace.AccessDenied("missing authentication")
 	}
-	// Limit requests per second and simultaneous connection by client IP.
-	clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
-	if err != nil {
-		log.WithError(err).Debugf("Failed to get client IP.")
-		return trace.BadParameter("missing client IP")
-	}
-	if err := a.Limiter.RegisterRequest(clientIP); err != nil {
-		return trace.LimitExceeded("rate limit exceeded")
-	}
-	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
-		return trace.LimitExceeded("connection limit exceeded")
-	}
-	defer a.Limiter.ConnLimiter.Release(clientIP, 1)
 	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
 	if !ok {
-		return trace.AccessDenied("missing authentication")
+		return nil, trace.AccessDenied("missing authentication")
 	}
 	user, err := a.GetUser(tlsInfo.State)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
+	return context.WithValue(ctx, ContextUser, user), nil
+}
+
+// withAuthenticatedUserUnaryInterceptor is a gRPC unary server interceptor
+// which sets the ContextUser field on the request context to the caller's user
+// identity as authenticated by their client TLS certificate.
+func (a *Middleware) withAuthenticatedUserUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	ctx, err := a.withAuthenticatedUser(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return handler(ctx, req)
+}
+
+// withAuthenticatedUserUnaryInterceptor is a gRPC stream server interceptor
+// which sets the ContextUser field on the request context to the caller's user
+// identity as authenticated by their client TLS certificate.
+func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	ctx, err := a.withAuthenticatedUser(serverStream.Context())
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	return handler(srv, &authenticatedStream{ctx: context.WithValue(serverStream.Context(), ContextUser, user), ServerStream: serverStream})
+	return handler(srv, &authenticatedStream{ctx: ctx, ServerStream: serverStream})
+}
+
+// UnaryInterceptor returns a gPRC unary interceptor which performs rate
+// limiting, authenticates requests, and passes the user information as context
+// metadata.
+func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
+	return utils.ChainUnaryServerInterceptors(
+		utils.ErrorConvertUnaryInterceptor,
+		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
+		a.withAuthenticatedUserUnaryInterceptor)
+}
+
+// UnaryInterceptor returns a gPRC stream interceptor which performs rate
+// limiting, authenticates requests, and passes the user information as context
+// metadata.
+func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
+	return utils.ChainStreamServerInterceptors(
+		utils.ErrorConvertStreamInterceptor,
+		a.Limiter.StreamServerInterceptor,
+		a.withAuthenticatedUserStreamInterceptor)
 }
 
 // authenticatedStream wraps around the embedded grpc.ServerStream
@@ -460,7 +469,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// of certificates issued for kubernetes usage by proxy, can not be used
 	// against auth server. Later on we can extend more
 	// advanced cert usage, but for now this is the safest option.
-	if len(identity.Usage) != 0 && !utils.StringSlicesEqual(a.AcceptedUsage, identity.Usage) {
+	if len(identity.Usage) != 0 && !apiutils.StringSlicesEqual(a.AcceptedUsage, identity.Usage) {
 		log.Warningf("Restricted certificate of user %q with usage %v rejected while accessing the auth endpoint with acceptable usage %v.",
 			identity.Username, identity.Usage, a.AcceptedUsage)
 		return nil, trace.AccessDenied("access denied: invalid client certificate")
@@ -573,14 +582,15 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 
 // ClientCertPool returns trusted x509 cerificate authority pool
 func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
+	ctx := context.TODO()
 	pool := x509.NewCertPool()
 	var authorities []types.CertAuthority
 	if clusterName == "" {
-		hostCAs, err := client.GetCertAuthorities(types.HostCA, false)
+		hostCAs, err := client.GetCertAuthorities(ctx, types.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userCAs, err := client.GetCertAuthorities(types.UserCA, false)
+		userCAs, err := client.GetCertAuthorities(ctx, types.UserCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -588,12 +598,14 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 		authorities = append(authorities, userCAs...)
 	} else {
 		hostCA, err := client.GetCertAuthority(
+			ctx,
 			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
 			false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userCA, err := client.GetCertAuthority(
+			ctx,
 			types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
 			false)
 		if err != nil {

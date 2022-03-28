@@ -3,6 +3,9 @@ steps:
     id: docs-test
     env:
       - WITH_EXTERNAL_LINKS=true
+    entrypoint: /bin/bash
     dir: /src
-    args: ['yarn', 'remark', '/workspace/docs/pages/**/*.mdx', '--frail']
+    args: 
+      - -c 
+      - ln -s /workspace /src/content && yarn markdown-lint-external-links
     timeout: 10m

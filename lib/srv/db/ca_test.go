@@ -237,7 +237,7 @@ func setupPostgres(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *tes
 	})
 
 	go func() {
-		for conn := range testCtx.proxyConn {
+		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
 			go server1.HandleConnection(conn)
 		}
 	}()
@@ -282,7 +282,7 @@ func setupMySQL(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	})
 
 	go func() {
-		for conn := range testCtx.proxyConn {
+		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
 			go server1.HandleConnection(conn)
 		}
 	}()
@@ -307,7 +307,9 @@ func setupMongo(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	})
 	require.NoError(t, err)
 	go mongoServer.Serve()
-	t.Cleanup(func() { mongoServer.Close() })
+	t.Cleanup(func() {
+		require.NoError(t, mongoServer.Close())
+	})
 
 	mongoDB, err := types.NewDatabaseV3(types.Metadata{
 		Name: "mongo",
@@ -325,9 +327,12 @@ func setupMongo(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	server1 := testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: types.Databases{mongoDB},
 	})
+	t.Cleanup(func() {
+		require.NoError(t, server1.Close())
+	})
 
 	go func() {
-		for conn := range testCtx.proxyConn {
+		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
 			go server1.HandleConnection(conn)
 		}
 	}()
@@ -463,10 +468,11 @@ func TestTLSConfiguration(t *testing.T) {
 						})
 
 						mongoConn, err := testCtx.mongoClient(ctx, "bob", "mongo", "admin")
-						if tt.errMsg == "" {
-							require.NoError(t, err)
-
+						t.Cleanup(func() {
 							err = mongoConn.Disconnect(ctx)
+							require.NoError(t, err)
+						})
+						if tt.errMsg == "" {
 							require.NoError(t, err)
 						} else {
 							require.Error(t, err)
@@ -478,6 +484,52 @@ func TestTLSConfiguration(t *testing.T) {
 					}
 				})
 			}
+		})
+	}
+}
+
+func TestRDSCAURLForDatabase(t *testing.T) {
+	tests := map[string]string{
+		"us-west-1":      "https://truststore.pki.rds.amazonaws.com/us-west-1/us-west-1-bundle.pem",
+		"ca-central-1":   "https://truststore.pki.rds.amazonaws.com/ca-central-1/ca-central-1-bundle.pem",
+		"us-gov-east-1":  "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
+		"us-gov-west-1":  "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
+		"cn-northwest-1": "https://rds-truststore.s3.cn-north-1.amazonaws.com.cn/cn-northwest-1/cn-northwest-1-bundle.pem",
+		"cn-north-1":     "https://rds-truststore.s3.cn-north-1.amazonaws.com.cn/cn-north-1/cn-north-1-bundle.pem",
+	}
+	for region, expectURL := range tests {
+		t.Run(region, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: "db",
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AWS:      types.AWS{Region: region},
+			})
+			require.NoError(t, err)
+			require.Equal(t, expectURL, rdsCAURLForDatabase(database))
+		})
+	}
+}
+
+func TestRedshiftCAURLForDatabase(t *testing.T) {
+	tests := map[string]string{
+		"us-west-1":      "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt",
+		"ca-central-1":   "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt",
+		"cn-north-1":     "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
+		"cn-northwest-1": "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
+	}
+	for region, expectURL := range tests {
+		t.Run(region, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: "db",
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AWS:      types.AWS{Region: region},
+			})
+			require.NoError(t, err)
+			require.Equal(t, expectURL, redshiftCAURLForDatabase(database))
 		})
 	}
 }

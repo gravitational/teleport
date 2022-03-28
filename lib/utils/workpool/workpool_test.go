@@ -18,65 +18,21 @@ package workpool
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
-
-	"gopkg.in/check.v1"
 )
-
-func Example() {
-	pool := NewPool(context.TODO())
-	defer pool.Stop()
-	// create two keys with different target counts
-	pool.Set("spam", 2)
-	pool.Set("eggs", 1)
-	// track how many workers are spawned for each key
-	counts := make(map[string]int)
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	for i := 0; i < 12; i++ {
-		wg.Add(1)
-		go func() {
-			lease := <-pool.Acquire()
-			defer lease.Release()
-			mu.Lock()
-			counts[lease.Key().(string)]++
-			mu.Unlock()
-			// in order to demonstrate the differing spawn rates we need
-			// work to take some time, otherwise pool will end up granting
-			// leases in a "round robin" fashion.
-			time.Sleep(time.Millisecond * 10)
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-	// exact counts will vary, but leases with key `spam`
-	// will end up being generated approximately twice as
-	// often as leases with key `eggs`.
-	fmt.Println(counts["spam"] > counts["eggs"]) // Output: true
-}
-
-func Test(t *testing.T) {
-	check.TestingT(t)
-}
-
-type WorkSuite struct{}
-
-var _ = check.Suite(&WorkSuite{})
 
 // TestFull runs a pool though a round of normal usage,
 // and verifies expected state along the way:
-// - A group of workers acquire leases, do some work, and release them.
-// - A second group of workers receieve leases as the first group finishes.
-// - The expected amout of leases are in play after this churn.
+// - A group of workers acquires leases, do some work, and release them.
+// - A second group of workers receives leases as the first group finishes.
+// - The expected amount of leases is in play after this churn.
 // - Updating the target lease count has the expected effect.
-func (s *WorkSuite) TestFull(c *check.C) {
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+func TestFull(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	p := NewPool(ctx)
-	key := "some-key"
 	var wg sync.WaitGroup
 	// signal channel to cause the first group of workers to
 	// release their leases.
@@ -88,7 +44,7 @@ func (s *WorkSuite) TestFull(c *check.C) {
 		time.Sleep(time.Millisecond * 500)
 		close(g1timeout)
 	}()
-	p.Set(key, 200)
+	p.Set(200)
 	// spawn first group of workers.
 	for i := 0; i < 200; i++ {
 		wg.Add(1)
@@ -98,7 +54,7 @@ func (s *WorkSuite) TestFull(c *check.C) {
 				<-g1done
 				l.Release()
 			case <-g1timeout:
-				c.Errorf("Timeout waiting for lease")
+				t.Errorf("Timeout waiting for lease")
 			}
 			wg.Done()
 		}()
@@ -107,7 +63,7 @@ func (s *WorkSuite) TestFull(c *check.C) {
 	// no additional leases should exist
 	select {
 	case l := <-p.Acquire():
-		c.Errorf("unexpected lease: %+v", l)
+		t.Errorf("unexpected lease: %+v", l)
 	default:
 	}
 	// spawn a second group of workers that won't be able to
@@ -119,7 +75,7 @@ func (s *WorkSuite) TestFull(c *check.C) {
 			case <-p.Acquire():
 				// leak deliberately
 			case <-time.After(time.Millisecond * 512):
-				c.Errorf("Timeout waiting for lease")
+				t.Errorf("Timeout waiting for lease")
 			}
 			wg.Done()
 		}()
@@ -132,46 +88,43 @@ func (s *WorkSuite) TestFull(c *check.C) {
 	select {
 	case l := <-p.Acquire():
 		counts := l.loadCounts()
-		c.Errorf("unexpected lease grant: %+v, counts=%+v", l, counts)
+		t.Errorf("unexpected lease grant: %+v, counts=%+v", l, counts)
 	case <-time.After(time.Millisecond * 128):
 	}
 	// make one additional lease available
-	p.Set(key, 201)
+	p.Set(201)
 	select {
 	case l := <-p.Acquire():
-		c.Assert(l.Key().(string), check.Equals, key)
 		l.Release()
 	case <-time.After(time.Millisecond * 128):
-		c.Errorf("timeout waiting for lease grant")
+		t.Errorf("timeout waiting for lease grant")
 	}
 }
 
-// TestZeroed varifies that a zeroed pool stops granting
+// TestZeroed verifies that a zeroed pool stops granting
 // leases as expected.
-func (s *WorkSuite) TestZeroed(c *check.C) {
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+func TestZeroed(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	p := NewPool(ctx)
-	key := "some-key"
-	p.Set(key, 1)
+	p.Set(1)
 	var l Lease
 	select {
 	case l = <-p.Acquire():
-		c.Assert(l.Key().(string), check.Equals, key)
 		l.Release()
 	case <-time.After(time.Millisecond * 128):
-		c.Errorf("timeout waiting for lease grant")
+		t.Errorf("timeout waiting for lease grant")
 	}
-	p.Set(key, 0)
+	p.Set(0)
 	// modifications to counts are *ordered*, but asynchronous,
-	// so we could actually receieve a lease here if we don't sleep
+	// so we could actually receive a lease here if we don't sleep
 	// briefly. if we opted for condvars instead of channels, this
 	// issue could be avoided at the cost of more cumbersome
 	// composition/cancellation.
 	time.Sleep(time.Millisecond * 10)
 	select {
 	case l := <-p.Acquire():
-		c.Errorf("unexpected lease grant: %+v", l)
+		t.Errorf("unexpected lease grant: %+v", l)
 	case <-time.After(time.Millisecond * 128):
 	}
 }

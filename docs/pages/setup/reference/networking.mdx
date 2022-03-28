@@ -54,7 +54,16 @@ Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/
 
 ## Ports
 
-Teleport services listen on several ports. This table shows the default port numbers.
+Teleport services listen on several ports. This table shows the default port numbers.  For Teleport Cloud use the below recommendation to get the ports
+that are assigned for your proxy.
+
+<Admonition
+  type="tip"
+  title="Note"
+>
+  To get a listing of the assigned ports for a given proxy use `curl https://teleport.example.com:443/webapi/ping | jq`.  Note
+  that if `tls_routing_enabled` is set to `true` that means only a single port is used for multiple services through the proxy.
+</Admonition>
 
 | Port | Service | Description |
 | - | - | - |
@@ -65,4 +74,5 @@ Teleport services listen on several ports. This table shows the default port num
 | 3080 | Proxy | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI. |
 | 3026 | Kubernetes | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
 | 3027 | Kubernetes | Kubernetes Service `kubernetes_service.listen_addr` |
+| 3028 | Desktop | Desktop Service `windows_desktop_service.listen_addr` |
 | 3036 | MySQL | MySQL port `proxy_service.mysql_addr` |

@@ -227,6 +227,8 @@ const (
 	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
+	// BotTokenCreateEvent is emitted when a new bot join user token is created
+	BotTokenCreateEvent = "bot_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
 	// PrivilegeTokenCreateEvent is emitted when a new user privilege token is created.
@@ -406,19 +408,44 @@ const (
 
 	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
 	// creates a prepared statement using extended query protocol.
-	DatabaseSessionPostgresParseEvent = "db.session.postgres.parse"
+	DatabaseSessionPostgresParseEvent = "db.session.postgres.statements.parse"
 	// DatabaseSessionPostgresBindEvent is emitted when a Postgres client
 	// readies a prepared statement for execution and binds it to parameters.
-	DatabaseSessionPostgresBindEvent = "db.session.postgres.bind"
+	DatabaseSessionPostgresBindEvent = "db.session.postgres.statements.bind"
 	// DatabaseSessionPostgresExecuteEvent is emitted when a Postgres client
 	// executes a previously bound prepared statement.
-	DatabaseSessionPostgresExecuteEvent = "db.session.postgres.execute"
+	DatabaseSessionPostgresExecuteEvent = "db.session.postgres.statements.execute"
 	// DatabaseSessionPostgresCloseEvent is emitted when a Postgres client
 	// closes an existing prepared statement.
-	DatabaseSessionPostgresCloseEvent = "db.session.postgres.close"
+	DatabaseSessionPostgresCloseEvent = "db.session.postgres.statements.close"
 	// DatabaseSessionPostgresFunctionEvent is emitted when a Postgres client
 	// calls an internal function.
 	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.function"
+
+	// DatabaseSessionMySQLStatementPrepareEvent is emitted when a MySQL client
+	// creates a prepared statement using the prepared statement protocol.
+	DatabaseSessionMySQLStatementPrepareEvent = "db.session.mysql.statements.prepare"
+	// DatabaseSessionMySQLStatementExecuteEvent is emitted when a MySQL client
+	// executes a prepared statement using the prepared statement protocol.
+	DatabaseSessionMySQLStatementExecuteEvent = "db.session.mysql.statements.execute"
+	// DatabaseSessionMySQLStatementSendLongDataEvent is emitted when a MySQL
+	// client sends long bytes stream using the prepared statement protocol.
+	DatabaseSessionMySQLStatementSendLongDataEvent = "db.session.mysql.statements.send_long_data"
+	// DatabaseSessionMySQLStatementCloseEvent is emitted when a MySQL client
+	// deallocates a prepared statement using the prepared statement protocol.
+	DatabaseSessionMySQLStatementCloseEvent = "db.session.mysql.statements.close"
+	// DatabaseSessionMySQLStatementResetEvent is emitted when a MySQL client
+	// resets the data of a prepared statement using the prepared statement
+	// protocol.
+	DatabaseSessionMySQLStatementResetEvent = "db.session.mysql.statements.reset"
+	// DatabaseSessionMySQLStatementFetchEvent is emitted when a MySQL client
+	// fetches rows from a prepared statement using the prepared statement
+	// protocol.
+	DatabaseSessionMySQLStatementFetchEvent = "db.session.mysql.statements.fetch"
+	// DatabaseSessionMySQLStatementBulkExecuteEvent is emitted when a MySQL
+	// client executes a bulk insert of a prepared statement using the prepared
+	// statement protocol.
+	DatabaseSessionMySQLStatementBulkExecuteEvent = "db.session.mysql.statements.bulk_execute"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
@@ -453,9 +480,31 @@ const (
 	// WindowsDesktopSessionStartEvent is emitted when a user attempts
 	// to connect to a desktop.
 	WindowsDesktopSessionStartEvent = "windows.desktop.session.start"
-	// WindowsDesktopSessionEndEvent is emitted when a user  disconnects
+	// WindowsDesktopSessionEndEvent is emitted when a user disconnects
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
+
+	// CertificateCreateEvent is emitted when a certificate is issued.
+	CertificateCreateEvent = "cert.create"
+
+	// RenewableCertificateGenerationMismatchEvent is emitted when a renewable
+	// certificate's generation counter is invalid.
+	RenewableCertificateGenerationMismatchEvent = "cert.generation_mismatch"
+
+	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
+	CertificateTypeUser = "user"
+
+	// DesktopRecordingEvent is emitted as a desktop access session is recorded.
+	DesktopRecordingEvent = "desktop.recording"
+	// DesktopClipboardReceiveEvent is emitted when Teleport receives
+	// clipboard data from a remote desktop.
+	DesktopClipboardReceiveEvent = "desktop.clipboard.receive"
+	// DesktopClipboardSendEvent is emitted when local clipboard data
+	// is sent to Teleport.
+	DesktopClipboardSendEvent = "desktop.clipboard.send"
+
+	// UnknownEvent is any event received that isn't recognized as any other event type.
+	UnknownEvent = apievents.UnknownEvent
 )
 
 const (
@@ -515,12 +564,6 @@ type SessionMetadataSetter interface {
 
 	// SetClusterName sets teleport cluster name
 	SetClusterName(string)
-}
-
-// SetCode is a shortcut that sets code for the audit event
-func SetCode(event apievents.AuditEvent, code string) apievents.AuditEvent {
-	event.SetCode(code)
-	return event
 }
 
 // Streamer creates and resumes event streams for session IDs
@@ -676,7 +719,7 @@ type IAuditLog interface {
 	WaitForDelivery(context.Context) error
 
 	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-	// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 	// The event channel is not closed on error to prevent race conditions in downstream select statements.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }

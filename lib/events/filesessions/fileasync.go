@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -96,14 +95,14 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// completer scans for uploads that have been initiated, but not completed
-	// by the client (aborted or crashed) and completed them
 	handler, err := NewHandler(Config{
 		Directory: cfg.ScanDir,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// completer scans for uploads that have been initiated, but not completed
+	// by the client (aborted or crashed) and completes them
 	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
 		Uploader:  handler,
 		AuditLog:  cfg.AuditLog,
@@ -159,7 +158,7 @@ func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
 		return trace.BadParameter("missing session ID")
 	}
 	path := u.sessionErrorFilePath(sessionID)
-	return trace.ConvertSystemError(ioutil.WriteFile(path, []byte(err.Error()), 0600))
+	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0600))
 }
 
 func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
@@ -253,7 +252,7 @@ type ScanStats struct {
 
 // Scan scans the streaming directory and uploads recordings
 func (u *Uploader) Scan() (*ScanStats, error) {
-	files, err := ioutil.ReadDir(u.cfg.ScanDir)
+	files, err := os.ReadDir(u.cfg.ScanDir)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -316,7 +315,7 @@ type upload struct {
 
 // readStatus reads stream status
 func (u *upload) readStatus() (*apievents.StreamStatus, error) {
-	data, err := ioutil.ReadAll(u.checkpointFile)
+	data, err := io.ReadAll(u.checkpointFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}

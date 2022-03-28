@@ -17,9 +17,7 @@ limitations under the License.
 package protocol
 
 import (
-	"bytes"
 	"io"
-	"net"
 
 	"github.com/gravitational/trace"
 	"github.com/siddontang/go-mysql/mysql"
@@ -47,116 +45,26 @@ type Generic struct {
 	packet
 }
 
-// OK represents the OK packet.
-//
-// https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
-type OK struct {
-	packet
-}
-
-// Error represents the ERR packet.
-//
-// https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
-type Error struct {
-	packet
-	// message is the error message
-	message string
-}
-
-// Error returns the error message.
-func (p *Error) Error() string {
-	return p.message
-}
-
-// Query represents the COM_QUERY command.
-//
-// https://dev.mysql.com/doc/internals/en/com-query.html
-type Query struct {
-	packet
-	// query is the query text.
-	query string
-}
-
-// Query returns the query text.
-func (p *Query) Query() string {
-	return p.query
-}
-
-// Quit represents the COM_QUIT command.
-//
-// https://dev.mysql.com/doc/internals/en/com-quit.html
-type Quit struct {
-	packet
-}
-
-// ChangeUser represents the COM_CHANGE_USER command.
-type ChangeUser struct {
-	packet
-	// user is the requested user.
-	user string
-}
-
-// User returns the requested user.
-func (p *ChangeUser) User() string {
-	return p.user
-}
-
 // ParsePacket reads a protocol packet from the connection and returns it
 // in a parsed form. See ReadPacket below for the packet structure.
-func ParsePacket(conn net.Conn) (Packet, error) {
+func ParsePacket(conn io.Reader) (Packet, error) {
 	packetBytes, packetType, err := ReadPacket(conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	packet := packet{packetBytes}
-
-	switch packetType {
-	case mysql.OK_HEADER:
-		return &OK{packet: packet}, nil
-
-	case mysql.ERR_HEADER:
-		// Figure out where in the packet the error message is.
-		//
-		// Depending on the protocol version, the packet may include additional
-		// fields. In protocol version 4.1 it includes '#' marker:
-		//
-		// https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
-		minLen := 7 // 4-byte header + 3-byte payload before message
-		if bytes.Contains(packetBytes, []byte("#")) {
-			minLen = 13 // 4-byte header + 9-byte payload before message
+	if int(packetType) < len(packetParsersByType) && packetParsersByType[packetType] != nil {
+		packet, err := packetParsersByType[packetType](packetBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		// Be a bit paranoid and make sure the packet is not truncated.
-		if len(packetBytes) < minLen {
-			return nil, trace.BadParameter("failed to parse ERR packet: %v", packetBytes)
-		}
-		return &Error{packet: packet, message: string(packetBytes[minLen:])}, nil
 
-	case mysql.COM_QUERY:
-		// Be a bit paranoid and make sure the packet is not truncated.
-		if len(packetBytes) < 5 {
-			return nil, trace.BadParameter("failed to parse COM_QUERY packet: %v", packetBytes)
-		}
-		// 4-byte packet header + 1-byte payload header, then query text.
-		return &Query{packet: packet, query: string(packetBytes[5:])}, nil
-
-	case mysql.COM_QUIT:
-		return &Quit{packet: packet}, nil
-
-	case mysql.COM_CHANGE_USER:
-		if len(packetBytes) < 5 {
-			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %s", packetBytes)
-		}
-		// User is the first null-terminated string in the payload:
-		// https://dev.mysql.com/doc/internals/en/com-change-user.html#packet-COM_CHANGE_USER
-		idx := bytes.IndexByte(packetBytes[5:], 0x00)
-		if idx < 0 {
-			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %s", packetBytes)
-		}
-		return &ChangeUser{packet: packet, user: string(packetBytes[5 : 5+idx])}, nil
+		return packet, nil
 	}
 
-	return &Generic{packet: packet}, nil
+	return &Generic{
+		packet: packet{bytes: packetBytes},
+	}, nil
 }
 
 // ReadPacket reads a protocol packet from the connection.
@@ -176,7 +84,7 @@ func ParsePacket(conn net.Conn) (Packet, error) {
 //           number
 //
 // https://dev.mysql.com/doc/internals/en/mysql-packet.html
-func ReadPacket(conn net.Conn) (pkt []byte, pktType byte, err error) {
+func ReadPacket(conn io.Reader) (pkt []byte, pktType byte, err error) {
 	// Read 4-byte packet header.
 	var header [4]byte
 	if _, err := io.ReadFull(conn, header[:]); err != nil {
@@ -206,10 +114,51 @@ func ReadPacket(conn net.Conn) (pkt []byte, pktType byte, err error) {
 }
 
 // WritePacket writes the provided protocol packet to the connection.
-func WritePacket(pkt []byte, conn net.Conn) (int, error) {
+func WritePacket(pkt []byte, conn io.Writer) (int, error) {
 	n, err := conn.Write(pkt)
 	if err != nil {
 		return 0, trace.ConvertSystemError(err)
 	}
 	return n, nil
 }
+
+// packetParsersByType is a slice of packet parser functions by packet type.
+var packetParsersByType = []func([]byte) (Packet, error){
+	// Server responses.
+	mysql.OK_HEADER:  parseOKPacket,
+	mysql.ERR_HEADER: parseErrorPacket,
+
+	// Text protocol commands.
+	mysql.COM_QUERY:       parseQueryPacket,
+	mysql.COM_QUIT:        parseQuitPacket,
+	mysql.COM_CHANGE_USER: parseChangeUserPacket,
+
+	// Prepared statement commands.
+	mysql.COM_STMT_PREPARE:         parseStatementPreparePacket,
+	mysql.COM_STMT_SEND_LONG_DATA:  parseStatementSendLongDataPacket,
+	mysql.COM_STMT_EXECUTE:         parseStatementExecutePacket,
+	mysql.COM_STMT_CLOSE:           parseStatementClosePacket,
+	mysql.COM_STMT_RESET:           parseStatementResetPacket,
+	mysql.COM_STMT_FETCH:           parseStatementFetchPacket,
+	packetTypeStatementBulkExecute: parseStatementBulkExecutePacket,
+}
+
+const (
+	// packetHeaderSize is the size of the packet header.
+	packetHeaderSize = 4
+
+	// packetTypeSize is the size of the command type.
+	packetTypeSize = 1
+
+	// packetHeaderAndTypeSize is the combined size of the packet header and
+	// type.
+	packetHeaderAndTypeSize = packetHeaderSize + packetTypeSize
+)
+
+const (
+	// packetTypeStatementBulkExecute is a MariaDB specific packet type for
+	// COM_STMT_BULK_EXECUTE packets.
+	//
+	// https://mariadb.com/kb/en/com_stmt_bulk_execute/
+	packetTypeStatementBulkExecute = 0xfa
+)

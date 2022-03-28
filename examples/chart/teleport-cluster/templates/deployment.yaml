@@ -83,7 +83,7 @@ spec:
           name: "license"
           readOnly: true
   {{- end }}
-  {{- if eq .Values.chartMode "gcp" }}
+  {{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
         - mountPath: /etc/teleport-secrets
           name: "gcp-credentials"
           readOnly: true
@@ -129,6 +129,7 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to start
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
         readinessProbe:
           httpGet:
             path: /readyz
@@ -136,6 +137,7 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to register
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
 {{- if .Values.postStart.command }}
         lifecycle:
           postStart:
@@ -152,7 +154,7 @@ spec:
           name: "license"
           readOnly: true
 {{- end }}
-{{- if eq .Values.chartMode "gcp" }}
+  {{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
         - mountPath: /etc/teleport-secrets
           name: "gcp-credentials"
           readOnly: true

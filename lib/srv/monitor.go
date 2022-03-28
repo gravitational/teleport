@@ -190,13 +190,13 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 		// Idle timeout.
 		case <-idleTime:
-			now := w.Clock.Now().UTC()
 			clientLastActive := w.Tracker.GetClientLastActive()
-			if now.Sub(clientLastActive) >= w.ClientIdleTimeout {
+			since := w.Clock.Since(clientLastActive)
+			if since >= w.ClientIdleTimeout {
 				reason := "client reported no activity"
 				if !clientLastActive.IsZero() {
 					reason = fmt.Sprintf("client is idle for %v, exceeded idle timeout of %v",
-						now.Sub(clientLastActive), w.ClientIdleTimeout)
+						since, w.ClientIdleTimeout)
 				}
 				if err := w.emitDisconnectEvent(reason); err != nil {
 					w.Entry.WithError(err).Warn("Failed to emit audit event.")
@@ -212,8 +212,9 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 				}
 				return
 			}
-			w.Entry.Debugf("Next check in %v", w.ClientIdleTimeout-now.Sub(clientLastActive))
-			idleTime = w.Clock.After(w.ClientIdleTimeout - now.Sub(clientLastActive))
+			next := w.ClientIdleTimeout - since
+			w.Entry.Debugf("Client activity detected %v ago; next check in %v", since, next)
+			idleTime = w.Clock.After(next)
 
 		// Lock in force.
 		case lockEvent := <-lockWatch.Events():

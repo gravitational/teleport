@@ -220,6 +220,9 @@ func (t LockTarget) Match(lock Lock) bool {
 	if t.WindowsDesktop != "" && lockTarget.WindowsDesktop != t.WindowsDesktop {
 		return false
 	}
+	if t.AccessRequest != "" && lockTarget.AccessRequest != t.AccessRequest {
+		return false
+	}
 	return true
 }
 

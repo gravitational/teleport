@@ -85,10 +85,6 @@ type Backend interface {
 	// CloseWatchers closes all the watchers
 	// without closing the backend
 	CloseWatchers()
-
-	// Migrate performs any data migration necessary between Teleport versions.
-	// Migrate must be called BEFORE using any other methods of the Backend.
-	Migrate(context.Context) error
 }
 
 // IterateRange is a helper for stepping over a range
@@ -257,9 +253,7 @@ func nextKey(key []byte) []byte {
 	return noEnd
 }
 
-var (
-	noEnd = []byte{0}
-)
+var noEnd = []byte{0}
 
 // RangeEnd returns end of the range for given key.
 func RangeEnd(key []byte) []byte {
@@ -277,6 +271,20 @@ func NextPaginationKey(r types.Resource) string {
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	default:
 		return string(nextKey([]byte(r.GetName())))
+	}
+}
+
+// GetPaginationKey returns the pagination key given resource.
+func GetPaginationKey(r types.Resource) string {
+	switch resourceWithType := r.(type) {
+	case types.DatabaseServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.AppServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.WindowsDesktop:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	default:
+		return r.GetName()
 	}
 }
 
@@ -369,9 +377,3 @@ func Key(parts ...string) []byte {
 func internalKey(internalPrefix string, parts ...string) []byte {
 	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
 }
-
-// NoMigrations implements a nop Migrate method of Backend.
-// Backend implementations should embed this when no migrations are necessary.
-type NoMigrations struct{}
-
-func (NoMigrations) Migrate(context.Context) error { return nil }

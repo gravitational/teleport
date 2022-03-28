@@ -1,0 +1,340 @@
+suite: ConfigMap
+templates:
+  - config.yaml
+tests:
+  - it: matches snapshot for acme-off.yaml
+    values:
+      - ../.lint/acme-off.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for acme-on.yaml
+    values:
+      - ../.lint/acme-on.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for acme-uri-staging.yaml
+    values:
+      - ../.lint/acme-on.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for affinity.yaml
+    values:
+      - ../.lint/affinity.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot and tests for annotations.yaml
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.annotations.kubernetes\.io/config
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/config-different
+          value: 2
+      - matchSnapshot: {}
+
+  - it: matches snapshot for aws-ha-acme.yaml
+    values:
+      - ../.lint/aws-ha-acme.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for aws-ha-antiaffinity.yaml
+    values:
+      - ../.lint/aws-ha-antiaffinity.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for aws-ha-log.yaml
+    values:
+      - ../.lint/aws-ha-log.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for aws-ha.yaml
+    values:
+      - ../.lint/aws-ha.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for aws.yaml
+    values:
+      - ../.lint/aws.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: does not generate a config for cert-manager.yaml
+    values:
+      - ../.lint/cert-manager.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not generate a config for cert-secret.yaml
+    values:
+      - ../.lint/cert-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: matches snapshot for gcp-ha-acme.yaml
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for gcp-ha-antiaffinity.yaml
+    values:
+      - ../.lint/gcp-ha-antiaffinity.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for gcp-ha-log.yaml
+    values:
+      - ../.lint/gcp-ha-log.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for gcp.yaml
+    values:
+      - ../.lint/gcp.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for initcontainers.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for kube-cluster-name.yaml
+    values:
+      - ../.lint/kube-cluster-name.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for log-basic.yaml
+    values:
+      - ../.lint/log-basic.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for log-extra.yaml
+    values:
+      - ../.lint/log-extra.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for log-legacy.yaml
+    values:
+      - ../.lint/log-legacy.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: does not generate a config for pdb.yaml
+    values:
+      - ../.lint/pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: matches snapshot for priority-class-name.yaml
+    values:
+      - ../.lint/priority-class-name.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for proxy-listener-mode.yaml
+    values:
+      - ../.lint/proxy-listener-mode.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for resources.yaml
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for service.yaml
+    values:
+      - ../.lint/service.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for separate-mongo-listener.yaml
+    values:
+      - ../.lint/separate-mongo-listener.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for separate-postgres-listener.yaml
+    values:
+      - ../.lint/separate-postgres-listener.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for standalone-customsize.yaml
+    values:
+      - ../.lint/standalone-customsize.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for standalone-existingpvc.yaml
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for tolerations.yaml
+    values:
+      - ../.lint/tolerations.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for version-override.yaml
+    values:
+      - ../.lint/version-override.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for volumes.yaml
+    values:
+      - ../.lint/volumes.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for webauthn.yaml
+    values:
+      - ../.lint/webauthn.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}

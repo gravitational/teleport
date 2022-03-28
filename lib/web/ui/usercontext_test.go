@@ -38,7 +38,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	}
 
 	// set some rules
-	role1 := &types.RoleV4{}
+	role1 := &types.RoleV5{}
 	role1.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 	role1.SetRules(types.Allow, []types.Rule{
 		{
@@ -59,7 +59,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 		},
 	})
 
-	role2 := &types.RoleV4{}
+	role2 := &types.RoleV5{}
 	role2.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 	role2.SetRules(types.Allow, []types.Rule{
 		{
@@ -83,7 +83,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	role2.SetWindowsLogins(types.Allow, []string{"d"})
 
 	roleSet := []types.Role{role1, role2}
-	userContext, err := NewUserContext(user, roleSet, proto.Features{})
+	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true)
 	c.Assert(err, check.IsNil)
 
 	allowed := access{true, true, true, true, true}
@@ -111,19 +111,26 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 		Prompt: "",
 	})
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Clipboard, check.Equals, true)
+	c.Assert(userContext.ACL.DesktopSessionRecording, check.Equals, true)
 
 	// test local auth type
 	c.Assert(userContext.AuthType, check.Equals, authLocal)
 
 	// test sso auth type
 	user.Spec.GithubIdentities = []types.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
-	userContext, err = NewUserContext(user, roleSet, proto.Features{})
+	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(userContext.AuthType, check.Equals, authSSO)
 
-	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true})
+	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, access{true, true, false, false, false})
+
+	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
+	userContext, err = NewUserContext(user, roleSet, proto.Features{}, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(userContext.ACL.DesktopSessionRecording, check.Equals, false)
 }
 
 func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
@@ -133,7 +140,7 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 		},
 	}
 
-	role := &types.RoleV4{}
+	role := &types.RoleV5{}
 	role.SetNamespaces(types.Allow, []string{"*"})
 	role.SetRules(types.Allow, []types.Rule{
 		{
@@ -150,9 +157,8 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 	roleSet := []types.Role{role}
 
 	allowed := access{true, true, true, true, true}
-	denied := access{false, false, false, false, false}
 
-	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true})
+	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(userContext.Name, check.Equals, "root")
@@ -174,8 +180,10 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
 	})
+	c.Assert(userContext.ACL.Clipboard, check.Equals, true)
+	c.Assert(userContext.ACL.DesktopSessionRecording, check.Equals, true)
 
 	// cloud-specific asserts
 	c.Assert(userContext.ACL.Billing, check.DeepEquals, allowed)
-	c.Assert(userContext.ACL.Desktops, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Desktops, check.DeepEquals, allowed)
 }

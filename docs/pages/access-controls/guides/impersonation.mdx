@@ -32,7 +32,7 @@ Save this file as `jenkins.yaml` to create the user and role:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: jenkins
 spec:
@@ -77,7 +77,7 @@ Save this role definition as `impersonator.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: impersonator
 spec:
@@ -179,7 +179,7 @@ allowed the impersonation of any users or roles with the label
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: security-impersonator
 spec:
@@ -214,7 +214,7 @@ Create a user and a role `security-scanner` using the following template:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: security-scanner
   labels:
@@ -256,7 +256,7 @@ as the label on the role and/or user to impersonate:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: security-impersonator
 spec:
@@ -312,23 +312,15 @@ $ tsh login --proxy=teleport.example.com --user=alice --auth=local
 $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```
 
-Here is a summary of variables and functions we used in this guide:
+### Filter fields
 
-<table>
-<tr>
-  <th>Variable or Function</th>
-  <th>Description</th>
-</tr>
-<tr>
-  <td>`user.spec.traits`</td>
-  <td>Access traits of local or SSO user.</td>
-</tr>
-<tr>
-  <td>`contains(list, var)`</td>
-  <td>Checks whether list contains variable</td>
-</tr>
-<tr>
-  <td>`equals(var, var)`</td>
-  <td>Checks whether one variable is equal another</td>
-</tr>
-</table>
+Here is an explanation of the fields used in the `where` conditions within this guide.
+
+| Field                                             | Description                                                                                                            |
+|---------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `user.spec.traits["group"]`                       | The list of traits from a local or SSO user where the `group` trait typically comes from an external identity provider |
+| `impersonate_role.metadata.labels["<label key>"]` | The label value given the label `key` from a role to impersonate                                                       |
+| `impersonate_user.metadata.labels["<label key>"]` | The label value given the label `key` from a user to impersonate                                                       |
+
+Check out our [predicate language](../../setup/reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources) 
+guide for a more in depth explanation of the language.

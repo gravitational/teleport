@@ -30,7 +30,7 @@ import (
 // Verify that an OIDC connector with no mappings produces no roles.
 func TestOIDCRoleMappingEmpty(t *testing.T) {
 	// create a connector
-	oidcConnector, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV2{
+	oidcConnector, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
 		IssuerURL:    "https://www.exmaple.com",
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
@@ -57,7 +57,7 @@ func TestOIDCRoleMappingEmpty(t *testing.T) {
 // TestOIDCRoleMapping verifies basic mapping from OIDC claims to roles.
 func TestOIDCRoleMapping(t *testing.T) {
 	// create a connector
-	oidcConnector, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV2{
+	oidcConnector, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
 		IssuerURL:    "https://www.exmaple.com",
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",

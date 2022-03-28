@@ -26,13 +26,20 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Reader is the interface for prompt readers.
+type Reader interface {
+	// ReadContext reads from the underlying buffer, respecting context
+	// cancellation.
+	ReadContext(ctx context.Context) ([]byte, error)
+}
+
 // Confirmation prompts the user for a yes/no confirmation for question.
 // The prompt is written to out and the answer is read from in.
 //
-// question should be a plain sentece without "[yes/no]"-type hints at the end.
+// question should be a plain sentence without "[yes/no]"-type hints at the end.
 //
 // ctx can be canceled to abort the prompt.
-func Confirmation(ctx context.Context, out io.Writer, in *ContextReader, question string) (bool, error) {
+func Confirmation(ctx context.Context, out io.Writer, in Reader, question string) (bool, error) {
 	fmt.Fprintf(out, "%s [y/N]: ", question)
 	answer, err := in.ReadContext(ctx)
 	if err != nil {
@@ -49,10 +56,10 @@ func Confirmation(ctx context.Context, out io.Writer, in *ContextReader, questio
 // PickOne prompts the user to pick one of the provided string options.
 // The prompt is written to out and the answer is read from in.
 //
-// question should be a plain sentece without the list of provided options.
+// question should be a plain sentence without the list of provided options.
 //
 // ctx can be canceled to abort the prompt.
-func PickOne(ctx context.Context, out io.Writer, in *ContextReader, question string, options []string) (string, error) {
+func PickOne(ctx context.Context, out io.Writer, in Reader, question string, options []string) (string, error) {
 	fmt.Fprintf(out, "%s [%s]: ", question, strings.Join(options, ", "))
 	answerOrig, err := in.ReadContext(ctx)
 	if err != nil {
@@ -72,7 +79,7 @@ func PickOne(ctx context.Context, out io.Writer, in *ContextReader, question str
 // The prompt is written to out and the answer is read from in.
 //
 // ctx can be canceled to abort the prompt.
-func Input(ctx context.Context, out io.Writer, in *ContextReader, question string) (string, error) {
+func Input(ctx context.Context, out io.Writer, in Reader, question string) (string, error) {
 	fmt.Fprintf(out, "%s: ", question)
 	answer, err := in.ReadContext(ctx)
 	if err != nil {

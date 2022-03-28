@@ -173,8 +173,7 @@ func (r *Linear) Reset() {
 	r.attempt = 0
 }
 
-// ResetToDelay resetes retry period to initial and increments to the next attempt
-// similar to Reset() and Inc()
+// ResetToDelay resets retry period and increments the number of attempts.
 func (r *Linear) ResetToDelay() {
 	r.Reset()
 	r.Inc()
@@ -243,7 +242,6 @@ func (r *Linear) String() string {
 }
 
 // For retries the provided function until it succeeds or the context expires.
-// Only errors matching retryIf filter are retried.
 func (r *Linear) For(ctx context.Context, retryFn func() error) error {
 	for {
 		err := retryFn()
