@@ -1700,6 +1700,8 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *cloud.GCPSQLAdminClientMock
+	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
+	OnHeartbeat func(error)
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -1765,6 +1767,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		Limiter:          connLimiter,
 		Auth:             testAuth,
 		Databases:        p.Databases,
+		OnHeartbeat:      p.OnHeartbeat,
 		ResourceMatchers: p.ResourceMatchers,
 		GetServerInfoFn:  p.GetServerInfoFn,
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {

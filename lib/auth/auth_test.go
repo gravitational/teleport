@@ -41,7 +41,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -87,7 +86,7 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
-		Authority:              authority.New(),
+		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}
 	p.a, err = NewServer(authConfig)
@@ -780,7 +779,7 @@ func TestUpdateConfig(t *testing.T) {
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
-		Authority:              authority.New(),
+		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}
 	authServer, err := NewServer(authConfig)
