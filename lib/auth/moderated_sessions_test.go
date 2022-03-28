@@ -31,8 +31,6 @@ import (
 // TestUnmoderatedSessionsAllowed tests that we allow creating unmoderated sessions even if the
 // moderated sessions feature is disabled via modules.
 func TestUnmoderatedSessionsAllowed(t *testing.T) {
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
 	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
 		ModeratedSessions: false, // Explicily turn off moderated sessions.
 	}})
@@ -55,8 +53,6 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 // TestModeratedSessionsDisabled makes sure moderated sessions can be disabled via modules.
 // Since moderated sessions require trackers, we mediate this in the tracker creation function.
 func TestModeratedSessionsDisabled(t *testing.T) {
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
 	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
 		ModeratedSessions: false, // Explicily turn off moderated sessions.
 	}})
@@ -91,8 +87,6 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 // TestModeratedSessionsEnabled verifies that we can create session trackers with moderation
 // requirements when the feature is enabled.
 func TestModeratedSesssionsEnabled(t *testing.T) {
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
 	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
 		ModeratedSessions: true,
 	}})
