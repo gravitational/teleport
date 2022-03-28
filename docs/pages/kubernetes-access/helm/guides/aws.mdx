@@ -136,9 +136,9 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
-## Step 4. TLS certificates for Teleport
+## Step 4/7. TLS certificates for Teleport
 
-The `teleport-cluster` chart deploys a Kubernetes `LoadBalancer` to handle incoming connections to the Teleport proxy server.
+The `teleport-cluster` chart deploys a Kubernetes `LoadBalancer` to handle incoming connections to the Teleport Proxy Service.
 
 We now need to configure TLS certificates for Teleport to secure its communications and allow external clients to connect.
 
@@ -250,11 +250,11 @@ $ kubectl --namespace teleport create -f aws-issuer.yaml
 
 ## Step 4b. Configure Teleport to use ACM to handle TLS
 
-<Admonition type="warning" title="Command-line Teleport Application access does not work with ACM">
-  Using ACM will prevent Teleport from handling application access via CLI (using client certificates), as Teleport
+<Admonition type="warning" title="Command-line Teleport Application Access does not work with ACM">
+  Using ACM will prevent Teleport from handling Application Access via CLI (using client certificates), as Teleport
   will not be handling its own TLS termination.
 
-  If you need to use Teleport application access from the command line, you should use `cert-manager` instead (as described in
+  If you need to use Teleport Application Access from the command line, you should use `cert-manager` instead (as described in
   [Step 4a](#step-4a-install-and-configure-cert-manager-to-handle-tls) above).
 </Admonition>
 
@@ -298,7 +298,7 @@ Replace `arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c4
 </Admonition>
 
 
-## Step 5. Set values to configure the cluster
+## Step 5/7. Set values to configure the cluster
 
 There are two different ways to configure the `teleport-cluster` Helm chart to use `aws` mode - using a `values.yaml` file, or using `--set`
 on the command line.
