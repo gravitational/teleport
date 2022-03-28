@@ -28,22 +28,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testModules struct {
-	modules.Modules
-}
-
-func (m *testModules) Features() modules.Features {
-	return modules.Features{
-		ModeratedSessions: false, // Explicily turn off moderated sessions.
-	}
-}
-
 // TestUnmoderatedSessionsAllowed tests that we allow creating unmoderated sessions even if the
 // moderated sessions feature is disabled via modules.
 func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	defaultModules := modules.GetModules()
 	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testModules{})
+	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		ModeratedSessions: false, // Explicily turn off moderated sessions.
+	}})
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -51,7 +43,7 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	srv, err := local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
-	tracker, err := srv.CreateSessionTracker(context.TODO(), &proto.CreateSessionTrackerRequest{
+	tracker, err := srv.CreateSessionTracker(context.Background(), &proto.CreateSessionTrackerRequest{
 		ID:        "foo",
 		Initiator: &types.Participant{},
 	})
@@ -65,7 +57,9 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 func TestModeratedSessionsDisabled(t *testing.T) {
 	defaultModules := modules.GetModules()
 	defer modules.SetModules(defaultModules)
-	modules.SetModules(&testModules{})
+	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		ModeratedSessions: false, // Explicily turn off moderated sessions.
+	}})
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -73,7 +67,7 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	srv, err := local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
-	tracker, err := srv.CreateSessionTracker(context.TODO(), &proto.CreateSessionTrackerRequest{
+	tracker, err := srv.CreateSessionTracker(context.Background(), &proto.CreateSessionTrackerRequest{
 		ID:        "foo",
 		Initiator: &types.Participant{},
 		HostPolicies: []*types.SessionTrackerPolicySet{
@@ -92,4 +86,39 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, tracker)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+}
+
+// TestModeratedSessionsEnabled verifies that we can create session trackers with moderation
+// requirements when the feature is enabled.
+func TestModeratedSesssionsEnabled(t *testing.T) {
+	defaultModules := modules.GetModules()
+	defer modules.SetModules(defaultModules)
+	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		ModeratedSessions: true,
+	}})
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	srv, err := local.NewSessionTrackerService(bk)
+	require.NoError(t, err)
+
+	tracker, err := srv.CreateSessionTracker(context.Background(), &proto.CreateSessionTrackerRequest{
+		ID:        "foo",
+		Initiator: &types.Participant{},
+		HostPolicies: []*types.SessionTrackerPolicySet{
+			{
+				Name:    "foo",
+				Version: "5",
+				RequireSessionJoin: []*types.SessionRequirePolicy{
+					{
+						Name: "foo",
+					},
+				},
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, tracker)
 }
