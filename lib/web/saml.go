@@ -19,6 +19,8 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/teleport/lib/auth"
+
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -97,8 +99,22 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	}
 
 	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
+
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
+
+		// try to find the requestID, which bears the original client redirect URL.
+		// if found, use it to terminate the flow.
+		//
+		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
+		if requestID, errParse := auth.ParseSAMLInResponseTo(samlResponse); errParse == nil {
+			if request, errGet := h.cfg.ProxyClient.GetSAMLAuthRequest(requestID); errGet == nil {
+				if url, errEnc := returnErrorToClient(request.ClientRedirectURL, err); errEnc == nil {
+					return url.String()
+				}
+			}
+		}
+
 		return client.LoginFailedBadCallbackRedirectURL
 	}
 

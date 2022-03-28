@@ -63,7 +63,7 @@ func TestCreateSAMLUser(t *testing.T) {
 		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
-	})
+	}, false)
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.

@@ -334,6 +334,28 @@ type createUserParams struct {
 	sessionTTL time.Duration
 }
 
+func (params createUserParams) toMap() map[string]interface{} {
+	result := map[string]interface{}{}
+
+	result["connectorName"] = params.connectorName
+	result["username"] = params.username
+	result["roles"] = params.roles
+	result["traits"] = params.traits
+	result["sessionTTL"] = params.sessionTTL
+
+	if len(params.logins) > 0 {
+		result["logins"] = params.logins
+	}
+	if len(params.kubeGroups) > 0 {
+		result["kubeGroups"] = params.kubeGroups
+	}
+	if len(params.kubeUsers) > 0 {
+		result["kubeUsers"] = params.kubeUsers
+	}
+
+	return result
+}
+
 func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),

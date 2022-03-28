@@ -1215,6 +1215,54 @@ func (s *IdentityService) GetSAMLAuthRequest(id string) (*services.SAMLAuthReque
 	return &req, nil
 }
 
+func (s *IdentityService) TraceSAMLDiagnosticInfo(ctx context.Context, authRequestId string, key string, value interface{}, extraInfo ...interface{}) error {
+	if authRequestId == "" {
+		return trace.BadParameter("missing parameter authRequestId")
+	}
+	jsonValue, err := json.Marshal(types.SsoDiagInfoEntry{
+		Key:       key,
+		Value:     value,
+		ExtraInfo: extraInfo,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsTracePrefix, authRequestId, uuid.New().String()),
+		Value:   jsonValue,
+		Expires: backend.Expiry(s.Clock(), time.Minute*15),
+	}
+	_, err = s.Create(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *IdentityService) GetSAMLDiagnosticInfo(ctx context.Context, authRequestId string) (map[string]types.SsoDiagInfoEntry, error) {
+	if authRequestId == "" {
+		return nil, trace.BadParameter("missing parameter id")
+	}
+
+	startKey := backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsTracePrefix, authRequestId)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make(map[string]types.SsoDiagInfoEntry)
+	for _, item := range result.Items {
+		var req types.SsoDiagInfoEntry
+		if err := json.Unmarshal(item.Value, &req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[req.Key] = req
+	}
+
+	return out, nil
+}
+
 // CreateGithubConnector creates a new Github connector
 func (s *IdentityService) CreateGithubConnector(connector types.GithubConnector) error {
 	if err := connector.CheckAndSetDefaults(); err != nil {
@@ -1485,6 +1533,7 @@ const (
 	samlPrefix                = "saml"
 	githubPrefix              = "github"
 	requestsPrefix            = "requests"
+	requestsTracePrefix       = "requestsTrace"
 	usedTOTPPrefix            = "used_totp"
 	usedTOTPTTL               = 30 * time.Second
 	mfaDevicePrefix           = "mfa"

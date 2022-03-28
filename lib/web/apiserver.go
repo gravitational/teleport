@@ -1331,6 +1331,19 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	return u, nil
 }
 
+func returnErrorToClient(clientRedirectURL string, errReply error) (*url.URL, error) {
+	u, err := url.Parse(clientRedirectURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values := u.Query()
+	values.Set("err", errReply.Error())
+
+	u.RawQuery = values.Encode()
+	return u, nil
+}
+
 // CreateSessionReq is a request to create session from username, password and
 // second factor token.
 type CreateSessionReq struct {

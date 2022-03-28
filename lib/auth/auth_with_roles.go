@@ -2342,6 +2342,22 @@ func (a *ServerWithRoles) ValidateSAMLResponse(re string) (*SAMLAuthResponse, er
 	return a.authServer.ValidateSAMLResponse(re)
 }
 
+func (a *ServerWithRoles) GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetSAMLAuthRequest(id)
+}
+
+func (a *ServerWithRoles) GetSAMLDiagnosticInfo(ctx context.Context, authRequestId string) (map[string]types.SsoDiagInfoEntry, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetSAMLDiagnosticInfo(ctx, authRequestId)
+}
+
 // DeleteSAMLConnector deletes a SAML connector by name.
 func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbDelete); err != nil {

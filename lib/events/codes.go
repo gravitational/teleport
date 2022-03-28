@@ -304,6 +304,10 @@ const (
 	// RecoveryCodeUseFailureCode is an event code for when a
 	// recovery code was not used successfully.
 	RecoveryCodeUseFailureCode = "T1009W"
+	// UserSSOTestFlowLoginCode is the successful SSO test flow user login event code.
+	UserSSOTestFlowLoginCode = "T1010I"
+	// UserSSOTestFlowLoginFailureCode is the unsuccessful SSO test flow user login event code.
+	UserSSOTestFlowLoginFailureCode = "T1011W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"

@@ -85,11 +85,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) 
 
 func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
 	ctx := context.TODO()
-	connector, err := a.Identity.GetSAMLConnector(ctx, req.ConnectorID, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	provider, err := a.getSAMLProvider(connector)
+	connector, provider, err := a.getConnectorAndProvider(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,6 +124,44 @@ func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 	return &req, nil
 }
 
+func (a *Server) getConnectorAndProvider(ctx context.Context, req services.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
+	var connector types.SAMLConnector
+	var provider *saml2.SAMLServiceProvider
+	var err error
+
+	if req.SSOTestFlow {
+		// stateless test flow
+		connector, err = types.NewSAMLConnector(req.ConnectorID, *req.ConnectorSpec)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// validate, set defaults for connector
+		err := services.ValidateSAMLConnector(connector)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// we don't want to cache the provider. construct it directly instead of using a.getSAMLProvider()
+		provider, err = services.GetSAMLServiceProvider(connector, a.clock)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	} else {
+		// regular execution flow
+		connector, err = a.Identity.GetSAMLConnector(ctx, req.ConnectorID, true)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		provider, err = a.getSAMLProvider(connector)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	return connector, provider, nil
+}
+
 func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -158,11 +192,17 @@ func (a *Server) calculateSAMLUser(connector types.SAMLConnector, assertionInfo 
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
+	_ = a.Identity.TraceSAMLDiagnosticInfo(context.Background(), request.ID, DiagInfoSAMLTraitsFromAssertions, p.traits)
+	_ = a.Identity.TraceSAMLDiagnosticInfo(context.Background(), request.ID, DiagInfoSAMLConnectorTraitMapping, connector.GetTraitMappings())
+
 	var warnings []string
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		if len(warnings) != 0 {
+			_ = a.Identity.TraceSAMLDiagnosticInfo(context.Background(), request.ID, DiagInfoSAMLAttributesToRolesWarnings, "No roles mapped for the user", warnings)
 			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
+		} else {
+			_ = a.Identity.TraceSAMLDiagnosticInfo(context.Background(), request.ID, DiagInfoSAMLAttributesToRolesWarnings, "No roles mapped for the user. The mappings may contain typos.")
 		}
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
@@ -178,7 +218,7 @@ func (a *Server) calculateSAMLUser(connector types.SAMLConnector, assertionInfo 
 	return &p, nil
 }
 
-func (a *Server) createSAMLUser(p *createUserParams) (types.User, error) {
+func (a *Server) createSAMLUser(p *createUserParams, dryRun bool) (types.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
@@ -214,6 +254,10 @@ func (a *Server) createSAMLUser(p *createUserParams) (types.User, error) {
 		},
 	}
 
+	if dryRun {
+		return user, nil
+	}
+
 	// Get the user to check if it already exists or not.
 	existingUser, err := a.Identity.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
@@ -247,7 +291,7 @@ func (a *Server) createSAMLUser(p *createUserParams) (types.User, error) {
 	return user, nil
 }
 
-func parseSAMLInResponseTo(response string) (string, error) {
+func ParseSAMLInResponseTo(response string) (string, error) {
 	raw, _ := base64.StdEncoding.DecodeString(response)
 
 	doc := etree.NewDocument()
@@ -315,7 +359,9 @@ func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, e
 		},
 		Method: events.LoginMethodSAML,
 	}
-	re, err := a.validateSAMLResponse(samlResponse)
+
+	re, request, err := a.validateSAMLResponse(samlResponse)
+
 	if re != nil && re.attributeStatements != nil {
 		attributes, err := apievents.EncodeMapStrings(re.attributeStatements)
 		if err != nil {
@@ -326,8 +372,14 @@ func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, e
 		}
 	}
 
+	testFlow := request.SSOTestFlow
+
 	if err != nil {
-		event.Code = events.UserSSOLoginFailureCode
+		if testFlow {
+			event.Code = events.UserSSOTestFlowLoginFailureCode
+		} else {
+			event.Code = events.UserSSOLoginFailureCode
+		}
 		event.Status.Success = false
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
@@ -336,14 +388,22 @@ func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, e
 		}
 		return nil, trace.Wrap(err)
 	}
+
 	event.Status.Success = true
 	event.User = re.auth.Username
-	event.Code = events.UserSSOLoginCode
+	if testFlow {
+		event.Code = events.UserSSOTestFlowLoginCode
+	} else {
+		event.Code = events.UserSSOLoginCode
+	}
 
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit SAML login event.")
 	}
 
+	if err != nil {
+		return nil, err
+	}
 	return &re.auth, nil
 }
 
@@ -352,36 +412,62 @@ type samlAuthResponse struct {
 	attributeStatements map[string][]string
 }
 
-func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, error) {
+const (
+	DiagInfoError                         = "common.error"
+	DiagInfoResult                        = "common.result"
+	DiagInfoCreateUserParams              = "common.createUserParams"
+	DiagInfoSAMLAttributesToRoles         = "SAML.attributesToRoles"
+	DiagInfoSAMLAttributesToRolesWarnings = "SAML.attributesToRolesWarnings"
+	DiagInfoSAMLAssertionInfo             = "SAML.assertionInfo"
+	DiagInfoSAMLAttributeStatements       = "SAML.attributeStatements"
+	DiagInfoSAMLTraitsFromAssertions      = "SAML.traits"
+	DiagInfoSAMLConnectorTraitMapping     = "SAML.connector_traits"
+)
+
+func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, *services.SAMLAuthRequest, error) {
 	ctx := context.TODO()
-	requestID, err := parseSAMLInResponseTo(samlResponse)
+
+	requestID, err := ParseSAMLInResponseTo(samlResponse)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	request, err := a.Identity.GetSAMLAuthRequest(requestID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := a.Identity.GetSAMLConnector(ctx, request.ConnectorID, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	provider, err := a.getSAMLProvider(connector)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
-	if err != nil {
-		return nil, trace.AccessDenied(
-			"received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err)
+		return nil, nil, trace.Wrap(err)
 	}
 
+	traceErr := func(msg string, errInfo error) {
+		_ = a.Identity.TraceSAMLDiagnosticInfo(ctx, requestID, DiagInfoError, msg, errInfo.Error())
+	}
+
+	request, err := a.Identity.GetSAMLAuthRequest(requestID)
+	if err != nil {
+		traceErr("Failed to get SAML Auth Request", err)
+		return nil, request, trace.Wrap(err)
+	}
+
+	connector, provider, err := a.getConnectorAndProvider(ctx, *request)
+	if err != nil {
+		traceErr("Failed to get SAML connector and provider", err)
+		return nil, request, err
+	}
+
+	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
+	if err != nil {
+		errV := trace.AccessDenied(
+			"received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err)
+		traceErr("Failed to retrieve assertion info. This may indicate IdP configuration error.", errV)
+		return nil, request, errV
+	}
+
+	_ = a.Identity.TraceSAMLDiagnosticInfo(ctx, requestID, DiagInfoSAMLAssertionInfo, assertionInfo)
+
 	if assertionInfo.WarningInfo.InvalidTime {
-		return nil, trace.AccessDenied("invalid time in SAML assertion info")
+		err = trace.AccessDenied("invalid time in SAML assertion info")
+		traceErr("SAML assertion info contained warning: invalid time.", err)
+		return nil, request, err
 	}
 
 	if assertionInfo.WarningInfo.NotInAudience {
-		return nil, trace.AccessDenied("no audience in SAML assertion info")
+		err = trace.AccessDenied("no audience in SAML assertion info")
+		traceErr("SAML: not in expected audience. Check auth connector audience field and IdP configuration for typos and other errors.", err)
+		return nil, request, err
 	}
 
 	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
@@ -397,22 +483,34 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 		re.attributeStatements[key] = vals
 	}
 
+	_ = a.Identity.TraceSAMLDiagnosticInfo(ctx, requestID, DiagInfoSAMLAttributeStatements, re.attributeStatements)
+
 	log.Debugf("SAML assertion warnings: %+v.", assertionInfo.WarningInfo)
 
+	_ = a.Identity.TraceSAMLDiagnosticInfo(ctx, requestID, DiagInfoSAMLAttributesToRoles, connector.GetAttributesToRoles())
+
 	if len(connector.GetAttributesToRoles()) == 0 {
-		return re, trace.BadParameter("no attributes to roles mapping, check connector documentation")
+		err = trace.BadParameter("no attributes to roles mapping, check connector documentation")
+		traceErr("Attributes-to-roles mapping is empty, SSO user will never have any roles.", err)
+		return re, request, err
 	}
+
 	log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
 	params, err := a.calculateSAMLUser(connector, *assertionInfo, request)
 	if err != nil {
-		return re, trace.Wrap(err)
+		traceErr("Failed to calculate user attributes.", err)
+		return re, request, trace.Wrap(err)
 	}
-	user, err := a.createSAMLUser(params)
+
+	_ = a.Identity.TraceSAMLDiagnosticInfo(ctx, requestID, DiagInfoCreateUserParams, params.toMap())
+
+	user, err := a.createSAMLUser(params, request.SSOTestFlow)
 	if err != nil {
-		return re, trace.Wrap(err)
+		traceErr("Failed to create user from provided parameters.", err)
+		return re, request, trace.Wrap(err)
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
@@ -425,6 +523,12 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 		Username: user.GetName(),
 	}
 
+	// In test flow skip signing and creating web sessions.
+	if request.SSOTestFlow {
+		_ = a.Identity.TraceSAMLDiagnosticInfo(ctx, requestID, DiagInfoResult, "success")
+		return re, request, nil
+	}
+
 	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
 		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
@@ -434,8 +538,10 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 			SessionTTL: params.sessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
 		})
+
 		if err != nil {
-			return re, trace.Wrap(err)
+			traceErr("Failed to create web session.", err)
+			return re, request, trace.Wrap(err)
 		}
 
 		re.auth.Session = session
@@ -445,11 +551,13 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 	if len(request.PublicKey) != 0 {
 		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster, request.KubernetesCluster)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			traceErr("Failed to create session certificate.", err)
+			return nil, request, trace.Wrap(err)
 		}
 		clusterName, err := a.GetClusterName()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			traceErr("Failed to obtain cluster name.", err)
+			return nil, request, trace.Wrap(err)
 		}
 		re.auth.Cert = sshCert
 		re.auth.TLSCert = tlsCert
@@ -460,10 +568,12 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			traceErr("Failed to obtain cluster's host CA.", err)
+			return nil, request, trace.Wrap(err)
 		}
 		re.auth.HostSigners = append(re.auth.HostSigners, authority)
 	}
 
-	return re, nil
+	_ = a.Identity.TraceSAMLDiagnosticInfo(ctx, requestID, DiagInfoResult, "success")
+	return re, request, nil
 }

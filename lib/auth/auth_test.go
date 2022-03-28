@@ -990,7 +990,14 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
 		SSO:                      "c",
-		Cert:                     string(certBytes),
+		AttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "dummy",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
+		Cert: string(certBytes),
 	})
 	require.NoError(t, err)
 

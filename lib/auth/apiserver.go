@@ -212,6 +212,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/saml/connectors/:id", srv.withAuth(srv.deleteSAMLConnector))
 	srv.POST("/:version/saml/requests/create", srv.withAuth(srv.createSAMLAuthRequest))
 	srv.POST("/:version/saml/requests/validate", srv.withAuth(srv.validateSAMLResponse))
+	srv.GET("/:version/saml/requests/get/:id", srv.withAuth(srv.getSAMLAuthRequest))
+	srv.GET("/:version/saml/requests/diag/:id", srv.withAuth(srv.getSAMLDiagnosticInfo))
 
 	// Github connector
 	srv.POST("/:version/github/connectors", srv.withAuth(srv.createGithubConnector))
@@ -1428,6 +1430,23 @@ func (s *APIServer) createSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r
 		return nil, trace.Wrap(err)
 	}
 	return response, nil
+}
+
+func (s *APIServer) getSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	request, err := auth.GetSAMLAuthRequest(p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return request, nil
+}
+
+func (s *APIServer) getSAMLDiagnosticInfo(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	info, err := auth.GetSAMLDiagnosticInfo(r.Context(), p.ByName("id"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return info, nil
 }
 
 type validateSAMLResponseReq struct {
