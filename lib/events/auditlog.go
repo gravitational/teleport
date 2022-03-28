@@ -145,9 +145,6 @@ type AuditLogConfig struct {
 	// ServerID is the id of the audit log server
 	ServerID string
 
-	// RecordSessions controls if sessions are recorded along with audit events.
-	RecordSessions bool
-
 	// RotationPeriod defines how frequently to rotate the log file
 	RotationPeriod time.Duration
 
@@ -184,19 +181,8 @@ type AuditLogConfig struct {
 	// ExternalLog is a pluggable external log service
 	ExternalLog IAuditLog
 
-	// EventC is evnets channel for testing purposes, not used if empty
-	EventsC chan *AuditLogEvent
-
 	// Context is audit log context
 	Context context.Context
-}
-
-// AuditLogEvent is an internal audit log event
-type AuditLogEvent struct {
-	// Type is an event type
-	Type string
-	// Error is an event error
-	Error error
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -238,9 +224,8 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewAuditLog creates and returns a new Audit Log object whish will store its logfiles in
-// a given directory. Session recording can be disabled by setting
-// recordSessions to false.
+// NewAuditLog creates and returns a new Audit Log object which will store its log files in
+// a given directory.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
@@ -343,6 +328,7 @@ func (l *SessionRecording) CheckAndSetDefaults() error {
 
 // UploadSessionRecording persists the session recording locally or to third
 // party storage.
+// TODO(zmb3): I don't think this is ever called anymore - remove it
 func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -356,11 +342,15 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 		return trace.Wrap(err)
 	}
 	l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
-	return l.EmitAuditEventLegacy(SessionUploadE, EventFields{
-		EventID:        uuid.New().String(),
-		SessionEventID: string(r.SessionID),
-		URL:            url,
-		EventIndex:     SessionUploadIndex,
+	return l.EmitAuditEvent(context.TODO(), &apievents.SessionUpload{
+		Metadata: apievents.Metadata{
+			Index: SessionUploadIndex,
+			ID:    uuid.New().String(),
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(r.SessionID),
+		},
+		SessionURL: url,
 	})
 }
 
@@ -438,28 +428,6 @@ type sessionIndex struct {
 	indexFiles     []string
 }
 
-func (idx *sessionIndex) fileNames() []string {
-	files := make([]string, 0, len(idx.indexFiles)+len(idx.events)+len(idx.chunks))
-	files = append(files, idx.indexFiles...)
-
-	for i := range idx.events {
-		files = append(files, idx.eventsFileName(i))
-	}
-
-	for i := range idx.chunks {
-		files = append(files, idx.chunksFileName(i))
-	}
-
-	// Enhanced events.
-	for k, v := range idx.enhancedEvents {
-		for i := range v {
-			files = append(files, idx.enhancedFileName(i, k))
-		}
-	}
-
-	return files
-}
-
 func (idx *sessionIndex) sort() {
 	sort.Slice(idx.events, func(i, j int) bool {
 		return idx.events[i].Index < idx.events[j].Index
@@ -474,11 +442,6 @@ func (idx *sessionIndex) sort() {
 			return events[i].Index < events[j].Index
 		})
 	}
-}
-
-func (idx *sessionIndex) enhancedFileName(index int, eventType string) string {
-	entry := idx.enhancedEvents[eventType][index]
-	return filepath.Join(idx.dataDir, entry.authServer, SessionLogsDir, idx.namespace, entry.FileName)
 }
 
 func (idx *sessionIndex) eventsFileName(index int) string {
@@ -1241,6 +1204,7 @@ func NewLegacyHandler(cfg LegacyHandlerConfig) (*LegacyHandler, error) {
 
 // LegacyHandler wraps local file uploader and handles
 // old style uploads stored directly on disk
+// TODO(zmb3): can we remove this now that 4.4 is unsupported?
 type LegacyHandler struct {
 	MultipartHandler
 	cfg LegacyHandlerConfig
