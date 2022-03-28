@@ -225,7 +225,11 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("device name can not be empty")
 	}
 
-	// If passwordless is supported but unset then ask the user.
+	// If passwordless is supported but unset, then ask the user.
+	if devType != proto.DeviceType_DEVICE_TYPE_WEBAUTHN {
+		pwdless := false
+		c.pwdless = &pwdless // only WebAuthn does passwordless
+	}
 	if c.pwdless == nil {
 		answer, err := prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Allow passwordless logins", []string{"YES", "NO"})
 		if err != nil {

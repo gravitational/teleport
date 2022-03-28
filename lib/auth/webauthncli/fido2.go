@@ -553,7 +553,10 @@ func runOnFIDO2Devices(
 		return trace.Wrap(err)
 	}
 
-	dev, requiresPIN, err := selectDevice(ctx, devices, deviceCallback)
+	// Be optimistic at first and assume there is no PIN.
+	// We'll get requiresPIN = true if the user picks a PIN-protected device.
+	var pin string
+	dev, requiresPIN, err := selectDevice(ctx, pin, devices, deviceCallback)
 	switch {
 	case err != nil:
 		return trace.Wrap(err)
@@ -563,7 +566,7 @@ func runOnFIDO2Devices(
 
 	// Selected device requires PIN, let's use the prompt and run the callback
 	// again.
-	pin, err := prompt.PromptPIN()
+	pin, err = prompt.PromptPIN()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -576,7 +579,10 @@ func runOnFIDO2Devices(
 		}
 	}
 
-	return trace.Wrap(deviceCallback(dev, dev.info, pin))
+	// Run the callback again with the informed PIN.
+	// selectDevice is used since it correctly deals with cancellation.
+	_, _, err = selectDevice(ctx, pin, []deviceWithInfo{dev}, deviceCallback)
+	return trace.Wrap(err)
 }
 
 func findSuitableDevicesOrTimeout(ctx context.Context, filter deviceFilterFunc) ([]deviceWithInfo, error) {
@@ -654,11 +660,9 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 	return devs, nil
 }
 
-func selectDevice(ctx context.Context, devices []deviceWithInfo, deviceCallback deviceCallbackFunc) (deviceWithInfo, bool, error) {
-	// We don't know the PIN in the device selection step, so we are optimistic
-	// about the fact that there is no PIN.
-	const pin = ""
-
+func selectDevice(
+	ctx context.Context,
+	pin string, devices []deviceWithInfo, deviceCallback deviceCallbackFunc) (deviceWithInfo, bool, error) {
 	callbackWrapper := func(dev FIDODevice, info *deviceInfo, pin string) (requiresPIN bool, err error) {
 		// Attempt to select a device by running "deviceCallback" on it.
 		// For most scenarios this works, saving a touch.
@@ -681,13 +685,6 @@ func selectDevice(ctx context.Context, devices []deviceWithInfo, deviceCallback 
 			err = nil // OK, selected successfully
 		}
 		return
-	}
-
-	// No need for goroutine shenanigans with a single device.
-	if len(devices) == 1 {
-		dev := devices[0]
-		requiresPIN, err := callbackWrapper(dev, dev.info, pin)
-		return dev, requiresPIN, trace.Wrap(err)
 	}
 
 	type selectResp struct {
