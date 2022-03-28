@@ -583,6 +583,9 @@ type Auth struct {
 
 	// RoutingStrategy configures the routing strategy to nodes.
 	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
+
+	// OptionalMetrics are metrics that can be toggled and are disabled by default
+	OptionalMetrics *service.AuthOptionalMetrics `yaml:"optional_metrics,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1234,6 +1237,9 @@ type Proxy struct {
 	// MongoPublicAddr is the hostport the proxy advertises for Mongo
 	// client connections.
 	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
+
+	// OptionalMetrics are metrics that can be toggled and are disabled by default
+	OptionalMetrics *service.ProxyOptionalMetrics `yaml:"optional_metrics,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
