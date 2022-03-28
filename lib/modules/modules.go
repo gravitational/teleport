@@ -154,7 +154,7 @@ func (p *defaultModules) Features() Features {
 		DB:                true,
 		App:               true,
 		Desktop:           true,
-		ModeratedSessions: false,
+		ModeratedSessions: false, // moderated sessions is supported in enterprise only
 	}
 }
 
