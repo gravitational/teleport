@@ -670,7 +670,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			cfg.Log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
 		}
 		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
-                     cfg.Log.Errorf("Attempting to write %v", cfg.DataDir)
 			if errors.Is(err, fs.ErrPermission) {
 				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
 			}

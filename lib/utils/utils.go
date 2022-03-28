@@ -325,7 +325,7 @@ func ReadPath(path string) ([]byte, error) {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
 			return nil, err
-                }
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 	bytes, err := os.ReadFile(abs)
