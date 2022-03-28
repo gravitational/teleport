@@ -36,7 +36,7 @@ type Reader interface {
 // Confirmation prompts the user for a yes/no confirmation for question.
 // The prompt is written to out and the answer is read from in.
 //
-// question should be a plain sentece without "[yes/no]"-type hints at the end.
+// question should be a plain sentence without "[yes/no]"-type hints at the end.
 //
 // ctx can be canceled to abort the prompt.
 func Confirmation(ctx context.Context, out io.Writer, in Reader, question string) (bool, error) {
@@ -56,7 +56,7 @@ func Confirmation(ctx context.Context, out io.Writer, in Reader, question string
 // PickOne prompts the user to pick one of the provided string options.
 // The prompt is written to out and the answer is read from in.
 //
-// question should be a plain sentece without the list of provided options.
+// question should be a plain sentence without the list of provided options.
 //
 // ctx can be canceled to abort the prompt.
 func PickOne(ctx context.Context, out io.Writer, in Reader, question string, options []string) (string, error) {

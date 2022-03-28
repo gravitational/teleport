@@ -129,8 +129,10 @@ func fido2Login(
 	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
 		switch {
 		case uv && !info.uvCapable():
+			log.Debugf("FIDO2: Device %v: filtered due to lack of UV", info.path)
 			return false, nil
 		case passwordless && !info.rk:
+			log.Debugf("FIDO2: Device %v: filtered due to lack of RK", info.path)
 			return false, nil
 		case len(allowedCreds) == 0: // Nothing else to check
 			return true, nil
@@ -148,10 +150,13 @@ func fido2Login(
 		if appID == "" {
 			return false, nil
 		}
-		_, err = dev.Assertion(appID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
+		if _, err := dev.Assertion(appID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
 			UP: libfido2.False,
-		})
-		return err == nil, nil
+		}); err != nil {
+			log.Debugf("FIDO2: Device %v: filtered due to lack of allowed credential", info.path)
+			return false, nil
+		}
+		return true, nil
 	}
 
 	deviceCallback := func(dev FIDODevice, info *deviceInfo, pin string) error {
@@ -398,6 +403,7 @@ func fido2Register(
 	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
 		switch {
 		case (plat && !info.plat) || (rrk && !info.rk) || (uv && !info.uvCapable()):
+			log.Debugf("FIDO2: Device %v: filtered due to options", info.path)
 			return false, nil
 		case len(excludeList) == 0:
 			return true, nil
@@ -411,6 +417,7 @@ func fido2Register(
 		case errors.Is(err, libfido2.ErrNoCredentials):
 			return true, nil
 		case err == nil:
+			log.Debugf("FIDO2: Device %v: filtered due to presence of excluded credential", info.path)
 			return false, nil
 		default: // unexpected error
 			return false, trace.Wrap(err)
@@ -546,7 +553,10 @@ func runOnFIDO2Devices(
 		return trace.Wrap(err)
 	}
 
-	dev, requiresPIN, err := selectDevice(ctx, devices, deviceCallback)
+	// Be optimistic at first and assume there is no PIN.
+	// We'll get requiresPIN = true if the user picks a PIN-protected device.
+	var pin string
+	dev, requiresPIN, err := selectDevice(ctx, pin, devices, deviceCallback)
 	switch {
 	case err != nil:
 		return trace.Wrap(err)
@@ -556,7 +566,7 @@ func runOnFIDO2Devices(
 
 	// Selected device requires PIN, let's use the prompt and run the callback
 	// again.
-	pin, err := prompt.PromptPIN()
+	pin, err = prompt.PromptPIN()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -569,7 +579,10 @@ func runOnFIDO2Devices(
 		}
 	}
 
-	return trace.Wrap(deviceCallback(dev, dev.info, pin))
+	// Run the callback again with the informed PIN.
+	// selectDevice is used since it correctly deals with cancellation.
+	_, _, err = selectDevice(ctx, pin, []deviceWithInfo{dev}, deviceCallback)
+	return trace.Wrap(err)
 }
 
 func findSuitableDevicesOrTimeout(ctx context.Context, filter deviceFilterFunc) ([]deviceWithInfo, error) {
@@ -630,7 +643,7 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 		}
 		log.Debugf("FIDO2: Info for device %v: %#v", path, info)
 
-		di := makeDevInfo(info)
+		di := makeDevInfo(path, info)
 		switch ok, err := filter(dev, di); {
 		case err != nil:
 			return nil, trace.Wrap(err, "device %v: filter", path)
@@ -647,11 +660,9 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 	return devs, nil
 }
 
-func selectDevice(ctx context.Context, devices []deviceWithInfo, deviceCallback deviceCallbackFunc) (deviceWithInfo, bool, error) {
-	// We don't know the PIN in the device selection step, so we are optimistic
-	// about the fact that there is no PIN.
-	const pin = ""
-
+func selectDevice(
+	ctx context.Context,
+	pin string, devices []deviceWithInfo, deviceCallback deviceCallbackFunc) (deviceWithInfo, bool, error) {
 	callbackWrapper := func(dev FIDODevice, info *deviceInfo, pin string) (requiresPIN bool, err error) {
 		// Attempt to select a device by running "deviceCallback" on it.
 		// For most scenarios this works, saving a touch.
@@ -674,13 +685,6 @@ func selectDevice(ctx context.Context, devices []deviceWithInfo, deviceCallback 
 			err = nil // OK, selected successfully
 		}
 		return
-	}
-
-	// No need for goroutine shenanigans with a single device.
-	if len(devices) == 1 {
-		dev := devices[0]
-		requiresPIN, err := callbackWrapper(dev, dev.info, pin)
-		return dev, requiresPIN, trace.Wrap(err)
 	}
 
 	type selectResp struct {
@@ -736,6 +740,7 @@ func selectDevice(ctx context.Context, devices []deviceWithInfo, deviceCallback 
 // Various fields match options under
 // https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorGetInfo.
 type deviceInfo struct {
+	path                           string
 	plat                           bool
 	rk                             bool
 	clientPinCapable, clientPinSet bool
@@ -747,8 +752,8 @@ func (di *deviceInfo) uvCapable() bool {
 	return di.uv || di.clientPinSet
 }
 
-func makeDevInfo(info *libfido2.DeviceInfo) *deviceInfo {
-	di := &deviceInfo{}
+func makeDevInfo(path string, info *libfido2.DeviceInfo) *deviceInfo {
+	di := &deviceInfo{path: path}
 	for _, opt := range info.Options {
 		// See
 		// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorGetInfo.

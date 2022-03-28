@@ -161,8 +161,12 @@
               "slug": "/setup/guides/ec2-tags/"
             },
             {
-              "title": "Joining Nodes in AWS",
-              "slug": "/setup/guides/joining-nodes-aws/"
+              "title": "Joining Nodes via AWS IAM",
+              "slug": "/setup/guides/joining-nodes-aws-iam/"
+            },
+            {
+              "title": "Joining Nodes via AWS EC2",
+              "slug": "/setup/guides/joining-nodes-aws-ec2/"
             }
           ]
         },
@@ -378,7 +382,17 @@
         },
         {
           "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/"
+          "slug": "/kubernetes-access/helm/reference/",
+          "entries": [
+            {
+              "title": "teleport-cluster",
+              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
+            },
+            {
+               "title": "teleport-kube-agent",
+               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+            }
+          ]
         },
         {
           "title": "Access Controls",
@@ -549,7 +563,7 @@
       ]
     },
     {
-      "icon": "wand",
+      "icon": "chip",
       "title": "Machine ID",
       "entries": [
         {
@@ -581,6 +595,10 @@
             {
               "title": "Machine ID with Ansible",
               "slug": "/machine-id/guides/ansible/"
+            },
+            {
+              "title": "Machine ID with Jenkins",
+              "slug": "/machine-id/guides/jenkins/"
             }
           ]
         }
@@ -751,6 +769,10 @@
           "slug": "/cloud/architecture/"
         },
         {
+          "title": "Downloads",
+          "slug": "/cloud/downloads/"
+        },
+        {
           "title": "FAQ",
           "slug": "/cloud/faq/"
         }
@@ -841,6 +863,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
+      "version": "8.3.4",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1086,6 +1109,11 @@
     {
       "source": "/kubernetes-access/guides/migration/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/guides/joining-nodes-aws/",
+      "destination": "/setup/guides/joining-nodes-aws-iam/",
       "permanent": true
     }
   ]
