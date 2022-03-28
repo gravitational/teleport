@@ -348,7 +348,7 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 }
 
 // LabelPattern is a regexp that describes a valid label key
-const LabelPattern = `^[a-zA-Z/.0-9_*-]+$`
+const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
 
 var validLabelKey = regexp.MustCompile(LabelPattern)
 
