@@ -27,6 +27,10 @@ spec:
   {{- else }}
   replicas: 1
   {{- end }}
+  {{- if eq .Values.chartMode "standalone" }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
