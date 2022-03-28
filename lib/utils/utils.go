@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+        "io/fs"
 	"net"
 	"net/url"
 	"os"
@@ -321,10 +322,18 @@ func ReadPath(path string) ([]byte, error) {
 	}
 	abs, err := filepath.EvalSymlinks(s)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+                }
 		return nil, trace.ConvertSystemError(err)
 	}
 	bytes, err := os.ReadFile(abs)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+                }
 		return nil, trace.ConvertSystemError(err)
 	}
 	return bytes, nil
@@ -430,6 +439,10 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 func ReadHostUUID(dataDir string) (string, error) {
 	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return "", err
+                }
 		return "", trace.Wrap(err)
 	}
 	return strings.TrimSpace(string(out)), nil

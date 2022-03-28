@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+        "io/fs"
 	"net"
 	"net/url"
 	"os"
