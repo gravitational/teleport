@@ -549,25 +549,30 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	}
 
 	// get user's home dir (it serves as a default destination)
-	user, err := user.Current()
+	userHomeDir, err := os.UserHomeDir()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// see if the target is absolute. if not, use user's homedir to make
 	// it absolute (and if the user doesn't have a homedir, use "/")
 	target := scpFlags.Target[0]
 	if !filepath.IsAbs(target) {
-		if !utils.IsDir(user.HomeDir) {
+		if !utils.IsDir(userHomeDir) {
 			slash := string(filepath.Separator)
 			scpFlags.Target[0] = slash + target
 		} else {
-			scpFlags.Target[0] = filepath.Join(user.HomeDir, target)
+			scpFlags.Target[0] = filepath.Join(userHomeDir, target)
 		}
 	}
 	if !scpFlags.Source && !scpFlags.Sink {
 		return trace.Errorf("remote mode is not supported")
 	}
 
+	user, err := user.Current()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	scpCfg := scp.Config{
 		Flags:       *scpFlags,
 		User:        user.Username,

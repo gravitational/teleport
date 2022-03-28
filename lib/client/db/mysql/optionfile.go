@@ -41,11 +41,11 @@ type OptionFile struct {
 // Load loads MySQL option file from the default location.
 func Load() (*OptionFile, error) {
 	// Default location is .my.cnf file in the user's home directory.
-	user, err := user.Current()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	return LoadFromPath(filepath.Join(user.HomeDir, mysqlOptionFile))
+	return LoadFromPath(filepath.Join(homeDir, mysqlOptionFile))
 }
 
 // LoadFromPath loads MySQL option file from the specified path.

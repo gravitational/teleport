@@ -42,11 +42,11 @@ type ServiceFile struct {
 func Load() (*ServiceFile, error) {
 	// Default location is .pg_service.conf file in the user's home directory.
 	// TODO(r0mant): Check PGSERVICEFILE and PGSYSCONFDIR env vars as well.
-	user, err := user.Current()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	return LoadFromPath(filepath.Join(user.HomeDir, pgServiceFile))
+	return LoadFromPath(filepath.Join(homeDir, pgServiceFile))
 }
 
 // LoadFromPath loads Posrtgres connection service file from the specified path.
