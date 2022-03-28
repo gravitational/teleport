@@ -4350,6 +4350,7 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
       - make image-ci publish-ci
 
   - name: Build/push FIPS Docker image
