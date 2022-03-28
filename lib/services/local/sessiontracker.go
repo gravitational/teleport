@@ -131,6 +131,7 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
+	// Don't allow sessions that require moderation without the enterprise feature enabled.
 	for _, policySet := range req.HostPolicies {
 		if len(policySet.RequireSessionJoin) != 0 {
 			if !modules.GetModules().Features().ModeratedSessions {
