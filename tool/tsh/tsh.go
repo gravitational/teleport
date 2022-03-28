@@ -530,6 +530,7 @@ func Run(args []string, opts ...cliOption) error {
 	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
+	clusters.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
@@ -1711,29 +1712,54 @@ func onListClusters(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	isSelected := func(clusterName string) bool {
+		return profile != nil && clusterName == profile.Cluster
+	}
 	showSelected := func(clusterName string) string {
-		if profile != nil && clusterName == profile.Cluster {
+		if isSelected(clusterName) {
 			return "*"
 		}
 		return ""
 	}
 
-	var t asciitable.Table
-	if cf.Quiet {
-		t = asciitable.MakeHeadlessTable(4)
-	} else {
-		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
-	}
+	switch strings.ToLower(cf.Format) {
+	case teleport.Text:
+		var t asciitable.Table
+		if cf.Quiet {
+			t = asciitable.MakeHeadlessTable(4)
+		} else {
+			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
+		}
 
-	t.AddRow([]string{
-		rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
-	})
-	for _, cluster := range leafClusters {
 		t.AddRow([]string{
-			cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
+			rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
 		})
+		for _, cluster := range leafClusters {
+			t.AddRow([]string{
+				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	case teleport.JSON:
+		type cluster struct {
+			ClusterName string `json:"cluster_name"`
+			Status      string `json:"status"`
+			ClusterType string `json:"cluster_type"`
+			Selected    bool   `json:"selected"`
+		}
+		data := make([]cluster, 0, len(leafClusters)+1)
+		data = append(data, cluster{rootClusterName, teleport.RemoteClusterStatusOnline, "root", isSelected(rootClusterName)})
+		for _, leaf := range leafClusters {
+			data = append(data, cluster{leaf.GetName(), leaf.GetConnectionStatus(), "leaf", isSelected(leaf.GetName())})
+		}
+		out, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
 	}
-	fmt.Println(t.AsBuffer().String())
 	return nil
 }
 
