@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/net/http/httpproxy"
 )
 
@@ -54,14 +53,15 @@ func GetProxyAddress(dialAddr string) *url.URL {
 // parse parses a URL. If the address does not have a scheme, it will prepend "http" and try.
 func parse(addr string) (*url.URL, error) {
 	proxyurl, err := url.Parse(addr)
+	// Some URLs will fail to parse without a scheme (for example, <ip-address>:<port>), so try
+	// to parse again with a scheme. If that fails, return the original error.
 	if err != nil || !strings.HasPrefix(proxyurl.Scheme, "http") {
-		proxyurl, err = url.Parse("http://" + addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if proxyurl, err := url.Parse("http://" + addr); err == nil {
+			proxyurl.Scheme = ""
+			return proxyurl, nil
 		}
-		proxyurl.Scheme = ""
+		return nil, err
 	}
-
 	return proxyurl, nil
 }
 
