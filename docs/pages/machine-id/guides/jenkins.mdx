@@ -1,0 +1,175 @@
+---
+title: Using Teleport Machine ID with Jenkins
+description: Using Teleport Machine ID with Jenkins
+---
+
+Jenkins is an open source automation server that is frequently used to build
+Continuous Integration and Continuous Delivery (CI/CD) pipelines.
+
+In this guide, we will demonstrate how to migrate existing Jenkins pipelines to
+utilize Machine ID with minimal changes.
+
+## Prerequisites
+
+You will need the following tools to use Teleport with Jenkins.
+
+- The Teleport Auth Service and Proxy Service version >= 9.0.0, deployed on
+  your own infrastructure or managed via Teleport Cloud.
+- `ssh` OpenSSH tool
+- Jenkins
+- The `tctl` admin tool version >= (=teleport.version=)
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Architecture
+
+Before we begin, it should be noted that Jenkins is a tool that is notoriously
+difficult to secure. Machine ID is one part of securing your infrastructure,
+but it alone is not sufficient. Below we will provide some basic guidance which
+can help improve the security posture of your Jenkins installation.
+
+### Single-host deployments
+
+The simplest Jenkins deployments have the
+controller (process that stores configuration, plugins, UI) and agents (process
+that executes tasks) run on the same host. This deployment model is simple to
+get started with, however any compromise of the `jenkins` user within a single
+pipeline can lead to the compromise of your entire CI/CD infrastructure.
+
+### Multihost deployments
+
+A slightly more complex, but more secure deployment
+is running your Jenkins controllers and agents on different hosts and pinning
+workloads to specific agents. This is a improvement over the simple deployment
+because you can limit the blast radius of the compromise of a single pipeline
+to a subset of your CI/CD infrastructure instead of all of your infrastructure.
+
+### Best practices
+
+We strongly encourage the use of the second deployment model whenever possible,
+with ephemeral hosts and IAM joining when possible. When using Machine ID with
+this model, create and run Machine ID bots per-host and pin particular
+pipelines to a worker. This will allow you to give each pipeline the minimal
+scope for server access, reduce the blast radius if one pipeline is
+compromised, and allow you to remotely audit and lock pipelines if you detect
+malicious behavior.
+
+## Step 1/2 Configure and start Machine ID
+
+First, determine which role(s) you would like to assign to Machine ID running
+on Jenkins. You can run `tctl get roles` to inspect roles within Teleport and
+then `tctl bots add` to create a bot user with the roles you want to assign to Machine
+ID. In the example below, you will create a bot user `jenkins` and assign this
+bot user the `api-workers` role.
+
+<Details scope={["cloud"]} scopeOnly={true}>
+On your client machine, log in to Teleport using `tsh` before using `tctl`.
+
+```code
+$ tctl bots add jenkins --roles=api-workers
+```
+</Details>
+<Details scope={["oss","enterprise"]} scopeOnly={true}>
+Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
+your system.
+
+```code
+$ tctl bots add jenkins --roles=api-workers
+```
+</Details>
+
+Machine ID allows you to use Linux Access Control Lists (ACLs) to control
+access to certificates on disk. You will use this to limit the access Jenkins
+has to the short-lived certificates Machine ID issues.
+
+In the example that follows, we'll work with the assumption you will be running
+Machine ID as the Linux user `teleport` and Jenkins as the Linux user
+`jenkins`. Create and initialize the directories you will need using the `tbot
+init` command.
+
+```code
+$ tbot init \
+    --destination-dir=/opt/machine-id \
+    --bot-user=teleport \
+    --owner=teleport:teleport \
+    --reader-user=jenkins
+```
+
+Next, you need to start Machine ID in the background of each Jenkins worker.
+
+<Details scope={["cloud"]} scopeOnly={true}>
+  First create a configuration file for Machine ID at `/etc/tbot.yaml`.
+
+  ```yaml
+  auth_server: "example.teleport.sh:443"
+  onboarding:
+    join_method: "token"
+    token: "00000000000000000000000000000000"
+    ca_pins:
+    - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  storage:
+    directory: /var/lib/teleport/bot
+  destinations:
+    - directory: /opt/machine-id
+  ```
+</Details>
+<Details scope={["oss","enterprise"]} scopeOnly={true}>
+First create a configuration file for Machine ID at `/etc/tbot.yaml`.
+  ```yaml
+  auth_server: "auth.example.com:3025"
+  onboarding:
+    join_method: "token"
+    token: "00000000000000000000000000000000"
+    ca_pins:
+    - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  storage:
+    directory: /var/lib/teleport/bot
+  destinations:
+    - directory: /opt/machine-id
+  ```
+</Details>
+
+Next, create a systemd.unit file at `/etc/systemd/system/machine-id.service`.
+
+```systemd
+[Unit]
+Description=Teleport Machine ID Service
+After=network.target
+
+[Service]
+Type=simple
+User=teleport
+Group=teleport
+Restart=on-failure
+ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/machine-id.pid
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Finally, run the following commands to start Machine ID.
+
+```code
+$ sudo systemctl daemon-reload
+$ sudo systemctl start machine-id
+$ sudo systemctl status machine-id
+```
+
+## Step 2/2. Update and run Jenkins pipelines
+
+Using Machine ID within a Jenkins pipeline is now a one-line change. For
+example, if you want to run the `hostname` command on a remote host, add the
+following to your Jenkins pipeline.
+
+```
+steps {
+  sh "ssh -F /opt/machine-id/ssh_config root@node-name.example.com hostname"
+}
+```
+
+You are all set. You have provided Jenkins with short-lived certificates tied
+to a machine identity that can be rotated, audited, and controlled with all the
+familiar Teleport access controls.
