@@ -442,7 +442,7 @@ func ReadHostUUID(dataDir string) (string, error) {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
 			return "", err
-                }
+		}
 		return "", trace.Wrap(err)
 	}
 	return strings.TrimSpace(string(out)), nil
