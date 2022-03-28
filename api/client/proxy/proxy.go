@@ -35,9 +35,9 @@ func GetProxyAddress(dialAddr string) *url.URL {
 	if addrURL.Scheme != "" {
 		proxyURL, err := proxyFunc(addrURL)
 		if err != nil {
-			return proxyURL
+			return nil
 		}
-		return nil
+		return proxyURL
 	}
 
 	for _, scheme := range []string{"https", "http"} {
@@ -69,11 +69,14 @@ func parse(addr string) (*url.URL, error) {
 // to plain HTTP when using a plain HTTP proxy at localhost.
 type HTTPFallbackRoundTripper struct {
 	*http.Transport
+	isHTTPLocalhost bool
 }
 
 func NewHTTPFallbackRoundTripper(transport *http.Transport, insecure bool) *HTTPFallbackRoundTripper {
+	proxyConfig := httpproxy.FromEnvironment()
 	rt := HTTPFallbackRoundTripper{
-		Transport: transport,
+		Transport:       transport,
+		isHTTPLocalhost: strings.HasPrefix(proxyConfig.HTTPProxy, "http://localhost"),
 	}
 	if rt.TLSClientConfig != nil {
 		rt.TLSClientConfig.InsecureSkipVerify = insecure
@@ -84,13 +87,8 @@ func NewHTTPFallbackRoundTripper(transport *http.Transport, insecure bool) *HTTP
 // RoundTrip executes a single HTTP transaction. Part of the RoundTripper interface.
 func (rt *HTTPFallbackRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	tlsConfig := rt.Transport.TLSClientConfig
-	if tlsConfig == nil {
-		return rt.Transport.RoundTrip(req)
-	}
-	httpProxy := httpproxy.FromEnvironment().HTTPProxy
 	// Use plain HTTP if proxying via http://localhost in insecure mode.
-	if tlsConfig.InsecureSkipVerify &&
-		strings.HasPrefix(httpProxy, "http://localhost") {
+	if rt.isHTTPLocalhost && tlsConfig != nil && tlsConfig.InsecureSkipVerify {
 		req.URL.Scheme = "http"
 	}
 	return rt.Transport.RoundTrip(req)

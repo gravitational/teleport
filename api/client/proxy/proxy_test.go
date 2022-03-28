@@ -123,16 +123,13 @@ func TestGetProxyAddress(t *testing.T) {
 
 func TestProxyAwareRoundTripper(t *testing.T) {
 	t.Setenv("HTTP_PROXY", "http://localhost:8888")
-	rt := HTTPFallbackRoundTripper{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-			},
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{},
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 		},
 	}
+	rt := NewHTTPFallbackRoundTripper(transport, true)
 	req, err := http.NewRequest(http.MethodGet, "https://localhost:9999", nil)
 	require.NoError(t, err)
 	// Don't care about response, only if the scheme changed.
