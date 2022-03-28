@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base32"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -47,7 +48,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func TestTeleportClient_Login_localMFALogin(t *testing.T) {
+func TestTeleportClient_Login_local(t *testing.T) {
 	// Silence logging during this test.
 	lvl := log.GetLevel()
 	t.Cleanup(func() {
@@ -61,6 +62,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 	sa := newStandaloneTeleport(t, clock)
 	username := sa.Username
 	password := sa.Password
+	webID := sa.WebAuthnID
 	device := sa.Device
 	otpKey := sa.OTPKey
 
@@ -79,20 +81,17 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 	cfg.InsecureSkipVerify = true
 
 	// Reset functions after tests.
-	oldPwd := *client.PasswordFromConsoleFn
+	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
 	t.Cleanup(func() {
-		*client.PasswordFromConsoleFn = oldPwd
-		client.Prompts.Reset()
+		prompt.SetStdin(oldStdin)
+		*client.PromptWebauthn = oldWebauthn
 	})
-	*client.PasswordFromConsoleFn = func() (string, error) {
-		return password, nil
-	}
 
-	promptOTPNoop := func(ctx context.Context) (string, error) {
+	waitForCancelFn := func(ctx context.Context) (string, error) {
 		<-ctx.Done() // wait for timeout
 		return "", ctx.Err()
 	}
-	promptWebauthnNoop := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+	noopWebauthnFn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		<-ctx.Done() // wait for timeout
 		return nil, ctx.Err()
 	}
@@ -100,7 +99,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 	solveOTP := func(ctx context.Context) (string, error) {
 		return totp.GenerateCode(otpKey, clock.Now())
 	}
-	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
 			return nil, err
@@ -111,25 +110,73 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 			},
 		}, nil
 	}
+	solvePwdless := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
+		if err == nil {
+			resp.GetWebauthn().Response.UserHandle = webID
+		}
+		return resp, err
+	}
+
+	const pin = "pin123"
+	pinC := make(chan struct{})
+	userPINFn := func(ctx context.Context) (string, error) {
+		<-pinC // Do not answer until we get the WebAuthn prompt.
+		return pin, nil
+	}
+	solvePIN := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+		go func() {
+			// Wait a bit so prompt.PromptPIN() happens first.
+			// It's important because it signals cancellation of the OTP read.
+			time.Sleep(100 * time.Millisecond)
+			pinC <- struct{}{}
+		}()
+
+		// Ask and verify the PIN. Usually the authenticator would verify the PIN,
+		// but we are faking it here.
+		got, err := prompt.PromptPIN()
+		switch {
+		case err != nil:
+			return nil, err
+		case got != pin:
+			return nil, errors.New("invalid PIN")
+		}
+		prompt.PromptAdditionalTouch() // Realistically, this would happen too.
+		return solveWebauthn(ctx, origin, assertion, prompt)
+	}
 
 	ctx := context.Background()
 	tests := []struct {
 		name          string
 		secondFactor  constants.SecondFactorType
-		solveOTP      func(context.Context) (string, error)
-		solveWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
+		inputReader   *prompt.FakeReader
+		solveWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		pwdless       bool
 	}{
 		{
-			name:          "OK OTP device login",
+			name:          "OTP device login",
 			secondFactor:  constants.SecondFactorOptional,
-			solveOTP:      solveOTP,
-			solveWebauthn: promptWebauthnNoop,
+			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
+			solveWebauthn: noopWebauthnFn,
 		},
 		{
-			name:          "OK Webauthn device login",
+			name:          "Webauthn device login",
 			secondFactor:  constants.SecondFactorOptional,
-			solveOTP:      promptOTPNoop,
+			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
 			solveWebauthn: solveWebauthn,
+		},
+		{
+			name:          "Webauthn device with PIN", // a bit hypothetical, but _could_ happen.
+			secondFactor:  constants.SecondFactorOptional,
+			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn).AddReply(userPINFn),
+			solveWebauthn: solvePIN,
+		},
+		{
+			name:          "passwordless login",
+			secondFactor:  constants.SecondFactorOptional,
+			inputReader:   prompt.NewFakeReader(), // no inputs
+			solveWebauthn: solvePwdless,
+			pwdless:       true,
 		},
 	}
 	for _, test := range tests {
@@ -137,15 +184,11 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
-			client.Prompts.Swap(
-				func(ctx context.Context, out io.Writer, in prompt.Reader, question string) (string, error) {
-					return test.solveOTP(ctx)
-				},
-				func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, _ wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
-					resp, err := test.solveWebauthn(ctx, origin, assertion)
-					return resp, "", err
-				},
-			)
+			prompt.SetStdin(test.inputReader)
+			*client.PromptWebauthn = func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
+				return resp, "", err
+			}
 
 			authServer := sa.Auth.GetAuthServer()
 			pref, err := authServer.GetAuthPreference(ctx)
@@ -157,6 +200,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
+			tc.Passwordless = test.pwdless
 
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
@@ -168,6 +212,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 type standaloneBundle struct {
 	AuthAddr, ProxyWebAddr string
 	Username, Password     string
+	WebAuthnID             []byte
 	Device                 *mocku2f.Key
 	OTPKey                 string
 	Auth, Proxy            *service.TeleportProcess
@@ -246,14 +291,18 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, err)
 	tokenID := token.GetName()
 	res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-		TokenID:    tokenID,
-		DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	require.NoError(t, err)
+	cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+	webID := cc.Response.User.ID
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
+	device.SetPasswordless()
 	const origin = "https://localhost"
-	ccr, err := device.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(res.GetWebauthn()))
+	ccr, err := device.SignCredentialCreation(origin, cc)
 	require.NoError(t, err)
 	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     tokenID,
@@ -298,6 +347,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		ProxyWebAddr: proxyWebAddr.String(),
 		Username:     username,
 		Password:     password,
+		WebAuthnID:   webID,
 		Device:       device,
 		OTPKey:       otpKey,
 		Auth:         authProcess,
