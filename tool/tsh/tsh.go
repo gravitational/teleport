@@ -577,6 +577,7 @@ func Run(args []string, opts ...cliOption) error {
 	// The status command shows which proxy the user is logged into and metadata
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
+	status.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
@@ -2399,7 +2400,25 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	printProfiles(cf.Debug, profile, profiles)
+	switch strings.ToLower(cf.Format) {
+	case teleport.Text:
+		printProfiles(cf.Debug, profile, profiles)
+	case teleport.JSON:
+		if profiles == nil {
+			profiles = []*client.ProfileStatus{}
+		}
+		data := struct {
+			Active   *client.ProfileStatus   `json:"active"`
+			Profiles []*client.ProfileStatus `json:"profiles"`
+		}{profile, profiles}
+		out, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+	}
 
 	if profile == nil {
 		return trace.NotFound("Not logged in.")

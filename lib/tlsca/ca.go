@@ -150,39 +150,39 @@ type RouteToApp struct {
 	// SubjectPublicKeyInfo like the CA pin is for UX consistency. For example,
 	// the SessionID is emitted in the audit log, using a UUID matches how SSH
 	// sessions are identified.
-	SessionID string
+	SessionID string `json:"session_id"`
 
 	// PublicAddr (and ClusterName) are used to route requests issued with this
 	// certificate to the appropriate application proxy/cluster.
-	PublicAddr string
+	PublicAddr string `json:"public_addr"`
 
 	// ClusterName (and PublicAddr) are used to route requests issued with this
 	// certificate to the appropriate application proxy/cluster.
-	ClusterName string
+	ClusterName string `json:"cluster_name"`
 
 	// Name is the app name.
-	Name string
+	Name string `json:"name"`
 
 	// AWSRoleARN is the AWS role to assume when accessing AWS console.
-	AWSRoleARN string
+	AWSRoleARN string `json:"aws_role_arn"`
 }
 
 // RouteToDatabase contains routing information for databases.
 type RouteToDatabase struct {
 	// ServiceName is the name of the Teleport database proxy service
 	// to route requests to.
-	ServiceName string
+	ServiceName string `json:"service_name"`
 	// Protocol is the database protocol.
 	//
 	// It is embedded in identity so clients can understand what type
 	// of database this is without contacting server.
-	Protocol string
+	Protocol string `json:"protocol"`
 	// Username is an optional database username to serve as a default
 	// username to connect as.
-	Username string
+	Username string `json:"username"`
 	// Database is an optional database name to serve as a default
 	// database to connect to.
-	Database string
+	Database string `json:"database"`
 }
 
 // String returns string representation of the database routing struct.
