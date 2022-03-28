@@ -38,6 +38,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 	var (
 		firstAWSCred  = credentials.NewStaticCredentials("userID", "firstSecret", "")
 		secondAWSCred = credentials.NewStaticCredentials("userID", "secondSecret", "")
+		thirdAWSCred  = credentials.NewStaticCredentials("userID2", "firstSecret", "")
 
 		awsRegion  = "s3"
 		awsService = "eu-central-1"
@@ -58,9 +59,15 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "different aws credential",
+			name:       "different aws secret access key",
 			originCred: firstAWSCred,
 			proxyCred:  secondAWSCred,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "different aws access key ID",
+			originCred: firstAWSCred,
+			proxyCred:  thirdAWSCred,
 			wantStatus: http.StatusForbidden,
 		},
 		{

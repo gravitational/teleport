@@ -328,6 +328,8 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 			rw.WriteHeader(http.StatusForbidden)
 			return
 		}
+
+		// Note that ReverseProxy automatically adds "X-Forwarded-Host" header.
 		proxy.ServeHTTP(rw, req)
 	}))
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {

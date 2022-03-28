@@ -19,6 +19,7 @@ package tlsca
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509/pkix"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/trace"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
@@ -36,34 +38,73 @@ import (
 // correctly set with DNS names and IP addresses based on the provided
 // principals.
 func TestPrincipals(t *testing.T) {
-	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
-	require.NoError(t, err)
-
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
-	require.NoError(t, err)
-
-	hostnames := []string{"localhost", "example.com"}
-	ips := []string{"127.0.0.1", "192.168.1.1"}
-
-	clock := clockwork.NewFakeClock()
-
-	certBytes, err := ca.GenerateCertificate(CertificateRequest{
-		Clock:     clock,
-		PublicKey: privateKey.Public(),
-		Subject:   pkix.Name{CommonName: "test"},
-		NotAfter:  clock.Now().Add(time.Hour),
-		DNSNames:  append(hostnames, ips...),
-	})
-	require.NoError(t, err)
-
-	cert, err := ParseCertificatePEM(certBytes)
-	require.NoError(t, err)
-	require.ElementsMatch(t, cert.DNSNames, hostnames)
-	var certIPs []string
-	for _, ip := range cert.IPAddresses {
-		certIPs = append(certIPs, ip.String())
+	tests := []struct {
+		name       string
+		createFunc func() (*CertAuthority, error)
+	}{
+		{
+			name: "FromKeys",
+			createFunc: func() (*CertAuthority, error) {
+				return FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+			},
+		},
+		{
+			name: "FromCertAndSigner",
+			createFunc: func() (*CertAuthority, error) {
+				signer, err := ParsePrivateKeyPEM([]byte(fixtures.TLSCAKeyPEM))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return FromCertAndSigner([]byte(fixtures.TLSCACertPEM), signer)
+			},
+		},
+		{
+			name: "FromTLSCertificate",
+			createFunc: func() (*CertAuthority, error) {
+				cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return FromTLSCertificate(cert)
+			},
+		},
 	}
-	require.ElementsMatch(t, certIPs, ips)
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ca, err := test.createFunc()
+			require.NoError(t, err)
+
+			privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+			require.NoError(t, err)
+
+			hostnames := []string{"localhost", "example.com"}
+			ips := []string{"127.0.0.1", "192.168.1.1"}
+
+			clock := clockwork.NewFakeClock()
+
+			certBytes, err := ca.GenerateCertificate(CertificateRequest{
+				Clock:     clock,
+				PublicKey: privateKey.Public(),
+				Subject:   pkix.Name{CommonName: "test"},
+				NotAfter:  clock.Now().Add(time.Hour),
+				DNSNames:  append(hostnames, ips...),
+			})
+			require.NoError(t, err)
+
+			cert, err := ParseCertificatePEM(certBytes)
+			require.NoError(t, err)
+			require.ElementsMatch(t, cert.DNSNames, hostnames)
+			var certIPs []string
+			for _, ip := range cert.IPAddresses {
+				certIPs = append(certIPs, ip.String())
+			}
+			require.ElementsMatch(t, certIPs, ips)
+		})
+	}
 }
 
 func TestRenewableIdentity(t *testing.T) {

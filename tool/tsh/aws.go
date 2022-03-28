@@ -23,10 +23,12 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
-	"net/url"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,6 +36,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -41,6 +44,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/forwardproxy"
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
 )
@@ -64,11 +68,7 @@ func onAWS(cf *CLIConf) error {
 		}
 	}()
 
-	// ENV AWS credentials need to be set in order to enforce AWS CLI to
-	// sign the request and provide Authorization Header where service-name and region-name are encoded.
-	// When endpoint-url AWS CLI flag provides the destination AWS API address is override by endpoint-url value.
-	// Teleport AWS Signing APP will resolve aws-service and aws-region to the proper Amazon API URL.
-	generatedAWSCred, err := genAndSetAWSCredentials()
+	generatedAWSCred, err := generateAWSCredentials()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -78,7 +78,8 @@ func onAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := createLocalAWSCLIProxy(cf, tc, generatedAWSCred, tmpCert.getCert())
+	// Creates a local ALPN proxy that sends requests to remote server.
+	lp, lpListener, err := createLocalAWSCLIProxy(cf, tc, generatedAWSCred, tmpCert.getCert())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -89,23 +90,41 @@ func onAWS(cf *CLIConf) error {
 		}
 	}()
 
-	addr, err := utils.ParseAddr(lp.GetAddr())
+	// Creates a forward proxy that sends requests to ALPN local proxy.
+	localForwardProxy, err := createLocalForwardProxy(cf, lpListener)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	url := url.URL{
-		Path:   "/",
-		Host:   fmt.Sprintf("%s:%d", "localhost", addr.Port(0)),
-		Scheme: "https",
+	defer localForwardProxy.Close()
+	go func() {
+		if err := localForwardProxy.Start(); err != nil {
+			log.WithError(err).Errorf("Failed to start forward proxy.")
+		}
+	}()
+
+	// Setup the command to run.
+	cmd := exec.Command(awsCLIBinaryName, cf.AWSCommandArgs...)
+
+	// If --exec is specified, execute cf.AWSCommandArgs[0] as the command name
+	// instead of running AWS CLI.
+	if cf.LocalExec {
+		if len(cf.AWSCommandArgs) == 0 {
+			return trace.BadParameter("no command and arguments provided")
+		}
+		cmd = exec.Command(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
 	}
 
-	endpointFlag := fmt.Sprintf("--endpoint-url=%s", url.String())
-	bundleFlag := fmt.Sprintf("--ca-bundle=%s", tmpCert.getCAPath())
-
-	args := append([]string{}, cf.AWSCommandArgs...)
-	args = append(args, endpointFlag)
-	args = append(args, bundleFlag)
-	cmd := exec.Command(awsCLIBinaryName, args...)
+	credValues, err := generatedAWSCred.Get()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("AWS_ACCESS_KEY_ID=%s", credValues.AccessKeyID),
+		fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%s", credValues.SecretAccessKey),
+		fmt.Sprintf("AWS_CA_BUNDLE=%s", tmpCert.getCAPath()),
+		fmt.Sprintf("HTTPS_PROXY=%s", "http://"+localForwardProxy.GetAddr()),
+		fmt.Sprintf("https_proxy=%s", "http://"+localForwardProxy.GetAddr()),
+	)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -116,39 +135,50 @@ func onAWS(cf *CLIConf) error {
 	return nil
 }
 
-// genAndSetAWSCredentials generates and returns fake AWS credential that are used
+// generateAWSCredentials generates and returns fake AWS credential that are used
 // for signing an AWS request during aws CLI call and verified on local AWS proxy side.
-func genAndSetAWSCredentials() (*credentials.Credentials, error) {
+func generateAWSCredentials() (*credentials.Credentials, error) {
 	id := uuid.New().String()
 	secret := uuid.New().String()
-	if err := setFakeAWSEnvCredentials(id, secret); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return credentials.NewStaticCredentials(id, secret, ""), nil
 }
 
-func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials, localCerts tls.Certificate) (*alpnproxy.LocalProxy, error) {
+func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials, ca tls.Certificate) (*alpnproxy.LocalProxy, forwardproxy.Receiver, error) {
 	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	appCerts, err := loadAWSAppCertificate(tc, awsApp)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	address, err := utils.ParseAddr(tc.WebProxyAddr)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	listener, err := tls.Listen("tcp", "localhost:0", &tls.Config{
-		Certificates: []tls.Certificate{
-			localCerts,
+
+	listenAddr := "localhost:0"
+	if cf.LocalProxyPort != "" {
+		port, err := strconv.Atoi(cf.LocalProxyPort)
+		if err != nil {
+			return nil, nil, trace.BadParameter("invalid local proxy port %s", cf.LocalProxyPort)
+		}
+
+		// cf.LocalProxyPort is used for forward proxy. Use cf.LocalProxyPort+1
+		// for ALPN local proxy for convenience.
+		listenAddr = fmt.Sprintf("localhost:%d", port+1)
+	}
+	listener, err := forwardproxy.NewHTTPSListenerReceiver(forwardproxy.HTTPSListenerReceiverConfig{
+		ListenAddr: listenAddr,
+		CA:         ca,
+		Want: func(req *http.Request) bool {
+			return awsutils.IsAWSEndpoint(req.Host)
 		},
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
@@ -163,11 +193,45 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	})
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
-			return nil, trace.NewAggregate(err, cerr)
+			return nil, nil, trace.NewAggregate(err, cerr)
 		}
+		return nil, nil, trace.Wrap(err)
+	}
+	return lp, listener, nil
+}
+
+// createLocalForwardProxy creates a local forward proxy.
+func createLocalForwardProxy(cf *CLIConf, receiver forwardproxy.Receiver) (*forwardproxy.ProxyServer, error) {
+	listenAddr := "localhost:0"
+	if cf.LocalProxyPort != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", cf.LocalProxyPort)
+	}
+
+	// Note that the created forward proxy serves HTTP instead of HTTPS, to
+	// eliminate the need to install temporary CA on the system.
+	//
+	// Normally a HTTP connection is considered insecure as transport is not
+	// encrypted. Thus it is very important that the forward proxy is only used
+	// for proxying HTTPS requests, so the tunneled data is still encrypted
+	// between client and receiver. The initial "CONNECT" request before
+	// tunneling is not encrypted but it only contains a hostname (which also
+	// gets exposed as SNI for HTTPS regardless). In addition, the forward proxy
+	// is localhost only so the transport does not leave the local network.
+	listener, err := net.Listen("tcp", listenAddr)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return lp, nil
+
+	localForwardProxy, err := forwardproxy.New(forwardproxy.Config{
+		Protocol:            "https",
+		Listener:            listener,
+		Receivers:           []forwardproxy.Receiver{receiver},
+		InsecureSystemProxy: cf.InsecureSkipVerify,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return localForwardProxy, nil
 }
 
 func loadAWSAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
@@ -211,18 +275,9 @@ func printArrayAs(arr []string, columnName string) {
 
 }
 
-func setFakeAWSEnvCredentials(accessKeyID, secretKey string) error {
-	if err := os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := os.Setenv("AWS_SECRET_ACCESS_KEY", secretKey); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {
 	if cf.AWSRole == "" {
+		printArrayAs(profile.AWSRolesARNs, "Available Role ARNs")
 		return "", trace.BadParameter("--aws-role flag is required")
 	}
 	for _, v := range profile.AWSRolesARNs {
