@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -92,6 +94,9 @@ type FileConfig struct {
 func ReadFromFile(filePath string) (*FileConfig, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			return nil, trace.Wrap(err, "failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath)
+		}
 		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
 	}
 	defer f.Close()
