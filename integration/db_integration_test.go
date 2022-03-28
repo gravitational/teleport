@@ -146,45 +146,20 @@ func TestDatabaseRotateTrustedCluster(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.DatabaseCA,
-		TargetPhase: types.RotationPhaseInit,
-		Mode:        types.RotationModeManual,
-	})
-	require.NoError(t, err)
+	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
 
-	err = pw.waitForPhase(types.RotationPhaseInit)
-	require.NoError(t, err)
+	for _, phase := range rotationPhases {
+		err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+			Type:        types.DatabaseCA,
+			TargetPhase: phase,
+			Mode:        types.RotationModeManual,
+		})
+		require.NoError(t, err)
 
-	err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.DatabaseCA,
-		TargetPhase: types.RotationPhaseUpdateClients,
-		Mode:        types.RotationModeManual,
-	})
-	require.NoError(t, err)
-
-	err = pw.waitForPhase(types.RotationPhaseUpdateClients)
-	require.NoError(t, err)
-
-	err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.DatabaseCA,
-		TargetPhase: types.RotationPhaseUpdateServers,
-		Mode:        types.RotationModeManual,
-	})
-	require.NoError(t, err)
-
-	err = pw.waitForPhase(types.RotationPhaseUpdateServers)
-	require.NoError(t, err)
-
-	err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
-		Type:        types.DatabaseCA,
-		TargetPhase: types.RotationStateStandby,
-		Mode:        types.RotationModeManual,
-	})
-	require.NoError(t, err)
-
-	err = pw.waitForPhase(types.RotationStateStandby)
-	require.NoError(t, err)
+		err = pw.waitForPhase(phase)
+		require.NoError(t, err)
+	}
 
 	rotatedDbCA, err := pack.root.dbAuthClient.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
@@ -242,7 +217,7 @@ func (p *phaseWatcher) waitForPhase(phase string) error {
 			Clock:     p.clock,
 			Client:    p.siteAPI,
 		},
-		CertTypes: []types.CertAuthType{types.DatabaseCA},
+		CertTypes: []types.CertAuthType{p.certType},
 	})
 	if err != nil {
 		return err
