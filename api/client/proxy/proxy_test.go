@@ -133,6 +133,7 @@ func TestProxyAwareRoundTripper(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, "https://localhost:9999", nil)
 	require.NoError(t, err)
 	// Don't care about response, only if the scheme changed.
+	//nolint:bodyclose
 	_, err = rt.RoundTrip(req)
 	require.Error(t, err)
 	require.Equal(t, "http", req.URL.Scheme)
