@@ -3,96 +3,156 @@ authors: Krzysztof Skrzętnicki <krzysztof.skrzetnicki@goteleport.com>
 state: draft
 ---
 
-# RFD 49 - `tctl sso configure` command
+# RFD 62 - `tctl sso configure` command
 
 ## What
 
 This RFD proposes a new subcommand for the `tctl` tool: `sso configure`. This is a convenience command to help with the
-configuration of auth connectors for common use cases. The command will prepopulate as much of the config file as
-possible given the available information (queried interactively or provided by command line flags). The config file will
-be written to standard output or file chosen by the user.
+configuration of auth connectors. The command is an alternative to directly editing the auth connector resource files
+and provides automated validation and sanity checks.
 
-For select providers (e.g. Okta) we will support more feature-rich templating. The ultimate goal is to support all
-providers for which we have detailed [SSO how-to pages](../docs/pages/enterprise/sso), but the initial scope will be
-smaller.
+Not everything can be checked by the tool, as the overall validity of the SSO setup depends in part on the IdP
+configuration which is invisible for us. This is why the output of the command should be tested with `tctl sso test`
+command, e.g. by piping the output from one to another: `tctl sso configure ... | tctl sso test`.
+
+The input is provided exclusively via command flags. In particular, no "guided" or "interactive" experience is provided.
+This is a deliberate choice, as the web UI admin interface will be a better hosting environment for such a feature.
+
+Ultimately we would like to support all providers for which we have
+detailed [SSO how-to pages](../docs/pages/enterprise/sso). Initial scope covers only SAML.
 
 ## Why
 
-We want to simplify the task of configuring a new auth connector by providing an easy-to-follow set of prompts for doing
-so. Additionally, the command provides a foundation for creating similar functionality in web-based UI.
+We want to simplify the task of configuring a new auth connector. In contrast with free-form text editing of resource,
+this command line tool will only output well-formed, validated auth connector. Whenever possible, the tool will
+automatically fill in the fields, e.g. by fetching the Proxy public address and calculating the respective webapi
+endpoint.
+
+Additionally, the command provides a foundation for creating similar functionality in web-based UI.
 
 ## UX
 
-The simplest way to use the command is to invoke it without any arguments. Assuming the command is invoked in an
-interactive shell, the desired configuration will be queried interactively.
-
-```bash
-$ tctl sso configure
-```
-
-The `--preset` flag chooses the template to use. Additionally, each template may define its own flags.
-
-```bash
-$ tctl sso configure --preset={google,okta,adfs,saml,oidc,github} --template-specific-flags=...
-```
-
-Valid flag combinations (initial implementation scope):
-
-| `--preset`    | description                                                                         |
-|---------------|-------------------------------------------------------------------------------------|
-|               | Error: missing `--preset`. If possible (interactive TTY) ask user which one to use. |
-| `github`      | Ask for `client_id` and `client_secret`.                                            |
-| `oidc`        | Generic OIDC template.                                                              |
-| `saml`        | Generic SAML template.                                                              |
-|               |                                                                                     |
-| `okta`        | Okta template (SAML).                                                               |
-| `google`      | Google template (SAML).                                                             |
-| `adfs`        | ADFS SAML template.                                                                 |
-|               |                                                                                     |
-| `okta-oidc`   | Okta OIDC template. Fill in details from `.well-known`.                             |
-| `google-oidc` | Google OIDC template. Fill in details from `.well-known`.                           |
-
-Individual templates can accept additional non-standard flags. For example `--entity-descriptor=FILE` flag used by SAML
-templates will read Entity Descriptor XML from the provided file and properly embed it in the resulting YAML file. The
-parameters *may* be subject to validation (e.g. XML structure being correct), but by default incorrect parameters should
-only cause warnings to be emitted. In general, we cannot guarantee correctness of generated config; it is expected that
-the user will review the config file and test it for correctness. This is especially true for things
-like `attributes_to_roles` mappings or the provider side of the configuration. This tool is meant to make the
-configuration easier, not replace the appropriate documentation.
-
-Detailed help message can be access with:
+Each connector kind is served by a separate subcommand. Most subcommand flags are not shared.
 
 ```bash
 $ tctl sso configure --help
+
+Create auth connector configuration.
+
 ...
+
+Commands:
+  sso configure saml   Configure SAML connector, optionally using a preset. Available presets: [okta onelogin ad adfs]
+  sso configure oidc   Configure OIDC auth connector, optionally using a preset.
+  sso configure github Configure GitHub auth connector.
 ```
 
-## Interactive mode
+### Flags: SAML
 
-If the terminal attached to stdin is interactive we default to interactive mode. In interactive mode we may provide the
-user with choices (e.g. preset) or ask them to provide details (secrets, identifiers...). In non-interactive mode we
-always use defaults or return error if no sensible defaults are possible.
+For `SAML` the commonly used flags will be:
 
-The interactive mode may be forced on and off with `--interactive` flag.
+```
+-p, --preset                   Preset. One of: [okta onelogin ad adfs]
+-n, --name                     Connector name. Required, unless implied from preset.
+-e, --entity_descriptor        Set the Entity Descriptor. Valid values: file, URL, XML content. Supplies configuration parameters as single XML instead of individual elements.
+-a, --attributes_to_roles      Sets attribute-to-role mapping in the form 'attr_name,attr_value,role1,role2,...'. Repeatable.
+    --display                  Display controls how this connector is displayed.
+```
 
-## Proxy URL discovery
+The `--attributes_to_roles/-a` flag is particularly important as it is used to provide a mapping between the
+IdP-provided attributes and Teleport roles. It can be specified multiple times.
 
-The command will make an effort to discover the correct proxy URL from client profile. Failing that, an appropriate
-default along with comment will be put into the configuration file.
+Alternatives to `--entity_descriptor/-e` flag, allowing to specify these values explicitly:
 
-## Initial scope for POC
+```
+--issuer                   Issuer is the identity provider issuer.
+--sso                      SSO is the URL of the identity provider's SSO service.
+--cert                     Cert is the identity provider certificate PEM. IDP signs <Response> responses using this certificate.
+--cert_file                Like --cert, but read the cert from file.
+```
 
-Only `--preset=okta` and non-interactive mode are in scope of POC. 
+Rarely used flags; the tool fills that information automatically:
+
+```
+--acs                      AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).
+--audience                 Audience uniquely identifies our service provider.
+--service_provider_issuer  ServiceProviderIssuer is the issuer of the service provider (Teleport).
+```
+
+Advanced features:
+
+- assertion encryption (support varies by IdP)
+- externally-provided signing key (by default Teleport will self-issue this)
+- overrides for specific IdP providers
+
+```
+--signing_key_file         A file with request signing key. Must be used together with --signing_cert_file.
+--signing_cert_file        A file with request certificate. Must be used together with --signing_key_file.
+--assertion_key_file       A file with key used for securing SAML assertions. Must be used together with --assertion_cert_file.
+--assertion_cert_file      A file with cert used for securing SAML assertions. Must be used together with --assertion_key_file.
+--provider                 Sets the external identity provider type. Examples: ping, adfs.
+```
+
+Flags for ignoring warnings:
+
+```
+--ignore_missing_roles     Ignore non-existing roles referenced in --attributes_to_roles.
+--ignore_missing_certs     Ignore the lack of valid certificates from -e and --cert.
+```
+
+Available presets (`--preset/-p`):
+
+| Name       | Description                          | Display   |
+|------------|--------------------------------------|-----------|
+| `okta`     | Okta                                 | Okta      |
+| `onelogin` | OneLogin                             | OneLogin  |
+| `ad`       | Azure Active Directory               | Microsoft |
+| `adfs`     | Active Directory Federation Services | ADFS      |
+
+Examples:
+
+1) Generate SAML auth connector configuration named `myauth`.
+
+- members of `admin` group will receive `access`, `editor` and `audit` role.
+- members of `developer` group will receive `access` role.
+- the IdP metadata will be read from `entity-desc.xml` file.
+
+```
+$ tctl sso configure saml -n myauth -a groups,admin,access,editor,audit -a group,developer,access -e entity-desc.xml
+```
+
+2) Generate SAML auth connector configuration using `okta` preset.
+
+- The choice of preset affects default name, display attribute and may apply IdP-specific tweaks.
+- Instead of XML file, a URL was provided to `-e` flag, which will be fetched by Teleport during runtime.
+
+```
+$ tctl sso configure saml -p okta -a group,dev,access -e https://dev-123456.oktapreview.com/app/ex30h8/sso/saml/metadata
+```
+
+3) Generate the configuration and immediately test it using `tctl sso test` command.
+
+```
+$ tctl sso configure saml -p okta -a group,developer,access -e entity-desc.xml | tctl sso test
+```
+
+Full flag reference: `tctl sso configure saml --help`.
+
+### Flags: OIDC
+
+_This section will be filled with expanded implementation scope._
+
+### Flags: GitHub
+
+_This section will be filled with expanded implementation scope._
 
 ## Security
 
-The command will never modify existing Teleport configuration, this will be done by the user by further invocation
+The command will never modify existing Teleport configuration. This will be done by the user by further invocation
 of `tctl create` command or by other means.
 
-The command may handle user secrets. The implementation must ensure these are not silently written anywhere (e.g. we
+The command may handle user secrets. The implementation will ensure these are not silently written anywhere (e.g. we
 must never save partially filled-in configuration files to temp files).
-
-When asking for secrets we should disable local echo (same as when asking for passwords).
 
 ## Further work
 
@@ -100,9 +160,12 @@ When asking for secrets we should disable local echo (same as when asking for pa
 
 We should extend the set of supported providers to match [SSO how-to pages](../docs/pages/enterprise/sso).
 
-### Extending third-party tools to generate Teleport configuration
+### Integration with individual IdPs
 
-It may be useful to extend the Okta CLI tool to make it generate the Teleport auth connector configs. More information:
+We create IdP-specific integration code, which would reduce the expected configuration time for given IdP. The
+feasibility of integration is likely to vary greatly depending on specific IdP.
+
+For example, we may use the Okta CLI tool:
 
 - [blog](https://developer.okta.com/blog/2020/12/10/introducing-okta-cli)
 - [installation](https://cli.okta.com/)
