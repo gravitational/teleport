@@ -1175,7 +1175,7 @@ func (c *Client) GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error
 	return response, nil
 }
 
-// GetSAMLDiagnosticInfo gets SAML diagnostic info.
+// GetSAMLDiagnosticInfo returns SAML diagnostic info records.
 func (c *Client) GetSAMLDiagnosticInfo(ctx context.Context, authRequestId string) (map[string]types.SsoDiagInfoEntry, error) {
 	out, err := c.Get(ctx, c.Endpoint("saml", "requests", "diag", authRequestId), url.Values{})
 	if err != nil {
@@ -1782,7 +1782,7 @@ type IdentityService interface {
 	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error)
 
-	// GetSAMLDiagnosticInfo TODO
+	// GetSAMLDiagnosticInfo returns SAML diagnostic info records.
 	GetSAMLDiagnosticInfo(ctx context.Context, authRequestId string) (map[string]types.SsoDiagInfoEntry, error)
 
 	// CreateGithubConnector creates a new Github connector
