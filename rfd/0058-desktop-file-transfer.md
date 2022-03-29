@@ -125,53 +125,6 @@ This option would currently only work in Chrome and Edge.
 In my opinion the clear winner here is the last option presented, Shared-Directory-Based Option 2. The most important variable from a product design standpoint is the UX, and Shared-Directory-Based Option 2 eliminates all the browser clunkiness and clipboard asymmetry of the other options. If the user wants to share a directory they will simply click a button in the UI, select the directory to share from an OS managed window, and that directory would show up on their remote desktop and work precisely as one would expect a shared drive to work.
 
 On top of having the best UX, this option is also arguably the easiest to implement technically. Barring some solution that I haven't seen, its simply much easier for us to pipe all data through the websocket over TDP than to mess around with punching new HTTP endpoints on the `proxy_service` that need to talk to the `windows_desktop_service`, and potentially persist data between sessions, etc. (the `proxy_service` <--> `windows_desktop_service` problem). TDP's increased complexity in this case is just necessary complexity. In order for TDP to be a fully featured and integrated protocol, it will need such functionality. From that angle, the added complexity is not a problem.
+Because we are already requesting that users use Chromium based browsers for clipboard sharing, it seems obviously acceptable to limit them to the same for file sharing.
 
-## Because we are already requesting that users use Chromium based browsers for clipboard sharing, it seems obviously acceptable to limit them to the same for file sharing.
-
----
-
----
-
-Rather than solving the problem above, we could avoid it by [grabbing the `FileList`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#getting_information_on_selected_files) and sending the file data via a new TDP message. This is much simpler for us, since we already have a TDP connection wrapped in a websocket which the `proxy_service` is proxying to the appropriate `windows_desktop_service`.
-
-## File System Access API
-
-The [File System Access API](https://web.dev/file-system-access/)
-
-## UX Constraints
-
-### RDP Option 1
-
-#### Server to Client
-
-##### Initialization
-
-With RDP Option 1, file transfers from the Windows server will be initiated on the server by the user cutting or [copying the file](https://www.lifewire.com/how-do-i-copy-a-file-in-windows-2619210) to their system clipboard.
-
-The choice of which of these two mechanisms we use will primarily affect the file transfer UX on the Windows side -- if we go with RDP Option 1, the user will intiate a file transfer from the server (the Windows machine) to the client (the user's machine) by [copying the file](https://www.lifewire.com/how-do-i-copy-a-file-in-windows-2619210), and the user will complete a file transfer from the client to the server by pasting the file. If we go with RDP Option 2, a server-to-client transfer will be initiated by placing the file in a particular folder on the server, and a client-to-server transfer will be completed by accessing the file from that same folder.
-
-The client side of the equation is more constrained. Regardless of which option we choose, the initiation of the client-to-server transfer will use either an in-browser drag-and-drop/upload-dialog, or will involve the user selecting a particular folder on their machine and then adding files they want to transfer to it, and the completion of the server-to-client transfer will involve the user selecting from a list of available files in the UI and initiating a browser-controlled download for the one they wish to transfer, or the user accessing the file(s) via the chosen shared directory on their machine (these options are discussed in detail later in this document).
-
-The reason the client side UX options don't include the possibility of copying/pasting files to/from the client's clipboard is that the browser's clipboard capabilities are very limited with regard to files. All browsers are [constrained](https://w3c.github.io/clipboard-apis/#reading-from-clipboard) to `text/plain` `text/html` and `image/png` mime types, and so aren't be able to transfer arbitrary files to and from the client's clipboard.
-
-Due to this constraint, the more coherent user experience is possible via RDP Option 2. With RDP Option 2, initiation and completion of file transfers is more similar between the client and server compared with RDP Option 1. RDP Option 2 interactions are all "folder-like" (its a bit gratuitous to call the drag-and-drop/upload-dialog + browser-download option "folder-like", but it is more folder-like than copy/paste); with RDP Option 1, copy/paste is used only on the Windows side, which makes the overall system relatively assymetrical for no reason easily discernible to the user.
-
-## RDP Option 1 -- Shared Clipboard
-
-### Server to Client
-
-The user initaites a server-to-client transfer by copying a file/directory or set of files/directories to their clipboard on the Windows server. Our rust RDP client is notified with the names and some metadata (such as size) of the files/directories on the clipboard (see [[MS-RDPECLIP]](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/fb9b7e0b-6db4-41c2-b83c-f889c1ee7688) section 2.2.5.2.3), which it then communicates back to the client as a new `files available` TDP message. Upon receipt of that message, the UI updates an element displaying the files/directories available for download. The user then hits "download" on one of the available files displayed in that element to initiate the download.
-
-The actual download itself is a deceptively tricky problem. Recall that file(s) data at this point is still on the Windows server, all we have on the `windows_desktop_service` and client (browser) so far is a list with the names and metadata. In order to initiate a browser-controlled download, we need to send a standard HTTP request and have the server respond with the [appropriate headers](https://stackoverflow.com/questions/20508788/do-i-need-content-type-application-octet-stream-for-file-download). However by definition this would all happen outside the context of the existing websocket-wrapped TDP connection that we're proxying from the Teleport `proxy_service` to an instance of the `windows_desktop_service`. We would need to somehow communicate to the RDP client on the `windows_desktop_service` that it should request the file data itself be downloaded from the Windows server, then figure out how to connect to that data stream on the `windows_desktop_service` from within the ordinary HTTP endpoint on the `proxy_service` and send it back to the client. Besides the technical complexity of this approach, it also has the disadvantage of damaging the integrity of the TDP protocol. TDP would gain a `files available` message (containing the names and metadata of the files on the clipboard), and possibly another message requesting the download (in order to communicate to the RDP client to request the file data from the Windows server), but then would be cut out of the loop for the actual download itself.
-
-Alternatively, it's possible to add a TDP message for communicating the file data itself, convert that data to a base64 encoded string, and add that string as the `href` property of a link (like [`<a href="data:<data_type>;base64,<base64_encoded_file_content>">`](https://stackoverflow.com/a/38203812/6277051)). However this would limit downloads to small files only, since with this approach the entire file needs to be loaded into memory.
-
-Lastly, we could add the TDP message for communicating the file data itself, and effectively implement the download functionality ourselves using the [File System Access API](https://web.dev/file-system-access/). This API will be discussed in more detail below; in brief, it would let us break the files into bite sized chunks, send themp over TDP, write the chunk to disk, and so on until the entire file is written to disk. This would solve the memory problem of the approach discussed in the previous paragraph. Note that the File System Access API is currently only supported by Chrome and Edge.
-
-### Client to Server
-
-The user initiates a client-to-server transfer by clicking a button and selecting some files or dragging and dropping them into a UI element.
-
-From here, we have the option of uploading them immediately to the `proxy_service` via an HTTP call, however this creates a mirror version of the tricky problem introduced in the "Server to Client" section above. It would also have the additional complexity of needing to manage the lifetime of the files on the `proxy_service`. That's because RDP's clipboard protocol uses [delayed rendering](https://github.com/gravitational/teleport/blob/master/rfd/0049-desktop-clipboard.md#data-flow-and-delayed-rendering), meaning that the file data isn't immediately uploaded to the Windows server -- the file data should only be uploaded to the Windows server if/when the user executes a paste operation. When the file is no longer available for a paste (for example, if the user copies some text or another file to the clipboard), the file-in-waiting would need to be deleted from the `proxy_service`.
-
-Our other option, which is simpler to implement, is to send the file(s) piece by piece via a new TDP message if/when it's requested (when the user executes paste operation on the Windows server).
+Because we are already requesting that users use Chromium based browsers for clipboard sharing, it seems obviously acceptable to limit them to the same for file sharing.
