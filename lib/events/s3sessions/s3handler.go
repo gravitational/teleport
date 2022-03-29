@@ -40,6 +40,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// s3AllowedACL is the set of canned ACLs that S3 accepts
+var s3AllowedACL = map[string]struct{}{
+	"private":                   {},
+	"public-read":               {},
+	"public-read-write":         {},
+	"aws-exec-read":             {},
+	"authenticated-read":        {},
+	"bucket-owner-read":         {},
+	"bucket-owner-full-control": {},
+	"log-delivery-write":        {},
+}
+
+func isCannedACL(acl string) bool {
+	_, ok := s3AllowedACL[acl]
+	return ok
+}
+
 // Config is handler configuration
 type Config struct {
 	// Bucket is S3 bucket name
@@ -54,6 +71,8 @@ type Config struct {
 	Insecure bool
 	//DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
+	// ACL is the canned ACL to send to S3
+	ACL string
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
 	// Credentials if supplied are used in tests
@@ -84,6 +103,12 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 			return trace.BadParameter("failed to parse URI %q flag %q - %q, supported values are 'true' or 'false'", in.String(), teleport.DisableServerSideEncryption, val)
 		}
 		s.DisableServerSideEncryption = disableServerSideEncryption
+	}
+	if acl := in.Query().Get(teleport.ACL); acl != "" {
+		if !isCannedACL(acl) {
+			return trace.BadParameter("failed to parse URI %q flag %q - %q is not a valid canned ACL", in.String(), teleport.ACL, acl)
+		}
+		s.ACL = acl
 	}
 	if val := in.Query().Get(teleport.SSEKMSKey); val != "" {
 		s.SSEKMSKey = val
@@ -185,6 +210,9 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 		if h.Config.SSEKMSKey != "" {
 			uploadInput.SSEKMSKeyId = aws.String(h.Config.SSEKMSKey)
 		}
+	}
+	if h.Config.ACL != "" {
+		uploadInput.ACL = aws.String(h.Config.ACL)
 	}
 	_, err = h.uploader.UploadWithContext(ctx, uploadInput)
 	if err != nil {

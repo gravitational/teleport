@@ -32,11 +32,27 @@ apps: []
 # Values that must be provided if Database access is enabled.
 ################################################################
 
+# At least one of 'databases' or 'awsDatabases' must be provided when database access
+# is enabled. See the README for more details.
+
+# Database auto-discovery mode (AWS only)
+# Details of at least one awsDatabase discovery pattern to be discovered
+# and proxied. Example:
+# awsDatabases:
+# - types: ["rds"]
+#   regions: ["us-east-1"]
+#   tags:
+#     "environment": "production"
+awsDatabases: []
+
+# Manual database configuration mode
 # Details of at least one database to be proxied. Example:
 # databases:
 #  - name: aurora
 #    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
 #    protocol: "postgres"
+#    static_labels:
+#      env: "prod"
 databases: []
 
 ################################################################
@@ -60,6 +76,23 @@ podSecurityPolicy:
 
 # Labels is a map of key values pairs about this cluster
 labels: {}
+
+# Settings for high availability. These are not used in "standalone" mode.
+# When using "custom" mode, you must use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
+# Manually configuring NFS-based storage or ReadWriteMany volume claims is NOT supported and will result in errors.
+highAvailability:
+  # Set to >1 for a high availability mode where multiple Teleport agent pods will be deployed.
+  replicaCount: 1
+  # Setting 'requireAntiAffinity' to true will use 'requiredDuringSchedulingIgnoredDuringExecution' to require that multiple Teleport pods must not be scheduled on the
+  # same physical host. This will result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.
+  # Setting 'requireAntiAffinity' to false (the default) uses 'preferredDuringSchedulingIgnoredDuringExecution' to make this a soft requirement.
+  # This setting only has any effect when replicaCount is greater than 1.
+  requireAntiAffinity: false
+  # If enabled will create a Pod Disruption Budget
+  # https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
 
 ################################################################
 # Values that must be provided if using persistent storage for Teleport state.
@@ -92,7 +125,8 @@ image: quay.io/gravitational/teleport
 imagePullSecrets: []
 # - name: myRegistryKeySecretName
 # Number of replicas for the agent deployment.
-replicaCount: 1
+# DEPRECATED Use highAvailability:replicaCount instead
+# replicaCount: 1
 # (optional) Override the name of the ClusterRole used by the agent's service account.
 clusterRoleName: ""
 # (optional) Override the name of the ClusterRoleBinding used by the agent's service account.

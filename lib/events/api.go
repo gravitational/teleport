@@ -440,6 +440,15 @@ const (
 	// WindowsDesktopSessionEndEvent is emitted when a user  disconnects
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
+
+	// CertificateCreateEvent is emitted when a certificate is issued.
+	CertificateCreateEvent = "cert.create"
+
+	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
+	CertificateTypeUser = "user"
+
+	// UnknownEvent is any event received that isn't recognized as any other event type.
+	UnknownEvent = apievents.UnknownEvent
 )
 
 const (

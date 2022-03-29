@@ -703,10 +703,20 @@ message ProvisionTokenV2List {
     repeated ProvisionTokenV2 ProvisionTokens = 1;
 }
 
+// TokenRule is a rule that a joining node must match in order to use the
+// associated token.
 message TokenRule {
+    // AWSAccount is the AWS account ID.
     string AWSAccount = 1 [ (gogoproto.jsontag) = "aws_account,omitempty" ];
+    // AWSRegions is used for the EC2 join method and is a list of AWS regions a
+    // node is allowed to join from.
     repeated string AWSRegions = 2 [ (gogoproto.jsontag) = "aws_regions,omitempty" ];
+    // AWSRole is used for the EC2 join method and is the the ARN of the AWS
+    // role that the auth server will assume in order to call the ec2 API.
     string AWSRole = 3 [ (gogoproto.jsontag) = "aws_role,omitempty" ];
+    // AWSARN is used for the IAM join method, the AWS identity of joining nodes
+    // must match this ARN. Supports wildcards "*" and "?".
+    string AWSARN = 4 [ (gogoproto.jsontag) = "aws_arn,omitempty" ];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -716,9 +726,17 @@ message ProvisionTokenSpecV2 {
     // certificates issued to the user of the token
     repeated string Roles = 1
         [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "SystemRole" ];
-    repeated TokenRule allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    // Allow is a list of TokenRules, nodes using this token must match one
+    // allow rule to use this token.
+    repeated TokenRule Allow = 2 [ (gogoproto.jsontag) = "allow,omitempty" ];
+    // AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used
+    // to join the cluster with this token.
     int64 AWSIIDTTL = 3
         [ (gogoproto.jsontag) = "aws_iid_ttl,omitempty", (gogoproto.casttype) = "Duration" ];
+    // JoinMethod is the joining method required in order to use this token.
+    // Supported joining methods include "token", "ec2", and "iam".
+    string JoinMethod = 4
+        [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2647,6 +2665,11 @@ message WindowsDesktopServiceSpecV3 {
     string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
 }
 
+message WindowsDesktopFilter {
+    string HostID = 1 [ (gogoproto.jsontag) = "host_id" ];
+    string Name = 2 [ (gogoproto.jsontag) = "name" ];
+}
+
 // WindowsDesktopV3 represents a Windows host for desktop access.
 message WindowsDesktopV3 {
     // Header is the common resource header.
@@ -2662,6 +2685,38 @@ message WindowsDesktopSpecV3 {
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
     // Domain is the ActiveDirectory domain that this host belongs to.
     string Domain = 2 [ (gogoproto.jsontag) = "domain" ];
+    // HostID is the ID of the host the Windows Desktop Service proxying the desktop.
+    string HostID = 3 [ (gogoproto.jsontag) = "host_id" ];
+}
+
+// RegisterUsingTokenRequest is a request to register with the auth server using
+// an authentication token
+message RegisterUsingTokenRequest {
+    // HostID is a unique host ID, usually a UUID
+    string HostID = 1 [ (gogoproto.jsontag) = "hostID" ];
+    // NodeName is a node name
+    string NodeName = 2 [ (gogoproto.jsontag) = "node_name" ];
+    // Role is a system role, e.g. Proxy
+    string Role = 3 [ (gogoproto.jsontag) = "role", (gogoproto.casttype) = "SystemRole" ];
+    // Token is the name of an authentication token
+    string Token = 4 [ (gogoproto.jsontag) = "token" ];
+    // AdditionalPrincipals is a list of additional principals
+    repeated string AdditionalPrincipals = 5 [ (gogoproto.jsontag) = "additional_principals" ];
+    // DNSNames is a list of DNS names to include in the x509 client certificate
+    repeated string DNSNames = 6 [ (gogoproto.jsontag) = "dns_names" ];
+    // PublicTLSKey is a PEM encoded public key
+    // used for TLS setup
+    bytes PublicTLSKey = 7 [ (gogoproto.jsontag) = "public_tls_key" ];
+    // PublicSSHKey is a SSH encoded public key,
+    // if present will be signed as a return value
+    // otherwise, new public/private key pair will be generated
+    bytes PublicSSHKey = 8 [ (gogoproto.jsontag) = "public_ssh_key" ];
+    // RemoteAddr is the remote address of the host requesting a host certificate.
+    // It is used to replace 0.0.0.0 in the list of additional principals.
+    string RemoteAddr = 9 [ (gogoproto.jsontag) = "remote_addr" ];
+    // EC2IdentityDocument is used for the EC2 join method to prove the identity
+    // of a joining EC2 instance.
+    bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain

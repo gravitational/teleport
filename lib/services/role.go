@@ -146,6 +146,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindApp, RW()),
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
+				types.NewRule(types.KindToken, RW()),
 			},
 		},
 	})
@@ -168,6 +169,18 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 		},
 	})
 	return role
+}
+
+// ValidateRoleName checks that the role name is allowed to be created.
+func ValidateRoleName(role types.Role) error {
+	// System role names are not allowed.
+	systemRoles := types.SystemRoles([]types.SystemRole{
+		types.SystemRole(role.GetMetadata().Name),
+	})
+	if err := systemRoles.Check(); err == nil {
+		return trace.BadParameter("reserved role: %s", role.GetMetadata().Name)
+	}
+	return nil
 }
 
 // ValidateRole parses validates the role, and sets default values.
@@ -1540,8 +1553,25 @@ func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatc
 
 // Match matches a Kubernetes cluster labels against a role.
 func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
-	ok, _, err := MatchLabels(role.GetKubernetesLabels(typ), l.clusterLabels)
+	ok, _, err := MatchLabels(l.getKubeLabels(role, typ), l.clusterLabels)
 	return ok, trace.Wrap(err)
+}
+
+// getKubeLabels returns kubernetes_labels based on resource version and role type.
+func (l kubernetesClusterLabelMatcher) getKubeLabels(role types.Role, typ types.RoleConditionType) types.Labels {
+	labels := role.GetKubernetesLabels(typ)
+
+	// After the introduction of https://github.com/gravitational/teleport/pull/9759 the
+	// kubernetes_labels started to be respected. Former role behavior evaluated deny rules
+	// even if the kubernetes_labels was empty. To preserve this behavior after respecting kubernetes label the label
+	// logic needs to be aligned.
+	// Default wildcard rules should be added to roles deny.kubernetes_labels if
+	// deny.kubernetes_labels is empty to ensure that deny rule will be evaluated
+	// even if kubernetes_labels are empty.
+	if len(labels) == 0 && typ == types.Deny {
+		return map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}}
+	}
+	return labels
 }
 
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.

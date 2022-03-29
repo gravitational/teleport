@@ -579,12 +579,11 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// make sure we upsert a trusted cluster
 	require.True(t, upsertSuccess)
 
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime := time.Now().Add(time.Second * 10)
-	for len(checkGetClusters(t, main.Tunnel)) < 2 && len(checkGetClusters(t, aux.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 2000)
-		require.False(t, time.Now().After(abortTime), "two clusters do not see each other: tunnels are not working")
-	}
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	// impersonating client requests will be denied
 	impersonatingProxyClient, impersonatingProxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
@@ -835,14 +834,11 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// make sure we upsert a trusted cluster
 	require.True(t, upsertSuccess)
 
-	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-	abortTime := time.Now().Add(time.Second * 10)
-	for len(checkGetClusters(t, main.Tunnel)) < 2 && len(checkGetClusters(t, aux.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 2000)
-		if time.Now().After(abortTime) {
-			t.Fatalf("two clusters do not see each other: tunnels are not working")
-		}
-	}
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	// impersonating client requests will be denied
 	impersonatingProxyClient, impersonatingProxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
@@ -1128,18 +1124,22 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 	defer teleport.StopAll()
 
 	// set up kube configuration using proxy
-	_, proxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
+	proxyClient, proxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
 		t:          teleport,
 		username:   username,
 		kubeGroups: kubeGroups,
 	})
 	require.NoError(t, err)
 
+	ctx := context.Background()
+	pod, err := proxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
+	require.NoError(t, err)
+
 	u, err := url.Parse(proxyClientConfig.Host)
 	require.NoError(t, err)
 
 	u.Scheme = "https"
-	u.Path = fmt.Sprintf("/api/v1/namespaces/%v/pods/%v", testNamespace, testPod)
+	u.Path = fmt.Sprintf("/api/v1/namespaces/%v/pods/%v", pod.Namespace, pod.Name)
 
 	tlsConfig, err := tlsClientConfig(proxyClientConfig)
 	require.NoError(t, err)
@@ -1153,6 +1153,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 	resp1, err := client.Get(u.String())
 	require.NoError(t, err)
 	defer resp1.Body.Close()
+	require.Equal(t, resp1.StatusCode, 200)
 	require.Equal(t, resp1.Proto, "HTTP/1.1")
 
 	// call proxy with an HTTP2 client
@@ -1162,7 +1163,24 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 	resp2, err := client.Get(u.String())
 	require.NoError(t, err)
 	defer resp2.Body.Close()
+	require.Equal(t, resp2.StatusCode, 200)
 	require.Equal(t, resp2.Proto, "HTTP/2.0")
+
+	// stream succeeds with an h1 transport
+	command := kubeExecArgs{
+		podName:      pod.Name,
+		podNamespace: pod.Namespace,
+		container:    pod.Spec.Containers[0].Name,
+		command:      []string{"ls"},
+	}
+
+	err = kubeExec(proxyClientConfig, command)
+	require.NoError(t, err)
+
+	// stream fails with an h2 transport
+	proxyClientConfig.TLSClientConfig.NextProtos = []string{"h2"}
+	err = kubeExec(proxyClientConfig, command)
+	require.Error(t, err)
 }
 
 // teleKubeConfig sets up teleport with kubernetes turned on
@@ -1237,7 +1255,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	}
 	ttl := roles.AdjustSessionTTL(10 * time.Minute)
 
-	ca, err := authServer.GetCertAuthority(types.CertAuthID{
+	ca, err := authServer.GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)

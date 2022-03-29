@@ -8,64 +8,40 @@ The teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### Teleport 8.2
-
-Teleport 8.2 will bring support for X11 forwarding.
-
-| Version     | Date               | Description                      |
-| ----------- | ------------------ | -------------------------------- |
-| Release     | February 4th, 2022 | Good to go for production.       |
-
-You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/66).
-
-### Teleport 8.3
-
-Teleport 8.3 will add support for IAM based joining on AWS and Session Moderation.
-
-https://github.com/gravitational/teleport/milestone/69
-
-| Version     | Date               | Description                      |
-| ----------- | ------------------ | -------------------------------- |
-| Release     | February 11th, 2022 | Good to go for production.      |
-
-You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/69).
-
 ### Teleport 9
 
 Teleport 9.0 will focus on bringing Desktop Access to GA with support for
 session recording, per-session MFA, and clipboard support. Database Access
-will add self-hosted Redis, auto-discovery for Redshift clusers, and
-auto-IAM configuration improvements.
+will add self-hosted Redis, auto-discovery for Redshift clusers,
+auto-IAM configuration improvements, and Moderated Sessions.
 
 In addition, Teleport 9 will include preview releases of Microsoft SQL
 Server with AD authentication for Database Access and Teleport Certificate Bot.
 
-| Version     | Date               | Description                      |
-| ----------- | ------------------ | -------------------------------- |
-| Alpha       | Febuary 11th, 2022 | Good for some testing and demos. |
-| Beta        | Febuary 25th, 2022 | Deploy on staging.               |
-| Release     | March 11th, 2022   | Good to go for production.       |
+| Version                                                                              | Date               | Description                      |
+| -------------------------------------------------------------------------------------|--------------------|----------------------------------|
+| [9.0.0-beta.1](https://github.com/gravitational/teleport/releases/tag/v9.0.0-beta.1) | Febuary 21st, 2022 | Deploy on staging.               |
+| Release                                                                              | March 11th, 2022   | Good to go for production.       |
 
 You can find the full list of fixes and features in the [Github milestone](https://github.com/gravitational/teleport/milestone/64).
 
 ## Teleport Cloud "Washington"
 
-The Cloud team improves user experience - adds databases and kubernetes user interfaces
-and wizards, adds downloads page.
-The team improves cloud self service with password recovery and cancellation, adds data export.
+The key areas of focus for Teleport cloud in early 2022 are:
+- Ensuring the best routing and latency experience
+- Stronger outbound communications on cloud health and infrastructure changes
+- UX where the cloud offering differs from the on-prem offering
 
 ### Release Schedule
 
-The cloud team ships the release features as they are ready up to July 15th.
-
-| Version | Date | Description |
-| - | - | - |
-| Wrap up | July 15th, 2021 | Key features deployed. |
-
-### Features
-
-You can find the full list of fixes and features in the
-[Github milestone](https://github.com/gravitational/teleport/milestone/54).
+| Date | Description |
+| - | - |
+| March 2022 | Complete rollout of our [worldwide access design](https://goteleport.com/blog/access-proxy-latency/), allowing low-latency access from around the world. |
+| April 2022 | Update security audit from independent auditors. [2021 Audit](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/) |
+| Q1 2022 | Roll out a technical communications framework, notifying technical contacts of planned maintenance, infrastructure changes and outages |
+| Q1 2022 | Provide a public listing of IP addresses used by Teleport infrastructure for firewall configuration |
+| Q2 2022 | Offer more data retention options |
+| Q3 2022 | Option to store data in alternate regions around the world |
 
 ## Semantic Versioning
 

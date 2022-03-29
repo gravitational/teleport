@@ -6,7 +6,7 @@ import (
 	. "github.com/siddontang/go-mysql/mysql"
 )
 
-func (c *Conn) WriteOK(r *Result) error {
+func (c *Conn) writeOK(r *Result) error {
 	if r == nil {
 		r = &Result{}
 	}
@@ -28,7 +28,7 @@ func (c *Conn) WriteOK(r *Result) error {
 	return c.WritePacket(data)
 }
 
-func (c *Conn) WriteError(e error) error {
+func (c *Conn) writeError(e error) error {
 	var m *MyError
 	var ok bool
 	if m, ok = e.(*MyError); !ok {
@@ -176,14 +176,14 @@ func (c *Conn) writeValue(value interface{}) error {
 	case noResponse:
 		return nil
 	case error:
-		return c.WriteError(v)
+		return c.writeError(v)
 	case nil:
-		return c.WriteOK(nil)
+		return c.writeOK(nil)
 	case *Result:
 		if v != nil && v.Resultset != nil {
 			return c.writeResultset(v.Resultset)
 		} else {
-			return c.WriteOK(v)
+			return c.writeOK(v)
 		}
 	case []*Field:
 		return c.writeFieldList(v)

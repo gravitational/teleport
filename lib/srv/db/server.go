@@ -703,20 +703,22 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return &postgres.Engine{
-			Auth:    s.cfg.Auth,
-			Audit:   audit,
-			Context: s.closeContext,
-			Clock:   s.cfg.Clock,
-			Log:     sessionCtx.Log,
+			Auth:         s.cfg.Auth,
+			Audit:        audit,
+			Context:      s.closeContext,
+			Clock:        s.cfg.Clock,
+			CloudClients: s.cfg.CloudClients,
+			Log:          sessionCtx.Log,
 		}, nil
 	case defaults.ProtocolMySQL:
 		return &mysql.Engine{
-			Auth:       s.cfg.Auth,
-			Audit:      audit,
-			AuthClient: s.cfg.AuthClient,
-			Context:    s.closeContext,
-			Clock:      s.cfg.Clock,
-			Log:        sessionCtx.Log,
+			Auth:         s.cfg.Auth,
+			Audit:        audit,
+			AuthClient:   s.cfg.AuthClient,
+			Context:      s.closeContext,
+			Clock:        s.cfg.Clock,
+			CloudClients: s.cfg.CloudClients,
+			Log:          sessionCtx.Log,
 		}, nil
 	case defaults.ProtocolMongoDB:
 		return &mongodb.Engine{

@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
 
@@ -222,6 +223,16 @@ type Config struct {
 	// ForwardAgent is used by the client to request agent forwarding from the server.
 	ForwardAgent AgentForwardingMode
 
+	// EnableX11Forwarding specifies whether X11 forwarding should be enabled.
+	EnableX11Forwarding bool
+
+	// X11ForwardingTimeout can be set to set a X11 forwarding timeout in seconds,
+	// after which any X11 forwarding requests in that session will be rejected.
+	X11ForwardingTimeout time.Duration
+
+	// X11ForwardingTrusted specifies the X11 forwarding security mode.
+	X11ForwardingTrusted bool
+
 	// AuthMethods are used to login into the cluster. If specified, the client will
 	// use them in addition to certs stored in its local agent (from disk)
 	AuthMethods []ssh.AuthMethod
@@ -331,6 +342,9 @@ type Config struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool
+
+	// ExtraProxyHeaders is a collection of http headers to be included in requests to the WebProxy.
+	ExtraProxyHeaders map[string]string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -527,7 +541,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	// Save profile to record proxy credentials
-	if err := tc.SaveProfile("", true); err != nil {
+	if err := tc.SaveProfile(tc.HomePath, true); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
 	}
@@ -1449,7 +1463,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) > 1 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
-	return tc.runShell(nodeClient, nil)
+	return tc.runShell(ctx, nodeClient, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
@@ -1559,7 +1573,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	tc.startPortForwarding(ctx, nc)
 
 	// running shell with a given session means "join" it:
-	return tc.runShell(nc, session)
+	return tc.runShell(ctx, nc, session)
 }
 
 // Play replays the recorded session
@@ -2028,13 +2042,13 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 }
 
 // runShell starts an interactive SSH session/shell.
-// sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
+// sessToJoin : when empty, creates a new shell. otherwise it tries to join the existing session.
+func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, sessToJoin *session.Session) error {
 	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, tc.OnShellCreated); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			tc.ExitStatus = e.ExitStatus()
@@ -2167,14 +2181,12 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		HostKeyCallback: hostKeyCallback,
 		Auth:            authMethods,
 	}
-	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 
-	sshClient, err := makeProxySSHClient(tc, sshConfig)
+	sshClient, err := makeProxySSHClient(ctx, tc, sshConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
 	return &ProxyClient{
 		teleportClient:  tc,
 		Client:          sshClient,
@@ -2188,37 +2200,66 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}, nil
 }
 
-func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	cfg := tc.Config
-	clientTLSConf, err := tc.loadTLSConfig()
+// makeProxySSHClient creates an SSH client by following steps:
+// 1) If the current proxy supports TLS Routing and JumpHost address was not provided use TLSWrapper.
+// 2) Check JumpHost raw SSH port or Teleport proxy address.
+//    In case of proxy web address check if the proxy supports TLS Routing and connect to the proxy with TLSWrapper
+// 3) Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
+//    JumpHost address was provided.
+func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
+	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
+		log.Infof("Connecting to proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
+		c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, tc.Config.WebProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Infof("Successful auth with proxy %v.", tc.Config.WebProxyAddr)
+		return c, nil
+	}
+
+	sshProxyAddr := tc.Config.SSHProxyAddr
+
+	// Handle situation where a Jump Host was set to proxy web address and Teleport supports TLS Routing.
+	if len(tc.JumpHosts) > 0 {
+		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
+		// Check if JumpHost address is a proxy web address.
+		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: sshProxyAddr, Insecure: tc.InsecureSkipVerify})
+		// If JumpHost address is a proxy web port and proxy supports TLSRouting dial proxy with TLSWrapper.
+		if err == nil && resp.Proxy.TLSRoutingEnabled {
+			log.Infof("Connecting to proxy=%v login=%q using TLS Routing JumpHost", sshProxyAddr, sshConfig.User)
+			c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, sshProxyAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			log.Infof("Successful auth with proxy %v.", sshProxyAddr)
+			return c, nil
+		}
+	}
+
+	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
+	client, err := makeProxySSHClientDirect(tc, sshConfig, sshProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
+	}
+	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
+	return client, nil
+}
+
+func makeProxySSHClientDirect(tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
+	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr)
+	return dialer.Dial("tcp", proxyAddr, sshConfig)
+}
+
+func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
+	tlsConfig, err := tc.loadTLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clientTLSConf.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	clientTLSConf.InsecureSkipVerify = cfg.InsecureSkipVerify
-
-	tlsConn, err := tls.Dial("tcp", cfg.WebProxyAddr, clientTLSConf)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to dial tls %v", cfg.WebProxyAddr)
-	}
-	c, chans, reqs, err := ssh.NewClientConn(tlsConn, cfg.WebProxyAddr, sshConfig)
-	if err != nil {
-		// tlsConn is closed inside ssh.NewClientConn function
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", cfg.WebProxyAddr)
-	}
-	return ssh.NewClient(c, chans, reqs), nil
-}
-
-func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	if tc.Config.TLSRoutingEnabled {
-		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
-	}
-	client, err := ssh.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", tc.Config.SSHProxyAddr)
-	}
-	return client, nil
+	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
+	return dialer.Dial("tcp", proxyAddr, sshConfig)
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {
@@ -2346,14 +2387,8 @@ func (tc *TeleportClient) LogoutAll() error {
 	return nil
 }
 
-// Login logs the user into a Teleport cluster by talking to a Teleport proxy.
-//
-// The returned Key should typically be passed to ActivateKey in order to
-// update local agent state.
-//
-func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
-	// Ping the endpoint to see if it's up and find the type of authentication
-	// supported.
+// PingAndShowMOTD pings the Teleport Proxy and displays the Message Of The Day if it's available.
+func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingResponse, error) {
 	pr, err := tc.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2364,6 +2399,21 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+	return pr, nil
+}
+
+// Login logs the user into a Teleport cluster by talking to a Teleport proxy.
+//
+// The returned Key should typically be passed to ActivateKey in order to
+// update local agent state.
+//
+func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
+	// Ping the endpoint to see if it's up and find the type of authentication
+	// supported, also show the message of the day if available.
+	pr, err := tc.PingAndShowMOTD(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// generate a new keypair. the public key will be signed via proxy if client's
@@ -2500,12 +2550,13 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	if tc.lastPing != nil {
 		return tc.lastPing, nil
 	}
-	pr, err := webclient.Ping(
-		ctx,
-		tc.WebProxyAddr,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr),
-		tc.AuthConnector)
+	pr, err := webclient.Ping(&webclient.Config{
+		Context:       ctx,
+		ProxyAddr:     tc.WebProxyAddr,
+		Insecure:      tc.InsecureSkipVerify,
+		Pool:          loopbackPool(tc.WebProxyAddr),
+		ConnectorName: tc.AuthConnector,
+		ExtraHeaders:  tc.ExtraProxyHeaders})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2537,22 +2588,25 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 // confirmation from the user.
 func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 	motd, err := webclient.GetMOTD(
-		ctx,
-		tc.WebProxyAddr,
-		tc.InsecureSkipVerify,
-		loopbackPool(tc.WebProxyAddr))
+		&webclient.Config{
+			Context:      ctx,
+			ProxyAddr:    tc.WebProxyAddr,
+			Insecure:     tc.InsecureSkipVerify,
+			Pool:         loopbackPool(tc.WebProxyAddr),
+			ExtraHeaders: tc.ExtraProxyHeaders})
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if motd.Text != "" {
-		fmt.Printf("%s\nPress [ENTER] to continue.\n", motd.Text)
+		fmt.Fprintf(tc.Stderr, "%s\nPress [ENTER] to continue.\n", motd.Text)
 		// We're re-using the password reader for user acknowledgment for
 		// aesthetic purposes, because we want to hide any garbage the
 		// use might enter at the prompt. Whatever the user enters will
 		// be simply discarded, and the user can still CTRL+C out if they
 		// disagree.
-		_, err := passwordFromConsole()
+		_, err := passwordFromConsoleFn()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2581,7 +2635,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	}
 
 	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(types.HostCA, false)
+	return clt.GetCertAuthorities(ctx, types.HostCA, false)
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
@@ -3078,8 +3132,12 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusters := []string{rootCluster}
+	if tc.SiteName != "" && rootCluster != tc.SiteName {
+		clusters = append(clusters, tc.SiteName)
+	}
 
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{rootCluster})
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}

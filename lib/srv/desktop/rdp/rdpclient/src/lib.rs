@@ -21,9 +21,10 @@ pub mod scard;
 extern crate log;
 #[macro_use]
 extern crate num_derive;
-extern crate byteorder;
 
 use libc::{fd_set, select, FD_SET};
+use rand::Rng;
+use rand::SeedableRng;
 use rdp::core::event::*;
 use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
@@ -36,6 +37,7 @@ use rdp::model::link::{Link, Stream};
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
+use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::os::raw::c_char;
@@ -185,17 +187,17 @@ fn connect_rdp_inner(
         // although it's never used explicitly from our end.
         &["rdpdr".to_string(), "rdpsnd".to_string()],
     )?;
-    // Password must be non-empty for autologin (sec::InfoFlag::InfoPasswordIsScPin) to trigger on
-    // a smartcard.
-    let password = "123".to_string();
+    // Generate a random 8-digit PIN for our smartcard.
+    let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
+    let pin = format!("{:08}", rng.gen_range(0..99999999));
     sec::connect(
         &mut mcs,
         &domain.to_string(),
         &username,
-        &password,
+        &pin,
         true,
-        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code.
-        // The password we pass will be automatically used as PIN.
+        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
+        // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
     )?;
     // Client for the "global" channel - video output and user input.
@@ -208,7 +210,7 @@ fn connect_rdp_inner(
         "rdp-rs",
     );
     // Client for the "rdpdr" channel - smartcard emulation.
-    let rdpdr = rdpdr::Client::new(cert_der, key_der);
+    let rdpdr = rdpdr::Client::new(cert_der, key_der, pin);
 
     let rdp_client = RdpClient { mcs, global, rdpdr };
     Ok(Client {
@@ -369,7 +371,7 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
             .unwrap()
             .read(|rdp_event| match rdp_event {
                 RdpEvent::Bitmap(bitmap) => {
-                    let cbitmap = match CGOBitmap::try_from(bitmap) {
+                    let mut cbitmap = match CGOBitmap::try_from(bitmap) {
                         Ok(cb) => cb,
                         Err(e) => {
                             error!(
@@ -380,7 +382,7 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
                         }
                     };
                     unsafe {
-                        err = handle_bitmap(client_ref, cbitmap) as CGOError;
+                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOError;
                     };
                 }
                 // These should never really be sent by the server to us.
@@ -391,9 +393,13 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
                     debug!("got unexpected keyboard event from RDP server, ignoring");
                 }
             });
-        if let Err(e) = res {
-            return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
-        };
+        match res {
+            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
+            Err(e) => {
+                return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
+            }
+            _ => {}
+        }
         if err != CGO_OK {
             let err_str = unsafe { from_cgo_error(err) };
             return Some(format!("failed forwarding RDP bitmap frame: {}", err_str));
@@ -606,7 +612,7 @@ unsafe fn from_cgo_error(e: CGOError) -> String {
 // comments.
 extern "C" {
     fn free_go_string(s: *mut c_char);
-    fn handle_bitmap(client_ref: usize, b: CGOBitmap) -> CGOError;
+    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.

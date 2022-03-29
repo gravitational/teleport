@@ -16,6 +16,8 @@ limitations under the License.
 
 package events
 
+import apievents "github.com/gravitational/teleport/api/types/events"
+
 // Event describes an audit log event.
 type Event struct {
 	// Name is the event name.
@@ -463,4 +465,10 @@ const (
 	LockCreatedCode = "TLK00I"
 	// LockDeletedCode is the lock deleted event code.
 	LockDeletedCode = "TLK01I"
+
+	// CertificateCreateCode is the certificate issuance event code.
+	CertificateCreateCode = "TC000I"
+
+	// UnknownCode is used when an event of unknown type is encountered.
+	UnknownCode = apievents.UnknownCode
 )

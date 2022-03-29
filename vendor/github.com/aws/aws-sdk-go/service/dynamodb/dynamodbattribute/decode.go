@@ -316,7 +316,7 @@ func (d *Decoder) decodeNumber(n *string, v reflect.Value, fieldTag tag) error {
 			v.Set(reflect.ValueOf(Number(*n)))
 			return nil
 		}
-		v.Set(reflect.ValueOf(*n))
+		v.SetString(*n)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		i, err := strconv.ParseInt(*n, 10, 64)
 		if err != nil {

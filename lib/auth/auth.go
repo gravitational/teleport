@@ -276,9 +276,20 @@ var (
 		},
 	)
 
+	registeredAgents = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricRegisteredServers,
+			Help: "The number of Teleport servers (a server consists of one or more Teleport services) that have connected to the Teleport cluster, including the Teleport version. " +
+				"After disconnecting, a Teleport server has a TTL of 10 minutes, so this value will include servers that have recently disconnected but have not reached their TTL.",
+		},
+		[]string{teleport.TagVersion},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+		registeredAgents,
 	}
 )
 
@@ -394,15 +405,17 @@ func (a *Server) runPeriodicOperations() {
 		Duration: apidefaults.ServerKeepAliveTTL() * 2,
 		Jitter:   utils.NewSeventhJitter(),
 	})
+	promTicker := time.NewTicker(defaults.PrometheusScrapeInterval)
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
+	defer promTicker.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
 			return
 		case <-ticker.Chan():
-			err := a.autoRotateCertAuthorities()
+			err := a.autoRotateCertAuthorities(ctx)
 			if err != nil {
 				if trace.IsCompareFailed(err) {
 					log.Debugf("Cert authority has been updated concurrently: %v.", err)
@@ -422,7 +435,113 @@ func (a *Server) runPeriodicOperations() {
 			}
 			// Update prometheus gauge
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
+		case <-promTicker.C:
+			a.updateVersionMetrics()
 		}
+	}
+}
+
+// updateVersionMetrics leverages the cache to report all versions of teleport servers connected to the
+// cluster via prometheus metrics
+func (a *Server) updateVersionMetrics() {
+	hostID := make(map[string]struct{})
+	versionCount := make(map[string]int)
+
+	// Nodes, Proxies, Auths, KubeServices, and WindowsDesktopServices use the UUID as the name field where
+	// DB and App store it in the spec. Check expiry due to DynamoDB taking up to 48hr to expire from backend
+	// and then store hostID and version count information.
+	serverCheck := func(server interface{}) {
+		type serverKubeWindows interface {
+			Expiry() time.Time
+			GetName() string
+			GetTeleportVersion() string
+		}
+		type appDB interface {
+			serverKubeWindows
+			GetHostID() string
+		}
+
+		// appDB needs to be first as it also matches the serverKubeWindows interface
+		if a, ok := server.(appDB); ok {
+			if a.Expiry().Before(time.Now()) {
+				return
+			}
+			if _, present := hostID[a.GetHostID()]; !present {
+				hostID[a.GetHostID()] = struct{}{}
+				versionCount[a.GetTeleportVersion()]++
+			}
+		} else if s, ok := server.(serverKubeWindows); ok {
+			if s.Expiry().Before(time.Now()) {
+				return
+			}
+			if _, present := hostID[s.GetName()]; !present {
+				hostID[s.GetName()] = struct{}{}
+				versionCount[s.GetTeleportVersion()]++
+			}
+		}
+	}
+	client := a.GetCache()
+
+	proxyServers, err := client.GetProxies()
+	if err != nil {
+		log.Debugf("Failed to get Proxies for teleport_registered_servers metric: %v", err)
+	}
+	for _, proxyServer := range proxyServers {
+		serverCheck(proxyServer)
+	}
+
+	authServers, err := client.GetAuthServers()
+	if err != nil {
+		log.Debugf("Failed to get Auth servers for teleport_registered_servers metric: %v", err)
+	}
+	for _, authServer := range authServers {
+		serverCheck(authServer)
+	}
+
+	servers, err := client.GetNodes(a.closeCtx, apidefaults.Namespace)
+	if err != nil {
+		log.Debugf("Failed to get Nodes for teleport_registered_servers metric: %v", err)
+	}
+	for _, server := range servers {
+		serverCheck(server)
+	}
+
+	dbs, err := client.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
+	if err != nil {
+		log.Debugf("Failed to get Database servers for teleport_registered_servers metric: %v", err)
+	}
+	for _, db := range dbs {
+		serverCheck(db)
+	}
+
+	apps, err := client.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
+	if err != nil {
+		log.Debugf("Failed to get Application servers for teleport_registered_servers metric: %v", err)
+	}
+	for _, app := range apps {
+		serverCheck(app)
+	}
+
+	kubeServices, err := client.GetKubeServices(a.closeCtx)
+	if err != nil {
+		log.Debugf("Failed to get Kube services for teleport_registered_servers metric: %v", err)
+	}
+	for _, kubeService := range kubeServices {
+		serverCheck(kubeService)
+	}
+
+	windowsServices, err := client.GetWindowsDesktopServices(a.closeCtx)
+	if err != nil {
+		log.Debugf("Failed to get Window Desktop Services for teleport_registered_servers metric: %v", err)
+	}
+	for _, windowsService := range windowsServices {
+		serverCheck(windowsService)
+	}
+
+	// reset the gauges so that any versions that fall off are removed from exported metrics
+	registeredAgents.Reset()
+	for version, count := range versionCount {
+		registeredAgents.WithLabelValues(version).Set(float64(count))
 	}
 }
 
@@ -503,7 +622,7 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	// Extract the TLS CA for this cluster.
-	hostCA, err := a.GetCache().GetCertAuthority(types.CertAuthID{
+	hostCA, err := a.GetCache().GetCertAuthority(context.TODO(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
@@ -530,7 +649,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
+	ca, err := a.Trust.GetCertAuthority(context.TODO(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -800,13 +919,14 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 
 // generateUserCert generates user certificates
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
+	ctx := context.TODO()
 	err := req.check()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Reject the cert request if there is a matching lock in force.
-	authPref, err := a.GetAuthPreference(context.TODO())
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -891,7 +1011,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	ca, err := a.Trust.GetCertAuthority(types.CertAuthID{
+	ca, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName,
 	}, true)
@@ -1013,6 +1133,20 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	eventIdentity := identity.GetEventIdentity()
+	eventIdentity.Expires = certRequest.NotAfter
+	if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+		Metadata: apievents.Metadata{
+			Type: events.CertificateCreateEvent,
+			Code: events.CertificateCreateCode,
+		},
+		CertificateType: events.CertificateTypeUser,
+		Identity:        &eventIdentity,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit certificate create event.")
+	}
+
 	return &proto.Certs{
 		SSH:        sshCert,
 		TLS:        tlsCert,
@@ -2006,7 +2140,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if req.NoCache {
 		client = a.Services
 	}
-	ca, err := client.GetCertAuthority(types.CertAuthID{
+	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -2020,7 +2154,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	// to the backend, which is a fine tradeoff
 	if !req.NoCache && req.Rotation != nil && !req.Rotation.Matches(ca.GetRotation()) {
 		log.Debugf("Client sent rotation state %v, cache state is %v, using state from the DB.", req.Rotation, ca.GetRotation())
-		ca, err = a.GetCertAuthority(types.CertAuthID{
+		ca, err = a.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -2098,12 +2232,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		NotAfter:  a.clock.Now().UTC().Add(defaults.CATTL),
 		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
 	}
-	// HTTPS requests need to specify DNS name that should be present in the
-	// certificate as one of the DNS Names. It is not known in advance,
-	// that is why there is a default one for all certificates
-	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp) {
-		certRequest.DNSNames = append(certRequest.DNSNames, "*."+constants.APIDomain, constants.APIDomain)
-	}
+
+	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
+	// The target DNS is not always known in advance so we add a default one to all certificates.
+	certRequest.DNSNames = append(certRequest.DNSNames, DefaultDNSNamesForRole(req.Role)...)
+
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
 	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
@@ -2124,9 +2257,8 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
-func (a *Server) ValidateToken(token string) (types.SystemRoles, map[string]string, error) {
-	ctx := context.TODO()
-	tkns, err := a.GetCache().GetStaticTokens()
+func (a *Server) ValidateToken(ctx context.Context, token string) (types.SystemRoles, map[string]string, error) {
+	tkns, err := a.GetStaticTokens()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2141,7 +2273,7 @@ func (a *Server) ValidateToken(token string) (types.SystemRoles, map[string]stri
 
 	// If it's not a static token, check if it's a ephemeral token in the backend.
 	// If a ephemeral token is found, make sure it's still valid.
-	tok, err := a.GetCache().GetToken(ctx, token)
+	tok, err := a.GetToken(ctx, token)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2167,118 +2299,6 @@ func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
 		return false
 	}
 	return true
-}
-
-// RegisterUsingTokenRequest is a request to register with
-// auth server using authentication token
-type RegisterUsingTokenRequest struct {
-	// HostID is a unique host ID, usually a UUID
-	HostID string `json:"hostID"`
-	// NodeName is a node name
-	NodeName string `json:"node_name"`
-	// Role is a system role, e.g. Proxy
-	Role types.SystemRole `json:"role"`
-	// Token is an authentication token
-	Token string `json:"token"`
-	// AdditionalPrincipals is a list of additional principals
-	AdditionalPrincipals []string `json:"additional_principals"`
-	// DNSNames is a list of DNS names to include in the x509 client certificate
-	DNSNames []string `json:"dns_names"`
-	// PublicTLSKey is a PEM encoded public key
-	// used for TLS setup
-	PublicTLSKey []byte `json:"public_tls_key"`
-	// PublicSSHKey is a SSH encoded public key,
-	// if present will be signed as a return value
-	// otherwise, new public/private key pair will be generated
-	PublicSSHKey []byte `json:"public_ssh_key"`
-	// RemoteAddr is the remote address of the host requesting a host certificate.
-	// It is used to replace 0.0.0.0 in the list of additional principals.
-	RemoteAddr string `json:"remote_addr"`
-	// EC2IdentityDocument is used for Simplified Node Joining to prove the
-	// identity of a joining EC2 instance.
-	EC2IdentityDocument []byte `json:"ec2_id"`
-}
-
-// CheckAndSetDefaults checks for errors and sets defaults
-func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
-	if r.HostID == "" {
-		return trace.BadParameter("missing parameter HostID")
-	}
-	if r.Token == "" {
-		return trace.BadParameter("missing parameter Token")
-	}
-	if err := r.Role.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// RegisterUsingToken adds a new node to the Teleport cluster using previously issued token.
-// A node must also request a specific role (and the role must match one of the roles
-// the token was generated for).
-//
-// If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
-// If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
-// after a successful registration.
-func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*proto.Certs, error) {
-	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
-
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If the request uses Simplified Node Joining check that the identity is
-	// valid and matches the token allow rules.
-	err := a.CheckEC2Request(context.Background(), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// make sure the token is valid
-	roles, _, err := a.ValidateToken(req.Token)
-	if err != nil {
-		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
-		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
-	}
-
-	// make sure the caller is requested the role allowed by the token
-	if !roles.Include(req.Role) {
-		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
-		log.Warn(msg)
-		return nil, trace.BadParameter(msg)
-	}
-
-	// generate and return host certificate and keys
-	certs, err := a.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
-			HostID:               req.HostID,
-			NodeName:             req.NodeName,
-			Role:                 req.Role,
-			AdditionalPrincipals: req.AdditionalPrincipals,
-			PublicTLSKey:         req.PublicTLSKey,
-			PublicSSHKey:         req.PublicSSHKey,
-			RemoteAddr:           req.RemoteAddr,
-			DNSNames:             req.DNSNames,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
-	return certs, nil
-}
-
-func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error {
-	tok, err := a.Provisioner.GetToken(ctx, token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !tok.GetRoles().Include(types.RoleAuth) {
-		return trace.AccessDenied("role does not match")
-	}
-	if err := a.DeleteToken(ctx, token); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
@@ -2644,14 +2664,14 @@ func (a *Server) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (a *Server) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	return a.GetCache().GetCertAuthority(id, loadSigningKeys, opts...)
+func (a *Server) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+	return a.GetCache().GetCertAuthority(ctx, id, loadSigningKeys, opts...)
 }
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (a *Server) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
-	return a.GetCache().GetCertAuthorities(caType, loadSigningKeys, opts...)
+func (a *Server) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+	return a.GetCache().GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
@@ -2661,7 +2681,7 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := a.GetCertAuthority(types.CertAuthID{
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       caType,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -3440,6 +3460,7 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 // addAdditionalTrustedKeysAtomic performs an atomic CompareAndSwap to update
 // the given CA with newKeys added to the AdditionalTrustedKeys
 func (a *Server) addAddtionalTrustedKeysAtomic(
+	ctx context.Context,
 	currentCA types.CertAuthority,
 	newKeys types.CAKeySet,
 	needsUpdate func(types.CertAuthority) bool) error {
@@ -3470,7 +3491,7 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 		}
 		// else trace.IsCompareFailed(err) == true (CA was concurrently updated)
 
-		currentCA, err = a.Trust.GetCertAuthority(currentCA.GetID(), true)
+		currentCA, err = a.Trust.GetCertAuthority(ctx, currentCA.GetID(), true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3505,7 +3526,7 @@ func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySe
 
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
 // already present.
-func (a *Server) ensureLocalAdditionalKeys(ca types.CertAuthority) error {
+func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAuthority) error {
 	if a.keyStore.HasLocalAdditionalKeys(ca) {
 		// nothing to do
 		return nil
@@ -3516,7 +3537,7 @@ func (a *Server) ensureLocalAdditionalKeys(ca types.CertAuthority) error {
 		return trace.Wrap(err)
 	}
 
-	err = a.addAddtionalTrustedKeysAtomic(ca, newKeySet, func(ca types.CertAuthority) bool {
+	err = a.addAddtionalTrustedKeysAtomic(ctx, ca, newKeySet, func(ca types.CertAuthority) bool {
 		return !a.keyStore.HasLocalAdditionalKeys(ca)
 	})
 	if err != nil {
@@ -3554,7 +3575,7 @@ func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
 
 // deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
 // auth server which are not currently used in any CAs.
-func (a *Server) deleteUnusedKeys() error {
+func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -3563,7 +3584,7 @@ func (a *Server) deleteUnusedKeys() error {
 	var usedKeys [][]byte
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
-		ca, err := a.Trust.GetCertAuthority(caID, true)
+		ca, err := a.Trust.GetCertAuthority(ctx, caID, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3796,4 +3817,15 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 		tlsCopy.ClientCAs = pool
 		return tlsCopy, nil
 	}
+}
+
+// DefaultDNSNamesForRole returns default DNS names for the specified role.
+func DefaultDNSNamesForRole(role types.SystemRole) []string {
+	if (types.SystemRoles{role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp, types.RoleDatabase, types.RoleWindowsDesktop) {
+		return []string{
+			"*." + constants.APIDomain,
+			constants.APIDomain,
+		}
+	}
+	return nil
 }

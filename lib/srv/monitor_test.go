@@ -120,7 +120,15 @@ func TestMonitorStaleLocks(t *testing.T) {
 	default:
 		t.Fatal("No staleness event should be scheduled yet. This is a bug in the test.")
 	}
+
+	// ensure ResetC is drained
+	select {
+	case <-asrv.LockWatcher.ResetC:
+	default:
+	}
 	go asrv.Backend.CloseWatchers()
+
+	// wait for reset
 	select {
 	case <-asrv.LockWatcher.ResetC:
 	case <-time.After(15 * time.Second):

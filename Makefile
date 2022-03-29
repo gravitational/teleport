@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=8.1.1
+VERSION=8.3.5
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -744,7 +744,7 @@ devbox-grpc:
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \
 		--gogofast_out=plugins=grpc:api/client/proto \
-		authservice.proto
+		certs.proto authservice.proto joinservice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
 	  --gogofast_out=plugins=grpc:.\

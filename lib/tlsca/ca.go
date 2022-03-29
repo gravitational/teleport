@@ -28,13 +28,14 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -188,6 +189,53 @@ func (id *Identity) GetRouteToApp() (RouteToApp, error) {
 	}
 
 	return id.RouteToApp, nil
+}
+
+func (id *Identity) GetEventIdentity() events.Identity {
+	// leave a nil instead of a zero struct so the field doesn't appear when
+	// serialized as json
+	var routeToApp *events.RouteToApp
+	if id.RouteToApp != (RouteToApp{}) {
+		routeToApp = &events.RouteToApp{
+			Name:        id.RouteToApp.Name,
+			SessionID:   id.RouteToApp.SessionID,
+			PublicAddr:  id.RouteToApp.PublicAddr,
+			ClusterName: id.RouteToApp.ClusterName,
+			AWSRoleARN:  id.RouteToApp.AWSRoleARN,
+		}
+	}
+	var routeToDatabase *events.RouteToDatabase
+	if id.RouteToDatabase != (RouteToDatabase{}) {
+		routeToDatabase = &events.RouteToDatabase{
+			ServiceName: id.RouteToDatabase.ServiceName,
+			Protocol:    id.RouteToDatabase.Protocol,
+			Username:    id.RouteToDatabase.Username,
+			Database:    id.RouteToDatabase.Database,
+		}
+	}
+
+	return events.Identity{
+		User:              id.Username,
+		Impersonator:      id.Impersonator,
+		Roles:             id.Groups,
+		Usage:             id.Usage,
+		Logins:            id.Principals,
+		KubernetesGroups:  id.KubernetesGroups,
+		KubernetesUsers:   id.KubernetesUsers,
+		Expires:           id.Expires,
+		RouteToCluster:    id.RouteToCluster,
+		KubernetesCluster: id.KubernetesCluster,
+		Traits:            id.Traits,
+		RouteToApp:        routeToApp,
+		TeleportCluster:   id.TeleportCluster,
+		RouteToDatabase:   routeToDatabase,
+		DatabaseNames:     id.DatabaseNames,
+		DatabaseUsers:     id.DatabaseUsers,
+		MFADeviceUUID:     id.MFAVerified,
+		ClientIP:          id.ClientIP,
+		AWSRoleARNs:       id.AWSRoleARNs,
+		AccessRequests:    id.ActiveRequests,
+	}
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -654,6 +702,9 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 	if c.KeyUsage == 0 {
 		c.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	}
+
+	c.DNSNames = utils.Deduplicate(c.DNSNames)
+
 	return nil
 }
 

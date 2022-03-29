@@ -50,6 +50,10 @@ const (
 	// keyFilePerms is the default permissions applied to key files (.cert, .key, pub)
 	// under ~/.tsh
 	keyFilePerms os.FileMode = 0600
+
+	// tshConfigFileName is the name of the directory containing the
+	// tsh config file.
+	tshConfigFileName = "config"
 )
 
 // LocalKeyStore interface allows for different storage backends for tsh to
@@ -223,8 +227,26 @@ func (fs *FSLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) err
 
 // DeleteKeys removes all session keys.
 func (fs *FSLocalKeyStore) DeleteKeys() error {
-	if err := os.RemoveAll(fs.KeyDir); err != nil {
+
+	files, err := os.ReadDir(fs.KeyDir)
+	if err != nil {
 		return trace.ConvertSystemError(err)
+	}
+	for _, file := range files {
+		if file.IsDir() && file.Name() == tshConfigFileName {
+			continue
+		}
+		if file.IsDir() {
+			err := os.RemoveAll(filepath.Join(fs.KeyDir, file.Name()))
+			if err != nil {
+				return trace.ConvertSystemError(err)
+			}
+			continue
+		}
+		err := os.Remove(filepath.Join(fs.KeyDir, file.Name()))
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
 	}
 	return nil
 }

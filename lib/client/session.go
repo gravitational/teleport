@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -75,6 +76,20 @@ type NodeSession struct {
 	enableEscapeSequences bool
 
 	terminal *terminal.Terminal
+
+	// shouldClearOnExit marks whether or not the terminal should be cleared
+	// when the session ends.
+	shouldClearOnExit bool
+	// clientXAuthEntry contains xauth data which provides
+	// access to the client's local XServer.
+	clientXAuthEntry *x11.XAuthEntry
+	// spoofedXAuthEntry is a copy of the client's xauth data with a
+	// spoofed cookie. This cookie will be used to authenticate server
+	// requests without exposing the client's cookie.
+	spoofedXAuthEntry *x11.XAuthEntry
+	// x11RefuseTime is an optional time at which X11 channel
+	// requests using the xauth cookie will be rejected.
+	x11RefuseTime time.Time
 }
 
 // newSession creates a new Teleport session with the given remote node
@@ -143,13 +158,24 @@ func newSession(client *NodeClient,
 
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
 
+	// Determine if terminal should clear on exit.
+	ns.shouldClearOnExit = isFIPS()
+	if client.Proxy != nil {
+		boring, err := client.Proxy.isAuthBoring(context.TODO())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ns.shouldClearOnExit = ns.shouldClearOnExit || boring
+	}
+
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
 	go func() {
 		defer ns.closeWait.Done()
 
 		<-ns.closer.C
-		if isFIPS() {
+
+		if ns.shouldClearOnExit {
 			if err := ns.terminal.Clear(); err != nil {
 				log.Warnf("Failed to clear screen: %v.", err)
 			}
@@ -164,8 +190,8 @@ func (ns *NodeSession) NodeClient() *NodeClient {
 	return ns.nodeClient
 }
 
-func (ns *NodeSession) regularSession(callback func(s *ssh.Session) error) error {
-	session, err := ns.createServerSession()
+func (ns *NodeSession) regularSession(ctx context.Context, callback func(s *ssh.Session) error) error {
+	session, err := ns.createServerSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -177,11 +203,19 @@ func (ns *NodeSession) regularSession(callback func(s *ssh.Session) error) error
 
 type interactiveCallback func(serverSession *ssh.Session, shell io.ReadWriteCloser) error
 
-func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
+func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, error) {
 	sess, err := ns.nodeClient.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// If X11 forwading is requested and the server accepts,
+	// X11 channel requests from the server will be accepted.
+	// Otherwise, all X11 channel requests must be rejected.
+	if err := ns.handleX11Forwarding(ctx, sess); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// pass language info into the remote session.
 	evarsToPass := []string{"LANG", "LANGUAGE"}
 	for _, evar := range evarsToPass {
@@ -238,14 +272,14 @@ func selectKeyAgent(tc *TeleportClient) agent.Agent {
 
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
+func (ns *NodeSession) interactiveSession(ctx context.Context, callback interactiveCallback) error {
 	// determine what kind of a terminal we need
 	termType := os.Getenv("TERM")
 	if termType == "" {
 		termType = teleport.SafeTerminalType
 	}
 	// create the server-side session:
-	sess, err := ns.createServerSession()
+	sess, err := ns.createServerSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -442,8 +476,8 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 }
 
 // runShell executes user's shell on the remote node under an interactive session
-func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
-	return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
+func (ns *NodeSession) runShell(ctx context.Context, callback ShellCreatedCallback) error {
+	return ns.interactiveSession(ctx, func(s *ssh.Session, shell io.ReadWriteCloser) error {
 		// start the shell on the server:
 		if err := s.Shell(); err != nil {
 			return trace.Wrap(err)
@@ -475,7 +509,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback Sh
 	// keyboard based signals will be propogated to the TTY on the server which is
 	// where all signal handling will occur.
 	if interactive {
-		return ns.interactiveSession(func(s *ssh.Session, term io.ReadWriteCloser) error {
+		return ns.interactiveSession(ctx, func(s *ssh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(strings.Join(cmd, " "))
 			if err != nil {
 				return trace.Wrap(err)
@@ -502,10 +536,10 @@ func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback Sh
 	// Unfortunately at the moment the Go SSH library Teleport uses does not
 	// support sending SSH_MSG_DISCONNECT. Instead we close the SSH channel and
 	// SSH client, and try and exit as gracefully as possible.
-	return ns.regularSession(func(s *ssh.Session) error {
+	return ns.regularSession(ctx, func(s *ssh.Session) error {
 		var err error
 
-		runContext, cancel := context.WithCancel(context.Background())
+		runContext, cancel := context.WithCancel(ctx)
 		go func() {
 			defer cancel()
 			err = s.Run(strings.Join(cmd, " "))

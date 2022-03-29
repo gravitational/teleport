@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -71,6 +71,9 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
+	// JoinServiceClient is a client for the JoinService, which runs on both the
+	// auth and proxy.
+	*JoinServiceClient
 	// closedFlag is set to indicate that the connnection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
@@ -282,7 +285,7 @@ type connectParams struct {
 }
 
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -366,6 +369,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
+	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
 	return nil
 }
@@ -2102,6 +2106,15 @@ func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.Windows
 	return services, nil
 }
 
+// GetWindowsDesktopService returns a registered windows desktop service by name.
+func (c *Client) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	resp, err := c.grpc.GetWindowsDesktopService(ctx, &proto.GetWindowsDesktopServiceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp.GetService(), nil
+}
+
 // UpsertWindowsDesktopService registers a new windows desktop service.
 func (c *Client) UpsertWindowsDesktopService(ctx context.Context, service types.WindowsDesktopService) (*types.KeepAlive, error) {
 	s, ok := service.(*types.WindowsDesktopServiceV3)
@@ -2136,8 +2149,8 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 }
 
 // GetWindowsDesktops returns all registered windows desktop hosts.
-func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
-	resp, err := c.grpc.GetWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
+func (c *Client) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	resp, err := c.grpc.GetWindowsDesktops(ctx, &filter, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2146,15 +2159,6 @@ func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop
 		desktops = append(desktops, desktop)
 	}
 	return desktops, nil
-}
-
-// GetWindowsDesktop returns a registered windows desktop host.
-func (c *Client) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
-	desktop, err := c.grpc.GetWindowsDesktop(ctx, &proto.GetWindowsDesktopRequest{Name: name}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return desktop, nil
 }
 
 // CreateWindowsDesktop registers a new windows desktop host.
@@ -2188,9 +2192,13 @@ func (c *Client) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 }
 
 // DeleteWindowsDesktop removes the specified windows desktop host.
-func (c *Client) DeleteWindowsDesktop(ctx context.Context, name string) error {
+// Note: unlike GetWindowsDesktops, this will delete at-most one desktop.
+// Passing an empty host ID will not trigger "delete all" behavior. To delete
+// all desktops, use DeleteAllWindowsDesktops.
+func (c *Client) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
 	_, err := c.grpc.DeleteWindowsDesktop(ctx, &proto.DeleteWindowsDesktopRequest{
-		Name: name,
+		Name:   name,
+		HostID: hostID,
 	}, c.callOpts...)
 	if err != nil {
 		return trail.FromGRPC(err)

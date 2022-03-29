@@ -7,6 +7,14 @@ videoBanner: jvaCmQyHghY
 This tutorial will guide you through the steps needed to install and run
 Teleport (=teleport.version=) on Linux machines.
 
+<Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">
+This guide deploys the Teleport Auth Service and Proxy Service, which are fully managed in Teleport Cloud. If you are a Teleport Cloud customer, we recommend following our guides for deploying specific services on your Teleport Nodes. Here are some examples:
+
+- [Application Access](../application-access/getting-started.mdx)
+- [Database Access](../database-access/getting-started.mdx)
+- [Server Access](../server-access/getting-started.mdx)
+</Details>
+
 ## Prerequisites
 
 - A Linux machine with a port `443` open
@@ -22,60 +30,14 @@ If you would like to try out Teleport on your local machine—e.g., you do not h
 
 Run the following commands to install the Teleport binary on your system:
 
-<Tabs>
-  <TabItem label="Amazon Linux 2/RHEL (RPM)">
-    ```code
-    $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    $ sudo yum install teleport
-
-    # Optional:  Using DNF on newer distributions
-    # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    # $ sudo dnf install teleport
-    ```
-  </TabItem>
-
-  <TabItem label="Debian/Ubuntu (DEB)">
-    ```code
-    $ curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
-    $ sudo add-apt-repository 'deb https://deb.releases.teleport.dev/ stable main'
-    $ sudo apt-get update
-    $ sudo apt-get install teleport
-    ```
-  </TabItem>
-
-  <TabItem label="Linux">
-    ```code
-    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    $ cd teleport
-    $ sudo ./install
-    ```
-  </TabItem>
-
-  <TabItem label="ARMv7 (32-bit)">
-    ```code
-    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    $ tar -xzf teleport-v(=teleport.version=)-linux-arm-bin.tar.gz
-    $ cd teleport
-    $ sudo ./install
-    ```
-  </TabItem>
-
-  <TabItem label="ARMv8 (64-bit)">
-    ```code
-    $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    $ tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
-    $ cd teleport
-    $ sudo ./install
-    ```
-  </TabItem>
-</Tabs>
+(!docs/pages/includes/install-linux.mdx!)
 
 Take a look at the [Installation Guide](../installation.mdx) for more options.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
 ### Configure DNS
+Teleport uses TLS to provide secure access to its Proxy Service and Auth Service, and this requires a domain name that clients can use to verify Teleport's certificate.
 
 Teleport uses TLS to provide secure access to its Proxy Service and Auth Service, and this requires a domain name that clients can use to verify Teleport's certificate. To get started, set up two `A` records for `tele.example.com` and `*.tele.example.com` pointing to the IP/FQDN of the machine with Teleport installed.
 
@@ -96,18 +58,7 @@ Next, generate a configuration file for Teleport using the `teleport configure` 
 
 <Tabs>
   <TabItem label="Public internet deployment with Let's Encrypt">
-  Teleport uses the ACME protocol to request automatic TLS certificates from Let's Encrypt, which accesses an HTTP endpoint on your Teleport host in order to complete authentication challenges.
-
-  Use the following command to configure Teleport:
-
-  ```code
-  $ sudo teleport configure --acme --acme-email=your-email@example.com --cluster-name=tele.example.com -o file
-  # Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
-  ```
-
-  The `--acme-email` flag indicates an email address that Let's Encrypt can use for notifications, and does _not_ require the same domain name as your Teleport host. 
-  
-  For the `--cluster-name` flag, enter the domain name you used when creating a DNS A record earlier.
+  (!docs/pages/includes/acme.mdx!)
 
   </TabItem>
 
@@ -243,7 +194,7 @@ Here are several common commands and operations you'll likely find useful:
 $ tsh status
 ```
 
-### SSH into a node
+### SSH into a Node
 
 ```code
 # list all SSH servers connected to Teleport
@@ -253,7 +204,7 @@ $ tsh ls
 $ tsh ssh root@node-name
 ```
 
-### Add a node to the cluster
+### Add a Node to the cluster
 
 Generate a short-lived dynamic join token using `tctl`:
 
@@ -261,7 +212,7 @@ Generate a short-lived dynamic join token using `tctl`:
 $ tctl tokens add --type=node
 ```
 
-Bootstrap a new node:
+Bootstrap a new Node:
 
 <Tabs>
   <TabItem label="teleport start">
@@ -324,7 +275,7 @@ Add a new application:
 
 <Tabs>
   <TabItem label="teleport start">
-    Install Teleport on the target node, then start it using a command as shown below.
+    Install Teleport on the target Node, then start it using a command as shown below.
     Review and update `auth-server`, `token`, `app-name`, and `app-uri` before running this command.
 
     ```code

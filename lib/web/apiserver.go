@@ -333,6 +333,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*WebAPIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// token generation
+	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+
+	// add Node token generation
+	// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
+	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
+	// join scripts
+	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
+	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 
@@ -734,7 +743,6 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
-
 	defaultSettings, err := defaultAuthenticationSettings(r.Context(), h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -783,12 +791,13 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		ServerVersion: teleport.Version,
 	}
 
+	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
 	if connectorName == constants.Local {
-		as, err := localSettings(cap)
+		response.Auth, err = localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.Auth = as
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -796,6 +805,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = oidcSettings(oidcConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -803,6 +813,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = samlSettings(samlConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -810,6 +821,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
 	if err == nil {
 		response.Auth = githubSettings(githubConnector, cap)
+		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		return response, nil
 	}
 
@@ -865,16 +877,34 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get auth type & second factor type
-	authType := constants.Local
-	secondFactor := constants.SecondFactorOff
-	localAuth := true
-	cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
-	if err != nil {
+	var authSettings ui.WebConfigAuthSettings
+	if cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context()); err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
+		authSettings = ui.WebConfigAuthSettings{
+			Providers:        authProviders,
+			SecondFactor:     constants.SecondFactorOff,
+			LocalAuthEnabled: true,
+			AuthType:         constants.Local,
+		}
 	} else {
-		authType = cap.GetType()
-		secondFactor = cap.GetSecondFactor()
-		localAuth = cap.GetAllowLocalAuth()
+		authSettings = ui.WebConfigAuthSettings{
+			Providers:         authProviders,
+			SecondFactor:      cap.GetSecondFactor(),
+			LocalAuthEnabled:  cap.GetAllowLocalAuth(),
+			AuthType:          cap.GetType(),
+			PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		}
+	}
+
+	// get tunnel address to display on cloud instances
+	tunnelPublicAddr := ""
+	if h.ClusterFeatures.GetCloud() {
+		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+		if err != nil {
+			h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
+		} else {
+			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
+		}
 	}
 
 	// disable joining sessions if proxy session recording is enabled
@@ -886,18 +916,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
 	}
 
-	authSettings := ui.WebConfigAuthSettings{
-		Providers:         authProviders,
-		SecondFactor:      secondFactor,
-		LocalAuthEnabled:  localAuth,
-		AuthType:          authType,
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
-	}
-
 	webCfg := ui.WebConfig{
-		Auth:            authSettings,
-		CanJoinSessions: canJoinSessions,
-		IsCloud:         h.ClusterFeatures.GetCloud(),
+		Auth:                authSettings,
+		CanJoinSessions:     canJoinSessions,
+		IsCloud:             h.ClusterFeatures.GetCloud(),
+		TunnelPublicAddress: tunnelPublicAddr,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -929,7 +952,7 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	// Fetch the JWT public keys only.
-	ca, err := h.cfg.ProxyClient.GetCertAuthority(types.CertAuthID{
+	ca, err := h.cfg.ProxyClient.GetCertAuthority(r.Context(), types.CertAuthID{
 		Type:       types.JWTSigner,
 		DomainName: clusterName,
 	}, false)
@@ -2312,13 +2335,13 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 // hostCredentials sends a registration token and metadata to the Auth Server
 // and gets back SSH and TLS certificates.
 func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req auth.RegisterUsingTokenRequest
+	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	authClient := h.cfg.ProxyClient
-	certs, err := authClient.RegisterUsingToken(req)
+	certs, err := authClient.RegisterUsingToken(r.Context(), &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2397,7 +2420,7 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	validateResponse, err := h.auth.ValidateTrustedCluster(validateRequest)
+	validateResponse, err := h.auth.ValidateTrustedCluster(r.Context(), validateRequest)
 	if err != nil {
 		h.log.WithError(err).Error("Failed validating trusted cluster")
 		if trace.IsAccessDenied(err) {

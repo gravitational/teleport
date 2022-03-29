@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -153,6 +154,14 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+// CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
+func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
+	if !ctx.Identity.RoleSet.PermitX11Forwarding() {
+		return trace.AccessDenied("x11 forwarding not permitted")
+	}
 	return nil
 }
 
@@ -485,7 +494,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca types.CertAuthorit
 // Certificate Authority and returns it.
 func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.PublicKey) (types.CertAuthority, error) {
 	// get all certificate authorities for given type
-	cas, err := h.c.AccessPoint.GetCertAuthorities(caType, false)
+	cas, err := h.c.AccessPoint.GetCertAuthorities(context.TODO(), caType, false)
 	if err != nil {
 		h.log.Warnf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)

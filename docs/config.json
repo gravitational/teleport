@@ -11,7 +11,8 @@
           "slug": "/getting-started/",
            "entries": [
             { "title": "Linux Server", "slug": "/getting-started/linux-server/" },
-            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" }
+            { "title": "Docker Compose", "slug": "/getting-started/docker-compose/" },
+            { "title": "DigitalOcean", "slug": "/getting-started/digitalocean/" }
           ]
         },
         { "title": "Installation", "slug": "/installation/" },
@@ -28,10 +29,10 @@
           "slug": "/setup/admin/",
           "entries": [
             { "title": "Github SSO", "slug": "/setup/admin/github-sso/" },
-            { "title": "Adding nodes", "slug": "/setup/admin/adding-nodes/" },
+            { "title": "Adding Nodes", "slug": "/setup/admin/adding-nodes/" },
             { "title": "Trusted Clusters", "slug": "/setup/admin/trustedclusters/" },
             { "title": "Labels", "slug": "/setup/admin/labels/" },
-            { "title": "Local users", "slug": "/setup/admin/users/" },
+            { "title": "Local Users", "slug": "/setup/admin/users/" },
             { "title": "Troubleshooting", "slug": "/setup/admin/troubleshooting/" },
             { "title": "Graceful Restarts", "slug": "/setup/admin/graceful-restarts/" },
             { "title": "Daemon", "slug": "/setup/admin/daemon/" }
@@ -71,7 +72,7 @@
             { "title": "Terraform Provider", "slug": "/setup/guides/terraform-provider/" },
             { "title": "Docker", "slug": "/setup/guides/docker/" },
             { "title": "Fluentd", "slug": "/setup/guides/fluentd/" },
-            { "title": "EC2 tags", "slug": "/setup/guides/ec2-tags/" },
+            { "title": "EC2 Tags", "slug": "/setup/guides/ec2-tags/" },
             { "title": "Joining Nodes in AWS", "slug": "/setup/guides/joining-nodes-aws/" }
           ]
         },
@@ -165,6 +166,7 @@
           "entries": [
             { "title": "AWS EKS Cluster", "slug": "/kubernetes-access/helm/guides/aws/" },
             { "title": "Google Cloud GKE Cluster", "slug": "/kubernetes-access/helm/guides/gcp/" },
+            { "title": "DigitalOcean Kubernetes Cluster", "slug": "/kubernetes-access/helm/guides/digitalocean/" },
             { "title": "Customize Deployment Config", "slug": "/kubernetes-access/helm/guides/custom/" },
             { "title": "Migrating From Older Charts", "slug": "/kubernetes-access/helm/guides/migration/" }
           ]
@@ -187,6 +189,7 @@
             { "title": "AWS Redshift", "slug": "/database-access/guides/postgres-redshift/" },
             { "title": "GCP Cloud SQL PostgreSQL", "slug": "/database-access/guides/postgres-cloudsql/" },
             { "title": "GCP Cloud SQL MySQL", "slug": "/database-access/guides/mysql-cloudsql/" },
+            { "title": "Azure PostgreSQL & MySQL", "slug": "/database-access/guides/azure-postgres-mysql/" },
             { "title": "MongoDB Atlas", "slug": "/database-access/guides/mongodb-atlas/" },
             { "title": "Self-Hosted PostgreSQL", "slug": "/database-access/guides/postgres-self-hosted/" },
             { "title": "Self-Hosted MySQL", "slug": "/database-access/guides/mysql-self-hosted/" },
@@ -318,6 +321,22 @@
         { "title": "Trusted Clusters", "slug": "/trustedclusters/" },
         { "title": "TLS Routing", "slug": "/architecture/tls-routing/" }
       ]
+    },
+    {
+      "icon": "wrench",
+      "title": "Contribute",
+      "entries": [
+        {
+          "title": "Documentation",
+          "slug": "/contributing/documentation/",
+          "entries":[
+            { "title": "How to Contribute", "slug": "/contributing/documentation/how-to-contribute/" },
+            { "title": "Creating Documentation Issues", "slug": "/contributing/documentation/issues/"},
+            { "title": "Style Guide", "slug": "/contributing/documentation/style-guide/" },
+            { "title": "UI Reference", "slug": "/contributing/documentation/reference/" }
+          ]
+        }
+      ]
     }
   ],
   "variables": {
@@ -373,14 +392,14 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "8.0.7",
+      "version": "8.3.1",
       "golang": "1.17",
       "plugin": {
-        "version": "8.0.7"
+        "version": "8.3.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:7",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:7"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:8",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:8"
     }
   },
   "redirects": [
@@ -572,6 +591,21 @@
     {
       "source": "/database-access/guides/mysql-aws/",
       "destination": "/database-access/guides/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/",
+      "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/best-practices/",
+      "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/migration/",
+      "destination": "/kubernetes-access/introduction/",
       "permanent": true
     }
   ]

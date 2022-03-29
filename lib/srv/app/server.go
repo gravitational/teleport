@@ -41,6 +41,7 @@ import (
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 
 	"github.com/gravitational/trace"
 
@@ -591,7 +592,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// access from AWS CLI where the request is already singed by the AWS Signature Version 4 algorithm.
 	// AWS CLI, automatically use SigV4 for all services that support it (All services expect Amazon SimpleDB
 	// but this AWS service has been deprecated)
-	if appaws.IsSignedByAWSSigV4(r) && app.IsAWSConsole() {
+	if aws.IsSignedByAWSSigV4(r) && app.IsAWSConsole() {
 		// Sign the request based on RouteToApp.AWSRoleARN user identity and route signed request to the AWS API.
 		s.awsSigner.Handle(w, r)
 		return nil

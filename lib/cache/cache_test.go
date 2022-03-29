@@ -115,16 +115,42 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 	return pack
 }
 
+type packCfg struct {
+	memoryBackend bool
+}
+
+type packOption func(cfg *packCfg)
+
+func memoryBackend(bool) packOption {
+	return func(cfg *packCfg) {
+		cfg.memoryBackend = true
+	}
+}
+
 // newPackWithoutCache returns a new test pack without creating cache
-func newPackWithoutCache(dir string) (*testPack, error) {
+func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
+	var cfg packCfg
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	p := &testPack{
 		dataDir: dir,
 	}
-	bk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:             p.dataDir,
-		PollStreamPeriod: 200 * time.Millisecond,
-	})
+	var bk backend.Backend
+	var err error
+	if cfg.memoryBackend {
+		bk, err = memory.New(memory.Config{
+			Context: ctx,
+			Mirror:  true,
+		})
+	} else {
+		bk, err = lite.NewWithConfig(ctx, lite.Config{
+			Path:             p.dataDir,
+			PollStreamPeriod: 200 * time.Millisecond,
+		})
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,9 +192,9 @@ func newPackWithoutCache(dir string) (*testPack, error) {
 }
 
 // newPack returns a new test pack or fails the test on error
-func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
+func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
-	p, err := newPackWithoutCache(dir)
+	p, err := newPackWithoutCache(dir, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -213,6 +239,7 @@ func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 func TestCA(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
+	ctx := context.Background()
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
@@ -223,7 +250,7 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), true)
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	ca.SetResourceID(out.GetResourceID())
 	require.Empty(t, cmp.Diff(ca, out))
@@ -237,7 +264,7 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetCertAuthority(ca.GetID(), false)
+	_, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -413,7 +440,7 @@ func TestCompletenessInit(t *testing.T) {
 
 		p.backend.SetReadError(nil)
 
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -470,7 +497,7 @@ func TestCompletenessReset(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
@@ -481,7 +508,7 @@ func TestCompletenessReset(t *testing.T) {
 		p.backend.SetReadError(nil)
 
 		// load CAs while connection is bad
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -533,7 +560,7 @@ func TestTombstones(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
@@ -569,7 +596,7 @@ func TestTombstones(t *testing.T) {
 
 	// verify that CAs are immediately available despite the fact
 	// that the origin state was never available.
-	cas, err = p.cache.GetCertAuthorities(types.UserCA, false)
+	cas, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 }
@@ -579,6 +606,105 @@ func TestTombstones(t *testing.T) {
 func TestInitStrategy(t *testing.T) {
 	for i := 0; i < utils.GetIterations(); i++ {
 		initStrategy(t)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
+*/
+func BenchmarkGetMaxNodes(b *testing.B) {
+	benchGetNodes(b, backend.DefaultRangeLimit)
+}
+
+func benchGetNodes(b *testing.B, nodeCount int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < nodeCount; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(b, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(b, EventProcessed, event.Type)
+			case <-timeout.C:
+				b.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(b, err)
+		require.Len(b, nodes, nodeCount)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkListMaxNodes-16    	       1	1136071399 ns/op
+*/
+func BenchmarkListMaxNodes(b *testing.B) {
+	benchListNodes(b, backend.DefaultRangeLimit, apidefaults.DefaultChunkSize)
+}
+
+func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < nodeCount; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(b, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(b, EventProcessed, event.Type)
+			case <-timeout.C:
+				b.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		var nodes []types.Server
+		req := proto.ListNodesRequest{
+			Namespace: apidefaults.Namespace,
+			Limit:     int32(pageSize),
+		}
+		for {
+			page, nextKey, err := p.cache.ListNodes(ctx, req)
+			require.NoError(b, err)
+			nodes = append(nodes, page...)
+			require.True(b, len(page) == pageSize || nextKey == "")
+			if nextKey == "" {
+				break
+			}
+			req.StartKey = nextKey
+		}
+		require.Len(b, nodes, nodeCount)
 	}
 }
 
@@ -687,7 +813,7 @@ func initStrategy(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	_, err = p.cache.GetCertAuthorities(types.UserCA, false)
+	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
@@ -709,7 +835,7 @@ func initStrategy(t *testing.T) {
 	}
 	_ = normalizeCA
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), false)
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 
@@ -723,7 +849,7 @@ func initStrategy(t *testing.T) {
 	waitForEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
 
 	// backend is out, but old value is available
-	out2, err := p.cache.GetCertAuthority(ca.GetID(), false)
+	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Equal(t, out.GetResourceID(), out2.GetResourceID())
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
@@ -741,7 +867,7 @@ func initStrategy(t *testing.T) {
 	waitForEvent(t, p.eventsC, WatcherStarted, WatcherFailed, Reloading)
 
 	// new value is available now
-	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
+	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 }
@@ -781,7 +907,7 @@ func TestRecovery(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca2.GetID(), false)
+	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
 	ca2.SetResourceID(out.GetResourceID())
 	types.RemoveCASecrets(ca2)

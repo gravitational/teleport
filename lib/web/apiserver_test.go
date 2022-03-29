@@ -125,8 +125,7 @@ func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -1985,6 +1984,70 @@ type testModules struct {
 func (m *testModules) Features() modules.Features {
 	return modules.Features{
 		App: false, // Explicily turn off application access.
+	}
+}
+
+func TestTokenGeneration(t *testing.T) {
+	tt := []struct {
+		name      string
+		roles     types.SystemRoles
+		shouldErr bool
+	}{
+		{
+			name:      "single node role",
+			roles:     types.SystemRoles{types.RoleNode},
+			shouldErr: false,
+		},
+		{
+			name:      "single app role",
+			roles:     types.SystemRoles{types.RoleApp},
+			shouldErr: false,
+		},
+		{
+			name:      "single db role",
+			roles:     types.SystemRoles{types.RoleDatabase},
+			shouldErr: false,
+		},
+		{
+			name:      "multiple roles",
+			roles:     types.SystemRoles{types.RoleNode, types.RoleApp, types.RoleDatabase},
+			shouldErr: false,
+		},
+		{
+			name:      "return error if no role is requested",
+			roles:     types.SystemRoles{},
+			shouldErr: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newWebPack(t, 1)
+
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, "test-user@example.com")
+
+			endpoint := pack.clt.Endpoint("webapi", "token")
+			re, err := pack.clt.PostJSON(context.Background(), endpoint, createTokenRequest{
+				Roles: tc.roles,
+			})
+
+			if tc.shouldErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			var responseToken nodeJoinToken
+			err = json.Unmarshal(re.Bytes(), &responseToken)
+			require.NoError(t, err)
+
+			// generated token roles should match the requested ones
+			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.roles, generatedToken.GetRoles())
+		})
 	}
 }
 

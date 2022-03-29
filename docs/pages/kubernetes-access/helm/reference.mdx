@@ -44,8 +44,11 @@ This reference details available values for the `teleport-cluster` chart.
 
   (!docs/pages/kubernetes-access/helm/includes/kubernetes-externaladdress.mdx!)
 
-  You will need to manually add DNS records pointing `teleport.example.com` and `*.teleport.example.com` to either the IP or hostname
-  of the Kubernetes load balancer.
+  You will need to manually add a DNS A record pointing `teleport.example.com` to either the IP or hostname of the Kubernetes load balancer.
+
+<Details title="Using Application Access?">
+(!docs/pages/includes/dns-app-access.mdx!)
+</Details>
 
   If you are not using ACME certificates, you may also need to accept insecure warnings in your browser to view the page successfully.
 </Admonition>
@@ -196,7 +199,7 @@ You can also use any other ACME-compatible server.
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set acme=true \
   --set acmeEmail=user@email.com \
   --set acmeURI=https://acme-staging-v02.api.letsencrypt.org/directory
@@ -226,7 +229,7 @@ To disable this, you can set `enabled` to `false`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set podSecurityPolicy.enabled=false
   ```
   </TabItem>
@@ -254,7 +257,7 @@ Teleport's RBAC policies to define access rules for the cluster.
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set labels.environment=production \
   --set labels.region=us-east
   ```
@@ -296,7 +299,7 @@ The default is left blank, which will automatically create a `PersistentVolumeCl
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set standalone.existingClaimName=my-existing-pvc-name
   ```
   </TabItem>
@@ -383,7 +386,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   ```
   </TabItem>
   <TabItem label="--set">
-  ``code
+  ```code
   $ --set highAvailability.replicaCount=3
   ```
   </TabItem>
@@ -494,8 +497,42 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](./guides/aws.mdx#step-4a7-install-and-configure-cert-manager-to-handle-tls) and [GCP](./guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
+
+### `highAvailability.certManager.addCommonName`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `bool` | `false` | ❌ | `proxy_service.https_keypairs` (to provide your own certificates) |
+
+Setting `highAvailability.certManager.addCommonName` to `true` will instruct `cert-manager` to set the commonName field in its certificate signing request to the issuing CA.
+
+<Admonition type="note" title="Enabling common name field">
+  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+  and the relevant sections of the [AWS](./guides/aws.mdx#step-4a7-install-and-configure-cert-manager-to-handle-tls) and [GCP](./guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      enabled: true
+      addCommonName: true
+      issuerName: letsencrypt-production
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set highAvailability.certManager.enabled=true \
+  --set highAvailability.certManager.addCommonName=true \
+  --set highAvailability.certManager.issuerName=letsencrypt-production
+  ```
+  </TabItem>
+</Tabs>
 
 ### `highAvailability.certManager.issuerName`
 
@@ -509,7 +546,7 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
   You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
 
   Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-  of the [AWS](./guides/aws.mdx#step-4-install-and-configure-cert-manager) and [GCP](./guides/gcp.mdx#step-4-install-and-configure-cert-manager) guides for more information.
+  of the [AWS](./guides/aws.mdx#step-4a7-install-and-configure-cert-manager-to-handle-tls) and [GCP](./guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
@@ -549,6 +586,29 @@ scoped to a single namespace.
   <TabItem label="--set">
   ```code
   --set highAvailability.certManager.issuerKind=ClusterIssuer
+  ```
+  </TabItem>
+</Tabs>
+
+### `highAvailability.certManager.issuerGroup`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `cert-manager.io` | ❌ | None |
+
+Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-manager`. Defaults to `cert-manager.io` to use built-in issuers.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      issuerGroup: cert-manager.io
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set highAvailability.certManager.issuerGroup=cert-manager.io
   ```
   </TabItem>
 </Tabs>
@@ -1423,6 +1483,80 @@ You can specify multiple apps by adding additional list elements.
   You can see a list of all the supported [values which can be used in a Teleport application access configuration here](../../application-access/reference.mdx#configuration).
 </Admonition>
 
+## `awsDatabases`
+
+<Admonition type="tip" title="Database auto-discovery">
+  This section configures database auto-discovery, which is only currently supported on AWS. You can configure databases for other platforms using the [`databases`](#databases) section below this.
+</Admonition>
+
+<Admonition type="note" title="IAM roles">
+  For AWS database auto-discovery to work, your agent pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-configure-iam).
+
+  After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
+
+  ```
+  annotations:
+    serviceAccount:
+      eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role
+  ```
+</Admonition>
+
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | No |
+
+`awsDatabases` is a YAML list object detailing the filters for the AWS databases that should be discovered and proxied by Teleport Database access.
+
+You can specify multiple database filters by adding additional list elements.
+
+- `types` is a list containing the types of AWS databases that should be discovered.
+- `regions` is a list of AWS regions which should be scanned for databases.
+- `tags` can be used to set AWS tags that must be matched for databases to be discovered.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  awsDatabases:
+    - types: ["rds"]
+      regions: ["us-east-1", "us-west-2"]
+      tags:
+        "environment": "production"
+    - types: ["rds"]
+      regions: ["us-east-1"]
+      tags:
+        "environment": "dev"
+    - types: ["rds"]
+      regions: ["eu-west-1"]
+      tags:
+        "*": "*"
+  ```
+
+  <Admonition type="note" title="YAML formatting">
+    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
+    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
+  </Admonition>
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set "awsDatabases[0].types[0]=rds" \
+  --set "awsDatabases[0].regions[0]=us-east-1" \
+  --set "awsDatabases[0].regions[1]=us-west-2" \
+  --set "awsDatabases[0].tags[0].environment=production" \
+  --set "awsDatabases[1].types[0]=rds" \
+  --set "awsDatabases[1].regions[0]=us-east-1" \
+  --set "awsDatabases[1].tags[0].environment=dev" \
+  --set "awsDatabases[2].types[0]=rds" \
+  --set "awsDatabases[2].regions[0]=eu-west-1" \
+  --set "awsDatabases[2].tags[0].*=*"
+  ```
+
+  <Admonition type="note">
+    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
+  </Admonition>
+
+  </TabItem>
+</Tabs>
+
 ## `databases`
 
 | Type | Default value | Required? |
@@ -1753,32 +1887,123 @@ A list of secrets containing authorization tokens which can be optionally used t
   </TabItem>
 </Tabs>
 
-## `replicaCount`
+### `highAvailability`
+
+## `highAvailability.replicaCount`
 
 | Type | Default value |
 | - | - |
 | `int` | `1` |
 
-`replicaCount` can be used to set the number of replicas used in the deployment.
+`highAvailability.replicaCount` can be used to set the number of replicas used in the deployment.
 
-Set to a number higher than `1` for a high availability mode where multiple Teleport agent pods will be deployed to provide some redundancy.
+Set to a number higher than `1` for a high availability mode where multiple Teleport agent pods will be deployed.
 
-<Admonition type="warning">
-  Simply setting `replicaCount` to a value higher than `1` is not a panacea for getting a highly available Teleport agent deployment.
+<Admonition type="tip" title="Sizing guidelines">
+  As a rough guide, we recommend configuring one replica per distinct availability zone where your cluster has worker nodes.
 
-  Teleport does not yet ensure that requests to Teleport agents are guaranteed to always only be routed to active, healthy agents, so you
-  may still find that you get sporadic request errors during pod outages when requests are routed to offline pods.
+  2 replicas/availability zones will be fine for smaller workloads. 3-5 replicas/availability zones will be more appropriate for bigger
+  clusters with more traffic.
 </Admonition>
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  replicaCount: 3
+  highAvailability:
+    replicaCount: 3
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set replicaCount=3
+  ```shell
+  --set highAvailability.replicaCount=3
+  ```
+  </TabItem>
+</Tabs>
+
+## `highAvailability.requireAntiAffinity`
+
+| Type | Default value |
+| - | - |
+| `bool` | `false` |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity)
+
+Setting `highAvailability.requireAntiAffinity` to `true` will use `requiredDuringSchedulingIgnoredDuringExecution` to require that multiple
+Teleport pods must not be scheduled on the same physical host.
+
+<Admonition type="warning">
+  This can result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.
+</Admonition>
+
+ Setting `highAvailability.requireAntiAffinity` to `false` (the default) uses `preferredDuringSchedulingIgnoredDuringExecution` to make node
+ anti-affinity a soft requirement.
+
+<Admonition type="note">
+  This setting only has any effect when `highAvailability.replicaCount` is greater than `1`.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    requireAntiAffinity: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.requireAntiAffinity=true
+  ```
+  </TabItem>
+</Tabs>
+
+## `highAvailability.podDisruptionBudget`
+
+### `highAvailability.podDisruptionBudget.enabled`
+
+| Type | Default value |
+| - | - |
+| `bool` | `false` |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntary disruptions.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `highAvailability.podDisruptionBudget.minAvailable`
+
+| Type | Default value |
+| - | - |
+| `int` | `1` |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+
+Ensures that this number of replicas is available during voluntary disruptions, can be a number of replicas or a percentage.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    podDisruptionBudget:
+      minAvailable: 1
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set highAvailability.podDisruptionBudget.minAvailable=1
   ```
   </TabItem>
 </Tabs>
@@ -2046,7 +2271,7 @@ Kubernetes affinity to set for pod assignments.
 | - | - |
 | `object` | `{}` |
 
-`nodeSelector` can be used to add a map of key-value pairs to constrain the nodes the agent pods will run on. 
+`nodeSelector` can be used to add a map of key-value pairs to constrain the nodes the agent pods will run on.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
 

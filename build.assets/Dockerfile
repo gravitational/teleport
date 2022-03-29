@@ -57,6 +57,7 @@ RUN apt-get update -y --fix-missing && \
         unzip \
         zip \
         zlib1g-dev \
+        xauth \
         && \
     pip --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
@@ -73,8 +74,8 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
 # Install Go.
-ARG RUNTIME
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-amd64.tar.gz | tar xz && \
+ARG GOLANG_VERSION
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-amd64.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -153,6 +154,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     rustup target add arm-unknown-linux-gnueabihf && \
     rustup target add aarch64-unknown-linux-gnu && \
     cargo install cbindgen
+
+USER root
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

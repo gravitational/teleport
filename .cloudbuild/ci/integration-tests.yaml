@@ -1,4 +1,4 @@
-timeout: 25m
+timeout: 30m
 options:
   machineType: E2_HIGHCPU_32
 
@@ -9,13 +9,13 @@ steps:
     id: fetch-history
     args: ['fetch', '--unshallow']
 
-  # Run the integration tests. Actual content of this job depends on the changes 
+  # Run the integration tests. Actual content of this job depends on the changes
   # detected in the PR
-  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
+  - name: quay.io/gravitational/teleport-buildbox:teleport8
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash
-    args: 
+    args:
       - -c
       - go run ./cmd/integration-tests -w=/workspace -t=$_BASE_BRANCH -c=HEAD
-    timeout: 20m
+    timeout: 25m

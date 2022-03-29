@@ -33,9 +33,9 @@ section of the Admin Manual.
 
 ### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster?
 
-This was a popular customer [request](https://github.com/gravitational/teleport/issues/803) that was added several in 4.0. 
+This was a popular customer [request](https://github.com/gravitational/teleport/issues/803) that was added in Teleport version 4.0.
 Once you've upgraded your Teleport Cluster, change the node config option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr`
-in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](./setup/admin/adding-nodes.mdx#adding-a-node-located-behind-nat)
+in file configuration). For more information, see [Adding Nodes to the Cluster](./setup/admin/adding-nodes.mdx).
 
 ### Can nodes use a single port for reverse tunnels?
 
@@ -89,9 +89,9 @@ Teleport provides three offerings:
       <td>&#10004; [Dual authorization, mandatory requests](./access-controls/guides/dual-authz.mdx)</td>
     </tr>
     <tr>
-      <td>FedRamp Control</td>
+      <td>FedRAMP Control</td>
       <td>&#10006;</td>
-      <td>[Compiled with FIPS-certified crypto libraries, FedRamp control features](./enterprise/fedramp.mdx)</td>
+      <td>[Compiled with FIPS-certified crypto libraries, FedRAMP control features](./enterprise/fedramp.mdx)</td>
     </tr>
     <tr>
       <td>PCI DSS Features</td>

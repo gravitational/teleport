@@ -34,8 +34,30 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
+)
+
+var (
+	cacheEventsReceived = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricCacheEventsReceived,
+			Help:      "Number of events received by a Teleport service cache. Teleport's Auth Service, Proxy Service, and other services cache incoming events related to their service.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+	cacheStaleEventsReceived = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricStaleCacheEventsReceived,
+			Help:      "Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+
+	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
 )
 
 func tombstoneKey() []byte {
@@ -238,6 +260,7 @@ func ForApps(cfg Config) Config {
 
 // ForDatabases sets up watch configuration for database proxy servers.
 func ForDatabases(cfg Config) Config {
+	cfg.target = "db"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
@@ -334,7 +357,7 @@ type Cache struct {
 
 	// fnCache is used to perform short ttl-based caching of the results of
 	// regularly called methods.
-	fnCache *fnCache
+	fnCache *utils.FnCache
 
 	trustCache           services.Trust
 	clusterConfigCache   services.ClusterConfiguration
@@ -350,7 +373,7 @@ type Cache struct {
 	webSessionCache      types.WebSessionInterface
 	webTokenCache        types.WebTokenInterface
 	windowsDesktopsCache services.WindowsDesktops
-	eventsFanout         *services.Fanout
+	eventsFanout         *services.FanoutSet
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -593,6 +616,9 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
+	if err := utils.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -600,6 +626,14 @@ func New(config Config) (*Cache, error) {
 	wrapper := backend.NewWrapper(config.Backend)
 
 	clusterConfigCache, err := local.NewClusterConfigurationService(wrapper)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   time.Second,
+		Clock: config.Clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -612,7 +646,7 @@ func New(config Config) (*Cache, error) {
 		Config:               config,
 		generation:           atomic.NewUint64(0),
 		initC:                make(chan struct{}),
-		fnCache:              newFnCache(time.Second),
+		fnCache:              fnCache,
 		trustCache:           local.NewCAService(wrapper),
 		clusterConfigCache:   clusterConfigCache,
 		provisionerCache:     local.NewProvisioningService(wrapper),
@@ -627,7 +661,7 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
 		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
 		windowsDesktopsCache: local.NewWindowsDesktopService(wrapper),
-		eventsFanout:         services.NewFanout(),
+		eventsFanout:         services.NewFanoutSet(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -920,8 +954,10 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			// than pruning the resources that we think *might* have been removed from the real backend.
 			// TODO(fspmarshall): ^^^
 			//
+			cacheEventsReceived.WithLabelValues(c.target).Inc()
 			if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
 				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) {
+					cacheStaleEventsReceived.WithLabelValues(c.target).Inc()
 					staleEventCount++
 					if now.After(lastStalenessWarning.Add(time.Minute)) {
 						kind := event.Resource.GetKind()
@@ -1019,7 +1055,7 @@ var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1028,8 +1064,10 @@ func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts
 
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), getCertAuthorityCacheKey{id}, func() (interface{}, error) {
-			ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			ca, err := rg.trust.GetCertAuthority(c.ctx, id, loadSigningKeys, opts...)
 			ta(ca)
 			return ca, err
 		})
@@ -1041,13 +1079,13 @@ func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts
 		return cachedCA.Clone(), nil
 	}
 
-	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
+	ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if ca, err := c.Config.Trust.GetCertAuthority(id, loadSigningKeys, opts...); err == nil {
+		if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...); err == nil {
 			return ca, nil
 		}
 	}
@@ -1062,7 +1100,7 @@ var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1070,8 +1108,10 @@ func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bo
 	defer rg.Release()
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
-			cas, err := rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			cas, err := rg.trust.GetCertAuthorities(c.ctx, caType, loadSigningKeys, opts...)
 			ta(cas)
 			return cas, trace.Wrap(err)
 		})
@@ -1086,7 +1126,7 @@ func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bo
 		}
 		return cas, nil
 	}
-	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
+	return rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -1287,19 +1327,10 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	defer rg.Release()
 
 	if !rg.IsCacheRead() {
-		ta := func(_ []types.Server) {} // compile-time type assertion
-		ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
-			// use cache's close context instead of request context in order to ensure
-			// that we don't cache a context cancellation error.
-			nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
-			ta(nodes)
-			return nodes, err
-		})
-		if err != nil || ni == nil {
+		cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, namespace, opts...)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cachedNodes := ni.([]types.Server)
-		ta(cachedNodes)
 		nodes := make([]types.Server, 0, len(cachedNodes))
 		for _, node := range cachedNodes {
 			nodes = append(nodes, node.DeepCopy())
@@ -1310,17 +1341,50 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string, opts ...services
 	return rg.presence.GetNodes(ctx, namespace, opts...)
 }
 
+// getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
+// must be cloned to avoid concurrent modification.
+func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	ta := func(_ []types.Server) {} // compile-time type assertion
+	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func() (interface{}, error) {
+		// use cache's close context instead of request context in order to ensure
+		// that we don't cache a context cancellation error.
+		nodes, err := rg.presence.GetNodes(c.ctx, namespace, opts...)
+		ta(nodes)
+		return nodes, err
+	})
+	if err != nil || ni == nil {
+		return nil, trace.Wrap(err)
+	}
+	cachedNodes, ok := ni.([]types.Server)
+	if !ok {
+		return nil, trace.Errorf("TTL-cache returned unexpexted type %T (this is a bug!).", ni)
+	}
+	ta(cachedNodes)
+	return cachedNodes, nil
+}
+
 // ListNodes is a part of auth.Cache implementation
 func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
-	// NOTE: we "fake" the ListNodes API here in order to take advantage of TTL-based caching of
-	// the GetNodes endpoint, since performing TTL-based caching on a paginated endpoint is nightmarish.
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if rg.IsCacheRead() {
+		// cache is healthy, delegate to the standard ListNodes implementation
+		return rg.presence.ListNodes(ctx, req)
+	}
+
+	// Cache is not healthy.  We need to take advantage of TTL-based caching.  Rather than caching individual page
+	// calls (very messy), we rely on caching the result of the GetNodes endpoint, and then "faking" pagination.
 
 	limit := int(req.Limit)
 	if limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive limit value")
 	}
 
-	nodes, err := c.GetNodes(ctx, req.Namespace)
+	cachedNodes, err := c.getNodesWithTTLCache(ctx, rg, req.Namespace)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -1328,25 +1392,25 @@ func (c *Cache) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]ty
 	// trim nodes that precede start key
 	if req.StartKey != "" {
 		pageStart := 0
-		for i, node := range nodes {
+		for i, node := range cachedNodes {
 			if node.GetName() < req.StartKey {
 				pageStart = i + 1
 			} else {
 				break
 			}
 		}
-		nodes = nodes[pageStart:]
+		cachedNodes = cachedNodes[pageStart:]
 	}
 
 	// iterate and filter nodes, halting when we reach page limit
 	var filtered []types.Server
-	for _, node := range nodes {
+	for _, node := range cachedNodes {
 		if len(filtered) == limit {
 			break
 		}
 
 		if node.MatchAgainst(req.Labels) {
-			filtered = append(filtered, node)
+			filtered = append(filtered, node.DeepCopy())
 		}
 	}
 
@@ -1688,24 +1752,24 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	return rg.presence.GetWindowsDesktopServices(ctx)
 }
 
-// GetWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
+func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktops(ctx)
+	return rg.presence.GetWindowsDesktopService(ctx, name)
 }
 
-// GetWindowsDesktop returns a registered Windows desktop host.
-func (c *Cache) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
+// GetWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.windowsDesktops.GetWindowsDesktop(ctx, name)
+	return rg.windowsDesktops.GetWindowsDesktops(ctx, filter)
 }
 
 // ListResources is a part of auth.Cache implementation

@@ -22,6 +22,7 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -243,7 +245,7 @@ func (a *Agent) getPrincipalsList() []string {
 }
 
 func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
-	cas, err := a.AccessPoint.GetCertAuthorities(types.HostCA, false)
+	cas, err := a.AccessPoint.GetCertAuthorities(context.TODO(), types.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -262,7 +264,9 @@ func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
 // If this is Web Service port check if proxy support ALPN SNI Listener.
 func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
 	pd := reverseTunnelDetails{TLSRoutingEnabled: false}
-	resp, err := webclient.Find(a.ctx, a.Addr.Addr, lib.IsInsecureDevMode(), nil)
+	resp, err := webclient.Find(
+		&webclient.Config{Context: a.ctx, ProxyAddr: a.Addr.Addr, Insecure: lib.IsInsecureDevMode()})
+
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel
 		// address the ping call will always fail.
@@ -278,9 +282,14 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		a.reverseTunnelDetails = a.getReverseTunnelDetails()
 	}
 
-	var opts []proxy.DialerOptionFunc
+	opts := []proxy.DialerOptionFunc{
+		proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode()),
+	}
+
 	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.TLSRoutingEnabled {
-		opts = append(opts, proxy.WithALPNDialer())
+		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
+			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		}))
 	}
 
 	for _, authMethod := range a.authMethods {
@@ -384,12 +393,19 @@ func (a *Agent) run() {
 		a.log.Warningf("Failed to create remote tunnel: %v, conn: %v.", err, conn)
 		return
 	}
-	defer conn.Close()
+
+	local := conn.LocalAddr().String()
+	remote := conn.RemoteAddr().String()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			a.log.Warnf("Failed to close remote tunnel: %v, local addr: %s remote addr: %s", err, local, remote)
+		}
+	}()
 
 	// Successfully connected to remote cluster.
 	a.log.WithFields(log.Fields{
-		"addr":        conn.LocalAddr().String(),
-		"remote-addr": conn.RemoteAddr().String(),
+		"addr":        local,
+		"remote-addr": remote,
 	}).Info("Connected.")
 
 	// wrap up remaining business logic in closure for easy
@@ -414,14 +430,14 @@ func (a *Agent) run() {
 		// or permanent loss of a proxy.
 		err = a.processRequests(conn)
 		if err != nil {
-			a.log.Warnf("Unable to continue processesing requests: %v.", err)
+			a.log.Warnf("Unable to continue processioning requests: %v.", err)
 			return
 		}
 	}
 	// if Tracker was provided, then the agent shouldn't continue unless
 	// no other agents hold a claim.
 	if a.Tracker != nil {
-		if !a.Tracker.WithProxy(doWork, a.Lease, a.getPrincipalsList()...) {
+		if !a.Tracker.WithProxy(doWork, a.getPrincipalsList()...) {
 			a.log.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
 		}
 	} else {
@@ -499,7 +515,6 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				component:           a.Component,
 				reverseTunnelServer: a.ReverseTunnelServer,
 				localClusterName:    a.LocalClusterName,
-				emitter:             a.Client,
 			}
 			go t.start()
 		// new discovery request channel
@@ -518,7 +533,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 	}
 }
 
-// handleDisovery receives discovery requests from the reverse tunnel
+// handleDiscovery receives discovery requests from the reverse tunnel
 // server, that informs agent about proxies registered in the remote
 // cluster and the reverse tunnels already established
 //
@@ -526,7 +541,11 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 // reqC : request payload
 func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	a.log.Debugf("handleDiscovery requests channel.")
-	defer ch.Close()
+	defer func() {
+		if err := ch.Close(); err != nil {
+			a.log.Warnf("Failed to close discovery channel:: %v", err)
+		}
+	}()
 
 	for {
 		var req *ssh.Request
@@ -547,7 +566,7 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			if a.Tracker != nil {
 				// Notify tracker of all known proxies.
 				for _, p := range r.Proxies {
-					a.Tracker.TrackExpected(a.Lease, p.GetName())
+					a.Tracker.TrackExpected(p.GetName())
 				}
 			}
 		}

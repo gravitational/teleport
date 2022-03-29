@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -152,6 +151,10 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		return p, trace.Wrap(err)
 	}
 	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
+		return p, trace.Wrap(err)
+	}
+
+	if err := p.a.UpsertNamespace(types.DefaultNamespace()); err != nil {
 		return p, trace.Wrap(err)
 	}
 
@@ -564,29 +567,10 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(len(tokens), Equals, 1)
 	c.Assert(tokens[0].GetName(), Equals, tok)
 
-	roles, _, err := s.a.ValidateToken(tok)
+	roles, _, err := s.a.ValidateToken(ctx, tok)
 	c.Assert(err, IsNil)
 	c.Assert(roles.Include(types.RoleNode), Equals, true)
 	c.Assert(roles.Include(types.RoleProxy), Equals, false)
-
-	priv, pub, err := s.a.GenerateKeyPair("")
-	c.Assert(err, IsNil)
-
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(priv)
-	c.Assert(err, IsNil)
-
-	// unsuccessful registration (wrong role)
-	certs, err := s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:        tok,
-		HostID:       "bad-host-id",
-		NodeName:     "bad-node-name",
-		Role:         types.RoleProxy,
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: pub,
-	})
-	c.Assert(certs, IsNil)
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `node "bad-node-name" \[bad-host-id\] can not join the cluster, the token does not allow "Proxy" role`)
 
 	// generate predefined token
 	customToken := "custom-token"
@@ -594,63 +578,13 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, customToken)
 
-	roles, _, err = s.a.ValidateToken(tok)
+	roles, _, err = s.a.ValidateToken(ctx, tok)
 	c.Assert(err, IsNil)
 	c.Assert(roles.Include(types.RoleNode), Equals, true)
 	c.Assert(roles.Include(types.RoleProxy), Equals, false)
 
 	err = s.a.DeleteToken(ctx, customToken)
 	c.Assert(err, IsNil)
-
-	// generate multi-use token with long TTL:
-	multiUseToken, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleProxy}, TTL: time.Hour})
-	c.Assert(err, IsNil)
-	_, _, err = s.a.ValidateToken(multiUseToken)
-	c.Assert(err, IsNil)
-
-	// use it twice:
-	certs, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:                multiUseToken,
-		HostID:               "once",
-		NodeName:             "node-name",
-		Role:                 types.RoleProxy,
-		AdditionalPrincipals: []string{"example.com"},
-		PublicTLSKey:         tlsPublicKey,
-		PublicSSHKey:         pub,
-	})
-	c.Assert(err, IsNil)
-
-	// along the way, make sure that additional principals work
-	hostCert, err := sshutils.ParseCertificate(certs.SSH)
-	c.Assert(err, IsNil)
-	comment := Commentf("can't find example.com in %v", hostCert.ValidPrincipals)
-	c.Assert(apiutils.SliceContainsStr(hostCert.ValidPrincipals, "example.com"), Equals, true, comment)
-
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:        multiUseToken,
-		HostID:       "twice",
-		NodeName:     "node-name",
-		Role:         types.RoleProxy,
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: pub,
-	})
-	c.Assert(err, IsNil)
-
-	// try to use after TTL:
-	s.a.SetClock(clockwork.NewFakeClockAt(time.Now().UTC().Add(time.Hour + 1)))
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:        multiUseToken,
-		HostID:       "late.bird",
-		NodeName:     "node-name",
-		Role:         types.RoleProxy,
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: pub,
-	})
-	c.Assert(err, ErrorMatches, `"node-name" \[late.bird\] can not join the cluster with role Proxy, the token is not valid`)
-
-	// expired token should be gone now
-	err = s.a.DeleteToken(ctx, multiUseToken)
-	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 
 	// lets use static tokens now
 	roles = types.SystemRoles{types.RoleProxy}
@@ -662,27 +596,11 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		}},
 	})
 	c.Assert(err, IsNil)
+
 	err = s.a.SetStaticTokens(st)
 	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:        "static-token-value",
-		HostID:       "static.host",
-		NodeName:     "node-name",
-		Role:         types.RoleProxy,
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: pub,
-	})
-	c.Assert(err, IsNil)
-	_, err = s.a.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:        "static-token-value",
-		HostID:       "wrong.role",
-		NodeName:     "node-name",
-		Role:         types.RoleAuth,
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: pub,
-	})
-	c.Assert(err, NotNil)
-	r, _, err := s.a.ValidateToken("static-token-value")
+
+	r, _, err := s.a.ValidateToken(ctx, "static-token-value")
 	c.Assert(err, IsNil)
 	c.Assert(r, DeepEquals, roles)
 
@@ -695,11 +613,11 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 func (s *AuthSuite) TestBadTokens(c *C) {
 	ctx := context.Background()
 	// empty
-	_, _, err := s.a.ValidateToken("")
+	_, _, err := s.a.ValidateToken(ctx, "")
 	c.Assert(err, NotNil)
 
 	// garbage
-	_, _, err = s.a.ValidateToken("bla bla")
+	_, _, err = s.a.ValidateToken(ctx, "bla bla")
 	c.Assert(err, NotNil)
 
 	// tampered
@@ -707,7 +625,7 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	c.Assert(err, IsNil)
 
 	tampered := string(tok[0]+1) + tok[1:]
-	_, _, err = s.a.ValidateToken(tampered)
+	_, _, err = s.a.ValidateToken(ctx, tampered)
 	c.Assert(err, NotNil)
 }
 

@@ -1,4 +1,33 @@
 ---
+kind: pipeline
+type: kubernetes
+name: update-docs-webhook
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+  repo:
+    include:
+      - gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Trigger docs deployment
+    image: plugins/webhook
+    settings:
+      urls:
+        from_secret: DOCS_DEPLOY_HOOK
+                
+---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
@@ -3266,9 +3295,9 @@ steps:
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     OS: darwin
-    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
 - name: Copy Mac pkg artifacts
   commands:
@@ -4721,6 +4750,7 @@ name: build-buildboxes
 environment:
   GID: "1000"
   RUNTIME: go1.17.3
+  BUILDBOX_VERSION: teleport8
   UID: "1000"
 trigger:
   event:
@@ -4732,6 +4762,7 @@ trigger:
   branch:
     include:
     - master
+    - branch/v8
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -4757,7 +4788,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox
-  - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4773,7 +4804,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-fips
-  - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4789,7 +4820,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-centos6
-  - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-centos6:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -4805,7 +4836,7 @@ steps:
   - chown -R $UID:$GID /go
   - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
   - make -C build.assets buildbox-arm
-  - docker push quay.io/gravitational/teleport-buildbox-arm:$RUNTIME
+  - docker push quay.io/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
   environment:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
@@ -5007,11 +5038,16 @@ steps:
   # this step exits early and skips all remaining steps in the pipeline if the
   # tag looks like a pre-release, to avoid pushing pre-release RPMs and DEBs to
   # our yum / apt repos.
+  - name: Check if repo is public
+    image: alpine
+    commands:
+      - if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then echo "---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos" && exit 78; fi
+
   - name: Check if tag is prerelease
     image: golang:1.17-alpine
     commands:
-      - cd build.assets/version-check
-      - go run . -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos' && exit 78)
+      - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
+      - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_TAG} packages to RPM and DEB repos' && exit 78)
 
   - name: "RPM: Download RPM repository"
     image: amazon/aws-cli
@@ -5100,8 +5136,8 @@ steps:
   - name: Check if tag is latest
     image: golang:1.17-alpine
     commands:
-      - cd build.assets/version-check
-      - go run . -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
+      - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
+      - go run ./cmd/check -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_TAG} packages to DEB repo' && exit 78)
 
   - name: Download DEB repo contents
     image: amazon/aws-cli
@@ -5213,6 +5249,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 4c16db480cb739be3baf97dff0bf444ae18e6d29080a27e5ef777b99a7b80542
+hmac: 540fe3bdd610d91a1d3e3b52b6f4de1e0fd2b13ca78fc40a856f64abb3882db7
 
 ...

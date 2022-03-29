@@ -85,7 +85,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userUpdate.Flag("set-roles", "Roles to assign to this user").
 		Default("").StringVar(&u.updateRoles)
 
-	u.userList = users.Command("ls", "List all user accounts "+helpPrefix)
+	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 
 	u.userDelete = users.Command("rm", "Deletes user accounts").Alias("del")

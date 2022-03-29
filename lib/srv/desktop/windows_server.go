@@ -453,9 +453,10 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 // It authenticates and authorizes the connection, and then begins
 // translating the TDP messages from the proxy into native RDP.
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
-	defer proxyConn.Close()
 	log := s.cfg.Log
+
 	tdpConn := tdp.NewConn(proxyConn)
+	defer tdpConn.Close()
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTdpError := func(message string) {
@@ -499,25 +500,33 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-name", desktopName)
 
-	desktop, err := s.cfg.AccessPoint.GetWindowsDesktop(ctx, desktopName)
+	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
 	if err != nil {
 		log.WithError(err).Warning("Failed to fetch desktop by name")
 		sendTdpError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
+	if len(desktops) == 0 {
+		log.Error("no windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
+			desktopName)
+		sendTdpError(fmt.Sprintf("Could not find desktop %v.", desktopName))
+		return
+	}
+	desktop := desktops[0]
 
 	log = log.WithField("desktop-addr", desktop.GetAddr())
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, proxyConn, desktop, authContext); err != nil {
+	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
 		sendTdpError("RDP connection failed.")
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, proxyConn *tls.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -541,7 +550,13 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			services.NewWindowsLoginMatcher(login))
 	}
 
-	tdpConn := tdp.NewConn(proxyConn)
+	// Use a context that is canceled when we're done handling
+	// this connection. This ensures that the connection monitor
+	// will stop checking for idle activity when the connection
+	// is closed.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string) (certDER, keyDER []byte, err error) {
@@ -558,7 +573,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	monitorCfg := srv.MonitorConfig{
 		Context:           ctx,
-		Conn:              proxyConn,
+		Conn:              tdpConn,
 		Clock:             s.cfg.Clock,
 		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		Entry:             log,
@@ -625,6 +640,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
 				Domain: s.cfg.Domain,
+				HostID: s.cfg.Heartbeat.HostUUID,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -642,11 +658,9 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 // should be reasonably fast to do this scan on every heartbeat. However, with
 // a very large number of desktops in the cluster, this may use up a lot of CPU
 // time.
-//
-// TODO(zmb3): think of an alternative way to not duplicate desktop objects
-// coming from different windows_desktop_services.
 func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
-	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx)
+	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx,
+		types.WindowsDesktopFilter{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -671,7 +685,7 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	// have to do it here.
 	//
 	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
-	ca, err := s.cfg.AccessPoint.GetCertAuthority(types.CertAuthID{
+	ca, err := s.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: s.clusterName,
 	}, false)

@@ -174,7 +174,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	profile, err := libclient.StatusCurrent("", cf.Proxy)
+	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}

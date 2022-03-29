@@ -19,7 +19,7 @@ metadata:
 spec:
   type: {{ default "LoadBalancer" .Values.service.type }}
   {{- with .Values.service.spec }}
-  {{- toYaml . | nindent 4 }}
+  {{- toYaml . | nindent 2 }}
   {{- end }}
   ports:
   - name: https

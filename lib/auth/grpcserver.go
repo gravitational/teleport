@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/joinserver"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -75,6 +76,14 @@ var (
 			Help:    "Overall size of events emitted",
 			Buckets: prometheus.LinearBuckets(0, 100, 20),
 		},
+	)
+	connectedResources = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricConnectedResources,
+			Help:      "Tracks the number and type of resources connected via keepalives",
+		},
+		[]string{teleport.TagType},
 	)
 )
 
@@ -125,11 +134,6 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if firstIteration {
-			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
-			heartbeatConnectionsReceived.Inc()
-			firstIteration = false
-		}
 		keepAlive, err := stream.Recv()
 		if err == io.EOF {
 			g.Debugf("Connection closed.")
@@ -142,6 +146,13 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 		err = auth.KeepAliveServer(stream.Context(), *keepAlive)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if firstIteration {
+			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
+			heartbeatConnectionsReceived.Inc()
+			connectedResources.WithLabelValues(keepAlive.GetType()).Inc()
+			defer connectedResources.WithLabelValues(keepAlive.GetType()).Dec()
+			firstIteration = false
 		}
 	}
 }
@@ -3129,6 +3140,25 @@ func (g *GRPCServer) GetWindowsDesktopServices(ctx context.Context, req *empty.E
 	}, nil
 }
 
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
+func (g *GRPCServer) GetWindowsDesktopService(ctx context.Context, req *proto.GetWindowsDesktopServiceRequest) (*proto.GetWindowsDesktopServiceResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	windowsDesktopService, err := auth.GetWindowsDesktopService(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	service, ok := windowsDesktopService.(*types.WindowsDesktopServiceV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", service)
+	}
+	return &proto.GetWindowsDesktopServiceResponse{
+		Service: service,
+	}, nil
+}
+
 // UpsertWindowsDesktopService registers a new Windows desktop service.
 func (g *GRPCServer) UpsertWindowsDesktopService(ctx context.Context, service *types.WindowsDesktopServiceV3) (*types.KeepAlive, error) {
 	auth, err := g.authenticate(ctx)
@@ -3183,12 +3213,12 @@ func (g *GRPCServer) DeleteAllWindowsDesktopServices(ctx context.Context, _ *emp
 }
 
 // GetWindowsDesktops returns all registered Windows desktop hosts.
-func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, _ *empty.Empty) (*proto.GetWindowsDesktopsResponse, error) {
+func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, filter *types.WindowsDesktopFilter) (*proto.GetWindowsDesktopsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	windowsDesktops, err := auth.GetWindowsDesktops(ctx)
+	windowsDesktops, err := auth.GetWindowsDesktops(ctx, *filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3203,23 +3233,6 @@ func (g *GRPCServer) GetWindowsDesktops(ctx context.Context, _ *empty.Empty) (*p
 	return &proto.GetWindowsDesktopsResponse{
 		Desktops: desktops,
 	}, nil
-}
-
-// GetWindowsDesktop returns a named registered Windows desktop host.
-func (g *GRPCServer) GetWindowsDesktop(ctx context.Context, req *proto.GetWindowsDesktopRequest) (*types.WindowsDesktopV3, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	windowsDesktop, err := auth.GetWindowsDesktop(ctx, req.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	desktop, ok := windowsDesktop.(*types.WindowsDesktopV3)
-	if !ok {
-		return nil, trace.BadParameter("unexpected type %T", windowsDesktop)
-	}
-	return desktop, nil
 }
 
 // CreateWindowsDesktop registers a new Windows desktop host.
@@ -3261,13 +3274,16 @@ func (g *GRPCServer) UpsertWindowsDesktop(ctx context.Context, desktop *types.Wi
 	return &empty.Empty{}, nil
 }
 
-// DeleteWindowsDesktop removes the specified Windows desktop host.
+// DeleteWindowsDesktop removes the specified windows desktop host.
+// Note: unlike GetWindowsDesktops, this will delete at-most one desktop.
+// Passing an empty host ID will not trigger "delete all" behavior. To delete
+// all desktops, use DeleteAllWindowsDesktops.
 func (g *GRPCServer) DeleteWindowsDesktop(ctx context.Context, req *proto.DeleteWindowsDesktopRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteWindowsDesktop(ctx, req.GetName())
+	err = auth.DeleteWindowsDesktop(ctx, req.GetHostID(), req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3537,7 +3553,7 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of GRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
-	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes)
+	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3550,8 +3566,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		grpc.Creds(&httplib.TLSCreds{
 			Config: cfg.TLS,
 		}),
-		grpc.UnaryInterceptor(grpcErrorConvertUnaryInterceptor(cfg.UnaryInterceptor)),
-		grpc.StreamInterceptor(grpcErrorConvertStreamInterceptor(cfg.StreamInterceptor)),
+		grpc.UnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.StreamInterceptor(cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
@@ -3574,21 +3590,42 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		server: server,
 	}
 	proto.RegisterAuthServiceServer(authServer.server, authServer)
+
+	// create server with no-op role to pass to JoinService server
+	serverWithNopRole, err := serverWithNopRole(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole)
+	proto.RegisterJoinServiceServer(server, joinServiceServer)
+
 	return authServer, nil
 }
 
-func grpcErrorConvertUnaryInterceptor(next grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		resp, err := next(ctx, req, info, handler)
-		return resp, trail.ToGRPC(err)
+func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
+	clusterName, err := cfg.AuthServer.Services.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-}
-
-func grpcErrorConvertStreamInterceptor(next grpc.StreamServerInterceptor) grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		err := next(srv, ss, info, handler)
-		return trail.ToGRPC(err)
+	nopRole := BuiltinRole{
+		Role:        types.RoleNop,
+		Username:    string(types.RoleNop),
+		ClusterName: clusterName.GetClusterName(),
 	}
+	recConfig, err := cfg.AuthServer.Services.GetSessionRecordingConfig(context.Background())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	nopCtx, err := contextForBuiltinRole(nopRole, recConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ServerWithRoles{
+		authServer: cfg.AuthServer,
+		context:    *nopCtx,
+		sessions:   cfg.SessionService,
+		alog:       cfg.AuthServer.IAuditLog,
+	}, nil
 }
 
 type grpcContext struct {
