@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"sort"
@@ -36,7 +35,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -44,7 +42,6 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/forwardproxy"
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
 )
@@ -78,8 +75,7 @@ func onAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Creates a local ALPN proxy that sends requests to remote server.
-	lp, lpListener, err := createLocalAWSCLIProxy(cf, tc, generatedAWSCred, tmpCert.getCert())
+	lp, err := createLocalAWSCLIProxy(cf, tc, generatedAWSCred, tmpCert.getCert())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -90,29 +86,8 @@ func onAWS(cf *CLIConf) error {
 		}
 	}()
 
-	// Creates a forward proxy that sends requests to ALPN local proxy.
-	localForwardProxy, err := createLocalForwardProxy(cf, lpListener)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer localForwardProxy.Close()
-	go func() {
-		if err := localForwardProxy.Start(); err != nil {
-			log.WithError(err).Errorf("Failed to start forward proxy.")
-		}
-	}()
-
 	// Setup the command to run.
 	cmd := exec.Command(awsCLIBinaryName, cf.AWSCommandArgs...)
-
-	// If --exec is specified, execute cf.AWSCommandArgs[0] as the command name
-	// instead of running AWS CLI.
-	if cf.LocalExec {
-		if len(cf.AWSCommandArgs) == 0 {
-			return trace.BadParameter("no command and arguments provided")
-		}
-		cmd = exec.Command(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
-	}
 
 	credValues, err := generatedAWSCred.Get()
 	if err != nil {
@@ -122,8 +97,8 @@ func onAWS(cf *CLIConf) error {
 		fmt.Sprintf("AWS_ACCESS_KEY_ID=%s", credValues.AccessKeyID),
 		fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%s", credValues.SecretAccessKey),
 		fmt.Sprintf("AWS_CA_BUNDLE=%s", tmpCert.getCAPath()),
-		fmt.Sprintf("HTTPS_PROXY=%s", "http://"+localForwardProxy.GetAddr()),
-		fmt.Sprintf("https_proxy=%s", "http://"+localForwardProxy.GetAddr()),
+		fmt.Sprintf("HTTPS_PROXY=%s", "http://"+lp.GetForwardProxyAddr()),
+		fmt.Sprintf("https_proxy=%s", "http://"+lp.GetForwardProxyAddr()),
 	)
 
 	cmd.Stdout = os.Stdout
@@ -143,68 +118,32 @@ func generateAWSCredentials() (*credentials.Credentials, error) {
 	return credentials.NewStaticCredentials(id, secret, ""), nil
 }
 
-func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials, ca tls.Certificate) (*alpnproxy.LocalProxy, forwardproxy.Receiver, error) {
+func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials, ca tls.Certificate) (*alpnproxy.LocalProxy, error) {
 	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	appCerts, err := loadAWSAppCertificate(tc, awsApp)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	address, err := utils.ParseAddr(tc.WebProxyAddr)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
+	forwardProxyListenAddr := "localhost:0"
 	listenAddr := "localhost:0"
 	if cf.LocalProxyPort != "" {
 		port, err := strconv.Atoi(cf.LocalProxyPort)
 		if err != nil {
-			return nil, nil, trace.BadParameter("invalid local proxy port %s", cf.LocalProxyPort)
+			return nil, trace.BadParameter("invalid local proxy port %s", cf.LocalProxyPort)
 		}
 
-		// cf.LocalProxyPort is used for forward proxy. Use cf.LocalProxyPort+1
-		// for ALPN local proxy for convenience.
+		forwardProxyListenAddr = fmt.Sprintf("localhost:%d", port)
 		listenAddr = fmt.Sprintf("localhost:%d", port+1)
-	}
-	listener, err := forwardproxy.NewHTTPSListenerReceiver(forwardproxy.HTTPSListenerReceiverConfig{
-		ListenAddr: listenAddr,
-		CA:         ca,
-		Want: func(req *http.Request) bool {
-			return awsutils.IsAWSEndpoint(req.Host)
-		},
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		Listener:           listener,
-		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocol:           alpncommon.ProtocolHTTP,
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ParentContext:      cf.Context,
-		SNI:                address.Host(),
-		AWSCredentials:     cred,
-		Certs:              []tls.Certificate{appCerts},
-	})
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return nil, nil, trace.NewAggregate(err, cerr)
-		}
-		return nil, nil, trace.Wrap(err)
-	}
-	return lp, listener, nil
-}
-
-// createLocalForwardProxy creates a local forward proxy.
-func createLocalForwardProxy(cf *CLIConf, receiver forwardproxy.Receiver) (*forwardproxy.ProxyServer, error) {
-	listenAddr := "localhost:0"
-	if cf.LocalProxyPort != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", cf.LocalProxyPort)
 	}
 
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to
@@ -214,24 +153,42 @@ func createLocalForwardProxy(cf *CLIConf, receiver forwardproxy.Receiver) (*forw
 	// encrypted. Thus it is very important that the forward proxy is only used
 	// for proxying HTTPS requests, so the tunneled data is still encrypted
 	// between client and receiver. The initial "CONNECT" request before
-	// tunneling is not encrypted but it only contains a hostname (which also
-	// gets exposed as SNI for HTTPS regardless). In addition, the forward proxy
-	// is localhost only so the transport does not leave the local network.
-	listener, err := net.Listen("tcp", listenAddr)
+	// tunneling is not encrypted but it contains minimal information like host
+	// and user agent. In addition, the forward proxy is localhost only so the
+	// transport does not leave the local network.
+	forwardProxyListener, err := net.Listen("tcp", forwardProxyListenAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	localForwardProxy, err := forwardproxy.New(forwardproxy.Config{
-		Protocol:            "https",
-		Listener:            listener,
-		Receivers:           []forwardproxy.Receiver{receiver},
-		InsecureSystemProxy: cf.InsecureSkipVerify,
+	// Create listener for receiving AWS request tunneled from forward proxy.
+	listener, err := alpnproxy.NewHTTPSListenerReceiverForAWS(alpnproxy.HTTPSListenerReceiverConfig{
+		ListenAddr: listenAddr,
+		CA:         ca,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return localForwardProxy, nil
+
+	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		Listener:             listener,
+		ForwardProxyListener: forwardProxyListener,
+		RemoteProxyAddr:      tc.WebProxyAddr,
+		Protocol:             alpncommon.ProtocolHTTP,
+		InsecureSkipVerify:   cf.InsecureSkipVerify,
+		ParentContext:        cf.Context,
+		SNI:                  address.Host(),
+		AWSCredentials:       cred,
+		Certs:                []tls.Certificate{appCerts},
+	})
+	if err != nil {
+		return nil, trace.NewAggregate(
+			err,
+			listener.Close(),
+			forwardProxyListener.Close(),
+		)
+	}
+	return lp, nil
 }
 
 func loadAWSAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {

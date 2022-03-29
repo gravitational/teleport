@@ -75,6 +75,8 @@ type LocalProxyConfig struct {
 	Certs []tls.Certificate
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
+	// ForwardProxyListener is the listener for forward proxy
+	ForwardProxyListener net.Listener
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -252,6 +254,14 @@ func (l *LocalProxy) GetAddr() string {
 	return l.cfg.Listener.Addr().String()
 }
 
+// GetForwardProxyAddr returns the forward proxy's listener address.
+func (l *LocalProxy) GetForwardProxyAddr() string {
+	if l.cfg.ForwardProxyListener != nil {
+		return l.cfg.ForwardProxyListener.Addr().String()
+	}
+	return ""
+}
+
 // handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
 // traffic to the upstreamConn (TLS connection to remote host).
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
@@ -297,16 +307,31 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 
 func (l *LocalProxy) Close() error {
 	l.cancel()
+	var errs []error
 	if l.cfg.Listener != nil {
 		if err := l.cfg.Listener.Close(); err != nil {
-			return trace.Wrap(err)
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	if l.cfg.ForwardProxyListener != nil {
+		if err := l.cfg.ForwardProxyListener.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // StartAWSAccessProxy starts the local AWS CLI proxy.
 func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
+	receiver, ok := l.cfg.Listener.(ForwardProxyReceiver)
+	if !ok {
+		return trace.BadParameter("listener must be a forward proxy receiver")
+	}
+
+	if err := l.startForwardProxy(receiver); err != nil {
+		return trace.Wrap(err)
+	}
+
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			NextProtos:         []string{string(l.cfg.Protocol)},
@@ -335,5 +360,25 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// startForwardProxy starts the forward proxy.
+func (l *LocalProxy) startForwardProxy(receiver ForwardProxyReceiver) error {
+	localForwardProxy, err := NewForwardProxy(ForwardProxyConfig{
+		Protocol:            "https",
+		Listener:            l.cfg.ForwardProxyListener,
+		Receivers:           []ForwardProxyReceiver{receiver},
+		InsecureSystemProxy: l.cfg.InsecureSkipVerify,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go func() {
+		err := localForwardProxy.Start()
+		if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			log.WithError(err).Error("Failed to start forward proxy.")
+		}
+	}()
 	return nil
 }

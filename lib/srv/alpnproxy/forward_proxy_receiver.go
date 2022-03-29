@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package forwardproxy
+package alpnproxy
 
 import (
 	"crypto/rand"
@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/constants"
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -32,8 +33,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Receiver defines an interface for a forward proxy receiver.
-type Receiver interface {
+// ForwardProxyReceiver defines an interface for a forward proxy receiver.
+type ForwardProxyReceiver interface {
 	// Want returns whether the request should be forwarded to this receiver.
 	Want(req *http.Request) (wanted bool)
 
@@ -48,7 +49,7 @@ type HTTPSListenerReceiverConfig struct {
 	// CA is the CA certificate for signing certificate.
 	CA tls.Certificate
 	// Want returns whether the request should be forwarded to this receiver.
-	Want func(*http.Request) bool
+	Want func(req *http.Request) (wanted bool)
 	// Log is the logger.
 	Log logrus.FieldLogger
 }
@@ -108,18 +109,27 @@ func NewHTTPSListenerReceiver(config HTTPSListenerReceiverConfig) (*HTTPSListene
 	return r, nil
 }
 
+// NewHTTPSListenerReceiverForAWS creates a new HTTPSListenerReceiver for AWS APIs.
+func NewHTTPSListenerReceiverForAWS(config HTTPSListenerReceiverConfig) (*HTTPSListenerReceiver, error) {
+	config.Want = func(req *http.Request) (wanted bool) {
+		return awsapiutils.IsAWSEndpoint(req.Host)
+	}
+	return NewHTTPSListenerReceiver(config)
+}
+
 // GetListener returns the HTTPS listener.
 func (r *HTTPSListenerReceiver) GetListener() net.Listener {
 	return r.Listener
 }
 
-// GetAddr returns the listener's network address. Implements Receiver.
+// GetAddr returns the listener's network address. Implements
+// ForwardProxyReceiver.
 func (r *HTTPSListenerReceiver) GetAddr() string {
 	return r.Listener.Addr().String()
 }
 
 // Want returns whether the request should be forwarded to this receiver.
-// Implements Receiver.
+// Implements ForwardProxyReceiver.
 func (r *HTTPSListenerReceiver) Want(req *http.Request) (wanted bool) {
 	if !r.cfg.Want(req) {
 		return false
