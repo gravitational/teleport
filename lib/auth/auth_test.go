@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -65,7 +66,7 @@ type testPack struct {
 	bk          backend.Backend
 	clusterName types.ClusterName
 	a           *Server
-	mockEmitter *events.MockEmitter
+	mockEmitter *eventstest.MockEmitter
 }
 
 func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
@@ -155,7 +156,7 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		return p, trace.Wrap(err)
 	}
 
-	p.mockEmitter = &events.MockEmitter{}
+	p.mockEmitter = &eventstest.MockEmitter{}
 	p.a.emitter = p.mockEmitter
 	return p, nil
 }
@@ -1011,7 +1012,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
-	mockE := &events.MockEmitter{}
+	mockE := &eventstest.MockEmitter{}
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
 
@@ -1201,7 +1202,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	username := "llama@goteleport.com"
@@ -1507,7 +1508,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
