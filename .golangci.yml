@@ -42,10 +42,10 @@ output:
 run:
   build-tags:
     # - bpf         # confuses linter and breaks compilation
-    # - roletester  # genuine linter failures
     - desktop_access_rdp
     - fips
     - libfido2
     - pam
+    - roletester
   skip-dirs-use-default: false
   timeout: 5m
