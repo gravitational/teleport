@@ -94,7 +94,7 @@ In theory another option for here would be to automatically download all files t
 
 #### Discussion
 
-This option mitigates the `proxy_service` <--> `windows_desktop_service` problem of Clipboard-Based Option 1, and exchanges greater TDP integrity for somewhat greater TDP complexity. The upload and download of files into the selected client side directory would be done by adding TDP messages similar to RDP's `File Contents Request` and `File Contents Response` PDU's.
+This option eliminates the `proxy_service` <--> `windows_desktop_service` problem of Clipboard-Based Option 1, and exchanges greater TDP integrity for somewhat greater TDP complexity. The upload and download of files into the selected client side directory would be done by adding TDP messages similar to RDP's `File Contents Request` and `File Contents Response` PDU's.
 
 The UX of this option has the same clipboard assymetry problem described in Clipboard-Based Option 1. The browser upload/download is swapped out for manipulating files with the File System Access API, but cut/copy/paste is still only used only on the server side.
 
@@ -110,13 +110,15 @@ With this option, the user initializes server-to-client file transfers by moving
 
 This option is the one most comparable to the [file transfer UX in Guacamole](https://guacamole.apache.org/doc/gug/using-guacamole.html#the-rdp-virtual-drive). A notable difference is that as I've envisioned it in Client Option 1, the user will select a file to download from a UI widget, whereas in Guacamole the user initiates a file download by dropping it into the `Download/` directory that is automatically created in the shared drive by Guacamole (this is an option for us as well).
 
-This option has the disadvantages of Clipboard-Based Option 1, minus the lopsided UX of only using cut/copy/paste on the server side. The UX is still relatively asymmetrical in that the user is using browser upload/drag-and-drop and download on the client side, while accessing the native file system on the server side, but the two sides here are more similar as compared with Total Options 1 and 2. Because this option uses Client Option 1, the `proxy_service` <--> `windows_desktop_service` problem remains. Note that Guacamole doesn't have a corollary problem, because their web app (client) is served from the same machine as their server (in other words their "`proxy_service`" equivalent is guaranteed to run on the same machine as their "`windows_desktop_service`", which is among the core reasons this implementation is easier for them).
+This option has the disadvantages of Clipboard-Based Option 1, minus the lopsided UX of only using cut/copy/paste on the server side. The UX is still relatively asymmetrical in that the user is using browser upload/drag-and-drop and download on the client side, while accessing the native file system on the server side, but the two sides here are more similar as compared to either of the Clipboard-Based options.
 
-The `proxy_service` <--> `windows_desktop_service` problem also poses an additional problem here that's not present in Clipboard-Based Option 1 -- because file transfers will appear as a file in a directory on the Windows server, the user will likely have some expectation of that directory persisting between sessions. However because the files are in reality in a directory sitting on the `windows_desktop_service` (see RDP Option 2a), and the Teleport cluster can have multiple `windows_desktop_service`'s at once, there would need to be some mechanism to ensure that the user was reconnected with the same `windows_desktop_service` in subsequent sessions in order for the same files to remain accessible, or else find some other way to share files between `windows_desktop_service`'s.
+Because this option uses Client Option 1, the `proxy_service` <--> `windows_desktop_service` problem remains. Note that Guacamole doesn't have a corollary problem, because their web app (client) is served from the same machine as their server. In other words their `proxy_service` equivalent is guaranteed to run on the same machine as their `windows_desktop_service` equivalent, and one can easily talk to the other.
+
+The `proxy_service` <--> `windows_desktop_service` problem also poses an additional problem here that's not present in Clipboard-Based Option 1 -- because file transfers will appear as a file in a directory on the Windows server, the user will likely have some expectation of that directory persisting between sessions. However because the files are in reality in a directory sitting on the `windows_desktop_service` (see RDP Option 2a), and the Teleport cluster can have multiple `windows_desktop_service`'s at once, there would need to be some mechanism to ensure that the user was reconnected with the same `windows_desktop_service` in subsequent sessions in order for the same files to remain accessible (or we would need to devise some other way to share files between `windows_desktop_service`'s).
 
 This option would use the same `files available` TDP extension as Clipboard-Based Option 1, with the same simplicity vs integrity tradeoff.
 
-This option could be made to work in all browsers.
+This option would work in all browsers.
 
 ### RDP Option 2b + Client Option 2 (Shared-Directory-Based Option 2)
 
@@ -124,17 +126,18 @@ With this option, the user initializes server-to-client file transfers by moving
 
 #### Discussion
 
-This option eliminates the `proxy_service` <--> `windows_desktop_service` problem and has the clearest UX. The user is essentially mounting a piece of their local filesystem as a shared drive on the remote Windows machine.
+Similar to Clipboard-Based Option 2, this option eliminates the `proxy_service` <--> `windows_desktop_service` problem entirely. Unlike that option, the UX of this options is very straightforward.From the user's perspective, it appears that they are mounting a piece of their local filesystem as a shared drive on the remote Windows machine.
 
-The primary disadvantage of this option is that it would make TDP substantially more complex. TDP would need to add messages that are functionally equivalent to all the messages needed for shared directory initialization and CRUD operations, which would include most if not all of the messages listed under [3.3.5.2 Drive Redirection Messages](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/77b4e4ae-c25a-4aad-bd93-8c9b1f35291b). Our RDP client would receive these RDP messages and pass their parameters into our TDP server, which would then send them to the browser client.
+The primary disadvantage of this option is that it would make TDP substantially more complex. TDP would need to add messages that are functionally equivalent to the RDP messages needed for shared directory initialization and CRUD operations, which would include most if not all of the messages listed under [3.3.5.2 Drive Redirection Messages](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/77b4e4ae-c25a-4aad-bd93-8c9b1f35291b). Our RDP client would receive these RDP messages and pass them into functions that convert them to their TDP equivalents, which would then send them to the browser client.
 
-This option would currently only work in Chrome and Edge.
+This option would only work in Chromium based browsers that implement the File system Access API.
 
-## Discussion
+## Conclusion
 
-In my opinion the clear winner here is the last option presented, Shared-Directory-Based Option 2. The most important variable from a product standpoint is the UX, and Shared-Directory-Based Option 2 eliminates all the browser clunkiness and clipboard asymmetry of the other options. If the user wants to share a directory they will simply click a button in the UI, select the directory to share from an OS managed window, and that directory would show up on their remote desktop and work precisely as one would expect a shared drive to work.
+In my opinion the winning solution here is the last option presented, Shared-Directory-Based Option 2. It optimizes the most important variable of any feature, the UX, and also has significant technical design and practical implementation advantages compared to the other options. S
 
-On top of having the best UX, this option is also arguably the easiest to implement technically. Barring some solution that I haven't seen, its simply much easier for us to pipe all data through the websocket over TDP than to mess around with punching new HTTP endpoints on the `proxy_service` that need to talk to the `windows_desktop_service`, and potentially persist data between sessions, etc. (the `proxy_service` <--> `windows_desktop_service` problem). TDP's increased complexity in this case is just necessary complexity. In order for TDP to be a fully featured and integrated protocol, it will need such functionality. From that angle, the added complexity is not a problem.
-Because we are already requesting that users use Chromium based browsers for clipboard sharing, it seems obviously acceptable to limit them to the same for file sharing.
+hared-Directory-Based Option 2 eliminates all the browser clunkiness and clipboard asymmetry of the other options. The user will select a client-side directory to share a directory, it will appear as a network drive on the Windows server, and things will work as anyone who has experience working with a file system would expect them to.
 
-Because we are already requesting that users use Chromium based browsers for clipboard sharing, it seems obviously acceptable to limit them to the same for file sharing.
+On top of having the best UX, this option is also arguably the easiest to implement technically. It routes around the `proxy_service` <--> `windows_desktop_service` problem by simply piping all file data through the websocket over TDP. TDP's integrity as a general remote desktop control protocol remains intact. Assuming we wish TDP to support drive redirection, the substantial additional complexity this approach adds is all necessary complexity.
+
+Because we are already requesting that users use Chromium based browsers for clipboard sharing, it's not much of a leap to limit them to the same for file sharing. There is some [_heated_](https://github.com/mozilla/standards-positions/issues/154) debate over in Mozilla's web standards repo about whether or not the File System Access API should exist at all; given that users are already trusting Teleport with important security infrastructure, I think that the concerns raised in that thread are irrelevant to us.
