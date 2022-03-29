@@ -558,7 +558,7 @@ func runOnFIDO2Devices(
 	}
 
 	var dev deviceWithInfo
-	if doEagerPINPrompt(passwordless, devices) {
+	if shouldDoEagerPINPrompt(passwordless, devices) {
 		dev = devices[0] // single device guaranteed in this case
 	} else {
 		prompt.PromptTouch() // about to select
@@ -595,7 +595,7 @@ func runOnFIDO2Devices(
 	return trace.Wrap(err)
 }
 
-func doEagerPINPrompt(passwordless bool, devices []deviceWithInfo) bool {
+func shouldDoEagerPINPrompt(passwordless bool, devices []deviceWithInfo) bool {
 	// Don't eagerly prompt for PIN if MFA, it usually doesn't require PINs.
 	// Also don't eagerly prompt if >1 device, the touch chooses the device and we
 	// can't know which device will be chosen.
