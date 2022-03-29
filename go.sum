@@ -457,6 +457,8 @@ github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23 h1:havbccu
 github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23/go.mod h1:XL9nebvlfNVvRzRPWdDcWootcyA0l7THiH/A+W1233g=
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70 h1:To76nCJtM3DI0mdq3nGLzXqTV1wNOJByxv01+u9/BxM=
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70/go.mod h1:88hFR45MpUd23d2vNWE/dYtesU50jKsbz0I9kH7UaBY=
+github.com/gravitational/go-libfido2 v1.5.3-0.20220330170708-36815bbb94b7 h1:RmlCEGmDJBGaglPQ8ixRH7WBw858PQb0tjxKMFzzUSc=
+github.com/gravitational/go-libfido2 v1.5.3-0.20220330170708-36815bbb94b7/go.mod h1:P0V19qHwJNY0htZwZDe9Ilvs/nokGhdFX7faKFyZ6+U=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0 h1:DC+S+j/tBs/0MnQCC5j7GWWbMGcR3ca5v75ksAU1LJM=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0/go.mod h1:iiK0YP1ZeepvmBQk/QpLEhhTNJgfzrpArPY/aFvc9yU=
 github.com/gravitational/go-mysql v1.1.1-teleport.2 h1:XZ36BZ7BgslA5ZCyCHjpc1wilFITThIH7cLcbLWKWzM=
@@ -623,8 +625,6 @@ github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0/go.mod h1:1NbS8ALr
 github.com/karrick/godirwalk v1.8.0/go.mod h1:H5KPZjojv4lE+QYImBI8xVtrBRgYrIVsaRPx4tDPEn4=
 github.com/karrick/godirwalk v1.10.3/go.mod h1:RoGL9dQei4vP9ilrpETWE8CLOZ1kiN0LhBygSwrAsHA=
 github.com/keybase/go-ps v0.0.0-20190827175125-91aafc93ba19/go.mod h1:hY+WOq6m2FpbvyrI93sMaypsttvaIL5nhVR92dTMUcQ=
-github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 h1:10nfvqVK4/KINnLT8bDICrRnfguTJ300dNGpW8D2bQo=
-github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27/go.mod h1:P0V19qHwJNY0htZwZDe9Ilvs/nokGhdFX7faKFyZ6+U=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/klauspost/compress v1.9.5 h1:U+CaK85mrNNb4k8BNOfgJtJ/gr6kswUCFj6miSzVC6M=
