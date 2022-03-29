@@ -79,7 +79,8 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 	}
 	transport := http.Transport{
 		TLSClientConfig: &tls.Config{
-			RootCAs: cfg.Pool,
+			InsecureSkipVerify: cfg.Insecure,
+			RootCAs:            cfg.Pool,
 		},
 		Proxy: func(req *http.Request) (*url.URL, error) {
 			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)

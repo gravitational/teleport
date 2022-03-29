@@ -52,17 +52,17 @@ func GetProxyAddress(dialAddr string) *url.URL {
 
 // parse parses a URL. If the address does not have a scheme, it will prepend "http" and try.
 func parse(addr string) (*url.URL, error) {
-	proxyurl, err := url.Parse(addr)
+	addrURL, err := url.Parse(addr)
 	// Some URLs will fail to parse without a scheme (for example, <ip-address>:<port>), so try
 	// to parse again with a scheme. If that fails, return the original error.
-	if err != nil || !strings.HasPrefix(proxyurl.Scheme, "http") {
-		if proxyurl, err := url.Parse("http://" + addr); err == nil {
-			proxyurl.Scheme = ""
-			return proxyurl, nil
+	if err != nil || !strings.HasPrefix(addrURL.Scheme, "http") {
+		if addrURL, err := url.Parse("http://" + addr); err == nil {
+			addrURL.Scheme = ""
+			return addrURL, nil
 		}
 		return nil, err
 	}
-	return proxyurl, nil
+	return addrURL, nil
 }
 
 // HTTPFallbackRoundTripper is a wrapper for http.Transport that downgrades requests
@@ -72,6 +72,7 @@ type HTTPFallbackRoundTripper struct {
 	isProxyHTTPLocalhost bool
 }
 
+// NewHTTPFallbackRoundTripper creates a new initialized HTTP fallback roundtripper.
 func NewHTTPFallbackRoundTripper(transport *http.Transport, insecure bool) *HTTPFallbackRoundTripper {
 	proxyConfig := httpproxy.FromEnvironment()
 	rt := HTTPFallbackRoundTripper{
