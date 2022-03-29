@@ -69,15 +69,22 @@ func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	dbs := []Database{}
-	for _, srv := range dbservers {
-		dbs = append(dbs, Database{
-			URI:      c.URI.AppendDB(srv.GetHostID()),
-			Database: srv.GetDatabase(),
+	var dbs []types.Database
+	for _, server := range dbservers {
+		dbs = append(dbs, server.GetDatabase())
+	}
+
+	dbs = types.DeduplicateDatabases(dbs)
+
+	var responseDbs []Database
+	for _, db := range dbs {
+		responseDbs = append(responseDbs, Database{
+			URI:      c.URI.AppendDB(db.GetName()),
+			Database: db,
 		})
 	}
 
-	return dbs, nil
+	return responseDbs, nil
 }
 
 // ReissueDBCerts issues new certificates for specific DB access
