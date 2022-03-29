@@ -136,26 +136,11 @@ The role `response-team` will allow user with this role to
 request access to nodes of teams “dbs” and “splunk”, and members of OIDC/SAML
 group “app” developers to request access to their own group.
 
-The spec for role-local variables will be expanded in a separate RFD (will post
-link here).
-
 ```yaml
 kind: role
 metadata:
   name: response-team
 spec:
-  # Local variables are necessary to specify additional rules
-  # that are not available in OIDC/SAML claims.
-  # Teleport admins don't always have control over OIDC/SAML.
-  # Specifying local variables allows them to add additional cases used in roles.
-  # Having role-local variables simplifies computation and role evaluation,
-  # as role eval keeps everything in one place.
-  vars:
-    - name: access_group
-      select: external.claims[groups]:
-        - "splunk": ["dbs", "{{external.claims['group']}}"]
-        # by default, allow members of the group to request access to their own group
-        - ".*": "{{external.claims['group']}}"
   allow:
     request:
       # search_as_roles allows a member of the response team
@@ -176,19 +161,13 @@ kind: role
 metadata:
   name: db-admin-role
 spec:
-  # This role accepts a parameter "access_group". This parameter
-  # is either supplied when evaluating the role during access check
-  # and it should be present in the cert, or it is passed as a local
-  # variable as a part of "search-as"
-  params:
-   - name: access_group
   allow:
     logins: ["root"]
-    # db_labels defines what databases this role will be allowed to search
-    # as a part of search_as request and in addition to that will be used to
-    # evaluate access.
+    # db_labels defines which databases this role will be allowed to search
+	# for as a part of a search_as request, and also to evaluate access after
+    # the request is approved.
     db_labels:
-       owner: "{{params.access_group}}"
+       owner: db-admin
 ```
 
 ### Certificate issuance and RBAC
@@ -229,19 +208,13 @@ kind: role
 metadata:
   name: leaf-db-admin-role
 spec:
-  # This role accepts a parameter "access_group". This parameter
-  # is either supplied when evaluating the role during access check
-  # and it should be present in the cert, or it is passed as a local
-  # variable as a part of "search-as"
-  params:
-   - name: access_group
   allow:
     logins: ["root"]
     # node_labels defines what nodes this role will be allowed to search
     # as a part of search_as request and in addition to that will be used to
 evaluate access
     node_labels:
-       owner: "{{params.access_group}}"
+       owner: db-admin
        class: external-access-allowed
 ```
 
