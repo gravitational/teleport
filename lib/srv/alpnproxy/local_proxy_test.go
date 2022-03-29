@@ -19,9 +19,7 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,7 +30,6 @@ import (
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
@@ -135,7 +132,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 
 	lp, err := NewLocalProxy(LocalProxyConfig{
 		Listener:             mustCreateHTTPSListenerReceiverForAWS(t),
-		ForwardProxyListener: mustCreateListener(t),
+		ForwardProxyListener: mustCreateLocalListener(t),
 		RemoteProxyAddr:      hs.Listener.Addr().String(),
 		Protocol:             common.ProtocolHTTP,
 		ParentContext:        context.Background(),
@@ -152,50 +149,4 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 		require.NoError(t, err)
 	}()
 	return lp
-}
-
-func mustCreateListener(t *testing.T) net.Listener {
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		listener.Close()
-	})
-	return listener
-}
-
-func mustCreateHTTPSListenerReceiverForAWS(t *testing.T) net.Listener {
-	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
-	require.NoError(t, err)
-
-	listener, err := NewHTTPSListenerReceiverForAWS(HTTPSListenerReceiverConfig{
-		CA:         cert,
-		ListenAddr: "localhost:0",
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		listener.Close()
-	})
-	return listener
-}
-
-func httpsClient() *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-}
-
-func httpsClientWithProxyURL(proxyAddr string) *http.Client {
-	proxyURL := &url.URL{
-		Scheme: "http",
-		Host:   proxyAddr,
-	}
-	client := httpsClient()
-	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
-	return client
 }

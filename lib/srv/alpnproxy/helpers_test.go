@@ -28,6 +28,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -217,10 +219,14 @@ func mustCreateLocalListener(t *testing.T) net.Listener {
 }
 
 func mustSuccessfullyCallHTTPSServer(t *testing.T, addr string, client http.Client) {
+	mustSuccessfullyCallHTTPSServerWithCode(t, addr, client, http.StatusOK)
+}
+
+func mustSuccessfullyCallHTTPSServerWithCode(t *testing.T, addr string, client http.Client, expectStatusCode int) {
 	resp, err := client.Get(fmt.Sprintf("https://%s", addr))
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, expectStatusCode, resp.StatusCode)
 }
 
 func mustStartHTTPServer(t *testing.T, l net.Listener) {
@@ -240,4 +246,40 @@ func mustStartLocalProxy(t *testing.T, config LocalProxyConfig) {
 		err := lp.Start(context.Background())
 		require.NoError(t, err)
 	}()
+}
+
+func mustCreateHTTPSListenerReceiverForAWS(t *testing.T) *HTTPSListenerReceiver {
+	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	listener, err := NewHTTPSListenerReceiverForAWS(HTTPSListenerReceiverConfig{
+		CA:         cert,
+		ListenAddr: "localhost:0",
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
+func httpsClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+}
+
+func httpsClientWithProxyURL(proxyAddr string) *http.Client {
+	proxyURL := &url.URL{
+		Scheme: "http",
+		Host:   proxyAddr,
+	}
+	client := httpsClient()
+	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
+	return client
 }
