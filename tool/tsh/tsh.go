@@ -687,14 +687,12 @@ func Run(args []string, opts ...cliOption) error {
 
 	setEnvFlags(&cf, os.Getenv)
 
-	confOptions, err := loadConfig(cf.HomePath)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err, "failed to load tsh config from %s",
-			filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath))
+	fullConfigPath := filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath)
+	confOptions, err := loadConfig(fullConfigPath)
+	if err != nil {
+		return trace.Wrap(err, "failed to load tsh config from %s", fullConfigPath)
 	}
-	if confOptions != nil {
-		cf.ExtraProxyHeaders = confOptions.ExtraHeaders
-	}
+	cf.ExtraProxyHeaders = confOptions.ExtraHeaders
 
 	switch command {
 	case ver.FullCommand():
