@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
@@ -26,6 +27,16 @@ import (
 func TestLoadConfigNonExistingFile(t *testing.T) {
 	fullFilePath := "/tmp/doesntexist." + uuid.NewString()
 	gotConfig, gotErr := loadConfig(fullFilePath)
+	require.NoError(t, gotErr)
+	require.Equal(t, &TshConfig{}, gotConfig)
+}
+
+func TestLoadConfigEmptyFile(t *testing.T) {
+	file, err := os.CreateTemp("", "test-telelport")
+	require.NoError(t, err)
+	defer os.Remove(file.Name())
+
+	gotConfig, gotErr := loadConfig(file.Name())
 	require.NoError(t, gotErr)
 	require.Equal(t, &TshConfig{}, gotConfig)
 }
