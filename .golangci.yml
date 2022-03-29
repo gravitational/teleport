@@ -40,12 +40,5 @@ output:
   uniq-by-line: false
 
 run:
-  build-tags:
-    # - bpf         # confuses linter and breaks compilation
-    - desktop_access_rdp
-    - fips
-    - libfido2
-    - pam
-    - roletester
   skip-dirs-use-default: false
   timeout: 5m
