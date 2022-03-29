@@ -40,5 +40,7 @@ output:
   uniq-by-line: false
 
 run:
+  build-tags:
+    - libfido2
   skip-dirs-use-default: false
   timeout: 5m
