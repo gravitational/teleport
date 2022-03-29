@@ -19,6 +19,8 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +32,7 @@ import (
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
@@ -83,7 +86,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 			lp := createAWSAccessProxySuite(t, tc.proxyCred)
 
 			url := url.URL{
-				Scheme: "http",
+				Scheme: "https",
 				Host:   lp.GetAddr(),
 				Path:   "/",
 			}
@@ -96,28 +99,48 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 				v4.NewSigner(tc.originCred).Sign(req, pr, awsRegion, awsService, time.Now())
 			}
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpsClient().Do(req)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantStatus, resp.StatusCode)
 			require.NoError(t, resp.Body.Close())
+
+			t.Run("forward proxy", func(t *testing.T) {
+				url.Host = "test.service.localhost.amazonaws.com:443"
+
+				req, err := http.NewRequest(http.MethodGet, url.String(), pr)
+				require.NoError(t, err)
+
+				if tc.originCred != nil {
+					v4.NewSigner(tc.originCred).Sign(req, pr, awsRegion, awsService, time.Now())
+				}
+
+				resp, err := httpsClientWithProxyURL(lp.GetForwardProxyAddr()).Do(req)
+				require.NoError(t, err)
+				require.Equal(t, tc.wantStatus, resp.StatusCode)
+				if resp.StatusCode == http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					require.NoError(t, err)
+					require.Equal(t, "test.service.localhost.amazonaws.com", string(body))
+				}
+				require.NoError(t, resp.Body.Close())
+			})
 		})
 	}
 }
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
-	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
-	listener := mustCreateListener(t)
-	t.Cleanup(func() {
-		listener.Close()
-	})
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Write([]byte(request.Header.Get("X-Forwarded-Host")))
+	}))
 
 	lp, err := NewLocalProxy(LocalProxyConfig{
-		Listener:           listener,
-		RemoteProxyAddr:    hs.Listener.Addr().String(),
-		Protocol:           common.ProtocolHTTP,
-		ParentContext:      context.Background(),
-		InsecureSkipVerify: true,
-		AWSCredentials:     cred,
+		Listener:             mustCreateHTTPSListenerReceiverForAWS(t),
+		ForwardProxyListener: mustCreateListener(t),
+		RemoteProxyAddr:      hs.Listener.Addr().String(),
+		Protocol:             common.ProtocolHTTP,
+		ParentContext:        context.Background(),
+		InsecureSkipVerify:   true,
+		AWSCredentials:       cred,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -134,5 +157,45 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 func mustCreateListener(t *testing.T) net.Listener {
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
 	return listener
+}
+
+func mustCreateHTTPSListenerReceiverForAWS(t *testing.T) net.Listener {
+	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	listener, err := NewHTTPSListenerReceiverForAWS(HTTPSListenerReceiverConfig{
+		CA:         cert,
+		ListenAddr: "localhost:0",
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
+func httpsClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+}
+
+func httpsClientWithProxyURL(proxyAddr string) *http.Client {
+	proxyURL := &url.URL{
+		Scheme: "http",
+		Host:   proxyAddr,
+	}
+	client := httpsClient()
+	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
+	return client
 }

@@ -354,7 +354,10 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 			return
 		}
 
-		// Note that ReverseProxy automatically adds "X-Forwarded-Host" header.
+		if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
+			req.Header.Set("X-Forwarded-Host", req.Host)
+		}
+
 		proxy.ServeHTTP(rw, req)
 	}))
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
@@ -370,6 +373,7 @@ func (l *LocalProxy) startForwardProxy(receiver ForwardProxyReceiver) error {
 		Listener:            l.cfg.ForwardProxyListener,
 		Receivers:           []ForwardProxyReceiver{receiver},
 		InsecureSystemProxy: l.cfg.InsecureSkipVerify,
+		CloseContext:        l.context,
 	})
 	if err != nil {
 		return trace.Wrap(err)

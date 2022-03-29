@@ -38,8 +38,8 @@ type ForwardProxyReceiver interface {
 	// Want returns whether the request should be forwarded to this receiver.
 	Want(req *http.Request) (wanted bool)
 
-	// GetAddr returns the listener's network address.
-	GetAddr() string
+	// Addr returns the listener's network address.
+	Addr() net.Addr
 }
 
 // HTTPSListenerReceiverConfig is the config for a HTTPS listener receiver.
@@ -115,17 +115,6 @@ func NewHTTPSListenerReceiverForAWS(config HTTPSListenerReceiverConfig) (*HTTPSL
 		return awsapiutils.IsAWSEndpoint(req.Host)
 	}
 	return NewHTTPSListenerReceiver(config)
-}
-
-// GetListener returns the HTTPS listener.
-func (r *HTTPSListenerReceiver) GetListener() net.Listener {
-	return r.Listener
-}
-
-// GetAddr returns the listener's network address. Implements
-// ForwardProxyReceiver.
-func (r *HTTPSListenerReceiver) GetAddr() string {
-	return r.Listener.Addr().String()
 }
 
 // Want returns whether the request should be forwarded to this receiver.

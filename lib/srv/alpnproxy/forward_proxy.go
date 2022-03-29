@@ -17,6 +17,7 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -48,7 +49,7 @@ type ForwardProxyConfig struct {
 	Listener net.Listener
 	// Receivers is a list of receivers that receive from this proxy.
 	Receivers []ForwardProxyReceiver
-	// DropUnwantedRequest drops the request if no receivers want the request.
+	// DropUnwantedRequest drops the request if no receiver wants the request.
 	// If false, forward proxy sends the request to original host.
 	DropUnwantedRequest bool
 	// InsecureSystemProxy allows insecure system proxy when forwarding
@@ -56,6 +57,8 @@ type ForwardProxyConfig struct {
 	InsecureSystemProxy bool
 	// Log is the logger.
 	Log logrus.FieldLogger
+	// CloseContext is the parent context.
+	CloseContext context.Context
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -68,6 +71,9 @@ func (c *ForwardProxyConfig) CheckAndSetDefaults() error {
 	}
 	if c.Listener == nil {
 		return trace.BadParameter("missing listener")
+	}
+	if c.CloseContext == nil {
+		return trace.BadParameter("missing clsoe context")
 	}
 	if c.Log == nil {
 		c.Log = logrus.WithField(trace.Component, "fwdproxy")
@@ -86,12 +92,13 @@ func NewForwardProxy(cfg ForwardProxyConfig) (*ForwardProxy, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &ForwardProxy{
 		cfg: cfg,
 	}, nil
 }
 
-// Start starts serving the requests.
+// Start starts serving requests.
 func (p *ForwardProxy) Start() error {
 	err := http.Serve(p.cfg.Listener, p)
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
@@ -100,12 +107,7 @@ func (p *ForwardProxy) Start() error {
 	return nil
 }
 
-// GetAddr returns the listener address.
-func (p *ForwardProxy) GetAddr() string {
-	return p.cfg.Listener.Addr().String()
-}
-
-// Close closes the server.
+// Close closes the forward proxy.
 func (p *ForwardProxy) Close() error {
 	if err := p.cfg.Listener.Close(); err != nil {
 		return trace.Wrap(err)
@@ -113,8 +115,9 @@ func (p *ForwardProxy) Close() error {
 	return nil
 }
 
-// ServeHTTP serves the HTTP request. Implements http.Handler.
+// ServeHTTP serves HTTP requests. Implements http.Handler.
 func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	// Only requests through HTTP connect tunnel is allowed.
 	if !IsConnectRequest(req) {
 		rw.WriteHeader(http.StatusBadRequest)
 		return
@@ -130,7 +133,7 @@ func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	for _, receiver := range p.cfg.Receivers {
 		if receiver.Want(req) {
-			err := p.forwardClientToHost(clientConn, receiver.GetAddr(), req)
+			err := p.forwardClientToHost(clientConn, receiver.Addr().String(), req)
 			if err != nil {
 				p.cfg.Log.WithError(err).Errorf("Failed to handle forward request for %q.", req.Host)
 				writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
@@ -142,7 +145,7 @@ func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	p.handleUnwantedRequest(clientConn, req)
 }
 
-// handleUnwantedRequest handles the request when no receivers want it.
+// handleUnwantedRequest handles the request when no receiver wants it.
 func (p *ForwardProxy) handleUnwantedRequest(clientConn net.Conn, req *http.Request) {
 	if p.cfg.DropUnwantedRequest {
 		p.cfg.Log.Debugf("Dropped forward request for %q.", req.Host)
@@ -229,12 +232,31 @@ func (p *ForwardProxy) forwardClientToSystemProxy(clientConn net.Conn, systemPro
 
 // startTunnel starts streaming between client and remote server.
 func (p *ForwardProxy) startTunnel(clientConn, serverConn net.Conn, req *http.Request) error {
-	p.cfg.Log.Debugf("Starting forwarding request for %q", req.Host)
+	p.cfg.Log.Debugf("Started forwarding request for %q", req.Host)
+	defer p.cfg.Log.Debugf("Stopped forwarding request for %q", req.Host)
 
+	go func() {
+		<-p.cfg.CloseContext.Done()
+
+		err := clientConn.Close()
+		if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			p.cfg.Log.WithError(err).Errorf("Failed to close client connection")
+		}
+
+		err = serverConn.Close()
+		if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			p.cfg.Log.WithError(err).Errorf("Failed to close server connection")
+		}
+	}()
+
+	errsChan := make(chan error, 2)
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	stream := func(reader, writer net.Conn) {
-		_, _ = io.Copy(reader, writer)
+		_, err := io.Copy(reader, writer)
+		if err != io.EOF {
+			errsChan <- err
+		}
 		if readerConn, ok := reader.(*net.TCPConn); ok {
 			readerConn.CloseRead()
 		}
@@ -246,7 +268,12 @@ func (p *ForwardProxy) startTunnel(clientConn, serverConn net.Conn, req *http.Re
 	go stream(clientConn, serverConn)
 	go stream(serverConn, clientConn)
 	wg.Wait()
-	return nil
+
+	var errs []error
+	for len(errsChan) > 2 {
+		errs = append(errs, <-errsChan)
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // hijackClientConnection hijacks client connection.
