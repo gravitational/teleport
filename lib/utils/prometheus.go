@@ -17,11 +17,11 @@ limitations under the License.
 package utils
 
 import (
-	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"runtime"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

@@ -18,23 +18,23 @@ package service
 
 import (
 	"crypto/tls"
-	"github.com/gravitational/teleport/api/metadata"
-	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
-	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/grpc"
 	"math"
 	"path/filepath"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	mw "github.com/grpc-ecosystem/go-grpc-middleware/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
