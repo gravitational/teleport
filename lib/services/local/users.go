@@ -1216,9 +1216,9 @@ func (s *IdentityService) GetSAMLAuthRequest(id string) (*services.SAMLAuthReque
 }
 
 // TraceSAMLDiagnosticInfo creates new SAML diagnostic info record.
-func (s *IdentityService) TraceSAMLDiagnosticInfo(ctx context.Context, authRequestId string, key string, value interface{}, extraInfo ...interface{}) error {
-	if authRequestId == "" {
-		return trace.BadParameter("missing parameter authRequestId")
+func (s *IdentityService) TraceSAMLDiagnosticInfo(ctx context.Context, authRequestID string, key string, value interface{}, extraInfo ...interface{}) error {
+	if authRequestID == "" {
+		return trace.BadParameter("missing parameter authRequestID")
 	}
 	jsonValue, err := json.Marshal(types.SsoDiagInfoEntry{
 		Key:       key,
@@ -1230,7 +1230,7 @@ func (s *IdentityService) TraceSAMLDiagnosticInfo(ctx context.Context, authReque
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsTracePrefix, authRequestId, uuid.New().String()),
+		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsTracePrefix, authRequestID, uuid.New().String()),
 		Value:   jsonValue,
 		Expires: backend.Expiry(s.Clock(), time.Minute*15),
 	}
@@ -1242,12 +1242,12 @@ func (s *IdentityService) TraceSAMLDiagnosticInfo(ctx context.Context, authReque
 }
 
 // GetSAMLDiagnosticInfo returns SAML diagnostic info records.
-func (s *IdentityService) GetSAMLDiagnosticInfo(ctx context.Context, authRequestId string) (map[string]types.SsoDiagInfoEntry, error) {
-	if authRequestId == "" {
+func (s *IdentityService) GetSAMLDiagnosticInfo(ctx context.Context, authRequestID string) (map[string]types.SsoDiagInfoEntry, error) {
+	if authRequestID == "" {
 		return nil, trace.BadParameter("missing parameter id")
 	}
 
-	startKey := backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsTracePrefix, authRequestId)
+	startKey := backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsTracePrefix, authRequestID)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
