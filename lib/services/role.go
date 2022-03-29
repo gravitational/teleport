@@ -727,6 +727,9 @@ type AccessChecker interface {
 
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
+
+	// Audit returns the audit mode to apply with this checker.
+	Audit() constants.AuditMode
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1962,6 +1965,20 @@ func (set RoleSet) CertificateFormat() string {
 	})
 
 	return formats[0]
+}
+
+
+// Audit returns the audit mode to apply with this RoleSet. If at least one role
+// has it set to "strict" then the RoleSet will return "strict". Otherwise, it
+// returns "best effort".
+func (set RoleSet) Audit() constants.AuditMode {
+	for _, role := range set {
+		if role.GetOptions().Audit == constants.AuditModeStrict {
+			return constants.AuditModeStrict
+		}
+	}
+
+	return constants.AuditModeBestEffort
 }
 
 // EnhancedRecordingSet returns the set of enhanced session recording

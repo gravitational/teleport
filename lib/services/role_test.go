@@ -193,6 +193,7 @@ func TestRoleParse(t *testing.T) {
 						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:               apidefaults.EnhancedEvents(),
 						DesktopClipboard:  types.NewBoolOption(true),
+						Audit:             constants.AuditModeStrict,
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -226,6 +227,7 @@ func TestRoleParse(t *testing.T) {
 						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:               apidefaults.EnhancedEvents(),
 						DesktopClipboard:  types.NewBoolOption(true),
+						Audit:             constants.AuditModeStrict,
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -251,7 +253,8 @@ func TestRoleParse(t *testing.T) {
 							"client_idle_timeout": "17m",
 							"disconnect_expired_cert": "yes",
 							"enhanced_recording": ["command", "network"],
-							"desktop_clipboard": true
+							"desktop_clipboard": true,
+							"audit": "best_effort"
 						},
 						"allow": {
 							"node_labels": {"a": "b", "c-d": "e"},
@@ -295,6 +298,7 @@ func TestRoleParse(t *testing.T) {
 						DisconnectExpiredCert: types.NewBool(true),
 						BPF:                   apidefaults.EnhancedEvents(),
 						DesktopClipboard:      types.NewBoolOption(true),
+						Audit:                 constants.AuditModeBestEffort,
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -338,7 +342,8 @@ func TestRoleParse(t *testing.T) {
 							  "client_idle_timeout": "never",
 							  "disconnect_expired_cert": "no",
 							  "enhanced_recording": ["command", "network"],
-							  "desktop_clipboard": true
+							  "desktop_clipboard": true,
+							  "audit": "best_effort"
 							},
 							"allow": {
 							  "node_labels": {"a": "b"},
@@ -380,6 +385,7 @@ func TestRoleParse(t *testing.T) {
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
 						DesktopClipboard:      types.NewBoolOption(true),
+						Audit:                 constants.AuditModeBestEffort,
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -421,7 +427,8 @@ func TestRoleParse(t *testing.T) {
 							  "client_idle_timeout": "never",
 							  "disconnect_expired_cert": "no",
 							  "enhanced_recording": ["command", "network"],
-							  "desktop_clipboard": true
+							  "desktop_clipboard": true,
+							  "audit": "best_effort"
 							},
 							"allow": {
 							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
@@ -452,6 +459,7 @@ func TestRoleParse(t *testing.T) {
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
 						DesktopClipboard:      types.NewBoolOption(true),
+						Audit:                 constants.AuditModeBestEffort,
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
@@ -3988,6 +3996,41 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 
 			require.ElementsMatch(t, tc.wantUsers, gotUsers)
 			require.ElementsMatch(t, tc.wantGroups, gotGroups)
+		})
+	}
+}
+
+func TestAudit(t *testing.T) {
+	roleWithAudit := func(mode constants.AuditMode) *types.RoleV5 {
+		return &types.RoleV5{
+			Spec: types.RoleSpecV5{Options: types.RoleOptions{Audit: mode}},
+		}
+	}
+
+	tests := map[string]struct {
+		expectedMode constants.AuditMode
+		roleSet      RoleSet
+	}{
+		"SingleStrictMode": {
+			expectedMode: constants.AuditModeStrict,
+			roleSet: RoleSet{
+				roleWithAudit(constants.AuditModeBestEffort),
+				roleWithAudit(constants.AuditModeStrict),
+				roleWithAudit(constants.AuditModeBestEffort),
+			},
+		},
+		"BestEffortMode": {
+			expectedMode: constants.AuditModeBestEffort,
+			roleSet: RoleSet{
+				roleWithAudit(constants.AuditModeBestEffort),
+				roleWithAudit(constants.AuditModeBestEffort),
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, test.expectedMode, test.roleSet.Audit())
 		})
 	}
 }

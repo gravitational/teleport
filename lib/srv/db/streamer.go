@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -90,7 +91,7 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig ty
 			return nil, trace.Wrap(err)
 		}
 	}
-	fileStreamer, err := filesessions.NewStreamer(uploadDir)
+	fileStreamer, err := filesessions.NewStreamer(uploadDir, constants.AuditModeStrict)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

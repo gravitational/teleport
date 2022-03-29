@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -36,9 +37,10 @@ import (
 )
 
 // NewStreamer creates a streamer sending uploads to disk
-func NewStreamer(dir string) (*events.ProtoStreamer, error) {
+func NewStreamer(dir string, auditMode constants.AuditMode) (*events.ProtoStreamer, error) {
 	handler, err := NewHandler(Config{
 		Directory: dir,
+		AuditMode: auditMode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -51,8 +53,8 @@ func NewStreamer(dir string) (*events.ProtoStreamer, error) {
 
 // CreateUpload creates a multipart upload
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
-	if err := os.MkdirAll(h.uploadsPath(), teleport.PrivateDirMode); err != nil {
-		return nil, trace.ConvertSystemError(err)
+	if err := h.mkdirAll(h.uploadsPath()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	upload := events.StreamUpload{
@@ -63,7 +65,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 		return nil, trace.Wrap(err)
 	}
 
-	if err := os.MkdirAll(h.uploadPath(upload), teleport.PrivateDirMode); err != nil {
+	if err := h.mkdirAll(h.uploadPath(upload)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -275,6 +277,27 @@ func (h *Handler) uploadPath(upload events.StreamUpload) string {
 
 func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string {
 	return filepath.Join(h.uploadPath(upload), partFileName(partNumber))
+}
+
+// mkdirAll creates a private directory in the provided `path`.
+func (h *Handler) mkdirAll(path string) error {
+	err := h.MkdirAllFunc(path, teleport.PrivateDirMode)
+	if err != nil {
+		// If the handler is in "best effort" mode, the function will return
+		// without error even if the mkdir function fails.
+		if h.AuditMode == constants.AuditModeBestEffort {
+			h.WithError(err).Warningf(
+				"Failed to create session directory %q.",
+				path,
+			)
+
+			return nil
+		}
+
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func partFileName(partNumber int64) string {

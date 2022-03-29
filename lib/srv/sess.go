@@ -1253,7 +1253,10 @@ func (s *session) newStreamer(ctx *ServerContext) (events.Streamer, error) {
 		return ctx.srv, nil
 	}
 	s.log.Debugf("Using async streamer for session %v.", s.id)
-	fileStreamer, err := filesessions.NewStreamer(sessionsStreamingUploadDir(ctx))
+	fileStreamer, err := filesessions.NewStreamer(
+		sessionsStreamingUploadDir(ctx),
+		ctx.Identity.RoleSet.Audit(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

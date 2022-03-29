@@ -732,7 +732,7 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
 		events.StreamingLogsDir, apidefaults.Namespace,
 	)
-	fileStreamer, err := filesessions.NewStreamer(dir)
+	fileStreamer, err := filesessions.NewStreamer(dir, constants.AuditModeStrict)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

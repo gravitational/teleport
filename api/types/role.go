@@ -640,6 +640,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if r.Spec.Options.DesktopClipboard == nil {
 		r.Spec.Options.DesktopClipboard = NewBoolOption(true)
 	}
+	if r.Spec.Options.Audit == "" {
+		r.Spec.Options.Audit = constants.AuditModeStrict
+	}
 
 	switch r.Version {
 	case V3:

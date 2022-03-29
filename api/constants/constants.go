@@ -201,3 +201,17 @@ const (
 	// when HTTPS_PROXY or HTTP_PROXY is ignored
 	NoProxy = "NO_PROXY"
 )
+
+// AuditMode determines how failures should be tolerated within audit events and
+// session recordings.
+type AuditMode string
+
+const (
+	// AuditModeStrict causes the session not to start when there is a failure
+	// on audit events.
+	AuditModeStrict = "strict"
+
+	// AuditModeBestEffort tolerates audit events failures, not preventing a
+	// session from starting.
+	AuditModeBestEffort = "best_effort"
+)

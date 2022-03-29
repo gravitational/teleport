@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,6 +40,10 @@ type Config struct {
 	Directory string
 	// OnBeforeComplete can be used to inject failures during tests
 	OnBeforeComplete func(ctx context.Context, upload events.StreamUpload) error
+	// AuditMode indicates in which audit mode the handler is.
+	AuditMode constants.AuditMode
+	// MkdirAllFunc function that creates a directory and its subdirectories.
+	MkdirAllFunc utils.MkdirAllFunc
 }
 
 // nopBeforeComplete does nothing
@@ -56,6 +61,9 @@ func (s *Config) CheckAndSetDefaults() error {
 	}
 	if s.OnBeforeComplete == nil {
 		s.OnBeforeComplete = nopBeforeComplete
+	}
+	if s.MkdirAllFunc == nil {
+		s.MkdirAllFunc = utils.MkdirAll
 	}
 	return nil
 }

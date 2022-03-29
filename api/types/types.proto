@@ -1577,6 +1577,13 @@ message RoleOptions {
     // CertExtensions specifies the key/values
     repeated CertExtension CertExtensions = 17
         [ (gogoproto.jsontag) = "cert_extensions,omitempty" ];
+
+    // Audit specifies the audit mode (strict|best_effort) to be applied to with
+    // the role.
+    string Audit = 18 [
+        (gogoproto.jsontag) = "audit,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.AuditMode"
+    ];
 }
 
 message RecordSession {

@@ -42,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -435,7 +436,7 @@ func (s *WindowsService) newStreamer(ctx context.Context, recConfig types.Sessio
 		return nil, trace.Wrap(err)
 	}
 
-	fileStreamer, err := filesessions.NewStreamer(uploadDir)
+	fileStreamer, err := filesessions.NewStreamer(uploadDir, constants.AuditModeStrict)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

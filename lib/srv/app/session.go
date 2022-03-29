@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -185,7 +186,7 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, recConfig ty
 		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
 		events.StreamingLogsDir, apidefaults.Namespace,
 	)
-	fileStreamer, err := filesessions.NewStreamer(uploadDir)
+	fileStreamer, err := filesessions.NewStreamer(uploadDir, constants.AuditModeStrict)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

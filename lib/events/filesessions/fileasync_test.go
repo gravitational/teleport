@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -45,7 +46,7 @@ func TestUploadOK(t *testing.T) {
 	// wait until uploader blocks on the clock
 	p.clock.BlockUntil(1)
 
-	fileStreamer, err := NewStreamer(p.scanDir)
+	fileStreamer, err := NewStreamer(p.scanDir, constants.AuditModeStrict)
 	require.Nil(t, err)
 
 	inEvents := events.GenerateTestSession(events.SessionParams{PrintEvents: 1024})
@@ -83,7 +84,7 @@ func TestUploadParallel(t *testing.T) {
 	sessions := make(map[string][]apievents.AuditEvent)
 
 	for i := 0; i < 5; i++ {
-		fileStreamer, err := NewStreamer(p.scanDir)
+		fileStreamer, err := NewStreamer(p.scanDir, constants.AuditModeStrict)
 		require.Nil(t, err)
 
 		sessionEvents := events.GenerateTestSession(events.SessionParams{PrintEvents: 1024})
@@ -326,7 +327,7 @@ func TestUploadBackoff(t *testing.T) {
 	// wait until uploader blocks on the clock before creating the stream
 	p.clock.BlockUntil(1)
 
-	fileStreamer, err := NewStreamer(p.scanDir)
+	fileStreamer, err := NewStreamer(p.scanDir, constants.AuditModeStrict)
 	require.NoError(t, err)
 
 	inEvents := events.GenerateTestSession(events.SessionParams{PrintEvents: 4096})
@@ -530,7 +531,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 
 	defer uploader.Close()
 
-	fileStreamer, err := NewStreamer(scanDir)
+	fileStreamer, err := NewStreamer(scanDir, constants.AuditModeStrict)
 	require.Nil(t, err)
 
 	inEvents := events.GenerateTestSession(events.SessionParams{PrintEvents: 1024})

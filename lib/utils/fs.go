@@ -55,6 +55,9 @@ func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string
 	return customPath, nil
 }
 
+// MkdirAllFunc function that creates a directory and its subdirectories.
+type MkdirAllFunc func(targetDirectory string, mode os.FileMode) error
+
 // MkdirAll creates directory and subdirectories
 func MkdirAll(targetDirectory string, mode os.FileMode) error {
 	err := os.MkdirAll(targetDirectory, mode)
