@@ -28,7 +28,7 @@ function AppLoader() {
   useEffect(() => {
     run();
   }, []);
-  if (status === 'success') {
+  if (status === 'success' || status === 'error') {
     return <App ctx={appContext} />;
   }
   return <div>Loading</div>;
