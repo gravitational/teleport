@@ -21,18 +21,22 @@ This guide will help you to:
 
 ## Prerequisites
 
-- Teleport version `(=teleport.version=)` or higher.
-- CockroachDB cluster. Start a single or a multi-node local cluster in
-  [Docker](https://www.cockroachlabs.com/docs/v21.1/start-a-local-cluster-in-docker-mac.html)
-  if you don't have one.
+- CockroachDB cluster.
+
+- A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
+  Service.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Install and configure Teleport
 
-### Set up Teleport Auth and Proxy Services
+### Set up the Teleport Auth and Proxy Services
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-### Set up Teleport Database Service
+### Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 <Tabs>
@@ -48,8 +52,16 @@ $ teleport db start \
   --uri=roach.example.com:26257 \
   --labels=env=dev
 ```
+
+<Admonition type="note">
+  The `--auth-server` flag must point to the Teleport cluster's Proxy Service endpoint
+  because the Database Service always connects back to the cluster over a reverse
+  tunnel.
+</Admonition>
+
 </TabItem>
 <TabItem label="Teleport Cloud" scope={["cloud"]}>
+
 Start the Teleport Database Service, pointing the `--auth-server` flag at the address of your Teleport Cloud tenant, e.g., `mytenant.teleport.sh`.
 
 ```code
@@ -61,14 +73,10 @@ $ teleport db start \
   --uri=roach.example.com:26257 \
   --labels=env=dev
 ```
+
 </TabItem>
 </Tabs>
 
-<Admonition type="note">
-  The `--auth-server` flag must point to the Teleport cluster's proxy endpoint
-  because the Database Service always connects back to the cluster over a reverse
-  tunnel.
-</Admonition>
 
 <Admonition type="tip">
   You can start the Database Service using a configuration file instead of CLI flags.
@@ -95,9 +103,11 @@ mandates client certificate auth.
 
 Make sure to assign the user proper permissions within the database cluster.
 Refer to [Create User](https://www.cockroachlabs.com/docs/stable/create-user.html)
-in Cockroach docs for more information.
+in the CockroachDB documentation for more information.
 
 ### Set up mutual TLS
+
+(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
 To set up mutual TLS authentication, you need to make sure that:
 
@@ -138,7 +148,7 @@ $ cockroach start \
 
 ## Step 3/3. Connect
 
-Log into your Teleport cluster. Your CockroachDB cluster should appear in the
+Log in to your Teleport cluster. Your CockroachDB cluster should appear in the
 list of available databases:
 
 <Tabs>
@@ -186,7 +196,7 @@ $ tsh db connect roach
 ```
 
 <Admonition type="note">
-  Either the `cockroach` or `psql` command-line client should be available in PATH
+  Either the `cockroach` or `psql` command-line client should be available in `PATH`
   in order to be able to connect.
 </Admonition>
 

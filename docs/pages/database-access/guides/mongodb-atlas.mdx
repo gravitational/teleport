@@ -4,8 +4,6 @@ description: How to configure Teleport Database Access with MongoDB Atlas.
 videoBanner: mu_ZKTjnFJ8
 ---
 
-# MongoDB Atlas
-
 In this guide you will:
 
 1. Configure Teleport for accessing your MongoDB Atlas cluster.
@@ -14,12 +12,18 @@ In this guide you will:
 
 ## Prerequisites
 
-- Teleport version `(=teleport.version=)` or newer.
 - [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster.
+
+- A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
+  Service.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Configure Teleport
 
-### Set up Teleport Auth and Proxy services
+### Set up the Teleport Auth and Proxy services
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
@@ -27,9 +31,15 @@ In this guide you will:
 
 (!docs/pages/includes/database-access/token.mdx!)
 
+Next, start the Database Service.
+
+<ScopedBlock scope={["enterprise","oss"]}>
+
 <Tabs>
-<TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
-Start the Teleport Database Service, pointing the `--auth-server` flag at the address of your Teleport Proxy Service:
+<TabItem label="Teleport CLI">
+
+On the node where you will run the Database Service, start Teleport, pointing
+the `--auth-server` flag at the address of your Teleport Proxy Service:
 
 ```code
 $ teleport db start \
@@ -38,43 +48,22 @@ $ teleport db start \
   --name=mongodb-atlas \
   --protocol=mongodb \
   --uri=mongodb+srv://cluster0.abcde.mongodb.net \
-  --ca-cert=/path/to/letsencrypt/isrgrootx1.pem
+  --ca-cert=/path/to/letsencrypt/isrgrootx1.pem \
   --labels=env=dev
 ```
-
-</TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
-Start the Teleport Database Service, pointing the `--auth-server` flag at the address of your Teleport Cloud tenant, e.g., `mytenant.teleport.sh`.
-
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh \
-  --name=mongodb-atlas \
-  --protocol=mongodb \
-  --uri=mongodb+srv://cluster0.abcde.mongodb.net \
-  --ca-cert=/path/to/letsencrypt/isrgrootx1.pem
-  --labels=env=dev
-```
-
-</TabItem>
-</Tabs>
-
-See below for details on `--uri` and `--ca-cert` flags.
 
 <Admonition type="note">
-  The `--auth-server` flag must point to the Teleport cluster's proxy endpoint
+  The `--auth-server` flag must point to the Teleport cluster's Proxy Service endpoint
   because the Database Service always connects back to the cluster over a reverse
   tunnel.
 </Admonition>
 
-#### Configuration file
+</TabItem>
+<TabItem label="Configuration file">
 
-If you're starting the Database Agent with a YAML configuration instead of CLI flags,
-the following config is equivalent to the `teleport db start` command shown earlier:
+On the node where you will run the Teleport Database Service, run
+`teleport db start` with the following in `/etc/teleport.yaml`:
 
-<Tabs>
-<TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
 ```yaml
 teleport:
   auth_token: "/tmp/token"
@@ -90,8 +79,38 @@ db_service:
     static_labels:
       env: "dev"
 ```
+
+See the full [YAML reference](../reference/configuration.mdx) for details.
+
 </TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
+</Tabs>
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud"]}>
+<Tabs>
+<TabItem label="Teleport CLI">
+
+On the node where you will run the Database Service, start Teleport, pointing the
+`--auth-server` flag at the address of your Teleport Cloud tenant, e.g.,
+`mytenant.teleport.sh`.
+
+```code
+$ teleport db start \
+  --token=/tmp/token \
+  --auth-server=mytenant.teleport.sh \
+  --name=mongodb-atlas \
+  --protocol=mongodb \
+  --uri=mongodb+srv://cluster0.abcde.mongodb.net \
+  --ca-cert=/path/to/letsencrypt/isrgrootx1.pem \
+  --labels=env=dev
+```
+
+</TabItem>
+<TabItem label="Configuration file">
+
+On the node where you will run the Teleport Database Service, run
+`teleport db start` with the following in `/etc/teleport.yaml`:
+
 ```yaml
 teleport:
   auth_token: "/tmp/token"
@@ -107,10 +126,14 @@ db_service:
     static_labels:
       env: "dev"
 ```
-</TabItem>
-</Tabs>
 
 See the full [YAML reference](../reference/configuration.mdx) for details.
+
+</TabItem>
+</Tabs>
+</ScopedBlock>
+
+See below for details on how to configure the Teleport Database Service.
 
 #### Connection endpoint
 
@@ -133,7 +156,8 @@ $ --uri=mongodb+srv://cluster0.abcde.mongodb.net
 
 MongoDB Atlas uses certificates signed by Let's Encrypt.
 
-Download the Let's Encrypt root certificate and use it as a CA in the database service configuration:
+Download the Let's Encrypt root certificate and use it as a CA in the Database
+Service configuration:
 
 ```code
 $ curl -o /tmp/isrgrootx1.pem https://letsencrypt.org/certs/isrgrootx1.pem.txt
@@ -223,7 +247,7 @@ $ tsh db login mongodb-atlas
 ```
 
 <Admonition type="tip">
-  You can be logged into multiple databases simultaneously.
+  You can be logged in to multiple databases simultaneously.
 </Admonition>
 
 You can optionally specify the database name and the user to use by default
@@ -239,12 +263,10 @@ Once logged in, connect to the database:
 $ tsh db connect mongodb-atlas
 ```
 
-<Admonition type="note" title="Note">
-  Either the `mongosh` or `mongo` command-line clients should be available in PATH in order to be
-  able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in PATH, runs `mongo`.
-</Admonition>
+<Admonition type="note" title="Preparing your client environment">
+  Either the `mongosh` or `mongo` command-line clients should be available in `PATH` in order to be
+  able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in `PATH`, runs `mongo`.
 
-<Admonition type="note" title="Note">
   Teleport 9.0 added support for `mongosh` and made it the default Mongo DB client.
 </Admonition>
 

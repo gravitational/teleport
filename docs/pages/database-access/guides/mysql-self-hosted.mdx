@@ -3,9 +3,30 @@ title: Database Access with Self-Hosted MySQL/MariaDB
 description: How to configure Teleport Database Access with self-hosted MySQL/MariaDB.
 ---
 
-# Self-Hosted MySQL/MariaDB
+This guide will show you how to access a self-hosted MySQL or MariaDB database
+using the Teleport Database Service.
 
-## Create Certificate/Key Pair
+## Prerequisites
+
+- A self-hosted MySQL or MariaDB instance.
+
+- A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
+  Service.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Step 1/4. Set up the Teleport Auth and Proxy Services
+
+Teleport Database Access for MySQL is available starting from Teleport version
+`6.0` and MariaDB starting from version `9.0`.
+
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+
+(!docs/pages/includes/database-access/token.mdx!)
+
+## Step 2/4. Create a certificate/key pair
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
@@ -22,12 +43,12 @@ $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 The command will create 3 files: `server.cas`, `server.crt` and `server.key`
 which you'll need to enable mutual TLS on your MySQL server.
 
-## Configure MySQL/MariaDB Server
+## Step 3/4. Configure MySQL/MariaDB
 
 <Tabs>
   <TabItem label="MySQL">
-  To configure MySQL server to accept TLS connections, add the following to
-MySQL configuration file `mysql.cnf`:
+  To configure MySQL to accept TLS connections, add the following to your
+MySQL configuration file, `mysql.cnf`:
 
 ```conf
 [mysqld]
@@ -38,8 +59,8 @@ ssl-key=/path/to/server.key
 ```
   </TabItem>
   <TabItem label="MariaDB">
-  To configure MariaDB server to accept TLS connections, add the following to
-MariaDB configuration file `mysql.cnf`:
+  To configure MariaDB to accept TLS connections, add the following to your
+MariaDB configuration file, `mysql.cnf`:
 
 ```conf
 [mariadb]
@@ -51,7 +72,7 @@ ssl-key=/path/to/server.key
   </TabItem>
 </Tabs>
 
-Additionally, MySQL/MariaDB database user accounts must be configured to require a
+Additionally, your MySQL/MariaDB database user accounts must be configured to require a
 valid client certificate. If you're creating a new user:
 
 ```sql
@@ -64,25 +85,20 @@ If you're updating an existing user:
 ALTER USER 'alice'@'%' REQUIRE SUBJECT '/CN=alice';
 ```
 
-By default the created user may not have access to anything and won't be able
-to connect so let's grant it some permissions:
+By default, the created user may not have access to anything and won't be able
+to connect, so let's grant it some permissions:
 
 ```sql
 GRANT ALL ON `%`.* TO 'alice'@'%';
 ```
 
-See [Configuring MySQL to Use Encrypted Connections](https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html)
-in MySQL or [Enabling TLS on MariaDB Server](https://mariadb.com/docs/security/encryption/in-transit/enable-tls-server/) in MariaDB documentation for more details.
+See
+[Configuring MySQL to Use Encrypted Connections](https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html)
+in the MySQL documentation or
+[Enabling TLS on MariaDB Server](https://mariadb.com/docs/security/encryption/in-transit/enable-tls-server/)
+in the MariaDB documentation for more details.
 
-## Setup Teleport Auth and Proxy Services
-
-Teleport Database Access for MySQL is available starting from Teleport version `6.0` and MariaDB starting from version `9.0`.
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-(!docs/pages/includes/database-access/token.mdx!)
-
-### Create Role and User
+### Create a role and user
 
 Create the role that will allow a user to connect to any database using any
 database account:
@@ -110,10 +126,19 @@ Create the user assigned the `db` role we've just created:
 $ tctl --config=/path/to/teleport-db-role.yaml users add --roles=access,db testuser
 ```
 
-### Start Database Service with CLI Flags
+### Start the Database Service
 
-For a quick try-out, Teleport database service doesn't require a configuration
-file and can be launched using a single CLI command:
+You can configure Teleport to start the Database Service and access MySQL or
+MariaDB by running the `teleport` daemon either with CLI flags or a
+configuration file.
+
+<Tabs>
+<TabItem label="Using CLI flags">
+
+On the host where you will run the Teleport Database Service, run the following
+command:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ teleport db start \
@@ -125,13 +150,35 @@ $ teleport db start \
    --labels=env=dev
 ```
 
-Note that the `--auth-server` flag must point to the Teleport cluster's proxy endpoint
-because database service always connects back to the cluster over a reverse
-tunnel.
+Note that the `--auth-server` flag must point to the Teleport cluster's Proxy
+Service endpoint because Database Service always connects back to the cluster
+over a reverse tunnel.
 
-### Start Database Service with Config File
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
 
-Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+```code
+$ teleport db start \
+   --token=/tmp/token \
+   --auth-server=mytenant.teleport.sh \
+   --name=test \
+   --protocol=mysql \
+   --uri=mysql.example.com:3306 \
+   --labels=env=dev
+```
+
+Note that the `--auth-server` flag must point to your Teleport Cloud tenant
+address.
+
+</ScopedBlock>
+
+</TabItem>
+<TabItem label="Using a config file">
+
+On the host where you will run the Teleport Database Service, create a
+configuration file at `/etc/teleport.yaml`:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ teleport db configure create \
@@ -144,25 +191,47 @@ $ teleport db configure create \
    --labels=env=dev
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=mytenant.teleport.sh \
+   --name=test \
+   --protocol=mysql \
+   --uri=mysql.example.com:3306 \
+   --labels=env=dev
+```
+
+</ScopedBlock>
+
 <Admonition
   type="tip"
   title="Tip"
 >
-  A single Teleport process can run multiple different services, for example
-  multiple database access proxies as well as running other services such an
-  SSH service or an application access proxy.
+  A single Teleport process can run multiple services, for example
+  multiple Database Access instances as well as other services such the
+  SSH Service or Application Service.
 </Admonition>
 
-Start the database service:
+Start the Database Service:
 
 ```code
 $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
-## Connect
+</TabItem>
+</Tabs>
 
-Once the database service has joined the cluster, login to see the available
+
+## Step 4/4. Connect
+
+Once the Database Service has joined the cluster, log in to see the available
 databases:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=testuser
@@ -172,11 +241,24 @@ $ tsh db ls
 # example Example MySQL env=dev
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=testuser
+$ tsh db ls
+# Name    Description   Labels
+# ------- ------------- --------
+# example Example MySQL env=dev
+```
+
+</ScopedBlock>
+
 Note that you will only be able to see databases your role has access to. See
-[RBAC](../rbac.mdx) section for more details.
+the [RBAC](../rbac.mdx) guide for more details.
 
 To connect to a particular database server, first retrieve credentials from
-Teleport using `tsh db login` command:
+Teleport using the `tsh db login` command:
 
 ```code
 $ tsh db login example
@@ -186,7 +268,7 @@ $ tsh db login example
   type="tip"
   title="Tip"
 >
-  You can be logged into multiple databases simultaneously.
+  You can be logged in to multiple databases simultaneously.
 </Admonition>
 
 You can optionally specify the database name and the user to use by default
@@ -203,7 +285,7 @@ $ tsh db connect example
 ```
 
 <Admonition type="note" title="Note">
-  The `mysql` or `mariadb` command-line client should be available in PATH in order to be
+  The `mysql` or `mariadb` command-line client should be available in `PATH` in order to be
   able to connect. `mariadb` is a default command-line client for MySQL and MariaDB.
 </Admonition>
 

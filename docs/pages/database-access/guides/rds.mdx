@@ -18,9 +18,15 @@ This guide will help you to:
 
 ## Prerequisites
 
-- Teleport version `(=teleport.version=)`.
 - AWS account with RDS and Aurora databases and permissions to create and attach
   IAM policies.
+
+- A host, e.g., an EC2 instance, where you will run the Teleport Database
+  Service.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Install Teleport
 
@@ -30,11 +36,13 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Create a database agent configuration
+## Step 3/7. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
 
 Create the Database Service configuration:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ teleport db configure create \
@@ -44,7 +52,20 @@ $ teleport db configure create \
    --rds-discovery=us-west-1
 ```
 
-The command will generate a database agent configuration with RDS/Aurora
+</ScopedBlock>
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --proxy=mytenant.teleport.sh \
+   --token=/tmp/token \
+   --rds-discovery=us-west-1
+```
+
+</ScopedBlock>
+
+The command will generate a Database Service configuration with RDS/Aurora
 database auto-discovery enabled on the `us-west-1` region and place it at the
 `/etc/teleport.yaml` location.
 
@@ -57,20 +78,20 @@ Teleport needs AWS IAM permissions to be able to:
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-## Step 5/7. Start the database agent
+## Step 5/7. Start the Database Service
 
-Start the database agent:
+Start the Database Service:
 
 ```code
 $ teleport start --config=/etc/teleport.yaml
 ```
 
-The agent will discover all RDS instances and Aurora clusters according to the
+The Database Service will discover all RDS instances and Aurora clusters according to the
 configuration and register them in the cluster. In addition to the primary
 endpoints of the discovered Aurora clusters, their reader and custom endpoints
 will also be registered.
 
-The agent will also attempt to enable IAM auth and configure IAM access
+The Database Service will also attempt to enable IAM auth and configure IAM access
 policies for the discovered databases. Keep in mind that AWS IAM changes may
 not propagate immediately and can take a few minutes to come into effect.
 
@@ -114,8 +135,10 @@ for more information.
 
 ## Step 7/7. Connect
 
-Once the database agent has started and joined the cluster, login to see the
+Once the Database Service has started and joined the cluster, log in to see the
 registered databases:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -128,20 +151,36 @@ $ tsh db ls
 # aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name                           Description                                   Labels
+# ------------------------------ --------------------------------------------- --------
+# postgres-rds                   RDS instance in us-west-1                     ...
+# aurora-mysql                   Aurora cluster in us-west-1                   ...
+# aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
+# aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
+```
+
+</ScopedBlock>
+
 <Admonition type="note" title="Note">
   Primary, reader, and custom endpoints of Aurora clusters have names of
   `<cluster-id>`, `<cluster-id>-reader`, and
   `<cluster-id>-custom-<endpoint-name>` respectively.
 </Admonition>
 
-Log into particular database using `tsh db login` command:
+Log in to particular database using `tsh db login` command:
 
 ```code
 $ tsh db login postgres-rds
 ```
 
 <Admonition type="tip" title="Tip">
-  You can be logged into multiple databases simultaneously.
+  You can be logged in to multiple databases simultaneously.
 </Admonition>
 
 You can optionally specify the database name and the user to use by default
@@ -159,7 +198,7 @@ $ tsh db connect postgres-rds
 
 <Admonition type="note" title="Note">
   The appropriate database command-line client (`psql`, `mysql`, `mariadb`) should be
-  available in PATH in order to be able to connect.
+  available in `PATH` in order to be able to connect.
 </Admonition>
 
 To log out of the database and remove credentials:

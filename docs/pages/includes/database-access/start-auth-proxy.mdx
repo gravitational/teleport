@@ -1,6 +1,8 @@
 <Tabs> 
 <TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-Download the latest version of Teleport for your platform from our
+
+On the host where you will run the Auth Service and Proxy Service, download the
+latest version of Teleport for your platform from our
 [downloads page](https://goteleport.com/teleport/download) and follow the
 installation [instructions](../../installation.mdx).
 
@@ -40,13 +42,17 @@ Next, start the Teleport Auth and Proxy Services:
 ```code
 $ sudo teleport start
 ```
+
+You will run subsequent `tctl` commands on the host where you started the Auth
+and Proxy Services.
+
 </TabItem> 
 <TabItem label="Teleport Cloud" scope={["cloud"]}> 
 If you do not have a Teleport Cloud account, use our [signup form](https://goteleport.com/signup/) to
 get started. Teleport Cloud manages instances of the Proxy Service and Auth
 Service, and automatically issues and renews the required TLS certificate.
 
-You must log into your cluster before you can run `tctl` commands.
+You must log in to your cluster before you can run `tctl` commands.
 ```code
 $ tsh login --proxy=mytenant.teleport.sh
 $ tctl status

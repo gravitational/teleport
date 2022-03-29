@@ -3,68 +3,32 @@ title: Database Access with Self-Hosted PostgreSQL
 description: How to configure Teleport Database Access with self-hosted PostgreSQL.
 ---
 
-# Self-Hosted PostgreSQL
+This guide will show you how to access a self-hosted PostgreSQL database using
+the Teleport Database Service.
 
-## Create certificate/key pair
+## Prerequisites
 
-(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
+- A self-hosted PostgreSQL instance.
 
-Create the secrets:
+- A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
+  Service.
 
-```code
-# Export Teleport's certificate authority and generate certificate/key pair
-# for host db.example.com with a 1-year validity period.
-$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
-```
+(!docs/pages/includes/user-client-prereqs.mdx!)
 
-(!docs/pages/includes/database-access/ttl-note.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
-The command will create 3 files: `server.cas`, `server.crt` and `server.key`
-which you'll need to enable mutual TLS on your PostgreSQL server.
+## Step 1/5. Set up the Teleport Auth and Proxy services
 
-## Configure PostgreSQL server
-
-To configure PostgreSQL server to accept TLS connections, add the following
-to PostgreSQL configuration file `postgresql.conf`:
-
-```conf
-ssl = on
-ssl_cert_file = '/path/to/server.crt'
-ssl_key_file = '/path/to/server.key'
-ssl_ca_file = '/path/toa/server.cas'
-```
-
-See [Secure TCP/IP Connections with SSL](https://www.postgresql.org/docs/current/ssl-tcp.html)
-in PostgreSQL documentation for more details.
-
-Additionally, PostgreSQL should be configured to require client certificate
-authentication from clients connecting over TLS. This can be done by adding
-the following entries to PostgreSQL host-based authentication file `pg_hba.conf`:
-
-```conf
-hostssl all             all             ::/0                    cert
-hostssl all             all             0.0.0.0/0               cert
-```
-
-You should also ensure that you have no higher-priority `md5` authentication
-rules that will match, otherwise PostgreSQL will offer them first, and the
-certificate-based Teleport login will fail.
-
-See [The pg_hba.conf File](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html)
-in PostgreSQL documentation for more details.
-
-## Setup Teleport Auth and Proxy services
-
-Teleport Database Access for PostgreSQL is available starting from `6.0`
+Teleport Database Access for PostgreSQL is available starting from the `6.0`
 release.
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-### Create role and user
+### Create a role and user
 
-Create the role that will allow a user to connect to any database using any
+Create a role that will allow a user to connect to any database using any
 database account:
 
 ```bash
@@ -90,10 +54,66 @@ Create the user assigned the `db` role we've just created:
 $ tctl --config=/path/to/teleport.yaml users add --roles=access,db testuser
 ```
 
-### Start Database service with CLI flags
+## Step 2/5. Create a certificate/key pair
 
-You can start Teleport database service without configuration file, using a
+(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
+
+Create the secrets:
+
+```code
+# Export Teleport's certificate authority and a generate certificate/key pair
+# for host db.example.com with a 1-year validity period.
+$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
+```
+
+(!docs/pages/includes/database-access/ttl-note.mdx!)
+
+The command will create 3 files: `server.cas`, `server.crt` and `server.key`
+which you'll need to enable mutual TLS on your PostgreSQL server.
+
+## Step 3/5. Configure your PostgreSQL server
+
+To configure your PostgreSQL server to accept TLS connections, add the following
+to the PostgreSQL configuration file, `postgresql.conf`:
+
+```conf
+ssl = on
+ssl_cert_file = '/path/to/server.crt'
+ssl_key_file = '/path/to/server.key'
+ssl_ca_file = '/path/toa/server.cas'
+```
+
+See [Secure TCP/IP Connections with SSL](https://www.postgresql.org/docs/current/ssl-tcp.html)
+in the PostgreSQL documentation for more details.
+
+Additionally, PostgreSQL should be configured to require client certificate
+authentication from clients connecting over TLS. This can be done by adding
+the following entries to PostgreSQL's host-based authentication file `pg_hba.conf`:
+
+```conf
+hostssl all             all             ::/0                    cert
+hostssl all             all             0.0.0.0/0               cert
+```
+
+You should also ensure that you have no higher-priority `md5` authentication
+rules that will match, otherwise PostgreSQL will offer them first, and the
+certificate-based Teleport login will fail.
+
+See [The pg_hba.conf File](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html)
+in the PostgreSQL documentation for more details.
+
+## Step 4/5. Start the Database Service
+
+On the host where you will run the Teleport Database Service, start Teleport
+with the appropriate configuration.
+
+<Tabs>
+<TabItem label="With CLI flags">
+
+You can start the Teleport Database Service without configuration file using a
 CLI command:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ teleport db start \
@@ -105,13 +125,34 @@ $ teleport db start \
    --labels=env=dev
 ```
 
-Note that the `--auth-server` flag must point to the Teleport cluster's proxy endpoint
-because database service always connects back to the cluster over a reverse
-tunnel.
+Note that the `--auth-server` flag must point to the Teleport cluster's Proxy
+Service endpoint because the Database Service always connects back to the
+cluster over a reverse tunnel.
 
-### Start Database service with config file
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db start \
+   --token=/tmp/token \
+   --auth-server=mytenant.teleport.sh \
+   --name=test \
+   --protocol=postgres \
+   --uri=postgres.example.com:5432 \
+   --labels=env=dev
+```
+
+Note that the `--auth-server` flag must point to your Teleport Cloud tenant
+address.
+
+</ScopedBlock>
+
+</TabItem>
+<TabItem label="Using a config file">
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ teleport db configure create \
@@ -124,13 +165,30 @@ $ teleport db configure create \
    --labels=env=dev
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=teleport.example.com:3080 \
+   --name=test \
+   --protocol=postgres \
+   --uri=postgres.example.com:5432 \
+   --labels=env=dev
+```
+
+</ScopedBlock>
+
 <Admonition
   type="tip"
   title="Tip"
 >
   A single Teleport process can run multiple different services, for example
-  multiple database access proxies as well as running other services such as an
-  SSH service or an application access proxy.
+  multiple Database Service agents as well as the SSH Service or Application
+  Service.
+  
 </Admonition>
 
 Start the database service:
@@ -139,10 +197,15 @@ Start the database service:
 $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 ```
 
-## Connect
+</TabItem>
+</Tabs>
 
-Once the database service has joined the cluster, login to see the available
+## Step 5/5. Connect
+
+Once the Database Service has joined the cluster, log in to see the available
 databases:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=testuser
@@ -151,6 +214,19 @@ $ tsh db ls
 # ------- ------------------ --------
 # example Example PostgreSQL env=dev
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=testuser
+$ tsh db ls
+# Name    Description        Labels
+# ------- ------------------ --------
+# example Example PostgreSQL env=dev
+```
+
+</ScopedBlock>
 
 Note that you will only be able to see databases your role has access to. See
 [RBAC](../rbac.mdx) section for more details.
@@ -166,7 +242,7 @@ $ tsh db login example
   type="tip"
   title="Tip"
 >
-  You can be logged into multiple databases simultaneously.
+  You can be logged in to multiple databases simultaneously.
 </Admonition>
 
 You can optionally specify the database name and the user to use by default
@@ -183,7 +259,7 @@ $ tsh db connect example
 ```
 
 <Admonition type="note" title="Note">
-  The `psql` command-line client should be available in PATH in order to be
+  The `psql` command-line client should be available in `PATH` in order to be
   able to connect.
 </Admonition>
 
