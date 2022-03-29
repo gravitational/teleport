@@ -48,20 +48,27 @@ type ExtraProxyHeaders struct {
 }
 
 func loadConfig(fullConfigPath string) (*TshConfig, error) {
+	emptyConfig := &TshConfig{}
 	configFile, err := os.Open(fullConfigPath)
 	if err != nil {
-		log.Println("found", err)
 		if errors.Is(err, fs.ErrNotExist) {
-			return &TshConfig{}, nil
+			return emptyConfig, nil
 		}
 		return nil, trace.ConvertSystemError(err)
 	}
 	defer configFile.Close()
 
-	cfg := TshConfig{}
-	err = yaml.NewDecoder(configFile).Decode(&cfg)
-	if errors.Is(err, io.EOF) {
-		return &TshConfig{}, nil
+	bs, err := io.ReadAll(configFile)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
-	return &cfg, trace.Wrap(err)
+	if len(bs) == 0 {
+		return emptyConfig, nil
+	}
+
+	cfg := TshConfig{}
+	if yaml.Unmarshal(bs, &cfg); err != nil {
+		return emptyConfig, trace.ConvertSystemError(err)
+	}
+	return &cfg, nil
 }
