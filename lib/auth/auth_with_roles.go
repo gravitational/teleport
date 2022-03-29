@@ -2253,7 +2253,8 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*
 
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err)
+		// TODO(Tener): Update `testFlow` flag once OIDC SSO starts supporting test flows.
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodOIDC, err, false)
 		return nil, trace.Wrap(err)
 	}
 
@@ -2330,7 +2331,7 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*
 
 	samlReq, err := a.authServer.CreateSAMLAuthRequest(req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodSAML, err)
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
 		return nil, trace.Wrap(err)
 	}
 
@@ -2451,7 +2452,8 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(req services.GithubAuthRequest
 
 	githubReq, err := a.authServer.CreateGithubAuthRequest(req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err)
+		// TODO(Tener): Update `testFlow` flag once GitHub SSO starts supporting test flows.
+		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, false)
 		return nil, trace.Wrap(err)
 	}
 
@@ -4312,11 +4314,16 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 	}, nil
 }
 
-func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error) {
+func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {
+	code := events.UserSSOLoginFailureCode
+	if testFlow {
+		code = events.UserSSOTestFlowLoginFailureCode
+	}
+
 	emitErr := emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
-			Code: events.UserSSOLoginFailureCode,
+			Code: code,
 		},
 		Method: method,
 		Status: apievents.Status{

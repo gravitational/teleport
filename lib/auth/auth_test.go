@@ -1020,12 +1020,27 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
 	mockE := &events.MockEmitter{}
 
-	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
+	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
 
 	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOLoginFailureCode,
+		},
+		Method: "test",
+		Status: apievents.Status{
+			Success:     false,
+			Error:       "some error",
+			UserMessage: "some error",
+		},
+	})
+
+	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), true)
+
+	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserSSOTestFlowLoginFailureCode,
 		},
 		Method: "test",
 		Status: apievents.Status{
