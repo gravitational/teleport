@@ -151,6 +151,11 @@ endif
 endif
 endif
 
+# TODO(codingllama): Build static binaries with libfido2.
+ifneq ("$(wildcard /usr/local/lib/libfido2.*)","")
+LIBFIDO2_TAG := libfido2
+endif
+
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
@@ -501,7 +506,16 @@ test-go: $(VERSRC) $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
-	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
+# rdpclient and libfido2 don't play well together, so we run libfido2 tests
+# separately.
+# TODO(codingllama): Run libfido2 tests along with others once RDP doesn't
+#  embed openssl/libcrypto.
+ifneq ("$(LIBFIDO2_TAG)", "")
+	$(CGOFLAG) go test -cover -json -tags "$(LIBFIDO2_TAG)" ./lib/auth/webauthncli/... $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| ${RENDER_TESTS}
+endif
+	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
