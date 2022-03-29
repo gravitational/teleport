@@ -26,7 +26,7 @@ This guide requires you to have:
 
   See [Teleport Getting Started](../getting-started.mdx) if you're new to Teleport.
 
-- A Linux server to run the Teleport Desktop Access service on. 
+- A Linux server to run the Teleport Desktop Access service on.
 
   You can reuse an existing server running any other Teleport instance.
 
@@ -458,6 +458,26 @@ computers and Domain Controllers connected to your domain. Select one and click
 
 A new tab will open and, after a few seconds, you should be logged in to your
 target Windows host.
+
+## Security hardening
+
+By default, the Default Domain Policy grants the "Add workstations to domain
+user" right to all authenticated users. As a security best practice, Teleport
+recommends that this level of access is only granted to administrators or other
+privileged groups.
+
+To make this change, open the Group Policy Management Console, navigate to
+`$FOREST > Domains > $DOMAIN > Group Policy Objects`, right-click on Default
+Domain Controller Policy and select Edit.
+
+In the Group Policy Editor, navigate to
+
+```text
+Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment
+```
+
+Double click the "Add workstations to domain" policy and ensure that the
+"Authenticated Users" group is not present.
 
 ## Troubleshooting
 

@@ -29,20 +29,17 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/signal"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -68,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
@@ -1694,7 +1692,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 		return trace.Wrap(err)
 	}
 	defer os.RemoveAll(playbackDir)
-	w, err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, playbackDir)
+	w, err := events.WriteForSSHPlayback(ctx, session.ID(sid), protoReader, playbackDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2268,14 +2266,12 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		HostKeyCallback: hostKeyCallback,
 		Auth:            authMethods,
 	}
-	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 
-	sshClient, err := makeProxySSHClient(tc, sshConfig)
+	sshClient, err := makeProxySSHClient(ctx, tc, sshConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
 	return &ProxyClient{
 		teleportClient:  tc,
 		Client:          sshClient,
@@ -2289,26 +2285,66 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}, nil
 }
 
-func makeProxySSHClient(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
-	if tc.Config.TLSRoutingEnabled {
-		return makeProxySSHClientWithTLSWrapper(tc, sshConfig)
+// makeProxySSHClient creates an SSH client by following steps:
+// 1) If the current proxy supports TLS Routing and JumpHost address was not provided use TLSWrapper.
+// 2) Check JumpHost raw SSH port or Teleport proxy address.
+//    In case of proxy web address check if the proxy supports TLS Routing and connect to the proxy with TLSWrapper
+// 3) Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
+//    JumpHost address was provided.
+func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
+	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
+		log.Infof("Connecting to proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
+		c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, tc.Config.WebProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Infof("Successful auth with proxy %v.", tc.Config.WebProxyAddr)
+		return c, nil
 	}
-	return makeProxySSHClientDirect(tc, sshConfig)
+
+	sshProxyAddr := tc.Config.SSHProxyAddr
+
+	// Handle situation where a Jump Host was set to proxy web address and Teleport supports TLS Routing.
+	if len(tc.JumpHosts) > 0 {
+		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
+		// Check if JumpHost address is a proxy web address.
+		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: sshProxyAddr, Insecure: tc.InsecureSkipVerify})
+		// If JumpHost address is a proxy web port and proxy supports TLSRouting dial proxy with TLSWrapper.
+		if err == nil && resp.Proxy.TLSRoutingEnabled {
+			log.Infof("Connecting to proxy=%v login=%q using TLS Routing JumpHost", sshProxyAddr, sshConfig.User)
+			c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, sshProxyAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			log.Infof("Successful auth with proxy %v.", sshProxyAddr)
+			return c, nil
+		}
+	}
+
+	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
+	client, err := makeProxySSHClientDirect(tc, sshConfig, sshProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
+	}
+	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
+	return client, nil
 }
 
-func makeProxySSHClientDirect(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+func makeProxySSHClientDirect(tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
 	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr)
-	return dialer.Dial("tcp", tc.Config.SSHProxyAddr, sshConfig)
+	return dialer.Dial("tcp", proxyAddr, sshConfig)
 }
 
-func makeProxySSHClientWithTLSWrapper(tc *TeleportClient, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*ssh.Client, error) {
 	tlsConfig, err := tc.loadTLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
-	return dialer.Dial("tcp", tc.Config.WebProxyAddr, sshConfig)
+	return dialer.Dial("tcp", proxyAddr, sshConfig)
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {
@@ -2557,21 +2593,16 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 }
 
 type pwdlessPrompt struct {
-	Out io.Writer
+	ctx context.Context
+	out io.Writer
 }
 
-func (l pwdlessPrompt) PromptPIN() (string, error) {
-	fmt.Fprintln(l.Out, "Enter your security key PIN:")
-	pwd, err := passwordFromConsoleFn()
-	if err != nil {
-		fmt.Fprintln(l.Out, err)
-		return "", trace.Wrap(err)
-	}
-	return pwd, nil
+func (p *pwdlessPrompt) PromptPIN() (string, error) {
+	return prompt.Password(p.ctx, p.out, prompt.Stdin(), "Enter your security key PIN")
 }
 
-func (l pwdlessPrompt) PromptAdditionalTouch() error {
-	fmt.Fprintln(l.Out, "Tap your security key again to complete login")
+func (p *pwdlessPrompt) PromptAdditionalTouch() error {
+	fmt.Fprintln(p.out, "Tap your security key again to complete login")
 	return nil
 }
 
@@ -2601,9 +2632,9 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
 	}
 
-	prompt := pwdlessPrompt{Out: tc.Stderr}
+	prompt := &pwdlessPrompt{ctx: ctx, out: tc.Stderr}
 	fmt.Fprintln(tc.Stderr, "Tap your security key")
-	mfaResp, _, err := prompts.Webauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2859,7 +2890,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		// use might enter at the prompt. Whatever the user enters will
 		// be simply discarded, and the user can still CTRL+C out if they
 		// disagree.
-		_, err := passwordFromConsoleFn()
+		_, err := prompt.Stdin().ReadPassword(context.Background())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3192,25 +3223,14 @@ func Username() (string, error) {
 
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP() (token string, err error) {
-	fmt.Fprintf(tc.Config.Stderr, "Enter your OTP token:\n")
-	token, err = passwordFromConsoleFn()
-	if err != nil {
-		fmt.Fprintln(tc.Stderr, err)
-		return "", trace.Wrap(err)
-	}
-	return token, nil
+	return prompt.Password(context.Background(), tc.Stderr, prompt.Stdin(), "Enter your OTP token")
 }
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
-	fmt.Fprintf(tc.Config.Stderr, "Enter password for Teleport user %v:\n", tc.Config.Username)
-	pwd, err = passwordFromConsoleFn()
-	if err != nil {
-		fmt.Fprintln(tc.Stderr, err)
-		return "", trace.Wrap(err)
-	}
-
-	return pwd, nil
+	return prompt.Password(
+		context.Background(), tc.Stderr, prompt.Stdin(),
+		fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
 }
 
 // DELETE IN: 4.1.0
@@ -3270,49 +3290,16 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusters := []string{rootCluster}
+	if tc.SiteName != "" && rootCluster != tc.SiteName {
+		clusters = append(clusters, tc.SiteName)
+	}
 
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{rootCluster})
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
 	return tlsConfig, nil
-}
-
-// passwordFromConsoleFn allows tests to replace the passwordFromConsole
-// function.
-var passwordFromConsoleFn = passwordFromConsole
-
-// passwordFromConsole reads from stdin without echoing typed characters to stdout
-func passwordFromConsole() (string, error) {
-	// syscall.Stdin is not an int on windows. The linter will complain only on
-	// linux where syscall.Stdin is an int.
-	//
-	// nolint:unconvert
-	fd := int(syscall.Stdin)
-	state, err := term.GetState(fd)
-
-	// intercept Ctr+C and restore terminal
-	sigCh := make(chan os.Signal, 1)
-	closeCh := make(chan int)
-	if err != nil {
-		log.Warnf("failed reading terminal state: %v", err)
-	} else {
-		signal.Notify(sigCh, syscall.SIGINT)
-		go func() {
-			select {
-			case <-sigCh:
-				term.Restore(fd, state)
-				os.Exit(1)
-			case <-closeCh:
-			}
-		}()
-	}
-	defer func() {
-		close(closeCh)
-	}()
-
-	bytes, err := term.ReadPassword(fd)
-	return string(bytes), err
 }
 
 // ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like

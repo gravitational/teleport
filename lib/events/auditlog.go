@@ -148,10 +148,6 @@ type AuditLogConfig struct {
 	// RotationPeriod defines how frequently to rotate the log file
 	RotationPeriod time.Duration
 
-	// SessionIdlePeriod defines the period after which sessions will be considered
-	// idle (and audit log will free up some resources)
-	SessionIdlePeriod time.Duration
-
 	// Clock is a clock either real one or used in tests
 	Clock clockwork.Clock
 
@@ -204,9 +200,6 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	}
 	if a.RotationPeriod == 0 {
 		a.RotationPeriod = defaults.LogRotationPeriod
-	}
-	if a.SessionIdlePeriod == 0 {
-		a.SessionIdlePeriod = defaults.SessionIdlePeriod
 	}
 	if a.DirMask == nil {
 		mask := os.FileMode(teleport.DirMaskSharedGroup)
@@ -668,7 +661,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 		start = time.Now()
 		l.log.Debugf("Converting %v to playback format.", tarballPath)
 		protoReader := NewProtoReader(tarball)
-		_, err = WriteForPlayback(l.Context, sid, protoReader, l.playbackDir)
+		_, err = WriteForSSHPlayback(l.Context, sid, protoReader, l.playbackDir)
 		if err != nil {
 			l.log.WithError(err).Error("Failed to convert.")
 			return trace.Wrap(err)
@@ -1097,12 +1090,12 @@ func (l *AuditLog) getLocalLog() IAuditLog {
 	// If no local log exists, which can occur during shutdown when the local log
 	// has been set to "nil" by Close, return a nop audit log.
 	if l.localLog == nil {
-		return &closedLogger{}
+		return NewDiscardAuditLog()
 	}
 	return l.localLog
 }
 
-// Closes the audit log, which inluces closing all file handles and releasing
+// Closes the audit log, which includes closing all file handles and releasing
 // all session loggers
 func (l *AuditLog) Close() error {
 	if l.ExternalLog != nil {
@@ -1239,55 +1232,4 @@ func (l *LegacyHandler) IsUnpacked(ctx context.Context, sessionID session.ID) (b
 // Download downloads session tarball and writes it to writer
 func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
 	return l.cfg.Handler.Download(ctx, sessionID, writer)
-}
-
-const loggerClosedMessage = "the logger has been closed"
-
-type closedLogger struct{}
-
-func (a *closedLogger) EmitAuditEventLegacy(e Event, f EventFields) error {
-	return trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
-	return trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) PostSessionSlice(s SessionSlice) error {
-	return trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) UploadSessionRecording(r SessionRecording) error {
-	return trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) GetSessionChunk(namespace string, sid session.ID, offsetBytes int, maxBytes int) ([]byte, error) {
-	return nil, trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
-	return nil, trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return nil, "", trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
-	return nil, "", trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) WaitForDelivery(context.Context) error {
-	return trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) Close() error {
-	return trace.NotImplemented(loggerClosedMessage)
-}
-
-func (a *closedLogger) StreamSessionEvents(_ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-	e <- trace.NotImplemented(loggerClosedMessage)
-
-	return c, e
 }
