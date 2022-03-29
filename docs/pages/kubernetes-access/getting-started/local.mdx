@@ -133,6 +133,40 @@ $ curl --insecure https://${EXTERNAL_IP?}:443/webapi/ping
 {"auth":{"type":"local","second_factor":"otp","preferred_local_mfa":"otp","has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","public_addr":"teleport-cluster:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"8.2.0","min_client_version":"7.0.0"}%                           
 ```
 
+<Details opened={false} title='Getting a "Connection refused" error?'>
+
+The `minikube tunnel` command works by executing the `ssh` binary in `PATH` to
+establish a reverse tunnel from the `minikube` container to the local host. It
+uses credentials managed by `minikube` to authenticate.
+
+If you are getting a "Connection refused" error, that probably means that the `ssh` command has failed. Try the following steps:
+
+- If the SSH agent is running, the `ssh` command will attempt to load keys from
+  the agent. If there are too many keys loaded, the `ssh` client will fail to
+  authenticate. Clear any keys from the SSH agent using the following command:
+
+  ```code
+  $ ssh-add -D
+  ```
+
+- Ensure that no configuration options or environment variables are conflicting
+  with the `ssh` command, which will resemble the following:
+
+  ```bash
+  $ sudo ssh -o UserKnownHostsFile=/dev/null \
+     -o StrictHostKeyChecking=no \
+     -N docker@127.0.0.1 \
+     -p 49894 \
+     -i /${HOME}/.minikube/machines/minikube/id_rsa \
+     -L 443:10.98.6.171:443 \
+     -L 3023:10.98.6.171:3023 \
+     -L 3026:10.98.6.171:3026 \
+     -L 3024:10.98.6.171:3024 \
+     -L 3036:10.98.6.171:3036
+  ```
+
+</Details>
+
 <Admonition type="warning" title="Certificate warning"> 
 The Teleport Proxy Service requires a TLS certificate and private key. In this
 guide, Teleport runs with a self-signed certificate. For convenience, we
