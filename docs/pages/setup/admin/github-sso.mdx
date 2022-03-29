@@ -21,7 +21,7 @@ This guide explains how to set up Github Single Sign On (SSO) for Teleport.
 
   Ensure that your OAuth App's "Authentication callback URL" is
   `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the public
-  address of the Teleport Proxy Service. 
+  address of the Teleport Proxy Service.
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
@@ -29,7 +29,7 @@ This guide explains how to set up Github Single Sign On (SSO) for Teleport.
 
   To download Teleport Enterprise, visit the
   [customer portal](https://dashboard.gravitational.com/web/login).
-  
+
 - Create and register a GitHub OAuth App. To do so, follow the instructions in
   GitHub's documentation.
 
@@ -37,7 +37,7 @@ This guide explains how to set up Github Single Sign On (SSO) for Teleport.
 
   Ensure that your OAuth App's "Authentication callback URL" is
   `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the public
-  address of the Teleport Proxy Service. 
+  address of the Teleport Proxy Service.
 </TabItem>
 <TabItem scope={["cloud"]}
   label="Cloud">
@@ -45,7 +45,7 @@ This guide explains how to set up Github Single Sign On (SSO) for Teleport.
 - Sign up for a Teleport Cloud account. If you do not have one, visit the
   [sign up page](https://goteleport.com/signup/) to begin your free trial.
 
-- Create and register a GitHub OAuth App. To do so, follow the instructions in GitHub's documentation. 
+- Create and register a GitHub OAuth App. To do so, follow the instructions in GitHub's documentation.
 
   [Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
 
@@ -144,3 +144,7 @@ auth_service:
 </Details>
 
 You can now log in with Teleport using GitHub SSO.
+
+## Troubleshooting
+
+(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
