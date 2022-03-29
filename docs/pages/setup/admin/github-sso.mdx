@@ -21,7 +21,7 @@ This guide explains how to set up Github Single Sign On (SSO) for Teleport.
 
   Ensure that your OAuth App's "Authentication callback URL" is
   `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the public
-  address of the Teleport Proxy Service. 
+  address of the Teleport Proxy Service.
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
@@ -144,3 +144,7 @@ auth_service:
 </Details>
 
 You can now log in with Teleport using GitHub SSO.
+
+## Troubleshooting
+
+(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
