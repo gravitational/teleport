@@ -18,7 +18,6 @@ package service
 
 import (
 	"crypto/tls"
-	"errors"
 	"math"
 	"path/filepath"
 	"strings"
@@ -168,7 +167,7 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 			// made. So provide a more user friendly error as a hint of what
 			// they can do to resolve the issue.
 			if strings.Contains(err.Error(), "certificate signed by unknown authority") {
-				return nil, trace.NewAggregate(errors.New("Was this node already registered to a different cluster? To re-join the node, remove `/var/lib/teleport` and try again"), err)
+				process.log.Error("Was this node already registered to a different cluster? To re-join the node, remove `/var/lib/teleport` and try again")
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -883,7 +882,9 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	if err != nil {
 		directErrLogger.Debug("Failed to connect to Auth Server directly.")
 		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
-		return nil, trace.NewAggregate(directErr, err, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining."))
+		return nil, trace.WrapWithMessage(
+			trace.NewAggregate(directErr, err),
+			trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining."))
 	}
 
 	logger.Debug("Connected to Auth Server through tunnel.")
