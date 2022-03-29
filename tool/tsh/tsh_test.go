@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -1268,11 +1269,14 @@ func withClusterName(t *testing.T, n string) testServerOptFunc {
 }
 
 func withMOTD(t *testing.T, motd string) testServerOptFunc {
-	oldpass := client.PasswordFromConsoleFn
-	*client.PasswordFromConsoleFn = func() (string, error) {
-		return "", nil
-	}
-	t.Cleanup(func() { *client.PasswordFromConsoleFn = *oldpass })
+	oldStdin := prompt.Stdin()
+	t.Cleanup(func() {
+		prompt.SetStdin(oldStdin)
+	})
+	prompt.SetStdin(prompt.NewFakeReader().
+		AddString(""). // 3x to allow multiple logins
+		AddString("").
+		AddString(""))
 	return withAuthConfig(func(cfg *service.AuthConfig) {
 		cfg.Preference.SetMessageOfTheDay(motd)
 	})
