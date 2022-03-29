@@ -124,11 +124,10 @@ func fido2Login(
 	// mu guards the variables below it.
 	var mu sync.Mutex
 	var assertionResp *libfido2.Assertion
-	var credentialID []byte
-	var userID []byte
 	var username string
 	var usedAppID bool
 
+	pathToRPID := &sync.Map{} // map[string]string
 	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
 		switch {
 		case uv && !info.uvCapable():
@@ -142,53 +141,40 @@ func fido2Login(
 		}
 
 		// Does the device have a suitable credential?
-		const pin = "" // not required to filter
-		if _, err := dev.Assertion(rpID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
-			UP: libfido2.False,
-		}); err == nil {
-			return true, nil
-		}
-
-		// Try again with the App ID, if present.
-		if appID == "" {
-			return false, nil
-		}
-		if _, err := dev.Assertion(appID, ccdHash[:], allowedCreds, pin, &libfido2.AssertionOpts{
-			UP: libfido2.False,
-		}); err != nil {
+		const pin = ""
+		actualRPID, err := discoverRPID(dev, pin, rpID, appID, allowedCreds)
+		if err != nil {
 			log.Debugf("FIDO2: Device %v: filtered due to lack of allowed credential", info.path)
 			return false, nil
 		}
+		pathToRPID.Store(info.path, actualRPID)
+
 		return true, nil
 	}
 
 	deviceCallback := func(dev FIDODevice, info *deviceInfo, pin string) error {
-		var actualRPID string
-		var cID []byte
-		var uID []byte
+		creds := allowedCreds
 		var uName string
 		if passwordless {
-			cred, err := getPasswordlessCredentials(dev, pin, rpID, opts.User)
+			cred, err := getPasswordlessCredentials(dev, info, pin, rpID, opts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			actualRPID = rpID
-			cID = cred.ID
-			uID = cred.User.ID
-			uName = cred.User.Name
-		} else {
-			// TODO(codingllama): Ideally we'd rely on fido_assert_id_ptr/_len.
-			var err error
-			actualRPID, cID, err = getMFACredentials(dev, pin, rpID, appID, allowedCreds)
-			if err != nil {
-				return trace.Wrap(err)
+			if cred != nil {
+				creds = [][]byte{cred.ID}
+				uName = cred.User.Name
 			}
 		}
 
-		if passwordless {
+		if optimistic := len(creds) == 0; passwordless && !optimistic {
 			// Ask for another touch before the assertion, we used the first touch
 			// in the Credentials() call.
 			prompt.PromptTouch()
+		}
+
+		actualRPID := rpID
+		if val, ok := pathToRPID.Load(info.path); ok {
+			actualRPID = val.(string)
 		}
 
 		opts := &libfido2.AssertionOpts{
@@ -197,18 +183,19 @@ func fido2Login(
 		if uv {
 			opts.UV = libfido2.True
 		}
-		resp, err := dev.Assertion(actualRPID, ccdHash[:], [][]byte{cID}, pin, opts)
+		resp, err := dev.Assertion(actualRPID, ccdHash[:], creds, pin, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		log.Debugf(
+			"FIDO2: Authenticated: credential ID (b64) = %v, user ID (hex) = %x, username = %q",
+			base64.RawURLEncoding.EncodeToString(resp.CredentialID), resp.User.ID, uName)
 
 		// Use the first successful assertion.
 		// In practice it is very unlikely we'd hit this twice.
 		mu.Lock()
 		if assertionResp == nil {
 			assertionResp = resp
-			credentialID = cID
-			userID = uID
 			username = uName
 			usedAppID = actualRPID != rpID
 		}
@@ -229,12 +216,12 @@ func fido2Login(
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
 			Webauthn: &wanpb.CredentialAssertionResponse{
 				Type:  string(protocol.PublicKeyCredentialType),
-				RawId: credentialID,
+				RawId: assertionResp.CredentialID,
 				Response: &wanpb.AuthenticatorAssertionResponse{
 					ClientDataJson:    ccdJSON,
 					AuthenticatorData: rawAuthData,
 					Signature:         assertionResp.Sig,
-					UserHandle:        userID,
+					UserHandle:        assertionResp.User.ID,
 				},
 				Extensions: &wanpb.AuthenticationExtensionsClientOutputs{
 					AppId: usedAppID,
@@ -244,7 +231,12 @@ func fido2Login(
 	}, username, nil
 }
 
-func getPasswordlessCredentials(dev FIDODevice, pin, rpID, user string) (*libfido2.Credential, error) {
+func getPasswordlessCredentials(dev FIDODevice, info *deviceInfo, pin, rpID string, opts *LoginOpts) (*libfido2.Credential, error) {
+	if opts.OptimisticAssertion && info.bioEnroll {
+		log.Debugf("FIDO2: Using optimistic assertion for biometric device")
+		return nil, nil
+	}
+
 	creds, err := dev.Credentials(rpID, pin)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -253,6 +245,7 @@ func getPasswordlessCredentials(dev FIDODevice, pin, rpID, user string) (*libfid
 	// TODO(codingllama): After this line we should cancel other devices,
 	//  the user picked the current one.
 
+	user := opts.User
 	if user != "" {
 		log.Debugf("FIDO2: Searching credentials for user %q", user)
 	}
@@ -276,7 +269,7 @@ func getPasswordlessCredentials(dev FIDODevice, pin, rpID, user string) (*libfid
 			// ykman prints user IDs in hex, hence the unusual encoding choice below.
 			cID := base64.RawURLEncoding.EncodeToString(cred.ID)
 			uID := cred.User.ID
-			log.Debugf("FIDO2: Found resident credential for user %v, credential ID (b64) = %v, user ID (hex) = %x", user, cID, uID)
+			log.Debugf("FIDO2: Found resident credential for user %q, credential ID (b64) = %v, user ID (hex) = %x", user, cID, uID)
 			if res == nil {
 				res = cred
 				continue // Don't break, we want to warn about duplicates.
@@ -293,37 +286,22 @@ func getPasswordlessCredentials(dev FIDODevice, pin, rpID, user string) (*libfid
 	return res, nil
 }
 
-func getMFACredentials(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte) (string, []byte, error) {
+func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
 	// The actual hash is not necessary here.
 	const cdh = "00000000000000000000000000000000"
 
 	opts := &libfido2.AssertionOpts{
 		UP: libfido2.False,
 	}
-	actualRPID := rpID
-	var cID []byte
-	for _, cred := range allowedCreds {
-		_, err := dev.Assertion(rpID, []byte(cdh), [][]byte{cred}, pin, opts)
-		if err == nil {
-			cID = cred
-			break
+	for _, id := range []string{rpID, appID} {
+		if id == "" {
+			continue
 		}
-
-		// Try again with the U2F appID, if present.
-		if appID != "" {
-			_, err = dev.Assertion(appID, []byte(cdh), [][]byte{cred}, pin, opts)
-			if err == nil {
-				actualRPID = appID
-				cID = cred
-				break
-			}
+		if _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); err == nil {
+			return id, nil
 		}
 	}
-	if len(cID) == 0 {
-		return "", nil, libfido2.ErrNoCredentials
-	}
-
-	return actualRPID, cID, nil
+	return "", libfido2.ErrNoCredentials
 }
 
 // fido2Register implements FIDO2Register.

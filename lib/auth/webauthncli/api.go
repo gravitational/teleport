@@ -28,6 +28,12 @@ type LoginOpts struct {
 	// User is the desired credential username for login.
 	// If empty, Login may either choose a credential or error due to ambiguity.
 	User string
+	// OptimisticAssertion allows Login to skip credential listing and attempt
+	// to assert directly. The drawback of optimistic assertions is that Login is
+	// unable to guarantee the credential user, even if the User field is set.
+	// Login may decide to forego optimistic assertions if it wouldn't save a
+	// touch.
+	OptimisticAssertion bool
 }
 
 // Login performs client-side, U2F-compatible, Webauthn login.
