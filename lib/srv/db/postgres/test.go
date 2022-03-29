@@ -39,7 +39,7 @@ import (
 // parameters.
 func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgconn.PgConn, error) {
 	// Client will be connecting directly to the multiplexer address.
-	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v", config.Address))
+	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v/?sslmode=verify-full", config.Address))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
