@@ -9,6 +9,7 @@ import AppContext from './appContext';
 import ThemeProvider from './ThemeProvider';
 import { LayoutManager } from './LayoutManager';
 import { AppInitializer } from 'teleterm/ui/AppInitializer';
+import { NotificationsHost } from 'teleterm/ui/components/Notifcations';
 
 const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
   const { appearance } = ctx.mainProcessClient.configService.get();
@@ -21,6 +22,7 @@ const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
               <AppInitializer>
                 <LayoutManager />
                 <ModalsHost />
+                <NotificationsHost />
               </AppInitializer>
             </ThemeProvider>
           </AppContextProvider>

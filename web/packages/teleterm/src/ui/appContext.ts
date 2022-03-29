@@ -24,10 +24,12 @@ import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 import { CommandLauncher } from './commandLauncher';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 
 export default class AppContext {
   clustersService: ClustersService;
   modalsService: ModalsService;
+  notificationsService: NotificationsService;
   terminalsService: TerminalsService;
   keyboardShortcutsService: KeyboardShortcutsService;
   quickInputService: QuickInputService;
@@ -43,8 +45,12 @@ export default class AppContext {
     this.statePersistenceService = new StatePersistenceService(
       config.fileStorage
     );
-    this.clustersService = new ClustersService(tshClient);
     this.modalsService = new ModalsService();
+    this.notificationsService = new NotificationsService();
+    this.clustersService = new ClustersService(
+      tshClient,
+      this.notificationsService
+    );
     this.workspacesService = new WorkspacesService(
       this.clustersService,
       this.modalsService,

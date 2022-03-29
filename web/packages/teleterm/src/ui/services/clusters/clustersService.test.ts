@@ -84,7 +84,7 @@ const appMock: tsh.Application = {
 };
 
 function createService(client: Partial<tsh.TshClient>): ClustersService {
-  return new ClustersService(client as tsh.TshClient);
+  return new ClustersService(client as tsh.TshClient, undefined);
 }
 
 function getClientMocks(): Partial<tsh.TshClient> {
