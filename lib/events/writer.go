@@ -137,6 +137,6 @@ func (w *WriterLog) WaitForDelivery(context.Context) error {
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (w *WriterLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-	e <- trace.NotImplemented(loggerClosedMessage)
+	e <- trace.NotImplemented("not implemented")
 	return c, e
 }

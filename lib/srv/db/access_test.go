@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1252,7 +1253,7 @@ type testContext struct {
 	webListener    *multiplexer.WebListener
 	fakeRemoteSite *reversetunnel.FakeRemoteSite
 	server         *Server
-	emitter        *testEmitter
+	emitter        *eventstest.ChannelEmitter
 	hostCA         types.CertAuthority
 	// postgres is a collection of Postgres databases the test uses.
 	postgres map[string]testPostgres
@@ -1657,7 +1658,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Create test audit events emitter.
-	testCtx.emitter = newTestEmitter()
+	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
