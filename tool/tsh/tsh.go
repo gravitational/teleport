@@ -594,6 +594,7 @@ func Run(args []string, opts ...cliOption) error {
 	reqList.Flag("my-requests", "Only show requests created by current user").BoolVar(&cf.MyRequests)
 
 	reqShow := req.Command("show", "Show request details").Alias("details")
+	reqShow.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	reqCreate := req.Command("new", "Create a new access request").Alias("create")
@@ -2401,8 +2402,6 @@ func onStatus(cf *CLIConf) error {
 	}
 
 	switch strings.ToLower(cf.Format) {
-	case teleport.Text:
-		printProfiles(cf.Debug, profile, profiles)
 	case teleport.JSON:
 		if profiles == nil {
 			profiles = []*client.ProfileStatus{}
@@ -2417,7 +2416,7 @@ func onStatus(cf *CLIConf) error {
 		}
 		fmt.Println(string(out))
 	default:
-		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+		printProfiles(cf.Debug, profile, profiles)
 	}
 
 	if profile == nil {

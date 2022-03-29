@@ -136,6 +136,25 @@ func onRequestShow(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	switch strings.ToLower(cf.Format) {
+	case teleport.Text:
+		err = printRequest(req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.JSON:
+		out, err := json.MarshalIndent(req, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+	}
+	return nil
+}
+
+func printRequest(req types.AccessRequest) error {
 	reason := "[none]"
 	if r := req.GetRequestReason(); r != "" {
 		reason = fmt.Sprintf("%q", r)
@@ -154,7 +173,7 @@ func onRequestShow(cf *CLIConf) error {
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
-	_, err = table.AsBuffer().WriteTo(os.Stdout)
+	_, err := table.AsBuffer().WriteTo(os.Stdout)
 	if err != nil {
 		return trace.Wrap(err)
 	}
