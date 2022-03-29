@@ -11,7 +11,8 @@ authorization, and audit.
 ## The demo environment
 
 Our demo will run using minikube, which deploys Kubernetes on your local
-machine. The cluster will run the official dashboard UI for Kubernetes.
+machine. The cluster will run Kubernetes Dashboard, the official browser UI for
+Kubernetes.
 
 While it is possible to expose the dashboard outside the cluster using the
 `kubectl proxy` command, in our demo the dashboard will only be accessible via
@@ -40,14 +41,7 @@ Make sure that the following tools are installed locally:
 |minikube|Local Kubernetes deployment tool|[Install minikube](https://minikube.sigs.k8s.io/docs/start/)|
 |Helm|Kubernetes package manager|[Install Helm](https://helm.sh/docs/intro/install/)|
 |kubectl|Kubernetes admin CLI|[Install kubectl](https://kubernetes.io/docs/tasks/tools/)|
-
-To run minikube, you will need to install a supported driver, i.e., a local
-virtualization or isolation environment that can run the cluster.
-
-Docker Desktop is a good cross-platform solution, and the one we will assume you
-are using in this guide. You can read about all supported platforms here:
-
-[Drivers](https://minikube.sigs.k8s.io/docs/drivers/)
+|Docker Desktop (MacOS and Windows) or Docker Engine (Linux desktop) | Required minikube driver | [Get Started With Docker](https://www.docker.com/get-started)|
 
 You should also install a one-time passcode (OTP) application like Authy on your
 mobile device. You will use this to authenticate to your Teleport cluster.
@@ -56,10 +50,10 @@ mobile device. You will use this to authenticate to your Teleport cluster.
 
 ### Start minikube
 
-Start minikube with the default driver:
+Start minikube with the Docker driver:
 
 ```code
-$ minikube start
+$ minikube start --driver=docker
 ```
 
 Add the Teleport Helm repository. Our Helm charts make it easier to deploy
@@ -77,7 +71,10 @@ You will deploy the Auth Service and Proxy Service by installing the
 ```code
 # This is the DNS name Kubernetes will assign to the Proxy Service
 $ CLUSTER_NAME="teleport-cluster.teleport-cluster.svc.cluster.local"
-$ helm install teleport-cluster teleport/teleport-cluster --create-namespace --namespace=teleport-cluster --set clusterName=${CLUSTER_NAME?}
+$ helm install teleport-cluster teleport/teleport-cluster \
+--create-namespace \
+--namespace=teleport-cluster \
+--set clusterName=${CLUSTER_NAME?}
 $ kubectl config set-context --current --namespace teleport-cluster
 ```
 
@@ -90,33 +87,6 @@ $ kubectl get pods
 NAME                               READY   STATUS    RESTARTS   AGE
 teleport-cluster-b9dc6c68b-d75fb   1/1     Running   0          46s
 ```
-
-### Configure DNS
-
-For the Proxy Service to communicate with end-users and Teleport Nodes, it needs
-a domain name that is resolvable both inside and outside your Kubernetes
-cluster.
-
-Production Teleport deployments achieve this by either using a registered domain
-name or an internal DNS infrastructure. For this demonstration, we will
-edit the `/etc/hosts` file instead.
-
-<Notice type="warning">
-Set yourself a reminder to clean up your `/etc/hosts`
-file when you are done with this guide.
-</Notice>
-
-Append the following to your `/etc/hosts` file:
-
-```
-127.0.0.1 teleport-cluster.teleport-cluster.svc.cluster.local kube-dash.teleport-cluster.teleport-cluster.svc.cluster.local
-```
-
-`teleport-cluster.teleport-cluster.svc.cluster.local` is the DNS name that
-Kubernetes assigns to the Proxy Service. As you complete this guide, the
-Application Service will make Kubernetes Dashboard available at the
-`kube-dash` subdomain of the Proxy Service's domain name.
-
 
 ### Expose the Proxy Service to your local machine
 
@@ -150,11 +120,13 @@ NAME               TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)        
 teleport-cluster   LoadBalancer   10.107.218.212   127.0.0.1     443:32143/TCP,3023:30618/TCP,3026:32750/TCP,3024:32406/TCP,3036:30687/TCP   6m18s
 ```
 
-The Proxy Service enables you to manage your cluster via an HTTP API. Verify
-that this is working:
+The Proxy Service enables you to manage your cluster via an HTTP API. Assign the
+external IP of the load balancer to an environment variable and verify that the
+HTTP API is working:
 
-```
-$ curl --insecure https://localhost:443/webapi/ping
+```code
+$ EXTERNAL_IP=$(kubectl get service teleport-cluster -o jsonpath='{ .status.loadBalancer.ingress[0].ip }')
+$ curl --insecure https://${EXTERNAL_IP?}:443/webapi/ping
 {"auth":{"type":"local","second_factor":"otp","preferred_local_mfa":"otp","has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","public_addr":"teleport-cluster:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"8.2.0","min_client_version":"7.0.0"}%                           
 ```
 
@@ -166,6 +138,34 @@ configure HTTP clients not to verify the certificate.
 In production setups, you will need to configure Teleport to use a certificate
 from a certificate authority like Let's Encrypt.
 </Admonition>
+
+### Configure DNS
+
+For the Proxy Service to communicate with end-users and Teleport Nodes, it needs
+a domain name that is resolvable both inside and outside your Kubernetes
+cluster.
+
+Production Teleport deployments achieve this by either using a registered domain
+name or an internal DNS infrastructure. For this demonstration, we will
+edit the `/etc/hosts` file instead.
+
+<Notice type="warning">
+Set yourself a reminder to clean up your `/etc/hosts`
+file when you are done with this guide.
+</Notice>
+
+Append an entry to your `/etc/hosts` file that maps the external IP of your
+Proxy Service to the DNS name Kubernetes assigns, plus a DNS name we will use
+later for Kubernetes Dashboard.
+
+```code
+$ sudo -E bash -c "echo \"${EXTERNAL_IP?} teleport-cluster.teleport-cluster.svc.cluster.local kube-dash.teleport-cluster.teleport-cluster.svc.cluster.local\" >> /etc/hosts"
+```
+
+`teleport-cluster.teleport-cluster.svc.cluster.local` is the DNS name that
+Kubernetes assigns to the Proxy Service. As you complete this guide, the
+Application Service will make Kubernetes Dashboard available at the
+`kube-dash` subdomain of the Proxy Service's domain name.
 
 ### Deploy Kubernetes Dashboard
 
@@ -213,9 +213,9 @@ User "appuser" has been created but requires a password. Share this URL with the
 https://teleport-cluster.teleport-cluster.svc.cluster.local:443/web/invite/<token>
 ```
 
-Next, open a browser at `https://localhost:443/web/invite/<token>`, copying the
-output of the `tctl` command you executed. minikube's reverse tunnel will allow
-you to access the Teleport Proxy Service on `https://localhost`.
+Next, open a browser at the URL returned by `tctl users add` command. minikube's
+reverse tunnel will allow you to access the Teleport Proxy Service at
+`https://teleport-cluster.teleport-cluster.svc.cluster.local:443`.
 
 (!docs/pages/includes/insecure-certificate.mdx!)
 
@@ -334,11 +334,11 @@ Terminate the `minikube tunnel` process you started earlier and run
 ## Next steps
 
 Now that you have used Teleport to securely access resources in your local
-Kubernetes cluster, read our guides to setting up Teleport for usage with
-Kubernetes in production.
+Kubernetes cluster, read our guides to setting up Teleport for Kubernetes in
+production.
 
 - Get started with Teleport on AWS EKS: [Running an HA Teleport cluster using
-  AWS, EKS, and Helm ](../helm/guides/aws)
+  AWS, EKS, and Helm](../helm/guides/aws.mdx)
 - Manage access to your Kubernetes cluster with the Teleport Kubernetes Service:
   [Connect Kubernetes Cluster to Teleport](./agent.mdx)
 - Integrate Teleport with your SSO provider:
