@@ -49,6 +49,9 @@ const (
 	// MetricFailedLoginAttempts counts failed login attempts
 	MetricFailedLoginAttempts = "failed_login_attempts_total"
 
+	// MetricConnectToNodeAttempts counts ssh attempts
+	MetricConnectToNodeAttempts = "connect_to_node_attempts_total"
+
 	// MetricFailedConnectToNodeAttempts counts failed ssh attempts
 	MetricFailedConnectToNodeAttempts = "failed_connect_to_node_attempts_total"
 
@@ -180,8 +183,23 @@ const (
 	// MetricNamespace defines the teleport prometheus namespace
 	MetricNamespace = "teleport"
 
+	// MetricConnectedResources tracks the number and type of resources connected via keepalives
+	MetricConnectedResources = "connected_resources"
+
 	// MetricBuildInfo tracks build information
 	MetricBuildInfo = "build_info"
+
+	// MetricCacheEventsReceived tracks the total number of events received by a cache
+	MetricCacheEventsReceived = "cache_events"
+
+	// MetricStaleCacheEventsReceived tracks the number of stale events received by a cache
+	MetricStaleCacheEventsReceived = "cache_stale_events"
+
+	// MetricRegisteredServers tracks the number of Teleport servers that have successfully registered with the Teleport cluster and have not reached the end of their ttl
+	MetricRegisteredServers = "registered_servers"
+
+	// MetricReverseSSHTunnels defines the number of connected SSH reverse tunnels to the proxy
+	MetricReverseSSHTunnels = "reverse_tunnels_connected"
 
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
@@ -206,4 +224,10 @@ const (
 
 	// TagGoVersion is a prometheus label for version of Go used to build Teleport
 	TagGoVersion = "goversion"
+
+	// TagCacheComponent is a prometheus label for the cache component
+	TagCacheComponent = "cache_component"
+
+	// TagType is a prometheus label for type of resource or tunnel connected
+	TagType = "type"
 )

@@ -724,7 +724,7 @@ func (s *server) findLocalCluster(sconn *ssh.ServerConn) (*localSite, error) {
 }
 
 func (s *server) getTrustedCAKeysByID(id types.CertAuthID) ([]ssh.PublicKey, error) {
-	ca, err := s.localAccessPoint.GetCertAuthority(id, false)
+	ca, err := s.localAccessPoint.GetCertAuthority(context.TODO(), id, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1071,8 +1071,31 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.certificateCache = certificateCache
 
-	go remoteSite.periodicUpdateCertAuthorities()
-	go remoteSite.periodicUpdateLocks()
+	caRetry, err := utils.NewLinear(utils.LinearConfig{
+		First:  utils.HalfJitter(srv.Config.PollingPeriod),
+		Step:   srv.Config.PollingPeriod / 5,
+		Max:    srv.Config.PollingPeriod,
+		Jitter: utils.NewHalfJitter(),
+		Clock:  srv.Clock,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go remoteSite.updateCertAuthorities(caRetry)
+
+	lockRetry, err := utils.NewLinear(utils.LinearConfig{
+		First:  utils.HalfJitter(srv.Config.PollingPeriod),
+		Step:   srv.Config.PollingPeriod / 5,
+		Max:    srv.Config.PollingPeriod,
+		Jitter: utils.NewHalfJitter(),
+		Clock:  srv.Clock,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go remoteSite.updateLocks(lockRetry)
 
 	return remoteSite, nil
 }

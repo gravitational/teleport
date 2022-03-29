@@ -17,12 +17,27 @@ limitations under the License.
 package tdp
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/binary"
+	"encoding/json"
 	"image"
 	"image/color"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	authproto "github.com/gravitational/teleport/api/client/proto"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestEncodeDecode(t *testing.T) {
@@ -51,7 +66,7 @@ func TestEncodeDecode(t *testing.T) {
 		out, err := Decode(buf)
 		require.NoError(t, err)
 
-		require.Empty(t, cmp.Diff(m, out))
+		require.Empty(t, cmp.Diff(m, out, cmpopts.IgnoreUnexported(PNGFrame{})))
 	}
 }
 
@@ -59,4 +74,122 @@ func TestBadDecode(t *testing.T) {
 	// 254 is an unknown message type.
 	_, err := Decode([]byte{254})
 	require.Error(t, err)
+}
+
+func TestRejectsLongUsername(t *testing.T) {
+	const lengthTooLong = 4096
+
+	b := &bytes.Buffer{}
+	b.WriteByte(byte(TypeClientUsername))
+	binary.Write(b, binary.BigEndian, uint32(lengthTooLong))
+	b.Write(bytes.Repeat([]byte("a"), lengthTooLong))
+
+	_, err := Decode(b.Bytes())
+	require.True(t, trace.IsBadParameter(err))
+}
+
+var encodedFrame []byte
+
+func BenchmarkEncodePNG(b *testing.B) {
+	b.StopTimer()
+	frames := loadBitmaps(b)
+	b.StartTimer()
+	var err error
+	for i := 0; i < b.N; i++ {
+		fi := i % len(frames)
+		encodedFrame, err = frames[fi].Encode()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func loadBitmaps(b *testing.B) []PNGFrame {
+	b.Helper()
+
+	f, err := os.Open(filepath.Join("testdata", "png_frames.json"))
+	require.NoError(b, err)
+	defer f.Close()
+
+	enc := PNGEncoder()
+
+	var result []PNGFrame
+	type record struct {
+		Top, Left, Right, Bottom int
+		Pix                      []byte
+	}
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		var r record
+		require.NoError(b, json.Unmarshal(s.Bytes(), &r))
+
+		img := image.NewNRGBA(image.Rectangle{
+			Min: image.Pt(r.Left, r.Top),
+			Max: image.Pt(r.Right, r.Bottom),
+		})
+		copy(img.Pix, r.Pix)
+		result = append(result, NewPNG(img, enc))
+	}
+	require.NoError(b, s.Err())
+	return result
+}
+
+func TestMFA(t *testing.T) {
+	var buff bytes.Buffer
+	c := NewConn(&buff)
+
+	mfaWant := &MFA{
+		Type: defaults.WebsocketWebauthnChallenge[0],
+		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
+			WebauthnChallenge: &wanlib.CredentialAssertion{
+				Response: protocol.PublicKeyCredentialRequestOptions{
+					Challenge:      []byte("challenge"),
+					Timeout:        10,
+					RelyingPartyID: "teleport",
+					AllowedCredentials: []protocol.CredentialDescriptor{
+						{
+							Type:         "public-key",
+							CredentialID: []byte("credential id"),
+							Transport:    []protocol.AuthenticatorTransport{protocol.USB},
+						},
+					},
+					UserVerification: "discouraged",
+					Extensions: protocol.AuthenticationExtensions{
+						"ext1": "value1",
+					},
+				},
+			},
+		},
+	}
+	err := c.OutputMessage(mfaWant)
+	require.NoError(t, err)
+	mfaGot, err := DecodeMFAChallenge(bufio.NewReader(&buff))
+	require.NoError(t, err)
+	require.Equal(t, mfaWant, mfaGot)
+
+	respWant := &MFA{
+		Type: defaults.WebsocketWebauthnChallenge[0],
+		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
+			Response: &authproto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: &wantypes.CredentialAssertionResponse{
+					Type:  "public-key",
+					RawId: []byte("credential id"),
+					Response: &wantypes.AuthenticatorAssertionResponse{
+						ClientDataJson:    []byte("client data json"),
+						AuthenticatorData: []byte("authenticator data"),
+						Signature:         []byte("signature"),
+						UserHandle:        []byte("user handle"),
+					},
+					Extensions: &wantypes.AuthenticationExtensionsClientOutputs{
+						AppId: true,
+					},
+				},
+			},
+		},
+	}
+	err = c.OutputMessage(respWant)
+	require.NoError(t, err)
+	respGot, err := c.InputMessage()
+	require.NoError(t, err)
+	require.Equal(t, respWant, respGot)
 }

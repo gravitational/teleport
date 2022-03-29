@@ -53,7 +53,9 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -75,7 +77,7 @@ type Rate struct {
 type Config struct {
 	// Teleport configuration version.
 	Version string
-	// DataDir provides directory where teleport stores it's permanent state
+	// DataDir is the directory where teleport stores its permanent state
 	// (in case of auth server backed by BoltDB) or local state, e.g. keys
 	DataDir string
 
@@ -86,7 +88,7 @@ type Config struct {
 	Token string
 
 	// JoinMethod is the method the instance will use to join the auth server
-	JoinMethod JoinMethod
+	JoinMethod types.JoinMethod
 
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
@@ -373,12 +375,12 @@ type ProxyConfig struct {
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
-	// for the HTTP endpoint. The hosts in in PublicAddr are included in the
+	// for the HTTP endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	PublicAddrs []utils.NetAddr
 
 	// SSHPublicAddrs is a list of the public addresses the proxy advertises
-	// for the SSH endpoint. The hosts in in PublicAddr are included in the
+	// for the SSH endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
 	SSHPublicAddrs []utils.NetAddr
 
@@ -568,6 +570,9 @@ type SSHConfig struct {
 	// the inactivity timeout expiring. The empty string indicates that no
 	// timeout message will be sent.
 	IdleTimeoutMessage string
+
+	// X11 holds x11 forwarding configuration for Teleport.
+	X11 *x11.ServerConfig
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -636,6 +641,8 @@ type Database struct {
 	AWS DatabaseAWS
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP
+	// AD contains Active Directory configuration for database.
+	AD DatabaseAD
 }
 
 // TLSMode defines all possible database verification modes.
@@ -723,6 +730,35 @@ type DatabaseGCP struct {
 	InstanceID string
 }
 
+// DatabaseAD contains database Active Directory configuration.
+type DatabaseAD struct {
+	// KeytabFile is the path to the Kerberos keytab file.
+	KeytabFile string
+	// Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
+	Krb5File string
+	// Domain is the Active Directory domain the database resides in.
+	Domain string
+	// SPN is the service principal name for the database.
+	SPN string
+}
+
+// CheckAndSetDefaults validates database Active Directory configuration.
+func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
+	if d.KeytabFile == "" {
+		return trace.BadParameter("missing keytab file path for database %q", name)
+	}
+	if d.Krb5File == "" {
+		d.Krb5File = defaults.Krb5FilePath
+	}
+	if d.Domain == "" {
+		return trace.BadParameter("missing Active Directory domain for database %q", name)
+	}
+	if d.SPN == "" {
+		return trace.BadParameter("missing service principal name for database %q", name)
+	}
+	return nil
+}
+
 // CheckAndSetDefaults validates the database proxy configuration.
 func (d *Database) CheckAndSetDefaults() error {
 	if d.Name == "" {
@@ -760,6 +796,11 @@ func (d *Database) CheckAndSetDefaults() error {
 					d.Name, connString.ReadPreference)
 			}
 		}
+	} else if d.Protocol == defaults.ProtocolRedis {
+		_, err := redis.ParseRedisAddress(d.URI)
+		if err != nil {
+			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
+		}
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
 			d.Name, d.URI, err)
@@ -781,6 +822,14 @@ func (d *Database) CheckAndSetDefaults() error {
 	case d.GCP.ProjectID == "" && d.GCP.InstanceID != "":
 		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.Name)
 	}
+
+	// For SQL Server we only support Kerberos auth with Active Directory at the moment.
+	if d.Protocol == defaults.ProtocolSQLServer {
+		if err := d.AD.CheckAndSetDefaults(d.Name); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -967,8 +1016,6 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
-	// Password for LDAP authentication.
-	Password string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
@@ -1143,14 +1190,3 @@ func ApplyFIPSDefaults(cfg *Config) {
 	// entire cluster is FedRAMP/FIPS 140-2 compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
-
-// JoinMethod is the method the instance will use to join the auth server.
-type JoinMethod int
-
-const (
-	// JoinMethodToken means the instance will use a basic token.
-	JoinMethodToken JoinMethod = iota
-	// JoinMethodEC2 means the instance will use Simplified Node Joining and send an
-	// EC2 Instance Identity Document.
-	JoinMethodEC2
-)

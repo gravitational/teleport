@@ -22,14 +22,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 )
 
 // NewClusterNameWithRandomID creates a ClusterName, supplying a random
 // ClusterID if the field is not provided in spec.
 func NewClusterNameWithRandomID(spec types.ClusterNameSpecV2) (types.ClusterName, error) {
 	if spec.ClusterID == "" {
-		spec.ClusterID = uuid.New()
+		spec.ClusterID = uuid.New().String()
 	}
 	return types.NewClusterName(spec)
 }

@@ -32,11 +32,6 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
-	triggerPushMasterOnly = trigger{
-		Event:  triggerRef{Include: []string{"push"}},
-		Branch: triggerRef{Include: []string{"master"}},
-		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
-	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
@@ -56,6 +51,8 @@ var (
 	}
 )
 
+var buildboxVersion value
+
 var goRuntime value
 
 func init() {
@@ -64,13 +61,27 @@ func init() {
 		log.Fatalf("could not get Go version: %v", err)
 	}
 	goRuntime = value{raw: string(bytes.TrimSpace(v))}
+
+	v, err = exec.Command("make", "-s", "-C", "build.assets", "print-buildbox-version").Output()
+	if err != nil {
+		log.Fatalf("could not get buildbox version: %v", err)
+	}
+	buildboxVersion = value{raw: string(bytes.TrimSpace(v))}
+}
+
+func pushTriggerForBranch(branches ...string) trigger {
+	t := trigger{
+		Event: triggerRef{Include: []string{"push"}},
+		Repo:  triggerRef{Include: []string{"gravitational/teleport"}},
+	}
+	t.Branch.Include = append(t.Branch.Include, branches...)
+	return t
 }
 
 type buildType struct {
 	os              string
 	arch            string
 	fips            bool
-	centos6         bool
 	centos7         bool
 	windowsUnsigned bool
 }
@@ -101,9 +112,7 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	if b.centos6 {
-		makefileTarget += "-centos6"
-	} else if b.centos7 {
+	if b.centos7 {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {

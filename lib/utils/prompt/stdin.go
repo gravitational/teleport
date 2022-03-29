@@ -17,127 +17,38 @@ limitations under the License.
 package prompt
 
 import (
-	"context"
-	"errors"
-	"io"
 	"os"
 	"sync"
 )
 
 var (
-	stdinOnce = &sync.Once{}
-	stdin     *ContextReader
+	stdinMU sync.Mutex
+	stdin   StdinReader
 )
+
+// StdinReader contains ContextReader methods applicable to stdin.
+type StdinReader interface {
+	Reader
+	SecureReader
+}
 
 // Stdin returns a singleton ContextReader wrapped around os.Stdin.
 //
 // os.Stdin should not be used directly after the first call to this function
-// to avoid losing data. Closing this ContextReader will prevent all future
-// reads for all callers.
-func Stdin() *ContextReader {
-	stdinOnce.Do(func() {
+// to avoid losing data.
+func Stdin() StdinReader {
+	stdinMU.Lock()
+	defer stdinMU.Unlock()
+	if stdin == nil {
 		stdin = NewContextReader(os.Stdin)
-	})
+	}
 	return stdin
 }
 
-// ErrReaderClosed is returned from ContextReader.Read after it was closed.
-var ErrReaderClosed = errors.New("ContextReader has been closed")
-
-// ContextReader is a wrapper around io.Reader where each individual
-// ReadContext call can be canceled using a context.
-type ContextReader struct {
-	r     io.Reader
-	data  chan []byte
-	close chan struct{}
-
-	mu  sync.RWMutex
-	err error
-}
-
-// NewContextReader creates a new ContextReader wrapping r. Callers should not
-// use r after creating this ContextReader to avoid loss of data (the last read
-// will be lost).
-//
-// Callers are responsible for closing the ContextReader to release associated
-// resources.
-func NewContextReader(r io.Reader) *ContextReader {
-	cr := &ContextReader{
-		r:     r,
-		data:  make(chan []byte),
-		close: make(chan struct{}),
-	}
-	go cr.read()
-	return cr
-}
-
-func (r *ContextReader) setErr(err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.err != nil {
-		// Keep only the first encountered error.
-		return
-	}
-	r.err = err
-}
-
-func (r *ContextReader) getErr() error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.err
-}
-
-func (r *ContextReader) read() {
-	defer close(r.data)
-
-	for {
-		// Allocate a new buffer for every read because we need to send it to
-		// another goroutine.
-		buf := make([]byte, 4*1024) // 4kB, matches Linux page size.
-		n, err := r.r.Read(buf)
-		r.setErr(err)
-		buf = buf[:n]
-		if n == 0 {
-			return
-		}
-		select {
-		case <-r.close:
-			return
-		case r.data <- buf:
-		}
-	}
-}
-
-// ReadContext returns the next chunk of output from the reader. If ctx is
-// canceled before any data is available, ReadContext will return too. If r
-// was closed, ReadContext will return immediately with ErrReaderClosed.
-func (r *ContextReader) ReadContext(ctx context.Context) ([]byte, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-r.close:
-		// Close was called, unblock immediately.
-		// r.data might still be blocked if it's blocked on the Read call.
-		return nil, r.getErr()
-	case buf, ok := <-r.data:
-		if !ok {
-			// r.data was closed, so the read goroutine has finished.
-			// No more data will be available, return the latest error.
-			return nil, r.getErr()
-		}
-		return buf, nil
-	}
-}
-
-// Close releases the background resources of r. All ReadContext calls will
-// unblock immediately.
-func (r *ContextReader) Close() {
-	select {
-	case <-r.close:
-		// Already closed, do nothing.
-		return
-	default:
-		close(r.close)
-		r.setErr(ErrReaderClosed)
-	}
+// SetStdin allows callers to change the Stdin reader.
+// Useful to replace Stdin for tests, but should be avoided in production code.
+func SetStdin(rd StdinReader) {
+	stdinMU.Lock()
+	defer stdinMU.Unlock()
+	stdin = rd
 }

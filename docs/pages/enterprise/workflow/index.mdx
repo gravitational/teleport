@@ -24,7 +24,7 @@ This role allows the contractor to request the role DBA.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: contractor
 spec:
@@ -43,7 +43,7 @@ This role allows the contractor to request the role DBA.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: dba
 spec:
@@ -62,7 +62,7 @@ This role allows the admin to approve the contractor's request.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: admin
 spec:
@@ -131,7 +131,7 @@ the permission of the `dba`.
 # Example role that explicitly denies a contractor from requesting the admin
 # role.
 kind: role
-version: v4
+version: v5
 metadata:
 name: contractor
 spec:

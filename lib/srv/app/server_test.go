@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -47,8 +47,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
@@ -118,7 +118,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
-	s.hostUUID = uuid.New()
+	s.hostUUID = uuid.New().String()
 
 	var err error
 	// Create Auth Server.
@@ -141,6 +141,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		s.tlsServer.Close()
+	})
+
 	// Create user and role.
 	s.user, s.role, err = auth.CreateUserAndRole(s.tlsServer.Auth(), "foo", []string{"foo-login"})
 	require.NoError(t, err)
@@ -151,7 +155,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
 	require.NoError(t, err)
 
-	rootCA, err := s.tlsServer.Auth().GetCertAuthority(types.CertAuthID{
+	rootCA, err := s.tlsServer.Auth().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: "root.example.com",
 	}, false)
@@ -163,7 +167,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
-	s.message = uuid.New()
+	s.message = uuid.New().String()
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, s.message)
@@ -198,6 +202,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Create a client with a machine role of RoleApp.
 	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		s.authClient.Close()
+	})
 
 	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	require.NoError(t, err)
@@ -251,6 +259,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		lockWatcher.Close()
+	})
+
 	apps := types.Apps{appFoo, appAWS}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
@@ -279,6 +291,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	err = s.appServer.ForceHeartbeat()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		s.appServer.Close()
+	})
 
 	return s
 }
@@ -361,7 +376,7 @@ func TestHandleConnection(t *testing.T) {
 	s := SetUpSuite(t)
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusOK)
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
 	})
@@ -389,7 +404,7 @@ func TestAuthorizeWithLocks(t *testing.T) {
 
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusForbidden)
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, strings.TrimSpace(string(buf)), "Forbidden")
 	})

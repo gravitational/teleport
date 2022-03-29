@@ -17,9 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -27,12 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -69,7 +71,7 @@ func init() {
 
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe. Used to test tsh ssh command.
-	if len(os.Args) == 2 && (os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand) {
+	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
@@ -153,7 +155,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRole("populist", types.RoleSpecV4{
+	populist, err := types.NewRoleV3("populist", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -166,7 +168,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRole("dictator", types.RoleSpecV4{})
+	dictator, err := types.NewRoleV3("dictator", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -175,7 +177,11 @@ func TestOIDCLogin(t *testing.T) {
 
 	connector := mockConnector(t)
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(populist, dictator, connector, alice))
+	motd := "MESSAGE_OF_THE_DAY_OIDC"
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(populist, dictator, connector, alice),
+		withMOTD(t, motd),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -213,6 +219,8 @@ func TestOIDCLogin(t *testing.T) {
 		}
 	}()
 
+	buf := bytes.NewBuffer([]byte{})
+	sc := bufio.NewScanner(buf)
 	err = Run([]string{
 		"login",
 		"--insecure",
@@ -223,6 +231,7 @@ func TestOIDCLogin(t *testing.T) {
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		cf.SiteName = "localhost"
+		cf.overrideStderr = buf
 		return nil
 	}))
 
@@ -231,9 +240,20 @@ func TestOIDCLogin(t *testing.T) {
 	// verify that auto-request happened
 	require.True(t, didAutoRequest.Load())
 
+	findMOTD(t, sc, motd)
 	// if we got this far, then tsh successfully registered name change from `alice` to
 	// `alice@example.com`, since the correct name needed to be used for the access
 	// request to be generated.
+}
+
+func findMOTD(t *testing.T, sc *bufio.Scanner, motd string) {
+	t.Helper()
+	for sc.Scan() {
+		if strings.Contains(sc.Text(), motd) {
+			return
+		}
+	}
+	require.Fail(t, "Failed to find %q MOTD in the logs", motd)
 }
 
 // TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
@@ -283,7 +303,11 @@ func TestRelogin(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	motd := "RELOGIN MOTD PRESENT"
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice),
+		withMOTD(t, motd),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -291,6 +315,8 @@ func TestRelogin(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
+	buf := bytes.NewBuffer([]byte{})
+	sc := bufio.NewScanner(buf)
 	err = Run([]string{
 		"login",
 		"--insecure",
@@ -299,9 +325,11 @@ func TestRelogin(t *testing.T) {
 		"--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.overrideStderr = buf
 		return nil
 	}))
 	require.NoError(t, err)
+	findMOTD(t, sc, motd)
 
 	err = Run([]string{
 		"login",
@@ -309,10 +337,20 @@ func TestRelogin(t *testing.T) {
 		"--debug",
 		"--proxy", proxyAddr.String(),
 		"localhost",
-	}, setHomePath(tmpHomePath))
+	}, setHomePath(tmpHomePath),
+		cliOption(func(cf *CLIConf) error {
+			cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+			cf.overrideStderr = buf
+			return nil
+		}))
 	require.NoError(t, err)
+	findMOTD(t, sc, motd)
 
-	err = Run([]string{"logout"}, setHomePath(tmpHomePath))
+	err = Run([]string{"logout"}, setHomePath(tmpHomePath),
+		cliOption(func(cf *CLIConf) error {
+			cf.overrideStderr = buf
+			return nil
+		}))
 	require.NoError(t, err)
 
 	err = Run([]string{
@@ -324,8 +362,10 @@ func TestRelogin(t *testing.T) {
 		"localhost",
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		cf.overrideStderr = buf
 		return nil
 	}))
+	findMOTD(t, sc, motd)
 	require.NoError(t, err)
 }
 
@@ -384,6 +424,11 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
+	conf.ExtraProxyHeaders = []ExtraProxyHeaders{
+		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
+		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
+		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
+	}
 	tc, err = makeClient(&conf, true)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
@@ -403,6 +448,10 @@ func TestMakeClient(t *testing.T) {
 		},
 	}, tc.Config.DynamicForwardedPorts)
 
+	require.Equal(t,
+		map[string]string{"A": "B", "C": "D"},
+		tc.ExtraProxyHeaders)
+
 	_, proxy := makeTestServers(t)
 
 	proxyWebAddr, err := proxy.ProxyWebAddr()
@@ -417,7 +466,7 @@ func TestMakeClient(t *testing.T) {
 	// different from the default.
 	conf = CLIConf{
 		Proxy:              proxyWebAddr.String(),
-		IdentityFileIn:     "../../fixtures/certs/identities/key-cert-ca.pem",
+		IdentityFileIn:     "../../fixtures/certs/identities/tls.pem",
 		Context:            context.Background(),
 		InsecureSkipVerify: true,
 	}
@@ -444,7 +493,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		lib.SetInsecureDevMode(isInsecure)
 	})
 
-	requester, err := types.NewRole("requester", types.RoleSpecV4{
+	requester, err := types.NewRoleV3("requester", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"access"},
@@ -634,7 +683,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NotNil(t, cb)
 
 	// prepare the cluster CA separately
-	certBytes, err := ioutil.ReadFile("../../fixtures/certs/identities/ca.pem")
+	certBytes, err := os.ReadFile("../../fixtures/certs/identities/ca.pem")
 	require.NoError(t, err)
 
 	_, hosts, cert, _, _, err := ssh.ParseKnownHosts(certBytes)
@@ -651,117 +700,12 @@ func TestIdentityRead(t *testing.T) {
 	require.NotNil(t, k.TLSCert)
 
 	// generate a TLS client config
-	conf, err := k.TeleportClientTLSConfig(nil)
+	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 
 	// ensure that at least root CA was successfully loaded
 	require.Greater(t, len(conf.RootCAs.Subjects()), 0)
-}
-
-func TestOptions(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		desc        string
-		inOptions   []string
-		assertError require.ErrorAssertionFunc
-		outOptions  Options
-	}{
-		// Generic option-parsing tests
-		{
-			desc:        "Space Delimited",
-			inOptions:   []string{"AddKeysToAgent yes"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Equals Sign Delimited",
-			inOptions:   []string{"AddKeysToAgent=yes"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Invalid key",
-			inOptions:   []string{"foo foo"},
-			assertError: require.Error,
-			outOptions:  Options{},
-		},
-		{
-			desc:        "Incomplete option",
-			inOptions:   []string{"AddKeysToAgent"},
-			assertError: require.Error,
-			outOptions:  Options{},
-		},
-		// AddKeysToAgent Tests
-		{
-			desc:        "AddKeysToAgent Invalid Value",
-			inOptions:   []string{"AddKeysToAgent foo"},
-			assertError: require.Error,
-			outOptions:  Options{},
-		},
-		// ForwardAgent Tests
-		{
-			desc:        "Forward Agent Yes",
-			inOptions:   []string{"ForwardAgent yes"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentYes,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Forward Agent No",
-			inOptions:   []string{"ForwardAgent no"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentNo,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Forward Agent Local",
-			inOptions:   []string{"ForwardAgent local"},
-			assertError: require.NoError,
-			outOptions: Options{
-				AddKeysToAgent:        true,
-				ForwardAgent:          client.ForwardAgentLocal,
-				RequestTTY:            false,
-				StrictHostKeyChecking: true,
-			},
-		},
-		{
-			desc:        "Forward Agent InvalidValue",
-			inOptions:   []string{"ForwardAgent potato"},
-			assertError: require.Error,
-			outOptions:  Options{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			options, err := parseOptions(tt.inOptions)
-			tt.assertError(t, err)
-
-			require.Equal(t, tt.outOptions.AddKeysToAgent, options.AddKeysToAgent)
-			require.Equal(t, tt.outOptions.ForwardAgent, options.ForwardAgent)
-			require.Equal(t, tt.outOptions.RequestTTY, options.RequestTTY)
-			require.Equal(t, tt.outOptions.StrictHostKeyChecking, options.StrictHostKeyChecking)
-		})
-	}
 }
 
 func TestFormatConnectCommand(t *testing.T) {
@@ -1091,61 +1035,208 @@ func TestKubeConfigUpdate(t *testing.T) {
 	}
 }
 
-func TestMakeTableWithTruncatedColumn(t *testing.T) {
-	// os.Stdin.Fd() fails during go test, so width is defaulted to 80
-	columns := []string{"column1", "column2", "column3"}
-	rows := [][]string{[]string{strings.Repeat("cell1", 6), strings.Repeat("cell2", 6), strings.Repeat("cell3", 6)}}
+func TestSetX11Config(t *testing.T) {
+	t.Parallel()
 
-	testCases := []struct {
-		truncatedColumn string
-		expectedWidth   int
-		expectedOutput  []string
-	}{
-		{
-			truncatedColumn: "column2",
-			expectedWidth:   80,
-			expectedOutput: []string{
-				"column1                        column2           column3                        ",
-				"------------------------------ ----------------- ------------------------------ ",
-				"cell1cell1cell1cell1cell1cell1 cell2cell2cell... cell3cell3cell3cell3cell3cell3 ",
-				"",
-			},
-		},
-		{
-			truncatedColumn: "column3",
-			expectedWidth:   80,
-			expectedOutput: []string{
-				"column1                        column2                        column3           ",
-				"------------------------------ ------------------------------ ----------------- ",
-				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell... ",
-				"",
-			},
-		},
-		{
-			truncatedColumn: "no column match",
-			expectedWidth:   93,
-			expectedOutput: []string{
-				"column1                        column2                        column3                        ",
-				"------------------------------ ------------------------------ ------------------------------ ",
-				"cell1cell1cell1cell1cell1cell1 cell2cell2cell2cell2cell2cell2 cell3cell3cell3cell3cell3cell3 ",
-				"",
-			},
-		},
+	envMapGetter := func(envMap map[string]string) envGetter {
+		return func(s string) string {
+			return envMap[s]
+		}
 	}
-	for _, testCase := range testCases {
-		t.Run(testCase.truncatedColumn, func(t *testing.T) {
-			table := makeTableWithTruncatedColumn(columns, rows, testCase.truncatedColumn)
-			rows := strings.Split(table.AsBuffer().String(), "\n")
-			require.Len(t, rows, 4)
-			require.Len(t, rows[2], testCase.expectedWidth)
-			require.Equal(t, testCase.expectedOutput, rows)
+
+	for _, tc := range []struct {
+		desc         string
+		cf           CLIConf
+		opts         []string
+		envMap       map[string]string
+		assertError  require.ErrorAssertionFunc
+		expectConfig client.Config
+	}{
+		// Test Teleport flag usage
+		{
+			desc: "-X",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc: "-Y",
+			cf: CLIConf{
+				X11ForwardingTrusted: true,
+			},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "--x11-untrustedTimeout=1m",
+			cf: CLIConf{
+				X11ForwardingTimeout: time.Minute,
+			},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTimeout: time.Minute,
+			},
+		}, {
+			desc: "$DISPLAY not set",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			assertError: require.Error,
+			expectConfig: client.Config{
+				EnableX11Forwarding: false,
+			},
+		},
+		// Test OpenSSH flag usage
+		{
+			desc:        "-oForwardX11=yes",
+			opts:        []string{"ForwardX11=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc:        "-oForwardX11Trusted=yes",
+			opts:        []string{"ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc:        "-oForwardX11Trusted=yes",
+			opts:        []string{"ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc:        "-oForwardX11=yes with -oForwardX11Trusted=yes",
+			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc:        "-oForwardX11=yes with -oForwardX11Trusted=no",
+			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc:        "-oForwardX11Timeout=60",
+			opts:        []string{"ForwardX11Timeout=60"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTimeout: time.Minute,
+			},
+		},
+		// Test Combined usage - options generally take priority
+		{
+			desc: "-X with -oForwardX11=yes",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			opts:        []string{"ForwardX11=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "-X with -oForwardX11Trusted=yes",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "-X with -oForwardX11Trusted=no",
+			cf: CLIConf{
+				X11ForwardingUntrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: false,
+			},
+		}, {
+			desc: "-Y with -oForwardX11Trusted=yes",
+			cf: CLIConf{
+				X11ForwardingTrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=yes"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "-Y with -oForwardX11Trusted=no",
+			cf: CLIConf{
+				X11ForwardingTrusted: true,
+			},
+			opts:        []string{"ForwardX11Trusted=no"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				EnableX11Forwarding:  true,
+				X11ForwardingTrusted: true,
+			},
+		}, {
+			desc: "--x11-untrustedTimeout=1m with -oForwardX11Timeout=120",
+			cf: CLIConf{
+				X11ForwardingTimeout: time.Minute,
+			},
+			opts:        []string{"ForwardX11Timeout=120"},
+			envMap:      map[string]string{x11.DisplayEnv: ":0"},
+			assertError: require.NoError,
+			expectConfig: client.Config{
+				X11ForwardingTimeout: time.Minute * 2,
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			opts, err := parseOptions(tc.opts)
+			require.NoError(t, err)
+
+			clt := client.Config{}
+			err = setX11Config(&clt, &tc.cf, opts, envMapGetter(tc.envMap))
+			tc.assertError(t, err)
+			require.Equal(t, tc.expectConfig, clt)
 		})
 	}
 }
 
 type testServersOpts struct {
-	bootstrap      []types.Resource
-	authConfigFunc func(cfg *service.AuthConfig)
+	bootstrap       []types.Resource
+	authConfigFuncs []func(cfg *service.AuthConfig)
 }
 
 type testServerOptFunc func(o *testServersOpts)
@@ -1158,7 +1249,11 @@ func withBootstrap(bootstrap ...types.Resource) testServerOptFunc {
 
 func withAuthConfig(fn func(cfg *service.AuthConfig)) testServerOptFunc {
 	return func(o *testServersOpts) {
-		o.authConfigFunc = fn
+		if o.authConfigFuncs == nil {
+			o.authConfigFuncs = []func(cfg *service.AuthConfig){}
+		}
+
+		o.authConfigFuncs = append(o.authConfigFuncs, fn)
 	}
 }
 
@@ -1170,6 +1265,20 @@ func withClusterName(t *testing.T, n string) testServerOptFunc {
 			})
 		require.NoError(t, err)
 		cfg.ClusterName = clusterName
+	})
+}
+
+func withMOTD(t *testing.T, motd string) testServerOptFunc {
+	oldStdin := prompt.Stdin()
+	t.Cleanup(func() {
+		prompt.SetStdin(oldStdin)
+	})
+	prompt.SetStdin(prompt.NewFakeReader().
+		AddString(""). // 3x to allow multiple logins
+		AddString("").
+		AddString(""))
+	return withAuthConfig(func(cfg *service.AuthConfig) {
+		cfg.Preference.SetMessageOfTheDay(motd)
 	})
 }
 
@@ -1205,8 +1314,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
-	if options.authConfigFunc != nil {
-		options.authConfigFunc(&cfg.Auth)
+	for _, fn := range options.authConfigFuncs {
+		fn(&cfg.Auth)
 	}
 
 	auth, err = service.NewTeleport(cfg)
@@ -1269,7 +1378,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
-	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV3{
 		IssuerURL:   "https://auth.example.com",
 		RedirectURL: "https://cluster.example.com",
 		ClientID:    "fake-client",
@@ -1289,7 +1398,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		require.NoError(t, err)
 
 		// load CA cert
-		authority, err := authServer.GetCertAuthority(types.CertAuthID{
+		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: "localhost",
 		}, false)

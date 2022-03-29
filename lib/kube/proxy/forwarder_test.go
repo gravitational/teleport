@@ -23,9 +23,23 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"sort"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
+	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -37,17 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/julienschmidt/httprouter"
-	"k8s.io/client-go/transport"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
 type ForwarderSuite struct{}
@@ -131,6 +134,7 @@ func TestAuthenticate(t *testing.T) {
 		DisconnectExpiredCert: types.NewBoolOption(true),
 	})
 	require.NoError(t, err)
+
 	ap := &mockAccessPoint{
 		netConfig:       nc,
 		recordingConfig: types.DefaultSessionRecordingConfig(),
@@ -180,6 +184,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
@@ -198,6 +209,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  false,
 			tunnel:         tun,
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
@@ -216,7 +234,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
-
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
@@ -300,6 +324,13 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
@@ -334,6 +365,13 @@ func TestAuthenticate(t *testing.T) {
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
 			haveKubeCreds:  true,
+			kubeServices: []types.Server{&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{{
+						Name: "local",
+					}},
+				},
+			}},
 
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
@@ -416,7 +454,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
-			roles, err := services.FromSpec("ops", types.RoleSpecV4{
+			roles, err := services.FromSpec("ops", types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					KubeUsers:  tt.roleKubeUsers,
 					KubeGroups: tt.roleKubeGroups,
@@ -649,7 +687,6 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	authCtx.kubeCluster = "local"
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.NotNil(t, sess.forwarder)
 	require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
 
 	// Make sure newClusterSession used provided creds
@@ -667,7 +704,6 @@ func TestNewClusterSessionRemote(t *testing.T) {
 	// Succeed on remote cluster session
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.NotNil(t, sess.forwarder)
 	require.Equal(t, []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}, sess.kubeClusterEndpoints)
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
@@ -715,7 +751,6 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	}
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
-	require.NotNil(t, sess.forwarder)
 	require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
@@ -762,6 +797,80 @@ func TestClusterSessionDial(t *testing.T) {
 	_, err = sess.dial(ctx, "")
 	require.NoError(t, err)
 	require.Equal(t, "addr1", sess.kubeAddress)
+}
+
+// TestKubeFwdHTTPProxyEnv ensures that kube forwarder doesn't respect HTTPS_PROXY env
+// and Kubernetes API is called directly.
+func TestKubeFwdHTTPProxyEnv(t *testing.T) {
+	ctx := context.Background()
+	f := newMockForwader(ctx, t)
+	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
+
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentNode,
+			Client:    &mockEventClient{},
+		},
+	})
+	require.NoError(t, err)
+	f.cfg.LockWatcher = lockWatcher
+
+	var kubeAPICallCount uint32
+	mockKubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddUint32(&kubeAPICallCount, 1)
+	}))
+
+	authCtx.teleportCluster.dial = func(ctx context.Context, network, addr, _ string) (net.Conn, error) {
+		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
+	}
+
+	checkTransportProxy := func(rt http.RoundTripper) http.RoundTripper {
+		tr, ok := rt.(*http.Transport)
+		require.True(t, ok)
+		require.Nil(t, tr.Proxy, "kube forwarder should not take into account HTTPS_PROXY env")
+		return rt
+	}
+
+	f.creds = map[string]*kubeCreds{
+		"local": {
+			targetAddr: mockKubeAPI.URL,
+			tlsConfig:  mockKubeAPI.TLS,
+			transportConfig: &transport.Config{
+				WrapTransport: checkTransportProxy,
+			},
+		},
+	}
+
+	authCtx.kubeCluster = "local"
+	sess, err := f.newClusterSession(authCtx)
+	require.NoError(t, err)
+	require.Equal(t, []kubeClusterEndpoint{{addr: f.creds["local"].targetAddr}}, sess.kubeClusterEndpoints)
+
+	sess.tlsConfig.InsecureSkipVerify = true
+
+	t.Setenv("HTTP_PROXY", "example.com:9999")
+	t.Setenv("HTTPS_PROXY", "example.com:9999")
+
+	// Set upgradeToHTTP2 to trigger h2 transport upgrade logic.
+	sess.upgradeToHTTP2 = true
+	fwd, err := f.makeSessionForwarder(sess)
+	require.NoError(t, err)
+
+	// Create KubeProxy that uses fwd and forward incoming request to kubernetes API.
+	kubeProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.URL, err = url.Parse(mockKubeAPI.URL)
+		require.NoError(t, err)
+		fwd.ServeHTTP(w, r)
+	}))
+
+	req, err := http.NewRequest("GET", kubeProxy.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, uint32(1), atomic.LoadUint32(&kubeAPICallCount))
+	require.NoError(t, resp.Body.Close())
 }
 
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
@@ -870,7 +979,7 @@ func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]types.Server, 
 	return ap.kubeServices, nil
 }
 
-func (ap mockAccessPoint) GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	var cas []types.CertAuthority
 	for _, ca := range ap.cas {
 		cas = append(cas, ca)
@@ -878,7 +987,7 @@ func (ap mockAccessPoint) GetCertAuthorities(caType types.CertAuthType, loadKeys
 	return cas, nil
 }
 
-func (ap mockAccessPoint) GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	return ap.cas[id.DomainName], nil
 }
 
@@ -911,4 +1020,35 @@ type mockAuthorizer struct {
 
 func (a mockAuthorizer) Authorize(context.Context) (*auth.Context, error) {
 	return a.ctx, a.err
+}
+
+type mockEventClient struct {
+	services.Presence
+	types.Events
+	services.LockGetter
+}
+
+func (c *mockEventClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return &mockWatcher{
+		ctx:    ctx,
+		eventC: make(chan types.Event),
+	}, nil
+}
+
+type mockWatcher struct {
+	ctx context.Context
+	types.Watcher
+	eventC chan types.Event
+}
+
+func (m *mockWatcher) Close() error {
+	return nil
+}
+
+func (m *mockWatcher) Events() <-chan types.Event {
+	return m.eventC
+}
+
+func (m *mockWatcher) Done() <-chan struct{} {
+	return m.ctx.Done()
 }

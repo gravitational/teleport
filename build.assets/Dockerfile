@@ -22,24 +22,21 @@ ENV LANGUAGE="en_US.UTF-8" \
 ARG BUILDARCH
 
 # Install packages.
-# We install curl first to allow setting up the Google SDK as part of the same layer.
+# Java JRE is required by gcloud firestore emulator.
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
-    apt-get install -y --no-install-recommends apt-utils ca-certificates curl gnupg && \
-    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
-    apt-get -y update && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
         clang-10 \
         clang-format-10 \
+        ca-certificates \
         curl \
+        default-jre \
         gcc \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
-        google-cloud-sdk \
-        google-cloud-sdk-firestore-emulator \
+        gnupg \
         gzip \
         libc6-dev \
         libelf-dev \
@@ -64,11 +61,18 @@ RUN apt-get update -y --fix-missing && \
         unzip \
         zip \
         zlib1g-dev \
+        xauth \
         && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install gcloud SDK and Firestore emulator.
+RUN curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts
+ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
+# beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
+RUN gcloud components install cloud-firestore-emulator beta
 
 ARG UID
 ARG GID
@@ -80,8 +84,8 @@ RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9
      cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
 
 # Install Go.
-ARG RUNTIME
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-${BUILDARCH}.tar.gz | tar xz && \
+ARG GOLANG_VERSION
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -101,15 +105,20 @@ ENV GOPATH="/go" \
 # Install addlicense
 RUN go install github.com/google/addlicense@v1.0.0
 
-# Install meta-linter.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+# Install golangci-lint.
+RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.44.0/golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+     cp golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
      rm -r helm-tarball*)
+RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
+    mkdir -p /home/ci/.local/share/helm && \
+    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
+    chown -R ci /home/ci/.local/share/helm && \
+    HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install bats.
 RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \

@@ -17,7 +17,9 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
@@ -25,13 +27,14 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -147,6 +150,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	rootCluster, err := client.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	addr := "localhost:0"
 	if cf.LocalProxyPort != "" {
@@ -161,7 +168,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 			log.WithError(err).Warnf("Failed to close listener.")
 		}
 	}()
-	lp, err := mkLocalProxy(cf, client.WebProxyAddr, database.Protocol, listener)
+	lp, err := mkLocalProxy(cf.Context, localProxyOpts{
+		proxyAddr: client.WebProxyAddr,
+		protocol:  database.Protocol,
+		listener:  listener,
+		insecure:  cf.InsecureSkipVerify,
+		certFile:  cf.LocalProxyCertFile,
+		keyFile:   cf.LocalProxyKeyFile,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,7 +192,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	err = dbProxyTpl.Execute(os.Stdout, map[string]string{
 		"database": database.ServiceName,
 		"address":  listener.Addr().String(),
-		"ca":       profile.CACertPath(),
+		"ca":       profile.CACertPathForCluster(rootCluster),
 		"cert":     profile.DatabaseCertPathForCluster(cf.SiteName, database.ServiceName),
 		"key":      profile.KeyPath(),
 	})
@@ -193,22 +207,36 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func mkLocalProxy(cf *CLIConf, remoteProxyAddr string, protocol string, listener net.Listener) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := toALPNProtocol(protocol)
+type localProxyOpts struct {
+	proxyAddr string
+	listener  net.Listener
+	protocol  string
+	insecure  bool
+	certFile  string
+	keyFile   string
+}
+
+func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
+	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	address, err := utils.ParseAddr(remoteProxyAddr)
+	address, err := utils.ParseAddr(opts.proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := mkLocalProxyCerts(opts.certFile, opts.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		RemoteProxyAddr:    remoteProxyAddr,
+		InsecureSkipVerify: opts.insecure,
+		RemoteProxyAddr:    opts.proxyAddr,
 		Protocol:           alpnProtocol,
-		Listener:           listener,
-		ParentContext:      cf.Context,
+		Listener:           opts.listener,
+		ParentContext:      ctx,
 		SNI:                address.Host(),
+		Certs:              certs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -216,17 +244,103 @@ func mkLocalProxy(cf *CLIConf, remoteProxyAddr string, protocol string, listener
 	return lp, nil
 }
 
-func toALPNProtocol(dbProtocol string) (alpncommon.Protocol, error) {
-	switch dbProtocol {
-	case defaults.ProtocolMySQL:
-		return alpncommon.ProtocolMySQL, nil
-	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
-		return alpncommon.ProtocolPostgres, nil
-	case defaults.ProtocolMongoDB:
-		return alpncommon.ProtocolMongoDB, nil
-	default:
-		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
+func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
+	if certFile == "" && keyFile == "" {
+		return []tls.Certificate{}, nil
 	}
+	if certFile == "" && keyFile != "" || certFile != "" && keyFile == "" {
+		return nil, trace.BadParameter("both --cert-file and --key-file are required")
+	}
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []tls.Certificate{cert}, nil
+}
+
+func onProxyCommandApp(cf *CLIConf) error {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	appCerts, err := loadAppCertificate(tc, cf.AppName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	address, err := utils.ParseAddr(tc.WebProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	addr := "localhost:0"
+	if cf.LocalProxyPort != "" {
+		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
+	}
+
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		Listener:           listener,
+		RemoteProxyAddr:    tc.WebProxyAddr,
+		Protocol:           alpncommon.ProtocolHTTP,
+		InsecureSkipVerify: cf.InsecureSkipVerify,
+		ParentContext:      cf.Context,
+		SNI:                address.Host(),
+		Certs:              []tls.Certificate{appCerts},
+	})
+	if err != nil {
+		if cerr := listener.Close(); cerr != nil {
+			return trace.NewAggregate(err, cerr)
+		}
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, lp.GetAddr())
+
+	go func() {
+		<-cf.Context.Done()
+		lp.Close()
+	}()
+
+	defer lp.Close()
+	if err = lp.Start(cf.Context); err != nil {
+		log.WithError(err).Errorf("Failed to start local proxy.")
+	}
+
+	return nil
+}
+
+func loadAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, client.WithAppCerts{})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cc, ok := key.AppTLSCerts[appName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
+	}
+	cert, err := tls.X509KeyPair(cc, key.Priv)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if len(cert.Certificate) < 1 {
+		return tls.Certificate{}, trace.NotFound("invalid certificate - please login to the application again. 'tsh app login'")
+	}
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if time.Until(x509cert.NotAfter) < 5*time.Second {
+		return tls.Certificate{}, trace.BadParameter(
+			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
+			appName)
+	}
+	return cert, nil
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.

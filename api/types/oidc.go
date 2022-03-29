@@ -90,9 +90,9 @@ type OIDCConnector interface {
 	GetGoogleAdminEmail() string
 }
 
-// NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV2.
-func NewOIDCConnector(name string, spec OIDCConnectorSpecV2) (OIDCConnector, error) {
-	o := &OIDCConnectorV2{
+// NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
+func NewOIDCConnector(name string, spec OIDCConnectorSpecV3) (OIDCConnector, error) {
+	o := &OIDCConnectorV3{
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -105,7 +105,7 @@ func NewOIDCConnector(name string, spec OIDCConnectorSpecV2) (OIDCConnector, err
 }
 
 // SetPrompt sets OIDC prompt value
-func (o *OIDCConnectorV2) SetPrompt(p string) {
+func (o *OIDCConnectorV3) SetPrompt(p string) {
 	o.Spec.Prompt = p
 }
 
@@ -113,7 +113,7 @@ func (o *OIDCConnectorV2) SetPrompt(p string) {
 // * if not set, default to select_account for backwards compatibility
 // * if set to none, it will be omitted
 // * and any other non empty value, pass it as is
-func (o *OIDCConnectorV2) GetPrompt() string {
+func (o *OIDCConnectorV3) GetPrompt() string {
 	if o.Spec.Prompt == "" {
 		return constants.OIDCPromptSelectAccount
 	}
@@ -124,57 +124,57 @@ func (o *OIDCConnectorV2) GetPrompt() string {
 }
 
 // GetGoogleServiceAccountURI returns an optional path to google service account file
-func (o *OIDCConnectorV2) GetGoogleServiceAccountURI() string {
+func (o *OIDCConnectorV3) GetGoogleServiceAccountURI() string {
 	return o.Spec.GoogleServiceAccountURI
 }
 
 // GetGoogleServiceAccount returns a string representing a Google service account
-func (o *OIDCConnectorV2) GetGoogleServiceAccount() string {
+func (o *OIDCConnectorV3) GetGoogleServiceAccount() string {
 	return o.Spec.GoogleServiceAccount
 }
 
 // SetGoogleServiceAccount sets a string representing a Google service account
-func (o *OIDCConnectorV2) SetGoogleServiceAccount(s string) {
+func (o *OIDCConnectorV3) SetGoogleServiceAccount(s string) {
 	o.Spec.GoogleServiceAccount = s
 }
 
 // GetGoogleAdminEmail returns a google admin user email
-func (o *OIDCConnectorV2) GetGoogleAdminEmail() string {
+func (o *OIDCConnectorV3) GetGoogleAdminEmail() string {
 	return o.Spec.GoogleAdminEmail
 }
 
 // GetVersion returns resource version
-func (o *OIDCConnectorV2) GetVersion() string {
+func (o *OIDCConnectorV3) GetVersion() string {
 	return o.Version
 }
 
 // GetSubKind returns resource sub kind
-func (o *OIDCConnectorV2) GetSubKind() string {
+func (o *OIDCConnectorV3) GetSubKind() string {
 	return o.SubKind
 }
 
 // SetSubKind sets resource subkind
-func (o *OIDCConnectorV2) SetSubKind(s string) {
+func (o *OIDCConnectorV3) SetSubKind(s string) {
 	o.SubKind = s
 }
 
 // GetKind returns resource kind
-func (o *OIDCConnectorV2) GetKind() string {
+func (o *OIDCConnectorV3) GetKind() string {
 	return o.Kind
 }
 
 // GetResourceID returns resource ID
-func (o *OIDCConnectorV2) GetResourceID() int64 {
+func (o *OIDCConnectorV3) GetResourceID() int64 {
 	return o.Metadata.ID
 }
 
 // SetResourceID sets resource ID
-func (o *OIDCConnectorV2) SetResourceID(id int64) {
+func (o *OIDCConnectorV3) SetResourceID(id int64) {
 	o.Metadata.ID = id
 }
 
 // WithoutSecrets returns an instance of resource without secrets.
-func (o *OIDCConnectorV2) WithoutSecrets() Resource {
+func (o *OIDCConnectorV3) WithoutSecrets() Resource {
 	if o.GetClientSecret() == "" && o.GetGoogleServiceAccount() == "" {
 		return o
 	}
@@ -186,116 +186,116 @@ func (o *OIDCConnectorV2) WithoutSecrets() Resource {
 	return &o2
 }
 
-// V2 returns V2 version of the resource
-func (o *OIDCConnectorV2) V2() *OIDCConnectorV2 {
+// V3 returns V3 version of the resource
+func (o *OIDCConnectorV3) V3() *OIDCConnectorV3 {
 	return o
 }
 
 // SetDisplay sets friendly name for this provider.
-func (o *OIDCConnectorV2) SetDisplay(display string) {
+func (o *OIDCConnectorV3) SetDisplay(display string) {
 	o.Spec.Display = display
 }
 
 // GetMetadata returns object metadata
-func (o *OIDCConnectorV2) GetMetadata() Metadata {
+func (o *OIDCConnectorV3) GetMetadata() Metadata {
 	return o.Metadata
 }
 
 // SetExpiry sets expiry time for the object
-func (o *OIDCConnectorV2) SetExpiry(expires time.Time) {
+func (o *OIDCConnectorV3) SetExpiry(expires time.Time) {
 	o.Metadata.SetExpiry(expires)
 }
 
 // Expiry returns object expiry setting
-func (o *OIDCConnectorV2) Expiry() time.Time {
+func (o *OIDCConnectorV3) Expiry() time.Time {
 	return o.Metadata.Expiry()
 }
 
 // GetName returns the name of the connector
-func (o *OIDCConnectorV2) GetName() string {
+func (o *OIDCConnectorV3) GetName() string {
 	return o.Metadata.GetName()
 }
 
 // SetName sets client secret to some value
-func (o *OIDCConnectorV2) SetName(name string) {
+func (o *OIDCConnectorV3) SetName(name string) {
 	o.Metadata.SetName(name)
 }
 
 // SetIssuerURL sets client secret to some value
-func (o *OIDCConnectorV2) SetIssuerURL(issuerURL string) {
+func (o *OIDCConnectorV3) SetIssuerURL(issuerURL string) {
 	o.Spec.IssuerURL = issuerURL
 }
 
 // SetRedirectURL sets client secret to some value
-func (o *OIDCConnectorV2) SetRedirectURL(redirectURL string) {
+func (o *OIDCConnectorV3) SetRedirectURL(redirectURL string) {
 	o.Spec.RedirectURL = redirectURL
 }
 
 // SetACR sets the Authentication Context Class Reference (ACR) value.
-func (o *OIDCConnectorV2) SetACR(acrValue string) {
+func (o *OIDCConnectorV3) SetACR(acrValue string) {
 	o.Spec.ACR = acrValue
 }
 
 // SetProvider sets the identity provider.
-func (o *OIDCConnectorV2) SetProvider(identityProvider string) {
+func (o *OIDCConnectorV3) SetProvider(identityProvider string) {
 	o.Spec.Provider = identityProvider
 }
 
 // SetScope sets additional scopes set by provider
-func (o *OIDCConnectorV2) SetScope(scope []string) {
+func (o *OIDCConnectorV3) SetScope(scope []string) {
 	o.Spec.Scope = scope
 }
 
 // SetClaimsToRoles sets dynamic mapping from claims to roles
-func (o *OIDCConnectorV2) SetClaimsToRoles(claims []ClaimMapping) {
+func (o *OIDCConnectorV3) SetClaimsToRoles(claims []ClaimMapping) {
 	o.Spec.ClaimsToRoles = claims
 }
 
 // SetClientID sets id for authentication client (in our case it's our Auth server)
-func (o *OIDCConnectorV2) SetClientID(clintID string) {
+func (o *OIDCConnectorV3) SetClientID(clintID string) {
 	o.Spec.ClientID = clintID
 }
 
 // SetClientSecret sets client secret to some value
-func (o *OIDCConnectorV2) SetClientSecret(secret string) {
+func (o *OIDCConnectorV3) SetClientSecret(secret string) {
 	o.Spec.ClientSecret = secret
 }
 
 // GetIssuerURL is the endpoint of the provider, e.g. https://accounts.google.com
-func (o *OIDCConnectorV2) GetIssuerURL() string {
+func (o *OIDCConnectorV3) GetIssuerURL() string {
 	return o.Spec.IssuerURL
 }
 
 // GetClientID is id for authentication client (in our case it's our Auth server)
-func (o *OIDCConnectorV2) GetClientID() string {
+func (o *OIDCConnectorV3) GetClientID() string {
 	return o.Spec.ClientID
 }
 
 // GetClientSecret is used to authenticate our client and should not
 // be visible to end user
-func (o *OIDCConnectorV2) GetClientSecret() string {
+func (o *OIDCConnectorV3) GetClientSecret() string {
 	return o.Spec.ClientSecret
 }
 
 // GetRedirectURL - Identity provider will use this URL to redirect
 // client's browser back to it after successful authentication
 // Should match the URL on Provider's side
-func (o *OIDCConnectorV2) GetRedirectURL() string {
+func (o *OIDCConnectorV3) GetRedirectURL() string {
 	return o.Spec.RedirectURL
 }
 
 // GetACR returns the Authentication Context Class Reference (ACR) value.
-func (o *OIDCConnectorV2) GetACR() string {
+func (o *OIDCConnectorV3) GetACR() string {
 	return o.Spec.ACR
 }
 
 // GetProvider returns the identity provider.
-func (o *OIDCConnectorV2) GetProvider() string {
+func (o *OIDCConnectorV3) GetProvider() string {
 	return o.Spec.Provider
 }
 
 // GetDisplay - Friendly name for this provider.
-func (o *OIDCConnectorV2) GetDisplay() string {
+func (o *OIDCConnectorV3) GetDisplay() string {
 	if o.Spec.Display != "" {
 		return o.Spec.Display
 	}
@@ -303,17 +303,17 @@ func (o *OIDCConnectorV2) GetDisplay() string {
 }
 
 // GetScope is additional scopes set by provider
-func (o *OIDCConnectorV2) GetScope() []string {
+func (o *OIDCConnectorV3) GetScope() []string {
 	return o.Spec.Scope
 }
 
 // GetClaimsToRoles specifies dynamic mapping from claims to roles
-func (o *OIDCConnectorV2) GetClaimsToRoles() []ClaimMapping {
+func (o *OIDCConnectorV3) GetClaimsToRoles() []ClaimMapping {
 	return o.Spec.ClaimsToRoles
 }
 
 // GetClaims returns list of claims expected by mappings
-func (o *OIDCConnectorV2) GetClaims() []string {
+func (o *OIDCConnectorV3) GetClaims() []string {
 	var out []string
 	for _, mapping := range o.Spec.ClaimsToRoles {
 		out = append(out, mapping.Claim)
@@ -322,7 +322,7 @@ func (o *OIDCConnectorV2) GetClaims() []string {
 }
 
 // GetTraitMappings returns the OIDCConnector's TraitMappingSet
-func (o *OIDCConnectorV2) GetTraitMappings() TraitMappingSet {
+func (o *OIDCConnectorV3) GetTraitMappings() TraitMappingSet {
 	tms := make([]TraitMapping, 0, len(o.Spec.ClaimsToRoles))
 	for _, mapping := range o.Spec.ClaimsToRoles {
 		tms = append(tms, TraitMapping{
@@ -335,14 +335,23 @@ func (o *OIDCConnectorV2) GetTraitMappings() TraitMappingSet {
 }
 
 // setStaticFields sets static resource header and metadata fields.
-func (o *OIDCConnectorV2) setStaticFields() {
+func (o *OIDCConnectorV3) setStaticFields() {
 	o.Kind = KindOIDCConnector
-	o.Version = V2
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
-func (o *OIDCConnectorV2) CheckAndSetDefaults() error {
+func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	o.setStaticFields()
+
+	switch o.Version {
+	case V2, V3:
+		// V2 is also supported
+	case "":
+		o.Version = V3
+	default:
+		return trace.BadParameter("Version: invalid OIDC connector version %v", o.Version)
+	}
+
 	if err := o.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

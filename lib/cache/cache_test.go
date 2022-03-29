@@ -40,11 +40,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
+
+const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -165,7 +167,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.eventsC = make(chan Event, 100)
+	p.eventsC = make(chan Event, eventBufferSize)
 
 	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
 	if err != nil {
@@ -239,6 +241,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 func TestCA(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
+	ctx := context.Background()
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
@@ -249,7 +252,7 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), true)
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	ca.SetResourceID(out.GetResourceID())
 	require.Empty(t, cmp.Diff(ca, out))
@@ -263,7 +266,7 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetCertAuthority(ca.GetID(), false)
+	_, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -278,6 +281,10 @@ func TestWatchers(t *testing.T) {
 	w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
 		{
 			Kind: types.KindCertAuthority,
+			Filter: types.CertAuthorityFilter{
+				types.HostCA: "example.com",
+				types.UserCA: types.Wildcard,
+			}.IntoMap(),
 		},
 		{
 			Kind: types.KindAccessRequest,
@@ -353,6 +360,20 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
+	// this ca will not be matched by our filter, so the same reasoning applies
+	// as we upsert it and delete it
+	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(filteredCa))
+	require.NoError(t, p.trustS.DeleteCertAuthority(filteredCa.GetID()))
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpDelete, e.Type)
+		require.Equal(t, types.KindCertAuthority, e.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("Timeout waiting for event.")
+	}
+
 	// event has arrived, now close the watchers
 	p.backend.CloseWatchers()
 
@@ -364,11 +385,130 @@ func TestWatchers(t *testing.T) {
 	}
 }
 
-func waitForRestart(t *testing.T, eventsC <-chan Event) {
-	waitForEvent(t, eventsC, WatcherStarted, Reloading, WatcherFailed)
+func TestNodeCAFiltering(t *testing.T) {
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+	err = p.cache.clusterConfigCache.UpsertClusterName(clusterName)
+	require.NoError(t, err)
+
+	nodeCacheBackend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
+
+	// this mimics a cache for a node pulling events from the auth server via WatchEvents
+	nodeCache, err := New(ForNode(Config{
+		Events:          p.cache,
+		Trust:           p.cache.trustCache,
+		ClusterConfig:   p.cache.clusterConfigCache,
+		Provisioner:     p.cache.provisionerCache,
+		Users:           p.cache.usersCache,
+		Access:          p.cache.accessCache,
+		DynamicAccess:   p.cache.dynamicAccessCache,
+		Presence:        p.cache.presenceCache,
+		Restrictions:    p.cache.restrictionsCache,
+		Apps:            p.cache.appsCache,
+		Databases:       p.cache.databasesCache,
+		AppSession:      p.cache.appSessionCache,
+		WebSession:      p.cache.webSessionCache,
+		WebToken:        p.cache.webTokenCache,
+		WindowsDesktops: p.cache.windowsDesktopsCache,
+		Backend:         nodeCacheBackend,
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
+
+	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cacheWatcher.Close()) })
+
+	fetchEvent := func() types.Event {
+		var ev types.Event
+		select {
+		case ev = <-cacheWatcher.Events():
+		case <-time.After(time.Second * 5):
+			t.Fatal("watcher timeout")
+		}
+		return ev
+	}
+	require.Equal(t, types.OpInit, fetchEvent().Type)
+
+	// upsert and delete a local host CA, we expect to see a Put and a Delete event
+	localCA := suite.NewTestCA(types.HostCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(localCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(localCA.GetID()))
+
+	ev := fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
+	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(nonlocalCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(nonlocalCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	// whereas we expect to see the Put and Delete for a trusted *user* CA
+	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(trustedUserCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(trustedUserCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
 }
 
-func waitForEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
+func waitForRestart(t *testing.T, eventsC <-chan Event) {
+	expectEvent(t, eventsC, WatcherStarted)
+}
+
+func drainEvents(eventsC <-chan Event) {
+	for {
+		select {
+		case <-eventsC:
+		default:
+			return
+		}
+	}
+}
+
+func expectEvent(t *testing.T, eventsC <-chan Event, expectedEvent string) {
+	timeC := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-eventsC:
+			if event.Type == expectedEvent {
+				return
+			}
+		case <-timeC:
+			t.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
+		}
+	}
+}
+
+func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
 		// wait for watcher to restart
@@ -439,7 +579,7 @@ func TestCompletenessInit(t *testing.T) {
 
 		p.backend.SetReadError(nil)
 
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -496,7 +636,7 @@ func TestCompletenessReset(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
@@ -507,7 +647,7 @@ func TestCompletenessReset(t *testing.T) {
 		p.backend.SetReadError(nil)
 
 		// load CAs while connection is bad
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -559,13 +699,13 @@ func TestTombstones(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
 	require.NoError(t, p.cache.Close())
 	// wait for TombstoneWritten, ignoring all other event types
-	waitForEvent(t, p.eventsC, TombstoneWritten, WatcherStarted, EventProcessed, WatcherFailed)
+	expectEvent(t, p.eventsC, TombstoneWritten)
 	// simulate bad connection to auth server
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 	p.eventsS.closeWatchers()
@@ -595,7 +735,7 @@ func TestTombstones(t *testing.T) {
 
 	// verify that CAs are immediately available despite the fact
 	// that the origin state was never available.
-	cas, err = p.cache.GetCertAuthorities(types.UserCA, false)
+	cas, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 }
@@ -628,7 +768,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 
 	for i := 0; i < nodeCount; i++ {
 		func() {
-			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 			_, err := p.presenceS.UpsertNode(ctx, server)
 			require.NoError(b, err)
 			timeout := time.NewTimer(time.Millisecond * 200)
@@ -671,7 +811,7 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 
 	for i := 0; i < nodeCount; i++ {
 		func() {
-			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 			_, err := p.presenceS.UpsertNode(ctx, server)
 			require.NoError(b, err)
 			timeout := time.NewTimer(time.Millisecond * 200)
@@ -707,9 +847,9 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 	}
 }
 
-// TestListNodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
+// TestListResources_NodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
-func TestListNodesTTLVariant(t *testing.T) {
+func TestListResources_NodesTTLVariant(t *testing.T) {
 	const nodeCount = 100
 	const pageSize = 10
 	var err error
@@ -745,7 +885,7 @@ func TestListNodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < nodeCount; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -756,6 +896,8 @@ func TestListNodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, allNodes, nodeCount)
 
+	// DELETE IN 10.0.0 this block with ListNodes is replaced
+	// by the following block with ListResources test.
 	var nodes []types.Server
 	var startKey string
 	for {
@@ -778,8 +920,33 @@ func TestListNodesTTLVariant(t *testing.T) {
 			break
 		}
 	}
-
 	require.Len(t, nodes, nodeCount)
+
+	var resources []types.ResourceWithLabels
+	var listResourcesStartKey string
+	sortBy := types.SortBy{
+		Field:  types.ResourceMetadataName,
+		IsDesc: true,
+	}
+	require.Eventually(t, func() bool {
+		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:    apidefaults.Namespace,
+			ResourceType: types.KindNode,
+			StartKey:     listResourcesStartKey,
+			Limit:        int32(pageSize),
+			SortBy:       sortBy,
+		})
+		require.NoError(t, err)
+		resources = append(resources, resp.Resources...)
+		listResourcesStartKey = resp.NextKey
+		return len(resources) == nodeCount
+	}, 5*time.Second, 100*time.Millisecond)
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	require.NoError(t, err)
+	fieldVals, err := types.Servers(servers).GetFieldVals(sortBy.Field)
+	require.NoError(t, err)
+	require.IsDecreasing(t, fieldVals)
 }
 
 func initStrategy(t *testing.T) {
@@ -812,7 +979,7 @@ func initStrategy(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	_, err = p.cache.GetCertAuthorities(types.UserCA, false)
+	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
@@ -834,7 +1001,7 @@ func initStrategy(t *testing.T) {
 	}
 	_ = normalizeCA
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), false)
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 
@@ -845,10 +1012,10 @@ func initStrategy(t *testing.T) {
 	// wait for the watcher to fail
 	// there could be optional event processed event,
 	// see NOTE 1 above
-	waitForEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
+	expectNextEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
 
 	// backend is out, but old value is available
-	out2, err := p.cache.GetCertAuthority(ca.GetID(), false)
+	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Equal(t, out.GetResourceID(), out2.GetResourceID())
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
@@ -863,10 +1030,10 @@ func initStrategy(t *testing.T) {
 
 	// wait for watcher to restart successfully; ignoring any failed
 	// attempts which occurred before backend became healthy again.
-	waitForEvent(t, p.eventsC, WatcherStarted, WatcherFailed, Reloading)
+	expectEvent(t, p.eventsC, WatcherStarted)
 
 	// new value is available now
-	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
+	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 }
@@ -906,7 +1073,7 @@ func TestRecovery(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca2.GetID(), false)
+	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
 	ca2.SetResourceID(out.GetResourceID())
 	types.RemoveCASecrets(ca2)
@@ -1241,7 +1408,7 @@ func TestRoles(t *testing.T) {
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRole("role1", types.RoleSpecV4{
+	role, err := types.NewRoleV3("role1", types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},
@@ -1837,7 +2004,7 @@ func TestApplicationServers(t *testing.T) {
 	// Upsert app server into backend.
 	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "localhost"})
 	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	require.NoError(t, err)
 
 	_, err = p.presenceS.UpsertApplicationServer(ctx, server)
@@ -2007,7 +2174,7 @@ func TestDatabaseServers(t *testing.T) {
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 		Hostname: "localhost",
-		HostID:   uuid.New(),
+		HostID:   uuid.New().String(),
 	})
 	require.NoError(t, err)
 
@@ -2161,6 +2328,79 @@ func TestDatabases(t *testing.T) {
 	out, err = p.databases.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
+}
+
+func TestRelativeExpiry(t *testing.T) {
+	const checkInterval = time.Second
+	const nodeCount = int64(100)
+
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.Clock = clock
+		return ForAuth(c)
+	})
+	t.Cleanup(p.Close)
+
+	// add servers that expire at a range of times
+	now := clock.Now()
+	for i := int64(0); i < nodeCount; i++ {
+		exp := now.Add(time.Minute * time.Duration(i))
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetExpiry(exp)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := int64(0); i < nodeCount; i++ {
+		expectEvent(t, p.eventsC, EventProcessed)
+	}
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, 100)
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 100 && len(nodes) > 75, "node_count=%d", len(nodes))
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 75 && len(nodes) > 50, "node_count=%d", len(nodes))
+
+	// finally, we check the "sliding window" by verifying that we don't remove all nodes
+	// even if we advance well past the latest expiry time.
+	clock.Advance(time.Hour * 24)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that sliding window has preserved most recent nodes
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
 }
 
 func TestCache_Backoff(t *testing.T) {

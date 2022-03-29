@@ -85,6 +85,12 @@ type AuditWriterConfig struct {
 	// Component is a component used for logging
 	Component string
 
+	// MakeEvents converts bytes written via the io.Writer interface
+	// into AuditEvents that are written to the stream.
+	// For backwards compatibility, AuditWriter will convert bytes to
+	// SessionPrint events when MakeEvents is not provided.
+	MakeEvents func([]byte) []apievents.AuditEvent
+
 	// Streamer is used to create and resume audit streams
 	Streamer Streamer
 
@@ -139,7 +145,35 @@ func (cfg *AuditWriterConfig) CheckAndSetDefaults() error {
 	if cfg.BackoffDuration == 0 {
 		cfg.BackoffDuration = defaults.NetworkBackoffDuration
 	}
+	if cfg.MakeEvents == nil {
+		cfg.MakeEvents = bytesToSessionPrintEvents
+	}
 	return nil
+}
+
+func bytesToSessionPrintEvents(b []byte) []apievents.AuditEvent {
+	start := time.Now().UTC().Round(time.Millisecond)
+	var result []apievents.AuditEvent
+	for len(b) != 0 {
+		printEvent := &apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: SessionPrintEvent,
+				Time: start,
+			},
+			Data: b,
+		}
+		if printEvent.Size() > MaxProtoMessageSizeBytes {
+			extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
+			printEvent.Data = b[:extraBytes]
+			printEvent.Bytes = int64(len(printEvent.Data))
+			b = b[extraBytes:]
+		} else {
+			printEvent.Bytes = int64(len(printEvent.Data))
+			b = nil
+		}
+		result = append(result, printEvent)
+	}
+	return result
 }
 
 // AuditWriter wraps session stream
@@ -194,6 +228,7 @@ func (a *AuditWriter) Write(data []byte) (int, error) {
 	if !a.cfg.RecordOutput {
 		return len(data), nil
 	}
+
 	// buffer is copied here to prevent data corruption:
 	// io.Copy allocates single buffer and calls multiple writes in a loop
 	// Write is async, this can lead to cases when the buffer is re-used
@@ -201,29 +236,14 @@ func (a *AuditWriter) Write(data []byte) (int, error) {
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 
-	start := time.Now().UTC().Round(time.Millisecond)
-	for len(dataCopy) != 0 {
-		printEvent := &apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: SessionPrintEvent,
-				Time: start,
-			},
-			Data: dataCopy,
-		}
-		if printEvent.Size() > MaxProtoMessageSizeBytes {
-			extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
-			printEvent.Data = dataCopy[:extraBytes]
-			printEvent.Bytes = int64(len(printEvent.Data))
-			dataCopy = dataCopy[extraBytes:]
-		} else {
-			printEvent.Bytes = int64(len(printEvent.Data))
-			dataCopy = nil
-		}
-		if err := a.EmitAuditEvent(a.cfg.Context, printEvent); err != nil {
-			a.log.WithError(err).Error("Failed to emit session print event.")
+	events := a.cfg.MakeEvents(dataCopy)
+	for _, event := range events {
+		if err := a.EmitAuditEvent(a.cfg.Context, event); err != nil {
+			a.log.WithError(err).Errorf("failed to emit %T event", event)
 			return 0, trace.Wrap(err)
 		}
 	}
+
 	return len(data), nil
 }
 
@@ -533,7 +553,7 @@ func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 			return nil, trace.ConnectionProblem(a.closeCtx.Err(), "operation has been canceled")
 		}
 	}
-	return nil, trace.Wrap(err)
+	return nil, trace.LimitExceeded("audit stream resume attempts exhausted, last error: %v", err)
 }
 
 func (a *AuditWriter) updateStatus(status apievents.StreamStatus) {
@@ -589,4 +609,12 @@ func (a *AuditWriter) setupEvent(event apievents.AuditEvent) error {
 	}
 	a.lastPrintEvent = printEvent
 	return nil
+}
+
+func diff(before, after time.Time) int64 {
+	d := int64(after.Sub(before) / time.Millisecond)
+	if d < 0 {
+		return 0
+	}
+	return d
 }

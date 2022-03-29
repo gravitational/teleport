@@ -38,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
@@ -55,11 +55,19 @@ var ( // failedConnectingToNode counts failed attempts to connect to a node
 	failedConnectingToNode = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: teleport.MetricFailedConnectToNodeAttempts,
-			Help: "Number of failed attempts to connect to a node",
+			Help: "Number of failed SSH connection attempts to a node. Use with `teleport_connect_to_node_attempts_total` to get the failure rate.",
 		},
 	)
 
-	prometheusCollectors = []prometheus.Collector{proxiedSessions, failedConnectingToNode}
+	connectingToNode = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricConnectToNodeAttempts,
+			Help:      "Number of SSH connection attempts to a node. Use with `failed_connect_to_node_attempts_total` to get the failure rate.",
+		},
+	)
+
+	prometheusCollectors = []prometheus.Collector{proxiedSessions, failedConnectingToNode, connectingToNode}
 )
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
@@ -405,6 +413,7 @@ func (t *proxySubsys) proxyToHost(
 		AddrNetwork: "tcp",
 		Addr:        serverAddr,
 	}
+	connectingToNode.Inc()
 	conn, err := site.Dial(reversetunnel.DialParams{
 		From:         remoteAddr,
 		To:           toAddr,
@@ -452,7 +461,8 @@ func (t *proxySubsys) proxyToHost(
 func (t *proxySubsys) getMatchingServer(servers []types.Server, strategy types.RoutingStrategy) (types.Server, error) {
 	// check if hostname is a valid uuid or EC2 node ID.  If it is, we will
 	// preferentially match by node ID over node hostname.
-	hostIsUniqueID := uuid.Parse(t.host) != nil || utils.IsEC2NodeID(t.host)
+	_, err := uuid.Parse(t.host)
+	hostIsUniqueID := err == nil || utils.IsEC2NodeID(t.host)
 
 	ips, _ := net.LookupHost(t.host)
 

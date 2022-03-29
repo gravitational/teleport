@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 const (
@@ -117,14 +118,7 @@ func tagCopyArtifactCommands(b buildType) []string {
 
 	// we need to specifically rename artifacts which are created for CentOS
 	// these is the only special case where renaming is not handled inside the Makefile
-	if b.centos6 {
-		// for CentOS 6 we don't support FIPS, just OSS and enterprise
-		commands = append(commands,
-			`export VERSION=$(cat /go/.version.txt)`,
-			`mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
-			`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
-		)
-	} else if b.centos7 {
+	if b.centos7 {
 		// for CentOS 7, we support OSS, Enterprise, and FIPS (Enterprise only)
 		commands = append(commands, `export VERSION=$(cat /go/.version.txt)`)
 		if !b.fips {
@@ -182,7 +176,11 @@ func tagPipelines() []pipeline {
 
 			// RPM/DEB package builds
 			for _, packageType := range []string{rpmPackage, debPackage} {
-				ps = append(ps, tagPackagePipeline(packageType, buildType{os: "linux", arch: arch, fips: fips}))
+				bt := buildType{os: "linux", arch: arch, fips: fips}
+				if packageType == "rpm" && arch == "amd64" {
+					bt.centos7 = true
+				}
+				ps = append(ps, tagPackagePipeline(packageType, bt))
 			}
 		}
 	}
@@ -192,7 +190,6 @@ func tagPipelines() []pipeline {
 
 	// Also add CentOS artifacts
 	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
@@ -210,9 +207,7 @@ func tagPipeline(b buildType) pipeline {
 	}
 
 	pipelineName := fmt.Sprintf("build-%s-%s", b.os, b.arch)
-	if b.centos6 {
-		pipelineName += "-centos6"
-	} else if b.centos7 {
+	if b.centos7 {
 		pipelineName += "-centos7"
 	}
 	tagEnvironment := map[string]value{
@@ -234,7 +229,8 @@ func tagPipeline(b buildType) pipeline {
 
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
-		"RUNTIME": goRuntime,
+		"BUILDBOX_VERSION": buildboxVersion,
+		"RUNTIME":          goRuntime,
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: "/go"}
@@ -273,6 +269,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
+			Failure:  "ignore",
 			Commands: tagCreateReleaseAssetCommands(b),
 			Environment: map[string]value{
 				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
@@ -291,6 +288,11 @@ func tagDownloadArtifactCommands(b buildType) []string {
 	}
 	artifactOSS := true
 	artifactType := fmt.Sprintf("%s-%s", b.os, b.arch)
+
+	if b.centos7 {
+		artifactType += "-centos7"
+	}
+
 	if b.fips {
 		artifactType += "-fips"
 		artifactOSS = false
@@ -370,8 +372,19 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
+
+	if b.centos7 {
+		dependentPipeline += "-centos7"
+	}
+
+	apkPackages := []string{"bash", "curl", "gzip", "make", "tar"}
+	if packageType == rpmPackage {
+		// Required by `make rpm`
+		apkPackages = append(apkPackages, "go")
+	}
+
 	packageBuildCommands := []string{
-		`apk add --no-cache bash curl gzip make tar`,
+		fmt.Sprintf("apk add --no-cache %s", strings.Join(apkPackages, " ")),
 		`cd /go/src/github.com/gravitational/teleport`,
 		`export VERSION=$(cat /go/.version.txt)`,
 	}
@@ -466,6 +479,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Name:     "Register artifacts",
 			Image:    "docker",
 			Commands: tagCreateReleaseAssetCommands(b),
+			Failure:  "ignore",
 			Environment: map[string]value{
 				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
 				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},

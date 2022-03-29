@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -47,14 +48,14 @@ import (
 const (
 	// SessionLogsDir is a subdirectory inside the eventlog data dir
 	// where all session-specific logs and streams are stored, like
-	// in /var/lib/teleport/logs/sessions
+	// in /var/lib/teleport/log/sessions
 	SessionLogsDir = "sessions"
 
-	// StreamingLogsDir is a subdirectory of sessions /var/lib/teleport/logs/streaming
+	// StreamingLogsDir is a subdirectory of sessions /var/lib/teleport/log/streaming
 	// is used in new versions of the uploader
 	StreamingLogsDir = "streaming"
 
-	// RecordsDir is a subdirectory with default records /var/lib/teleport/logs/records
+	// RecordsDir is a subdirectory with default records /var/lib/teleport/log/records
 	// is used in new versions of the uploader
 	RecordsDir = "records"
 
@@ -98,7 +99,15 @@ var (
 		},
 	)
 
-	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit}
+	auditEmitEvent = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_emit_events",
+			Help:      "Number of audit events emitted",
+		},
+	)
+
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit, auditEmitEvent}
 )
 
 // AuditLog is a new combined facility to record Teleport events and
@@ -136,9 +145,6 @@ type AuditLogConfig struct {
 	// ServerID is the id of the audit log server
 	ServerID string
 
-	// RecordSessions controls if sessions are recorded along with audit events.
-	RecordSessions bool
-
 	// RotationPeriod defines how frequently to rotate the log file
 	RotationPeriod time.Duration
 
@@ -175,19 +181,8 @@ type AuditLogConfig struct {
 	// ExternalLog is a pluggable external log service
 	ExternalLog IAuditLog
 
-	// EventC is evnets channel for testing purposes, not used if empty
-	EventsC chan *AuditLogEvent
-
 	// Context is audit log context
 	Context context.Context
-}
-
-// AuditLogEvent is an internal audit log event
-type AuditLogEvent struct {
-	// Type is an event type
-	Type string
-	// Error is an event error
-	Error error
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -229,9 +224,8 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewAuditLog creates and returns a new Audit Log object whish will store its logfiles in
-// a given directory. Session recording can be disabled by setting
-// recordSessions to false.
+// NewAuditLog creates and returns a new Audit Log object which will store its log files in
+// a given directory.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
@@ -334,6 +328,7 @@ func (l *SessionRecording) CheckAndSetDefaults() error {
 
 // UploadSessionRecording persists the session recording locally or to third
 // party storage.
+// TODO(zmb3): I don't think this is ever called anymore - remove it
 func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -347,10 +342,15 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 		return trace.Wrap(err)
 	}
 	l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
-	return l.EmitAuditEventLegacy(SessionUploadE, EventFields{
-		SessionEventID: string(r.SessionID),
-		URL:            url,
-		EventIndex:     SessionUploadIndex,
+	return l.EmitAuditEvent(context.TODO(), &apievents.SessionUpload{
+		Metadata: apievents.Metadata{
+			Index: SessionUploadIndex,
+			ID:    uuid.New().String(),
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: string(r.SessionID),
+		},
+		SessionURL: url,
 	})
 }
 
@@ -428,28 +428,6 @@ type sessionIndex struct {
 	indexFiles     []string
 }
 
-func (idx *sessionIndex) fileNames() []string {
-	files := make([]string, 0, len(idx.indexFiles)+len(idx.events)+len(idx.chunks))
-	files = append(files, idx.indexFiles...)
-
-	for i := range idx.events {
-		files = append(files, idx.eventsFileName(i))
-	}
-
-	for i := range idx.chunks {
-		files = append(files, idx.chunksFileName(i))
-	}
-
-	// Enhanced events.
-	for k, v := range idx.enhancedEvents {
-		for i := range v {
-			files = append(files, idx.enhancedFileName(i, k))
-		}
-	}
-
-	return files
-}
-
 func (idx *sessionIndex) sort() {
 	sort.Slice(idx.events, func(i, j int) bool {
 		return idx.events[i].Index < idx.events[j].Index
@@ -464,11 +442,6 @@ func (idx *sessionIndex) sort() {
 			return events[i].Index < events[j].Index
 		})
 	}
-}
-
-func (idx *sessionIndex) enhancedFileName(index int, eventType string) string {
-	entry := idx.enhancedEvents[eventType][index]
-	return filepath.Join(idx.dataDir, entry.authServer, SessionLogsDir, idx.namespace, entry.FileName)
 }
 
 func (idx *sessionIndex) eventsFileName(index int) string {
@@ -502,7 +475,7 @@ func (idx *sessionIndex) chunksFile(offset int64) (string, int64, error) {
 			return idx.chunksFileName(i), entry.Offset, nil
 		}
 	}
-	return "", 0, trace.NotFound("%v not found", offset)
+	return "", 0, trace.NotFound("offset %v not found for session %v", offset, idx.sid)
 }
 
 func (idx *sessionIndex) chunksFileName(index int) string {
@@ -975,14 +948,12 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEven
 	}
 	err := emitAuditEvent(ctx, event)
 	if err != nil {
-		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// EmitAuditEventLegacy adds a new event to the log. If emitting fails, a Prometheus
-// counter is incremented.
+// EmitAuditEventLegacy adds a new event to the log.
 func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
@@ -993,11 +964,8 @@ func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 		emitAuditEvent = l.getLocalLog().EmitAuditEventLegacy
 	}
 
-	// Emit the event. If it fails for any reason a Prometheus counter is
-	// incremented.
 	err := emitAuditEvent(event, fields)
 	if err != nil {
-		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 
@@ -1042,7 +1010,7 @@ func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, orde
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	l.log.Debugf("StreamSessionEvents(%v)", sessionID)
@@ -1052,7 +1020,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	tarballPath := filepath.Join(l.playbackDir, string(sessionID)+".stream.tar")
 	downloadCtx, cancel := l.createOrGetDownload(tarballPath)
 
-	// Wait until another in progress download finishes and use it's tarball.
+	// Wait until another in progress download finishes and use its tarball.
 	if cancel == nil {
 		l.log.Debugf("Another download is in progress for %v, waiting until it gets completed.", sessionID)
 		select {
@@ -1236,6 +1204,7 @@ func NewLegacyHandler(cfg LegacyHandlerConfig) (*LegacyHandler, error) {
 
 // LegacyHandler wraps local file uploader and handles
 // old style uploads stored directly on disk
+// TODO(zmb3): can we remove this now that 4.4 is unsupported?
 type LegacyHandler struct {
 	MultipartHandler
 	cfg LegacyHandlerConfig

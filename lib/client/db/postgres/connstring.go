@@ -27,7 +27,7 @@ import (
 )
 
 // GetConnString returns formatted Postgres connection string for the profile.
-func GetConnString(c profile.ConnectProfile) string {
+func GetConnString(c *profile.ConnectProfile) string {
 	connStr := "postgres://"
 	if c.User != "" {
 		// Username may contain special characters in which case it should

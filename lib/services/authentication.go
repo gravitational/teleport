@@ -23,11 +23,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -58,7 +57,7 @@ func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
 
 // NewTOTPDevice creates a TOTP MFADevice from the given key.
 func NewTOTPDevice(name, key string, addedAt time.Time) (*types.MFADevice, error) {
-	d := types.NewMFADevice(name, uuid.New(), addedAt)
+	d := types.NewMFADevice(name, uuid.New().String(), addedAt)
 	d.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{
 		Key: key,
 	}}
@@ -79,10 +78,6 @@ func ValidateMFADevice(d *types.MFADevice) error {
 	switch dd := d.Device.(type) {
 	case *types.MFADevice_Totp:
 		if err := validateTOTPDevice(dd.Totp); err != nil {
-			return trace.Wrap(err)
-		}
-	case *types.MFADevice_U2F:
-		if err := u2f.ValidateDevice(dd.U2F); err != nil {
 			return trace.Wrap(err)
 		}
 	case *types.MFADevice_Webauthn:

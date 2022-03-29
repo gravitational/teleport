@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 	"google.golang.org/grpc"
 )
 
@@ -58,7 +57,7 @@ type CloudClients interface {
 	// GetGCPIAMClient returns GCP IAM client.
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (*sqladmin.Service, error)
+	GetGCPSQLAdminClient(context.Context) (GCPSQLAdminClient, error)
 	// GetAzureCredential returns Azure default token credential chain.
 	GetAzureCredential() (azcore.TokenCredential, error)
 	// Closer closes all initialized clients.
@@ -78,7 +77,7 @@ type cloudClients struct {
 	// gcpIAM is the cached GCP IAM client.
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
-	gcpSQLAdmin *sqladmin.Service
+	gcpSQLAdmin GCPSQLAdminClient
 	// azureCredential is the cached Azure credential.
 	azureCredential azcore.TokenCredential
 	// mtx is used for locking.
@@ -144,7 +143,7 @@ func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.Iam
 }
 
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (*sqladmin.Service, error) {
+func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminClient, error) {
 	c.mtx.RLock()
 	if c.gcpSQLAdmin != nil {
 		defer c.mtx.RUnlock()
@@ -211,14 +210,14 @@ func (c *cloudClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.Ia
 	return gcpIAM, nil
 }
 
-func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (*sqladmin.Service, error) {
+func (c *cloudClients) initGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminClient, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.gcpSQLAdmin != nil { // If some other thread already got here first.
 		return c.gcpSQLAdmin, nil
 	}
 	logrus.Debug("Initializing GCP Cloud SQL Admin client.")
-	gcpSQLAdmin, err := sqladmin.NewService(ctx)
+	gcpSQLAdmin, err := NewGCPSQLAdminClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -248,6 +247,7 @@ type TestCloudClients struct {
 	Redshift     redshiftiface.RedshiftAPI
 	IAM          iamiface.IAMAPI
 	STS          stsiface.STSAPI
+	GCPSQL       GCPSQLAdminClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -286,10 +286,8 @@ func (c *TestCloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials
 }
 
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (*sqladmin.Service, error) {
-	return sqladmin.NewService(ctx,
-		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())), // Insecure must be set for unauth client.
-		option.WithoutAuthentication())
+func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (GCPSQLAdminClient, error) {
+	return c.GCPSQL, nil
 }
 
 // GetAzureCredential returns default Azure token credential chain.

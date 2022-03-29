@@ -18,9 +18,10 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"net"
 	"net/url"
 	"os"
@@ -37,8 +38,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -321,10 +322,18 @@ func ReadPath(path string) ([]byte, error) {
 	}
 	abs, err := filepath.EvalSymlinks(s)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
-	bytes, err := ioutil.ReadFile(abs)
+	bytes, err := os.ReadFile(abs)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 	return bytes, nil
@@ -430,6 +439,10 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 func ReadHostUUID(dataDir string) (string, error) {
 	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return "", err
+		}
 		return "", trace.Wrap(err)
 	}
 	return strings.TrimSpace(string(out)), nil
@@ -437,8 +450,12 @@ func ReadHostUUID(dataDir string) (string, error) {
 
 // WriteHostUUID writes host UUID into a file
 func WriteHostUUID(dataDir string, id string) error {
-	err := ioutil.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
+	err := os.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return err
+		}
 		return trace.ConvertSystemError(err)
 	}
 	return nil
@@ -454,7 +471,7 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.New()
+	id = uuid.New().String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -561,7 +578,7 @@ func StoreErrorOf(f func() error, err *error) {
 // when limit bytes are read.
 func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 	limitedReader := &io.LimitedReader{R: r, N: limit}
-	data, err := ioutil.ReadAll(limitedReader)
+	data, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return data, err
 	}

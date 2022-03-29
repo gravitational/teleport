@@ -176,10 +176,7 @@ func MakeServerMetadata(session *Session) events.ServerMetadata {
 
 // MakeUserMetadata returns common user metadata for database session.
 func MakeUserMetadata(session *Session) events.UserMetadata {
-	return events.UserMetadata{
-		User:         session.Identity.Username,
-		Impersonator: session.Identity.Impersonator,
-	}
+	return session.Identity.GetUserMetadata()
 }
 
 // MakeSessionMetadata returns common session metadata for database session.

@@ -17,7 +17,6 @@ package kubeconfig
 import (
 	"crypto/x509/pkix"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -39,7 +38,7 @@ import (
 )
 
 func setup(t *testing.T) (string, clientcmdapi.Config) {
-	f, err := ioutil.TempFile("", "kubeconfig")
+	f, err := os.CreateTemp("", "kubeconfig")
 	if err != nil {
 		t.Fatalf("failed to create temp kubeconfig file: %v", err)
 	}
@@ -253,7 +252,70 @@ func TestUpdateWithExec(t *testing.T) {
 				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
 				fmt.Sprintf("--teleport-cluster=%s", clusterName),
 			},
-			Env: []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
+		},
+	}
+	wantConfig.Contexts[contextName] = &clientcmdapi.Context{
+		Cluster:          clusterName,
+		AuthInfo:         contextName,
+		LocationOfOrigin: kubeconfigPath,
+		Extensions:       map[string]runtime.Object{},
+	}
+
+	config, err := Load(kubeconfigPath)
+	require.NoError(t, err)
+	require.Equal(t, wantConfig, config)
+}
+func TestUpdateWithExecAndProxy(t *testing.T) {
+	const (
+		clusterName = "teleport-cluster"
+		clusterAddr = "https://1.2.3.6:3080"
+		proxy       = "my-teleport-proxy:3080"
+		tshPath     = "/path/to/tsh"
+		kubeCluster = "my-cluster"
+		homeEnvVar  = "TELEPORT_HOME"
+		home        = "/alt/home"
+	)
+	kubeconfigPath, initialConfig := setup(t)
+	creds, caCertPEM, err := genUserKey()
+	require.NoError(t, err)
+	err = Update(kubeconfigPath, Values{
+		TeleportClusterName: clusterName,
+		ClusterAddr:         clusterAddr,
+		Credentials:         creds,
+		ProxyAddr:           proxy,
+		Exec: &ExecValues{
+			TshBinaryPath: tshPath,
+			KubeClusters:  []string{kubeCluster},
+			Env: map[string]string{
+				homeEnvVar: home,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	wantConfig := initialConfig.DeepCopy()
+	contextName := ContextName(clusterName, kubeCluster)
+	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
+		Server:                   clusterAddr,
+		CertificateAuthorityData: caCertPEM,
+		LocationOfOrigin:         kubeconfigPath,
+		Extensions:               map[string]runtime.Object{},
+	}
+	wantConfig.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
+		LocationOfOrigin: kubeconfigPath,
+		Extensions:       map[string]runtime.Object{},
+		Exec: &clientcmdapi.ExecConfig{
+			APIVersion: "client.authentication.k8s.io/v1beta1",
+			Command:    tshPath,
+			Args: []string{"kube", "credentials",
+				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
+				fmt.Sprintf("--teleport-cluster=%s", clusterName),
+				fmt.Sprintf("--proxy=%s", proxy),
+			},
+			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
 		},
 	}
 	wantConfig.Contexts[contextName] = &clientcmdapi.Context{

@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod cliprdr;
 pub mod errors;
 pub mod piv;
 pub mod rdpdr;
 pub mod scard;
+pub mod vchan;
 
 #[macro_use]
 extern crate log;
 #[macro_use]
 extern crate num_derive;
-extern crate byteorder;
 
 use libc::{fd_set, select, FD_SET};
+use rand::Rng;
+use rand::SeedableRng;
 use rdp::core::event::*;
 use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
@@ -36,6 +39,7 @@ use rdp::model::link::{Link, Stream};
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
+use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::os::raw::c_char;
@@ -60,14 +64,18 @@ pub extern "C" fn init() {
 pub struct Client {
     rdp_client: Arc<Mutex<RdpClient<TcpStream>>>,
     tcp_fd: usize,
+    go_ref: usize,
 }
 
 impl Client {
     fn into_raw(self: Box<Self>) -> *mut Self {
         Box::into_raw(self)
     }
-    unsafe fn from_ptr<'a>(ptr: *const Self) -> Option<&'a Client> {
-        ptr.as_ref()
+    unsafe fn from_ptr<'a>(ptr: *const Self) -> Result<&'a Client, CGOError> {
+        match ptr.as_ref() {
+            Some(c) => Ok(c),
+            None => Err(to_cgo_error("invalid Rust client pointer".to_string())),
+        }
     }
     unsafe fn from_raw(ptr: *mut Self) -> Box<Self> {
         Box::from_raw(ptr)
@@ -105,6 +113,7 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
 /// to their corresponding parameters.
 #[no_mangle]
 pub unsafe extern "C" fn connect_rdp(
+    go_ref: usize,
     go_addr: *mut c_char,
     go_username: *mut c_char,
     cert_der_len: u32,
@@ -113,6 +122,7 @@ pub unsafe extern "C" fn connect_rdp(
     key_der: *mut u8,
     screen_width: u16,
     screen_height: u16,
+    allow_clipboard: bool,
 ) -> ClientOrError {
     // Convert from C to Rust types.
     let addr = from_go_string(go_addr);
@@ -121,12 +131,16 @@ pub unsafe extern "C" fn connect_rdp(
     let key_der = from_go_array(key_der_len, key_der);
 
     connect_rdp_inner(
+        go_ref,
         &addr,
-        username,
-        cert_der,
-        key_der,
-        screen_width,
-        screen_height,
+        ConnectParams {
+            username,
+            cert_der,
+            key_der,
+            screen_width,
+            screen_height,
+            allow_clipboard,
+        },
     )
     .into()
 }
@@ -152,13 +166,19 @@ impl From<RdpError> for ConnectError {
 
 const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
 
-fn connect_rdp_inner(
-    addr: &str,
+struct ConnectParams {
     username: String,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
     screen_width: u16,
     screen_height: u16,
+    allow_clipboard: bool,
+}
+
+fn connect_rdp_inner(
+    go_ref: usize,
+    addr: &str,
+    params: ConnectParams,
 ) -> Result<Client, ConnectError> {
     // Connect and authenticate.
     let addr = addr
@@ -175,45 +195,66 @@ fn connect_rdp_inner(
     let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
     let mut mcs = mcs::Client::new(x224);
+
+    // request the static channels we'll need:
+    // rdpdr: derive redirection (smart cards)
+    // rdpsnd: sound (for some reason we need to request this)
+    // cliprdr: clipboard
+    let mut static_channels = vec![rdpdr::CHANNEL_NAME.to_string(), "rdpsnd".to_string()];
+    if params.allow_clipboard {
+        static_channels.push(cliprdr::CHANNEL_NAME.to_string())
+    }
     mcs.connect(
         "rdp-rs".to_string(),
-        screen_width,
-        screen_height,
+        params.screen_width,
+        params.screen_height,
         KeyboardLayout::US,
-        // Request the RDPDR (device redirection) static channel.
-        // For some reason, we also need to request RDPSND (sound) along with it,
-        // although it's never used explicitly from our end.
-        &["rdpdr".to_string(), "rdpsnd".to_string()],
+        &static_channels,
     )?;
-    // Password must be non-empty for autologin (sec::InfoFlag::InfoPasswordIsScPin) to trigger on
-    // a smartcard.
-    let password = "123".to_string();
+    // Generate a random 8-digit PIN for our smartcard.
+    let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
+    let pin = format!("{:08}", rng.gen_range(0..99999999));
     sec::connect(
         &mut mcs,
         &domain.to_string(),
-        &username,
-        &password,
+        &params.username,
+        &pin,
         true,
-        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code.
-        // The password we pass will be automatically used as PIN.
+        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
+        // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
     )?;
     // Client for the "global" channel - video output and user input.
     let global = global::Client::new(
         mcs.get_user_id(),
         mcs.get_global_channel_id(),
-        screen_width,
-        screen_height,
+        params.screen_width,
+        params.screen_height,
         KeyboardLayout::US,
         "rdp-rs",
     );
     // Client for the "rdpdr" channel - smartcard emulation.
-    let rdpdr = rdpdr::Client::new(cert_der, key_der);
+    let rdpdr = rdpdr::Client::new(params.cert_der, params.key_der, pin);
 
-    let rdp_client = RdpClient { mcs, global, rdpdr };
+    // Client for the "cliprdr" channel - clipboard sharing.
+    let cliprdr = if params.allow_clipboard {
+        Some(cliprdr::Client::new(Box::new(move |v| unsafe {
+            handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32);
+        })))
+    } else {
+        None
+    };
+
+    let rdp_client = RdpClient {
+        mcs,
+        global,
+        rdpdr,
+        cliprdr,
+    };
     Ok(Client {
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
+        go_ref,
     })
 }
 
@@ -222,6 +263,8 @@ struct RdpClient<S> {
     mcs: mcs::Client<S>,
     global: global::Client,
     rdpdr: rdpdr::Client,
+
+    cliprdr: Option<cliprdr::Client>,
 }
 
 impl<S: Read + Write> RdpClient<S> {
@@ -234,13 +277,18 @@ impl<S: Read + Write> RdpClient<S> {
         // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            "rdpdr" => self.rdpdr.read(message, &mut self.mcs),
+            rdpdr::CHANNEL_NAME => self.rdpdr.read(message, &mut self.mcs),
+            cliprdr::CHANNEL_NAME => match self.cliprdr {
+                Some(ref mut clip) => clip.read(message, &mut self.mcs),
+                None => Ok(()),
+            },
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
                 &format!("Invalid channel name {:?}", channel_name),
             ))),
         }
     }
+
     pub fn write(&mut self, event: RdpEvent) -> RdpResult<()> {
         match event {
             RdpEvent::Pointer(pointer) => {
@@ -253,6 +301,7 @@ impl<S: Read + Write> RdpClient<S> {
             ))),
         }
     }
+
     pub fn shutdown(&mut self) -> RdpResult<()> {
         self.mcs.shutdown()
     }
@@ -332,31 +381,71 @@ fn wait_for_fd(fd: usize) -> bool {
     }
 }
 
+/// `update_clipboard` is called from Go, and caches data that was copied
+/// client-side while notifying the RDP server that new clipboard data is available.
+///
+/// # Safety
+///
+/// `client_ptr` must be a valid pointer to a Client.
+#[no_mangle]
+pub unsafe extern "C" fn update_clipboard(
+    client_ptr: *mut Client,
+    data: *mut u8,
+    len: u32,
+) -> CGOError {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+    let data = from_go_array(len, data);
+    let mut lock = client.rdp_client.lock().unwrap();
+
+    match lock.cliprdr {
+        Some(ref mut clip) => match clip.update_clipboard(data) {
+            Ok(messages) => {
+                for message in messages {
+                    if let Err(e) = lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
+                        return to_cgo_error(format!(
+                            "failed writing cliprdr format list: {:?}",
+                            e
+                        ));
+                    }
+                }
+                CGO_OK
+            }
+            Err(e) => to_cgo_error(format!("failed updating clipboard: {:?}", e)),
+        },
+        None => CGO_OK,
+    }
+}
+
 /// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
 /// handle_bitmap.
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer to a Client.
-/// handle_bitmap *must not* free the memory of CGOBitmap.
+/// `client_ptr` must be a valid pointer to a Client.
+/// `handle_bitmap` *must not* free the memory of CGOBitmap.
 #[no_mangle]
-pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client, client_ref: usize) -> CGOError {
-    let client = Client::from_ptr(client_ptr);
-    let client = match client {
-        Some(client) => client,
-        None => {
-            return to_cgo_error("invalid Rust client pointer".to_string());
+pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOError {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
         }
     };
-    if let Some(err) = read_rdp_output_inner(client, client_ref) {
+    if let Some(err) = read_rdp_output_inner(client) {
         to_cgo_error(err)
     } else {
         CGO_OK
     }
 }
 
-fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
+fn read_rdp_output_inner(client: &Client) -> Option<String> {
     let tcp_fd = client.tcp_fd;
+    let client_ref = client.go_ref;
     // Read incoming events.
     //
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
@@ -369,7 +458,7 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
             .unwrap()
             .read(|rdp_event| match rdp_event {
                 RdpEvent::Bitmap(bitmap) => {
-                    let cbitmap = match CGOBitmap::try_from(bitmap) {
+                    let mut cbitmap = match CGOBitmap::try_from(bitmap) {
                         Ok(cb) => cb,
                         Err(e) => {
                             error!(
@@ -380,7 +469,7 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
                         }
                     };
                     unsafe {
-                        err = handle_bitmap(client_ref, cbitmap) as CGOError;
+                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOError;
                     };
                 }
                 // These should never really be sent by the server to us.
@@ -391,9 +480,13 @@ fn read_rdp_output_inner(client: &Client, client_ref: usize) -> Option<String> {
                     debug!("got unexpected keyboard event from RDP server, ignoring");
                 }
             });
-        if let Err(e) = res {
-            return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
-        };
+        match res {
+            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
+            Err(e) => {
+                return Some(format!("failed forwarding RDP bitmap frame: {:?}", e));
+            }
+            _ => {}
+        }
         if err != CGO_OK {
             let err_str = unsafe { from_cgo_error(err) };
             return Some(format!("failed forwarding RDP bitmap frame: {}", err_str));
@@ -462,11 +555,10 @@ pub unsafe extern "C" fn write_rdp_pointer(
     client_ptr: *mut Client,
     pointer: CGOMousePointerEvent,
 ) -> CGOError {
-    let client = Client::from_ptr(client_ptr);
-    let client = match client {
-        Some(client) => client,
-        None => {
-            return to_cgo_error("invalid Rust client pointer".to_string());
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
         }
     };
     let res = client
@@ -511,11 +603,10 @@ pub unsafe extern "C" fn write_rdp_keyboard(
     client_ptr: *mut Client,
     key: CGOKeyboardEvent,
 ) -> CGOError {
-    let client = Client::from_ptr(client_ptr);
-    let client = match client {
-        Some(client) => client,
-        None => {
-            return to_cgo_error("invalid Rust client pointer".to_string());
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
         }
     };
     let res = client
@@ -535,11 +626,10 @@ pub unsafe extern "C" fn write_rdp_keyboard(
 /// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
 pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
-    let client = Client::from_ptr(client_ptr);
-    let client = match client {
-        Some(client) => client,
-        None => {
-            return to_cgo_error("invalid Rust client pointer".to_string());
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
         }
     };
     if let Err(e) = client.rdp_client.lock().unwrap().shutdown() {
@@ -606,7 +696,8 @@ unsafe fn from_cgo_error(e: CGOError) -> String {
 // comments.
 extern "C" {
     fn free_go_string(s: *mut c_char);
-    fn handle_bitmap(client_ref: usize, b: CGOBitmap) -> CGOError;
+    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
+    fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.

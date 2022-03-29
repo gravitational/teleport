@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/api"
@@ -28,8 +29,8 @@ import (
 
 // DatabaseServer represents a database access server.
 type DatabaseServer interface {
-	// Resource provides common resource methods.
-	Resource
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetNamespace returns server namespace.
 	GetNamespace() string
 	// GetTeleportVersion returns the teleport version the server is running on.
@@ -243,9 +244,43 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Origin returns the origin value of the resource.
+func (s *DatabaseServerV3) Origin() string {
+	return s.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (s *DatabaseServerV3) SetOrigin(origin string) {
+	s.Metadata.SetOrigin(origin)
+}
+
+// GetAllLabels returns all resource's labels. Considering:
+// * Static labels from `Metadata.Labels` and `Spec.Database`.
+// * Dynamic labels from `Spec.DynamicLabels`.
+func (s *DatabaseServerV3) GetAllLabels() map[string]string {
+	staticLabels := make(map[string]string)
+	for name, value := range s.Metadata.Labels {
+		staticLabels[name] = value
+	}
+
+	if s.Spec.Database != nil {
+		for name, value := range s.Spec.Database.Metadata.Labels {
+			staticLabels[name] = value
+		}
+	}
+
+	return CombineLabels(staticLabels, s.Spec.DynamicLabels)
+}
+
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return proto.Clone(s).(*DatabaseServerV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *DatabaseServerV3) MatchSearch(values []string) bool {
+	return MatchSearch(nil, values, nil)
 }
 
 // DatabaseServers represents a list of database servers.
@@ -256,8 +291,76 @@ func (s DatabaseServers) Len() int { return len(s) }
 
 // Less compares database servers by name and host ID.
 func (s DatabaseServers) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+	switch {
+	case s[i].GetName() < s[j].GetName():
+		return true
+	case s[i].GetName() > s[j].GetName():
+		return false
+	default:
+		return s[i].GetHostID() < s[j].GetHostID()
+	}
 }
 
 // Swap swaps two database servers.
 func (s DatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s DatabaseServers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	// We assume sorting by type DatabaseServer, we are really
+	// wanting to sort its contained resource Database.
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetDatabase().GetName(), s[j].GetDatabase().GetName(), isDesc)
+		})
+	case ResourceSpecDescription:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetDatabase().GetDescription(), s[j].GetDatabase().GetDescription(), isDesc)
+		})
+	case ResourceSpecType:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetDatabase().GetType(), s[j].GetDatabase().GetType(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindDatabaseServer)
+	}
+
+	return nil
+}
+
+// AsResources returns db servers as type resources with labels.
+func (s DatabaseServers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s DatabaseServers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetName())
+		}
+	case ResourceSpecDescription:
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetDescription())
+		}
+	case ResourceSpecType:
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetType())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindDatabaseServer)
+	}
+
+	return vals, nil
+}

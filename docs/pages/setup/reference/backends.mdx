@@ -207,7 +207,7 @@ teleport:
 The AWS authentication settings above can be omitted if the machine itself is
 running on an EC2 instance with an IAM role.
 
-These optional `GET` parameters control how Teleport interacts with an S3 endpoint, including S3-compatible endpoints.
+The optional `GET` parameters shown below control how Teleport interacts with an S3 endpoint, including S3-compatible endpoints.
 
 `s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private`
 
@@ -216,7 +216,7 @@ These optional `GET` parameters control how Teleport interacts with an S3 endpoi
 - `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
 - `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
-- `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use.
+- `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
 
 ### S3 Server Side Encryption
 
@@ -330,15 +330,15 @@ This is needed to detect session recordings.
 }
 ```
 
-### ACL Example: Transferring Object Ownership
+### ACL example: transferring object ownership
 
-If you are uploading from account `A` to a bucket owned by account `B` and want `A` to retain ownership of the objects, you can take one of two approaches.
+If you are uploading from AWS account `A` to a bucket owned by AWS account `B` and want `A` to retain ownership of the objects, you can take one of two approaches.
 
-#### Without ACL
+#### Without ACLs
 
-If ACLs are disabled, object ownership will be set to `Bucket owner enforced` and no action is needed.
+If ACLs are disabled, object ownership will be set to `Bucket owner enforced` and no action will be needed.
 
-#### With ACL
+#### With ACLs
 
 - Set object ownership to `Bucket owner preferred` (under Permissions in the management console).
 - Add `acl=bucket-owner-full-control` to `audit_sessions_uri`.
@@ -369,7 +369,7 @@ To enforce the ownership transfer, set `B`'s bucket's policy to only allow uploa
 
 ```
 
-For more information, see the [AWS Docs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html).
+For more information, see the [AWS Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html).
 
 ## DynamoDB
 
