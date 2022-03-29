@@ -19,6 +19,7 @@ import { useDatabases, State } from './useDatabases';
 import { ButtonBorder } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { renderLabelCell } from '../renderLabelCell';
+import { Danger } from 'design/Alert';
 
 export default function Container() {
   const state = useDatabases();
@@ -27,27 +28,32 @@ export default function Container() {
 
 function DatabaseList(props: State) {
   return (
-    <Table
-      data={props.dbs}
-      columns={[
-        {
-          key: 'name',
-          headerText: 'Name',
-          isSortable: true,
-        },
-        {
-          key: 'labelsList',
-          headerText: 'Labels',
-          render: renderLabelCell,
-        },
-        {
-          altKey: 'connect-btn',
-          render: db => renderConnectButton(db.uri, props.connect),
-        },
-      ]}
-      pagination={{ pageSize: 100, pagerPosition: 'bottom' }}
-      emptyText="No Databases Found"
-    />
+    <>
+      {props.syncStatus.status === 'failed' && (
+        <Danger>{props.syncStatus.statusText}</Danger>
+      )}
+      <Table
+        data={props.dbs}
+        columns={[
+          {
+            key: 'name',
+            headerText: 'Name',
+            isSortable: true,
+          },
+          {
+            key: 'labelsList',
+            headerText: 'Labels',
+            render: renderLabelCell,
+          },
+          {
+            altKey: 'connect-btn',
+            render: db => renderConnectButton(db.uri, props.connect),
+          },
+        ]}
+        pagination={{ pageSize: 100, pagerPosition: 'bottom' }}
+        emptyText="No Databases Found"
+      />
+    </>
   );
 }
 

@@ -33,6 +33,7 @@ import Table, { Cell } from 'design/DataTable';
 import * as types from 'teleterm/ui/services/clusters/types';
 import { useApps, State } from './useApps';
 import { renderLabelCell } from '../renderLabelCell';
+import { Danger } from 'design/Alert';
 
 export default function Container() {
   const state = useApps();
@@ -40,45 +41,50 @@ export default function Container() {
 }
 
 export function AppList(props: State) {
-  const { apps = [] } = props;
+  const { apps = [], syncStatus } = props;
 
   return (
-    <StyledTable
-      data={apps}
-      columns={[
-        {
-          altKey: 'app-icon',
-          render: renderAppIcon,
-        },
-        {
-          key: 'name',
-          headerText: 'Name',
-          isSortable: true,
-        },
-        {
-          key: 'description',
-          headerText: 'Description',
-          isSortable: true,
-        },
-        {
-          key: 'publicAddr',
-          headerText: 'Address',
-          render: renderAddress,
-          isSortable: true,
-        },
-        {
-          key: 'labelsList',
-          headerText: 'Labels',
-          render: renderLabelCell,
-        },
-        {
-          altKey: 'launch-btn',
-          render: renderConnectButton,
-        },
-      ]}
-      emptyText="No Applications Found"
-      pagination={{ pageSize: 100, pagerPosition: 'bottom' }}
-    />
+    <>
+      {syncStatus.status === 'failed' && (
+        <Danger>{syncStatus.statusText}</Danger>
+      )}
+      <StyledTable
+        data={apps}
+        columns={[
+          {
+            altKey: 'app-icon',
+            render: renderAppIcon,
+          },
+          {
+            key: 'name',
+            headerText: 'Name',
+            isSortable: true,
+          },
+          {
+            key: 'description',
+            headerText: 'Description',
+            isSortable: true,
+          },
+          {
+            key: 'publicAddr',
+            headerText: 'Address',
+            render: renderAddress,
+            isSortable: true,
+          },
+          {
+            key: 'labelsList',
+            headerText: 'Labels',
+            render: renderLabelCell,
+          },
+          {
+            altKey: 'launch-btn',
+            render: renderConnectButton,
+          },
+        ]}
+        emptyText="No Applications Found"
+        pagination={{ pageSize: 100, pagerPosition: 'bottom' }}
+      />
+    </>
   );
 }
 
