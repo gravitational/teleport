@@ -18,7 +18,7 @@ RDP supports two means of transferring files between systems:
 
 The data flow when using the clipboard virtual channel extension (henceforth referred to as RDP Option 1) includes the one described in [Data Flow and Delayed Rendering](https://github.com/gravitational/teleport/blob/master/rfd/0049-desktop-clipboard.md#data-flow-and-delayed-rendering) in RFD 0049, but with extra steps appended. In the case that a file, directory, or multiple files/directories have been cut or copied onto the shared clipboard, the `Format Data Response PDU` doesn't respond with the file data itself, but instead sends a [`Packed File List`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/3570c2e4-cdd7-4460-8a7e-1a4595f5ebdc) which contains a list of filenames and associated metadata of the files on the clipboard. The files themselves aren't transferred until the shared clipboard owner receives a [`File Contents Request PDU`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/cbc851d3-4e68-45f4-9292-26872a9209f2), at which point it sends back the file data in the form of [`File Contents Response PDU`(`s`)](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/df87c178-ab02-471a-acde-bb921aa1af85).
 
-File transfer's are limited to files less than 4GB unless huge file support is enabled (`CB_HUGE_FILE_SUPPORT_ENABLED`).
+File transfers are limited to files less than 4GB unless huge file support is enabled (`CB_HUGE_FILE_SUPPORT_ENABLED`).
 
 ### File System Virtual Channel Extension (RDP Option 2)
 
