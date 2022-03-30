@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -461,12 +463,14 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 
 type kubeSessionsCommand struct {
 	*kingpin.CmdClause
+	format string
 }
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
 		CmdClause: parent.Command("sessions", "Get a list of active kubernetes sessions."),
 	}
+	c.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&c.format)
 
 	return c
 }
@@ -489,7 +493,18 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	printSessions(filteredSessions)
+	switch strings.ToLower(c.format) {
+	case teleport.Text:
+		printSessions(filteredSessions)
+	case teleport.JSON:
+		out, err := json.MarshalIndent(filteredSessions, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+	}
 	return nil
 }
 
@@ -500,7 +515,7 @@ func printSessions(sessions []types.SessionTracker) {
 	}
 
 	output := table.AsBuffer().String()
-	print(output)
+	fmt.Println(output)
 }
 
 type kubeCredentialsCommand struct {
@@ -598,6 +613,7 @@ type kubeLSCommand struct {
 	labels         string
 	predicateExpr  string
 	searchKeywords string
+	format         string
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
@@ -606,6 +622,7 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	}
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
+	c.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&c.format)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	return c
 }
@@ -625,21 +642,39 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	}
 
 	selectedCluster := selectedKubeCluster(currentTeleportCluster)
-
-	var t asciitable.Table
-	if cf.Quiet {
-		t = asciitable.MakeHeadlessTable(2)
-	} else {
-		t = asciitable.MakeTable([]string{"Kube Cluster Name", "Selected"})
-	}
-	for _, cluster := range kubeClusters {
-		var selectedMark string
-		if cluster == selectedCluster {
-			selectedMark = "*"
+	switch strings.ToLower(c.format) {
+	case teleport.Text:
+		var t asciitable.Table
+		if cf.Quiet {
+			t = asciitable.MakeHeadlessTable(2)
+		} else {
+			t = asciitable.MakeTable([]string{"Kube Cluster Name", "Selected"})
 		}
-		t.AddRow([]string{cluster, selectedMark})
+		for _, cluster := range kubeClusters {
+			var selectedMark string
+			if cluster == selectedCluster {
+				selectedMark = "*"
+			}
+			t.AddRow([]string{cluster, selectedMark})
+		}
+		fmt.Println(t.AsBuffer().String())
+	case teleport.JSON:
+		type cluster struct {
+			KubeClusterName string `json:"kube_cluster_name"`
+			Selected        bool   `json:"selected"`
+		}
+		clusters := make([]cluster, 0, len(kubeClusters))
+		for _, cl := range kubeClusters {
+			clusters = append(clusters, cluster{cl, cl == selectedCluster})
+		}
+		out, err := json.MarshalIndent(clusters, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
 	}
-	fmt.Println(t.AsBuffer().String())
 
 	return nil
 }
