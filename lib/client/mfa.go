@@ -40,11 +40,11 @@ var promptWebauthn = wancli.Login
 // authenticators out there.
 type mfaPrompt struct {
 	wancli.LoginPrompt
-	otpWait func()
+	otpCancelAndWait func()
 }
 
 func (p *mfaPrompt) PromptPIN() (string, error) {
-	p.otpWait()
+	p.otpCancelAndWait()
 	return p.LoginPrompt.PromptPIN()
 }
 
@@ -153,7 +153,7 @@ func PromptMFAChallenge(
 			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
 			prompt.FirstTouchMessage = "" // First prompt printed above.
 			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
-			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpWait: func() {
+			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
 				otpCancel()
 				otpWait.Wait()
 			}}
