@@ -98,16 +98,10 @@ func (p *sessionPlayer) Rewind() {
 	}
 }
 
-func (p *sessionPlayer) stopRequested() bool {
+func (p *sessionPlayer) stopOrEndRequested() bool {
 	p.Lock()
 	defer p.Unlock()
-	return p.state == stateStopping
-}
-
-func (p *sessionPlayer) endRequested() bool {
-	p.Lock()
-	defer p.Unlock()
-	return p.state == stateEnding
+	return p.state == stateStopping || p.state == stateEnding
 }
 
 func (p *sessionPlayer) Forward() {
@@ -223,9 +217,9 @@ func (p *sessionPlayer) playRange(from, to int) {
 		var i int
 
 		defer func() {
-			endRequested := p.endRequested()
 
 			p.Lock()
+			endRequested := p.state == stateEnding
 			p.setState(stateStopped)
 			p.Unlock()
 
@@ -242,7 +236,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 		prev := time.Duration(0)
 		offset, bytes := 0, 0
 		for i = 0; i < to; i++ {
-			if p.stopRequested() || p.endRequested() {
+			if p.stopOrEndRequested() {
 				return
 			}
 
