@@ -27,9 +27,10 @@ import (
 // GetProxyAddress gets the HTTP proxy address to use for a given address, if any.
 func GetProxyAddress(dialAddr string) *url.URL {
 	addrURL, err := parse(dialAddr)
-	if err != nil {
+	if err != nil || addrURL == nil {
 		return nil
 	}
+
 	proxyFunc := httpproxy.FromEnvironment().ProxyFunc()
 	if addrURL.Scheme != "" {
 		proxyURL, err := proxyFunc(addrURL)
@@ -50,18 +51,26 @@ func GetProxyAddress(dialAddr string) *url.URL {
 	return nil
 }
 
-// parse parses a URL. If the address does not have a scheme, it will prepend "http" and try.
+// parse parses an absolute URL. Unlike url.Parse, absolute URLs without a scheme are allowed.
 func parse(addr string) (*url.URL, error) {
-	addrURL, err := url.Parse(addr)
-	// Some URLs will fail to parse without a scheme (for example, <ip-address>:<port>), so try
-	// to parse again with a scheme. If that fails, return the original error.
-	if err != nil || !strings.HasPrefix(addrURL.Scheme, "http") {
-		if addrURL, err := url.Parse("http://" + addr); err == nil {
-			addrURL.Scheme = ""
-			return addrURL, nil
-		}
-		return nil, err
+	if addr == "" {
+		return nil, nil
 	}
+	addrURL, err := url.Parse(addr)
+	if err == nil && addrURL.Host != "" {
+		return addrURL, nil
+	}
+
+	// url.Parse won't correctly parse an absolute URL without a scheme, so try again with a scheme.
+	addrURL, err2 := url.Parse("http://" + addr)
+	if err2 != nil {
+		// If there was an original error, prefer to return that.
+		if err != nil {
+			return nil, err
+		}
+		return nil, err2
+	}
+	addrURL.Scheme = ""
 	return addrURL, nil
 }
 

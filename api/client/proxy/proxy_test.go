@@ -115,6 +115,7 @@ func TestGetProxyAddress(t *testing.T) {
 			if tt.proxyAddr == "" {
 				require.Nil(t, p)
 			} else {
+				require.NotNil(t, p)
 				require.Equal(t, tt.proxyAddr, p.Host)
 			}
 		})
@@ -137,4 +138,46 @@ func TestProxyAwareRoundTripper(t *testing.T) {
 	_, err = rt.RoundTrip(req)
 	require.Error(t, err)
 	require.Equal(t, "http", req.URL.Scheme)
+}
+
+func TestParse(t *testing.T) {
+	successTests := []struct {
+		name, addr, scheme, host, path string
+	}{
+		{name: "scheme-host-port", addr: "http://example.com:8080", scheme: "http", host: "example.com:8080", path: ""},
+		{name: "host-port", addr: "example.com:8080", scheme: "", host: "example.com:8080", path: ""},
+		{name: "scheme-ip4-port", addr: "http://127.0.0.1:8080", scheme: "http", host: "127.0.0.1:8080", path: ""},
+		{name: "ip4-port", addr: "127.0.0.1:8080", scheme: "", host: "127.0.0.1:8080", path: ""},
+		{name: "scheme-ip6-port", addr: "http://[::1]:8080", scheme: "http", host: "[::1]:8080", path: ""},
+		{name: "ip6-port", addr: "[::1]:8080", scheme: "", host: "[::1]:8080"},
+		{name: "host/path", addr: "example.com/path/to/somewhere", scheme: "", host: "example.com", path: "/path/to/somewhere"},
+	}
+	for _, tc := range successTests {
+		t.Run(fmt.Sprintf("should parse: %s", tc.name), func(t *testing.T) {
+			u, err := parse(tc.addr)
+			require.NoError(t, err)
+			errMsg := fmt.Sprintf("(%v, %v, %v)", u.Scheme, u.Host, u.Path)
+			require.Equal(t, tc.scheme, u.Scheme, errMsg)
+			require.Equal(t, tc.host, u.Host, errMsg)
+			require.Equal(t, tc.path, u.Path)
+		})
+	}
+
+	failTests := []struct {
+		name, addr string
+	}{
+		{name: "invalid char in host without scheme", addr: "bad addr"},
+	}
+	for _, tc := range failTests {
+		t.Run(fmt.Sprintf("should not parse: %s", tc.name), func(t *testing.T) {
+			u, err := parse(tc.addr)
+			require.Error(t, err, u)
+		})
+	}
+
+	t.Run("empty addr", func(t *testing.T) {
+		u, err := parse("")
+		require.NoError(t, err)
+		require.Nil(t, u)
+	})
 }
