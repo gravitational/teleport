@@ -35,7 +35,7 @@ const (
 	// because the playback has reached the end of the recording,
 	// or because a hard stop was requested.
 	stateStopped tshPlayerState = iota
-	// A stop has been requested so that an action can take place.
+	// A stop has been requested so that an action (forward, rewind, etc) can take place.
 	stateStopping
 	// An end to the playback has been requested.
 	stateEnding
