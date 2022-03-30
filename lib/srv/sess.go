@@ -723,7 +723,7 @@ func (s *session) PID() int {
 	return s.term.PID()
 }
 
-// Recorder returns a events.SessionRecorder which can be used to emit events
+// Recorder returns a StreamWriter which can be used to emit events
 // to a session as well as the audit log.
 func (s *session) Recorder() events.StreamWriter {
 	s.mu.RLock()
