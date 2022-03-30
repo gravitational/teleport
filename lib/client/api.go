@@ -1692,7 +1692,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 		return trace.Wrap(err)
 	}
 	defer os.RemoveAll(playbackDir)
-	w, err := events.WriteForPlayback(ctx, session.ID(sid), protoReader, playbackDir)
+	w, err := events.WriteForSSHPlayback(ctx, session.ID(sid), protoReader, playbackDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3534,7 +3534,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	)
 	// playback control goroutine
 	go func() {
-		defer player.Stop()
+		defer player.RequestStop()
 		var key [1]byte
 		for {
 			_, err := term.Stdin().Read(key[:])
