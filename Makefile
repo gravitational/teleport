@@ -151,8 +151,9 @@ endif
 endif
 endif
 
+# Enable libfido2 for buildbox and local environments that have it.
 # TODO(codingllama): Build static binaries with libfido2.
-ifneq ("$(wildcard /usr/local/lib/libfido2.*)","")
+ifneq ("$(wildcard /usr/local/lib/libfido2.*)$(wildcard /usr/lib/x86_64-linux-gnu/libfido2.*)","")
 LIBFIDO2_TAG := libfido2
 endif
 
