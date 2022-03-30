@@ -57,52 +57,53 @@ export function GatewayCreate(props: State) {
           onClose={onClose}
           open={true}
         >
-          <DialogHeader>
-            <Text typography="h4" color="text.primary">
-              Create connection <b>{db.name}</b>
-            </Text>
-          </DialogHeader>
-          <DialogContent
-            onKeyPress={e =>
-              e.key === 'Enter' &&
-              validator.validate() &&
-              createGateway({ port, user })
-            }
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              validator.validate() && createGateway({ port, user });
+            }}
           >
-            {createAttempt.status === 'error' && (
-              <Alerts.Danger>{createAttempt.statusText}</Alerts.Danger>
-            )}
-            {userRequired && (
+            <DialogHeader>
+              <Text typography="h4" color="text.primary">
+                Create connection <b>{db.name}</b>
+              </Text>
+            </DialogHeader>
+            <DialogContent>
+              {createAttempt.status === 'error' && (
+                <Alerts.Danger>{createAttempt.statusText}</Alerts.Danger>
+              )}
+              {userRequired && (
+                <FieldInput
+                  label="User"
+                  width="100%"
+                  value={user}
+                  autoFocus
+                  placeholder="mongo db user"
+                  onChange={e => setUser(e.target.value)}
+                />
+              )}
               <FieldInput
-                label="User"
+                label="Port (Optional)"
                 width="100%"
-                value={user}
-                autoFocus
-                placeholder="mongo db user"
-                onChange={e => setUser(e.target.value)}
+                value={port}
+                autoFocus={!userRequired}
+                placeholder="10211"
+                onChange={e => setPort(e.target.value)}
               />
-            )}
-            <FieldInput
-              label="Port (Optional)"
-              width="100%"
-              value={port}
-              autoFocus={!userRequired}
-              placeholder="10211"
-              onChange={e => setPort(e.target.value)}
-            />
-          </DialogContent>
-          <DialogFooter>
-            <ButtonPrimary
-              mr="3"
-              disabled={createAttempt.status === 'processing'}
-              onClick={() =>
-                validator.validate() && createGateway({ port, user })
-              }
-            >
-              Create
-            </ButtonPrimary>
-            <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>
-          </DialogFooter>
+            </DialogContent>
+            <DialogFooter>
+              <ButtonPrimary
+                mr="3"
+                disabled={createAttempt.status === 'processing'}
+                type="submit"
+              >
+                Create
+              </ButtonPrimary>
+              <ButtonSecondary type="button" onClick={onClose}>
+                Close
+              </ButtonSecondary>
+            </DialogFooter>
+          </form>
         </Dialog>
       )}
     </Validation>

@@ -46,38 +46,44 @@ export function ClusterLogout({
         width: '100%',
       })}
     >
-      <DialogHeader justifyContent="space-between" mb={0}>
-        <Text typography="h5" bold style={{ whiteSpace: 'nowrap' }}>
-          Log out from cluster {clusterTitle}
-        </Text>
-        <ButtonIcon
-          disabled={status === 'processing'}
-          onClick={onClose}
-          color="text.secondary"
-        >
-          <Close fontSize={5} />
-        </ButtonIcon>
-      </DialogHeader>
-      <DialogContent mb={4}>
-        <Text color="text.secondary" typography="body1">
-          Are you sure you want to log out?
-        </Text>
-        {status === 'error' && <Alerts.Danger mb={5} children={statusText} />}
-      </DialogContent>
-      <DialogFooter>
-        <ButtonPrimary
-          kind="warning"
-          disabled={status === 'processing'}
-          size="large"
-          block={true}
-          onClick={e => {
-            e.preventDefault();
-            removeCluster();
-          }}
-        >
-          Log out
-        </ButtonPrimary>
-      </DialogFooter>
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          removeCluster();
+        }}
+      >
+        <DialogHeader justifyContent="space-between" mb={0}>
+          <Text typography="h5" bold style={{ whiteSpace: 'nowrap' }}>
+            Log out from cluster {clusterTitle}
+          </Text>
+          <ButtonIcon
+            type="button"
+            disabled={status === 'processing'}
+            onClick={onClose}
+            color="text.secondary"
+          >
+            <Close fontSize={5} />
+          </ButtonIcon>
+        </DialogHeader>
+        <DialogContent mb={4}>
+          <Text color="text.secondary" typography="body1">
+            Are you sure you want to log out?
+          </Text>
+          {status === 'error' && <Alerts.Danger mb={5} children={statusText} />}
+        </DialogContent>
+        <DialogFooter>
+          <ButtonPrimary
+            kind="warning"
+            disabled={status === 'processing'}
+            size="large"
+            block={true}
+            autoFocus
+            type="submit"
+          >
+            Log out
+          </ButtonPrimary>
+        </DialogFooter>
+      </form>
     </DialogConfirmation>
   );
 }

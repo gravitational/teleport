@@ -40,7 +40,12 @@ export function ClusterAddPresentation({
   return (
     <Validation>
       {({ validator }) => (
-        <form>
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            validator.validate() && addCluster(addr);
+          }}
+        >
           <DialogHeader>
             <Text typography="h4">Enter cluster address</Text>
           </DialogHeader>
@@ -59,15 +64,13 @@ export function ClusterAddPresentation({
               <ButtonPrimary
                 disabled={status === 'processing'}
                 mr="3"
-                onClick={e => {
-                  e.preventDefault();
-                  validator.validate() && addCluster(addr);
-                }}
+                type="submit"
               >
                 Next
               </ButtonPrimary>
               <ButtonSecondary
                 disabled={status === 'processing'}
+                type="button"
                 onClick={e => {
                   e.preventDefault();
                   onClose();

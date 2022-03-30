@@ -118,7 +118,13 @@ export default function LoginForm(props: Props) {
             </FlexBordered>
           )}
           {isLocalAuthEnabled && isExpanded && (
-            <FlexBordered as="form" onSubmit={preventDefault}>
+            <FlexBordered
+              as="form"
+              onSubmit={e => {
+                e.preventDefault();
+                validator.validate() && handleLocalLoginClick();
+              }}
+            >
               <FieldInput
                 rule={requiredField('Username is required')}
                 label="Username"
@@ -184,7 +190,6 @@ export default function LoginForm(props: Props) {
                 mt={3}
                 type="submit"
                 size="large"
-                onClick={() => validator.validate() && handleLocalLoginClick()}
                 disabled={isProcessing}
               >
                 LOGIN
@@ -241,9 +246,4 @@ type Props = {
     token: string,
     auth2fa: types.Auth2faType
   ): void;
-};
-
-const preventDefault = (e: React.SyntheticEvent) => {
-  e.stopPropagation();
-  e.preventDefault();
 };
