@@ -1,5 +1,42 @@
 # Changelog
 
+## 8.3.6
+
+This release of Teleport contains multiple fixes.
+
+* Fixed issue with message of the day not being displayed in some cases.
+  [#11371](https://github.com/gravitational/teleport/pull/11371)
+* Fixed issue with automatic node join script returning 404 in web UI.
+  [#11572](https://github.com/gravitational/teleport/pull/11572)
+* Fixed issue with tsh proxy jump not connecting to leaf proxy.
+  [#11497](https://github.com/gravitational/teleport/pull/11497)
+
+## 8.3.5
+
+This release of Teleport contains multiple features, improvements and fixes.
+
+* Added `HTTP_PROXY` support to tsh. [#10209](https://github.com/gravitational/teleport/pull/10209)
+* Added support for per-user `tsh` configuration preferences. [#10336](https://github.com/gravitational/teleport/pull/10336)
+* Added automatic node joining wizard to OSS. [#10288](https://github.com/gravitational/teleport/pull/10288)
+* Improved Desktop Access performance by fixing memory leaks and bitmap optimizations. [#10915](https://github.com/gravitational/teleport/pull/10915)
+* Improved Desktop Access to support proxying to different desktops. [#10101](https://github.com/gravitational/teleport/pull/10101)
+* Improved Application Access HA behavior when accessing applications within a leaf cluster. [#10734](https://github.com/gravitational/teleport/pull/10734)
+* Improved Database Access log spam and automatic discovery. [#11020](https://github.com/gravitational/teleport/pull/11020) [#10699](https://github.com/gravitational/teleport/pull/10699)
+* Improved error messages when host is missing in `tctl auth sign`. [#10588](https://github.com/gravitational/teleport/pull/10588)
+* Improved X11 forwarding support on macOS. [#10719](https://github.com/gravitational/teleport/pull/10719)
+* Fixed multiple issues with CA rotation, graceful restart, and stability. [#10706](https://github.com/gravitational/teleport/pull/10706) [#11074](https://github.com/gravitational/teleport/pull/11074) [#11283](https://github.com/gravitational/teleport/pull/11283)
+* Fixed an issue where users could create system roles. [#8924](https://github.com/gravitational/teleport/pull/8924)
+* Fixed an issue where an invalid event could lead to the Audit Log being inaccessible to view. [#10665](https://github.com/gravitational/teleport/pull/10665)
+* Fixed an issue with lease contention and concurrent session control. [#10666](https://github.com/gravitational/teleport/pull/10666)
+* Fixed an issue where Teleport could panic during a session recording. [#10792](https://github.com/gravitational/teleport/pull/10792)
+* Fixed an issue where `tctl auth sign` was creating a `kubeconfig` file incompatible with Teleport Cloud. [#10844](https://github.com/gravitational/teleport/pull/10844)
+* Fixed an issue where Teleport would not regenerate server identity for Kubernetes Access. [#10904](https://github.com/gravitational/teleport/pull/10904)
+* Fixed an issue where `tsh` would not deduplicate Access Request IDs. [#9453](https://github.com/gravitational/teleport/pull/9453)
+* Fixed an issue where `tsh` would not respect `TELEPORT_HOME` [#11087](https://github.com/gravitational/teleport/pull/11087)
+* Fixed an issue where `tsh aws ecr` could return `Internal Server`. [#10475](https://github.com/gravitational/teleport/pull/10475)
+* Fixed an memory leak in the Teleport watcher system. [#10871](https://github.com/gravitational/teleport/pull/10871)
+* Fixed an issue where certain resources could not be deleted. [#11124](https://github.com/gravitational/teleport/pull/11124)
+
 ## 8.3.4
 
 This release of Teleport contains multiple improvements and fixes.
