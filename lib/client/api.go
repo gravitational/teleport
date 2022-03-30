@@ -3139,8 +3139,8 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		}
 	}
 
-	var errorCh = make(chan error)
 	player := newSessionPlayer(sessionEvents, stream, term)
+	errorCh := make(chan error)
 	// keys:
 	const (
 		keyCtrlC = 3
@@ -3153,7 +3153,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	)
 	// playback control goroutine
 	go func() {
-		defer player.RequestStop()
+		defer player.EndPlayback()
 		var key [1]byte
 		for {
 			_, err := term.Stdin().Read(key[:])
