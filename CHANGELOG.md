@@ -1,5 +1,19 @@
 # Changelog
 
+## 9.0.2
+
+This release of Teleport contains multiple features, improvements and bug fixes.
+
+* Added support for per-user `tsh` configuration preferences. [#10336](https://github.com/gravitational/teleport/pull/10336)
+* Added support for role bootstrapping in OSS. [#11175](https://github.com/gravitational/teleport/pull/11175)
+* Added `HTTP_PROXY` support to tsh. [#10209](https://github.com/gravitational/teleport/pull/10209)
+* Improved error messages `tsh` and `tctl` show to include usage information on invalid command line invocation. [#11174](https://github.com/gravitational/teleport/pull/11174)
+* Improved `tctl <resource> ls` output to make it consistent across all resources. [#9519](https://github.com/gravitational/teleport/pull/9519)
+* Fixed multiple issues with CA rotation, graceful restart, and stability. [#10706](https://github.com/gravitational/teleport/pull/10706) [#11074](https://github.com/gravitational/teleport/pull/11074) [#11283](https://github.com/gravitational/teleport/pull/11283)
+* Fixed issue where MOTD was not always shown. [#10735](https://github.com/gravitational/teleport/pull/10735)
+* Fixed an issue where certificate extension not being included in `tctl auth sign`. [#10949](https://github.com/gravitational/teleport/pull/10949)
+* Fixed a panic that could occur in the Web UI. [#11389](https://github.com/gravitational/teleport/pull/11389)
+
 ## 9.0.1
 
 This release of Teleport contains multiple improvements and bug fixes.
