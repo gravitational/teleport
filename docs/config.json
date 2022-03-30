@@ -145,8 +145,18 @@
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
            "entries": [
-            { "title": "Cluster", "slug": "/kubernetes-access/getting-started/cluster/" },
-            { "title": "Agent", "slug": "/kubernetes-access/getting-started/agent/" }
+            { 
+              "title": "Local Demo Cluster", 
+              "slug": "/kubernetes-access/getting-started/local/"
+            },
+            { 
+              "title": "Cluster", 
+              "slug": "/kubernetes-access/getting-started/cluster/" 
+            },
+            { 
+              "title": "Agent", 
+              "slug": "/kubernetes-access/getting-started/agent/" 
+            }
           ]
         },
         {
@@ -171,8 +181,24 @@
             { "title": "Migrating From Older Charts", "slug": "/kubernetes-access/helm/guides/migration/" }
           ]
         },
-        { "title": "Helm Chart Reference", "slug": "/kubernetes-access/helm/reference/" },
-        { "title": "Access Controls", "slug": "/kubernetes-access/controls/" }
+        {
+          "title": "Helm Chart Reference",
+          "slug": "/kubernetes-access/helm/reference/",
+          "entries": [
+            {
+              "title": "teleport-cluster",
+              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
+            },
+            {
+               "title": "teleport-kube-agent",
+               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+            }
+          ]
+        },
+        {
+          "title": "Access Controls",
+          "slug": "/kubernetes-access/controls/"
+        }
       ]
     },
     {
