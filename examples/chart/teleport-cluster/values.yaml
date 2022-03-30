@@ -72,6 +72,15 @@ labels: {}
 #     kubectl -n ${TELEPORT_NAMESPACE?} create configmap ${HELM_RELEASE_NAME?} --from-file=teleport.yaml
 chartMode: standalone
 
+# List of pre-defined tokens for adding new nodes to a cluster. Each token specifies
+# the role a new node will be allowed to assume. The more secure way to
+# add nodes is to use `tctl nodes add --ttl` command to generate auto-expiring
+# tokens.
+#
+# We recommend to use tools like `pwgen` to generate sufficiently random
+# tokens of 32+ byte length.
+staticTokens: []
+
 ################################################################
 # Standalone-specific settings (only used in "standalone" mode)
 ################################################################

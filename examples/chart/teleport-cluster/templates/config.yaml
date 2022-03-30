@@ -54,6 +54,9 @@ data:
   {{- if .Values.enterprise }}
       license_file: '/var/lib/license/license.pem'
   {{- end }}
+  {{- if .Values.staticTokens }}
+      tokens: {{ .Values.staticTokens | toJson }}
+  {{- end }}
       authentication:
         type: {{ required "authenticationType is required in chart values" .Values.authenticationType }}
   {{- if .Values.authenticationSecondFactor }}

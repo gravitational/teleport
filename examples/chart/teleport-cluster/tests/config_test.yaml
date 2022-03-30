@@ -338,3 +338,13 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot: {}
+
+  - it: matches snapshot for static-tokens.yaml
+    values:
+      - ../.lint/static-tokens.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}

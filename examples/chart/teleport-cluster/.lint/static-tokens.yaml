@@ -1,0 +1,4 @@
+clusterName: helm-lint
+staticTokens:
+  - "app,db:insecure-token-one"
+  - "node,proxy:insecure-token-two"
