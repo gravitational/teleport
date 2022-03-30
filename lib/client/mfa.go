@@ -40,11 +40,11 @@ var promptWebauthn = wancli.Login
 // authenticators out there.
 type mfaPrompt struct {
 	wancli.LoginPrompt
-	otpCancel context.CancelFunc
+	otpWait func()
 }
 
 func (p *mfaPrompt) PromptPIN() (string, error) {
-	p.otpCancel() // cancel OTP stdin read
+	p.otpWait()
 	return p.LoginPrompt.PromptPIN()
 }
 
@@ -99,14 +99,17 @@ func PromptMFAChallenge(
 		wg.Wait()
 	}
 
-	// Use otpCtx and otpCancel to cancel an ongoing OTP read.
+	// Use variables below to cancel OTP reads and make sure the goroutine exited.
+	otpWait := &sync.WaitGroup{}
 	otpCtx, otpCancel := context.WithCancel(ctx)
 	defer otpCancel()
 
 	// Fire TOTP goroutine.
 	if hasTOTP {
+		otpWait.Add(1)
 		wg.Add(1)
 		go func() {
+			defer otpWait.Done()
 			defer wg.Done()
 			const kind = "TOTP"
 			var msg string
@@ -150,7 +153,10 @@ func PromptMFAChallenge(
 			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
 			prompt.FirstTouchMessage = "" // First prompt printed above.
 			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
-			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancel: otpCancel}
+			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpWait: func() {
+				otpCancel()
+				otpWait.Wait()
+			}}
 
 			const user = ""
 			resp, _, err := promptWebauthn(ctx, origin, user, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt)
