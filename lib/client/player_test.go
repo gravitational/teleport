@@ -139,10 +139,10 @@ func TestPlayPause(t *testing.T) {
 func TestEndPlaybackWhilePlaying(t *testing.T) {
 	c := clockwork.NewFakeClock()
 
-	// in this test, we let the player play 2 of the 3 events,
-	// then pause it and verify the pause state before resuming
-	// playback for the final event.
-	events := printEvents(100, 200, 300)
+	// in this test, we let the player play 1 of the 2 events,
+	// then end the playback and confirm
+	// that the stopC channel was written to.
+	events := printEvents(100, 200)
 	var stream []byte // intentionally empty, we dont care about stream contents here
 	p := newSessionPlayer(events, stream, testTerm(t))
 	p.clock = c
@@ -152,18 +152,11 @@ func TestEndPlaybackWhilePlaying(t *testing.T) {
 	// wait for player to see the first event and apply the delay
 	c.BlockUntil(1)
 
-	// advance the clock:
-	// at this point, the player will write the first event
-	c.Advance(100 * time.Millisecond)
-
-	// wait for the player to sleep on the 2nd event
-	c.BlockUntil(1)
-
 	// end playback
 	p.EndPlayback()
 
-	// advance the clock again:
-	// the player will write the second event and
+	// advance the clock:
+	// the player will write the first event and
 	// then realize that it's been asked to end playback
 	c.Advance(100 * time.Millisecond)
 
@@ -182,10 +175,9 @@ func TestEndPlaybackWhilePlaying(t *testing.T) {
 func TestEndPlaybackWhilePaused(t *testing.T) {
 	c := clockwork.NewFakeClock()
 
-	// in this test, we let the player play 2 of the 3 events,
-	// then pause it and verify the pause state before resuming
-	// playback for the final event.
-	events := printEvents(100, 200, 300)
+	// in this test, we let the player play 1 of the 2 events,
+	// then pause it and verify the pause state before ending playback.
+	events := printEvents(100, 200)
 	var stream []byte // intentionally empty, we dont care about stream contents here
 	p := newSessionPlayer(events, stream, testTerm(t))
 	p.clock = c
