@@ -136,9 +136,10 @@ export function VerifyUser({
                   {mfaOption.value === 'otp' && (
                     <FieldInput
                       width="50%"
-                      label="two-factor token"
+                      label="authenticator code"
                       rule={requiredToken}
-                      autoComplete="off"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
                       value={otpToken}
                       onChange={e => setOtpToken(e.target.value)}
                       placeholder="123 456"

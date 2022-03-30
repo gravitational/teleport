@@ -159,6 +159,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
         autocomplete="off"
         class="c6"
         color="text.onLight"
+        inputmode="text"
         type="text"
         value=""
       />
@@ -177,6 +178,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
         autocomplete="off"
         class="c6"
         color="text.onLight"
+        inputmode="text"
         type="text"
         value=""
       />
@@ -352,6 +354,7 @@ exports[`render correct form for clicking forgot password 1`] = `
         autocomplete="off"
         class="c6"
         color="text.onLight"
+        inputmode="text"
         type="text"
         value=""
       />
@@ -370,6 +373,7 @@ exports[`render correct form for clicking forgot password 1`] = `
         autocomplete="off"
         class="c6"
         color="text.onLight"
+        inputmode="text"
         type="text"
         value=""
       />
