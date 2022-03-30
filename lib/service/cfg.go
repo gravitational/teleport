@@ -573,6 +573,10 @@ type SSHConfig struct {
 
 	// X11 holds x11 forwarding configuration for Teleport.
 	X11 *x11.ServerConfig
+
+	// DisableCreateHostUser disables automatic user provisioning on this
+	// SSH node.
+	DisableCreateHostUser bool
 }
 
 // KubeConfig specifies configuration for kubernetes service

@@ -95,6 +95,8 @@ type AgentPoolConfig struct {
 	Cluster string
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
+	// DisableCreateHostUser disables host user creation on a node.
+	DisableCreateHostUser bool
 }
 
 // CheckAndSetDefaults checks and sets defaults

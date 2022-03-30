@@ -983,6 +983,9 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+	if fc.SSH.DisableCreateHostUser {
+		cfg.SSH.DisableCreateHostUser = true
+	}
 	if fc.SSH.PAM != nil {
 		cfg.SSH.PAM = fc.SSH.PAM.Parse()
 

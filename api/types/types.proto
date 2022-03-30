@@ -1644,6 +1644,13 @@ message RoleOptions {
         (gogoproto.jsontag) = "desktop_directory_sharing",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    // CreateHostUser allows users to be automatically created on a host
+    BoolValue CreateHostUser = 20 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "create_host_user",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 message RecordSession {
@@ -1778,6 +1785,9 @@ message RoleConditions {
     // JoinSessions specifies policies to allow users to join other sessions.
     repeated SessionJoinPolicy JoinSessions = 20
         [ (gogoproto.jsontag) = "join_sessions,omitempty" ];
+
+    // HostGroups is a list of groups for created users to be added to
+    repeated string HostGroups = 21 [ (gogoproto.jsontag) = "host_groups,omitempty" ];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.

@@ -166,6 +166,11 @@ type Role interface {
 	// to "assume" while searching for resources, and should be able to request
 	// with a search-based access request.
 	SetSearchAsRoles([]string)
+
+	// GetHostGroups gets the list of groups this role is put in when users are provisioned
+	GetHostGroups(RoleConditionType) []string
+	// SetHostGroups sets the list of groups this role is put in when users are provisioned
+	SetHostGroups(RoleConditionType, []string)
 }
 
 // NewRole constructs new standard V5 role.
@@ -610,6 +615,25 @@ func (r *RoleV5) SetRules(rct RoleConditionType, in []Rule) {
 	}
 }
 
+// GetGroups gets all groups for provisioned user
+func (r *RoleV5) GetHostGroups(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.HostGroups
+	}
+	return r.Spec.Deny.HostGroups
+
+}
+
+// SetHostGroups sets all groups for provisioned user
+func (r *RoleV5) SetHostGroups(rct RoleConditionType, groups []string) {
+	ncopy := utils.CopyStrings(groups)
+	if rct == Allow {
+		r.Spec.Allow.HostGroups = ncopy
+	} else {
+		r.Spec.Deny.HostGroups = ncopy
+	}
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV5) setStaticFields() {
 	r.Kind = KindRole
@@ -651,6 +675,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	}
 	if r.Spec.Options.DesktopDirectorySharing == nil {
 		r.Spec.Options.DesktopDirectorySharing = NewBoolOption(true)
+	}
+	if r.Spec.Options.CreateHostUser == nil {
+		r.Spec.Options.CreateHostUser = NewBoolOption(false)
 	}
 
 	switch r.Version {

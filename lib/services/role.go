@@ -345,11 +345,14 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 
+		r.SetHostGroups(condition,
+			applyValueTraitsSlice(r.GetHostGroups(condition), traits, "host_groups"))
+
 		options := r.GetOptions()
 		for i, ext := range options.CertExtensions {
 			vals, err := ApplyValueTraits(ext.Value, traits)
 			if err != nil && !trace.IsNotFound(err) {
-				log.Warnf("didnt applying trait to cert_extensions.value: %v", err)
+				log.Warnf("Did not apply trait to cert_extensions.value: %v", err)
 				continue
 			}
 			if len(vals) != 0 {
@@ -618,6 +621,13 @@ func (set RuleSet) Slice() []types.Rule {
 	return out
 }
 
+// HostUsersInfo keeps information about groups and sudoers entries
+// for a particular host user
+type HostUsersInfo struct {
+	// Groups is the list of groups to include host users in
+	Groups []string
+}
+
 // AccessChecker interface implements access checks for given role or role set
 type AccessChecker interface {
 	// HasRole checks if the checker includes the role
@@ -727,6 +737,10 @@ type AccessChecker interface {
 	// "assume" while searching for resources, and should be able to request with a
 	// search-based access request.
 	GetSearchAsRoles() []string
+
+	// HostUsers contains host user information matching a server or
+	// an error if a role disallows host user creation
+	HostUsers(s types.Server) (*HostUsersInfo, error)
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -2106,6 +2120,48 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 	}
 
 	return m
+}
+
+// HostUsers returns host user information matching a server or nil if
+// a role disallows host user creation
+func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
+	groups := make(map[string]struct{})
+	serverLabels := s.GetAllLabels()
+	for _, role := range set {
+		result, _, err := MatchLabels(role.GetNodeLabels(types.Allow), serverLabels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// skip nodes that dont have matching labels
+		if !result {
+			continue
+		}
+		createHostUser := role.GetOptions().CreateHostUser
+		// if any of the matching roles do not enable create host
+		// user, the user should not be allowed on
+		if createHostUser == nil || !createHostUser.Value {
+			return nil, trace.AccessDenied("user is not allowed to create host users")
+		}
+		for _, group := range role.GetHostGroups(types.Allow) {
+			groups[group] = struct{}{}
+		}
+	}
+	for _, role := range set {
+		result, _, err := MatchLabels(role.GetNodeLabels(types.Deny), serverLabels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !result {
+			continue
+		}
+		for _, group := range role.GetHostGroups(types.Deny) {
+			delete(groups, group)
+		}
+	}
+
+	return &HostUsersInfo{
+		Groups: utils.StringsSliceFromSet(groups),
+	}, nil
 }
 
 // certificatePriority returns the priority of the certificate format. The

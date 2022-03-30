@@ -38,6 +38,10 @@ const SemaphoreKindConnection = "connection"
 // role option).
 const SemaphoreKindKubernetesConnection = "kubernetes_connection"
 
+// SemaphoreKindHostUserCleanup is the semaphore kind used to limit
+// the number of host user cleanups jobs to one per ssh server
+const SemaphoreKindHostUserCleanup = "host_user_cleanup"
+
 // Semaphore represents distributed semaphore concept
 type Semaphore interface {
 	// Resource contains common resource values

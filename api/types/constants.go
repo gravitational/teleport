@@ -402,3 +402,10 @@ const (
 
 // ResourceKinds lists all Teleport resource kinds users can request access to.
 var ResourceKinds = []string{KindNode, KindDatabaseServer, KindAppServer, KindKubeService, KindWindowsDesktop}
+
+const (
+	// TeleportServiceGroup is a default group that users of the
+	// teleport automated user provisioning system get added to so
+	// already existing users are not deleted
+	TeleportServiceGroup = "teleport-system"
+)
