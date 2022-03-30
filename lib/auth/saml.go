@@ -372,7 +372,7 @@ func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, e
 		}
 	}
 
-	testFlow := request.SSOTestFlow
+	testFlow := request != nil && request.SSOTestFlow
 
 	if err != nil {
 		if testFlow {
