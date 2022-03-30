@@ -61,11 +61,16 @@ the [customer portal](https://dashboard.gravitational.com/web/login).
 
 This section will show you how to implement certificate rotation in practice.
 
-<Admonition type="warning" title="CA Pinning Warning">
-  If you are using [CA
-  Pinning](../admin/adding-nodes.mdx#untrusted-auth-servers) when adding new
-  nodes, the CA pin will change after the rotation. Make sure you use the *new*
-  CA pin when adding nodes after rotation.
+If you are using [CA Pinning](../admin/adding-nodes.mdx#untrusted-auth-servers)
+when adding new nodes, the CA pin will change after the rotation. Make sure you
+use the *new* CA pin when adding nodes after rotation.
+
+<Admonition type="warning" title="Desktop Access">
+Teleport signs Windows Desktop certificates with the user certificate authority.
+If the user CA is rotated, the new CA certificate will need to be exported and
+configured in group policy.
+
+[Read more about exporting the Teleport CA](../../desktop-access/getting-started.mdx#export-the-teleport-ca)
 </Admonition>
 
 ### Rotation phases
