@@ -170,8 +170,7 @@ func TestEndPlaybackWhilePlaying(t *testing.T) {
 }
 
 // TestEndPlaybackWhilePaused tests that playback can be ended
-// by the user pressing ctrl+C or ctrl+D while the playback is
-// paused.
+// by calling EndPlayback while playback is paused.
 func TestEndPlaybackWhilePaused(t *testing.T) {
 	c := clockwork.NewFakeClock()
 
