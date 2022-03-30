@@ -2,7 +2,6 @@ import React, {
   createContext,
   FC,
   useCallback,
-  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -53,28 +52,23 @@ export const KeyboardArrowsNavigation: FC = props => {
     [setItems, setActiveIndex]
   );
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (Object.keys(KeyboardArrowNavigationKeys).includes(event.key)) {
-        event.stopPropagation();
-        event.preventDefault();
-      }
+  function handleKeyDown(event: React.KeyboardEvent): void {
+    if (Object.keys(KeyboardArrowNavigationKeys).includes(event.key)) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
 
-      switch (event.key) {
-        case 'ArrowDown':
-          setActiveIndex(getNextIndex(items, activeIndex));
-          break;
-        case 'ArrowUp':
-          setActiveIndex(getPreviousIndex(items, activeIndex));
-          break;
-        case 'Enter':
-          items[activeIndex]?.();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, setActiveIndex, activeIndex]);
+    switch (event.key) {
+      case 'ArrowDown':
+        setActiveIndex(getNextIndex(items, activeIndex));
+        break;
+      case 'ArrowUp':
+        setActiveIndex(getPreviousIndex(items, activeIndex));
+        break;
+      case 'Enter':
+        items[activeIndex]?.();
+    }
+  }
 
   const value = useMemo(
     () => ({
@@ -88,7 +82,7 @@ export const KeyboardArrowsNavigation: FC = props => {
 
   return (
     <KeyboardArrowsNavigationContext.Provider value={value}>
-      {props.children}
+      <div onKeyDown={handleKeyDown}>{props.children}</div>
     </KeyboardArrowsNavigationContext.Provider>
   );
 };

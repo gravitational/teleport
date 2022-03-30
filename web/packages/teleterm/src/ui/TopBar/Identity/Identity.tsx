@@ -48,7 +48,6 @@ export function Identity() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         onClose={() => setIsPopoverOpened(false)}
       >
-        {focusGrabber}
         <Container>
           {rootClusters.length ? (
             <IdentityList
@@ -66,21 +65,6 @@ export function Identity() {
     </>
   );
 }
-
-// Hack - for some reason xterm.js doesn't allow moving a focus to the Identity popover
-// when it is focused using element.focus(). Moreover, it looks like this solution has a benefit
-// of returning the focus to the previously focused element when popover is closed.
-const focusGrabber = (
-  <input
-    style={{
-      opacity: 0,
-      position: 'absolute',
-      height: 0,
-      zIndex: -1,
-    }}
-    autoFocus={true}
-  />
-);
 
 const Container = styled(Box)`
   background: ${props => props.theme.colors.primary.dark};

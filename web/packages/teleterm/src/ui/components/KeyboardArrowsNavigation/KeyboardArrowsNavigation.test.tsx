@@ -61,16 +61,16 @@ describe('go through navigation items', () => {
       </KeyboardArrowsNavigation>
     );
 
-    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
 
-    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(1, 3));
 
-    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(2, 3));
 
-    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
   });
 
@@ -83,16 +83,16 @@ describe('go through navigation items', () => {
       </KeyboardArrowsNavigation>
     );
 
-    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
 
-    fireEvent.keyDown(window, { key: 'ArrowUp' });
+    fireEvent.keyDown(container.firstChild, { key: 'ArrowUp' });
     expect(container).toHaveTextContent(getAllItemsText(2, 3));
 
-    fireEvent.keyDown(window, { key: 'ArrowUp' });
+    fireEvent.keyDown(container.firstChild, { key: 'ArrowUp' });
     expect(container).toHaveTextContent(getAllItemsText(1, 3));
 
-    fireEvent.keyDown(window, { key: 'ArrowUp' });
+    fireEvent.keyDown(container.firstChild, { key: 'ArrowUp' });
     expect(container).toHaveTextContent(getAllItemsText(0, 3));
   });
 });
@@ -109,14 +109,14 @@ test('fire action on active item when Enter is pressed', () => {
     return <>Test item</>;
   }
 
-  render(
+  const { container } = render(
     <KeyboardArrowsNavigation>
       <TestItem index={0} onRunActiveItem={firstItemCallback} />
     </KeyboardArrowsNavigation>
   );
 
-  fireEvent.keyDown(window, { key: 'ArrowDown' });
-  fireEvent.keyDown(window, { key: 'Enter' });
+  fireEvent.keyDown(container.firstChild, { key: 'ArrowDown' });
+  fireEvent.keyDown(container.firstChild, { key: 'Enter' });
   expect(firstItemCallback).toHaveBeenCalledWith();
 });
 

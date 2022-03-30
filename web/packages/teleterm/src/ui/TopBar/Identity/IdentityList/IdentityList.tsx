@@ -35,6 +35,7 @@ export function IdentityList(props: IdentityListProps) {
         </>
       )}
       <KeyboardArrowsNavigation>
+        {focusGrabber}
         <Box px={'12px'}>
           {props.clusters.map((i, index) => (
             <IdentityListItem
@@ -60,6 +61,21 @@ export function IdentityList(props: IdentityListProps) {
     </Box>
   );
 }
+
+// Hack - for some reason xterm.js doesn't allow moving a focus to the Identity popover
+// when it is focused using element.focus(). Moreover, it looks like this solution has a benefit
+// of returning the focus to the previously focused element when popover is closed.
+const focusGrabber = (
+  <input
+    style={{
+      opacity: 0,
+      position: 'absolute',
+      height: 0,
+      zIndex: -1,
+    }}
+    autoFocus={true}
+  />
+);
 
 const Separator = styled.div`
   background: ${props => props.theme.colors.primary.lighter};
