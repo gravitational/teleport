@@ -93,7 +93,7 @@ func TestPlayPause(t *testing.T) {
 
 	// pause playback
 	// note: we don't use p.TogglePause here, as it waits for the state transition,
-	// and the state won't transition proceed until we advance the clock
+	// and the state won't transition until we advance the clock
 	p.Lock()
 	p.setState(stateStopping)
 	p.Unlock()
@@ -134,6 +134,101 @@ func TestPlayPause(t *testing.T) {
 	case <-p.stopC:
 	}
 	require.True(t, p.Stopped())
+}
+
+func TestEndPlaybackWhilePlaying(t *testing.T) {
+	c := clockwork.NewFakeClock()
+
+	// in this test, we let the player play 2 of the 3 events,
+	// then pause it and verify the pause state before resuming
+	// playback for the final event.
+	events := printEvents(100, 200, 300)
+	var stream []byte // intentionally empty, we dont care about stream contents here
+	p := newSessionPlayer(events, stream, testTerm(t))
+	p.clock = c
+
+	p.Play()
+
+	// wait for player to see the first event and apply the delay
+	c.BlockUntil(1)
+
+	// advance the clock:
+	// at this point, the player will write the first event
+	c.Advance(100 * time.Millisecond)
+
+	// wait for the player to sleep on the 2nd event
+	c.BlockUntil(1)
+
+	// end playback
+	p.EndPlayback()
+
+	// advance the clock again:
+	// the player will write the second event and
+	// then realize that it's been asked to end playback
+	c.Advance(100 * time.Millisecond)
+
+	// check that stopC was written to
+	select {
+	case <-time.After(2 * time.Second):
+		panic("timed out waiting for player to complete")
+	case <-p.stopC:
+		require.True(t, p.Stopped())
+	}
+}
+
+// TestEndPlaybackWhilePaused tests that playback can be ended
+// by the user pressing ctrl+C or ctrl+D while the playback is
+// paused.
+func TestEndPlaybackWhilePaused(t *testing.T) {
+	c := clockwork.NewFakeClock()
+
+	// in this test, we let the player play 2 of the 3 events,
+	// then pause it and verify the pause state before resuming
+	// playback for the final event.
+	events := printEvents(100, 200, 300)
+	var stream []byte // intentionally empty, we dont care about stream contents here
+	p := newSessionPlayer(events, stream, testTerm(t))
+	p.clock = c
+
+	p.Play()
+
+	// wait for player to see the first event and apply the delay
+	c.BlockUntil(1)
+
+	// advance the clock:
+	// at this point, the player will write the first event
+	c.Advance(100 * time.Millisecond)
+
+	// wait for the player to sleep on the 2nd event
+	c.BlockUntil(1)
+
+	// pause playback
+	// note: we don't use p.TogglePause here, as it waits for the state transition,
+	// and the state won't transition until we advance the clock
+	p.Lock()
+	p.setState(stateStopping)
+	p.Unlock()
+
+	// advance the clock again:
+	// the player will write the second event and
+	// then realize that it's been asked to pause
+	c.Advance(100 * time.Millisecond)
+
+	// wait until the pause is in effect
+	p.Lock()
+	p.waitUntil(stateStopped)
+	p.Unlock()
+
+	// end playback
+	p.EndPlayback()
+
+	// check that stopC was written to
+	select {
+	case <-time.After(2 * time.Second):
+		panic("timed out waiting for player to complete")
+	case <-p.stopC:
+		require.True(t, p.Stopped())
+	}
 }
 
 func testTerm(t *testing.T) *terminal.Terminal {

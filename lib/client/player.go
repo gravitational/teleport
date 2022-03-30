@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -61,6 +62,7 @@ type sessionPlayer struct {
 	// been reached, or a hard stop was requested via EndPlayback().
 	stopC    chan int
 	stopOnce sync.Once
+	errorCh  chan error
 }
 
 func newSessionPlayer(sessionEvents []events.EventFields, stream []byte, term *terminal.Terminal) *sessionPlayer {
@@ -71,6 +73,7 @@ func newSessionPlayer(sessionEvents []events.EventFields, stream []byte, term *t
 		sessionEvents: sessionEvents,
 		term:          term,
 		stopC:         make(chan int),
+		errorCh:       make(chan error),
 	}
 	p.cond = sync.NewCond(p)
 	return p
@@ -141,13 +144,16 @@ func (p *sessionPlayer) EndPlayback() {
 		// The playRange goroutine has already returned, so we can
 		// signal the end of playback by closing the stopC channel right here.
 		p.close()
-	default:
+	case stateStopping, statePlaying:
 		// The playRange goroutine is still running, and may be sleeping
 		// while waiting for the right time to print the next characters.
 		// setState to stateEnding so that the playRange goroutine
 		// knows to return on the next loop. The stopC channel will
 		// be closed by the playback routine upon completion.
 		p.setState(stateEnding)
+	default:
+		// Cases should be exhaustive, this should never happen.
+		p.errorCh <- errors.New("unexpected playback error")
 	}
 }
 

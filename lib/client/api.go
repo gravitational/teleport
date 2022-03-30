@@ -3506,7 +3506,6 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		}
 	}
 
-	errorCh := make(chan error)
 	player := newSessionPlayer(sessionEvents, stream, term)
 	// keys:
 	const (
@@ -3525,7 +3524,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		for {
 			_, err := term.Stdin().Read(key[:])
 			if err != nil {
-				errorCh <- err
+				player.errorCh <- err
 				return
 			}
 			switch key[0] {
@@ -3551,7 +3550,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	case <-player.stopC:
 		fmt.Println("\n\nend of session playback")
 		return nil
-	case err := <-errorCh:
+	case err := <-player.errorCh:
 		return trace.Wrap(err)
 	}
 }
