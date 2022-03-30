@@ -252,13 +252,20 @@
                     "type": "object",
                     "required": [
                         "enabled",
+                        "createIssuer",
                         "issuerName",
                         "issuerKind",
-                        "issuerGroup"
+                        "issuerGroup",
+                        "issuerSpec"
                     ],
                     "properties": {
                         "addCommonName": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
+                            "type": "boolean",
+                            "default": "false"
+                        },
+                        "createIssuer": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/createIssuer",
                             "type": "boolean",
                             "default": "false"
                         },
@@ -281,6 +288,11 @@
                             "$id": "#/properties/highAvailability/properties/certManager/properties/issuerGroup",
                             "type": "string",
                             "default": "cert-manager.io"
+                        },
+                        "issuerSpec": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerSpec",
+                            "type": "object",
+                            "default": {}
                         }
                     }
                 },

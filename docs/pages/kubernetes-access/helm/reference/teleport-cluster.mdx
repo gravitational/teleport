@@ -662,6 +662,60 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
   </TabItem>
 </Tabs>
 
+### `highAvailability.certManager.createIssuer`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `bool` | `false` | ❌ | None |
+
+Setting `highAvailability.certManager.createIssuer` to `true` will create `Issuer` or `ClusterIssuer` to use for issuing certificates.
+
+<Admonition type="note" title="Installing cert-manager">
+  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+  and the relevant sections of the [AWS](../guides/aws.mdx#step-47-install-and-configure-cert-manager) and [GCP](../guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      enabled: true
+      createIssuer: true
+      issuerName: letsencrypt-production
+      issuerSpec:
+        acme:
+          email: email@address.com
+          server: https://acme-v02.api.letsencrypt.org/directory
+          privateKeySecretRef:
+            name: letsencrypt-production
+          solvers:
+            - selector:
+                dnsZones:
+                  - "example.com"
+              dns01:
+                route53:
+                  region: us-east-1
+                  hostedZoneID: Z0159221358P96JYAUAA4
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set highAvailability.certManager.enabled=true \
+  --set highAvailability.certManager.createIssuer=true \
+  --set highAvailability.certManager.issuerName=letsencrypt-production \
+  --set highAvailability.certManager.issuerSpec.acme.email=email@address.com \
+  --set highAvailability.certManager.issuerSpec.acme.server=https://acme-v02.api.letsencrypt.org/directory \
+  --set highAvailability.certManager.issuerSpec.acme.privateKeySecretRef.name=letsencrypt-production \
+  --set highAvailability.certManager.issuerSpec.acme.solvers[0].selector.dnsZones[0]=example.com \
+  --set highAvailability.certManager.issuerSpec.acme.solvers[0].dns01.route53.region=us-east-1 \
+  --set highAvailability.certManager.issuerSpec.acme.solvers[0].dns01.route53.hostedZoneID=Z0159221358P96JYAUAA4
+  ```
+  </TabItem>
+</Tabs>
+
 ### `highAvailability.certManager.issuerName`
 
 | Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
@@ -737,6 +791,62 @@ Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-man
   <TabItem label="--set">
   ```code
   --set highAvailability.certManager.issuerGroup=cert-manager.io
+  ```
+  </TabItem>
+</Tabs>
+
+### `highAvailability.certManager.issuerSpec`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `object` | `{}` | ❌ | None |
+
+Spec of `Issuer` or `ClusterIssuer`.
+
+<Admonition type="note" title="Installing cert-manager">
+  You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+  See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
+  and the relevant sections of the [AWS](../guides/aws.mdx#step-47-install-and-configure-cert-manager) and [GCP](../guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+
+  You must create this yourself when `highAvailability.certManager.createIssuer` is `true`.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  highAvailability:
+    certManager:
+      enabled: true
+      createIssuer: true
+      issuerName: letsencrypt-production
+      issuerSpec:
+        acme:
+          email: email@address.com
+          server: https://acme-v02.api.letsencrypt.org/directory
+          privateKeySecretRef:
+            name: letsencrypt-production
+          solvers:
+            - selector:
+                dnsZones:
+                  - "example.com"
+              dns01:
+                route53:
+                  region: us-east-1
+                  hostedZoneID: Z0159221358P96JYAUAA4
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set highAvailability.certManager.enabled=true \
+  --set highAvailability.certManager.createIssuer=true \
+  --set highAvailability.certManager.issuerName=letsencrypt-production \
+  --set highAvailability.certManager.issuerSpec.acme.email=email@address.com \
+  --set highAvailability.certManager.issuerSpec.acme.server=https://acme-v02.api.letsencrypt.org/directory \
+  --set highAvailability.certManager.issuerSpec.acme.privateKeySecretRef.name=letsencrypt-production \
+  --set highAvailability.certManager.issuerSpec.acme.solvers[0].selector.dnsZones[0]=example.com \
+  --set highAvailability.certManager.issuerSpec.acme.solvers[0].dns01.route53.region=us-east-1 \
+  --set highAvailability.certManager.issuerSpec.acme.solvers[0].dns01.route53.hostedZoneID=Z0159221358P96JYAUAA4
   ```
   </TabItem>
 </Tabs>

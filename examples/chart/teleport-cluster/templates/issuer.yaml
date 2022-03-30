@@ -1,0 +1,8 @@
+{{- if .Values.highAvailability.certManager.createIssuer }}
+apiVersion: {{ required "highAvailability.certManager.issuerGroup is required in chart values" .Values.highAvailability.certManager.issuerGroup }}
+kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" .Values.highAvailability.certManager.issuerKind }}
+metadata:
+  name: {{ required "highAvailability.certManager.issuerName is required in chart values" .Values.highAvailability.certManager.issuerName }}
+  namespace: {{ .Release.Namespace }}
+spec: {{- toYaml .Values.highAvailability.certManager.issuerSpec | nindent 2 }}
+{{- end }}

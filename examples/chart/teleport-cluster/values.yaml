@@ -154,6 +154,8 @@ highAvailability:
     addCommonName: false
     # If set to true, use cert-manager to get certificates for Teleport to use for TLS termination
     enabled: false
+    # If enabled will create a Issuer/ClusterIssuer
+    createIssuer: false
     # Name of the Issuer/ClusterIssuer to use for certs
     # NOTE: You will always need to create this yourself when certManager.enabled is true.
     issuerName: ""
@@ -163,6 +165,9 @@ highAvailability:
     # Group of Issuer that cert-manager should look for.
     # This defaults to 'cert-manager.io' which is the default Issuer group.
     issuerGroup: cert-manager.io
+    # Spec of Issuer to use for certs
+    # NOTE: You will always need to create this yourself when certManager.createIssuer is true.
+    issuerSpec: {}
 
 
 ##################################################

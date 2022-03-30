@@ -1,0 +1,25 @@
+clusterName: test-cluster
+chartMode: custom
+annotations:
+  certSecret:
+    kubernetes.io/cert-secret: value
+highAvailability:
+  replicaCount: 3
+  certManager:
+    enabled: true
+    createIssuer: true
+    issuerName: letsencrypt-production
+    issuerSpec:
+      acme:
+        email: email@address.com
+        server: https://acme-v02.api.letsencrypt.org/directory
+        privateKeySecretRef:
+          name: letsencrypt-production
+        solvers:
+          - selector:
+              dnsZones:
+                - "example.com"
+            dns01:
+              route53:
+                region: us-east-1
+                hostedZoneID: Z0159221358P96JYAUAA4
