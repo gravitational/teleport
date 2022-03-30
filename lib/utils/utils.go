@@ -18,8 +18,10 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -321,10 +323,18 @@ func ReadPath(path string) ([]byte, error) {
 	}
 	abs, err := filepath.EvalSymlinks(s)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 	bytes, err := ioutil.ReadFile(abs)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 	return bytes, nil
@@ -430,6 +440,10 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 func ReadHostUUID(dataDir string) (string, error) {
 	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return "", err
+		}
 		return "", trace.Wrap(err)
 	}
 	return strings.TrimSpace(string(out)), nil
@@ -439,6 +453,10 @@ func ReadHostUUID(dataDir string) (string, error) {
 func WriteHostUUID(dataDir string, id string) error {
 	err := ioutil.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return err
+		}
 		return trace.ConvertSystemError(err)
 	}
 	return nil

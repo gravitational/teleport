@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -488,6 +489,10 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 			filteredSessions = append(filteredSessions, session)
 		}
 	}
+
+	sort.Slice(filteredSessions, func(i, j int) bool {
+		return filteredSessions[i].GetCreated().Before(filteredSessions[j].GetCreated())
+	})
 
 	printSessions(filteredSessions)
 	return nil
