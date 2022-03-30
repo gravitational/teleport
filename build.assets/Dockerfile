@@ -98,7 +98,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
   cmake -DCMAKE_BUILD_TYPE=Release . && \
   make && \
   make install
-ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+ENV LD_LIBRARY_PATH="/usr/local/lib"
 
 # Install Go.
 ARG GOLANG_VERSION
