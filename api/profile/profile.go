@@ -109,8 +109,41 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	pool, err := certPoolFromProfile(p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+	}, nil
+}
+
+func certPoolFromProfile(p *Profile) (*x509.CertPool, error) {
+	// Check if CAS dir exist if not try to load certs from legacy certs.pem file.
+	if _, err := os.Stat(p.TLSClusterCASDir()); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, trace.Wrap(err)
+		}
+		pool, err := certPoolFromLegacyCAFile(p)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return pool, nil
+	}
+
+	// Load CertPool from CAS directory.
+	pool, err := certPoolFromCASDir(p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pool, nil
+}
+
+func certPoolFromCASDir(p *Profile) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
-	err = filepath.Walk(p.TLSClusterCASDir(), func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(p.TLSClusterCASDir(), func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -129,11 +162,19 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return pool, nil
+}
 
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      pool,
-	}, nil
+func certPoolFromLegacyCAFile(p *Profile) (*x509.CertPool, error) {
+	caCerts, err := os.ReadFile(p.TLSCAsPath())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caCerts) {
+		return nil, trace.BadParameter("invalid CA cert PEM")
+	}
+	return pool, nil
 }
 
 // SSHClientConfig returns the profile's associated SSHClientConfig.
@@ -334,6 +375,10 @@ func (p *Profile) TLSCAPathCluster(cluster string) string {
 // TLSClusterCASDir returns CAS directory where cluster CAs are stored.
 func (p *Profile) TLSClusterCASDir() string {
 	return keypaths.CAsDir(p.Dir, p.Name())
+}
+
+func (p *Profile) TLSCAsPath() string {
+	return keypaths.TLSCAsPath(p.Dir, p.Name())
 }
 
 // SSHDir returns the path to the profile's ssh directory.
