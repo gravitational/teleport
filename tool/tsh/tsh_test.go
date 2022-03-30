@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -29,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -424,6 +424,11 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
+	conf.ExtraProxyHeaders = []ExtraProxyHeaders{
+		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
+		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
+		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
+	}
 	tc, err = makeClient(&conf, true)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
@@ -442,6 +447,10 @@ func TestMakeClient(t *testing.T) {
 			SrcPort: 8080,
 		},
 	}, tc.Config.DynamicForwardedPorts)
+
+	require.Equal(t,
+		map[string]string{"A": "B", "C": "D"},
+		tc.ExtraProxyHeaders)
 
 	_, proxy := makeTestServers(t)
 
@@ -674,7 +683,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NotNil(t, cb)
 
 	// prepare the cluster CA separately
-	certBytes, err := ioutil.ReadFile("../../fixtures/certs/identities/ca.pem")
+	certBytes, err := os.ReadFile("../../fixtures/certs/identities/ca.pem")
 	require.NoError(t, err)
 
 	_, hosts, cert, _, _, err := ssh.ParseKnownHosts(certBytes)
@@ -878,7 +887,7 @@ func TestEnvFlags(t *testing.T) {
 		}))
 		t.Run("TELEPORT_HOME set", testEnvFlag(testCase{
 			envMap: map[string]string{
-				homeEnvVar: "teleport-data/",
+				types.HomeEnvVar: "teleport-data/",
 			},
 			outCLIConf: CLIConf{
 				HomePath: "teleport-data",
@@ -889,7 +898,7 @@ func TestEnvFlags(t *testing.T) {
 				HomePath: "teleport-data",
 			},
 			envMap: map[string]string{
-				homeEnvVar: "teleport-data/",
+				types.HomeEnvVar: "teleport-data/",
 			},
 			outCLIConf: CLIConf{
 				HomePath: "teleport-data",
@@ -1260,11 +1269,14 @@ func withClusterName(t *testing.T, n string) testServerOptFunc {
 }
 
 func withMOTD(t *testing.T, motd string) testServerOptFunc {
-	oldpass := client.PasswordFromConsoleFn
-	*client.PasswordFromConsoleFn = func() (string, error) {
-		return "", nil
-	}
-	t.Cleanup(func() { *client.PasswordFromConsoleFn = *oldpass })
+	oldStdin := prompt.Stdin()
+	t.Cleanup(func() {
+		prompt.SetStdin(oldStdin)
+	})
+	prompt.SetStdin(prompt.NewFakeReader().
+		AddString(""). // 3x to allow multiple logins
+		AddString("").
+		AddString(""))
 	return withAuthConfig(func(cfg *service.AuthConfig) {
 		cfg.Preference.SetMessageOfTheDay(motd)
 	})

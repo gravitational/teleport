@@ -71,6 +71,11 @@ type License interface {
 	// SetSupportsDesktopAccess sets desktop access support flag
 	SetSupportsDesktopAccess(Bool)
 
+	// GetSupportsModeratedSessions returns moderated sessions support flag
+	GetSupportsModeratedSessions() Bool
+	// SetSupportsModeratedSessions sets moderated sessions support flag
+	SetSupportsModeratedSessions(Bool)
+
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
 
@@ -284,6 +289,16 @@ func (c *LicenseV3) SetSupportsDesktopAccess(value Bool) {
 	c.Spec.SupportsDesktopAccess = value
 }
 
+// GetSupportsModeratedSessions returns database access support flag
+func (c *LicenseV3) GetSupportsModeratedSessions() Bool {
+	return c.Spec.SupportsDesktopAccess
+}
+
+// SetSupportsModeratedSessions sets database access support flag
+func (c *LicenseV3) SetSupportsModeratedSessions(value Bool) {
+	c.Spec.SupportsDesktopAccess = value
+}
+
 // String represents a human readable version of license enabled features
 func (c *LicenseV3) String() string {
 	var features []string
@@ -304,6 +319,9 @@ func (c *LicenseV3) String() string {
 	}
 	if c.GetSupportsDesktopAccess() {
 		features = append(features, "supports desktop access")
+	}
+	if c.GetSupportsModeratedSessions() {
+		features = append(features, "supports moderated sessions")
 	}
 	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
@@ -341,4 +359,6 @@ type LicenseSpecV3 struct {
 	ReportsUsage Bool `json:"usage,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational
 	Cloud Bool `json:"cloud,omitempty"`
+	// SupportsModeratedSessions turns on moderated sessions
+	SupportsModeratedSessions Bool `json:"moderated_sessions,omitempty"`
 }

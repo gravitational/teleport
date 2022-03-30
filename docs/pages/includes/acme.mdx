@@ -1,14 +1,20 @@
-Let's Encrypt verifies that you control the domain name of your Teleport deployment by communicating with the HTTPS server listening on port 443 of your Teleport Proxy Service. 
+Let's Encrypt verifies that you control the domain name of your Teleport cluster
+by communicating with the HTTPS server listening on port 443 of your Teleport
+Proxy Service.
 
-You can configure the Teleport Proxy service to complete the Let's Encrypt verification process when it starts up.
+You can configure the Teleport Proxy Service to complete the Let's Encrypt
+verification process when it starts up.
 
-Run the following `teleport configure` command, where `tele.example.com` is the domain name of your Teleport cluster and `user@example.com` is an email address used for notifications (you can use any domain):
+Run the following `teleport configure` command, where `tele.example.com` is the
+domain name of your Teleport cluster and `user@example.com` is an email address
+used for notifications (you can use any domain):
 
 ```code
 teleport configure --acme --acme-email=user@example.com --cluster-name=tele.example.com > /etc/teleport.yaml
 ```
 
-The `--acme`, `--acme-email`, and `--cluster-name` flags will add the following settings to your Teleport configuration file:
+The `--acme`, `--acme-email`, and `--cluster-name` flags will add the following
+settings to your Teleport configuration file:
 
 ```yaml
 proxy_service:
