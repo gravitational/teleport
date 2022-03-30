@@ -18,7 +18,6 @@ package main
 
 import (
 	"errors"
-	"io"
 	"io/fs"
 	"os"
 
@@ -48,27 +47,17 @@ type ExtraProxyHeaders struct {
 }
 
 func loadConfig(fullConfigPath string) (*TshConfig, error) {
-	emptyConfig := &TshConfig{}
-	configFile, err := os.Open(fullConfigPath)
+	bs, err := os.ReadFile(fullConfigPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return emptyConfig, nil
+			return &TshConfig{}, nil
 		}
 		return nil, trace.ConvertSystemError(err)
 	}
-	defer configFile.Close()
-
-	bs, err := io.ReadAll(configFile)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	if len(bs) == 0 {
-		return emptyConfig, nil
-	}
 
 	cfg := TshConfig{}
-	if yaml.Unmarshal(bs, &cfg); err != nil {
-		return emptyConfig, trace.ConvertSystemError(err)
+	if err := yaml.Unmarshal(bs, &cfg); err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
 	return &cfg, nil
 }
