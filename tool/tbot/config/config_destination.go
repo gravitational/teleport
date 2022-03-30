@@ -103,3 +103,27 @@ func (dc *DestinationConfig) ContainsKind(kind identity.ArtifactKind) bool {
 
 	return false
 }
+
+// ListSubdirectories lists all subdirectories that should be contained within
+// this destination. Primarily used for on-the-fly directory creation.
+func (dc *DestinationConfig) ListSubdirectories() ([]string, error) {
+	// Note: currently no standard identity.Artifacts create subdirs. If that
+	// ever changes, we'll need to adapt this to ensure we initialize them
+	// properly on the fly.
+	var subdirs []string
+
+	for _, config := range dc.Configs {
+		template, err := config.GetConfigTemplate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, file := range template.Describe() {
+			if file.IsDir {
+				subdirs = append(subdirs, file.Name)
+			}
+		}
+	}
+
+	return subdirs, nil
+}

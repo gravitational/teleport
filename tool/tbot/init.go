@@ -424,9 +424,14 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	log.Infof("Initializing destination: %s", destImpl)
 
+	subdirs, err := destination.ListSubdirectories()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create the directory if needed. We haven't checked directory ownership,
 	// but it will fail when the ACLs are created if anything is misconfigured.
-	if err := destDir.Init(); err != nil {
+	if err := destDir.Init(subdirs); err != nil {
 		return trace.Wrap(err)
 	}
 

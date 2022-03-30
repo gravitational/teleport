@@ -28,9 +28,11 @@ import (
 
 const TemplateSSHClientName = "ssh_client"
 
+const TemplateIdentityFileName = "identityfile"
+
 // AllConfigTemplates lists all valid config templates, intended for help
 // messages
-var AllConfigTemplates = [...]string{TemplateSSHClientName}
+var AllConfigTemplates = [...]string{TemplateSSHClientName, TemplateIdentityFileName}
 
 // FileDescription is a minimal spec needed to create an empty end-user-owned
 // file with bot-writable ACLs during `tbot init`.
@@ -60,7 +62,8 @@ type Template interface {
 // TemplateConfig contains all possible config template variants. Exactly one
 // variant must be set to be considered valid.
 type TemplateConfig struct {
-	SSHClient *TemplateSSHClient `yaml:"ssh_client,omitempty"`
+	SSHClient    *TemplateSSHClient    `yaml:"ssh_client,omitempty"`
+	IdentityFile *TemplateIdentityFile `yaml:"identityfile,omitempty"`
 }
 
 func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
@@ -75,6 +78,8 @@ func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 		switch simpleTemplate {
 		case TemplateSSHClientName:
 			c.SSHClient = &TemplateSSHClient{}
+		case TemplateIdentityFileName:
+			return trace.BadParameter("`identityfile` requires parameters, provide `identityfile: ...` instead")
 		default:
 			return trace.BadParameter(
 				"invalid config template '%s' on line %d, expected one of: %s",
@@ -94,7 +99,18 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 	notNilCount := 0
 
 	if c.SSHClient != nil {
-		c.SSHClient.CheckAndSetDefaults()
+		if err := c.SSHClient.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		notNilCount++
+	}
+
+	if c.IdentityFile != nil {
+		if err := c.IdentityFile.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
 		notNilCount++
 	}
 
@@ -110,6 +126,10 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
 	if c.SSHClient != nil {
 		return c.SSHClient, nil
+	}
+
+	if c.IdentityFile != nil {
+		return c.IdentityFile, nil
 	}
 
 	return nil, trace.BadParameter("no valid config template")
