@@ -1,11 +1,11 @@
 <div align="center">
-   <img src="https://goteleport.com/blog/images/2020/gravitational-is-teleport-header.png" width=750/>
+   <img src="./assets/img/readme-header.png" width=750/>
    <div align="center" style="padding: 25px">
-      <a href="https://goteleport.com/docs/">
-      <img src="https://img.shields.io/badge/Teleport-8.0-651FFF.svg" />
+      <a href="https://goteleport.com/teleport/download">
+      <img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver&label=Release&color=651FFF" />
       </a>
       <a href="https://golang.org/">
-      <img src="https://img.shields.io/badge/Go-1.17-7fd5ea.svg" />
+      <img src="https://img.shields.io/github/go-mod/go-version/gravitational/teleport?color=7fd5ea" />
       </a>
       <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
       <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />
@@ -27,7 +27,7 @@
 1. [Installing and Running](#installing-and-running)
 1. [Docker](#docker)
 1. [Building Teleport](#building-teleport)
-1. [Why did We Build Teleport?](#why-did-we-build-teleport)
+1. [Why Did We Build Teleport?](#why-did-we-build-teleport)
 1. [More Information](#more-information)
 1. [Support and Contributing](#support-and-contributing)
 1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)

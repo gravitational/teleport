@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -1452,7 +1451,7 @@ func kubeExec(kubeConfig *rest.Config, args kubeExecArgs) error {
 	// stderr channel is only set if there is no tty allocated
 	// otherwise k8s server gets confused
 	if !args.tty && args.stderr == nil {
-		args.stderr = ioutil.Discard
+		args.stderr = io.Discard
 	}
 	if args.stderr != nil && !args.tty {
 		query.Set("stderr", "true")

@@ -161,8 +161,16 @@
               "slug": "/setup/guides/ec2-tags/"
             },
             {
-              "title": "Joining Nodes in AWS",
-              "slug": "/setup/guides/joining-nodes-aws/"
+              "title": "Joining Nodes via AWS IAM",
+              "slug": "/setup/guides/joining-nodes-aws-iam/"
+            },
+            {
+              "title": "Joining Nodes via AWS EC2",
+              "slug": "/setup/guides/joining-nodes-aws-ec2/"
+            },
+            {
+              "title": "Using Teleport's CA with GitHub",
+              "slug": "/setup/guides/ssh-key-extensions/"
             }
           ]
         },
@@ -317,14 +325,18 @@
         {
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
-          "entries": [
-            {
-              "title": "Cluster",
-              "slug": "/kubernetes-access/getting-started/cluster/"
+           "entries": [
+            { 
+              "title": "Local Demo Cluster", 
+              "slug": "/kubernetes-access/getting-started/local/"
             },
-            {
-              "title": "Agent",
-              "slug": "/kubernetes-access/getting-started/agent/"
+            { 
+              "title": "Cluster", 
+              "slug": "/kubernetes-access/getting-started/cluster/" 
+            },
+            { 
+              "title": "Agent", 
+              "slug": "/kubernetes-access/getting-started/agent/" 
             }
           ]
         },
@@ -343,10 +355,6 @@
             {
               "title": "Federation",
               "slug": "/kubernetes-access/guides/federation/"
-            },
-            {
-              "title": "Migration",
-              "slug": "/kubernetes-access/guides/migration/"
             },
             {
               "title": "Standalone",
@@ -382,7 +390,17 @@
         },
         {
           "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/"
+          "slug": "/kubernetes-access/helm/reference/",
+          "entries": [
+            {
+              "title": "teleport-cluster",
+              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
+            },
+            {
+               "title": "teleport-kube-agent",
+               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+            }
+          ]
         },
         {
           "title": "Access Controls",
@@ -517,8 +535,34 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Configuration",
-          "slug": "/desktop-access/reference/configuration/"
+          "title": "Access Controls",
+          "slug": "/desktop-access/rbac/"
+        },
+        {
+          "title": "Reference",
+          "slug": "/desktop-access/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/desktop-access/reference/configuration/"
+            },
+            {
+              "title": "Audit Events",
+              "slug": "/desktop-access/reference/audit/"
+            },
+            {
+              "title": "Clipboard Sharing",
+              "slug": "/desktop-access/reference/clipboard/"
+            },
+            {
+              "title": "Session Recording",
+              "slug": "/desktop-access/reference/sessions/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/desktop-access/reference/cli/"
+            }
+          ]
         },
         {
           "title": "Troubleshooting",
@@ -527,7 +571,7 @@
       ]
     },
     {
-      "icon": "wand",
+      "icon": "chip",
       "title": "Machine ID",
       "entries": [
         {
@@ -539,12 +583,30 @@
           "slug": "/machine-id/getting-started/"
         },
         {
+          "title": "Reference",
+          "slug": "/machine-id/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/machine-id/reference/cli/"
+            }
+          ]
+        },
+        {
           "title": "Guides",
           "slug": "/machine-id/guides/",
           "entries": [
             {
               "title": "Machine ID with Ansible",
               "slug": "/machine-id/guides/ansible/"
+            },
+            {
+              "title": "Machine ID with Jenkins",
+              "slug": "/machine-id/guides/jenkins/"
             }
           ]
         }
@@ -715,6 +777,10 @@
           "slug": "/cloud/architecture/"
         },
         {
+          "title": "Downloads",
+          "slug": "/cloud/downloads/"
+        },
+        {
           "title": "FAQ",
           "slug": "/cloud/faq/"
         }
@@ -805,6 +871,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
+      "version": "8.3.4",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1045,6 +1112,16 @@
     {
       "source": "/docs/best-practices/",
       "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/migration/",
+      "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/guides/joining-nodes-aws/",
+      "destination": "/setup/guides/joining-nodes-aws-iam/",
       "permanent": true
     }
   ]
