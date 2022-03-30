@@ -16,8 +16,8 @@
     "build": "yarn build-natives && yarn build-main && yarn build-renderer",
     "build-main": "webpack build --config webpack.main.config.js --progress --mode=production",
     "build-renderer": "webpack build --config webpack.renderer.prod.config.js --progress",
-    "build-natives": "electron-builder install-app-deps",
-    "package": "electron-builder build --publish never -c.extraMetadata.name=teleterm"
+    "build-natives": "electron-builder install-app-deps --arch x64",
+    "package": "electron-builder build --publish never -c.extraMetadata.name=teleterm --x64"
   },
   "repository": {
     "type": "git",
