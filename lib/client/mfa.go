@@ -39,18 +39,13 @@ var promptWebauthn = wancli.Login
 // MFA, but the implementation exists in case we find some unusual
 // authenticators out there.
 type mfaPrompt struct {
-	ctx       context.Context
+	wancli.LoginPrompt
 	otpCancel context.CancelFunc
 }
 
 func (p *mfaPrompt) PromptPIN() (string, error) {
-	p.otpCancel()
-	return prompt.Password(p.ctx, os.Stderr, prompt.Stdin(), "Enter your security key PIN")
-}
-
-func (p *mfaPrompt) PromptAdditionalTouch() error {
-	fmt.Fprintln(os.Stderr, "Tap your security key again to complete login")
-	return nil
+	p.otpCancel() // cancel OTP stdin read
+	return p.LoginPrompt.PromptPIN()
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
@@ -151,9 +146,14 @@ func PromptMFAChallenge(
 		go func() {
 			defer wg.Done()
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
+
+			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
+			prompt.FirstTouchMessage = "" // First prompt printed above.
+			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
+			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancel: otpCancel}
+
 			const user = ""
-			prompt := &mfaPrompt{ctx: ctx, otpCancel: otpCancel}
-			resp, _, err := promptWebauthn(ctx, origin, user, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), prompt)
+			resp, _, err := promptWebauthn(ctx, origin, user, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt)
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()
 	}
