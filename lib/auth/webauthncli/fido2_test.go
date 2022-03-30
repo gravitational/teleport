@@ -207,9 +207,9 @@ func TestFIDO2Login(t *testing.T) {
 		timeout         time.Duration
 		fido2           *fakeFIDO2
 		setUP           func()
-		user            string
 		createAssertion func() *wanlib.CredentialAssertion
 		prompt          wancli.LoginPrompt
+		opts            *wancli.LoginOpts
 		// assertResponse and wantErr are mutually exclusive.
 		assertResponse func(t *testing.T, resp *wanpb.CredentialAssertionResponse)
 		wantErr        string
@@ -427,7 +427,6 @@ func TestFIDO2Login(t *testing.T) {
 			name:  "passwordless biometric (llama)",
 			fido2: newFakeFIDO2(bio2),
 			setUP: bio2.setUP,
-			user:  llamaName,
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
 				cp.Response.AllowedCredentials = nil
@@ -435,6 +434,9 @@ func TestFIDO2Login(t *testing.T) {
 				return &cp
 			},
 			prompt: bio2,
+			opts: &wancli.LoginOpts{
+				User: llamaName,
+			},
 			assertResponse: func(t *testing.T, resp *wanpb.CredentialAssertionResponse) {
 				assert.Equal(t, bio2.credentials[0].ID, resp.RawId, "RawId mismatch (want %q resident credential)", llamaName)
 				assert.Equal(t, llamaID, resp.Response.UserHandle, "UserHandle mismatch (want %q)", llamaName)
@@ -444,7 +446,6 @@ func TestFIDO2Login(t *testing.T) {
 			name:  "passwordless biometric (alpaca)",
 			fido2: newFakeFIDO2(bio2),
 			setUP: bio2.setUP,
-			user:  alpacaName,
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
 				cp.Response.AllowedCredentials = nil
@@ -452,6 +453,9 @@ func TestFIDO2Login(t *testing.T) {
 				return &cp
 			},
 			prompt: bio2,
+			opts: &wancli.LoginOpts{
+				User: alpacaName,
+			},
 			assertResponse: func(t *testing.T, resp *wanpb.CredentialAssertionResponse) {
 				assert.Equal(t, bio2.credentials[1].ID, resp.RawId, "RawId mismatch (want %q resident credential)", alpacaName)
 				assert.Equal(t, alpacaID, resp.Response.UserHandle, "UserHandle mismatch (want %q)", alpacaName)
@@ -474,28 +478,32 @@ func TestFIDO2Login(t *testing.T) {
 			name:  "NOK passwordless ambiguous user",
 			fido2: newFakeFIDO2(bio2),
 			setUP: bio2.setUP,
-			user:  "", // >1 resident credential, can't pick unambiguous username.
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
 				cp.Response.AllowedCredentials = nil
 				cp.Response.UserVerification = protocol.VerificationRequired
 				return &cp
 			},
-			prompt:  bio2,
+			prompt: bio2,
+			opts: &wancli.LoginOpts{
+				User: "", // >1 resident credential, can't pick unambiguous username.
+			},
 			wantErr: "explicit user required",
 		},
 		{
 			name:  "NOK passwordless unknown user",
 			fido2: newFakeFIDO2(bio2),
 			setUP: bio2.setUP,
-			user:  "camel", // unknown
 			createAssertion: func() *wanlib.CredentialAssertion {
 				cp := *baseAssertion
 				cp.Response.AllowedCredentials = nil
 				cp.Response.UserVerification = protocol.VerificationRequired
 				return &cp
 			},
-			prompt:  bio2,
+			prompt: bio2,
+			opts: &wancli.LoginOpts{
+				User: "camel", // unknown
+			},
 			wantErr: "no credentials for user",
 		},
 	}
@@ -525,7 +533,7 @@ func TestFIDO2Login(t *testing.T) {
 			var err error
 			done := make(chan struct{})
 			go func() {
-				mfaResp, _, err = wancli.FIDO2Login(ctx, origin, test.user, test.createAssertion(), prompt)
+				mfaResp, _, err = wancli.FIDO2Login(ctx, origin, test.createAssertion(), prompt, test.opts)
 				close(done)
 			}()
 			select {
@@ -587,7 +595,6 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 
 	const rpID = "example.com"
 	const origin = "https://example.com"
-	const user = ""
 
 	// auth1 is a FIDO2 authenticator without a PIN configured.
 	auth1 := mustNewFIDO2Device("/auth1", "" /* pin */, &libfido2.DeviceInfo{
@@ -685,7 +692,7 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 			defer cancel()
 
 			prompt := &countingPrompt{LoginPrompt: test.prompt}
-			_, _, err := wancli.FIDO2Login(ctx, origin, user, test.assertion, prompt)
+			_, _, err := wancli.FIDO2Login(ctx, origin, test.assertion, prompt, nil /* opts */)
 			require.NoError(t, err, "FIDO2Login errored")
 			assert.Equal(t, test.wantTouches, prompt.count, "FIDO2Login did an unexpected number of touch prompts")
 		})
@@ -700,7 +707,6 @@ func TestFIDO2Login_errors(t *testing.T) {
 	f2.setCallbacks()
 
 	const origin = "https://example.com"
-	const user = ""
 	okAssertion := &wanlib.CredentialAssertion{
 		Response: protocol.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
@@ -770,7 +776,7 @@ func TestFIDO2Login_errors(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 			defer cancel()
 
-			_, _, err := wancli.FIDO2Login(ctx, test.origin, user, test.assertion, test.prompt)
+			_, _, err := wancli.FIDO2Login(ctx, test.origin, test.assertion, test.prompt, nil /* opts */)
 			require.Error(t, err, "FIDO2Login returned err = nil, want %q", test.wantErr)
 			assert.Contains(t, err.Error(), test.wantErr, "FIDO2Login returned err = %q, want %q", err, test.wantErr)
 		})

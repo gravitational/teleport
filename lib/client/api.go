@@ -2620,7 +2620,9 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 	}
 
 	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+		User: tc.Username,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

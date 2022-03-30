@@ -82,7 +82,7 @@ func IsFIDO2Available() bool {
 // fido2Login implements FIDO2Login.
 func fido2Login(
 	ctx context.Context,
-	origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt,
+	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	switch {
 	case origin == "":
@@ -95,6 +95,9 @@ func fido2Login(
 		return nil, "", trace.BadParameter("assertion challenge required")
 	case assertion.Response.RelyingPartyID == "":
 		return nil, "", trace.BadParameter("assertion relying party ID required")
+	}
+	if opts == nil {
+		opts = &LoginOpts{}
 	}
 
 	allowedCreds := assertion.Response.GetAllowedCredentialIDs()
@@ -165,7 +168,7 @@ func fido2Login(
 		var uID []byte
 		var uName string
 		if passwordless {
-			cred, err := getPasswordlessCredentials(dev, pin, rpID, user)
+			cred, err := getPasswordlessCredentials(dev, pin, rpID, opts.User)
 			if err != nil {
 				return trace.Wrap(err)
 			}

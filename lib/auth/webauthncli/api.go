@@ -23,10 +23,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// LoginOpts groups non-mandatory options for Login.
+type LoginOpts struct {
+	// User is the desired credential username for login.
+	// If empty, Login may either choose a credential or error due to ambiguity.
+	User string
+}
+
 // Login performs client-side, U2F-compatible, Webauthn login.
 // This method blocks until either device authentication is successful or the
 // context is cancelled. Calling Login without a deadline or cancel condition
-// may cause it block forever.
+// may cause it to block forever.
 // The informed user is used to disambiguate credentials in case of passwordless
 // logins.
 // It returns an MFAAuthenticateResponse and the credential user, if a resident
@@ -36,11 +43,11 @@ import (
 // authentication and connected devices.
 func Login(
 	ctx context.Context,
-	origin string, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt,
+	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	if IsFIDO2Available() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
-		return FIDO2Login(ctx, origin, user, assertion, prompt)
+		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
 
 	prompt.PromptTouch()
