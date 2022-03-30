@@ -65,7 +65,7 @@ func WantAWSRequests(req *http.Request) bool {
 type HTTPSListenerReceiverConfig struct {
 	// ListenAddr is network address to listen.
 	ListenAddr string
-	// CA is the CA certificate for signing certificate.
+	// CA is the certificate authority for signing certificates.
 	CA tls.Certificate
 	// Want returns whether the request should be forwarded to this receiver.
 	Want ReceiverWantFunc
@@ -73,8 +73,8 @@ type HTTPSListenerReceiverConfig struct {
 	Log logrus.FieldLogger
 }
 
-// Check validates the config.
-func (c *HTTPSListenerReceiverConfig) Check() error {
+// CheckAndSetDefaults checks and sets default config values.
+func (c *HTTPSListenerReceiverConfig) CheckAndSetDefaults() error {
 	if c.ListenAddr == "" {
 		return trace.BadParameter("missing listener address")
 	}
@@ -110,39 +110,40 @@ type HTTPSListenerReceiver struct {
 // NewHTTPSListenerReceiver creates a new HTTPSListenerReceiver and listens to
 // the configured listen address.
 func NewHTTPSListenerReceiver(config HTTPSListenerReceiverConfig) (*HTTPSListenerReceiver, error) {
-	if err := config.Check(); err != nil {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certAuthority, err := tlsca.FromTLSCertificate(config.CA)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	r := &HTTPSListenerReceiver{
 		cfg:                config,
 		certificatesByHost: make(map[string]*tls.Certificate),
+		certAuthority:      certAuthority,
 	}
 
-	var err error
-	r.certAuthority, err = tlsca.FromTLSCertificate(r.cfg.CA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig := &tls.Config{
+	r.Listener, err = tls.Listen("tcp", r.cfg.ListenAddr, &tls.Config{
 		GetCertificate: r.GetCertificate,
-	}
-	if r.Listener, err = tls.Listen("tcp", r.cfg.ListenAddr, tlsConfig); err != nil {
+	})
+	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
+
 	return r, nil
 }
 
 // Want returns whether the request should be forwarded to this receiver.
 // Implements ForwardProxyReceiver.
-func (r *HTTPSListenerReceiver) Want(req *http.Request) (wanted bool) {
+func (r *HTTPSListenerReceiver) Want(req *http.Request) bool {
 	if !r.cfg.Want(req) {
 		return false
 	}
 
 	if err := r.generateCertFor(req.Host); err != nil {
-		r.cfg.Log.WithError(err).Debugf("Failed to generate certificate for %q.", req.Host)
+		r.cfg.Log.WithError(err).Errorf("Failed to generate certificate for %q.", req.Host)
 		return false
 	}
 	return true
@@ -206,7 +207,6 @@ func (r *HTTPSListenerReceiver) generateCertFor(host string) error {
 		return trace.Wrap(err)
 	}
 
-	r.cfg.Log.Debugf("Certificate generated for %q", host)
 	r.certificatesByHost[host] = &cert
 	return nil
 }

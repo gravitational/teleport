@@ -88,6 +88,12 @@ func onAWS(cf *CLIConf) error {
 
 	// Setup the command to run.
 	cmd := exec.Command(awsCLIBinaryName, cf.AWSCommandArgs...)
+	if cf.LocalExec {
+		if len(cf.AWSCommandArgs) < 1 {
+			return trace.BadParameter("missing command for --exec")
+		}
+		cmd = exec.Command(cf.AWSCommandArgs[0], cf.AWSCommandArgs[1:]...)
+	}
 
 	credValues, err := generatedAWSCred.Get()
 	if err != nil {
@@ -147,21 +153,33 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	}
 
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to
-	// eliminate the need to install temporary CA on the system.
+	// eliminate the need to install temporary CA for various AWS clients.
+	// There is no standard in terms of specifying CA used for HTTPS_PROXY,
+	// and the temporary CA should not be installed at system level.
 	//
 	// Normally a HTTP connection is considered insecure as transport is not
 	// encrypted. Thus it is very important that the forward proxy is only used
 	// for proxying HTTPS requests, so the tunneled data is still encrypted
-	// between client and receiver. The initial "CONNECT" request before
-	// tunneling is not encrypted but it contains minimal information like host
-	// and user agent. In addition, the forward proxy is localhost only so the
-	// transport does not leave the local network.
+	// between client and receiver (e.g. the ALPN local proxy for AWS serves
+	// HTTPS so non-HTTPS requests are rejected.). The initial "CONNECT"
+	// request before tunneling is not encrypted but it contains minimal
+	// information like host and sometimes user agent. In addition, the forward
+	// proxy and its receiver are localhost only so the transport does not
+	// leave the local network.
 	forwardProxyListener, err := net.Listen("tcp", forwardProxyListenAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create listener for receiving AWS request tunneled from forward proxy.
+	// Create listener for receiving AWS requests tunneled from forward proxy:
+	// client request -> forward proxy -> ALPN local proxy -> remote server
+	//
+	// The listener can also receive AWS calls directly if clients specifies
+	// the listener address as endpoint URLs:
+	// client request -> ALPN local proxy -> remote server
+	//
+	// In either case, AWS clients need to verify CA that can be provided by
+	// AWS_CA_BUNDLE.
 	listener, err := alpnproxy.NewHTTPSListenerReceiver(alpnproxy.HTTPSListenerReceiverConfig{
 		ListenAddr: listenAddr,
 		CA:         ca,
@@ -185,8 +203,8 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	if err != nil {
 		return nil, trace.NewAggregate(
 			err,
-			listener.Close(),
-			forwardProxyListener.Close(),
+			utils.CloseListener(listener),
+			utils.CloseListener(forwardProxyListener),
 		)
 	}
 	return lp, nil

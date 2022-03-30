@@ -75,7 +75,7 @@ type LocalProxyConfig struct {
 	Certs []tls.Certificate
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
-	// ForwardProxyListener is the listener for forward proxy
+	// ForwardProxyListener is the listener for forward proxy.
 	ForwardProxyListener net.Listener
 }
 
@@ -307,18 +307,10 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 
 func (l *LocalProxy) Close() error {
 	l.cancel()
-	var errs []error
-	if l.cfg.Listener != nil {
-		if err := l.cfg.Listener.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if l.cfg.ForwardProxyListener != nil {
-		if err := l.cfg.ForwardProxyListener.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return trace.NewAggregate(errs...)
+	return trace.NewAggregate(
+		utils.CloseListener(l.cfg.Listener),
+		utils.CloseListener(l.cfg.ForwardProxyListener),
+	)
 }
 
 // StartAWSAccessProxy starts the local AWS CLI proxy.
@@ -369,7 +361,7 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 // startForwardProxy starts the forward proxy.
 func (l *LocalProxy) startForwardProxy(receiver ForwardProxyReceiver) error {
 	localForwardProxy, err := NewForwardProxy(ForwardProxyConfig{
-		Protocol:            "https",
+		TunnelProtocol:      "https",
 		Listener:            l.cfg.ForwardProxyListener,
 		Receivers:           []ForwardProxyReceiver{receiver},
 		InsecureSystemProxy: l.cfg.InsecureSkipVerify,
@@ -380,7 +372,7 @@ func (l *LocalProxy) startForwardProxy(receiver ForwardProxyReceiver) error {
 	}
 	go func() {
 		err := localForwardProxy.Start()
-		if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+		if err != nil {
 			log.WithError(err).Error("Failed to start forward proxy.")
 		}
 	}()

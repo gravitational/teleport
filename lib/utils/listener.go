@@ -31,3 +31,17 @@ func GetListenerFile(listener net.Listener) (*os.File, error) {
 	}
 	return nil, trace.BadParameter("unsupported listener: %T", listener)
 }
+
+// CloseListener closes provided listener and ignores errors that are normal
+// connection close.
+func CloseListener(listener net.Listener) error {
+	if listener == nil {
+		return nil
+	}
+
+	err := listener.Close()
+	if err != nil && !IsOKNetworkError(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}

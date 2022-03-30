@@ -449,6 +449,9 @@ func Run(args []string, opts ...cliOption) error {
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 
+	// TODO(greedy52) move this functionality to "tsh proxy aws".
+	aws.Flag("exec", "Execute the provided command instead of running AWS CLI").Hidden().BoolVar(&cf.LocalExec)
+
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	lsApps := apps.Command("ls", "List available applications.")

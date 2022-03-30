@@ -101,6 +101,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 			require.Equal(t, tc.wantStatus, resp.StatusCode)
 			require.NoError(t, resp.Body.Close())
 
+			// Test the same request through forward proxy.
 			t.Run("forward proxy", func(t *testing.T) {
 				url.Host = "test.service.localhost.amazonaws.com:443"
 

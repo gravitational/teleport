@@ -29,7 +29,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
@@ -37,46 +36,46 @@ import (
 
 // IsConnectRequest returns true if the request is a HTTP CONNECT tunnel
 // request.
+//
+// https://datatracker.ietf.org/doc/html/rfc7231#section-4.3.6
 func IsConnectRequest(req *http.Request) bool {
 	return req.Method == "CONNECT"
 }
 
 // ForwardProxyConfig is the config for forward proxy.
 type ForwardProxyConfig struct {
-	// Protocol is the protocol of the requests being tunneled.
-	Protocol string
-	// Listener is listener running on local machine.
+	// TunnelProtocol is the protocol of the requests being tunneled.
+	TunnelProtocol string
+	// Listener is the network listener.
 	Listener net.Listener
-	// Receivers is a list of receivers that receive from this proxy.
+	// Receivers is a list of receivers that may receive from this proxy.
 	Receivers []ForwardProxyReceiver
 	// DropUnwantedRequests drops the request if no receiver wants the request.
-	// If false, forward proxy sends the request to original host.
+	// If false, forward proxy sends the uwnated request to original host.
 	DropUnwantedRequests bool
+	// Log is the logger.
+	Log logrus.FieldLogger
+	// CloseContext is the close context.
+	CloseContext context.Context
+
 	// InsecureSystemProxy allows insecure system proxy when forwarding
 	// unwanted requests.
 	InsecureSystemProxy bool
-	// Log is the logger.
-	Log logrus.FieldLogger
-	// CloseContext is the parent context.
-	CloseContext context.Context
-	// SystemProxyFunc is the function that determines the proxy URL to use for
-	// a given request URL.
+	// SystemProxyFunc is the function that determines the system proxy URL to
+	// use for a given request URL.
 	SystemProxyFunc func(reqURL *url.URL) (*url.URL, error)
 }
 
 // CheckAndSetDefaults checks and sets default config values.
 func (c *ForwardProxyConfig) CheckAndSetDefaults() error {
-	if c.Protocol == "" {
-		c.Protocol = "https"
-	}
-	if c.Protocol != "https" {
-		return trace.BadParameter("only https proxy is supported")
+	if c.TunnelProtocol == "" {
+		c.TunnelProtocol = "https"
 	}
 	if c.Listener == nil {
 		return trace.BadParameter("missing listener")
 	}
 	if c.CloseContext == nil {
-		return trace.BadParameter("missing clsoe context")
+		return trace.BadParameter("missing close context")
 	}
 	if c.Log == nil {
 		c.Log = logrus.WithField(trace.Component, "fwdproxy")
@@ -107,7 +106,7 @@ func NewForwardProxy(cfg ForwardProxyConfig) (*ForwardProxy, error) {
 // Start starts serving requests.
 func (p *ForwardProxy) Start() error {
 	err := http.Serve(p.cfg.Listener, p)
-	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+	if err != nil && !utils.IsOKNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -115,7 +114,7 @@ func (p *ForwardProxy) Start() error {
 
 // Close closes the forward proxy.
 func (p *ForwardProxy) Close() error {
-	if err := p.cfg.Listener.Close(); err != nil {
+	if err := utils.CloseListener(p.cfg.Listener); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -123,9 +122,9 @@ func (p *ForwardProxy) Close() error {
 
 // ServeHTTP serves HTTP requests. Implements http.Handler.
 func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// Clients usually send plain HTTP requests directly without CONNECT
-	// tunnel. These requests are rejected as only requests through HTTP
-	// CONNECT tunnel are allowed here.
+	// Clients usually send plain HTTP requests directly without CONNECT tunnel
+	// when sending HTTP requests. These requests are rejected as only requests
+	// through CONNECT tunnel are allowed.
 	if !IsConnectRequest(req) {
 		rw.WriteHeader(http.StatusBadRequest)
 		return
@@ -144,7 +143,7 @@ func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			err := p.forwardClientToHost(clientConn, receiver.Addr().String(), req)
 			if err != nil {
 				p.cfg.Log.WithError(err).Errorf("Failed to handle forward request for %q.", req.Host)
-				writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
+				p.writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
 			}
 			return
 		}
@@ -157,20 +156,20 @@ func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func (p *ForwardProxy) handleUnwantedRequest(clientConn net.Conn, req *http.Request) {
 	if p.cfg.DropUnwantedRequests {
 		p.cfg.Log.Debugf("Dropped forward request for %q.", req.Host)
-		writeHeader(clientConn, req.Proto, http.StatusBadRequest)
+		p.writeHeader(clientConn, req.Proto, http.StatusBadRequest)
 		return
 	}
 
 	// Honors system proxy if exists.
 	systemProxyURL, err := p.cfg.SystemProxyFunc(&url.URL{
 		Host:   req.Host,
-		Scheme: p.cfg.Protocol,
+		Scheme: p.cfg.TunnelProtocol,
 	})
 	if err == nil && systemProxyURL != nil {
 		err = p.forwardClientToSystemProxy(clientConn, systemProxyURL, req)
 		if err != nil {
 			p.cfg.Log.WithError(err).Errorf("Failed to forward request for %q through system proxy %v.", req.Host, systemProxyURL)
-			writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
+			p.writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
 		}
 		return
 	}
@@ -179,7 +178,7 @@ func (p *ForwardProxy) handleUnwantedRequest(clientConn net.Conn, req *http.Requ
 	err = p.forwardClientToHost(clientConn, req.Host, req)
 	if err != nil {
 		p.cfg.Log.WithError(err).Errorf("Failed to forward request for %q.", req.Host)
-		writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
+		p.writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
 	}
 }
 
@@ -193,7 +192,7 @@ func (p *ForwardProxy) forwardClientToHost(clientConn net.Conn, host string, req
 	defer serverConn.Close()
 
 	// Let client know we are ready for proxying.
-	if err := writeHeader(clientConn, req.Proto, http.StatusOK); err != nil {
+	if err := writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusOK); err != nil {
 		return trace.Wrap(err)
 	}
 	return p.startTunnel(clientConn, serverConn, req)
@@ -243,18 +242,12 @@ func (p *ForwardProxy) startTunnel(clientConn, serverConn net.Conn, req *http.Re
 	p.cfg.Log.Debugf("Started forwarding request for %q", req.Host)
 	defer p.cfg.Log.Debugf("Stopped forwarding request for %q", req.Host)
 
+	// Force close connections when close context is done.
 	go func() {
 		<-p.cfg.CloseContext.Done()
 
-		err := clientConn.Close()
-		if err != nil && !utils.IsUseOfClosedNetworkError(err) {
-			p.cfg.Log.WithError(err).Errorf("Failed to close client connection")
-		}
-
-		err = serverConn.Close()
-		if err != nil && !utils.IsUseOfClosedNetworkError(err) {
-			p.cfg.Log.WithError(err).Errorf("Failed to close server connection")
-		}
+		clientConn.Close()
+		serverConn.Close()
 	}()
 
 	errsChan := make(chan error, 2)
@@ -262,7 +255,7 @@ func (p *ForwardProxy) startTunnel(clientConn, serverConn net.Conn, req *http.Re
 	wg.Add(2)
 	stream := func(reader, writer net.Conn) {
 		_, err := io.Copy(reader, writer)
-		if err != io.EOF {
+		if !utils.IsOKNetworkError(err) {
 			errsChan <- err
 		}
 		if readerConn, ok := reader.(*net.TCPConn); ok {
@@ -278,10 +271,19 @@ func (p *ForwardProxy) startTunnel(clientConn, serverConn net.Conn, req *http.Re
 	wg.Wait()
 
 	var errs []error
-	for len(errsChan) > 2 {
+	for len(errsChan) > 0 {
 		errs = append(errs, <-errsChan)
 	}
 	return trace.NewAggregate(errs...)
+}
+
+// writeHeader writes HTTP status to hijacked client connection, and log a
+// message if failed.
+func (p *ForwardProxy) writeHeader(conn net.Conn, protocol string, statusCode int) {
+	err := writeHeaderToHijackedConnection(conn, protocol, statusCode)
+	if err != nil && !utils.IsOKNetworkError(err) {
+		p.cfg.Log.WithError(err).Errorf("Failed to write status code %d to client connection", statusCode)
+	}
 }
 
 // hijackClientConnection hijacks client connection.
@@ -295,8 +297,8 @@ func hijackClientConnection(rw http.ResponseWriter) net.Conn {
 	return clientConn
 }
 
-// writeHeader writes HTTP status to hijacked client connection.
-func writeHeader(conn net.Conn, protocol string, statusCode int) error {
+// writeHeaderToHijackedConnection writes HTTP status to hijacked connection.
+func writeHeaderToHijackedConnection(conn net.Conn, protocol string, statusCode int) error {
 	formatted := fmt.Sprintf("%s %d %s\r\n\r\n", protocol, statusCode, http.StatusText(statusCode))
 	_, err := conn.Write([]byte(formatted))
 	return trace.Wrap(err)

@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -234,10 +235,10 @@ func mustCreateLocalTLSListener(t *testing.T) net.Listener {
 }
 
 func mustSuccessfullyCallHTTPSServer(t *testing.T, addr string, client http.Client) {
-	mustSuccessfullyCallHTTPSServerWithCode(t, addr, client, http.StatusOK)
+	mustCallHTTPSServerAndReceiveCode(t, addr, client, http.StatusOK)
 }
 
-func mustSuccessfullyCallHTTPSServerWithCode(t *testing.T, addr string, client http.Client, expectStatusCode int) {
+func mustCallHTTPSServerAndReceiveCode(t *testing.T, addr string, client http.Client, expectStatusCode int) {
 	resp, err := client.Get(fmt.Sprintf("https://%s", addr))
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -293,10 +294,16 @@ func httpsClient() *http.Client {
 }
 
 func httpsClientWithProxyURL(proxyAddr string) *http.Client {
-	proxyURL := &url.URL{
-		Scheme: "http",
-		Host:   proxyAddr,
+	proxyURL, err := url.Parse(proxyAddr)
+
+	// If no protocol, assume it is HTTP.
+	if err != nil && !strings.Contains(proxyAddr, "://") {
+		proxyURL = &url.URL{
+			Scheme: "http",
+			Host:   proxyAddr,
+		}
 	}
+
 	client := httpsClient()
 	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
 	return client
