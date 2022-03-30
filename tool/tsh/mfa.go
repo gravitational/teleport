@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/base32"
+	"encoding/json"
 	"fmt"
 	"image/png"
 	"os"
@@ -29,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -71,6 +73,7 @@ func newMFACommand(app *kingpin.Application) mfaCommands {
 type mfaLSCommand struct {
 	*kingpin.CmdClause
 	verbose bool
+	format  string
 }
 
 func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
@@ -78,6 +81,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
+	c.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&c.format)
 	return c
 }
 
@@ -113,7 +117,19 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 	// Sort by name before printing.
 	sort.Slice(devs, func(i, j int) bool { return devs[i].GetName() < devs[j].GetName() })
 
-	printMFADevices(devs, c.verbose)
+	switch strings.ToLower(c.format) {
+	case teleport.Text:
+		printMFADevices(devs, c.verbose)
+	case teleport.JSON:
+		out, err := json.MarshalIndent(devs, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	default:
+		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+	}
+
 	return nil
 }
 
