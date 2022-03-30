@@ -218,6 +218,21 @@ func mustCreateLocalListener(t *testing.T) net.Listener {
 	return l
 }
 
+func mustCreateLocalTLSListener(t *testing.T) net.Listener {
+	ca, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	listener, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
+		Certificates: []tls.Certificate{ca},
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
 func mustSuccessfullyCallHTTPSServer(t *testing.T, addr string, client http.Client) {
 	mustSuccessfullyCallHTTPSServerWithCode(t, addr, client, http.StatusOK)
 }
@@ -248,13 +263,14 @@ func mustStartLocalProxy(t *testing.T, config LocalProxyConfig) {
 	}()
 }
 
-func mustCreateHTTPSListenerReceiverForAWS(t *testing.T) *HTTPSListenerReceiver {
+func mustCreateHTTPSListenerReceiver(t *testing.T, want ReceiverWantFunc) *HTTPSListenerReceiver {
 	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	listener, err := NewHTTPSListenerReceiverForAWS(HTTPSListenerReceiverConfig{
+	listener, err := NewHTTPSListenerReceiver(HTTPSListenerReceiverConfig{
 		CA:         cert,
 		ListenAddr: "localhost:0",
+		Want:       want,
 	})
 	require.NoError(t, err)
 
@@ -265,6 +281,8 @@ func mustCreateHTTPSListenerReceiverForAWS(t *testing.T) *HTTPSListenerReceiver 
 }
 
 func httpsClient() *http.Client {
+	// Ideally should use a proper RootCAs pool for validation here. However,
+	// the self-signed CA currently does not have 127.0.0.1 in SAN.
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -282,4 +300,10 @@ func httpsClientWithProxyURL(proxyAddr string) *http.Client {
 	client := httpsClient()
 	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
 	return client
+}
+
+func httpHandlerReturnsCode(statusCode int) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(statusCode)
+	})
 }

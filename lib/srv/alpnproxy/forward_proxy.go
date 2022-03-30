@@ -49,9 +49,9 @@ type ForwardProxyConfig struct {
 	Listener net.Listener
 	// Receivers is a list of receivers that receive from this proxy.
 	Receivers []ForwardProxyReceiver
-	// DropUnwantedRequest drops the request if no receiver wants the request.
+	// DropUnwantedRequests drops the request if no receiver wants the request.
 	// If false, forward proxy sends the request to original host.
-	DropUnwantedRequest bool
+	DropUnwantedRequests bool
 	// InsecureSystemProxy allows insecure system proxy when forwarding
 	// unwanted requests.
 	InsecureSystemProxy bool
@@ -59,6 +59,9 @@ type ForwardProxyConfig struct {
 	Log logrus.FieldLogger
 	// CloseContext is the parent context.
 	CloseContext context.Context
+	// SystemProxyFunc is the function that determines the proxy URL to use for
+	// a given request URL.
+	SystemProxyFunc func(reqURL *url.URL) (*url.URL, error)
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -77,6 +80,9 @@ func (c *ForwardProxyConfig) CheckAndSetDefaults() error {
 	}
 	if c.Log == nil {
 		c.Log = logrus.WithField(trace.Component, "fwdproxy")
+	}
+	if c.SystemProxyFunc == nil {
+		c.SystemProxyFunc = httpproxy.FromEnvironment().ProxyFunc()
 	}
 	return nil
 }
@@ -117,7 +123,9 @@ func (p *ForwardProxy) Close() error {
 
 // ServeHTTP serves HTTP requests. Implements http.Handler.
 func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// Only requests through HTTP connect tunnel is allowed.
+	// Clients usually send plain HTTP requests directly without CONNECT
+	// tunnel. These requests are rejected as only requests through HTTP
+	// CONNECT tunnel are allowed here.
 	if !IsConnectRequest(req) {
 		rw.WriteHeader(http.StatusBadRequest)
 		return
@@ -147,15 +155,14 @@ func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 // handleUnwantedRequest handles the request when no receiver wants it.
 func (p *ForwardProxy) handleUnwantedRequest(clientConn net.Conn, req *http.Request) {
-	if p.cfg.DropUnwantedRequest {
+	if p.cfg.DropUnwantedRequests {
 		p.cfg.Log.Debugf("Dropped forward request for %q.", req.Host)
 		writeHeader(clientConn, req.Proto, http.StatusBadRequest)
 		return
 	}
 
 	// Honors system proxy if exists.
-	systemProxyCheck := httpproxy.FromEnvironment().ProxyFunc()
-	systemProxyURL, err := systemProxyCheck(&url.URL{
+	systemProxyURL, err := p.cfg.SystemProxyFunc(&url.URL{
 		Host:   req.Host,
 		Scheme: p.cfg.Protocol,
 	})
@@ -197,6 +204,7 @@ func (p *ForwardProxy) forwardClientToSystemProxy(clientConn net.Conn, systemPro
 	var err error
 	var serverConn net.Conn
 	switch strings.ToLower(systemProxyURL.Scheme) {
+
 	case "http":
 		serverConn, err = net.Dial("tcp", systemProxyURL.Host)
 		if err != nil {

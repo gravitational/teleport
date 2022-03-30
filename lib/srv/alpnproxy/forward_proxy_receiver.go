@@ -42,6 +42,25 @@ type ForwardProxyReceiver interface {
 	Addr() net.Addr
 }
 
+// ReceiverWantFunc returns whether the request should be forwarded to this
+// receiver.
+type ReceiverWantFunc func(req *http.Request) (wanted bool)
+
+// DefaultReceiverWantFunc is the default want function.
+func DefaultReceiverWantFunc(req *http.Request) bool {
+	return WantAllRequests(req)
+}
+
+// WantAllRequests allows receiver to receive all requests.
+func WantAllRequests(req *http.Request) bool {
+	return true
+}
+
+// WantAWSRequests allows receiver to receive AWS requests.
+func WantAWSRequests(req *http.Request) bool {
+	return awsapiutils.IsAWSEndpoint(req.Host)
+}
+
 // HTTPSListenerReceiverConfig is the config for a HTTPS listener receiver.
 type HTTPSListenerReceiverConfig struct {
 	// ListenAddr is network address to listen.
@@ -49,7 +68,7 @@ type HTTPSListenerReceiverConfig struct {
 	// CA is the CA certificate for signing certificate.
 	CA tls.Certificate
 	// Want returns whether the request should be forwarded to this receiver.
-	Want func(req *http.Request) (wanted bool)
+	Want ReceiverWantFunc
 	// Log is the logger.
 	Log logrus.FieldLogger
 }
@@ -63,7 +82,7 @@ func (c *HTTPSListenerReceiverConfig) Check() error {
 		return trace.BadParameter("missing CA certificate")
 	}
 	if c.Want == nil {
-		return trace.BadParameter("missing Want function")
+		c.Want = DefaultReceiverWantFunc
 	}
 	if c.Log == nil {
 		c.Log = logrus.WithField(trace.Component, "fwdproxy")
@@ -82,6 +101,7 @@ func (c *HTTPSListenerReceiverConfig) Check() error {
 type HTTPSListenerReceiver struct {
 	net.Listener
 
+	certAuthority      *tlsca.CertAuthority
 	cfg                HTTPSListenerReceiverConfig
 	mu                 sync.RWMutex
 	certificatesByHost map[string]*tls.Certificate
@@ -100,6 +120,11 @@ func NewHTTPSListenerReceiver(config HTTPSListenerReceiverConfig) (*HTTPSListene
 	}
 
 	var err error
+	r.certAuthority, err = tlsca.FromTLSCertificate(r.cfg.CA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	tlsConfig := &tls.Config{
 		GetCertificate: r.GetCertificate,
 	}
@@ -107,14 +132,6 @@ func NewHTTPSListenerReceiver(config HTTPSListenerReceiverConfig) (*HTTPSListene
 		return nil, trace.ConvertSystemError(err)
 	}
 	return r, nil
-}
-
-// NewHTTPSListenerReceiverForAWS creates a new HTTPSListenerReceiver for AWS APIs.
-func NewHTTPSListenerReceiverForAWS(config HTTPSListenerReceiverConfig) (*HTTPSListenerReceiver, error) {
-	config.Want = func(req *http.Request) (wanted bool) {
-		return awsapiutils.IsAWSEndpoint(req.Host)
-	}
-	return NewHTTPSListenerReceiver(config)
 }
 
 // Want returns whether the request should be forwarded to this receiver.
@@ -171,18 +188,13 @@ func (r *HTTPSListenerReceiver) generateCertFor(host string) error {
 		return trace.Wrap(err)
 	}
 
-	ca, err := tlsca.FromTLSCertificate(r.cfg.CA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	subject := ca.Cert.Subject
+	subject := r.certAuthority.Cert.Subject
 	subject.CommonName = host
 
-	certPem, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+	certPem, err := r.certAuthority.GenerateCertificate(tlsca.CertificateRequest{
 		PublicKey: &certKey.PublicKey,
 		Subject:   subject,
-		NotAfter:  ca.Cert.NotAfter,
+		NotAfter:  r.certAuthority.Cert.NotAfter,
 		DNSNames:  []string{host},
 	})
 	if err != nil {

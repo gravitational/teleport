@@ -162,9 +162,10 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	}
 
 	// Create listener for receiving AWS request tunneled from forward proxy.
-	listener, err := alpnproxy.NewHTTPSListenerReceiverForAWS(alpnproxy.HTTPSListenerReceiverConfig{
+	listener, err := alpnproxy.NewHTTPSListenerReceiver(alpnproxy.HTTPSListenerReceiverConfig{
 		ListenAddr: listenAddr,
 		CA:         ca,
+		Want:       alpnproxy.WantAWSRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

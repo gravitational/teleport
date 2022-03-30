@@ -131,7 +131,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 	}))
 
 	lp, err := NewLocalProxy(LocalProxyConfig{
-		Listener:             mustCreateHTTPSListenerReceiverForAWS(t),
+		Listener:             mustCreateHTTPSListenerReceiver(t, WantAWSRequests),
 		ForwardProxyListener: mustCreateLocalListener(t),
 		RemoteProxyAddr:      hs.Listener.Addr().String(),
 		Protocol:             common.ProtocolHTTP,
