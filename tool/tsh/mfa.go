@@ -447,20 +447,6 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 	}}, nil
 }
 
-// mfaAddPrompt implements wancli.RegisterPrompt for MFA registrations.
-type mfaAddPrompt struct {
-	ctx context.Context
-}
-
-func (p *mfaAddPrompt) PromptPIN() (string, error) {
-	return prompt.Password(p.ctx, os.Stdout, prompt.Stdin(), "Enter your *new* security key PIN")
-}
-
-func (p *mfaAddPrompt) PromptAdditionalTouch() error {
-	fmt.Println("Tap your *new* security key again to complete registration")
-	return nil
-}
-
 func promptWebauthnRegisterChallenge(ctx context.Context, proxyAddr string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	origin := proxyAddr
 	if !strings.HasPrefix(proxyAddr, "https://") {
@@ -468,8 +454,11 @@ func promptWebauthnRegisterChallenge(ctx context.Context, proxyAddr string, cc *
 	}
 	log.Debugf("WebAuthn: prompting MFA devices with origin %q", origin)
 
-	fmt.Println("Tap your *new* security key")
-	prompt := &mfaAddPrompt{ctx: ctx}
+	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
+	prompt.PINMessage = "Enter your *new* security key PIN"
+	prompt.FirstTouchMessage = "Tap your *new* security key"
+	prompt.SecondTouchMessage = "Tap your *new* security key again to complete registration"
+
 	resp, err := wancli.Register(ctx, origin, wanlib.CredentialCreationFromProto(cc), prompt)
 	return resp, trace.Wrap(err)
 }
