@@ -234,7 +234,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     const cluster = this.state.clusters.get(clusterUri);
     if (!cluster.connected) {
       this.setState(draft => {
-        delete draft.serversSyncStatus[clusterUri];
+        draft.serversSyncStatus.delete(clusterUri);
         helpers.updateMap(clusterUri, draft.servers, []);
       });
 
@@ -242,9 +242,9 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
 
     this.setState(draft => {
-      draft.serversSyncStatus[clusterUri] = {
+      draft.serversSyncStatus.set(clusterUri, {
         status: 'processing',
-      };
+      });
     });
 
     try {
@@ -255,10 +255,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       });
     } catch (err) {
       this.setState(draft => {
-        draft.serversSyncStatus[clusterUri] = {
+        draft.serversSyncStatus.set(clusterUri, {
           status: 'failed',
           statusText: err.message,
-        };
+        });
       });
     }
   }
