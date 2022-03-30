@@ -31,11 +31,9 @@ import (
 type tshPlayerState int
 
 const (
-	// The player has stopped for an action to take place,
-	// or the playback has ended either by request or because
-	// it was played all the way through. setState(stateStopped)
-	// should only be called from playRange once it's goroutine has
-	// returned.
+	// The player has stopped, either for an action to take place,
+	// because the playback has reached the end of the recording,
+	// or because a hard stop was requested.
 	stateStopped tshPlayerState = iota
 	// A stop has been requested so that an action can take place.
 	stateStopping
