@@ -103,7 +103,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
 
-		// try to find the requestID, which bears the original client redirect URL.
+		// try to find the auth request, which bears the original client redirect URL.
 		// if found, use it to terminate the flow.
 		//
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
