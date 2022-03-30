@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -131,7 +132,7 @@ func TestChaosUpload(t *testing.T) {
 
 	defer uploader.Close()
 
-	fileStreamer, err := NewStreamer(scanDir, true)
+	fileStreamer, err := NewStreamer(scanDir, constants.AuditModeStrict)
 	require.NoError(t, err)
 
 	parallelStreams := 20
