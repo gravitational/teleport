@@ -47,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -276,6 +278,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if fc.Storage.Type == lite.AlternativeName {
 			fc.Storage.Type = lite.GetName()
 		}
+		// If the alternative name "cockroachdb" is given, update it to "postgres".
+		if fc.Storage.Type == postgres.AlternativeName {
+			fc.Storage.Type = postgres.GetName()
+		}
+
+		// Fix yamlv2 issue with nested storage sections.
+		fc.Storage.Params.Cleanse()
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
@@ -298,7 +307,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	if fc.CachePolicy.TTL != "" {
-		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+		log.Warn("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+	if fc.CachePolicy.Type == memory.GetName() {
+		log.Debugf("cache.type config option is explicitly set to %v.", memory.GetName())
+	} else if fc.CachePolicy.Type != "" {
+		log.Warn("cache.type config option is deprecated and will be ignored, caches are always in memory in this version.")
 	}
 
 	// apply cache policy for node and proxy

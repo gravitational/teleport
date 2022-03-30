@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/url"
 	"os"
@@ -91,7 +93,10 @@ type FileConfig struct {
 func ReadFromFile(filePath string) (*FileConfig, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
+		if errors.Is(err, fs.ErrPermission) {
+			return nil, trace.Wrap(err, "failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath)
+		}
+		return nil, trace.Wrap(err, "failed to open file for Teleport configuration at %v", filePath)
 	}
 	defer f.Close()
 	return ReadConfig(f)
@@ -436,7 +441,6 @@ func (c *CachePolicy) Enabled() bool {
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Type:    c.Type,
 		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {

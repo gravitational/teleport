@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
+	log "github.com/sirupsen/logrus"
 )
 
 // DiscardAuditLog is do-nothing, discard-everything implementation
@@ -69,4 +70,64 @@ func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID ses
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 	close(c)
 	return c, e
+}
+
+// DiscardStream returns a stream that discards all events
+type DiscardStream struct{}
+
+// Write discards data
+func (*DiscardStream) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+// Status returns a channel that always blocks
+func (*DiscardStream) Status() <-chan apievents.StreamStatus {
+	return nil
+}
+
+// Done returns channel closed when streamer is closed
+// should be used to detect sending errors
+func (*DiscardStream) Done() <-chan struct{} {
+	return nil
+}
+
+// Close flushes non-uploaded flight stream data without marking
+// the stream completed and closes the stream instance
+func (*DiscardStream) Close(ctx context.Context) error {
+	return nil
+}
+
+// Complete does nothing
+func (*DiscardStream) Complete(ctx context.Context) error {
+	return nil
+}
+
+// EmitAuditEvent discards audit event
+func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	log.Debugf("Dicarding stream event: %v", event)
+	return nil
+}
+
+// NewDiscardEmitter returns a no-op discard emitter
+func NewDiscardEmitter() *DiscardEmitter {
+	return &DiscardEmitter{}
+}
+
+// DiscardEmitter discards all events
+type DiscardEmitter struct{}
+
+// EmitAuditEvent discards audit event
+func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	log.Debugf("Dicarding event: %v", event)
+	return nil
+}
+
+// CreateAuditStream creates a stream that discards all events
+func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	return &DiscardStream{}, nil
+}
+
+// ResumeAuditStream resumes a stream that discards all events
+func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	return &DiscardStream{}, nil
 }
