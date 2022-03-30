@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import React from 'react';
 import { Card, ButtonPrimary, Flex, Box } from 'design';
 import * as Alerts from 'design/Alert';
 import useAttempt from 'shared/hooks/useAttempt';
-import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import FieldInput from '../FieldInput';
 import FieldSelect from '../FieldSelect';
 import Validation, { Validator } from '../Validation';
@@ -46,7 +46,11 @@ function FormPassword(props: Props) {
   const [newPass, setNewPass] = React.useState('');
   const [newPassConfirmed, setNewPassConfirmed] = React.useState('');
   const mfaOptions = React.useMemo<MfaOption[]>(
-    () => getMfaOptions(auth2faType, preferredMfaType),
+    () =>
+      createMfaOptions({
+        auth2faType: auth2faType,
+        preferredType: preferredMfaType,
+      }),
     []
   );
   const [mfaType, setMfaType] = React.useState(mfaOptions[0]);

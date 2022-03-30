@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Gravitational, Inc.
+ * Copyright 2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { getMfaOptions } from './utils';
+import createMfaOptions from './createMfaOptions';
 import { Auth2faType, PreferredMfaType } from 'shared/services';
 
 describe('test retrieving mfa options', () => {
@@ -79,14 +79,19 @@ describe('test retrieving mfa options', () => {
   ];
 
   test.each(testCases)('$name', testCase => {
-    const mfa = getMfaOptions(testCase.type, testCase.preferred).map(
-      o => o.value
-    );
+    const mfa = createMfaOptions({
+      auth2faType: testCase.type,
+      preferredType: testCase.preferred,
+    }).map(o => o.value);
     expect(mfa).toEqual(testCase.expect);
   });
 
   test('no "none" option if requireMfa=true', () => {
-    const mfa = getMfaOptions('optional', 'webauthn', true).map(o => o.value);
+    const mfa = createMfaOptions({
+      auth2faType: 'optional',
+      preferredType: 'webauthn',
+      required: true,
+    }).map(o => o.value);
     expect(mfa).toEqual(['webauthn', 'otp']);
   });
 });

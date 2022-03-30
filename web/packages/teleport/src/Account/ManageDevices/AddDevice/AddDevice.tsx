@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import {
 } from 'shared/components/Validation/rules';
 import FieldSelect from 'shared/components/FieldSelect';
 import useTeleport from 'teleport/useTeleport';
-import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import useAddDevice, { State, Props } from './useAddDevice';
 
 const u2fGraphic = require('design/assets/images/u2f-graphic.svg');
@@ -66,7 +66,12 @@ export function AddDevice({
   const [deviceName, setDeviceName] = useState('');
 
   const mfaOptions = useMemo<MfaOption[]>(
-    () => getMfaOptions(auth2faType, preferredMfaType, true),
+    () =>
+      createMfaOptions({
+        auth2faType: auth2faType,
+        preferredType: preferredMfaType,
+        required: true,
+      }),
     []
   );
 

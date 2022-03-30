@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import {
   requiredPassword,
   requiredConfirmedPassword,
 } from 'shared/components/Validation/rules';
-import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import TwoFAData from './TwoFaInfo';
 
 const U2F_ERROR_CODES_URL =
@@ -53,7 +53,11 @@ export default function FormNewCredentials(props: Props) {
   const [token, setToken] = useState('');
 
   const mfaOptions = useMemo<MfaOption[]>(
-    () => getMfaOptions(auth2faType, preferredMfaType),
+    () =>
+      createMfaOptions({
+        auth2faType: auth2faType,
+        preferredType: preferredMfaType,
+      }),
     []
   );
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
