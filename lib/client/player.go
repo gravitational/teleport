@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -26,7 +25,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/events"
+
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 )
 
 type tshPlayerState int
@@ -62,7 +63,8 @@ type sessionPlayer struct {
 	// been reached, or a hard stop was requested via EndPlayback().
 	stopC    chan struct{}
 	stopOnce sync.Once
-	errorCh  chan error
+
+	log *logrus.Logger
 }
 
 func newSessionPlayer(sessionEvents []events.EventFields, stream []byte, term *terminal.Terminal) *sessionPlayer {
@@ -73,7 +75,7 @@ func newSessionPlayer(sessionEvents []events.EventFields, stream []byte, term *t
 		sessionEvents: sessionEvents,
 		term:          term,
 		stopC:         make(chan struct{}),
-		errorCh:       make(chan error),
+		log:           logrus.New(),
 	}
 	p.cond = sync.NewCond(p)
 	return p
@@ -153,7 +155,7 @@ func (p *sessionPlayer) EndPlayback() {
 		p.setState(stateEnding)
 	default:
 		// Cases should be exhaustive, this should never happen.
-		p.errorCh <- errors.New("unexpected playback error")
+		p.log.Error("unexpected playback error")
 	}
 }
 

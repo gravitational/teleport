@@ -42,7 +42,7 @@ func TestEmptyPlay(t *testing.T) {
 	case <-p.stopC:
 	}
 
-	require.True(t, p.Stopped())
+	require.True(t, p.Stopped(), "p.Stopped() returned false when it should have returned true")
 }
 
 // TestStop verifies that we can stop playback.
@@ -121,7 +121,7 @@ func TestPlayPause(t *testing.T) {
 
 	// make sure that we've resumed
 	<-ch
-	require.False(t, p.Stopped())
+	require.False(t, p.Stopped(), "p.Stopped() returned true when it should have returned false")
 
 	// advance the clock a final time, forcing the player to write the last event
 	// note: on the resume, we play the successful events immediately, and then sleep
@@ -133,7 +133,7 @@ func TestPlayPause(t *testing.T) {
 		t.Fatal("timed out waiting for player to complete")
 	case <-p.stopC:
 	}
-	require.True(t, p.Stopped())
+	require.True(t, p.Stopped(), "p.Stopped() returned false when it should have returned true")
 }
 
 func TestEndPlaybackWhilePlaying(t *testing.T) {
@@ -170,9 +170,9 @@ func TestEndPlaybackWhilePlaying(t *testing.T) {
 	// check that stopC was written to
 	select {
 	case <-time.After(2 * time.Second):
-		panic("timed out waiting for player to complete")
+		t.Fatal("timed out waiting for player to complete")
 	case <-p.stopC:
-		require.True(t, p.Stopped())
+		require.True(t, p.Stopped(), "p.Stopped() returned false when it should have returned true")
 	}
 }
 
@@ -225,9 +225,9 @@ func TestEndPlaybackWhilePaused(t *testing.T) {
 	// check that stopC was written to
 	select {
 	case <-time.After(2 * time.Second):
-		panic("timed out waiting for player to complete")
+		t.Fatal("timed out waiting for player to complete")
 	case <-p.stopC:
-		require.True(t, p.Stopped())
+		require.True(t, p.Stopped(), "p.Stopped() returned false when it should have returned true")
 	}
 }
 
