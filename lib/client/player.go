@@ -150,8 +150,8 @@ func (p *sessionPlayer) EndPlayback() {
 		// The playRange goroutine is still running, and may be sleeping
 		// while waiting for the right time to print the next characters.
 		// setState to stateEnding so that the playRange goroutine
-		// knows to return on the next loop. It's deferred function will
-		// take care of closing the stopC channel.
+		// knows to return on the next loop. The stopC channel will
+		// be closed by the playback routine upon completion.
 		p.setState(stateEnding)
 	}
 }
