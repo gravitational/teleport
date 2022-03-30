@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
@@ -42,7 +43,7 @@ func IsConnectRequest(req *http.Request) bool {
 	return req.Method == "CONNECT"
 }
 
-// ForwardProxyConfig is the config for forward proxy.
+// ForwardProxyConfig is the config for forward proxy server.
 type ForwardProxyConfig struct {
 	// TunnelProtocol is the protocol of the requests being tunneled.
 	TunnelProtocol string
@@ -51,7 +52,7 @@ type ForwardProxyConfig struct {
 	// Receivers is a list of receivers that may receive from this proxy.
 	Receivers []ForwardProxyReceiver
 	// DropUnwantedRequests drops the request if no receiver wants the request.
-	// If false, forward proxy sends the uwnated request to original host.
+	// If false, forward proxy sends the unwanted request to original host.
 	DropUnwantedRequests bool
 	// Log is the logger.
 	Log logrus.FieldLogger
@@ -86,8 +87,7 @@ func (c *ForwardProxyConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ForwardProxy is a forward proxy that serves CONNECT tunnel requests from
-// clients using HTTPS_PROXY.
+// ForwardProxy is a forward proxy that serves CONNECT tunnel requests.
 type ForwardProxy struct {
 	cfg ForwardProxyConfig
 }
@@ -123,8 +123,8 @@ func (p *ForwardProxy) Close() error {
 // ServeHTTP serves HTTP requests. Implements http.Handler.
 func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// Clients usually send plain HTTP requests directly without CONNECT tunnel
-	// when sending HTTP requests. These requests are rejected as only requests
-	// through CONNECT tunnel are allowed.
+	// when proxying HTTP requests. These requests are rejected as only
+	// requests through CONNECT tunnel are allowed.
 	if !IsConnectRequest(req) {
 		rw.WriteHeader(http.StatusBadRequest)
 		return
@@ -237,7 +237,7 @@ func (p *ForwardProxy) forwardClientToSystemProxy(clientConn net.Conn, systemPro
 	return p.startTunnel(clientConn, serverConn, req)
 }
 
-// startTunnel starts streaming between client and remote server.
+// startTunnel starts streaming between client and server.
 func (p *ForwardProxy) startTunnel(clientConn, serverConn net.Conn, req *http.Request) error {
 	p.cfg.Log.Debugf("Started forwarding request for %q", req.Host)
 	defer p.cfg.Log.Debugf("Stopped forwarding request for %q", req.Host)
@@ -255,7 +255,7 @@ func (p *ForwardProxy) startTunnel(clientConn, serverConn net.Conn, req *http.Re
 	wg.Add(2)
 	stream := func(reader, writer net.Conn) {
 		_, err := io.Copy(reader, writer)
-		if !utils.IsOKNetworkError(err) {
+		if err != nil && !utils.IsOKNetworkError(err) {
 			errsChan <- err
 		}
 		if readerConn, ok := reader.(*net.TCPConn); ok {

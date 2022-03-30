@@ -80,6 +80,7 @@ func TestForwardProxy(t *testing.T) {
 		// The "Bad Request" is returend to the CONNECT tunnel request. The
 		// actual call never happens. Thus getting an error instead of a 4xx
 		// status code.
+		// nolint:bodyclose
 		resp, err := client.Get(fmt.Sprintf("https://%s", originalServer.Listener.Addr().String()))
 		require.Nil(t, resp)
 		require.Error(t, err)
@@ -160,8 +161,8 @@ func createForwardProxy(t *testing.T, receiver ForwardProxyReceiver, opts ...fun
 	return forwardProxy
 }
 
-// withSystemProxyTo returns an option function configures the forward proxy to
-// use a specific url for system proxy.
+// withSystemProxyTo returns an option function that configures the forward
+// proxy to use a specific URL for system proxy.
 // The default httpproxy.Config.ProxyFunc() bypasses proxy servers that are
 // localhost, so have to force it here for local testing.
 func withSystemProxyTo(proxyURL string) func(*ForwardProxyConfig) {
