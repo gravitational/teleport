@@ -131,8 +131,9 @@ function FormPassword(props: Props) {
                 {mfaType.value === 'otp' && (
                   <FieldInput
                     label="Authenticator code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
                     rule={requiredToken}
-                    autoComplete="off"
                     value={token}
                     onChange={e => setToken(e.target.value)}
                     placeholder="123 456"

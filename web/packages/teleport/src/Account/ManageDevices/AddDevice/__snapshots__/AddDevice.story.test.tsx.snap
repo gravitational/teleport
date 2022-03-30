@@ -450,6 +450,7 @@ exports[`render dialog to add a new mfa device with u2f as preferred type 1`] = 
             autocomplete="off"
             class="c15"
             color="text.onLight"
+            inputmode="text"
             placeholder="Name"
             type="text"
             value=""
@@ -930,6 +931,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
             autocomplete="off"
             class="c15"
             color="text.onLight"
+            inputmode="text"
             placeholder="Name"
             type="text"
             value=""
@@ -1440,6 +1442,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
             autocomplete="off"
             class="c16"
             color="text.onLight"
+            inputmode="text"
             placeholder="Name"
             type="text"
             value=""
@@ -1988,9 +1991,10 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
               Authenticator code
             </label>
             <input
-              autocomplete="off"
+              autocomplete="one-time-code"
               class="c18"
               color="text.onLight"
+              inputmode="numeric"
               placeholder="123 456"
               type="text"
               value=""
@@ -2011,6 +2015,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
             autocomplete="off"
             class="c18"
             color="text.onLight"
+            inputmode="text"
             placeholder="Name"
             type="text"
             value=""

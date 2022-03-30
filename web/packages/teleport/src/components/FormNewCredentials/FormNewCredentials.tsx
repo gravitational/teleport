@@ -147,7 +147,8 @@ export default function FormNewCredentials(props: Props) {
                       width="50%"
                       label="Authenticator code"
                       rule={requiredToken}
-                      autoComplete="off"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
                       value={token}
                       onChange={e => setToken(e.target.value)}
                       placeholder="123 456"

@@ -28,6 +28,7 @@ export default function FieldInput({
   type = 'text',
   autoFocus = false,
   autoComplete = 'off',
+  inputMode = 'text',
   readonly = false,
   ...styles
 }: Props) {
@@ -47,6 +48,7 @@ export default function FieldInput({
         onChange={onChange}
         onKeyPress={onKeyPress}
         readOnly={readonly}
+        inputMode={inputMode}
       />
     </Box>
   );
@@ -59,8 +61,9 @@ type Props = {
   label?: string;
   placeholder?: string;
   autoFocus?: boolean;
-  autoComplete?: 'off' | 'on';
-  type?: 'email' | 'text' | 'password' | 'number' | 'date' | 'week' | 'tel';
+  autoComplete?: 'off' | 'on' | 'one-time-code';
+  type?: 'email' | 'text' | 'password' | 'number' | 'date' | 'week';
+  inputMode?: 'text' | 'numeric';
   rule?: (options: unknown) => () => unknown;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyPress?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
