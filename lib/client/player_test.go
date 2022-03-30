@@ -42,7 +42,7 @@ func TestEmptyPlay(t *testing.T) {
 	case <-p.stopC:
 	}
 
-	require.True(t, p.Stopped(), "p.Stopped() returned false when it should have returned true")
+	require.True(t, p.Stopped(), "p.Stopped() returned an unexpected value")
 }
 
 // TestStop verifies that we can stop playback.
@@ -133,7 +133,7 @@ func TestPlayPause(t *testing.T) {
 		t.Fatal("timed out waiting for player to complete")
 	case <-p.stopC:
 	}
-	require.True(t, p.Stopped(), "p.Stopped() returned false when it should have returned true")
+	require.True(t, p.Stopped(), "p.Stopped() returned an unexpected value")
 }
 
 func TestEndPlaybackWhilePlaying(t *testing.T) {
@@ -172,7 +172,7 @@ func TestEndPlaybackWhilePlaying(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for player to complete")
 	case <-p.stopC:
-		require.True(t, p.Stopped(), "p.Stopped() returned false when it should have returned true")
+		require.True(t, p.Stopped(), "p.Stopped() returned an unexpected value")
 	}
 }
 
@@ -227,7 +227,7 @@ func TestEndPlaybackWhilePaused(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for player to complete")
 	case <-p.stopC:
-		require.True(t, p.Stopped(), "p.Stopped() returned false when it should have returned true")
+		require.True(t, p.Stopped(), "p.Stopped() returned an unexpected value")
 	}
 }
 
