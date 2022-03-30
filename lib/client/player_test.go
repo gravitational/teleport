@@ -57,7 +57,7 @@ func TestStop(t *testing.T) {
 	// wait for player to see the first event and apply the delay
 	c.BlockUntil(1)
 
-	p.RequestStop()
+	p.EndPlayback()
 
 	// advance the clock:
 	// at this point, the player will write the first event and then

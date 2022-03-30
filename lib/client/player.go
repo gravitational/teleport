@@ -120,9 +120,9 @@ func (p *sessionPlayer) TogglePause() {
 	}
 }
 
-// RequestStop makes an asynchronous request for the player to stop playing.
-// Playback may not stop before this method returns.
-func (p *sessionPlayer) RequestStop() {
+// EndPlayback makes an asynchronous request for the player to end the playback.
+// Playback might not stop before this method returns.
+func (p *sessionPlayer) EndPlayback() {
 	p.Lock()
 	defer p.Unlock()
 
@@ -130,8 +130,18 @@ func (p *sessionPlayer) RequestStop() {
 	case stateStopped, stateStopping:
 		// do nothing if stop already in progress
 	default:
+		// setState to stateStopping so that if the playRange goroutine is still looping
+		// through events, it knows to return on the next loop.
 		p.setState(stateStopping)
 	}
+
+	// Close the stopC channel to alert the caller of Play() that
+	// playback is finished.
+	p.Close()
+}
+
+func (p *sessionPlayer) Close() {
+	p.stopOnce.Do(func() { close(p.stopC) })
 }
 
 // waitUntil waits for the specified state to be reached.
@@ -202,7 +212,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 
 			// played last event?
 			if i == len(p.sessionEvents) {
-				p.stopOnce.Do(func() { close(p.stopC) })
+				p.Close()
 			}
 		}()
 
