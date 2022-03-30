@@ -56,13 +56,14 @@ Teleport needs a `kubeconfig` file to authenticate against the Kubernetes API.
 - A host deployed on your own infrastructure to run the Teleport Kubernetes
   Service. See [Installing Teleport](../../installation.mdx) for more details.
 
-- **Optional:** the Enterprise version of the `tctl` admin tool. To download this, visit
-the [customer portal](https://dashboard.gravitational.com/web/login).
+- **Optional:** The `tctl` admin tool version >= (=teleport.version=).
 
   ```code
   $ tctl version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
+
+  See [Installation](../../installation.mdx) for details.
 
   (!docs/pages/includes/tctl.mdx!)
 
