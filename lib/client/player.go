@@ -31,8 +31,17 @@ import (
 type tshPlayerState int
 
 const (
+	// The player has stopped for an action to take place,
+	// or the playback has ended either by request or because
+	// it was played all the way through. setState(stateStopped)
+	// should only be called from playRange once it's goroutine has
+	// returned.
 	stateStopped tshPlayerState = iota
+	// A stop has been requested so that an action can take place.
 	stateStopping
+	// An end to the playback has been requested.
+	stateEnding
+	// The player is playing.
 	statePlaying
 )
 
@@ -96,6 +105,12 @@ func (p *sessionPlayer) stopRequested() bool {
 	return p.state == stateStopping
 }
 
+func (p *sessionPlayer) endRequested() bool {
+	p.Lock()
+	defer p.Unlock()
+	return p.state == stateEnding
+}
+
 func (p *sessionPlayer) Forward() {
 	p.Lock()
 	defer p.Unlock()
@@ -127,21 +142,20 @@ func (p *sessionPlayer) EndPlayback() {
 	defer p.Unlock()
 
 	switch p.state {
-	case stateStopped, stateStopping:
-		// do nothing if stop already in progress
+	case stateEnding:
+		// We're already ending, no need to do anything.
+	case stateStopped:
+		// The playRange goroutine has already returned, so we can
+		// signal the end of playback by closing the stopC channel right here.
+		p.close()
 	default:
-		// setState to stateStopping so that if the playRange goroutine is still looping
-		// through events, it knows to return on the next loop.
-		p.setState(stateStopping)
+		// The playRange goroutine is still running, and may be sleeping
+		// while waiting for the right time to print the next characters.
+		// setState to stateEnding so that the playRange goroutine
+		// knows to return on the next loop. It's deferred function will
+		// take care of closing the stopC channel.
+		p.setState(stateEnding)
 	}
-
-	// Close the stopC channel to alert the caller of Play() that
-	// playback is finished.
-	p.Close()
-}
-
-func (p *sessionPlayer) Close() {
-	p.stopOnce.Do(func() { close(p.stopC) })
 }
 
 // waitUntil waits for the specified state to be reached.
@@ -184,6 +198,10 @@ func timestampFrame(term *terminal.Terminal, message string) {
 	os.Stdout.WriteString(message)
 }
 
+func (p *sessionPlayer) close() {
+	p.stopOnce.Do(func() { close(p.stopC) })
+}
+
 // playRange plays events from a given from:to range. In order for the replay
 // to render correctly, playRange always plays from the beginning, but starts
 // applying timing info (delays) only after 'from' event, creating an impression
@@ -206,13 +224,15 @@ func (p *sessionPlayer) playRange(from, to int) {
 		var i int
 
 		defer func() {
+			endRequested := p.endRequested()
+
 			p.Lock()
 			p.setState(stateStopped)
 			p.Unlock()
 
-			// played last event?
-			if i == len(p.sessionEvents) {
-				p.Close()
+			// An end was manually requested, or we played the last event?
+			if endRequested || i == len(p.sessionEvents) {
+				p.close()
 			}
 		}()
 
@@ -223,7 +243,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 		prev := time.Duration(0)
 		offset, bytes := 0, 0
 		for i = 0; i < to; i++ {
-			if p.stopRequested() {
+			if p.stopRequested() || p.endRequested() {
 				return
 			}
 
