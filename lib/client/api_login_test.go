@@ -141,7 +141,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		case got != pin:
 			return nil, errors.New("invalid PIN")
 		}
-		prompt.PromptAdditionalTouch() // Realistically, this would happen too.
+		prompt.PromptTouch() // Realistically, this would happen too.
 		return solveWebauthn(ctx, origin, assertion, prompt)
 	}
 

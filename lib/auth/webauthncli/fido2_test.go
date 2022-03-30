@@ -80,15 +80,38 @@ func init() {
 	}
 }
 
+// Capture common authenticator options.
+var (
+	authOpts = []libfido2.Option{
+		{Name: "rk", Value: "true"},
+		{Name: "up", Value: "true"},
+		{Name: "plat", Value: "false"},
+		{Name: "clientPin", Value: "false"}, // supported but unset
+	}
+	pinOpts = []libfido2.Option{
+		{Name: "rk", Value: "true"},
+		{Name: "up", Value: "true"},
+		{Name: "plat", Value: "false"},
+		{Name: "clientPin", Value: "true"}, // supported and configured
+	}
+	bioOpts = []libfido2.Option{
+		{Name: "rk", Value: "true"},
+		{Name: "up", Value: "true"},
+		{Name: "uv", Value: "true"},
+		{Name: "plat", Value: "false"},
+		{Name: "alwaysUv", Value: "true"},
+		{Name: "bioEnroll", Value: "true"}, // supported and configured
+		{Name: "clientPin", Value: "true"}, // supported and configured
+	}
+)
+
 type noopPrompt struct{}
 
 func (p noopPrompt) PromptPIN() (string, error) {
 	return "", nil
 }
 
-func (p noopPrompt) PromptAdditionalTouch() error {
-	return nil
-}
+func (p noopPrompt) PromptTouch() {}
 
 // pinCancelPrompt exercises cancellation after device selection.
 type pinCancelPrompt struct {
@@ -101,9 +124,8 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 	return p.pin, nil
 }
 
-func (p pinCancelPrompt) PromptAdditionalTouch() error {
+func (p pinCancelPrompt) PromptTouch() {
 	// 2nd touch never happens
-	return nil
 }
 
 func TestFIDO2Login(t *testing.T) {
@@ -113,28 +135,6 @@ func TestFIDO2Login(t *testing.T) {
 	const rpID = "example.com"
 	const appID = "https://example.com"
 	const origin = "https://example.com"
-
-	authOpts := []libfido2.Option{
-		{Name: "rk", Value: "true"},
-		{Name: "up", Value: "true"},
-		{Name: "plat", Value: "false"},
-		{Name: "clientPin", Value: "false"}, // supported but unset
-	}
-	pinOpts := []libfido2.Option{
-		{Name: "rk", Value: "true"},
-		{Name: "up", Value: "true"},
-		{Name: "plat", Value: "false"},
-		{Name: "clientPin", Value: "true"}, // supported and configured
-	}
-	bioOpts := []libfido2.Option{
-		{Name: "rk", Value: "true"},
-		{Name: "up", Value: "true"},
-		{Name: "uv", Value: "true"},
-		{Name: "plat", Value: "false"},
-		{Name: "alwaysUv", Value: "true"},
-		{Name: "bioEnroll", Value: "true"}, // supported and configured
-		{Name: "clientPin", Value: "true"}, // supported and configured
-	}
 
 	// User IDs and names for resident credentials / passwordless.
 	const llamaName = "llama"
@@ -572,6 +572,126 @@ func TestFIDO2Login(t *testing.T) {
 	}
 }
 
+type countingPrompt struct {
+	wancli.LoginPrompt
+	count int
+}
+
+func (cp *countingPrompt) PromptTouch() {
+	cp.count++
+	cp.LoginPrompt.PromptTouch()
+}
+
+func TestFIDO2Login_PromptTouch(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	const rpID = "example.com"
+	const origin = "https://example.com"
+	const user = ""
+
+	// auth1 is a FIDO2 authenticator without a PIN configured.
+	auth1 := mustNewFIDO2Device("/auth1", "" /* pin */, &libfido2.DeviceInfo{
+		Options: authOpts,
+	})
+	// pin1 is a FIDO2 authenticator with a PIN and resident credentials.
+	pin1 := mustNewFIDO2Device("/pin1", "supersecretpin1", &libfido2.DeviceInfo{
+		Options: pinOpts,
+	}, &libfido2.Credential{
+		User: libfido2.User{
+			ID:   []byte("alpacaID"),
+			Name: "alpaca",
+		},
+	})
+	// bio1 is a biometric authenticator with configured resident credentials.
+	bio1 := mustNewFIDO2Device("/bio1", "supersecretBIO1pin", &libfido2.DeviceInfo{
+		Options: bioOpts,
+	}, &libfido2.Credential{
+		User: libfido2.User{
+			ID:   []byte("llamaID"),
+			Name: "llama",
+		},
+	})
+
+	mfaAssertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:      make([]byte, 32),
+			RelyingPartyID: rpID,
+			AllowedCredentials: []protocol.CredentialDescriptor{
+				{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: auth1.credentialID(),
+				},
+				{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: pin1.credentialID(),
+				},
+				{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: bio1.credentialID(),
+				},
+			},
+		},
+	}
+	pwdlessAssertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:        make([]byte, 32),
+			RelyingPartyID:   rpID,
+			UserVerification: protocol.VerificationRequired,
+		},
+	}
+
+	tests := []struct {
+		name        string
+		fido2       *fakeFIDO2
+		assertion   *wanlib.CredentialAssertion
+		prompt      wancli.LoginPrompt
+		wantTouches int
+	}{
+		{
+			name:        "MFA requires single touch",
+			fido2:       newFakeFIDO2(auth1, pin1, bio1),
+			assertion:   mfaAssertion,
+			prompt:      auth1,
+			wantTouches: 1,
+		},
+		{
+			name:        "Passwordless PIN requires single touch",
+			fido2:       newFakeFIDO2(pin1),
+			assertion:   pwdlessAssertion,
+			prompt:      pin1,
+			wantTouches: 1,
+		},
+		{
+			name:        "Passwordless Bio requires two touches",
+			fido2:       newFakeFIDO2(bio1),
+			assertion:   pwdlessAssertion,
+			prompt:      bio1,
+			wantTouches: 2,
+		},
+		{
+			name:        "Passwordless with multiple devices requires two touches",
+			fido2:       newFakeFIDO2(pin1, bio1),
+			assertion:   pwdlessAssertion,
+			prompt:      pin1,
+			wantTouches: 2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.fido2.setCallbacks()
+
+			// Set a timeout, just in case.
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+
+			prompt := &countingPrompt{LoginPrompt: test.prompt}
+			_, _, err := wancli.FIDO2Login(ctx, origin, user, test.assertion, prompt)
+			require.NoError(t, err, "FIDO2Login errored")
+			assert.Equal(t, test.wantTouches, prompt.count, "FIDO2Login did an unexpected number of touch prompts")
+		})
+	}
+}
+
 func TestFIDO2Login_errors(t *testing.T) {
 	resetFIDO2AfterTests(t)
 
@@ -662,19 +782,6 @@ func TestFIDO2Register(t *testing.T) {
 
 	const rpID = "example.com"
 	const origin = "https://example.com"
-
-	authOpts := []libfido2.Option{
-		{Name: "rk", Value: "true"},
-		{Name: "up", Value: "true"},
-		{Name: "plat", Value: "false"},
-		{Name: "clientPin", Value: "false"}, // supported but unset
-	}
-	pinOpts := []libfido2.Option{
-		{Name: "rk", Value: "true"},
-		{Name: "up", Value: "true"},
-		{Name: "plat", Value: "false"},
-		{Name: "clientPin", Value: "true"}, // supported and configured
-	}
 
 	// auth1 is a FIDO2 authenticator without a PIN configured.
 	auth1 := mustNewFIDO2Device("/path1", "" /* pin */, &libfido2.DeviceInfo{
@@ -1266,9 +1373,8 @@ func (f *fakeFIDO2Device) PromptPIN() (string, error) {
 	return f.pin, nil
 }
 
-func (f *fakeFIDO2Device) PromptAdditionalTouch() error {
+func (f *fakeFIDO2Device) PromptTouch() {
 	f.setUP()
-	return nil
 }
 
 func (f *fakeFIDO2Device) credentialID() []byte {
@@ -1299,7 +1405,12 @@ func (f *fakeFIDO2Device) Cancel() error {
 }
 
 func (f *fakeFIDO2Device) Credentials(rpID string, pin string) ([]*libfido2.Credential, error) {
-	if f.pin != "" {
+	if pin == "" && f.isBio() {
+		// Unlock with user interaction.
+		if err := f.maybeLockUntilInteraction(true); err != nil {
+			return nil, err
+		}
+	} else {
 		if err := f.validatePIN(pin); err != nil {
 			return nil, err
 		}
