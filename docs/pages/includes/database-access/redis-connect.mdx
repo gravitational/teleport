@@ -1,7 +1,7 @@
 Log into your Teleport cluster and see available databases:
 
 <Tabs>
-  <TabItem scope={["enterprise", "oss"]} label="Self Hosted">
+  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
     ```code
     $ tsh login --proxy=teleport.example.com --user=alice
     $ tsh db ls
@@ -10,7 +10,7 @@ Log into your Teleport cluster and see available databases:
     # example-redis Example Redis   env=dev
     ```
   </TabItem>
-  <TabItem scope={["cloud"]} label="Cloud">
+  <TabItem scope={["cloud"]} label="Teleport Cloud">
     ```code
     $ tsh login --proxy=mytenant.teleport.sh --user=alice
     $ tsh db ls
