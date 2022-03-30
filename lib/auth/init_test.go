@@ -979,11 +979,13 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 func TestMigrateDatabaseCA(t *testing.T) {
 	conf := setupConfig(t)
 
+	// Create only HostCA and UserCA. DatabaseCA should be created on Init().
 	hostCA := suite.NewTestCA(types.HostCA, "me.localhost")
 	userCA := suite.NewTestCA(types.UserCA, "me.localhost")
 
 	conf.Authorities = []types.CertAuthority{hostCA, userCA}
 
+	// Here is where migration happens.
 	auth, err := Init(conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
