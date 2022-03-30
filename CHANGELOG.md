@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.3.6
+
+This release of Teleport contains multiple fixes.
+
+* Fixed issue with message of the day not being displayed in some cases.
+  [#11371](https://github.com/gravitational/teleport/pull/11371)
+* Fixed issue with automatic node join script returning 404 in web UI.
+  [#11572](https://github.com/gravitational/teleport/pull/11572)
+* Fixed issue with tsh proxy jump not connecting to leaf proxy.
+  [#11497](https://github.com/gravitational/teleport/pull/11497)
+
 ## 8.3.5
 
 This release of Teleport contains multiple features, improvements and fixes.
