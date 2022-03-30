@@ -57,7 +57,8 @@ type sessionPlayer struct {
 	sessionEvents []events.EventFields
 	term          *terminal.Terminal
 
-	// stopC is used to tell the caller that player has finished playing
+	// stopC is called when playback ends (either because the end of the stream has
+	// been reached, or a hard stop was requested via EndPlayback().
 	stopC    chan int
 	stopOnce sync.Once
 }
