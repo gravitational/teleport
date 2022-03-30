@@ -75,15 +75,23 @@ Teleport is tracking. It is compatible with
 
 The following metrics are available:
 
+<Notice scope={["cloud"]} type="tip">
+
+Teleport Cloud does not expose monitoring endpoints for the Auth Service and Proxy Service.
+
+</Notice>
+
+## Auth Service and backends
+
 | Name | Type | Component | Description |
 | - | - | - | - |
 | `audit_failed_disk_monitoring` | counter | Teleport Audit Log | Number of times disk monitoring failed. |
-| `audit_failed_emit_events` | counter | Teleport Audit Log | Number of times emitting audit event failed. |
-| `audit_percentage_disk_space_used` | gauge | Teleport Audit Log | Percentage disk space used. |
+| `audit_failed_emit_events` | counter | Teleport Audit Log | Number of times emitting audit events failed. |
+| `audit_percentage_disk_space_used` | gauge | Teleport Audit Log | Percentage of disk space used. |
 | `audit_server_open_files` | gauge | Teleport Audit Log | Number of open audit files. |
-| `auth_generate_requests` | gauge | Teleport Auth | Number of current generate requests. |
 | `auth_generate_requests_throttled_total` | counter | Teleport Auth | Number of throttled requests to generate new server keys. |
 | `auth_generate_requests_total` | counter | Teleport Auth | Number of requests to generate new server keys. |
+| `auth_generate_requests` | gauge | Teleport Auth | Number of current generate requests. |
 | `auth_generate_seconds` | `histogram` | Teleport Auth | Latency for generate requests. |
 | `backend_batch_read_requests_total` | counter | cache | Number of read requests to the backend. |
 | `backend_batch_read_seconds` | histogram | cache | Latency for batch read operations. |
@@ -93,7 +101,6 @@ The following metrics are available:
 | `backend_read_seconds` | histogram | cache | Latency for read operations. |
 | `backend_write_requests_total` | counter | cache | Number of write requests to the backend. |
 | `backend_write_seconds` | histogram | cache | Latency for backend write operations. |
-| `certificate_mismatch_total` | counter | Teleport Proxy | Number of times there was a certificate mismatch. |
 | `cluster_name_not_found_total` | counter | Teleport Auth | Number of times a cluster was not found. |
 | `etcd_backend_batch_read_requests` | counter | etcd | Number of read requests to the etcd database. |
 | `etcd_backend_batch_read_seconds` | histogram | etcd | Latency for etcd read operations. |
@@ -103,70 +110,98 @@ The following metrics are available:
 | `etcd_backend_tx_seconds` | histogram | etcd | Latency for etcd transaction operations. |
 | `etcd_backend_write_requests` | counter | etcd | Number of write requests to the database. |
 | `etcd_backend_write_seconds` | histogram | etcd | Latency for etcd write operations. |
-| `failed_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of times a user failed connecting to a node |
-| `failed_login_attempts_total` | counter | Teleport Proxy | Number of failed `tsh login` or `tsh ssh` logins. |
 | `firestore_events_backend_batch_read_requests` | counter | GCP Cloud Firestore | Number of batch read requests to Cloud Firestore events. |
 | `firestore_events_backend_batch_read_seconds` | histogram | GCP Cloud Firestore | Latency for Cloud Firestore events batch read operations. |
 | `firestore_events_backend_batch_write_requests` | counter | GCP Cloud Firestore | Number of batch write requests to Cloud Firestore events. |
 | `firestore_events_backend_batch_write_seconds` | histogram | GCP Cloud Firestore | Latency for Cloud Firestore events batch write operations. |
+| `gcs_event_storage_downloads_seconds` | histogram | GCP GCS | Latency for GCS download operations. |
 | `gcs_event_storage_downloads` | counter | GCP GCS | Number of downloads from the GCS backend. |
-| `gcs_event_storage_downloads_seconds` | histogram | Internal GoLang | Latency for GCS download operations. |
-| `gcs_event_storage_uploads` | counter | Internal GoLang | Number of uploads to the GCS backend. |
-| `gcs_event_storage_uploads_seconds` | histogram | Internal GoLang | Latency for GCS upload operations. |
-| `go_gc_duration_seconds` | summary | Internal GoLang | A summary of the GC invocation durations. |
-| `go_goroutines` | gauge | Internal GoLang | Number of goroutines that currently exist. |
-| `go_info` | gauge | Internal GoLang | Information about the Go environment. |
-| `go_memstats_alloc_bytes` | gauge | Internal GoLang | Number of bytes allocated and still in use. |
-| `go_memstats_alloc_bytes_total` | counter | Internal GoLang | Total number of bytes allocated, even if freed. |
-| `go_memstats_buck_hash_sys_bytes` | gauge | Internal GoLang | Number of bytes used by the profiling bucket hash table. |
-| `go_memstats_frees_total` | counter | Internal GoLang | Total number of frees. |
-| `go_memstats_gc_cpu_fraction` | gauge | Internal GoLang | The fraction of this program's available CPU time used by the GC since the program started. |
-| `go_memstats_gc_sys_bytes` | gauge | Internal GoLang | Number of bytes used for garbage collection system metadata. |
-| `go_memstats_heap_alloc_bytes` | gauge | Internal GoLang | Number of heap bytes allocated and still in use. |
-| `go_memstats_heap_idle_bytes` | gauge | Internal GoLang | Number of heap bytes waiting to be used. |
-| `go_memstats_heap_inuse_bytes` | gauge | Internal GoLang | Number of heap bytes that are in use. |
-| `go_memstats_heap_objects` | gauge | Internal GoLang | Number of allocated objects. |
-| `go_memstats_heap_released_bytes` | gauge | Internal GoLang | Number of heap bytes released to OS. |
-| `go_memstats_heap_sys_bytes` | gauge | Internal GoLang | Number of heap bytes obtained from system. |
-| `go_memstats_last_gc_time_seconds` | gauge | Internal GoLang | Number of seconds since 1970 of last garbage collection. |
-| `go_memstats_lookups_total` | counter | Internal GoLang | Total number of pointer lookups. |
-| `go_memstats_mallocs_total` | counter | Internal GoLang | Total number of mallocs. |
-| `go_memstats_mcache_inuse_bytes` | gauge | Internal GoLang | Number of bytes in use by mcache structures. |
-| `go_memstats_mcache_sys_bytes` | gauge | Internal GoLang | Number of bytes used for mcache structures obtained from system. |
-| `go_memstats_mspan_inuse_bytes` | gauge | Internal GoLang | Number of bytes in use by mspan structures. |
-| `go_memstats_mspan_sys_bytes` | gauge | Internal GoLang | Number of bytes used for mspan structures obtained from system. |
-| `go_memstats_next_gc_bytes` | gauge | Internal GoLang | Number of heap bytes when next garbage collection will take place. |
-| `go_memstats_other_sys_bytes` | gauge | Internal GoLang | Number of bytes used for other system allocations. |
-| `go_memstats_stack_inuse_bytes` | gauge | Internal GoLang | Number of bytes in use by the stack allocator. |
-| `go_memstats_stack_sys_bytes` | gauge | Internal GoLang | Number of bytes obtained from system for stack allocator. |
-| `go_memstats_sys_bytes` | gauge | Internal GoLang | Number of bytes obtained from system. |
-| `go_threads` | gauge | Internal GoLang | Number of OS threads created. |
-| `heartbeat_connections_received_total` | counter | Teleport Auth | Number of times auth received a heartbeat connection. |
-| `heartbeat_connections_missed_total` | counter | Teleport Auth | Number of times auth did not receive a heartbeat from a node. |
-| `process_cpu_seconds_total` | counter | Internal GoLang | Total user and system CPU time spent in seconds. |
-| `process_max_fds` | gauge | Internal GoLang | Maximum number of open file descriptors. |
-| `process_open_fds` | gauge | Internal GoLang | Number of open file descriptors. |
-| `process_resident_memory_bytes` | gauge | Internal GoLang | Resident memory size in bytes. |
-| `process_start_time_seconds` | gauge | Internal GoLang | Start time of the process since unix epoch in seconds. |
-| `process_virtual_memory_bytes` | gauge | Internal GoLang | Virtual memory size in bytes. |
-| `process_virtual_memory_max_bytes` | gauge | Internal GoLang | Maximum amount of virtual memory available in bytes. |
-| `promhttp_metric_handler_requests_in_flight` | gauge | prometheus | Current number of scrapes being served. |
-| `promhttp_metric_handler_requests_total` | counter | prometheus | Total number of scrapes by HTTP status code. |
+| `gcs_event_storage_uploads_seconds` | histogram | GCP GCS | Latency for GCS upload operations. |
+| `gcs_event_storage_uploads` | counter | GCP GCS | Number of uploads to the GCS backend. |
+| `heartbeat_connections_missed_total` | counter | Teleport Auth | Number of times the Auth Service did not receive a heartbeat from a Node. |
+| `heartbeat_connections_received_total` | counter | Teleport Auth | Number of times the Auth Service received a heartbeat connection. |
+| `teleport_audit_emit_events` | counter | Teleport Audit Log | Number of audit events emitted. |
+| `teleport_connected_resources` | gauge | Teleport Auth | Number and type of resources connected via keepalives. |
+| `teleport_registered_servers` | gauge | Teleport Auth | The number of Teleport servers (a server consists of one or more Teleport services) that have connected to the Teleport cluster, including the Teleport version. After disconnecting, a Teleport server has a TTL of 10 minutes, so this value will include servers that have recently disconnected but have not reached their TTL. |
+| `user_login_total` | counter | Teleport Auth | Number of user logins. |
+| `watcher_event_sizes` | histogram | cache | Overall size of events emitted. |
+| `watcher_events` | histogram | cache | Per resource size of events emitted. |
+
+
+## Proxy Service
+
+| Name | Type | Component | Description |
+| - | - | - | - |
+| `failed_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of times a user failed connecting to a Node. |
+| `failed_login_attempts_total` | counter | Teleport Proxy | Number of failed `tsh login` or `tsh ssh` logins. |
 | `proxy_connection_limit_exceeded_total` | counter | Teleport Proxy | Number of connections that exceeded the proxy connection limit. |
 | `proxy_missing_ssh_tunnels` | gauge | Teleport Proxy | Number of missing SSH tunnels. Used to debug if nodes have discovered all proxies. |
+| `teleport_reverse_tunnels_connected` | gauge | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances. |
+
+## Teleport Nodes
+
+| Name | Type | Component | Description |
+| - | - | - | - |
+| `user_max_concurrent_sessions_hit_total` | counter | Teleport Node | Number of times a user exceeded their concurrent session limit. |
+
+## All Teleport instances
+
+| Name | Type | Component | Description |
+| - | - | - | - |
+| `certificate_mismatch_total` | counter | Teleport | Number of SSH server login failures due to a certificate mismatch. |
 | `reversetunnel_connected_proxies` | gauge | Teleport | Number of known proxies being sought. |
-| `rx` | counter | Teleport | Number of bytes received. |
+| `rx` | counter | Teleport | Number of bytes received during an SSH connection. |
 | `server_interactive_sessions_total` | gauge | Teleport | Number of active sessions. |
-| `teleport_audit_emit_events` | counter | Teleport Audit Log | Number of audit events emitted. |
 | `teleport_build_info` | gauge | Teleport | Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1. |
 | `teleport_cache_events` | counter | Teleport | Number of events received by a Teleport service cache. Teleport's Auth Service, Proxy Service, and other services cache incoming events related to their service. |
 | `teleport_cache_stale_events` | counter | Teleport | Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend. |
-| `teleport_connected_resources` | gauge | Teleport Auth | Tracks the number and type of resources connected via keepalives. |
-| `teleport_registered_servers` | gauge | Teleport Auth | The number of Teleport servers (a server consists of one or more Teleport services) that have connected to the Teleport cluster, including the Teleport version. After disconnecting, a Teleport server has a TTL of 10 minutes, so this value will include servers that have recently disconnected but have not reached their TTL. |
-| `teleport_reverse_tunnels_connected` | gauge | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances. |
 | `trusted_clusters` | gauge | Teleport | Number of tunnels per state. |
-| `tx` | counter | Teleport | Number of bytes transmitted. |
-| `user_login_total` | counter | Teleport Auth | Number of user logins. |
-| `user_max_concurrent_sessions_hit_total` | counter | Teleport Node | Number of times a user exceeded their concurrent session limit. |
-| `watcher_events` | histogram | cache | Per resource size of events emitted. |
-| `watcher_event_sizes` | histogram | cache | Overall size of events emitted. |
+| `tx` | counter | Teleport | Number of bytes transmitted during an SSH connection. |
+
+
+## Golang runtime metrics
+
+| Name | Type | Component | Description |
+| - | - | - | - |
+| `go_gc_duration_seconds` | summary | Internal Golang | A summary of GC invocation durations. |
+| `go_goroutines` | gauge | Internal Golang | Number of goroutines that currently exist. |
+| `go_info` | gauge | Internal Golang | Information about the Go environment. |
+| `go_memstats_alloc_bytes_total` | counter | Internal Golang | Total number of bytes allocated, even if freed. |
+| `go_memstats_alloc_bytes` | gauge | Internal Golang | Number of bytes allocated and still in use. |
+| `go_memstats_buck_hash_sys_bytes` | gauge | Internal Golang | Number of bytes used by the profiling bucket hash table. |
+| `go_memstats_frees_total` | counter | Internal Golang | Total number of frees. |
+| `go_memstats_gc_cpu_fraction` | gauge | Internal Golang | The fraction of this program's available CPU time used by the GC since the program started. |
+| `go_memstats_gc_sys_bytes` | gauge | Internal Golang | Number of bytes used for garbage collection system metadata. |
+| `go_memstats_heap_alloc_bytes` | gauge | Internal Golang | Number of heap bytes allocated and still in use. |
+| `go_memstats_heap_idle_bytes` | gauge | Internal Golang | Number of heap bytes waiting to be used. |
+| `go_memstats_heap_inuse_bytes` | gauge | Internal Golang | Number of heap bytes that are in use. |
+| `go_memstats_heap_objects` | gauge | Internal Golang | Number of allocated objects. |
+| `go_memstats_heap_released_bytes` | gauge | Internal Golang | Number of heap bytes released to the OS. |
+| `go_memstats_heap_sys_bytes` | gauge | Internal Golang | Number of heap bytes obtained from the system. |
+| `go_memstats_last_gc_time_seconds` | gauge | Internal Golang | Number of seconds since the Unix epoch of the last garbage collection. |
+| `go_memstats_lookups_total` | counter | Internal Golang | Total number of pointer lookups. |
+| `go_memstats_mallocs_total` | counter | Internal Golang | Total number of mallocs. |
+| `go_memstats_mcache_inuse_bytes` | gauge | Internal Golang | Number of bytes in use by mcache structures. |
+| `go_memstats_mcache_sys_bytes` | gauge | Internal Golang | Number of bytes used for mcache structures obtained from system. |
+| `go_memstats_mspan_inuse_bytes` | gauge | Internal Golang | Number of bytes in use by mspan structures. |
+| `go_memstats_mspan_sys_bytes` | gauge | Internal Golang | Number of bytes used for mspan structures obtained from system. |
+| `go_memstats_next_gc_bytes` | gauge | Internal Golang | Number of heap bytes when next the garbage collection will take place. |
+| `go_memstats_other_sys_bytes` | gauge | Internal Golang | Number of bytes used for other system allocations. |
+| `go_memstats_stack_inuse_bytes` | gauge | Internal Golang | Number of bytes in use by the stack allocator. |
+| `go_memstats_stack_sys_bytes` | gauge | Internal Golang | Number of bytes obtained from the system for stack allocator. |
+| `go_memstats_sys_bytes` | gauge | Internal Golang | Number of bytes obtained from the system. |
+| `go_threads` | gauge | Internal Golang | Number of OS threads created. |
+| `process_cpu_seconds_total` | counter | Internal Golang | Total user and system CPU time spent in seconds. |
+| `process_max_fds` | gauge | Internal Golang | Maximum number of open file descriptors. |
+| `process_open_fds` | gauge | Internal Golang | Number of open file descriptors. |
+| `process_resident_memory_bytes` | gauge | Internal Golang | Resident memory size in bytes. |
+| `process_start_time_seconds` | gauge | Internal Golang | Start time of the process since the Unix epoch in seconds. |
+| `process_virtual_memory_bytes` | gauge | Internal Golang | Virtual memory size in bytes. |
+| `process_virtual_memory_max_bytes` | gauge | Internal Golang | Maximum amount of virtual memory available in bytes. |
+
+## Prometheus
+
+| Name | Type | Component | Description |
+| - | - | - | - |
+| `promhttp_metric_handler_requests_in_flight` | gauge | prometheus | Current number of scrapes being served. |
+| `promhttp_metric_handler_requests_total` | counter | prometheus | Total number of scrapes by HTTP status code. |
