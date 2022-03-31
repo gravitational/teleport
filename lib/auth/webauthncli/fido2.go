@@ -155,18 +155,17 @@ func fido2Login(
 	deviceCallback := func(dev FIDODevice, info *deviceInfo, pin string) error {
 		creds := allowedCreds
 		var uName string
-		if passwordless {
-			cred, err := getPasswordlessCredentials(dev, info, pin, rpID, opts)
+		switch {
+		case passwordless && opts.OptimisticAssertion && info.bioEnroll:
+			log.Debugf("FIDO2: Using optimistic assertion for biometric device")
+		case passwordless:
+			cred, err := getPasswordlessCredentials(dev, pin, rpID, opts.User)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if cred != nil {
-				creds = [][]byte{cred.ID}
-				uName = cred.User.Name
-			}
-		}
+			creds = [][]byte{cred.ID}
+			uName = cred.User.Name
 
-		if optimistic := len(creds) == 0; passwordless && !optimistic {
 			// Ask for another touch before the assertion, we used the first touch
 			// in the Credentials() call.
 			prompt.PromptTouch()
@@ -231,12 +230,7 @@ func fido2Login(
 	}, username, nil
 }
 
-func getPasswordlessCredentials(dev FIDODevice, info *deviceInfo, pin, rpID string, opts *LoginOpts) (*libfido2.Credential, error) {
-	if opts.OptimisticAssertion && info.bioEnroll {
-		log.Debugf("FIDO2: Using optimistic assertion for biometric device")
-		return nil, nil
-	}
-
+func getPasswordlessCredentials(dev FIDODevice, pin, rpID, user string) (*libfido2.Credential, error) {
 	creds, err := dev.Credentials(rpID, pin)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -245,7 +239,6 @@ func getPasswordlessCredentials(dev FIDODevice, info *deviceInfo, pin, rpID stri
 	// TODO(codingllama): After this line we should cancel other devices,
 	//  the user picked the current one.
 
-	user := opts.User
 	if user != "" {
 		log.Debugf("FIDO2: Searching credentials for user %q", user)
 	}
