@@ -848,7 +848,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	}
 
 	if cf.HomePath != "" {
-		v.Exec.Env[homeEnvVar] = cf.HomePath
+		v.Exec.Env[types.HomeEnvVar] = cf.HomePath
 	}
 
 	// Only switch the current context if kube-cluster is explicitly set on the command line.
