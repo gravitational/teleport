@@ -641,6 +641,13 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	}
 
+	// TODO(espadolini): DELETE IN 11.0, replace with
+	// os.RemoveAll(filepath.Join(cfg.DataDir, "cache")), because no stable v10
+	// should ever use the cache directory, and 11 requires upgrading from 10
+	if fi, err := os.Stat(filepath.Join(cfg.DataDir, "cache")); err == nil && fi.IsDir() {
+		cfg.Log.Warnf("An old cache directory exists at %q. It can be safely deleted after ensuring that no other Teleport instance is running.", filepath.Join(cfg.DataDir, "cache"))
+	}
+
 	if len(cfg.FileDescriptors) == 0 {
 		cfg.FileDescriptors, err = importFileDescriptors(cfg.Log)
 		if err != nil {
@@ -1319,7 +1326,6 @@ func (process *TeleportProcess) initAuthService() error {
 			services:  authServer.Services,
 			setup:     cache.ForAuth,
 			cacheName: []string{teleport.ComponentAuth},
-			inMemory:  true,
 			events:    true,
 		})
 		if err != nil {
@@ -1539,13 +1545,8 @@ type accessCacheConfig struct {
 	setup cache.SetupConfigFn
 	// cacheName is a cache name
 	cacheName []string
-	// inMemory is true if cache
-	// should use memory
-	inMemory bool
 	// events is true if cache should turn on events
 	events bool
-	// pollPeriod contains period for polling
-	pollPeriod time.Duration
 }
 
 func (c *accessCacheConfig) CheckAndSetDefaults() error {
@@ -1558,9 +1559,6 @@ func (c *accessCacheConfig) CheckAndSetDefaults() error {
 	if len(c.cacheName) == 0 {
 		return trace.BadParameter("missing parameter cacheName")
 	}
-	if c.pollPeriod == 0 {
-		c.pollPeriod = defaults.CachePollPeriod
-	}
 	return nil
 }
 
@@ -1569,39 +1567,18 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var cacheBackend backend.Backend
-	if cfg.inMemory {
-		process.log.Debugf("Creating in-memory backend for %v.", cfg.cacheName)
-		mem, err := memory.New(memory.Config{
-			Context:   process.ExitContext(),
-			EventsOff: !cfg.events,
-			Mirror:    true,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cacheBackend = mem
-	} else {
-		process.log.Debugf("Creating sqlite backend for %v.", cfg.cacheName)
-		path := filepath.Join(append([]string{process.Config.DataDir, "cache"}, cfg.cacheName...)...)
-		if err := os.MkdirAll(path, teleport.SharedDirMode); err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
-		liteBackend, err := lite.NewWithConfig(process.ExitContext(),
-			lite.Config{
-				Path:             path,
-				EventsOff:        !cfg.events,
-				Mirror:           true,
-				PollStreamPeriod: 100 * time.Millisecond,
-			})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cacheBackend = liteBackend
+	process.log.Debugf("Creating in-memory backend for %v.", cfg.cacheName)
+	mem, err := memory.New(memory.Config{
+		Context:   process.ExitContext(),
+		EventsOff: !cfg.events,
+		Mirror:    true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentCache,
-		Backend:   cacheBackend,
+		Backend:   mem,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1756,7 +1733,6 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 // newLocalCache returns new instance of access point
 func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
 	return process.newAccessCache(accessCacheConfig{
-		inMemory:  process.Config.CachePolicy.Type == memory.GetName(),
 		services:  clt,
 		setup:     setupConfig,
 		cacheName: cacheName,
