@@ -143,6 +143,11 @@ func Run(commands []CLICommand) {
 		return
 	}
 
+	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
+	if cfg.TeleportHome != "" {
+		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
+	}
+
 	// configure all commands with Teleport configuration (they share 'cfg')
 	clientConfig, err := applyConfig(&ccf, cfg)
 	if err != nil {
@@ -386,7 +391,7 @@ func loadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServi
 	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found active profile.")
 
 	c := client.MakeDefaultConfig()
-	if err := c.LoadProfile("", proxyAddr); err != nil {
+	if err := c.LoadProfile(cfg.TeleportHome, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	keyStore, err := client.NewFSLocalKeyStore(c.KeysDir)
