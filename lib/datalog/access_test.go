@@ -360,6 +360,7 @@ func (s *AccessTestSuite) TestFiltering(c *check.C) {
 
 	access = NodeAccessRequest{Username: "julia", Login: "julia", Node: "secret.example.com"}
 	resp, err = QueryNodeAccess(ctx, s.client, access)
+	c.Assert(err, check.IsNil)
 	denyTestOutput := [][]string{
 		{"julia", "julia", types.Wildcard, "auditor"},
 	}

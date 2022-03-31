@@ -31,8 +31,9 @@ import (
 // logins.
 // It returns an MFAAuthenticateResponse and the credential user, if a resident
 // credential is used.
-// The caller is expected to prompt the user for action before calling this
-// method.
+// The caller is expected to react to LoginPrompt in order to prompt the user at
+// appropriate times. Login may choose different flows depending on the type of
+// authentication and connected devices.
 func Login(
 	ctx context.Context,
 	origin string, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt,
@@ -42,6 +43,7 @@ func Login(
 		return FIDO2Login(ctx, origin, user, assertion, prompt)
 	}
 
+	prompt.PromptTouch()
 	resp, err := U2FLogin(ctx, origin, assertion)
 	return resp, "" /* credentialUser */, err
 }
@@ -50,8 +52,9 @@ func Login(
 // This method blocks until either device authentication is successful or the
 // context is cancelled. Calling Register without a deadline or cancel condition
 // may cause it block forever.
-// The caller is expected to prompt the user for action before calling this
-// method.
+// The caller is expected to react to RegisterPrompt in order to prompt the user
+// at appropriate times. Register may choose different flows depending on the
+// type of authentication and connected devices.
 func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
@@ -60,5 +63,6 @@ func Register(
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
 
+	prompt.PromptTouch()
 	return U2FRegister(ctx, origin, cc)
 }

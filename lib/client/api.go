@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -2592,20 +2593,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	return key, nil
 }
 
-type pwdlessPrompt struct {
-	ctx context.Context
-	out io.Writer
-}
-
-func (p *pwdlessPrompt) PromptPIN() (string, error) {
-	return prompt.Password(p.ctx, p.out, prompt.Stdin(), "Enter your security key PIN")
-}
-
-func (p *pwdlessPrompt) PromptAdditionalTouch() error {
-	fmt.Fprintln(p.out, "Tap your security key again to complete login")
-	return nil
-}
-
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {
 	webClient, webURL, err := initClient(tc.WebProxyAddr, tc.InsecureSkipVerify, loopbackPool(tc.WebProxyAddr))
 	if err != nil {
@@ -2632,8 +2619,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
 	}
 
-	prompt := &pwdlessPrompt{ctx: ctx, out: tc.Stderr}
-	fmt.Fprintln(tc.Stderr, "Tap your security key")
+	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
 	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3520,8 +3506,8 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 		}
 	}
 
-	errorCh := make(chan error)
 	player := newSessionPlayer(sessionEvents, stream, term)
+	errorCh := make(chan error)
 	// keys:
 	const (
 		keyCtrlC = 3
@@ -3534,7 +3520,7 @@ func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	)
 	// playback control goroutine
 	go func() {
-		defer player.RequestStop()
+		defer player.EndPlayback()
 		var key [1]byte
 		for {
 			_, err := term.Stdin().Read(key[:])
