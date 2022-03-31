@@ -254,6 +254,10 @@ type Config struct {
 
 	// ConnectFailureC is a channel to notify of failures to connect to auth (used in tests).
 	ConnectFailureC chan time.Duration
+
+	// TeleportHome is the path to tsh configuration and data, used
+	// for loading profiles when TELEPORT_HOME is set
+	TeleportHome string
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
