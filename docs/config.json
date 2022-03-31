@@ -167,6 +167,10 @@
             {
               "title": "Joining Nodes via AWS EC2",
               "slug": "/setup/guides/joining-nodes-aws-ec2/"
+            },
+            {
+              "title": "Using Teleport's CA with GitHub",
+              "slug": "/setup/guides/ssh-key-extensions/"
             }
           ]
         },
@@ -321,14 +325,18 @@
         {
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
-          "entries": [
-            {
-              "title": "Cluster",
-              "slug": "/kubernetes-access/getting-started/cluster/"
+           "entries": [
+            { 
+              "title": "Local Demo Cluster", 
+              "slug": "/kubernetes-access/getting-started/local/"
             },
-            {
-              "title": "Agent",
-              "slug": "/kubernetes-access/getting-started/agent/"
+            { 
+              "title": "Cluster", 
+              "slug": "/kubernetes-access/getting-started/cluster/" 
+            },
+            { 
+              "title": "Agent", 
+              "slug": "/kubernetes-access/getting-started/agent/" 
             }
           ]
         },
@@ -563,7 +571,7 @@
       ]
     },
     {
-      "icon": "wand",
+      "icon": "chip",
       "title": "Machine ID",
       "entries": [
         {
@@ -595,6 +603,10 @@
             {
               "title": "Machine ID with Ansible",
               "slug": "/machine-id/guides/ansible/"
+            },
+            {
+              "title": "Machine ID with Jenkins",
+              "slug": "/machine-id/guides/jenkins/"
             }
           ]
         }
@@ -765,6 +777,10 @@
           "slug": "/cloud/architecture/"
         },
         {
+          "title": "Downloads",
+          "slug": "/cloud/downloads/"
+        },
+        {
           "title": "FAQ",
           "slug": "/cloud/faq/"
         }
@@ -855,6 +871,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
+      "version": "8.3.4",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"

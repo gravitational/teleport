@@ -209,10 +209,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.Backend = backend.NewSanitizer(b)
 
 	localLog, err := events.NewAuditLog(events.AuditLogConfig{
-		DataDir:        cfg.Dir,
-		RecordSessions: true,
-		ServerID:       cfg.ClusterName,
-		UploadHandler:  events.NewMemoryUploader(),
+		DataDir:       cfg.Dir,
+		ServerID:      cfg.ClusterName,
+		UploadHandler: events.NewMemoryUploader(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

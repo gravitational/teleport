@@ -30,10 +30,10 @@ var FIDO2PollInterval = 200 * time.Millisecond
 type LoginPrompt interface {
 	// PromptPIN prompts the user for their PIN.
 	PromptPIN() (string, error)
-	// PromptAdditionalTouch prompts the user for an additional security key
-	// touch.
-	// Additional touches may be required after PINs and during passwordless flows.
-	PromptAdditionalTouch() error
+	// PromptTouch prompts the user for a security key touch.
+	// In certain situations multiple touches may be required (PIN-protected
+	// devices, passwordless flows, etc).
+	PromptTouch()
 }
 
 // FIDO2Login implements Login for CTAP1 and CTAP2 devices.
@@ -56,10 +56,10 @@ func FIDO2Login(
 type RegisterPrompt interface {
 	// PromptPIN prompts the user for their PIN.
 	PromptPIN() (string, error)
-	// PromptAdditionalTouch prompts the user for an additional security key
-	// touch.
-	// Additional touches may be required after PINs.
-	PromptAdditionalTouch() error
+	// PromptTouch prompts the user for a security key touch.
+	// In certain situations multiple touches may be required (eg, PIN-protected
+	// devices)
+	PromptTouch()
 }
 
 // FIDO2Register implements Register for CTAP1 and CTAP2 devices.

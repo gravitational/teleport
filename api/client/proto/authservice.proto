@@ -465,6 +465,8 @@ message Features {
     bool HSM = 9 [ (gogoproto.jsontag) = "hsm" ];
     // Desktop enables desktop access product
     bool Desktop = 10 [ (gogoproto.jsontag) = "desktop" ];
+    // ModeratedSessions enables moderated sessions product
+    bool ModeratedSessions = 11 [ (gogoproto.jsontag) = "moderated_sessions" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

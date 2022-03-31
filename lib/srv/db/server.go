@@ -575,6 +575,12 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// If the agent doesn’t have any static databases configured, send a
+	// heartbeat without error to make the component “ready”.
+	if len(s.cfg.Databases) == 0 && s.cfg.OnHeartbeat != nil {
+		s.cfg.OnHeartbeat(nil)
+	}
+
 	return nil
 }
 
