@@ -942,7 +942,7 @@ mod tests {
         // First response - our client capabilities:
         let mut payload = Cursor::new(responses[0].clone());
         let _pdu_header = vchan::ChannelPDUHeader::decode(&mut payload).unwrap();
-        let header = <ClipboardPDUHeader>::decode(&mut payload).unwrap();
+        let header = ClipboardPDUHeader::decode(&mut payload).unwrap();
         assert_eq!(header.msg_type, ClipboardPDUType::CB_CLIP_CAPS);
 
         let capabilities = ClipboardCapabilitiesPDU::decode(&mut payload).unwrap();

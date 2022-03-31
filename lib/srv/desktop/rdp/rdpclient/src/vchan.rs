@@ -22,7 +22,7 @@ use rdp::try_let;
 use std::io::{Cursor, Read};
 
 /// Client is a general client for handling virtual channel payloads.
-/// It's read method can read an RDP message sent in multiple chunks
+/// Its read method can read an RDP message sent in multiple chunks
 /// (or a single chunk) over a virtual channel.
 /// See https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/343e4888-4c48-4054-b0e3-4e0762d1993c
 /// for more information about chunks.
