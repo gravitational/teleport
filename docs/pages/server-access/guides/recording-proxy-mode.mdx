@@ -31,7 +31,7 @@ level for two reasons:
 - It grants additional privileges to the Teleport Proxy Service. In the default Node Recording mode, the Proxy Service stores no secrets and cannot "see" the decrypted data. This makes a Proxy Server less critical to the security of the overall cluster. But if an attacker gains physical access to a Proxy Server running in Proxy Recording mode, they will be able to see the decrypted traffic and client keys stored in the Proxy Server's process memory.
 - Recording Proxy Mode requires the use of SSH agent forwarding. Agent forwarding is required because without it, a Proxy Server will not be able to establish a second connection to the destination node.
 
-Teleport proxy should be available to clients and be set up with TLS.
+The Teleport Proxy Service should be available to clients and set up with TLS.
 
 ## Prerequisites
 

@@ -28,14 +28,14 @@ This guide introduces some of these common scenarios and how to interact with Te
 <Tabs>
 <TabItem scope={["oss"]} label="Self-Hosted">
 
-- A running Teleport cluster, version >= 7.0.0. For details on how to set this up,
+- A running Teleport cluster, version >= (=teleport.version=). For details on how to set this up,
   see [Getting Started on a Linux
   Server](../getting-started/linux-server.mdx).
 
 - One host running your favorite Linux environment (such as Ubuntu 20.04, CentOS
   8.0-1905, or Debian 10). This will serve as a Teleport Server Access Node.
 
-- Teleport (=teleport.version=) installed locally.
+- The `tsh` client tool version >= (=teleport.version=).
 
   See [Installation](../installation.mdx) for details.
 
@@ -43,12 +43,15 @@ This guide introduces some of these common scenarios and how to interact with Te
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
-- A running Teleport cluster, version >= 7.0.0. For details on setting this up, see
+- A running Teleport cluster, version >= (=teleport.version=). For details on setting this up, see
   our [Enterprise getting started guide](../enterprise/getting-started.mdx).
+
 - One host running your favorite Linux environment (such as Ubuntu 20.04, CentOS
-  8.0-1905, or Debian 10). This will serve as a Teleport Server Access Node.
-- Teleport Enterprise (=teleport.version=) installed locally. You can download
-  this by visiting the
+  8, or Debian 10). This will serve as a Teleport Server Access Node.
+  
+- The `tsh` client tool version >= (=teleport.version=).
+
+  You can download this by visiting the
   [customer portal](https://dashboard.gravitational.com/web/login).
 
 
@@ -62,9 +65,9 @@ This guide introduces some of these common scenarios and how to interact with Te
 - One host running your favorite Linux environment (such as Ubuntu 20.04, CentOS
   8.0-1905, or Debian 10). This will serve as a Teleport Server Access Node.
   
-- Teleport (=teleport.version=) installed locally.
+- The `tsh` and `tctl` client tools version >= (=teleport.version=).
 
-  See [Installation](../installation.mdx) for details.
+  See [Teleport Cloud Downloads](../cloud/downloads.mdx) for details.
 
 </TabItem>
 </Tabs>
@@ -99,7 +102,6 @@ Next, create a join token so you can add the Node to your Teleport cluster.
 $ sudo tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
 ```
 
-Each Teleport Node can be configured to run as an enhanced SSH server.
 `--type=node` specifies that the Teleport Node will act and join as an SSH
 server.
 
@@ -155,7 +157,7 @@ $ sudo tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-
 This will generate an initial login link where you can create a password and set up two-factor authentication for `tele-admin`.
 
 <Admonition type="note" title="Note">
-   We've only given `tele-admin` the roles `editor` and `access` according to the *Principle of Least Privilege* (POLP).
+   We've only given `tele-admin` the roles `editor` and `access` according to the Principle of Least Privilege.
 </Admonition>
 
 You should now be able to view your Teleport Node in the Teleport Web UI after
@@ -208,14 +210,14 @@ You'll be prompted to supply the password and second factor we set up previously
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```txt
-Profile URL:        https://tele.example.com:443
-   Logged in as:       tele-admin
-   Cluster:            tele.example.com
-   Roles:              access, editor
-   Logins:             root, ubuntu, ec2-user
-   Kubernetes:         disabled
-   Valid until:        2021-04-30 06:39:13 -0500 CDT [valid for 12h0m0s]
-   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+> Profile URL:        https://tele.example.com:443
+Logged in as:       tele-admin
+Cluster:            tele.example.com
+Roles:              access, editor
+Logins:             root, ubuntu, ec2-user
+Kubernetes:         disabled
+Valid until:        2021-04-30 06:39:13 -0500 CDT [valid for 12h0m0s]
+Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
 In this example, `tele-admin` is now logged into the `tele.example.com` cluster
@@ -226,14 +228,14 @@ through Teleport SSH.
 <ScopedBlock scope={["cloud"]}>
 
 ```txt
-Profile URL:        https://mytenant.teleport.sh:443
-   Logged in as:       tele-admin
-   Cluster:            mytenant.teleport.sh
-   Roles:              access, editor
-   Logins:             root, ubuntu, ec2-user
-   Kubernetes:         disabled
-   Valid until:        2021-04-30 06:39:13 -0500 CDT [valid for 12h0m0s]
-   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+> Profile URL:        https://mytenant.teleport.sh:443
+Logged in as:       tele-admin
+Cluster:            mytenant.teleport.sh
+Roles:              access, editor
+Logins:             root, ubuntu, ec2-user
+Kubernetes:         disabled
+Valid until:        2021-04-30 06:39:13 -0500 CDT [valid for 12h0m0s]
+Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
 In this example, `tele-admin` is now logged into the `mytenant.teleport.sh`
