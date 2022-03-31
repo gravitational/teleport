@@ -122,7 +122,16 @@ func TestDatabaseAccessPostgresLeafCluster(t *testing.T) {
 }
 
 func TestDatabaseRotateTrustedCluster(t *testing.T) {
-	pack := setupDatabaseTest(t)
+	pack := setupDatabaseTest(t,
+		// set tighter rotation intervals
+		withLeafConfig(func(config *service.Config) {
+			config.PollingPeriod = 5 * time.Second
+			config.RotationConnectionInterval = 2 * time.Second
+		}),
+		withRootConfig(func(config *service.Config) {
+			config.PollingPeriod = 5 * time.Second
+			config.RotationConnectionInterval = 2 * time.Second
+		}))
 	pack.waitForLeaf(t)
 
 	var (
@@ -189,6 +198,7 @@ func TestDatabaseRotateTrustedCluster(t *testing.T) {
 			require.NoError(t, err)
 		}
 
+		// Reload doesn't happen on Init
 		if phase == types.RotationPhaseInit {
 			continue
 		}
@@ -205,7 +215,7 @@ func TestDatabaseRotateTrustedCluster(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	// Sanity check. Check if the key was really rotated.
+	// Sanity check. Check if the CA was rotated.
 	require.NotEqual(t, currentDbCA.GetActiveKeys(), rotatedDbCA.GetActiveKeys())
 
 	// Connect to the database service in leaf cluster via root cluster.
@@ -236,6 +246,7 @@ func TestDatabaseRotateTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// phaseWatcher holds all arguments required by rotation watcher.
 type phaseWatcher struct {
 	clusterRootName string
 	pollingPeriod   time.Duration
@@ -244,7 +255,8 @@ type phaseWatcher struct {
 	certType        types.CertAuthType
 }
 
-// waitForPhase waits until rootCluster cluster detects the rotation
+// waitForPhase waits until rootCluster cluster detects the rotation. fn is a rotation function that is called after
+// watcher is created.
 func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.pollingPeriod*10)
 	defer cancel()
@@ -973,8 +985,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
-	rcConf.PollingPeriod = 5 * time.Second
-	rcConf.RotationConnectionInterval = 2 * time.Second
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -987,8 +997,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
-	lcConf.PollingPeriod = 5 * time.Second
-	lcConf.RotationConnectionInterval = 2 * time.Second
 	if opts.leafConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1059,8 +1067,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.mongoService,
 	}
 	rdConf.Clock = p.clock
-	rdConf.PollingPeriod = 5 * time.Second
-	rdConf.RotationConnectionInterval = 2 * time.Second
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
 
@@ -1100,8 +1106,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.leaf.mongoService,
 	}
 	ldConf.Clock = p.clock
-	ldConf.PollingPeriod = 5 * time.Second
-	ldConf.RotationConnectionInterval = 2 * time.Second
 	p.leaf.dbProcess, p.leaf.dbAuthClient, err = p.leaf.cluster.StartDatabase(ldConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {

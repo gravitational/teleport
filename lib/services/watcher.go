@@ -977,8 +977,10 @@ type caCollector struct {
 // CertAuthorityMap maps clusterName -> types.CertAuthority
 type CertAuthorityMap map[string]types.CertAuthority
 
+// CertAuthorityTypeMap maps types.CertAuthType -> map(clusterName -> types.CertAuthority)
 type CertAuthorityTypeMap map[types.CertAuthType]CertAuthorityMap
 
+// ToSlice converts CertAuthorityTypeMap to a slice.
 func (cat *CertAuthorityTypeMap) ToSlice() []types.CertAuthority {
 	slice := make([]types.CertAuthority, 0)
 	for _, cert := range *cat {
