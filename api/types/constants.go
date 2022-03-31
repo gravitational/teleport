@@ -33,6 +33,10 @@ const (
 	// True holds "true" string value
 	True = "true"
 
+	// HomeEnvVar specifies the home location for tsh configuration
+	// and data
+	HomeEnvVar = "TELEPORT_HOME"
+
 	// KindNamespace is a namespace
 	KindNamespace = "namespace"
 
