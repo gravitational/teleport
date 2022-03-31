@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -222,7 +221,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 			fmt.Printf("export %v=%v\n", k, v)
 		}
 	case dbFormatJSON:
-		out, err := json.MarshalIndent(env, "", "  ")
+		out, err := utils.FastMarshalIndent(env, "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -234,7 +233,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 		}
 		fmt.Println(string(out))
 	default:
-		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+		return trace.BadParameter("unsupported format. try 'json', 'yaml', or 'text'")
 	}
 
 	return nil
@@ -300,7 +299,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 		var out []byte
 		var err error
 		if format == dbFormatJSON {
-			out, err = json.MarshalIndent(dbConfigInfo, "", "  ")
+			out, err = utils.FastMarshalIndent(dbConfigInfo, "", "  ")
 		} else {
 			out, err = yaml.Marshal(dbConfigInfo)
 		}

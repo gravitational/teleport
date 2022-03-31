@@ -163,7 +163,7 @@ func onRequestShow(cf *CLIConf) error {
 		}
 		fmt.Println(string(out))
 	default:
-		return trace.BadParameter("unsupported format. try 'json' or 'text'")
+		return trace.BadParameter("unsupported format. try 'json', 'yaml', or 'text'")
 	}
 	return nil
 }

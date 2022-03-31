@@ -212,6 +212,15 @@ func onAppConfig(cf *CLIConf) error {
 
 func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) (string, error) {
 	uri := fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
+	curlCmd := fmt.Sprintf(`curl \
+  --cacert %v \
+  --cert %v \
+  --key %v \
+  %v`,
+		profile.CACertPathForCluster(cluster),
+		profile.AppCertPath(appName),
+		profile.KeyPath(),
+		uri)
 	format = strings.ToLower(format)
 	switch format {
 	case appFormatURI:
@@ -223,15 +232,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 	case appFormatKey:
 		return profile.KeyPath(), nil
 	case appFormatCURL:
-		return fmt.Sprintf(`curl \
-  --cacert %v \
-  --cert %v \
-  --key %v \
-  %v`,
-			profile.CACertPathForCluster(cluster),
-			profile.AppCertPath(appName),
-			profile.KeyPath(),
-			uri), nil
+		return curlCmd, nil
 	case appFormatJSON, appFormatYAML:
 		appConfig := struct {
 			Name string `json:"name"`
@@ -239,9 +240,10 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 			CA   string `json:"ca"`
 			Cert string `json:"cert"`
 			Key  string `json:"key"`
+			Curl string `json:"curl"`
 		}{
 			appName, uri, profile.CACertPathForCluster(cluster),
-			profile.AppCertPath(appName), profile.KeyPath(),
+			profile.AppCertPath(appName), profile.KeyPath(), curlCmd,
 		}
 		var out []byte
 		var err error
