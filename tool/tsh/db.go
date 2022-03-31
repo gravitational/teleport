@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -226,6 +227,12 @@ func onDatabaseEnv(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		fmt.Println(string(out))
+	case dbFormatYAML:
+		out, err := yaml.Marshal(env)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
 	default:
 		return trace.BadParameter("unsupported format. try 'json' or 'text'")
 	}
@@ -265,14 +272,16 @@ func onDatabaseConfig(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unknown database protocol: %q", database)
 	}
-	switch cf.Format {
+
+	format := strings.ToLower(cf.Format)
+	switch format {
 	case dbFormatCommand:
 		cmd, err := newCmdBuilder(tc, profile, database, rootCluster).getConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Println(cmd.Path, strings.Join(cmd.Args[1:], " "))
-	case dbFormatJSON:
+	case dbFormatJSON, dbFormatYAML:
 		data := struct {
 			Name     string `json:"name"`
 			Host     string `json:"host"`
@@ -288,7 +297,13 @@ func onDatabaseConfig(cf *CLIConf) error {
 			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
 			profile.KeyPath(),
 		}
-		out, err := json.MarshalIndent(data, "", "  ")
+		var out []byte
+		var err error
+		if format == dbFormatJSON {
+			out, err = json.MarshalIndent(data, "", "  ")
+		} else {
+			out, err = yaml.Marshal(data)
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -665,4 +680,6 @@ const (
 	dbFormatCommand = "cmd"
 	// dbFormatJSON prints database info as JSON.
 	dbFormatJSON = "json"
+	// dbFormatYAML prints database info as YAML.
+	dbFormatYAML = "yaml"
 )

@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -100,17 +101,24 @@ func onRequestList(cf *CLIConf) error {
 		}
 		reqs = filtered
 	}
-	switch cf.Format {
+	format := strings.ToLower(cf.Format)
+	switch format {
 	case teleport.Text:
 		if err := showRequestTable(reqs); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:
-		ser, err := json.MarshalIndent(reqs, "", "  ")
+		out, err := json.MarshalIndent(reqs, "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("%s\n", ser)
+		fmt.Println(string(out))
+	case teleport.YAML:
+		out, err := yaml.Marshal(reqs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
@@ -144,6 +152,12 @@ func onRequestShow(cf *CLIConf) error {
 		}
 	case teleport.JSON:
 		out, err := json.MarshalIndent(req, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	case teleport.YAML:
+		out, err := yaml.Marshal(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}

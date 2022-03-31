@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -81,7 +82,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
-	c.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&c.format)
+	c.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&c.format)
 	return c
 }
 
@@ -122,6 +123,12 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 		printMFADevices(devs, c.verbose)
 	case teleport.JSON:
 		out, err := json.MarshalIndent(devs, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	case teleport.YAML:
+		out, err := yaml.Marshal(devs)
 		if err != nil {
 			return trace.Wrap(err)
 		}

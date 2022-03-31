@@ -23,6 +23,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -230,7 +231,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 			profile.AppCertPath(appName),
 			profile.KeyPath(),
 			uri), nil
-	case appFormatJSON:
+	case appFormatJSON, appFormatYAML:
 		appConfig := struct {
 			Name string `json:"name"`
 			URI  string `json:"uri"`
@@ -241,7 +242,13 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 			appName, uri, profile.CACertPathForCluster(cluster),
 			profile.AppCertPath(appName), profile.KeyPath(),
 		}
-		out, err := json.MarshalIndent(appConfig, "", "  ")
+		var out []byte
+		var err error
+		if format == appFormatJSON {
+			out, err = json.MarshalIndent(appConfig, "", "  ")
+		} else {
+			out, err = yaml.Marshal(appConfig)
+		}
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -298,4 +305,6 @@ const (
 	appFormatCURL = "curl"
 	// appFormatJSON prints app URI, CA cert path, cert path and key path in JSON format.
 	appFormatJSON = "json"
+	// appFormatYAML prints app URI, CA cert path, cert path and key path in YAML format.
+	appFormatYAML = "yaml"
 )
