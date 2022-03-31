@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
-	mw "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -933,14 +932,13 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 
 	var dialOpts []grpc.DialOption
 	if role == types.RoleProxy {
-		grpcMetrics := utils.CreateGRPCClientMetrics(process.Config.Metrics.OptionalMetrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
-		err := utils.RegisterPrometheusCollectors(grpcMetrics)
-		if err != nil {
+		grpcMetrics := utils.CreateGRPCClientMetrics(process.Config.Metrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
+		if err := utils.RegisterPrometheusCollectors(grpcMetrics); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		dialOpts = append(dialOpts, []grpc.DialOption{
-			grpc.WithUnaryInterceptor(mw.ChainUnaryClient(metadata.UnaryClientInterceptor, om.UnaryClientInterceptor(grpcMetrics))),
-			grpc.WithStreamInterceptor(mw.ChainStreamClient(metadata.StreamClientInterceptor, om.StreamClientInterceptor(grpcMetrics))),
+			grpc.WithChainUnaryInterceptor(metadata.UnaryClientInterceptor, om.UnaryClientInterceptor(grpcMetrics)),
+			grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, om.StreamClientInterceptor(grpcMetrics)),
 		}...)
 	}
 

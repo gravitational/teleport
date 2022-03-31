@@ -102,6 +102,7 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Metrics handles optional metrics for TLSServerConfig
 type Metrics struct {
 	GRPCServerLatency bool
 }

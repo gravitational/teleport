@@ -64,14 +64,10 @@ func BuildCollector() prometheus.Collector {
 func CreateGRPCServerMetrics(latencyEnabled bool, labels prometheus.Labels) *om.ServerMetrics {
 	serverOpts := []om.ServerMetricsOption{om.WithServerCounterOptions(om.WithConstLabels(labels))}
 	if latencyEnabled {
-		histOpts := []om.HistogramOption{
-			om.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 16)),
-			om.WithHistogramConstLabels(labels),
-		}
+		histOpts := grpcHistogramOpts(labels)
 		serverOpts = append(serverOpts, om.WithServerHandlingTimeHistogram(histOpts...))
 	}
 	return om.NewServerMetrics(serverOpts...)
-
 }
 
 // CreateGRPCClientMetrics creates client grpc metrics configuration that is to be registered and used by the caller
@@ -79,12 +75,15 @@ func CreateGRPCServerMetrics(latencyEnabled bool, labels prometheus.Labels) *om.
 func CreateGRPCClientMetrics(latencyEnabled bool, labels prometheus.Labels) *om.ClientMetrics {
 	clientOpts := []om.ClientMetricsOption{om.WithClientCounterOptions(om.WithConstLabels(labels))}
 	if latencyEnabled {
-		histOpts := []om.HistogramOption{
-			om.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 16)),
-			om.WithHistogramConstLabels(labels),
-		}
+		histOpts := grpcHistogramOpts(labels)
 		clientOpts = append(clientOpts, om.WithClientHandlingTimeHistogram(histOpts...))
 	}
 	return om.NewClientMetrics(clientOpts...)
+}
 
+func grpcHistogramOpts(labels prometheus.Labels) []om.HistogramOption {
+	return []om.HistogramOption{
+		om.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 16)),
+		om.WithHistogramConstLabels(labels),
+	}
 }

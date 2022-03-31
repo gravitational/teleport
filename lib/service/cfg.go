@@ -940,18 +940,11 @@ type MetricsConfig struct {
 	// Used in conjunction with MTLS = true
 	CACerts []string
 
-	// OptionalMetrics are metrics that are off by default but can be enabled
-	OptionalMetrics *OptionalMetrics
-}
-
-// OptionalMetrics stores metrics that can be toggled. These are usually metrics that tend to be high
-// in cardinality and disabled by default
-type OptionalMetrics struct {
 	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
-	GRPCServerLatency bool `yaml:"grpc_server_latency,omitempty"`
+	GRPCServerLatency bool
 
 	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
-	GRPCClientLatency bool `yaml:"grpc_client_latency,omitempty"`
+	GRPCClientLatency bool
 }
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop
@@ -1162,7 +1155,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// Metrics service defaults.
 	cfg.Metrics.Enabled = false
-	cfg.Metrics.OptionalMetrics = &OptionalMetrics{}
 
 	// Windows desktop service is disabled by default.
 	cfg.WindowsDesktop.Enabled = false
