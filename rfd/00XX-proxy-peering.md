@@ -104,31 +104,52 @@ The api will use mTLS to ensure that only other proxies are able to connect. Thi
 ### Enabling Proxy Peering
 This feature will need to be explicity configured to use it. The configuration will be set in the auth_service section of the teleport config and will update the `ClusterNetworkingConfig` stored in the backend.
 
+The configuration option will be called `tunnel_strategy`. This will take a `type` and each `type` can support its own custom parameters. This gives us flexibility to support future strategies. The default will be `type: agent_mesh` which is equivalent to the current node dialing behavior.
+
+The new behavior will be `type: proxy_peering` and will have an optional parameter `agent_connection_count` that configures the number of reverse tunnel connections each agent will create. By default the `agent_connection_count` will be 1.
+
 The teleport config:
 ```yaml
 auth_service:
   ...
-  proxy_peering: enabled
+  tunnel_strategy:
+    type: proxy_peering
+    agent_connection_count: 2
   ...
 ```
 
 The `ClusterNetworkingConfig`:
-```
+```proto
 message ClusterNetworkingConfigSpecV2 {
     ...
-    ProxyPeeringMode ProxyPeeringMode = 9 [ (gogoproto.jsontag) = "proxy_peering_mode,omitempty" ];
+    TunnelStrategyV1 TunnelStrategy = 9 [ (gogoproto.jsontag) = "tunnel_strategy,omitempty" ];
     ...
 }
 
-enum ProxyPeeringMode {
-    Disabled = 0;
-    Enabled = 1;
+// TunnelStrategyV1 defines possible tunnel strategy types.
+message TunnelStrategyV1 {
+    oneof Strategy {
+        AgentMeshTunnelStrategy AgentMesh = 1 [ (gogoproto.jsontag) = "agent_mesh,omitempty" ];
+        ProxyPeeringTunnelStrategy ProxyPeering = 2
+            [ (gogoproto.jsontag) = "proxy_peering,omitempty" ];
+    }
+}
+
+// AgentMeshTunnelStrategy requires reverse tunnels to dial every proxy.
+message AgentMeshTunnelStrategy {}
+
+// ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
+message ProxyPeeringTunnelStrategy {
+    int64 AgentConnectionCount = 1 [
+        (gogoproto.jsontag) = "agent_connection_count,omitempty",
+        (gogoproto.moretags) = "yaml:\"agent_connection_count,omitempty\""
+    ];
 }
 
 ```
 
 ### Peer Address Configuration
-The peer address is the address the `ProxyService` GRPC API will be exposed on. This will be configured under proxy_service in the configuration file. If the address is unspecified (`0.0.0.0`) then an address will be discovered using the `GuessHostIP` function in [lib/utils/addr.go](https://github.com/gravitational/teleport/blob/56c536e61f4b52c011b7d18dfaaf2b2c9ecac1cc/lib/utils/addr.go#L281). During startup the proxy will check the `ClusterNetworkingConfig` to see if `proxy_peering` is enabled before starting the `ProxyService`. A default value of `0.0.0.0:3021` will be used.
+The peer address is the address the `ProxyService` GRPC API will be exposed on. This will be configured under proxy_service in the configuration file. If the address is unspecified (`0.0.0.0`) then an address will be discovered using the `GuessHostIP` function in [lib/utils/addr.go](https://github.com/gravitational/teleport/blob/56c536e61f4b52c011b7d18dfaaf2b2c9ecac1cc/lib/utils/addr.go#L281). During startup the proxy will check the `ClusterNetworkingConfig` to see if the `proxy_peering` tunnel strategy is configured before starting the `ProxyService`. A default value of `0.0.0.0:3021` will be used.
 ```yaml
 proxy_service:
   ...
@@ -150,7 +171,7 @@ int64 NonceID = 14 [ (gogoproto.jsontag) = "nonce_id,omitempty" ];
 
 Since each proxy already keeps a cache of `Servers` there will be no additional mechanism required to replicate this information.
 
-Each agent will be responsible for updating the `ProxyID` as it connects and reconnects to proxy servers. This will be done over the existing periodic heartbeats to the auth server. If `proxy_peering` is not enabled in the `ClusterNetworkingConfig` the `ProxyID` should not be included.
+Each agent will be responsible for updating the `ProxyID` as it connects and reconnects to proxy servers. This will be done over the existing periodic heartbeats to the auth server. If the `proxy_peering` tunnel strategy is not configured in the `ClusterNetworkingConfig` the `ProxyID` should not be included.
 
 The `Nonce` will start at 0 and be incremented with each update sent to the auth server. On each restart of the teleport agent a new `NonceID` will be randomly generated. The auth server will reject any updates where the `heartbeat.nonce < previous.nonce && heartbeat.nonce_id == previous.nonce_id`.
 
@@ -170,18 +191,11 @@ Metrics will be added so we can monitor whether a single grpc connection becomes
 With these metrics we will be able to see if throughput begins to flatten as more streams are being used. If this does become an issue additional tcp connections will need to be created.
 
 ### Reverse Tunnel Agent Pool
-Changes to the reverse tunnel agent and agent pool are required to support this design. The existing implementation creates a connection to every proxy. The new impelementation will decide how many connections to create dynamically based on the `ClusterNetworkingConfig`. If `proxy_peering` is enabled, a single connection will be created. If it is not enabled a connection to every proxy will be created. Old agents can continue connecting to every proxy regardless of the `ClusterNetworkingConfig`.
+Changes to the reverse tunnel agent and agent pool are required to support this design. The existing implementation creates a connection to every proxy. The new impelementation will decide how many connections to create dynamically based on the `ClusterNetworkingConfig`. If the `proxy_peering` tunnel strategy is configured the agent will try to create the configured number of connections. If the `agent_mesh` tunnel strategy is configured then a connection to every proxy will be created. Old agents can continue connecting to every proxy regardless of the tunnel strategy.
 
-Having a single connection means that if that connection fails the agent will be unreachable until it is able to establish a new connection. To mitigate this the agent will support proxy initiated reconnects. This will work as follows:
+As mentioned above the `proxy_peering` tunnel strategy will have a default `agent_connection_count: 1`. This is more likedly to lead to unavailability to a subset of agents during network partitions and cluster upgrades. To help minimize this a higher `agent_connection_count` can be configured to increase the likelyhoood that an agent is reachable during these events.
 
-1. Agent has an established connection to a proxy, connection-1.
-2. Proxy sends reconnect request to the agent over connection-1.
-3. Agent establishes a new connection connection-2.
-4. Agent signals the auth server of a proxy change if applicable.
-5. Proxies receive the updated proxyID and begin connecting to the agent through new proxy.
-6. Proxy stops sending transport requests to connection-1 and closes it once drained.
-
-This can be used during graceful shutdowns to migrate agents off of a proxy so they remain reachable at all times. In the future this could be used periodically to migrate connections off of intermediate infrastrucuture like load balancers that are trying to drain connections.
+The `proxy_peering` strategy with a fixed `agent_connection_count` is an improvement over the `agent_mesh` strategy as it allows proxy servers to scale up without impacting the number of connections agents maintain.
 
 ### Trusted Clusters
 Leaf clusters will continue connecting to all proxies in the root cluster. Supporting trusted clusters would add a non-trivial amount of work and complexity to this design and provides diminishing returns. It is expected that trusted clusters will not be connected at the same scale as other resouces like ssh nodes and therefore will not be a big contributer to the problems we are trying to address here.
@@ -191,13 +205,13 @@ Upgrading a cluster to support this feature will require reconfiguration the aut
 ```yaml
 auth_service:
 ...
-    proxy_peering: true
+    type: proxy_peering
 ...
 ```
 
 Then each proxy will need to be restarted. This will allow the proxy to see the new `ClusterNetworkingConfig` and start the `ProxyService`.
 
-When an agent reconnects it will discover the new `ClusterNetworkingConfig` and begin using a single connection back to the proxies. The agent may create a single connection to a proxy that has not yet been restart to expose the `ProxyService`. This means the node will only be reachable through that proxy until the proxy is restarted.
+When an agent reconnects it will discover the new `ClusterNetworkingConfig` and begin creating the configured number of connections back to the proxies.
 
 ### Failure Scenarios
 This design introduces several new points of failure on the path from a client to a node agent.
