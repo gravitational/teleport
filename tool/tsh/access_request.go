@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -30,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -108,7 +108,7 @@ func onRequestList(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:
-		out, err := json.MarshalIndent(reqs, "", "  ")
+		out, err := utils.FastMarshalIndent(reqs, "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -151,7 +151,7 @@ func onRequestShow(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:
-		out, err := json.MarshalIndent(req, "", "  ")
+		out, err := utils.FastMarshalIndent(req, "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -28,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -246,7 +246,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		var out []byte
 		var err error
 		if format == appFormatJSON {
-			out, err = json.MarshalIndent(appConfig, "", "  ")
+			out, err = utils.FastMarshalIndent(appConfig, "", "  ")
 		} else {
 			out, err = yaml.Marshal(appConfig)
 		}

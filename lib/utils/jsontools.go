@@ -90,6 +90,17 @@ func FastMarshal(v interface{}) ([]byte, error) {
 	return data, nil
 }
 
+// FastMarshal uses the json-iterator library for fast JSON marshalling
+// with indentation. Note, this function unmarshals floats with 6 digits precision.
+func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
+	data, err := SafeConfig.MarshalIndent(v, prefix, indent)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return data, nil
+}
+
 const yamlDocDelimiter = "---"
 
 // WriteYAML detects whether value is a list

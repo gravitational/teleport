@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -453,7 +452,7 @@ func Run(args []string, opts ...cliOption) error {
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
 	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
-	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, 'json' or 'yaml' to print all of the above.",
+	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, 'json' or 'yaml' to print everything as JSON or YAML.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
 
 	// Local TLS proxy.
@@ -494,7 +493,7 @@ func Run(args []string, opts ...cliOption) error {
 	dbConfig.Arg("db", "Print information for the specified database.").StringVar(&cf.DatabaseService)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbConfig.Flag("db", "Print information for the specified database.").Hidden().StringVar(&cf.DatabaseService)
-	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command, 'json' or 'yaml' to print in json or yaml.", dbFormatText, dbFormatCommand)).StringVar(&cf.Format)
+	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command, 'json' or 'yaml' to print in JSON or YAML.", dbFormatText, dbFormatCommand)).StringVar(&cf.Format)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
 	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
@@ -800,7 +799,7 @@ func onVersion(cf *CLIConf) error {
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = json.MarshalIndent(versionInfo, "", "  ")
+			out, err = utils.FastMarshalIndent(versionInfo, "", "  ")
 		} else {
 			out, err = yaml.Marshal(versionInfo)
 		}
@@ -1465,7 +1464,7 @@ func printNodes(nodes []types.Server, format string, verbose bool) error {
 	case teleport.Text:
 		printNodesAsText(nodes, verbose)
 	case teleport.JSON:
-		out, err := json.MarshalIndent(nodes, "", "  ")
+		out, err := utils.FastMarshalIndent(nodes, "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1547,7 +1546,7 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, format string
 	case teleport.Text:
 		showAppsAsText(apps, active, verbose)
 	case teleport.JSON:
-		out, err := json.MarshalIndent(apps, "", "  ")
+		out, err := utils.FastMarshalIndent(apps, "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1619,7 +1618,7 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = json.MarshalIndent(dbInfo, "", "  ")
+			out, err = utils.FastMarshalIndent(dbInfo, "", "  ")
 		} else {
 			out, err = yaml.Marshal(dbInfo)
 		}
@@ -1791,7 +1790,7 @@ func onListClusters(cf *CLIConf) error {
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = json.MarshalIndent(clusterInfo, "", "  ")
+			out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
 		} else {
 			out, err = yaml.Marshal(clusterInfo)
 		}
@@ -2454,7 +2453,7 @@ func onStatus(cf *CLIConf) error {
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = json.MarshalIndent(profileInfo, "", "  ")
+			out, err = utils.FastMarshalIndent(profileInfo, "", "  ")
 		} else {
 			out, err = yaml.Marshal(profileInfo)
 		}

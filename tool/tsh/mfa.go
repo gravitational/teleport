@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"encoding/base32"
-	"encoding/json"
 	"fmt"
 	"image/png"
 	"os"
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
@@ -122,7 +122,7 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 	case teleport.Text:
 		printMFADevices(devs, c.verbose)
 	case teleport.JSON:
-		out, err := json.MarshalIndent(devs, "", "  ")
+		out, err := utils.FastMarshalIndent(devs, "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -43,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -498,7 +498,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 	case teleport.Text:
 		printSessions(filteredSessions)
 	case teleport.JSON:
-		out, err := json.MarshalIndent(filteredSessions, "", "  ")
+		out, err := utils.FastMarshalIndent(filteredSessions, "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -678,7 +678,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = json.MarshalIndent(clusterInfo, "", "  ")
+			out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
 		} else {
 			out, err = yaml.Marshal(clusterInfo)
 		}
