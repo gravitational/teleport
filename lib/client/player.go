@@ -25,14 +25,23 @@ import (
 
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/events"
+
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 )
 
 type tshPlayerState int
 
 const (
+	// The player has stopped, either for an action to take place,
+	// because the playback has reached the end of the recording,
+	// or because a hard stop was requested.
 	stateStopped tshPlayerState = iota
+	// A stop has been requested so that an action (forward, rewind, etc) can take place.
 	stateStopping
+	// An end to the playback has been requested.
+	stateEnding
+	// The player is playing.
 	statePlaying
 )
 
@@ -50,9 +59,12 @@ type sessionPlayer struct {
 	sessionEvents []events.EventFields
 	term          *terminal.Terminal
 
-	// stopC is used to tell the caller that player has finished playing
-	stopC    chan int
+	// stopC is closed when playback ends (either because the end of the stream has
+	// been reached, or a hard stop was requested via EndPlayback().
+	stopC    chan struct{}
 	stopOnce sync.Once
+
+	log *logrus.Logger
 }
 
 func newSessionPlayer(sessionEvents []events.EventFields, stream []byte, term *terminal.Terminal) *sessionPlayer {
@@ -62,7 +74,8 @@ func newSessionPlayer(sessionEvents []events.EventFields, stream []byte, term *t
 		stream:        stream,
 		sessionEvents: sessionEvents,
 		term:          term,
-		stopC:         make(chan int),
+		stopC:         make(chan struct{}),
+		log:           logrus.New(),
 	}
 	p.cond = sync.NewCond(p)
 	return p
@@ -90,10 +103,10 @@ func (p *sessionPlayer) Rewind() {
 	}
 }
 
-func (p *sessionPlayer) stopRequested() bool {
+func (p *sessionPlayer) stopOrEndRequested() bool {
 	p.Lock()
 	defer p.Unlock()
-	return p.state == stateStopping
+	return p.state == stateStopping || p.state == stateEnding
 }
 
 func (p *sessionPlayer) Forward() {
@@ -120,17 +133,29 @@ func (p *sessionPlayer) TogglePause() {
 	}
 }
 
-// RequestStop makes an asynchronous request for the player to stop playing.
-// Playback may not stop before this method returns.
-func (p *sessionPlayer) RequestStop() {
+// EndPlayback makes an asynchronous request for the player to end the playback.
+// Playback might not stop before this method returns.
+func (p *sessionPlayer) EndPlayback() {
 	p.Lock()
 	defer p.Unlock()
 
 	switch p.state {
-	case stateStopped, stateStopping:
-		// do nothing if stop already in progress
+	case stateEnding:
+		// We're already ending, no need to do anything.
+	case stateStopped:
+		// The playRange goroutine has already returned, so we can
+		// signal the end of playback by closing the stopC channel right here.
+		p.close()
+	case stateStopping, statePlaying:
+		// The playRange goroutine is still running, and may be sleeping
+		// while waiting for the right time to print the next characters.
+		// setState to stateEnding so that the playRange goroutine
+		// knows to return on the next loop. The stopC channel will
+		// be closed by the playback routine upon completion.
+		p.setState(stateEnding)
 	default:
-		p.setState(stateStopping)
+		// Cases should be exhaustive, this should never happen.
+		p.log.Error("unexpected playback error")
 	}
 }
 
@@ -174,6 +199,10 @@ func timestampFrame(term *terminal.Terminal, message string) {
 	os.Stdout.WriteString(message)
 }
 
+func (p *sessionPlayer) close() {
+	p.stopOnce.Do(func() { close(p.stopC) })
+}
+
 // playRange plays events from a given from:to range. In order for the replay
 // to render correctly, playRange always plays from the beginning, but starts
 // applying timing info (delays) only after 'from' event, creating an impression
@@ -196,13 +225,15 @@ func (p *sessionPlayer) playRange(from, to int) {
 		var i int
 
 		defer func() {
+
 			p.Lock()
+			endRequested := p.state == stateEnding
 			p.setState(stateStopped)
 			p.Unlock()
 
-			// played last event?
-			if i == len(p.sessionEvents) {
-				p.stopOnce.Do(func() { close(p.stopC) })
+			// An end was manually requested, or we played the last event?
+			if endRequested || i == len(p.sessionEvents) {
+				p.close()
 			}
 		}()
 
@@ -213,7 +244,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 		prev := time.Duration(0)
 		offset, bytes := 0, 0
 		for i = 0; i < to; i++ {
-			if p.stopRequested() {
+			if p.stopOrEndRequested() {
 				return
 			}
 
