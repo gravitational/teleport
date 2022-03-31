@@ -36,7 +36,8 @@ func TestLoadConfigEmptyFile(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(file.Name())
 
-	file.Write([]byte(" "))
+	_, err = file.Write([]byte(" "))
+	require.NoError(t, err)
 
 	gotConfig, gotErr := loadConfig(file.Name())
 	require.NoError(t, gotErr)
