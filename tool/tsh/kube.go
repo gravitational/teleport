@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -494,6 +495,10 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		}
 	}
 
+	sort.Slice(filteredSessions, func(i, j int) bool {
+		return filteredSessions[i].GetCreated().Before(filteredSessions[j].GetCreated())
+	})
+
 	switch strings.ToLower(c.format) {
 	case teleport.Text:
 		printSessions(filteredSessions)
@@ -892,7 +897,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	}
 
 	if cf.HomePath != "" {
-		v.Exec.Env[homeEnvVar] = cf.HomePath
+		v.Exec.Env[types.HomeEnvVar] = cf.HomePath
 	}
 
 	// Only switch the current context if kube-cluster is explicitly set on the command line.
