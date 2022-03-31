@@ -33,9 +33,10 @@ func TestLoadConfigNonExistingFile(t *testing.T) {
 
 func TestLoadConfigEmptyFile(t *testing.T) {
 	file, err := os.CreateTemp("", "test-telelport")
-	file.Write([]byte(" "))
 	require.NoError(t, err)
 	defer os.Remove(file.Name())
+
+	file.Write([]byte(" "))
 
 	gotConfig, gotErr := loadConfig(file.Name())
 	require.NoError(t, gotErr)
