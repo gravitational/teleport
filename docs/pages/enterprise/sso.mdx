@@ -1,6 +1,6 @@
 ---
 title: SSO for SSH
-description: How to set up single sign-on (SSO) for SSH using Gravitational Teleport
+description: How to set up single sign-on (SSO) for SSH using Teleport
 h1: Single Sign-On (SSO) for SSH
 ---
 
@@ -9,25 +9,25 @@ through a Single Sign-On (SSO) provider used the rest of the organization.
 
 <TileSet>
   <Tile icon="bolt" title="Azure Active Directory (AD)" href="./sso/azuread.mdx">
-    Configure Azure Active Directory SSO for SSH, Kubernetes, Database and Web apps.
+    Configure Azure Active Directory SSO for SSH, Kubernetes, databases, desktops and web apps.
   </Tile>
   <Tile icon="bolt" title="Active Directory (ADFS)" href="./sso/adfs.mdx">
-    Configure Windows Active Directory SSO for SSH, Kubernetes, Database and Web apps.
+    Configure Windows Active Directory SSO for SSH, Kubernetes, databases, desktops and web apps.
   </Tile>
   <Tile icon="bolt" title="Google Workspace" href="./sso/google-workspace.mdx">
-    Configure Gsuite SSO for SSH, Kubernetes, Database and Web apps.
+    Configure Google Workspace SSO for SSH, Kubernetes, databases, desktops and web apps.
   </Tile>
   <Tile icon="bolt" title="GitLab" href="./sso/gitlab.mdx">
-    Configure Gitlab SSO for SSH, Kubernetes, Database and Web apps.
+    Configure GitLab SSO for SSH, Kubernetes, databases, desktops and web apps.
   </Tile>
   <Tile icon="bolt" title="OneLogin" href="./sso/one-login.mdx">
-    Configure OneLogin SSO for SSH, Kubernetes, Database and Web apps.
+    Configure OneLogin SSO for SSH, Kubernetes, databases, desktops and web apps.
   </Tile>
   <Tile icon="bolt" title="OIDC" href="./sso/oidc.mdx">
-    Configure OIDC SSO for SSH, Kubernetes, Database and Web apps.
+    Configure OIDC SSO for SSH, Kubernetes, databases, desktops and web apps.
   </Tile>
   <Tile icon="bolt" title="Okta" href="./sso/okta.mdx">
-    Configure Okta SSO for SSH, Kubernetes, Database and Web apps.
+    Configure Okta SSO for SSH, Kubernetes, databases, desktops and web apps.
   </Tile>
 </TileSet>
 
@@ -38,7 +38,7 @@ Users need to execute the following command login in the CLI or login using UI:
 ```bsh
 # this command will automatically open the default web browser and take a user
 # through the login process with an SSO provider:
-$ tsh login --proxy=proxy.example.com
+$ tsh login --proxy=proxy.example.com --auth=github
 
 # output:
 If browser window does not open automatically, open it by clicking on the link:
