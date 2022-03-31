@@ -168,7 +168,7 @@ func certPoolFromCASDir(p *Profile) (*x509.CertPool, error) {
 func certPoolFromLegacyCAFile(p *Profile) (*x509.CertPool, error) {
 	caCerts, err := os.ReadFile(p.TLSCAsPath())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(caCerts) {
@@ -367,6 +367,11 @@ func (p *Profile) TLSCertPath() string {
 	return keypaths.TLSCertPath(p.Dir, p.Name(), p.Username)
 }
 
+// TLSCAsLegacyPath returns the path to the profile's TLS certificate authorities.
+func (p *Profile) TLSCAsLegacyPath() string {
+	return keypaths.TLSCAsPath(p.Dir, p.Name())
+}
+
 // TLSCAPathCluster returns CA for particular cluster.
 func (p *Profile) TLSCAPathCluster(cluster string) string {
 	return keypaths.TLSCAsPathCluster(p.Dir, p.Name(), cluster)
@@ -377,6 +382,7 @@ func (p *Profile) TLSClusterCASDir() string {
 	return keypaths.CAsDir(p.Dir, p.Name())
 }
 
+// TLSCAsPath returns the legacy path to the profile's TLS certificate authorities.
 func (p *Profile) TLSCAsPath() string {
 	return keypaths.TLSCAsPath(p.Dir, p.Name())
 }

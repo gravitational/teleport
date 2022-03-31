@@ -1261,15 +1261,12 @@ func TestAuthClientFromTSHProfile(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	cn, err := authServer.GetClusterName()
-	require.NoError(t, err)
 	profile, err := profile.FromDir(tmpHomePath, "")
 	require.NoError(t, err)
 
 	mustCreateAuthClientFormUserProfile(t, tmpHomePath, proxyAddr.String())
 
 	// Simulate legacy tsh client behavior where all clusters certs were stored in the certs.pem file.
-	require.NoError(t, os.Rename(profile.TLSCAPathCluster(cn.GetClusterName()), profile.TLSCAsPath()))
 	require.NoError(t, os.RemoveAll(profile.TLSClusterCASDir()))
 
 	// Verify that authClient created from profile will create a valid client in case where cas dir doesn't exit.
