@@ -13,40 +13,24 @@
 // limitations under the License.
 
 use crate::errors::invalid_data_error;
-use crate::vchan::ChannelPDUFlags;
-use crate::{vchan, Payload};
+use crate::{vchan, RawPayload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::FromPrimitive;
 use rdp::core::{mcs, tpkt};
 use rdp::model::error::*;
-use rdp::try_let;
 use std::collections::HashMap;
-use std::io::{Cursor, Read, Write};
+use std::io::{Read, Write};
 
 pub const CHANNEL_NAME: &str = "cliprdr";
-
-struct PendingData {
-    data: Vec<u8>,
-    total_length: u32,
-    clipboard_header: Option<ClipboardPDUHeader>,
-}
-
-impl PendingData {
-    fn reset(&mut self, length: u32) {
-        self.data.clear();
-        self.total_length = length;
-        self.clipboard_header = None;
-    }
-}
 
 /// Client implements a client for the clipboard virtual channel
 /// (CLIPRDR) extension, as defined in:
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/fb9b7e0b-6db4-41c2-b83c-f889c1ee7688
 pub struct Client {
     clipboard: HashMap<u32, Vec<u8>>,
-    pending: PendingData,
     on_remote_copy: Box<dyn Fn(Vec<u8>)>,
+    vchan: vchan::Client,
 }
 
 impl Default for Client {
@@ -59,12 +43,8 @@ impl Client {
     pub fn new(on_remote_copy: Box<dyn Fn(Vec<u8>)>) -> Self {
         Client {
             clipboard: HashMap::new(),
-            pending: PendingData {
-                data: Vec::new(),
-                total_length: 0,
-                clipboard_header: None,
-            },
             on_remote_copy,
+            vchan: vchan::Client::new(),
         }
     }
 
@@ -73,39 +53,17 @@ impl Client {
         payload: tpkt::Payload,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        let mut payload = try_let!(tpkt::Payload::Raw, payload)?;
-        let pdu_header = vchan::ChannelPDUHeader::decode(&mut payload)?;
-
-        // TODO(zmb3): this logic is the same for all virtual channels, and should
-        // be moved to vchan.rs and reused for the rdpdr client as well
-        if pdu_header
-            .flags
-            .contains(ChannelPDUFlags::CHANNEL_FLAG_FIRST)
-        {
-            self.pending.reset(pdu_header.length);
-            self.pending.clipboard_header = Some(ClipboardPDUHeader::decode(&mut payload)?);
-        }
-
-        payload.read_to_end(&mut self.pending.data)?;
-
-        if pdu_header
-            .flags
-            .contains(ChannelPDUFlags::CHANNEL_FLAG_LAST)
-            && self.pending.clipboard_header.is_some()
-        {
-            let full_msg = self.pending.data.split_off(0);
-            let mut payload = Cursor::new(full_msg);
-            let header = self.pending.clipboard_header.take().unwrap();
+        if let Some(mut payload) = self.vchan.read(payload)? {
+            let header = ClipboardPDUHeader::decode(&mut payload)?;
             return self.handle_message(header, &mut payload, mcs);
         }
-
         Ok(())
     }
 
     fn handle_message<S: Read + Write>(
         &mut self,
         header: ClipboardPDUHeader,
-        payload: &mut Payload,
+        payload: &mut RawPayload,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
         debug!("received {:?}", header.msg_type);
@@ -190,7 +148,7 @@ impl Client {
 
     /// Handles the server capabilities message, which is the first message sent from the server
     /// to the client during the initialization sequence. Described in section 1.3.2.1.
-    fn handle_server_caps(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_server_caps(&self, payload: &mut RawPayload) -> RdpResult<Vec<Vec<u8>>> {
         let caps = ClipboardCapabilitiesPDU::decode(payload)?;
         if let Some(general) = caps.general {
             // our capabilities are minimal, so we log the server
@@ -207,7 +165,7 @@ impl Client {
     /// Handles the monitor ready PDU, which is sent from the server to the client during
     /// the initialization phase. Upon receiving this message, the client should respond
     /// with its capabilities, an optional temporary directory PDU, and a format list PDU.
-    fn handle_monitor_ready(&self, _payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_monitor_ready(&self, _payload: &mut RawPayload) -> RdpResult<Vec<Vec<u8>>> {
         // There's nothing additional to decode here, the monitor ready PDU is just a header.
         // In response, we need to:
         // 1. Send our clipboard capabilities
@@ -236,7 +194,7 @@ impl Client {
 
     /// Handles the format list PDU, which is a notification from the server
     /// that some data was copied and can be requested at a later date.
-    fn handle_format_list(&self, payload: &mut Payload, length: u32) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_format_list(&self, payload: &mut RawPayload, length: u32) -> RdpResult<Vec<Vec<u8>>> {
         let list = FormatListPDU::<LongFormatName>::decode(payload, length)?;
         debug!(
             "{:?} data was copied on the RDP server",
@@ -287,7 +245,7 @@ impl Client {
 
     /// Handles a request from the RDP server for clipboard data.
     /// This message is received when a user executes a paste in the remote desktop.
-    fn handle_format_data_request(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_format_data_request(&self, payload: &mut RawPayload) -> RdpResult<Vec<Vec<u8>>> {
         let req = FormatDataRequestPDU::decode(payload)?;
         let data = match self.clipboard.get(&req.format_id) {
             Some(d) => d.clone(),
@@ -313,7 +271,7 @@ impl Client {
     /// to our format data request.
     fn handle_format_data_response(
         &mut self,
-        payload: &mut Payload,
+        payload: &mut RawPayload,
         length: u32,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let mut resp = FormatDataResponsePDU::decode(payload, length)?;
@@ -368,7 +326,15 @@ impl ClipboardPDUHeader {
         }
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u16::<LittleEndian>(self.msg_type as u16)?;
+        w.write_u16::<LittleEndian>(self.msg_flags.bits())?;
+        w.write_u32::<LittleEndian>(self.data_len)?;
+        Ok(w)
+    }
+
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let typ = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
             msg_type: ClipboardPDUType::from_u16(typ)
@@ -378,15 +344,8 @@ impl ClipboardPDUHeader {
             data_len: payload.read_u32::<LittleEndian>()?,
         })
     }
-
-    fn encode(&self) -> RdpResult<Vec<u8>> {
-        let mut w = vec![];
-        w.write_u16::<LittleEndian>(self.msg_type as u16)?;
-        w.write_u16::<LittleEndian>(self.msg_flags.bits())?;
-        w.write_u32::<LittleEndian>(self.data_len)?;
-        Ok(w)
-    }
 }
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 enum ClipboardPDUType {
@@ -434,7 +393,7 @@ impl ClipboardCapabilitiesPDU {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let count = payload.read_u16::<LittleEndian>()?;
         payload.read_u16::<LittleEndian>()?; // pad
 
@@ -449,7 +408,7 @@ impl ClipboardCapabilitiesPDU {
 }
 
 impl GeneralClipboardCapabilitySet {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let set_type = payload.read_u16::<LittleEndian>()?;
         if set_type != ClipboardCapabilitySetType::General as u16 {
             return Err(invalid_data_error(&format!(
@@ -523,7 +482,7 @@ struct FormatListPDU<T: FormatName> {
 
 trait FormatName: Sized {
     fn encode(&self) -> RdpResult<Vec<u8>>;
-    fn decode(payload: &mut Payload) -> RdpResult<Self>;
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self>;
 }
 
 impl<T: FormatName> FormatListPDU<T> {
@@ -536,7 +495,7 @@ impl<T: FormatName> FormatListPDU<T> {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload, length: u32) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload, length: u32) -> RdpResult<Self> {
         let mut format_names: Vec<T> = Vec::new();
 
         let startpos = payload.position();
@@ -588,7 +547,7 @@ impl FormatName for ShortFormatName {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let format_id = payload.read_u32::<LittleEndian>()?;
         let mut format_name = [0u8; 32];
         payload.read_exact(&mut format_name)?;
@@ -635,7 +594,7 @@ impl FormatName for LongFormatName {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let format_id = payload.read_u32::<LittleEndian>()?;
         let mut consumed = 0;
         let name: String = std::char::decode_utf16(
@@ -727,7 +686,7 @@ impl FormatDataRequestPDU {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         Ok(Self {
             format_id: payload.read_u32::<LittleEndian>()?,
         })
@@ -747,7 +706,7 @@ impl FormatDataResponsePDU {
         Ok(self.data.clone())
     }
 
-    fn decode(payload: &mut Payload, length: u32) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload, length: u32) -> RdpResult<Self> {
         let mut data = vec![0; length as usize];
         payload.read_exact(data.as_mut_slice())?;
 
@@ -990,7 +949,7 @@ mod tests {
         // First response - our client capabilities:
         let mut payload = Cursor::new(responses[0].clone());
         let _pdu_header = vchan::ChannelPDUHeader::decode(&mut payload).unwrap();
-        let header = ClipboardPDUHeader::decode(&mut payload).unwrap();
+        let header = <ClipboardPDUHeader>::decode(&mut payload).unwrap();
         assert_eq!(header.msg_type, ClipboardPDUType::CB_CLIP_CAPS);
 
         let capabilities = ClipboardCapabilitiesPDU::decode(&mut payload).unwrap();

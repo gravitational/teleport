@@ -14,7 +14,7 @@
 
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
 use crate::piv;
-use crate::Payload;
+use crate::RawPayload;
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use iso7816::command::Command as CardCommand;
@@ -55,7 +55,7 @@ impl Client {
     }
 
     // ioctl handles messages coming from the RDP server over the RDPDR channel.
-    pub fn ioctl(&mut self, code: u32, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
+    pub fn ioctl(&mut self, code: u32, input: &mut RawPayload) -> RdpResult<(u32, Vec<u8>)> {
         let code = IoctlCode::from_u32(code).ok_or_else(|| {
             invalid_data_error(&format!("invalid I/O control code value {:#010x}", code))
         })?;
@@ -107,7 +107,7 @@ impl Client {
         }
     }
 
-    fn handle_access_started_event(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_access_started_event(&self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = ScardAccessStartedEvent_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -115,7 +115,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_establish_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_establish_context(&mut self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = EstablishContext_Call::decode(input)?;
         debug!("got {:?}", req);
         let ctx = self.contexts.establish();
@@ -124,7 +124,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_release_context(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_release_context(&mut self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         self.contexts.release(req.context.value);
@@ -133,7 +133,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_cancel(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_cancel(&self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -141,7 +141,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_is_valid_context(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_is_valid_context(&self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -149,7 +149,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_list_readers(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_list_readers(&self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = ListReaders_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp =
@@ -158,7 +158,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_get_status_change(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_status_change(&self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = GetStatusChange_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = GetStatusChange_Return::new(ReturnCode::SCARD_S_SUCCESS, req);
@@ -171,7 +171,7 @@ impl Client {
         }
     }
 
-    fn handle_connect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_connect(&mut self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -192,7 +192,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_disconnect(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_disconnect(&mut self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -206,7 +206,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_begin_transaction(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_begin_transaction(&self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -214,7 +214,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_end_transaction(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_end_transaction(&self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -224,7 +224,7 @@ impl Client {
 
     fn handle_status(
         &self,
-        input: &mut Payload,
+        input: &mut RawPayload,
         enc: StringEncoding,
     ) -> RdpResult<Option<Vec<u8>>> {
         let req = Status_Call::decode(input)?;
@@ -238,7 +238,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_transmit(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_transmit(&mut self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = Transmit_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -266,7 +266,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_get_device_type_id(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_device_type_id(&mut self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -280,7 +280,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_read_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_read_cache(&mut self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = ReadCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -295,7 +295,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_write_cache(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_write_cache(&mut self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = WriteCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -309,7 +309,7 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_get_reader_icon(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_reader_icon(&mut self, input: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -449,7 +449,7 @@ impl RPCEStreamHeader {
         w.write_u32::<LittleEndian>(self.filler)?;
         Ok(w)
     }
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let header = Self {
             version: payload.read_u8()?,
             endianness: RPCEEndianness::from_u8(payload.read_u8()?)
@@ -507,7 +507,7 @@ impl RPCETypeHeader {
         w.write_u32::<LittleEndian>(self.filler)?;
         Ok(())
     }
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         Ok(Self {
             object_buffer_length: payload.read_u32::<LittleEndian>()?,
             filler: payload.read_u32::<LittleEndian>()?,
@@ -522,7 +522,7 @@ struct ScardAccessStartedEvent_Call {
 }
 
 impl ScardAccessStartedEvent_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         Ok(Self {
             _unused: payload.read_u32::<LittleEndian>()?,
         })
@@ -626,7 +626,7 @@ struct EstablishContext_Call {
 }
 
 impl EstablishContext_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
         let scope = payload.read_u32::<LittleEndian>()?;
@@ -693,12 +693,12 @@ impl Context {
         w.write_u32::<LittleEndian>(self.value)?;
         Ok(())
     }
-    fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
+    fn decode_ptr(payload: &mut RawPayload, index: &mut u32) -> RdpResult<Self> {
         let length = payload.read_u32::<LittleEndian>()?;
         let _ptr = decode_ptr(payload, index)?;
         Ok(Self { length, value: 0 })
     }
-    fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
+    fn decode_value(&mut self, payload: &mut RawPayload) -> RdpResult<()> {
         let length = payload.read_u32::<LittleEndian>()?;
         if length != self.length {
             Err(invalid_data_error(
@@ -720,7 +720,7 @@ fn encode_ptr(length: u32, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> 
     Ok(())
 }
 
-fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
+fn decode_ptr(payload: &mut RawPayload, index: &mut u32) -> RdpResult<u32> {
     let ptr = payload.read_u32::<LittleEndian>()?;
     if ptr == 0 {
         // NULL pointer is OK. Don't update index.
@@ -749,7 +749,7 @@ struct ListReaders_Call {
 }
 
 impl ListReaders_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -819,7 +819,7 @@ impl ListReaders_Return {
 // Unicode multistring is a list of null-terminated UTF-16 strings. At the end, the list is
 // terminated with another null byte (so, two null bytes if you want to find the end in a binary
 // dump).
-fn decode_multistring_unicode(payload: &mut Payload) -> RdpResult<(u32, Vec<String>)> {
+fn decode_multistring_unicode(payload: &mut RawPayload) -> RdpResult<(u32, Vec<String>)> {
     let len = payload.read_u32::<LittleEndian>()?;
     let mut items = vec![];
     let mut buf = vec![];
@@ -842,7 +842,7 @@ fn decode_multistring_unicode(payload: &mut Payload) -> RdpResult<(u32, Vec<Stri
     Ok((len, items))
 }
 
-fn decode_string_unicode(payload: &mut Payload) -> RdpResult<String> {
+fn decode_string_unicode(payload: &mut RawPayload) -> RdpResult<String> {
     // These length/offset fields seem to be unnecessary since the strings are null-terminated. But
     // they are present in the encoded form anyway.
     let _len = payload.read_u32::<LittleEndian>()?;
@@ -899,7 +899,7 @@ struct Context_Call {
 }
 
 impl Context_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -919,7 +919,7 @@ struct GetStatusChange_Call {
 }
 
 impl GetStatusChange_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -956,7 +956,7 @@ struct ReaderState {
 }
 
 impl ReaderState {
-    fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
+    fn decode_ptr(payload: &mut RawPayload, index: &mut u32) -> RdpResult<Self> {
         let _reader_ptr = decode_ptr(payload, index)?;
         let common = ReaderState_Common_Call::decode(payload)?;
         Ok(Self {
@@ -965,7 +965,7 @@ impl ReaderState {
         })
     }
 
-    fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
+    fn decode_value(&mut self, payload: &mut RawPayload) -> RdpResult<()> {
         self.reader = decode_string_unicode(payload)?;
         Ok(())
     }
@@ -981,7 +981,7 @@ struct ReaderState_Common_Call {
 }
 
 impl ReaderState_Common_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let current_state = CardStateFlags::from_bits_truncate(payload.read_u32::<LittleEndian>()?);
         let event_state = CardStateFlags::from_bits_truncate(payload.read_u32::<LittleEndian>()?);
         let atr_length = payload.read_u32::<LittleEndian>()?;
@@ -1125,7 +1125,7 @@ struct Connect_Call {
 }
 
 impl Connect_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -1159,7 +1159,7 @@ struct Connect_Common {
 }
 
 impl Connect_Common {
-    fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
+    fn decode_ptr(payload: &mut RawPayload, index: &mut u32) -> RdpResult<Self> {
         let context = Context::decode_ptr(payload, index)?;
         let share_mode = payload.read_u32::<LittleEndian>()?;
         let preferred_protocols = CardProtocol::from_bits(payload.read_u32::<LittleEndian>()?)
@@ -1172,7 +1172,7 @@ impl Connect_Common {
             preferred_protocols,
         })
     }
-    fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
+    fn decode_value(&mut self, payload: &mut RawPayload) -> RdpResult<()> {
         self.context.decode_value(payload)?;
         Ok(())
     }
@@ -1234,7 +1234,7 @@ impl Handle {
         Ok(())
     }
 
-    fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
+    fn decode_ptr(payload: &mut RawPayload, index: &mut u32) -> RdpResult<Self> {
         let context = Context::decode_ptr(payload, index)?;
         let length = payload.read_u32::<LittleEndian>()?;
         let _ptr = decode_ptr(payload, index)?;
@@ -1244,7 +1244,7 @@ impl Handle {
             value: 0,
         })
     }
-    fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
+    fn decode_value(&mut self, payload: &mut RawPayload) -> RdpResult<()> {
         self.context.decode_value(payload)?;
         let length = payload.read_u32::<LittleEndian>()?;
         if length != self.length {
@@ -1266,7 +1266,7 @@ struct HCardAndDisposition_Call {
 }
 
 impl HCardAndDisposition_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -1291,7 +1291,7 @@ struct Status_Call {
 }
 
 impl Status_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -1393,7 +1393,7 @@ struct Transmit_Call {
 }
 
 impl Transmit_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -1443,7 +1443,7 @@ struct SCardIO_Request {
 }
 
 impl SCardIO_Request {
-    fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
+    fn decode_ptr(payload: &mut RawPayload, index: &mut u32) -> RdpResult<Self> {
         let protocol = CardProtocol::from_bits(payload.read_u32::<LittleEndian>()?)
             .ok_or_else(|| invalid_data_error("invalid protocol bits in SCardIO_Request"))?;
         let extra_bytes_length = payload.read_u32::<LittleEndian>()?;
@@ -1456,7 +1456,7 @@ impl SCardIO_Request {
             extra_bytes,
         })
     }
-    fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
+    fn decode_value(&mut self, payload: &mut RawPayload) -> RdpResult<()> {
         payload.read_exact(&mut self.extra_bytes)?;
         Ok(())
     }
@@ -1501,7 +1501,7 @@ struct GetDeviceTypeId_Call {
 }
 
 impl GetDeviceTypeId_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -1555,7 +1555,7 @@ struct ReadCache_Call {
 }
 
 impl ReadCache_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -1583,7 +1583,7 @@ struct ReadCache_Common {
 }
 
 impl ReadCache_Common {
-    fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
+    fn decode_ptr(payload: &mut RawPayload, index: &mut u32) -> RdpResult<Self> {
         let context = Context::decode_ptr(payload, index)?;
         let _card_uuid_ptr = decode_ptr(payload, index)?;
 
@@ -1600,7 +1600,7 @@ impl ReadCache_Common {
         })
     }
 
-    fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
+    fn decode_value(&mut self, payload: &mut RawPayload) -> RdpResult<()> {
         self.context.decode_value(payload)?;
         self.card_uuid.resize(16, 0); // 16 bytes for UUID.
         payload.read_exact(&mut self.card_uuid)?;
@@ -1648,7 +1648,7 @@ struct WriteCache_Call {
 }
 
 impl WriteCache_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -1675,7 +1675,7 @@ struct WriteCache_Common {
 }
 
 impl WriteCache_Common {
-    fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<Self> {
+    fn decode_ptr(payload: &mut RawPayload, index: &mut u32) -> RdpResult<Self> {
         let context = Context::decode_ptr(payload, index)?;
         let _card_uuid_ptr = decode_ptr(payload, index)?;
         let freshness_counter = payload.read_u32::<LittleEndian>()?;
@@ -1690,7 +1690,7 @@ impl WriteCache_Common {
         })
     }
 
-    fn decode_value(&mut self, payload: &mut Payload) -> RdpResult<()> {
+    fn decode_value(&mut self, payload: &mut RawPayload) -> RdpResult<()> {
         self.context.decode_value(payload)?;
         self.card_uuid.resize(16, 0); // 16 bytes for UUID.
         payload.read_exact(&mut self.card_uuid)?;
@@ -1711,7 +1711,7 @@ struct GetReaderIcon_Call {
 }
 
 impl GetReaderIcon_Call {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
 
@@ -1835,7 +1835,7 @@ impl ContextInternal {
 
 #[allow(dead_code)]
 // A little helper function for debugging unparsed payloads.
-fn debug_print_payload(payload: &mut Payload) {
+fn debug_print_payload(payload: &mut RawPayload) {
     let payload = payload.clone();
     let from = payload.position() as usize;
     let buf = &payload.into_inner()[from..];

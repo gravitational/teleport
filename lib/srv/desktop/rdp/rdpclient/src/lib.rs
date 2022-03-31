@@ -701,4 +701,4 @@ extern "C" {
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.
-pub(crate) type Payload = Cursor<Vec<u8>>;
+pub(crate) type RawPayload = Cursor<Vec<u8>>;
