@@ -39,9 +39,7 @@ when connecting to the database instance:
 $ tsh db login --db-user=alice example-redis
 ```
 
-<Admonition type="note" title="Note">
-  If flag `--db-user` is not provided, Teleport logs in as the `default` user.
-</Admonition>
+If flag `--db-user` is not provided, Teleport logs in as the `default` user.
 
 Once logged in, connect to the database:
 
@@ -49,10 +47,8 @@ Once logged in, connect to the database:
 $ tsh db connect example-redis
 ```
 
-<Admonition type="note" title="Note">
-  The `redis-cli` command-line client should be available in the system `PATH` in order to be
-  able to connect.
-</Admonition>
+The `redis-cli` command-line client should be available in the system `PATH` in order to be
+able to connect.
 
 Now you can log in as the previously created user using the below command:
 
