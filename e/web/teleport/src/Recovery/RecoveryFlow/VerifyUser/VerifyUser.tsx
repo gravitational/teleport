@@ -9,7 +9,7 @@ import {
   requiredToken,
 } from 'shared/components/Validation/rules';
 import FieldSelect from 'shared/components/FieldSelect';
-import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import useVerifyUser, { State, Props } from './useVerifyUser';
 
 export default function Container(props: Props) {
@@ -46,7 +46,10 @@ export function VerifyUser({
 
   const mfaOptions = useMemo<MfaOption[]>(() => {
     if (isRecoverPassword) {
-      return getMfaOptions(auth2faType, preferredMfaType);
+      return createMfaOptions({
+        auth2faType: auth2faType,
+        preferredType: preferredMfaType,
+      });
     }
     return [];
   }, [isRecoverPassword]);

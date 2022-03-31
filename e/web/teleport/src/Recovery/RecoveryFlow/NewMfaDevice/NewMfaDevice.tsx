@@ -8,7 +8,7 @@ import {
   requiredToken,
   requiredField,
 } from 'shared/components/Validation/rules';
-import { getMfaOptions, MfaOption } from 'teleport/services/mfa/utils';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import useNewMfaDevice, { State, Props } from './useNewMfaDevice';
 
 const u2fGraphic = require('design/assets/images/u2f-graphic.svg');
@@ -32,7 +32,11 @@ export function NewMfaDevice({
   const [deviceName, setDeviceName] = useState('');
 
   const mfaOptions = useMemo<MfaOption[]>(
-    () => getMfaOptions(auth2faType, preferredMfaType),
+    () =>
+      createMfaOptions({
+        auth2faType: auth2faType,
+        preferredType: preferredMfaType,
+      }),
     []
   );
 
