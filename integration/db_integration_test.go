@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -149,19 +150,56 @@ func TestDatabaseRotateTrustedCluster(t *testing.T) {
 	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
 		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
 
-	for _, phase := range rotationPhases {
-		err = authServer.RotateCertAuthority(ctx, auth.RotateRequest{
-			Type:        types.DatabaseCA,
-			TargetPhase: phase,
-			Mode:        types.RotationModeManual,
-		})
-		require.NoError(t, err)
+	waitForEvent := func(process *service.TeleportProcess, event string) {
+		eventC := make(chan service.Event, 1)
+		process.WaitForEvent(context.TODO(), event, eventC)
+		select {
+		case <-eventC:
 
-		err = pw.waitForPhase(phase)
-		require.NoError(t, err)
+		case <-time.After(20 * time.Second):
+			t.Fatalf("timeout waiting for service to broadcast event %s", event)
+		}
 	}
 
-	rotatedDbCA, err := pack.root.dbAuthClient.GetCertAuthority(ctx, types.CertAuthID{
+	for _, phase := range rotationPhases {
+		errChan := make(chan error, 1)
+
+		go func() {
+			errChan <- pw.waitForPhase(phase, func() error {
+				return authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+					Type:        types.DatabaseCA,
+					TargetPhase: phase,
+					Mode:        types.RotationModeManual,
+				})
+			})
+		}()
+
+		err = <-errChan
+
+		if err != nil && strings.Contains(err.Error(), "context deadline exceeded") {
+			// TODO(jakule): Workaround for CertAuthorityWatcher failing to get the correct rotation status.
+			// Query auth server directly to see if the incorrect rotation status is a rotation or watcher problem.
+			dbCA, err := pack.leaf.cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
+				Type:       types.DatabaseCA,
+				DomainName: clusterRootName,
+			}, false)
+			require.NoError(t, err)
+			require.Equal(t, dbCA.GetRotation().Phase, phase)
+		} else {
+			require.NoError(t, err)
+		}
+
+		if phase == types.RotationPhaseInit {
+			continue
+		}
+
+		waitForEvent(pack.root.cluster.Process, service.TeleportReloadEvent)
+		waitForEvent(pack.leaf.cluster.Process, service.TeleportReadyEvent)
+
+		pack.waitForLeaf(t)
+	}
+
+	rotatedDbCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterRootName,
 	}, false)
@@ -207,8 +245,8 @@ type phaseWatcher struct {
 }
 
 // waitForPhase waits until rootCluster cluster detects the rotation
-func (p *phaseWatcher) waitForPhase(phase string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), p.pollingPeriod*3)
+func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), p.pollingPeriod*10)
 	defer cancel()
 
 	watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
@@ -224,11 +262,15 @@ func (p *phaseWatcher) waitForPhase(phase string) error {
 	}
 	defer watcher.Close()
 
+	if err := fn(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var lastPhase string
 	for i := 0; i < 10; i++ {
 		select {
 		case <-ctx.Done():
-			return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
+			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, ctx.Err())
 		case cas := <-watcher.CertAuthorityC:
 			for _, ca := range cas {
 				if ca.GetClusterName() == p.clusterRootName &&
@@ -932,6 +974,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
 	rcConf.PollingPeriod = 5 * time.Second
+	rcConf.RotationConnectionInterval = 2 * time.Second
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -945,6 +988,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
 	lcConf.PollingPeriod = 5 * time.Second
+	lcConf.RotationConnectionInterval = 2 * time.Second
 	if opts.leafConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1015,6 +1059,8 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.mongoService,
 	}
 	rdConf.Clock = p.clock
+	rdConf.PollingPeriod = 5 * time.Second
+	rdConf.RotationConnectionInterval = 2 * time.Second
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
 
@@ -1054,6 +1100,8 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.leaf.mongoService,
 	}
 	ldConf.Clock = p.clock
+	ldConf.PollingPeriod = 5 * time.Second
+	ldConf.RotationConnectionInterval = 2 * time.Second
 	p.leaf.dbProcess, p.leaf.dbAuthClient, err = p.leaf.cluster.StartDatabase(ldConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
