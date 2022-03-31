@@ -170,13 +170,11 @@ func TestServerTLS(t *testing.T) {
 			conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(creds))
 			require.NoError(t, err)
 
-			func() {
-				defer conn.Close()
+			defer conn.Close()
 
-				client := proto.NewProxyServiceClient(conn)
-				_, err = client.DialNode(context.Background())
-				tc.assertErr(t, err)
-			}()
+			client := proto.NewProxyServiceClient(conn)
+			_, err = client.DialNode(context.Background())
+			tc.assertErr(t, err)
 		})
 	}
 }
