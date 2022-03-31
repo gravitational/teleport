@@ -101,8 +101,8 @@ func onRequestList(cf *CLIConf) error {
 		}
 		reqs = filtered
 	}
-	format := strings.ToLower(cf.Format)
-	switch format {
+
+	switch strings.ToLower(cf.Format) {
 	case teleport.Text:
 		if err := showRequestTable(reqs); err != nil {
 			return trace.Wrap(err)

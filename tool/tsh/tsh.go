@@ -785,7 +785,8 @@ func Run(args []string, opts ...cliOption) error {
 
 // onVersion prints version info.
 func onVersion(cf *CLIConf) error {
-	switch cf.Format {
+	format := strings.ToLower(cf.Format)
+	switch format {
 	case teleport.Text:
 		utils.PrintVersion()
 	case teleport.JSON, teleport.YAML:
@@ -798,7 +799,7 @@ func onVersion(cf *CLIConf) error {
 		}
 		var out []byte
 		var err error
-		if cf.Format == teleport.JSON {
+		if format == teleport.JSON {
 			out, err = json.MarshalIndent(versionInfo, "", "  ")
 		} else {
 			out, err = yaml.Marshal(versionInfo)
@@ -1480,7 +1481,7 @@ func printNodes(nodes []types.Server, format string, verbose bool) error {
 			fmt.Println(n.GetHostname())
 		}
 	default:
-		return trace.BadParameter("unsupported format. try 'json', 'text', or 'names'")
+		return trace.BadParameter("unsupported format. try 'json', 'yaml', 'text', or 'names'")
 	}
 
 	return nil
@@ -1606,20 +1607,21 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 }
 
 func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, format string, verbose bool) error {
-	switch strings.ToLower(format) {
+	format = strings.ToLower(format)
+	switch format {
 	case teleport.Text:
 		showDatabasesAsText(clusterFlag, databases, active, verbose)
 	case teleport.JSON, teleport.YAML:
-		data := struct {
+		dbInfo := struct {
 			Active    []tlsca.RouteToDatabase `json:"active"`
 			Databases []types.Database        `json:"databases"`
 		}{active, databases}
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = json.MarshalIndent(data, "", "  ")
+			out, err = json.MarshalIndent(dbInfo, "", "  ")
 		} else {
-			out, err = yaml.Marshal(data)
+			out, err = yaml.Marshal(dbInfo)
 		}
 		if err != nil {
 			return trace.Wrap(err)
@@ -1781,17 +1783,17 @@ func onListClusters(cf *CLIConf) error {
 			ClusterType string `json:"cluster_type"`
 			Selected    bool   `json:"selected"`
 		}
-		data := make([]cluster, 0, len(leafClusters)+1)
-		data = append(data, cluster{rootClusterName, teleport.RemoteClusterStatusOnline, "root", isSelected(rootClusterName)})
+		clusterInfo := make([]cluster, 0, len(leafClusters)+1)
+		clusterInfo = append(clusterInfo, cluster{rootClusterName, teleport.RemoteClusterStatusOnline, "root", isSelected(rootClusterName)})
 		for _, leaf := range leafClusters {
-			data = append(data, cluster{leaf.GetName(), leaf.GetConnectionStatus(), "leaf", isSelected(leaf.GetName())})
+			clusterInfo = append(clusterInfo, cluster{leaf.GetName(), leaf.GetConnectionStatus(), "leaf", isSelected(leaf.GetName())})
 		}
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = json.MarshalIndent(data, "", "  ")
+			out, err = json.MarshalIndent(clusterInfo, "", "  ")
 		} else {
-			out, err = yaml.Marshal(data)
+			out, err = yaml.Marshal(clusterInfo)
 		}
 		if err != nil {
 			return trace.Wrap(err)
@@ -2445,16 +2447,16 @@ func onStatus(cf *CLIConf) error {
 		if profiles == nil {
 			profiles = []*client.ProfileStatus{}
 		}
-		data := struct {
+		profileInfo := struct {
 			Active   *client.ProfileStatus   `json:"active"`
 			Profiles []*client.ProfileStatus `json:"profiles"`
 		}{profile, profiles}
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = json.MarshalIndent(data, "", "  ")
+			out, err = json.MarshalIndent(profileInfo, "", "  ")
 		} else {
-			out, err = yaml.Marshal(data)
+			out, err = yaml.Marshal(profileInfo)
 		}
 		if err != nil {
 			return trace.Wrap(err)

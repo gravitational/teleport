@@ -212,6 +212,7 @@ func onAppConfig(cf *CLIConf) error {
 
 func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) (string, error) {
 	uri := fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
+	format = strings.ToLower(format)
 	switch format {
 	case appFormatURI:
 		return uri, nil

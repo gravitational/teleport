@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
@@ -502,6 +503,12 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		fmt.Println(string(out))
+	case teleport.YAML:
+		out, err := yaml.Marshal(filteredSessions)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
 	default:
 		return trace.BadParameter("unsupported format. try 'json' or 'text'")
 	}
@@ -642,7 +649,8 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	}
 
 	selectedCluster := selectedKubeCluster(currentTeleportCluster)
-	switch strings.ToLower(c.format) {
+	format := strings.ToLower(c.format)
+	switch format {
 	case teleport.Text:
 		var t asciitable.Table
 		if cf.Quiet {
@@ -658,16 +666,22 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 			t.AddRow([]string{cluster, selectedMark})
 		}
 		fmt.Println(t.AsBuffer().String())
-	case teleport.JSON:
+	case teleport.JSON, teleport.YAML:
 		type cluster struct {
 			KubeClusterName string `json:"kube_cluster_name"`
 			Selected        bool   `json:"selected"`
 		}
-		clusters := make([]cluster, 0, len(kubeClusters))
+		clusterInfo := make([]cluster, 0, len(kubeClusters))
 		for _, cl := range kubeClusters {
-			clusters = append(clusters, cluster{cl, cl == selectedCluster})
+			clusterInfo = append(clusterInfo, cluster{cl, cl == selectedCluster})
 		}
-		out, err := json.MarshalIndent(clusters, "", "  ")
+		var out []byte
+		var err error
+		if format == teleport.JSON {
+			out, err = json.MarshalIndent(clusterInfo, "", "  ")
+		} else {
+			out, err = yaml.Marshal(clusterInfo)
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}

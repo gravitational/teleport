@@ -282,7 +282,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 		}
 		fmt.Println(cmd.Path, strings.Join(cmd.Args[1:], " "))
 	case dbFormatJSON, dbFormatYAML:
-		data := struct {
+		dbConfigInfo := struct {
 			Name     string `json:"name"`
 			Host     string `json:"host"`
 			Port     int    `json:"port"`
@@ -300,9 +300,9 @@ func onDatabaseConfig(cf *CLIConf) error {
 		var out []byte
 		var err error
 		if format == dbFormatJSON {
-			out, err = json.MarshalIndent(data, "", "  ")
+			out, err = json.MarshalIndent(dbConfigInfo, "", "  ")
 		} else {
-			out, err = yaml.Marshal(data)
+			out, err = yaml.Marshal(dbConfigInfo)
 		}
 		if err != nil {
 			return trace.Wrap(err)
