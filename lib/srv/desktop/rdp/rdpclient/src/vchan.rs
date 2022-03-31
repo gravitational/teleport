@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::errors::invalid_data_error;
-use crate::RawPayload;
+use crate::Payload;
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rdp::core::tpkt;
@@ -35,15 +35,17 @@ impl Client {
         return Self { data: Vec::new() };
     }
 
-    /// Callers can call read() multiple times to process RDP messages sent over a virtual channel.
+    /// Callers can call read() to process RDP messages (PDUs) sent over a virtual channel.
     ///
-    /// It will only return an Ok(Some(RawPayload)) once a full message has been pieced together.
-    /// The RawPayload will be the raw bytes of the sent PDU, starting at the channel specific header.
-    /// For example, if handling a cliprdr PDU, RawPayload will be a full PDU starting with the
+    /// For chunked PDUs, the Client will piece the full PDU together in Client.data over multiple calls,
+    /// and will only return an Ok(Some(Payload)) once a full message has been pieced together.
+    ///
+    /// The Payload will be the raw bytes of the PDU, starting at the channel specific header.
+    /// For example, if handling a cliprdr PDU, Payload will be a full PDU starting with the
     /// CLIPRDR_HEADER structure that's is present in all clipboard PDUs.
     ///
     /// Returns Ok(None) on interim chunks.
-    pub fn read(&mut self, raw_payload: tpkt::Payload) -> RdpResult<Option<RawPayload>> {
+    pub fn read(&mut self, raw_payload: tpkt::Payload) -> RdpResult<Option<Payload>> {
         let mut raw_payload = try_let!(tpkt::Payload::Raw, raw_payload)?;
         let channel_pdu_header = ChannelPDUHeader::decode(&mut raw_payload)?;
 
@@ -53,10 +55,10 @@ impl Client {
             .flags
             .contains(ChannelPDUFlags::CHANNEL_FLAG_LAST)
         {
-            Ok(Some(Cursor::new(self.data.split_off(0))))
-        } else {
-            Ok(None)
+            return Ok(Some(Cursor::new(self.data.split_off(0))));
         }
+
+        Ok(None)
     }
 }
 
@@ -110,7 +112,7 @@ impl ChannelPDUHeader {
     pub fn new(length: u32, flags: ChannelPDUFlags) -> Self {
         Self { length, flags }
     }
-    pub fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
+    pub fn decode(payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
             length: payload.read_u32::<LittleEndian>()?,
             flags: ChannelPDUFlags::from_bits(payload.read_u32::<LittleEndian>()?)

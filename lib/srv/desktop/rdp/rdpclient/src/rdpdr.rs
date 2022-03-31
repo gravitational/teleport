@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
-use crate::RawPayload;
+use crate::Payload;
 use crate::{scard, vchan};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -41,7 +41,8 @@ impl Client {
             scard: scard::Client::new(cert_der, key_der, pin),
         }
     }
-    pub fn read<S: Read + Write>(
+    /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
+    pub fn read_and_reply<S: Read + Write>(
         &mut self,
         payload: tpkt::Payload,
         mcs: &mut mcs::Client<S>,
@@ -86,7 +87,7 @@ impl Client {
         Ok(())
     }
 
-    fn handle_server_announce(&self, payload: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_server_announce(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = ServerAnnounceRequest::decode(payload)?;
         debug!("got ServerAnnounceRequest {:?}", req);
 
@@ -98,7 +99,7 @@ impl Client {
         Ok(Some(resp))
     }
 
-    fn handle_server_capability(&self, payload: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_server_capability(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = ServerCoreCapabilityRequest::decode(payload)?;
         debug!("got {:?}", req);
 
@@ -110,7 +111,7 @@ impl Client {
         Ok(Some(resp))
     }
 
-    fn handle_client_id_confirm(&self, payload: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_client_id_confirm(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = ServerClientIdConfirm::decode(payload)?;
         debug!("got ServerClientIdConfirm {:?}", req);
 
@@ -122,7 +123,7 @@ impl Client {
         Ok(Some(resp))
     }
 
-    fn handle_device_reply(&self, payload: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
         debug!("got {:?}", req);
 
@@ -141,7 +142,7 @@ impl Client {
         }
     }
 
-    fn handle_device_io_request(&mut self, payload: &mut RawPayload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
         let req = DeviceIoRequest::decode(payload)?;
         debug!("got {:?}", req);
 
@@ -197,7 +198,7 @@ impl SharedHeader {
             packet_id,
         }
     }
-    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let component = payload.read_u16::<LittleEndian>()?;
         let packet_id = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
@@ -273,7 +274,7 @@ impl ClientIdMessage {
         Ok(w)
     }
 
-    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
             version_major: payload.read_u16::<LittleEndian>()?,
             version_minor: payload.read_u16::<LittleEndian>()?,
@@ -338,7 +339,7 @@ impl ServerCoreCapabilityRequest {
         Ok(w)
     }
 
-    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let num_capabilities = payload.read_u16::<LittleEndian>()?;
         let padding = payload.read_u16::<LittleEndian>()?;
         let mut capabilities = vec![];
@@ -366,7 +367,7 @@ impl CapabilitySet {
         w.extend_from_slice(&self.data.encode()?);
         Ok(w)
     }
-    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let header = CapabilityHeader::decode(payload)?;
         let data = Capability::decode(payload, &header)?;
 
@@ -394,7 +395,7 @@ impl CapabilityHeader {
         w.write_u32::<LittleEndian>(self.version)?;
         Ok(w)
     }
-    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let cap_type = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
             cap_type: CapabilityType::from_u16(cap_type).ok_or_else(|| {
@@ -433,7 +434,7 @@ impl Capability {
         }
     }
 
-    fn decode(payload: &mut RawPayload, header: &CapabilityHeader) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload, header: &CapabilityHeader) -> RdpResult<Self> {
         match header.cap_type {
             CapabilityType::CAP_GENERAL_TYPE => Ok(Capability::General(
                 GeneralCapabilitySet::decode(payload, header.version)?,
@@ -476,7 +477,7 @@ impl GeneralCapabilitySet {
         Ok(w)
     }
 
-    fn decode(payload: &mut RawPayload, version: u32) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload, version: u32) -> RdpResult<Self> {
         Ok(Self {
             os_type: payload.read_u32::<LittleEndian>()?,
             os_version: payload.read_u32::<LittleEndian>()?,
@@ -575,7 +576,7 @@ struct ServerDeviceAnnounceResponse {
 }
 
 impl ServerDeviceAnnounceResponse {
-    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
             device_id: payload.read_u32::<LittleEndian>()?,
             result_code: payload.read_u32::<LittleEndian>()?,
@@ -594,7 +595,7 @@ struct DeviceIoRequest {
 }
 
 impl DeviceIoRequest {
-    fn decode(payload: &mut RawPayload) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let device_id = payload.read_u32::<LittleEndian>()?;
         let file_id = payload.read_u32::<LittleEndian>()?;
         let completion_id = payload.read_u32::<LittleEndian>()?;
@@ -655,7 +656,7 @@ struct DeviceControlRequest {
 }
 
 impl DeviceControlRequest {
-    fn decode(header: DeviceIoRequest, payload: &mut RawPayload) -> RdpResult<Self> {
+    fn decode(header: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let output_buffer_length = payload.read_u32::<LittleEndian>()?;
         let input_buffer_length = payload.read_u32::<LittleEndian>()?;
         let io_control_code = payload.read_u32::<LittleEndian>()?;

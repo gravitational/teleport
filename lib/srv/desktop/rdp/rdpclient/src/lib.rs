@@ -277,9 +277,9 @@ impl<S: Read + Write> RdpClient<S> {
         // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            rdpdr::CHANNEL_NAME => self.rdpdr.read(message, &mut self.mcs),
+            rdpdr::CHANNEL_NAME => self.rdpdr.read_and_reply(message, &mut self.mcs),
             cliprdr::CHANNEL_NAME => match self.cliprdr {
-                Some(ref mut clip) => clip.read(message, &mut self.mcs),
+                Some(ref mut clip) => clip.read_and_reply(message, &mut self.mcs),
                 None => Ok(()),
             },
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
@@ -701,4 +701,4 @@ extern "C" {
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.
-pub(crate) type RawPayload = Cursor<Vec<u8>>;
+pub(crate) type Payload = Cursor<Vec<u8>>;
