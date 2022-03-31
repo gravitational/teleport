@@ -6,15 +6,15 @@ description: Follow this guide to get started contributing changes to Teleport's
 This guide describes the general workflow for making documentation changes
 
 ## Step 1/4 Set up your local environment
-Clone the `gravitational/next` repository via `git clone`:
+Clone the `gravitational/docs` repository via `git clone`:
 
 ```code
-$ git clone https://github.com/gravitational/next
+$ git clone https://github.com/gravitational/docs
 ```
 
-Different versions of the documentation are organized into the `content` directory of `gravitational/next`. Each subdirectory of `content` includes a git submodule for a different branch of `gravitational/teleport`. 
+Different versions of the documentation are organized into the `content` directory of `gravitational/docs`. Each subdirectory of `content` includes a git submodule for a different branch of `gravitational/teleport`. 
 
-Navigate to the root of your local clone of the `gravitational/next` repository and run the following command to populate the `content` directory:
+Navigate to the root of your local clone of the `gravitational/docs` repository and run the following command to populate the `content` directory:
 
 ```code
 $ git submodule update --init --recursive
