@@ -73,19 +73,34 @@ We'll reference these files later when [configuring the plugins](#configuring-ma
 
 We recommend installing the Teleport Plugins alongside the Teleport Proxy. This is an ideal
 location as plugins have a low memory footprint, and will require both public internet access
-and Teleport Auth access. We currently only provide linux-amd64 binaries, you can also
-compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost).
+and Teleport Auth access. 
 
+<Tabs>
+<TabItem label="Download">
+  ```code
+  $ curl -L https://get.gravitational.com/teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ cd teleport-access-mattermost
+  $ ./install
+  ```
+</TabItem>
+<TabItem label="From Source">
+  To install from source you need `git` and `go >= (=teleport.golang=)` installed.
+
+  ```code
+  # Checkout teleport-plugins
+  $ git clone https://github.com/gravitational/teleport-plugins.git
+  $ cd teleport-plugins/access/mattermost
+  $ make
+  ```
+Run `./install` from `teleport-mattermost` or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+</TabItem>
+<TabItem label="Docker">
 ```code
-$ wget https://get.gravitational.com/teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-$ cd teleport-access-mattermost
-$ ./install
-$ which teleport-mattermost
-# /usr/local/bin/teleport-mattermost
+$ docker pull quay.io/gravitational/access-plugin-mattermost:(=teleport.version=)
 ```
-
-Run `./install` in from 'teleport-mattermost' or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+</TabItem>
+</Tabs>
 
 ### Configuring Mattermost bot
 
