@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -195,18 +196,24 @@ func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types
 // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
 func rdsCAURLForDatabase(database types.Database) string {
 	region := database.GetAWS().Region
-	if u, ok := rdsGovCloudCAURLs[region]; ok {
-		return u
-	}
 
-	return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
+	switch {
+	case awsutils.IsCNRegion(region):
+		return fmt.Sprintf(rdsCNRegionCAURLTemplate, region, region)
+
+	case awsutils.IsUSGovRegion(region):
+		return fmt.Sprintf(rdsUSGovRegionCAURLTemplate, region, region)
+
+	default:
+		return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
+	}
 }
 
 // redshiftCAURLForDatabase returns root certificate download URL based on the region
 // of the provided RDS server instance.
 func redshiftCAURLForDatabase(database types.Database) string {
-	if u, ok := redshiftCAURLs[database.GetAWS().Region]; ok {
-		return u
+	if awsutils.IsCNRegion(database.GetAWS().Region) {
+		return redshiftCNRegionCAURL
 	}
 	return redshiftDefaultCAURL
 }
@@ -217,10 +224,26 @@ const (
 	//
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
 	rdsDefaultCAURLTemplate = "https://truststore.pki.rds.amazonaws.com/%s/%s-bundle.pem"
+	// rdsUSGovRegionCAURLTemplate is the string format template that creates URLs
+	// for region based RDS CA bundles for AWS US GovCloud regions
+	//
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+	rdsUSGovRegionCAURLTemplate = "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/%s/%s-bundle.pem"
+	// rdsCNRegionCAURLTemplate is the string format template that creates URLs
+	// for region based RDS CA bundles for AWS China regions.
+	//
+	// https://docs.amazonaws.cn/en_us/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+	rdsCNRegionCAURLTemplate = "https://rds-truststore.s3.cn-north-1.amazonaws.com.cn/%s/%s-bundle.pem"
 	// redshiftDefaultCAURL is the Redshift CA bundle download URL.
 	//
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
 	redshiftDefaultCAURL = "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt"
+	// redshiftDefaultCAURL is the Redshift CA bundle download URL for AWS
+	// China regions.
+	//
+	// https://docs.amazonaws.cn/redshift/latest/mgmt/connecting-ssl-support.html
+	redshiftCNRegionCAURL = "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt"
+
 	// azureCAURL is the URL of the CA certificate for validating certificates
 	// presented by Azure hosted databases. See:
 	//
@@ -241,18 +264,3 @@ To correct the error you can try the following:
   * Download root certificate for your Cloud SQL instance %q manually and set
     it in the database configuration using "ca_cert_file" configuration field.`
 )
-
-// rdsGovCloudCAURLs maps AWS regions to URLs of their RDS root certificates.
-//
-// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
-var rdsGovCloudCAURLs = map[string]string{
-	"us-gov-east-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
-	"us-gov-west-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
-}
-
-// redshiftCAURLs maps opt-in AWS regions to URLs of their Redshift root certificates.
-//
-// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
-var redshiftCAURLs = map[string]string{
-	"cn-north-1": "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
-}

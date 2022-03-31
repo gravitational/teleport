@@ -46,6 +46,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const eventBufferSize = 1024
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
@@ -165,7 +167,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.eventsC = make(chan Event, 100)
+	p.eventsC = make(chan Event, eventBufferSize)
 
 	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
 	if err != nil {
@@ -655,87 +657,6 @@ func TestCompletenessReset(t *testing.T) {
 			require.True(t, trace.IsConnectionProblem(err))
 		}
 	}
-}
-
-// TestTombstones verifies that healthy caches leave tombstones
-// on closure, giving new caches the ability to start from a known
-// good state if the origin state is unavailable.
-func TestTombstones(t *testing.T) {
-	ctx := context.Background()
-	const caCount = 10
-	p := newTestPackWithoutCache(t)
-	t.Cleanup(p.Close)
-
-	// put lots of CAs in the backend
-	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
-	}
-
-	var err error
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
-
-	require.NoError(t, p.cache.Close())
-	// wait for TombstoneWritten, ignoring all other event types
-	expectEvent(t, p.eventsC, TombstoneWritten)
-	// simulate bad connection to auth server
-	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
-	p.eventsS.closeWatchers()
-
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available despite the fact
-	// that the origin state was never available.
-	cas, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
 }
 
 // TestInitStrategy verifies that cache uses expected init strategy
@@ -2332,6 +2253,10 @@ func TestRelativeExpiry(t *testing.T) {
 	const checkInterval = time.Second
 	const nodeCount = int64(100)
 
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
+
 	ctx := context.Background()
 
 	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
@@ -2350,7 +2275,10 @@ func TestRelativeExpiry(t *testing.T) {
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
-		// Check that information has been replicated to the cache.
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := int64(0); i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
