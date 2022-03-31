@@ -1562,17 +1562,22 @@ func sortedLabels(labels map[string]string) string {
 }
 
 func showApps(apps []types.Application, active []tlsca.RouteToApp, format string, verbose bool) error {
-	switch strings.ToLower(format) {
+	format = strings.ToLower(format)
+	switch format {
 	case teleport.Text:
 		showAppsAsText(apps, active, verbose)
-	case teleport.JSON:
-		out, err := utils.FastMarshalIndent(apps, "", "  ")
-		if err != nil {
-			return trace.Wrap(err)
+	case teleport.JSON, teleport.YAML:
+		appList := struct {
+			Apps   []types.Application `json:"apps"`
+			Active []tlsca.RouteToApp  `json:"active"`
+		}{apps, active}
+		var out []byte
+		var err error
+		if format == teleport.JSON {
+			out, err = utils.FastMarshalIndent(appList, "", "  ")
+		} else {
+			out, err = yaml.Marshal(appList)
 		}
-		fmt.Println(string(out))
-	case teleport.YAML:
-		out, err := yaml.Marshal(apps)
 		if err != nil {
 			return trace.Wrap(err)
 		}
