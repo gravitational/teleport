@@ -472,7 +472,7 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
 		CmdClause: parent.Command("sessions", "Get a list of active kubernetes sessions."),
 	}
-	c.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&c.format)
+	c.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 
 	return c
 }

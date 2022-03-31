@@ -81,7 +81,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
-	c.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&c.format)
+	c.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 	return c
 }
 

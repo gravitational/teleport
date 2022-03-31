@@ -371,6 +371,9 @@ const (
 // cliOption is used in tests to inject/override configuration within Run
 type cliOption func(*CLIConf) error
 
+// defaultFormats is the default set of formats to use for commands that have the --format flag.
+var defaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
+
 // Run executes TSH client. same as main() but easier to test
 func Run(args []string, opts ...cliOption) error {
 	var cf CLIConf
@@ -423,7 +426,7 @@ func Run(args []string, opts ...cliOption) error {
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the version")
-	ver.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	ver.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	// ssh
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
@@ -455,7 +458,7 @@ func Run(args []string, opts ...cliOption) error {
 	lsApps.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	lsApps.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	lsApps.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
@@ -464,8 +467,9 @@ func Run(args []string, opts ...cliOption) error {
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
 	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
-	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, 'json' or 'yaml' to print everything as JSON or YAML.",
-		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
+	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, %q or %q to print everything as JSON or YAML.",
+		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
+	).StringVar(&cf.Format)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
@@ -488,7 +492,7 @@ func Run(args []string, opts ...cliOption) error {
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
 	dbList.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	dbList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	dbList.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	dbList.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	dbList.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
@@ -497,7 +501,7 @@ func Run(args []string, opts ...cliOption) error {
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbEnv := db.Command("env", "Print environment variables for the configured database.")
-	dbEnv.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	dbEnv.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	dbEnv.Arg("db", "Print environment for the specified database").StringVar(&cf.DatabaseService)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbEnv.Flag("db", "Print environment for the specified database.").Hidden().StringVar(&cf.DatabaseService)
@@ -505,7 +509,8 @@ func Run(args []string, opts ...cliOption) error {
 	dbConfig.Arg("db", "Print information for the specified database.").StringVar(&cf.DatabaseService)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbConfig.Flag("db", "Print information for the specified database.").Hidden().StringVar(&cf.DatabaseService)
-	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command, 'json' or 'yaml' to print in JSON or YAML.", dbFormatText, dbFormatCommand)).StringVar(&cf.Format)
+	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command, %q or %q to print in JSON or YAML.",
+		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
 	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
@@ -521,7 +526,7 @@ func Run(args []string, opts ...cliOption) error {
 	// play
 	play := app.Command("play", "Replay the recorded SSH session")
 	play.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
-	play.Flag("format", "Format output (json, yaml, pty)").Short('f').Default(teleport.PTY).StringVar(&cf.Format)
+	play.Flag("format", "Format output (json, yaml, pty)").Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
@@ -536,13 +541,13 @@ func Run(args []string, opts ...cliOption) error {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
-	ls.Flag("format", "Format output (text, json, yaml, names)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	ls.Flag("format", "Format output (text, json, yaml, names)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, teleport.Text, teleport.JSON, teleport.YAML, teleport.Names)
 	ls.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	ls.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
-	clusters.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	clusters.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
@@ -589,7 +594,7 @@ func Run(args []string, opts ...cliOption) error {
 	// The status command shows which proxy the user is logged into and metadata
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
-	status.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	status.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
@@ -600,13 +605,13 @@ func Run(args []string, opts ...cliOption) error {
 	req := app.Command("request", "Manage access requests").Alias("requests")
 
 	reqList := req.Command("ls", "List access requests").Alias("list")
-	reqList.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	reqList.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	reqList.Flag("reviewable", "Only show requests reviewable by current user").BoolVar(&cf.ReviewableRequests)
 	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer").BoolVar(&cf.SuggestedRequests)
 	reqList.Flag("my-requests", "Only show requests created by current user").BoolVar(&cf.MyRequests)
 
 	reqShow := req.Command("show", "Show request details").Alias("details")
-	reqShow.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	reqShow.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	reqCreate := req.Command("new", "Create a new access request").Alias("create")
