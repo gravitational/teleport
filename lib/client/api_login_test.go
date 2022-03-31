@@ -119,19 +119,10 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	}
 
 	const pin = "pin123"
-	pinC := make(chan struct{})
 	userPINFn := func(ctx context.Context) (string, error) {
-		<-pinC // Do not answer until we get the WebAuthn prompt.
 		return pin, nil
 	}
 	solvePIN := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-		go func() {
-			// Wait a bit so prompt.PromptPIN() happens first.
-			// It's important because it signals cancellation of the OTP read.
-			time.Sleep(100 * time.Millisecond)
-			pinC <- struct{}{}
-		}()
-
 		// Ask and verify the PIN. Usually the authenticator would verify the PIN,
 		// but we are faking it here.
 		got, err := prompt.PromptPIN()
