@@ -275,7 +275,7 @@ func TestDatabaseAccessMongoConnectionCount(t *testing.T) {
 	require.Eventually(t, waitUntilNoConnections, 5*time.Second, 100*time.Millisecond)
 }
 
-func TestDatabaseAccessRedisRootCluster(t *testing.T) {
+func TestRootDatabaseAccessRedisRootCluster(t *testing.T) {
 	pack := setupDatabaseTest(t)
 
 	serverConfig := common.TestServerConfig{
