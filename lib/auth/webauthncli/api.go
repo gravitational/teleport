@@ -29,8 +29,10 @@ type LoginOpts struct {
 	// If empty, Login may either choose a credential or error due to ambiguity.
 	User string
 	// OptimisticAssertion allows Login to skip credential listing and attempt
-	// to assert directly. The drawback of optimistic assertions is that Login is
-	// unable to guarantee the credential user, even if the User field is set.
+	// to assert directly. The drawback of an optimistic assertion is that the
+	// authenticator chooses the login credential, so Login can't guarantee that
+	// the User field will be respected. The upside is that it saves a touch for
+	// some devices.
 	// Login may decide to forego optimistic assertions if it wouldn't save a
 	// touch.
 	OptimisticAssertion bool
