@@ -459,7 +459,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 			Clock:     s.clock,
 			Client:    s.localAccessPoint,
 		},
-		CertTypes: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+		WatchCertTypes: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -473,7 +473,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 			Clock:     s.clock,
 			Client:    s.remoteAccessPoint,
 		},
-		CertTypes: []types.CertAuthType{types.HostCA},
+		WatchCertTypes: []types.CertAuthType{types.HostCA},
 	})
 	if err != nil {
 		return trace.Wrap(err)

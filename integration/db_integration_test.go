@@ -267,7 +267,7 @@ func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 			Clock:     p.clock,
 			Client:    p.siteAPI,
 		},
-		CertTypes: []types.CertAuthType{p.certType},
+		WatchCertTypes: []types.CertAuthType{p.certType},
 	})
 	if err != nil {
 		return err

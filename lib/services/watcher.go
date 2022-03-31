@@ -920,8 +920,8 @@ type CertAuthorityWatcherConfig struct {
 	AuthorityGetter
 	// CertAuthorityC receives up-to-date list of all cert authority resources.
 	CertAuthorityC chan []types.CertAuthority
-	// CertTypes stores all certificate types that should be monitored.
-	CertTypes []types.CertAuthType
+	// WatchCertTypes stores all certificate types that should be monitored.
+	WatchCertTypes []types.CertAuthType
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -1000,7 +1000,7 @@ func (c *caCollector) resourceKind() string {
 func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	updatedCerts := make(CertAuthorityTypeMap)
 
-	for _, caType := range c.CertTypes {
+	for _, caType := range c.WatchCertTypes {
 		cas, err := c.AuthorityGetter.GetCertAuthorities(ctx, caType, false)
 		if err != nil {
 			return trace.Wrap(err)
