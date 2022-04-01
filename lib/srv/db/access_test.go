@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1252,7 +1253,7 @@ type testContext struct {
 	webListener    *multiplexer.WebListener
 	fakeRemoteSite *reversetunnel.FakeRemoteSite
 	server         *Server
-	emitter        *testEmitter
+	emitter        *eventstest.ChannelEmitter
 	hostCA         types.CertAuthority
 	// postgres is a collection of Postgres databases the test uses.
 	postgres map[string]testPostgres
@@ -1644,9 +1645,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 
 	// Establish fake reversetunnel b/w database proxy and database service.
 	testCtx.fakeRemoteSite = reversetunnel.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
-	t.Cleanup(func() {
-		testCtx.fakeRemoteSite.Close()
-	})
+	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
 	tunnel := &reversetunnel.FakeServer{
 		Sites: []reversetunnel.RemoteSite{
 			testCtx.fakeRemoteSite,
@@ -1657,7 +1656,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Create test audit events emitter.
-	testCtx.emitter = newTestEmitter()
+	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
@@ -1700,6 +1699,8 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *cloud.GCPSQLAdminClientMock
+	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
+	OnHeartbeat func(error)
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -1765,6 +1766,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		Limiter:          connLimiter,
 		Auth:             testAuth,
 		Databases:        p.Databases,
+		OnHeartbeat:      p.OnHeartbeat,
 		ResourceMatchers: p.ResourceMatchers,
 		GetServerInfoFn:  p.GetServerInfoFn,
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {

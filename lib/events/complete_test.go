@@ -23,6 +23,7 @@ import (
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -117,7 +118,7 @@ func TestUploadCompleterCompletesEmptyUploads(t *testing.T) {
 type MockAuditLog struct {
 	DiscardAuditLog
 
-	emitter       MockEmitter
+	emitter       eventstest.MockEmitter
 	sessionEvents []apievents.AuditEvent
 }
 

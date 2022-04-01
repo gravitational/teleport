@@ -375,17 +375,14 @@ tests:
           path: spec.template.spec
 
   - it: should set environment when extraEnv set in values
-    set:
-      clusterName: helm-lint.example.com
-      extraEnv:
-        - name: SSL_CERT_FILE
-          value: "/etc/tls/some-cert-file.pem"
+    values:
+      - ../.lint/extra-env.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: SSL_CERT_FILE
-            value: "/etc/tls/some-cert-file.pem"
+            name: SOME_ENVIRONMENT_VARIABLE
+            value: "some-value"
       - matchSnapshot:
           path: spec.template.spec
 
@@ -393,10 +390,7 @@ tests:
     values:
       - ../.lint/initcontainers.yaml
       - ../.lint/resources.yaml
-    set:
-      extraEnv:
-        - name: SSL_CERT_FILE
-          value: "/etc/tls/some-cert-file.pem"
+      - ../.lint/extra-env.yaml
     asserts:
       - contains:
           path: spec.template.spec.initContainers[0].args
@@ -529,5 +523,153 @@ tests:
       - equal:
           path: spec.template.spec.priorityClassName
           value: system-cluster-critical
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set probeTimeoutSeconds when set in values
+    values:
+      - ../.lint/probe-timeout-seconds.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not mount TLS secrets when when highAvailability.certManager.enabled is false and tls.existingSecretName is not set
+    set:
+      clusterName: helm-lint-test-cluster
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: teleport-tls
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount cert-manager TLS secret when highAvailability.certManager.enabled is true
+    values:
+      - ../.lint/cert-manager.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: teleport-tls
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingSecretName when set in values
+    values:
+      - ../.lint/existing-tls-secret.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: helm-lint-existing-tls-secret
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set environment when set in values
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: helm-lint-existing-tls-secret
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set extra environment when set in values
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+      - ../.lint/extra-env.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: helm-lint-existing-tls-secret
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOME_ENVIRONMENT_VARIABLE
+            value: some-value
       - matchSnapshot:
           path: spec.template.spec

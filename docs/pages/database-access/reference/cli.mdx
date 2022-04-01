@@ -3,11 +3,11 @@ title: Database Access CLI Reference
 description: CLI reference for Teleport Database Access.
 ---
 
-# Database Access CLI Reference
-
 ## teleport db start
 
 Starts Teleport Database Service agent.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ teleport db start \
@@ -18,13 +18,27 @@ $ teleport db start \
     --uri=postgres.example.com:5432
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db start \
+    --token=/path/to/token \
+    --auth-server=mytenant.teleport.sh:3080 \
+    --name=example \
+    --protocol=postgres \
+    --uri=postgres.mytenant.teleport.sh:5432
+```
+
+</ScopedBlock>
+
 | Flag | Description |
 | - | - |
 | `-d/--debug` | Enable verbose logging to stderr. |
 | `--pid-file` | Full path to the PID file. By default no PID file will be created. |
-| `--auth-server` | Address of the Teleport proxy server. |
-| `--token` | Invitation token to register with an auth server. |
-| `--ca-pin` | CA pin to validate the auth server. |
+| `--auth-server` | Address of the Teleport Proxy Service. |
+| `--token` | Invitation token to register with the Auth Service. |
+| `--ca-pin` | CA pin to validate the Auth Service. |
 | `-c/--config` | Path to a configuration file (default `/etc/teleport.yaml`). |
 | `--labels` | Comma-separated list of labels for this node, for example `env=dev,app=web`. |
 | `--fips` | Start Teleport in FedRAMP/FIPS 140-2 mode. |
@@ -42,6 +56,8 @@ $ teleport db start \
 
 Creates a sample Database Service configuration.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
 $ teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
 $ teleport db configure create \
@@ -53,6 +69,22 @@ $ teleport db configure create \
   --labels=env=prod
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
+$ teleport db configure create \
+  --token=/tmp/token \
+  --proxy=mytenant.teleport.sh:3080 \
+  --name=example \
+  --protocol=postgres \
+  --uri=postgres://postgres.mytenant.teleport.sh:5432 \
+  --labels=env=prod
+```
+
+</ScopedBlock>
+
 | Flag | Description |
 | - | - |
 | `--proxy` | Teleport Proxy Service address to connect to. Default: `0.0.0.0:3080`. |
@@ -61,7 +93,7 @@ $ teleport db configure create \
 | `--redshift-discovery` | List of AWS regions the agent will discover for Redshift instances. |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
-| `--protocol` | Proxied database protocol. Supported are: [postgres mysql mongodb cockroachdb redis sqlserver]. |
+| `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver]`. |
 | `--uri` | Address the proxied database is reachable at. |
 | `--labels` | Comma-separated list of labels for the database, for example env=dev,dept=it |
 | `-o/--output` | Write to stdout with `-o=stdout`, the default config file with `-o=file`, or a custom path with `-o=file:///path` |
@@ -80,7 +112,7 @@ $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
 | - | - |
 | `-c/--config` | Path to a configuration file. Default: `/etc/teleport.yaml`. |
 | `--manual` | When executed in "manual" mode, this command will print the instructions to complete the configuration instead of applying them directly. |
-| `--policy-name` | Name of the Teleport Database Service policy. Default: "DatabaseAccess" |
+| `--policy-name` | Name of the Teleport Database Service policy. Default: `DatabaseAccess` |
 | `--confirm` | Do not prompt the user and auto-confirm all actions. |
 | `--attach-to-role` | Role name to attach the policy to. Mutually exclusive with `--attach-to-user`. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
 | `--attach-to-user` | User name to attach the policy to. Mutually exclusive with `--attach-to-role`. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials. |
