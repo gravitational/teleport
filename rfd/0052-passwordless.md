@@ -255,16 +255,17 @@ https://www.w3.org/TR/webauthn-2/#enumdef-userverificationrequirement) is set to
 
 WebAuthn challenge storage is currently [scoped per-user](
 https://github.com/gravitational/teleport/blob/master/rfd/0040-webauthn-support.md#webauthn-challenge-storage).
-For passwordless we require a global challenge storage, since challenges may be
-issued to an anonymous user. For simplicity, the global challenge storage will
-replace the current per-user storage.
+For passwordless we require a global challenge storage, since challenges are
+issued to anonymous users. Per-user challenge storage is kept for MFA
+(multi-factor authentication) and registration, since they aren't subject to the
+same limitations as the global storage (see the [security](#security) section
+for details).
 
 The new key space for challenges is `/webauthn/sessionData/{scope}/{id}`, where
-`{scope}` is either `login` or `registration` and `{id}` is the base64 raw URL
-encoding of the challenge. As in the current implementation, challenges are
-deleted as soon as they are "spent" by a user.
+`{scope}` is limited to `login` and `{id}` is the base64 raw URL encoding of the
+challenge. Challenges are deleted as soon as they are "spent" by a user.
 
-The  [SessionData](
+The [SessionData](
 https://github.com/gravitational/teleport/blob/f423f7fedc088b97cb666c13dcdcf54bd289b1bf/api/types/webauthn/webauthn.proto#L45)
 proto is modified as below:
 
@@ -451,11 +452,7 @@ mitigations:
 
 1. A simple, in-memory, IP based rate limiter for sensitive endpoints
    (mitigation for rudimentary DDoS attacks)
-2. A circular in-memory buffer to storage challenges
-   (mitigation for storage bloat attacks)
-
-<!-- As noted by Alexey, this may require digging into the Teleport caching
-system to make it work in HA mode). -->
+2. A storage hard limit on in-flight global challenges
 
 (Note that "entropy attacks" are
 [not really](https://www.2uo.de/myths-about-urandom/#what-about-entropy-running-low)
