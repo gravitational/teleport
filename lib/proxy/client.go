@@ -54,7 +54,7 @@ type ClientConfig struct {
 	TLSConfig *tls.Config
 	// Log is the proxy client logger.
 	Log logrus.FieldLogger
-	// Clock is used to control connection cleanup ticker.
+	// Clock is used to control connection monitoring ticker.
 	Clock clockwork.Clock
 	// GracefulShutdownTimout is used set the graceful shutdown
 	// duration limit.
@@ -181,6 +181,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 // monitor monitors the status of peer proxy grpc connections.
 func (c *Client) monitor() {
 	ticker := c.config.Clock.NewTicker(defaults.ResyncInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -302,7 +303,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 }
 
 // Dial dials a node through a peer proxy.
-func (c *Client) Dial(
+func (c *Client) DialNode(
 	proxyIDs []string,
 	nodeID string,
 	src net.Addr,
@@ -311,7 +312,7 @@ func (c *Client) Dial(
 ) (net.Conn, error) {
 	stream, _, err := c.dial(proxyIDs)
 	if err != nil {
-		return nil, trace.ConnectionProblem(err, "error dialling peer proxies %s", proxyIDs)
+		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s", proxyIDs)
 	}
 
 	// send dial request as the first frame
@@ -419,7 +420,7 @@ func (c *Client) stopConn(conn *clientConn) error {
 func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient, bool, error) {
 	conns, existing, err := c.getConnections(proxyIDs)
 	if err != nil {
-		return nil, existing, err
+		return nil, existing, trace.Wrap(err)
 	}
 
 	var errs []error
@@ -498,7 +499,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 
 	if len(conns) == 0 {
 		c.metrics.reportTunnelError(errorProxyPeerProxiesUnreachable)
-		return nil, false, trace.ConnectionProblem(trace.NewAggregate(errs...), "Error dialling all proxies")
+		return nil, false, trace.ConnectionProblem(trace.NewAggregate(errs...), "Error dialing all proxies")
 	}
 
 	return conns, false, nil
@@ -529,7 +530,7 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 	)
 	if err != nil {
-		return nil, trace.Wrap(err, "Error dialling proxy %+v", id)
+		return nil, trace.Wrap(err, "Error dialing proxy %+v", id)
 	}
 
 	return &clientConn{
