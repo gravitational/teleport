@@ -1,0 +1,88 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.terminal.v1;
+
+option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
+
+// Cluster describes cluster fields
+message Cluster {
+    // uri is the cluster resource URI
+    string uri = 1;
+    // name is the cluster name
+    string name = 2;
+    // connected indicates if connection to the cluster can be established, that is if we have a
+    // cert for the cluster that hasn't expired
+    bool connected = 3;
+    // leaf indicates if this is a leaf cluster
+    bool leaf = 4;
+    // User is the cluster access control list of the logged-in user
+    LoggedInUser logged_in_user = 5;
+}
+
+// LoggedInUser describes a logged-in user
+message LoggedInUser {
+    // name is the user name
+    string name = 1;
+    // roles is the user roles
+    repeated string roles = 2;
+    // ssh_logins is the user ssh logins
+    repeated string ssh_logins = 3;
+    // acl is the user acl
+    ACL acl = 4;
+}
+
+// ACL is the access control list of the user
+message ACL {
+    // sessions defines access to recorded sessions
+    ResourceAccess sessions = 1;
+    // auth_connectors defines access to auth.connectors
+    ResourceAccess auth_connectors = 2;
+    // Roles defines access to roles
+    ResourceAccess roles = 3;
+    // Users defines access to users.
+    ResourceAccess users = 4;
+    // trusted_clusters defines access to trusted clusters
+    ResourceAccess trusted_clusters = 5;
+    // Events defines access to audit logs
+    ResourceAccess events = 6;
+    // Tokens defines access to tokens.
+    ResourceAccess tokens = 7;
+    // Servers defines access to servers.
+    ResourceAccess servers = 8;
+    // apps defines access to application servers
+    ResourceAccess apps = 9;
+    // dbs defines access to database servers.
+    ResourceAccess dbs = 10;
+    // kubeservers defines access to kubernetes servers.
+    ResourceAccess kubeservers = 11;
+    // access_requests defines access to access requests
+    ResourceAccess access_requests = 12;
+}
+
+// ResourceAccess describes access verbs
+message ResourceAccess {
+    // list determines "list" access
+    bool list = 1;
+    // read determines "read" access
+    bool read = 2;
+    // edit determines "edit" access
+    bool edit = 3;
+    // create determines "create" access
+    bool create = 4;
+    // delete determines "delete" access
+    bool delete = 5;
+}
