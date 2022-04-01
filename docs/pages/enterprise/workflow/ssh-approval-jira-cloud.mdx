@@ -87,8 +87,8 @@ and Teleport Auth access.
 <Tabs>
 <TabItem label="Download">
   ```code
-  $ curl -L https://get.gravitational.com/teleport-access-jira-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-jira-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ curl -L https://get.gravitational.com/teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   $ cd teleport-access-jira
   $ ./install
   ```
@@ -106,7 +106,7 @@ Run `./install` from `teleport-jira` or place the executable in the appropriate 
 </TabItem>
 <TabItem label="Docker">
   ```code
-  $ docker pull quay.io/gravitational/access-plugin-jira:(=teleport.version=)
+  $ docker pull quay.io/gravitational/access-plugin-jira:(=teleport.plugin.version=)
   ```
 </TabItem>
 </Tabs>

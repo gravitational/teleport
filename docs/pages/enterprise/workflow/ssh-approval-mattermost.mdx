@@ -78,8 +78,8 @@ and Teleport Auth access.
 <Tabs>
 <TabItem label="Download">
   ```code
-  $ curl -L https://get.gravitational.com/teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ curl -L https://get.gravitational.com/teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   $ cd teleport-access-mattermost
   $ ./install
   ```
@@ -97,7 +97,7 @@ Run `./install` from `teleport-mattermost` or place the executable in the approp
 </TabItem>
 <TabItem label="Docker">
   ```code
-  $ docker pull quay.io/gravitational/access-plugin-mattermost:(=teleport.version=)
+  $ docker pull quay.io/gravitational/access-plugin-mattermost:(=teleport.plugin.version=)
   ```
 </TabItem>
 </Tabs>

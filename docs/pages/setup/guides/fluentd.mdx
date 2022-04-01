@@ -85,20 +85,20 @@ from Teleport's events API, and forwards them to Fluentd.
 <Tabs>
   <TabItem label="Linux">
   ```code
-  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   ```
   </TabItem>
 
   <TabItem label="MacOS">
   ```code
-  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-darwin-amd64-bin.tar.gz
-  $ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
+  $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   ```
   </TabItem>
   <TabItem label="Docker">
   ```code
-  $ docker pull quay.io/gravitational/event-handler-plugin:(=teleport.version=)
+  $ docker pull quay.io/gravitational/event-handler-plugin:(=teleport.plugin.version=)
   ```
   </TabItem>
 </Tabs>
