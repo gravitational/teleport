@@ -4,25 +4,89 @@ description: Configuration as a code with Terraform Provider
 videoBanner: YgNHD4SS8dg
 ---
 
-This section will cover:
+This guide will explain how to:
 
-- Setting up Teleport's terraform provider on Linux and Mac.
-- Configuring users and roles using terraform provider for Cloud, Enterprise and Open Source editions.
+- Set up Teleport's Terraform provider on Linux and Mac.
+- Configure Teleport users and roles using the Terraform provider.
 
 ## Prerequisites
 
+<Tabs>
+<TabItem scope={["oss"]} label="Self-Hosted">
+
+- A running Teleport cluster. For details on how to set this up, see [Getting
+  Started on a Linux Server](../../getting-started/linux-server.mdx).
+
+- The `tctl` admin tool version >= (=teleport.version=).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  See [Installation](../../installation.mdx) for details.
+
+  (!docs/pages/includes/tctl.mdx!)
+
 - [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
-- Teleport (=teleport.version=) Cloud, Open Source or Enterprise
 
-```code
-$ terraform version
-# Terraform v(=terraform.version=)
-```
+  ```code
+  $ terraform version
+  # Terraform v(=terraform.version=)
+  ```
 
-```code
-$ tctl version
-# Teleport v(=teleport.version=) go(teleport.golang)
-```
+</TabItem>
+<TabItem
+  scope={["enterprise"]} label="Enterprise">
+
+- A running Teleport cluster. For details on setting this up, see our
+  [Enterprise getting started guide](../../enterprise/getting-started.mdx).
+
+- The `tctl` admin tool version >= (=teleport.version=), which you can download
+  by visiting the
+  [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  (!docs/pages/includes/tctl.mdx!)
+
+- [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+
+  ```code
+  $ terraform version
+  # Terraform v(=terraform.version=)
+  ```
+
+</TabItem>
+<TabItem scope={["cloud"]}
+  label="Cloud">
+
+- A Teleport Cloud account. If you do not have one, visit the
+  [sign up page](https://goteleport.com/signup/) to begin your free trial.
+
+- The Enterprise version of the `tctl` admin tool. To download this, visit
+the [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  (!docs/pages/includes/tctl.mdx!)
+
+- [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+
+  ```code
+  $ terraform version
+  # Terraform v(=terraform.version=)
+  ```
+
+</TabItem>
+</Tabs>
+
 
 Create a folder `teleport-terraform` to hold some temporary files:
 
@@ -31,7 +95,7 @@ $ mkdir -p teleport-terraform
 $ cd teleport-terraform
 ```
 
-## Step 1/4. Install terraform provider
+## Step 1/4. Install the Terraform provider
 
 <Tabs>
   <TabItem label="Linux">
@@ -51,7 +115,54 @@ $ cd teleport-terraform
   </TabItem>
 </Tabs>
 
-## Step 2/4. Create a terraform user
+## Step 2/4. Create a Terraform user
+
+### Enable impersonation
+
+In order for Terraform to manage resources in your Teleport cluster, it needs a
+signed identity file from the cluster's certificate authority. The Terraform user
+cannot request this itself, and requires another user to **impersonate** this
+account in order to request a certificate.
+
+Create a role that enables your user to impersonate the Terraform user. First, paste
+the following YAML document into a file called `terraform-impersonator.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: terraform-impersonator
+spec:
+  # SSH options used for user sessions
+  options:
+    # max_session_ttl defines the TTL (time to live) of SSH certificates
+    # issued to the users with this role.
+    max_session_ttl: 10h
+
+  # The allow section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. By default, nothing is allowed.
+  allow:
+    impersonate:
+      users: ['terraform']
+      roles: ['terraform']
+
+  # The deny section uses the identical format as the 'allow' section.
+  # Deny rules always override allow rules.
+  deny:
+    node_labels:
+      '*': '*'
+```
+
+Next, create the role:
+
+```code
+$ tctl create terraform-impersonator.yaml
+```
+
+Assign this role to the current user. Log in to your Teleport cluster to assume
+the new role.
+
+### Create the Terraform user
 
 Put the following content into `terraform.yaml`:
 
@@ -74,78 +185,74 @@ spec:
 version: v2
 ```
 
-Run:
+Create the `terraform` user and role.
 
 ```code
 $ tctl create terraform.yaml
-$ tctl auth sign --format=file --user=terraform --out=terraform-identity --ttl=10h
 ```
 
-<Admonition type="note">
-Clients missing impersonation privileges when trying to use `tctl auth sign`,
-will get the following error:
+Next, request a signed certificate for the Terraform user:
 
-```txt
-ERROR: access denied: impersonation is not allowed
-```
-
-Create the following file with role: `terraform-impersonator.yaml`:
-
-```yaml
-kind: role
-version: v4
-metadata:
-  name: terraform-impersonator
-spec:
-  # SSH options used for user sessions
-  options:
-    # max_session_ttl defines the TTL (time to live) of SSH certificates
-    # issued to the users with this role.
-    max_session_ttl: 10h
-
-  # allow section declares a list of resource/verb combinations that are
-  # allowed for the users of this role. by default nothing is allowed.
-  allow:
-    impersonate:
-      users: ['terraform']
-      roles: ['terraform']
-
-  # the deny section uses the identical format as the 'allow' section.
-  # the deny rules always override allow rules.
-  deny:
-    node_labels:
-      '*': '*'
-```
-
+<Tabs>
+  <TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
 ```code
-tctl create terraform-impersonator.yaml
+$ tctl auth sign --format=tls --user=terraform --out=auth
 ```
 
-Assign this role to the current user. Re-login to assume the new role and try
-to issue certificate for terraform user again.
+This command should result in three PEM-encoded files: `auth.crt`, `auth.key`,
+and `auth.cas` (certificate, private key, and CA certs, respectively).
 
-</Admonition>
-
-## Step 3/4. Create Terraform configuration
-
-Create a `main.tf` terraform file:
-
-```
-(!examples/resources/terraform/terraform-user-role.tf!)
+</TabItem>
+<TabItem label="Teleport Cloud" scope={["cloud"]}>
+```code
+$ tctl auth sign --user=terraform --out=terraform-identity
 ```
 
-<Admonition type="note">
-Update `teleport.example.com:443` with the address of your Teleport cluster.
-</Admonition>
+The above sequence should result in one PEM-encoded file: `terraform-identity`.
+
+</TabItem>
+</Tabs>
+
+## Step 3/4. Create a Terraform configuration
+
+Paste the following into a file called `main.tf` to define an example user and
+role using Terraform.
+
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+```
+(!examples/resources/terraform/terraform-user-role-cloud.tf!)
+```
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+```
+(!examples/resources/terraform/terraform-user-role-self-hosted.tf!)
+```
+</TabItem>
+</Tabs>
 
 ## Step 4/4. Apply the configuration
 
-Check the contents of `teleport-terraform` folder:
+Check the contents of the `teleport-terraform` folder:
+
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
 
 ```code
 $ ls
 # main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
 ```
+
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+```code
+$ ls
+# main.tf  auth.crt  auth.key  auth.cas  terraform-impersonator.yaml  terraform.yaml
+```
+
+</TabItem>
+</Tabs>
 
 Init terraform and apply the spec:
 
@@ -156,5 +263,5 @@ $ terraform apply
 
 ## Next Steps
 
-- Find the full list of [supported terraform provider resources](../reference/terraform-provider.mdx).
+- Find the full list of [supported Terraform provider resources](../reference/terraform-provider.mdx).
 - Read more about [impersonation](../../access-controls/guides/impersonation.mdx).
