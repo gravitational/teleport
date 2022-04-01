@@ -16,11 +16,6 @@ limitations under the License.
 
 package bpf
 
-// #cgo LDFLAGS: -ldl
-// #include <dlfcn.h>
-// #include <stdlib.h>
-import "C"
-
 import (
 	"context"
 

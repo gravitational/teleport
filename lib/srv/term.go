@@ -32,7 +32,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
-	"github.com/kr/pty"
+	"github.com/creack/pty"
 	"github.com/moby/term"
 	log "github.com/sirupsen/logrus"
 
