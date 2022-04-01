@@ -87,7 +87,7 @@ func (w *streamWatcher) receiveEvents() {
 			w.closeWithError(trail.FromGRPC(err))
 			return
 		}
-		out, err := eventFromGRPC(*event)
+		out, err := EventFromGRPC(*event)
 		if err != nil {
 			w.closeWithError(trail.FromGRPC(err))
 			return
@@ -100,8 +100,8 @@ func (w *streamWatcher) receiveEvents() {
 	}
 }
 
-// eventFromGRPC converts an proto.Event to a types.Event
-func eventFromGRPC(in proto.Event) (*types.Event, error) {
+// EventFromGRPC converts proto.Event to types.Event
+func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	eventType, err := eventTypeFromGRPC(in.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -164,6 +164,9 @@ func eventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetDatabaseServer(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetAuthPreference(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {
