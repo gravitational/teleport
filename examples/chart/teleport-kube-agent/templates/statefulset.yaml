@@ -110,10 +110,20 @@ spec:
       containers:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
+        {{- if .Values.imagePullPolicy }}
+        imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
+        {{- end }}
+        {{- if .Values.extraEnv }}
+        env:
+          {{- toYaml .Values.extraEnv | nindent 10 }}
+        {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
         - "--insecure"
+        {{- end }}
+        {{- if .Values.extraArgs }}
+          {{- toYaml .Values.extraArgs | nindent 8 }}
         {{- end }}
         securityContext:
           allowPrivilegeEscalation: false

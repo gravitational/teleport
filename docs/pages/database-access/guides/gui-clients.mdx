@@ -192,3 +192,34 @@ keep the Password field empty:
 ![DataGrip connection options](../../../img/database-access/guides/sqlserver/datagrip-connection@2x.png)
 
 Click OK to connect.
+
+## Redis Insight
+
+<Admonition type="note">
+  Teleport's Redis Insight integration only supports Redis standalone instances.
+</Admonition>
+
+After opening Redis Insight click `ADD REDIS DATABASE`.
+
+![Redis Insight Startup Screen](../../../img/database-access/guides/redis/redisinsight-startup.png)
+
+Log in to your Redis instance with a Redis user first by using:
+
+`tsh db login --db-user=alice redis-db-name`.
+
+Click `Add Database Manually`. Use `127.0.0.1` as the `Host` and port printed by `tsh proxy db` as described [here](#get-connection-information).
+
+Provide your Redis username as `Username` and password as `Password`.
+
+![Redis Insight Configuration](../../../img/database-access/guides/redis/redisinsight-add-config.png)
+
+Next, check the `Use TLS` and `Verify TLS Certificates` boxes and copy the CA certificate returned by `tsh proxy db`.
+Copy the private key and certificate to corresponding fields.
+
+Click `Add Redis Database`.
+
+![Redis Insight TLS Configuration](../../../img/database-access/guides/redis/redisinsight-tls-config.png)
+
+Congratulations! You have just connected to your Redis instance.
+
+![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)

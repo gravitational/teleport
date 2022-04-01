@@ -22,10 +22,20 @@ teleportVersionOverride: ""
 # 'false' is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
 authenticationType: local
 
+authenticationSecondFactor:
+  secondFactor: "on"
+
 # Teleport supports TLS routing. In this mode, all client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 # Default mode will not utilize TLS routing and operate in backwards-compatibility mode.
 # Possible values are 'multiplex'
 proxyListenerMode: ""
+
+# By default, Teleport will multiplex Postgres and MongoDB database connections on the same port as the proxy's web listener (443)
+# Setting either of these values to true will separate the listeners out onto a separate port (5432 for Postgres, 27017 for MongoDB)
+# This is useful when terminating TLS at a load balancer in front of Teleport (such as when using AWS ACM)
+# These settings will not apply if proxyListenerMode is set to "multiplex".
+separatePostgresListener: false
+separateMongoListener: false
 
 # ACME is a protocol for getting Web X.509 certificates
 # Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.

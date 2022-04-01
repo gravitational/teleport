@@ -1,28 +1,28 @@
 timeout: 25m
 
 options:
-  machineType: 'E2_HIGHCPU_32'
-  
+  machineType: E2_HIGHCPU_32
+
 steps:
   # GCB does a shallow checkout for a build, but if we want to check our changes
-  # against other branches we'll need to fetch the repo history. This takes less 
+  # against other branches we'll need to fetch the repo history. This takes less
   # than 30s at the time of writing, so it is probably not worth tweaking.
   - name: gcr.io/cloud-builders/git
     id: fetch-history
     args: ['fetch', '--unshallow']
 
-  # Run the unit tests. Actual content of this job depends on the changes 
+  # Run the unit tests. Actual content of this job depends on the changes
   # detected in the PR
   - name: quay.io/gravitational/teleport-buildbox:teleport9
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
-    entrypoint: bash 
-    args: 
+    entrypoint: bash
+    args:
       - -c
       - |
-        go run ./cmd/unit-tests \
-          -target $_BASE_BRANCH \
-          -bucket test-logs     \
-          -build $BUILD_ID      \
+        go run ./cmd/unit-tests   \
+          -target "$_BASE_BRANCH" \
+          -bucket test-logs       \
+          -build "$BUILD_ID"      \
           -a "test-logs/*.json"
     timeout: 20m
