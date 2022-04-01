@@ -33,6 +33,8 @@ type WindowsDesktopService interface {
 	GetTeleportVersion() string
 	// GetHostname returns the hostname of this service
 	GetHostname() string
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
 }
 
 var _ WindowsDesktopService = &WindowsDesktopServiceV3{}
@@ -92,6 +94,36 @@ func (s *WindowsDesktopServiceV3) Origin() string {
 // SetOrigin sets the origin value of the resource.
 func (s *WindowsDesktopServiceV3) SetOrigin(origin string) {
 	s.Metadata.SetOrigin(origin)
+}
+
+// GetProxyID returns a list of proxy ids this server is connected to.
+func (s *WindowsDesktopServiceV3) GetProxyIDs() []string {
+	return s.Spec.ProxyIDs
+}
+
+// SetProxyID sets the proxy ids this server is connected to.
+func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
+	s.Spec.ProxyIDs = proxyIDs
+}
+
+// GetNonceID gets the nonce id.
+func (s *WindowsDesktopServiceV3) GetNonceID() uint64 {
+	return s.Spec.NonceID
+}
+
+// SetNonceID sets the nonce id.
+func (s *WindowsDesktopServiceV3) SetNonceID(nonceID uint64) {
+	s.Spec.NonceID = nonceID
+}
+
+// GetNonce gets the nonce.
+func (s *WindowsDesktopServiceV3) GetNonce() uint64 {
+	return s.Spec.Nonce
+}
+
+// SetNonce sets the nonce.
+func (s *WindowsDesktopServiceV3) SetNonce(nonce uint64) {
+	s.Spec.Nonce = nonce
 }
 
 // GetAllLabels returns the resources labels.

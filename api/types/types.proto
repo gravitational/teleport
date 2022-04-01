@@ -210,6 +210,14 @@ message DatabaseServerSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "gcp,omitempty", deprecated = true ];
     // Database is the database proxied by this database server.
     DatabaseV3 Database = 12 [ (gogoproto.jsontag) = "database,omitempty" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 13 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
+    // NonceID is a random unique id to differentiate different nonce sequences.
+    // This allows us to start the nonce at 0 when teleport starts.
+    uint64 NonceID = 14 [ (gogoproto.jsontag) = "nonce_id,omitempty" ];
+    // Nonce is a number increased with each update to the spec to prevent out
+    // of order updates.
+    uint64 Nonce = 15 [ (gogoproto.jsontag) = "nonce,omitempty" ];
 }
 
 // DatabaseV3List represents a list of databases.
@@ -410,6 +418,14 @@ message ServerSpecV2 {
         [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
     // PeerAddr is the address a proxy server is reachable at by its peer proxies.
     string PeerAddr = 11 [ (gogoproto.jsontag) = "peer_addr,omitempty" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 12 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
+    // NonceID is a random unique id to differentiate different nonce sequences.
+    // This allows us to start the nonce at 0 when teleport starts.
+    uint64 NonceID = 13 [ (gogoproto.jsontag) = "nonce_id,omitempty" ];
+    // Nonce is a number increased with each update to the spec to prevent out
+    // of order updates.
+    uint64 Nonce = 14 [ (gogoproto.jsontag) = "nonce,omitempty" ];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -442,6 +458,14 @@ message AppServerSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
     // App is the app proxied by this app server.
     AppV3 App = 5 [ (gogoproto.jsontag) = "app" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 6 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
+    // NonceID is a random unique id to differentiate different nonce sequences.
+    // This allows us to start the nonce at 0 when teleport starts.
+    uint64 NonceID = 7 [ (gogoproto.jsontag) = "nonce_id,omitempty" ];
+    // Nonce is a number increased with each update to the spec to prevent out
+    // of order updates.
+    uint64 Nonce = 8 [ (gogoproto.jsontag) = "nonce,omitempty" ];
 }
 
 // AppV3List represents a list of app resources.
@@ -2815,6 +2839,14 @@ message WindowsDesktopServiceSpecV3 {
     string TeleportVersion = 2 [ (gogoproto.jsontag) = "teleport_version" ];
     // Hostname is the desktop service hostname.
     string Hostname = 3 [ (gogoproto.jsontag) = "hostname" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 4 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
+    // NonceID is a random unique id to differentiate different nonce sequences.
+    // This allows us to start the nonce at 0 when teleport starts.
+    uint64 NonceID = 5 [ (gogoproto.jsontag) = "nonce_id,omitempty" ];
+    // Nonce is a number increased with each update to the spec to prevent out
+    // of order updates.
+    uint64 Nonce = 6 [ (gogoproto.jsontag) = "nonce,omitempty" ];
 }
 
 // WindowsDesktopFilter are filters to apply when searching for windows desktops.
