@@ -758,11 +758,10 @@ func (s *session) Close() error {
 			if s.recorder != nil {
 				s.recorder.Close(s.serverCtx)
 			}
-			s.state = types.SessionState_SessionStateTerminated
-			s.stateUpdate.Broadcast()
-			err := s.trackerUpdateState(types.SessionState_SessionStateRunning)
+
+			err := s.trackerUpdateState(types.SessionState_SessionStateTerminated)
 			if err != nil {
-				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
+				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateTerminated)
 			}
 		}()
 	})
@@ -828,7 +827,6 @@ func (s *session) launch(ctx *ServerContext) error {
 		s.log.Warnf("Failed to turn enable IO: %v.", err)
 	}
 
-	s.stateUpdate.Broadcast()
 	err = s.trackerUpdateState(types.SessionState_SessionStateRunning)
 	if err != nil {
 		s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
@@ -1311,8 +1309,6 @@ func (s *session) removeParty(p *party) error {
 			return nil
 		}
 
-		s.state = types.SessionState_SessionStatePending
-		s.stateUpdate.Broadcast()
 		err := s.trackerUpdateState(types.SessionState_SessionStatePending)
 		if err != nil {
 			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStatePending)
@@ -1748,12 +1744,12 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 
 	// Start go routine to push back session expiration while session is still active.
 	go func() {
-		ticker := s.scx.srv.GetClock().NewTicker(defaults.SessionTrackerTTL / 6)
+		ticker := s.scx.srv.GetClock().NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
 		defer ticker.Stop()
 		for {
 			select {
-			case time := <-ticker.Chan():
-				if err := s.trackerUpdateExpiry(time.Add(defaults.SessionTrackerTTL)); err != nil {
+			case <-ticker.Chan():
+				if err := s.trackerUpdateExpiry(time.Now().Add(defaults.SessionTrackerTTL)); err != nil {
 					s.log.WithError(err).Warningf("Failed to update session tracker expiration.")
 				}
 			case <-s.closeC:
@@ -1809,6 +1805,9 @@ func (s *session) trackerRemoveParticipant(participantID string) error {
 }
 
 func (s *session) trackerUpdateState(state types.SessionState) error {
+	s.state = state
+	s.stateUpdate.Broadcast()
+
 	if s.registry.auth == nil {
 		return nil
 	}
