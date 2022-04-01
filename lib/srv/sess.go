@@ -51,7 +51,7 @@ import (
 const PresenceVerifyInterval = time.Second * 15
 const PresenceMaxDifference = time.Minute
 
-// SessionControlsInfoBroadcast is sent in tandom with session creation
+// SessionControlsInfoBroadcast is sent in tandem with session creation
 // to inform any joining users about the session controls.
 const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
 
