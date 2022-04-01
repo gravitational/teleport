@@ -251,8 +251,8 @@ $ kubectl --namespace teleport create -f aws-issuer.yaml
 ### Step 4b/7. Configure Teleport to use ACM to handle TLS
 
 <Admonition type="warning" title="Warning">
-Command-line Teleport Application Access does not work with ACM. Using ACM will prevent Teleport
-from facilitating Application Access via CLI (using client certificates), as Teleport
+  Command-line Teleport Application Access does not work with ACM. Using ACM will prevent Teleport
+  from facilitating Application Access via CLI (using client certificates), as Teleport
   will not be handling its own TLS termination.
 
   If you need to use Teleport Application Access from the command line, you should use `cert-manager` instead (as described in
