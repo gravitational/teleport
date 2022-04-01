@@ -34,6 +34,8 @@ import (
 	"time"
 	"unicode"
 
+	stdlog "log"
+
 	"golang.org/x/crypto/ssh"
 
 	"github.com/go-ldap/ldap/v3"
@@ -46,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -289,21 +292,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply logger settings
-	logger := utils.NewLogger()
-	err = applyLogConfig(fc.Logger, logger)
+	err = applyLogConfig(fc.Logger, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.Log = logger
-
-	// Apply logging configuration for the global logger instance
-	// DELETE this when global logger instance is no longer in use.
-	//
-	// Logging configuration has already been validated above
-	_ = applyLogConfig(fc.Logger, log.StandardLogger())
 
 	if fc.CachePolicy.TTL != "" {
-		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+		log.Warn("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+	if fc.CachePolicy.Type == memory.GetName() {
+		log.Debugf("cache.type config option is explicitly set to %v.", memory.GetName())
+	} else if fc.CachePolicy.Type != "" {
+		log.Warn("cache.type config option is deprecated and will be ignored, caches are always in memory in this version.")
 	}
 
 	// apply cache policy for node and proxy
@@ -427,14 +427,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
-func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
+func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
+	logger := log.StandardLogger()
+
 	switch loggerConfig.Output {
 	case "":
 		break // not set
 	case "stderr", "error", "2":
 		logger.SetOutput(os.Stderr)
+		cfg.Console = io.Discard // disable console printing
 	case "stdout", "out", "1":
 		logger.SetOutput(os.Stdout)
+		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
 		err := utils.SwitchLoggerToSyslog(logger)
 		if err != nil {
@@ -487,10 +491,13 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		}
 
 		logger.SetFormatter(formatter)
+		stdlog.SetOutput(io.Discard) // disable the standard logger used by external dependencies
+		stdlog.SetFlags(0)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
 
+	cfg.Log = logger
 	return nil
 }
 

@@ -295,6 +295,10 @@
               "slug": "/server-access/guides/openssh/"
             },
             {
+              "title": "Recording Proxy Mode",
+              "slug": "/server-access/guides/recording-proxy-mode/"
+            },
+            {
               "title": "BPF Session Recording",
               "slug": "/server-access/guides/bpf-session-recording/"
             },
