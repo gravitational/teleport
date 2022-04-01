@@ -51,6 +51,8 @@ import (
 const PresenceVerifyInterval = time.Second * 15
 const PresenceMaxDifference = time.Minute
 
+const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
+
 var serverSessions = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: teleport.MetricServerInteractiveSessions,
@@ -1005,6 +1007,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder))
 	s.BroadcastMessage("Creating session with ID: %v...", s.id)
+	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.term.Run(); err != nil {
 		ctx.Errorf("Unable to run shell command: %v.", err)
