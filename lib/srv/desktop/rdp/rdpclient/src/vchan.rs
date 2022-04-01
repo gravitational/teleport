@@ -30,9 +30,15 @@ pub struct Client {
     data: Vec<u8>,
 }
 
+impl Default for Client {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Client {
     pub fn new() -> Self {
-        return Self { data: Vec::new() };
+        Self { data: Vec::new() }
     }
 
     /// Callers can call read() to process RDP messages (PDUs) sent over a virtual channel.

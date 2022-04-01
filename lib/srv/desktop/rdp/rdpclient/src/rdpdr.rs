@@ -81,7 +81,7 @@ impl Client {
             };
 
             if let Some(resp) = resp {
-                return Ok(mcs.write(&CHANNEL_NAME.to_string(), resp)?);
+                return mcs.write(&CHANNEL_NAME.to_string(), resp);
             }
         }
         Ok(())
