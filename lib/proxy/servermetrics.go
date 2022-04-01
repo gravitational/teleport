@@ -41,7 +41,7 @@ func newServerMetrics() (*serverMetrics, error) {
 				Name:      "connections",
 				Help:      "Number of currently opened connection to proxy peer clients.",
 			},
-			[]string{"local_addr", "remote_addr"},
+			[]string{"local_id", "remote_id", "state"},
 		),
 
 		rpcs: prometheus.NewGaugeVec(

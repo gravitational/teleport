@@ -38,9 +38,9 @@ type statsHandler struct {
 	reporter *reporter
 }
 
-func newStatsHandler(m metrics) stats.Handler {
+func newStatsHandler(r *reporter) stats.Handler {
 	return &statsHandler{
-		reporter: newReporter(m),
+		reporter: r,
 	}
 }
 
@@ -53,14 +53,19 @@ func (s *statsHandler) TagConn(ctx context.Context, info *stats.ConnTagInfo) con
 
 // HandleRPC implements per-Connection stats reporting.
 func (s *statsHandler) HandleConn(ctx context.Context, connStats stats.ConnStats) {
+	// client connection stats are monitored by the monitor() function in client.go
+	if connStats.IsClient() {
+		return
+	}
+
 	remoteAddr, _ := ctx.Value(remoteAddrKey{}).(string)
 	localAddr, _ := ctx.Value(localAddrKey{}).(string)
 
 	switch connStats.(type) {
 	case *stats.ConnBegin:
-		s.reporter.incConnection(localAddr, remoteAddr)
+		s.reporter.incConnection(localAddr, remoteAddr, "SERVER_CONN")
 	case *stats.ConnEnd:
-		s.reporter.decConnection(localAddr, remoteAddr)
+		s.reporter.decConnection(localAddr, remoteAddr, "SERVER_CONN")
 	}
 }
 

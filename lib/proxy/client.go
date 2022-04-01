@@ -40,16 +40,6 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-const (
-	errorExistingTunnelNotFound = "EXISTING_TUNNEL_NOT_FOUND"
-	errorExistingTunnelInvalid  = "EXISTING_TUNNEL_INVALID"
-	errorNewTunnelDial          = "NEW_TUNNEL_DIAL"
-	errorStreamStart            = "STREAM_START"
-	errorTransientFailure       = "TRANSIENT_FAILURE"
-	errorAuthClient             = "AUTH_CLIENT_ERROR"
-	errorProxiesUnavailable     = "PROXIES_NOT_AVAILABLE"
-)
-
 // ClientConfig configures a Client instance.
 type ClientConfig struct {
 	// Context is a signalling context
@@ -146,12 +136,11 @@ type Client struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	config  ClientConfig
-	conns   map[string]*clientConn
-	metrics *clientMetrics
+	config   ClientConfig
+	conns    map[string]*clientConn
+	metrics  *clientMetrics
+	reporter *reporter
 }
-
-type connections struct{}
 
 // NewClient creats a new peer proxy client.
 func NewClient(config ClientConfig) (*Client, error) {
@@ -165,15 +154,20 @@ func NewClient(config ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	reporter := newReporter(metrics)
+
 	closeContext, cancel := context.WithCancel(config.Context)
 
 	c := &Client{
-		config:  config,
-		ctx:     closeContext,
-		cancel:  cancel,
-		conns:   make(map[string]*clientConn),
-		metrics: metrics,
+		config:   config,
+		ctx:      closeContext,
+		cancel:   cancel,
+		conns:    make(map[string]*clientConn),
+		metrics:  metrics,
+		reporter: reporter,
 	}
+
+	go c.monitor()
 
 	if c.config.sync != nil {
 		go c.config.sync()
@@ -184,7 +178,36 @@ func NewClient(config ClientConfig) (*Client, error) {
 	return c, nil
 }
 
-// sync runs the proxy watcher functionality.
+// monitor monitors the status of peer proxy grpc connections.
+func (c *Client) monitor() {
+	ticker := c.config.Clock.NewTicker(defaults.ResyncInterval)
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.Chan():
+			c.RLock()
+			c.reporter.resetConnections()
+			for _, conn := range c.conns {
+				switch conn.GetState() {
+				case connectivity.Idle:
+					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Idle.String())
+				case connectivity.Connecting:
+					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Connecting.String())
+				case connectivity.Ready:
+					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Ready.String())
+				case connectivity.TransientFailure:
+					c.reporter.incConnection(c.config.ID, conn.id, connectivity.TransientFailure.String())
+				case connectivity.Shutdown:
+					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Shutdown.String())
+				}
+			}
+			c.RUnlock()
+		}
+	}
+}
+
+// sync runs the peer proxy watcher functionality.
 func (c *Client) sync() {
 	proxyWatcher, err := services.NewProxyWatcher(c.ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -238,13 +261,6 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 			continue
 		}
 
-		// test existing connections
-		if err := c.testConnection(conn); err != nil {
-			errs = append(errs, err)
-			toDelete = append(toDelete, id)
-			continue
-		}
-
 		toKeep[id] = conn
 	}
 
@@ -254,7 +270,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 			continue
 		}
 
-		// skip existing connection. they've been tested above.
+		// skip existing connections
 		if _, ok := toKeep[id]; ok {
 			continue
 		}
@@ -262,13 +278,9 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		// establish new connections
 		conn, err := c.connect(id, proxy.GetPeerAddr())
 		if err != nil {
+			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
+			c.config.Log.Debugf("Error dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
 			errs = append(errs, err)
-			continue
-		}
-
-		if err := c.testConnection(conn); err != nil {
-			errs = append(errs, err)
-			conn.Close()
 			continue
 		}
 
@@ -345,7 +357,7 @@ func (c *Client) Shutdown() {
 	var wg sync.WaitGroup
 	for _, conn := range c.conns {
 		wg.Add(1)
-		go func() {
+		go func(conn *clientConn) {
 			defer wg.Done()
 
 			timeoutCtx, cancel := context.WithTimeout(context.Background(), c.config.GracefulShutdownTimeout)
@@ -364,7 +376,7 @@ func (c *Client) Shutdown() {
 					c.config.Log.Infof("proxy peer connection %+v close error: %+v", conn.id, err)
 				}
 			}
-		}()
+		}(conn)
 	}
 	wg.Wait()
 	c.cancel()
@@ -400,57 +412,72 @@ func (c *Client) stopConn(conn *clientConn) error {
 }
 
 // dial opens a new stream to one of the supplied proxy ids.
-// it tries to find an existing grpc.ClientConn or initializes a new connection
+// it tries to find an existing grpc.ClientConn or initializes a new rpc
 // to one of the proxies otherwise.
 // The boolean returned in the second argument is intended for testing purposes,
 // to indicates whether the connection was cached or newly established.
 func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient, bool, error) {
-	c.RLock()
+	conns, existing, err := c.getConnections(proxyIDs)
+	if err != nil {
+		return nil, existing, err
+	}
 
-	// try to dial existing connections.
-	var stream clientapi.ProxyService_DialNodeClient
 	var errs []error
+	for _, conn := range conns {
+		stream, err := c.startStream(conn)
+		if err != nil {
+			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
+			c.config.Log.Debugf("Error opening tunnel rpc to proxy %+v at %+v", conn.id, conn.addr)
+			errs = append(errs, err)
+			continue
+		}
+
+		return stream, existing, nil
+	}
+
+	return nil, existing, trace.ConnectionProblem(trace.NewAggregate(errs...), "Error opening tunnel rpcs to all proxies")
+}
+
+// getConnections returns connections to the supplied proxy ids.
+// it tries to find an existing grpc.ClientConn or initializes a new one
+// otherwise.
+// The boolean returned in the second argument is intended for testing purposes,
+// to indicates whether the connection was cached or newly established.
+func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) {
 	ids := make(map[string]struct{})
+	var conns []*clientConn
+
+	// look for existing matching connections.
+	c.RLock()
 	for _, id := range proxyIDs {
 		ids[id] = struct{}{}
 
 		conn, ok := c.conns[id]
 		if !ok {
-			c.metrics.reportTunnelError(errorExistingTunnelNotFound)
 			continue
 		}
 
-		var err error
-		stream, err = c.startStream(conn)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
-		break
+		conns = append(conns, conn)
 	}
 	c.RUnlock()
 
-	if stream != nil {
-		return stream, true, nil
+	if len(conns) != 0 {
+		return conns, true, nil
 	}
 
-	if len(errs) != 0 {
-		c.metrics.reportTunnelError(errorExistingTunnelInvalid)
-		return nil, false, trace.NewAggregate(errs...)
-	}
+	c.metrics.reportTunnelError(errorProxyPeerTunnelNotFound)
 
-	// proxy does not exist in cache.
-	// get list of proxies directly from auth.
-	c.Lock()
-	defer c.Unlock()
+	// try to establish new connections otherwise.
 	proxies, err := c.config.AuthClient.GetProxies()
 	if err != nil {
-		c.metrics.reportTunnelError(errorAuthClient)
-		return nil, false, trace.NewAggregate(errs...)
+		c.metrics.reportTunnelError(errorProxyPeerFetchProxies)
+		return nil, false, trace.Wrap(err)
 	}
 
-	errs = nil
+	c.Lock()
+	defer c.Unlock()
+
+	var errs []error
 	for _, proxy := range proxies {
 		id := proxy.GetName()
 		if _, ok := ids[id]; !ok {
@@ -459,29 +486,28 @@ func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient,
 
 		conn, err := c.connect(id, proxy.GetPeerAddr())
 		if err != nil {
+			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
+			c.config.Log.Debugf("Error direct dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
 		}
 
-		stream, err := c.startStream(conn)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
+		conns = append(conns, conn)
 		c.conns[id] = conn
-		return stream, false, nil
 	}
 
-	c.metrics.reportTunnelError(errorProxiesUnavailable)
-	return nil, false, trace.NotFound("Error dialling all proxies: %+v", trace.NewAggregate(errs...).Error())
+	if len(conns) == 0 {
+		c.metrics.reportTunnelError(errorProxyPeerProxiesUnreachable)
+		return nil, false, trace.ConnectionProblem(trace.NewAggregate(errs...), "Error dialling all proxies")
+	}
+
+	return conns, false, nil
 }
 
 // connect dials a new connection to proxyAddr.
 func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 	tlsConfig, err := c.config.getConfigForServer()
 	if err != nil {
-		c.metrics.reportTunnelError(errorNewTunnelDial)
 		return nil, trace.Wrap(err, "Error updating client tls config")
 	}
 
@@ -493,16 +519,16 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 		connCtx,
 		proxyPeerAddr,
 		grpc.WithTransportCredentials(transportCreds),
-		grpc.WithStatsHandler(newStatsHandler(c.metrics)),
+		grpc.WithStatsHandler(newStatsHandler(c.reporter)),
 		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, utils.GRPCClientStreamErrorInterceptor, streamCounterInterceptor(wg)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                peerKeepAlive,
 			Timeout:             peerTimeout,
 			PermitWithoutStream: true,
 		}),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 	)
 	if err != nil {
-		c.metrics.reportTunnelError(errorNewTunnelDial)
 		return nil, trace.Wrap(err, "Error dialling proxy %+v", id)
 	}
 
@@ -522,7 +548,6 @@ func (c *Client) startStream(conn *clientConn) (clientapi.ProxyService_DialNodeC
 
 	stream, err := client.DialNode(conn.ctx)
 	if err != nil {
-		c.metrics.reportTunnelError(errorStreamStart)
 		return nil, trace.Wrap(err, "Error opening stream to proxy %+v", conn.id)
 	}
 
@@ -534,25 +559,4 @@ func (c *Client) startStream(conn *clientConn) (clientapi.ProxyService_DialNodeC
 	}()
 
 	return stream, nil
-}
-
-// testConnection opens a new stream to the provided connection and
-// immediately closes it.
-func (c *Client) testConnection(conn *clientConn) error {
-	client := clientapi.NewProxyServiceClient(conn.ClientConn)
-
-	stream, err := client.DialNode(conn.ctx)
-	if err != nil {
-		if conn.GetState() == connectivity.TransientFailure {
-			c.metrics.reportTunnelError(errorTransientFailure)
-			return nil
-		}
-		c.metrics.reportTunnelError(errorStreamStart)
-		return trace.Wrap(err, "Error opening stream to proxy %+v", conn.id)
-	}
-
-	if err := stream.CloseSend(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
