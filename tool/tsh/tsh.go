@@ -833,7 +833,7 @@ func onVersion(cf *CLIConf) error {
 		}
 		fmt.Println(string(out))
 	default:
-		return trace.BadParameter("unsupported format. try 'json', 'yaml', or 'text'")
+		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 	return nil
 }
@@ -1505,7 +1505,7 @@ func printNodes(nodes []types.Server, format string, verbose bool) error {
 			fmt.Println(n.GetHostname())
 		}
 	default:
-		return trace.BadParameter("unsupported format. try 'json', 'yaml', 'text', or 'names'")
+		return trace.BadParameter("unsupported format %q", format)
 	}
 
 	return nil
@@ -1588,7 +1588,7 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, format string
 		}
 		fmt.Println(string(out))
 	default:
-		return trace.BadParameter("unsupported format. try 'json', 'yaml', or 'text'")
+		return trace.BadParameter("unsupported format %q", format)
 	}
 	return nil
 }
@@ -1657,7 +1657,7 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 		}
 		fmt.Println(string(out))
 	default:
-		return trace.BadParameter("unsupported format. try 'json', 'yaml', or 'text'")
+		return trace.BadParameter("unsupported format %q", format)
 	}
 	return nil
 }
@@ -1829,7 +1829,7 @@ func onListClusters(cf *CLIConf) error {
 		}
 		fmt.Println(string(out))
 	default:
-		return trace.BadParameter("unsupported format. try 'json', 'yaml' or 'text'")
+		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 	return nil
 }

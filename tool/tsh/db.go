@@ -233,7 +233,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 		}
 		fmt.Println(string(out))
 	default:
-		return trace.BadParameter("unsupported format. try 'json', 'yaml', or 'text'")
+		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 
 	return nil
