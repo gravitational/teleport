@@ -176,7 +176,10 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			defer cancel()
 
 			prompt.SetStdin(test.inputReader)
-			*client.PromptWebauthn = func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+			*client.PromptWebauthn = func(
+				ctx context.Context,
+				origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
+			) (*proto.MFAAuthenticateResponse, string, error) {
 				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
 				return resp, "", err
 			}
