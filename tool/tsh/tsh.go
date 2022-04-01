@@ -600,6 +600,7 @@ func Run(args []string, opts ...cliOption) error {
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
 	// even if the user runs "tsh login" again in another window.
 	environment := app.Command("env", "Print commands to set Teleport session environment variables")
+	environment.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables").BoolVar(&cf.unsetEnvironment)
 
 	req := app.Command("request", "Manage access requests").Alias("requests")
@@ -2691,21 +2692,46 @@ func onEnvironment(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Print shell built-in commands to set (or unset) environment.
-	switch {
-	case cf.unsetEnvironment:
-		fmt.Printf("unset %v\n", proxyEnvVar)
-		fmt.Printf("unset %v\n", clusterEnvVar)
-		fmt.Printf("unset %v\n", kubeClusterEnvVar)
-		fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
-	case !cf.unsetEnvironment:
-		fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
-		fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
-		if kubeName := selectedKubeCluster(profile.Cluster); kubeName != "" {
-			fmt.Printf("export %v=%v\n", kubeClusterEnvVar, kubeName)
-			fmt.Printf("# set %v to a standalone kubeconfig for the selected kube cluster\n", teleport.EnvKubeConfig)
-			fmt.Printf("export %v=%v\n", teleport.EnvKubeConfig, profile.KubeConfigPath(kubeName))
+	kubeName := selectedKubeCluster(profile.Cluster)
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text:
+		// Print shell built-in commands to set (or unset) environment.
+		switch {
+		case cf.unsetEnvironment:
+			fmt.Printf("unset %v\n", proxyEnvVar)
+			fmt.Printf("unset %v\n", clusterEnvVar)
+			fmt.Printf("unset %v\n", kubeClusterEnvVar)
+			fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
+		case !cf.unsetEnvironment:
+			fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
+			fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
+			if kubeName != "" {
+				fmt.Printf("export %v=%v\n", kubeClusterEnvVar, kubeName)
+				fmt.Printf("# set %v to a standalone kubeconfig for the selected kube cluster\n", teleport.EnvKubeConfig)
+				fmt.Printf("export %v=%v\n", teleport.EnvKubeConfig, profile.KubeConfigPath(kubeName))
+			}
 		}
+	case teleport.JSON, teleport.YAML:
+		env := map[string]string{
+			proxyEnvVar:   profile.ProxyURL.Host,
+			clusterEnvVar: profile.Cluster,
+		}
+		if kubeName != "" {
+			env[kubeClusterEnvVar] = kubeName
+			env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)
+		}
+		var out []byte
+		var err error
+		if format == teleport.JSON {
+			out, err = utils.FastMarshalIndent(env, "", "  ")
+		} else {
+			out, err = yaml.Marshal(env)
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
 	}
 
 	return nil
