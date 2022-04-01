@@ -1177,3 +1177,59 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	require.Len(t, semaphores, 1)
 	require.Empty(t, semaphores[0].LeaseRefs())
 }
+
+func TestServerNonce(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	presence := NewPresenceService(backend)
+
+	node1, err := types.NewServer(
+		"node1", types.KindNode,
+		types.ServerSpecV2{
+			NonceID: 0,
+			Nonce:   0,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = presence.UpsertNode(ctx, node1)
+	require.NoError(t, err)
+
+	_, err = presence.UpsertNode(ctx, node1)
+	require.NoError(t, err, "Always accept upserts when nonce and nonceID are 0")
+
+	node1.SetNonceID(1)
+	node1.SetNonce(1)
+	_, err = presence.UpsertNode(ctx, node1)
+	require.NoError(t, err)
+
+	node1.SetNonce(10)
+	_, err = presence.UpsertNode(ctx, node1)
+	require.NoError(t, err, "Accept upsert when nonce is increased.")
+
+	node1.SetNonce(1)
+	_, err = presence.UpsertNode(ctx, node1)
+	require.Error(t, err, "Reject upsert when nonce is lower than last stored value.")
+
+	storedNode, err := presence.GetNode(ctx, apidefaults.Namespace, node1.GetName())
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), storedNode.GetNonceID())
+	require.Equal(t, uint64(10), storedNode.GetNonce())
+
+	node1.SetNonceID(2)
+	node1.SetNonce(1)
+	_, err = presence.UpsertNode(ctx, node1)
+	require.NoError(t, err, "Accept upsert with new nonceID.")
+
+	storedNode, err = presence.GetNode(ctx, apidefaults.Namespace, node1.GetName())
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), storedNode.GetNonceID())
+	require.Equal(t, uint64(1), storedNode.GetNonce())
+}

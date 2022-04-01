@@ -1783,6 +1783,8 @@ func (process *TeleportProcess) initSSH() error {
 	})
 
 	var agentPool *reversetunnel.AgentPool
+	updater := reversetunnel.NewProxiedServiceUpdater(process.Clock)
+
 	var conn *Connector
 	var ebpf bpf.BPF
 	var rm restricted.Manager
@@ -1949,6 +1951,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
 			regular.SetX11ForwardingConfig(cfg.SSH.X11),
+			regular.SetProxiedServiceUpdater(updater),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1991,15 +1994,16 @@ func (process *TeleportProcess) initSSH() error {
 			agentPool, err = reversetunnel.NewAgentPool(
 				process.ExitContext(),
 				reversetunnel.AgentPoolConfig{
-					Component:   teleport.ComponentNode,
-					HostUUID:    conn.ServerIdentity.ID.HostUUID,
-					Resolver:    conn.TunnelProxyResolver(),
-					Client:      conn.Client,
-					AccessPoint: conn.Client,
-					HostSigner:  conn.ServerIdentity.KeySigner,
-					Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-					Server:      s,
-					FIPS:        process.Config.FIPS,
+					Component:             teleport.ComponentNode,
+					HostUUID:              conn.ServerIdentity.ID.HostUUID,
+					Resolver:              conn.TunnelProxyResolver(),
+					Client:                conn.Client,
+					AccessPoint:           conn.Client,
+					HostSigner:            conn.ServerIdentity.KeySigner,
+					Cluster:               conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+					Server:                s,
+					FIPS:                  process.Config.FIPS,
+					ProxiedServiceUpdater: updater,
 				})
 			if err != nil {
 				return trace.Wrap(err)
@@ -3717,19 +3721,22 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		updater := reversetunnel.NewProxiedServiceUpdater(process.Clock)
+
 		appServer, err = app.New(process.ExitContext(), &app.Config{
-			DataDir:          process.Config.DataDir,
-			AuthClient:       conn.Client,
-			AccessPoint:      accessPoint,
-			Authorizer:       authorizer,
-			TLSConfig:        tlsConfig,
-			CipherSuites:     process.Config.CipherSuites,
-			HostID:           process.Config.HostUUID,
-			Hostname:         process.Config.Hostname,
-			GetRotation:      process.getRotation,
-			Apps:             applications,
-			ResourceMatchers: process.Config.Apps.ResourceMatchers,
-			OnHeartbeat:      process.onHeartbeat(teleport.ComponentApp),
+			DataDir:               process.Config.DataDir,
+			AuthClient:            conn.Client,
+			AccessPoint:           accessPoint,
+			Authorizer:            authorizer,
+			TLSConfig:             tlsConfig,
+			CipherSuites:          process.Config.CipherSuites,
+			HostID:                process.Config.HostUUID,
+			Hostname:              process.Config.Hostname,
+			GetRotation:           process.getRotation,
+			Apps:                  applications,
+			ResourceMatchers:      process.Config.Apps.ResourceMatchers,
+			OnHeartbeat:           process.onHeartbeat(teleport.ComponentApp),
+			ProxiedServiceUpdater: updater,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3745,15 +3752,16 @@ func (process *TeleportProcess) initApps() {
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:   teleport.ComponentApp,
-				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				Resolver:    tunnelAddrResolver,
-				Client:      conn.Client,
-				Server:      appServer,
-				AccessPoint: accessPoint,
-				HostSigner:  conn.ServerIdentity.KeySigner,
-				Cluster:     clusterName,
-				FIPS:        process.Config.FIPS,
+				Component:             teleport.ComponentApp,
+				HostUUID:              conn.ServerIdentity.ID.HostUUID,
+				Resolver:              tunnelAddrResolver,
+				Client:                conn.Client,
+				Server:                appServer,
+				AccessPoint:           accessPoint,
+				HostSigner:            conn.ServerIdentity.KeySigner,
+				Cluster:               clusterName,
+				FIPS:                  process.Config.FIPS,
+				ProxiedServiceUpdater: updater,
 			})
 		if err != nil {
 			return trace.Wrap(err)

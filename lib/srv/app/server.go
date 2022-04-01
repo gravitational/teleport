@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
@@ -98,6 +99,9 @@ type Config struct {
 
 	// OnReconcile is called after each database resource reconciliation.
 	OnReconcile func(types.Apps)
+
+	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
+	ProxiedServiceUpdater *reversetunnel.ProxiedServiceUpdater
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -401,7 +405,7 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 		copy.SetDynamicLabels(labels.Get())
 	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
-	return types.NewAppServerV3(types.Metadata{
+	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
 		Expires: &expires,
 	}, types.AppServerSpecV3{
@@ -411,6 +415,14 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 		Rotation: s.getRotationState(),
 		App:      copy,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if s.c.ProxiedServiceUpdater != nil {
+		s.c.ProxiedServiceUpdater.Update(server)
+	}
+	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.

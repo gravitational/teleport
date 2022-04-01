@@ -310,22 +310,78 @@ func (s *PresenceService) ListNodes(ctx context.Context, req proto.ListNodesRequ
 	return servers, nextKey, nil
 }
 
+// unmarshalProxiedService unmarshals an item to a proxied service.
+func unmarshalProxiedService(service types.ProxiedService, item *backend.Item) (types.ProxiedService, error) {
+	switch t := service.(type) {
+	case *types.ServerV2:
+		server, err := services.UnmarshalServer(item.Value, t.Kind)
+		return server, trace.Wrap(err)
+	case *types.AppServerV3:
+		server, err := services.UnmarshalAppServer(item.Value)
+		return server, trace.Wrap(err)
+	case *types.DatabaseServerV3:
+		server, err := services.UnmarshalDatabaseServer(item.Value)
+		return server, trace.Wrap(err)
+	case *types.WindowsDesktopServiceV3:
+		server, err := services.UnmarshalWindowsDesktopService(item.Value)
+		return server, trace.Wrap(err)
+	default:
+		return nil, trace.BadParameter("unable to unmarshal type: %T", t)
+	}
+}
+
+// upsertProxiedService upserts a service that implemeents types.ProxiedService.
+// A compare and swap is done to check ensure there isn't a nonce violation.
+func (s *PresenceService) upsertProxiedService(ctx context.Context, service types.ProxiedService, item *backend.Item) (*backend.Lease, error) {
+	// If nonce and nonce id are not set we can assume it is not supported
+	// by the client and do a normal put operation.
+	if service.GetNonce() == 0 && service.GetNonceID() == 0 {
+		lease, err := s.Put(ctx, *item)
+		return lease, trace.Wrap(err)
+	}
+
+	existingItem, err := s.Get(ctx, item.Key)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	if trace.IsNotFound(err) {
+		lease, err := s.Create(ctx, *item)
+		return lease, trace.Wrap(err)
+	}
+
+	existingService, err := unmarshalProxiedService(service, existingItem)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if service.GetNonce() < existingService.GetNonce() && service.GetNonceID() == existingService.GetNonceID() {
+		return nil, trace.BadParameter("nonce violation: out of order update detected")
+	}
+
+	lease, err := s.CompareAndSwap(ctx, *existingItem, *item)
+	return lease, trace.Wrap(err)
+}
+
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
 func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if server.GetNamespace() == "" {
 		return nil, trace.BadParameter("missing node namespace")
 	}
+
 	value, err := services.MarshalServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lease, err := s.Put(ctx, backend.Item{
+
+	item := &backend.Item{
 		Key:     backend.Key(nodesPrefix, server.GetNamespace(), server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
-	})
+	}
+
+	lease, err := s.upsertProxiedService(ctx, server, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1122,13 +1178,15 @@ func (s *PresenceService) UpsertKubeServiceV2(ctx context.Context, server types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lease, err := s.Put(ctx, backend.Item{
+	item := &backend.Item{
 		Key: backend.Key(kubeServicesPrefix,
 			server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
-	})
+	}
+
+	lease, err := s.upsertProxiedService(ctx, server, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1201,7 +1259,7 @@ func (s *PresenceService) UpsertDatabaseServer(ctx context.Context, server types
 	// Because there may be multiple database servers on a single host,
 	// they are stored under the following path in the backend:
 	//   /databaseServers/<namespace>/<host-uuid>/<name>
-	lease, err := s.Put(ctx, backend.Item{
+	item := &backend.Item{
 		Key: backend.Key(dbServersPrefix,
 			server.GetNamespace(),
 			server.GetHostID(),
@@ -1209,7 +1267,9 @@ func (s *PresenceService) UpsertDatabaseServer(ctx context.Context, server types
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
-	})
+	}
+
+	lease, err := s.upsertProxiedService(ctx, server, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1319,7 +1379,7 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 	// be multiple database servers on a single host, so they are stored under
 	// the following path in the backend:
 	//   /appServers/<namespace>/<host-uuid>/<name>
-	lease, err := s.Put(ctx, backend.Item{
+	item := &backend.Item{
 		Key: backend.Key(appServersPrefix,
 			server.GetNamespace(),
 			server.GetHostID(),
@@ -1327,7 +1387,9 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
-	})
+	}
+
+	lease, err := s.upsertProxiedService(ctx, server, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1517,12 +1579,15 @@ func (s *PresenceService) UpsertWindowsDesktopService(ctx context.Context, srv t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lease, err := s.Put(ctx, backend.Item{
+
+	item := &backend.Item{
 		Key:     backend.Key(windowsDesktopServicesPrefix, srv.GetName()),
 		Value:   value,
 		Expires: srv.Expiry(),
 		ID:      srv.GetResourceID(),
-	})
+	}
+
+	lease, err := s.upsertProxiedService(ctx, srv, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

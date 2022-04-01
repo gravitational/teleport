@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -165,6 +166,8 @@ type WindowsServiceConfig struct {
 	DiscoveryLDAPFilters []string
 	// Hostname of the windows desktop service
 	Hostname string
+	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
+	ProxiedServiceUpdater *reversetunnel.ProxiedServiceUpdater
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -949,6 +952,9 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 		return nil, trace.Wrap(err)
 	}
 	srv.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+	if s.cfg.ProxiedServiceUpdater != nil {
+		s.cfg.ProxiedServiceUpdater.Update(srv)
+	}
 	return srv, nil
 }
 

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -100,6 +101,8 @@ type Config struct {
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
 	CloudIAM *cloud.IAM
+	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
+	ProxiedServiceUpdater *reversetunnel.ProxiedServiceUpdater
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -524,7 +527,7 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		copy.SetDynamicLabels(labels.Get())
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
-	return types.NewDatabaseServerV3(types.Metadata{
+	server, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:    copy.GetName(),
 		Expires: &expires,
 	}, types.DatabaseServerSpecV3{
@@ -534,6 +537,14 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		Rotation: s.getRotationState(),
 		Database: copy,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if s.cfg.ProxiedServiceUpdater != nil {
+		s.cfg.ProxiedServiceUpdater.Update(server)
+	}
+	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.

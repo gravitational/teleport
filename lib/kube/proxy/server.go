@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -49,6 +50,8 @@ type TLSServerConfig struct {
 	AccessPoint auth.ReadKubernetesAccessPoint
 	// OnHeartbeat is a callback for kubernetes_service heartbeats.
 	OnHeartbeat func(error)
+	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
+	ProxiedServiceUpdater *reversetunnel.ProxiedServiceUpdater
 	// Log is the logger.
 	Log log.FieldLogger
 }
@@ -245,5 +248,10 @@ func (t *TLSServer) GetServerInfo() (types.Resource, error) {
 		},
 	}
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+
+	if t.ProxiedServiceUpdater != nil {
+		t.ProxiedServiceUpdater.Update(srv)
+	}
+
 	return srv, nil
 }

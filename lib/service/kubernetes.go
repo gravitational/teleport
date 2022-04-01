@@ -89,6 +89,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		return trace.Wrap(err)
 	}
 
+	updater := reversetunnel.NewProxiedServiceUpdater(process.Clock)
+
 	// This service can run in 2 modes:
 	// 1. Reachable (by the proxy) - registers with auth server directly and
 	//    creates a local listener to accept proxy conns.
@@ -157,6 +159,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			}
 		}()
 		log.Info("Started reverse tunnel client.")
+		updater = agentPool.GetProxiedServiceUpdater()
 	}
 
 	var dynLabels *labels.Dynamic
@@ -246,10 +249,11 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
 		},
-		TLS:           tlsConfig,
-		AccessPoint:   accessPoint,
-		LimiterConfig: cfg.Kube.Limiter,
-		OnHeartbeat:   process.onHeartbeat(teleport.ComponentKube),
+		TLS:                   tlsConfig,
+		AccessPoint:           accessPoint,
+		LimiterConfig:         cfg.Kube.Limiter,
+		OnHeartbeat:           process.onHeartbeat(teleport.ComponentKube),
+		ProxiedServiceUpdater: updater,
 	})
 	if err != nil {
 		return trace.Wrap(err)
