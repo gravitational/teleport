@@ -90,10 +90,11 @@ The DialNode rpc will be wrapped with a client library to return a net.Conn when
 ```go
 type ProxyClient interface {
     DialNode(
-        ctx context.Context,
-        serverID string,
+        proxyIDs []string,
+        nodeID string,
+        src net.Addr,
+        dst net.Addr,
         tunnelType types.TunnelType,
-        proxyID string,
     ) (net.Conn, error)
 }
 ```
