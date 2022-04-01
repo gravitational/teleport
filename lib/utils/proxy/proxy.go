@@ -268,9 +268,9 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	if proxyAddr == nil {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{
-			insecure:          options.insecureSkipTLSVerify,
-			tlsRoutingEnabled: options.tlsRoutingEnabled,
 			tlsConfig:         options.tlsConfig,
+			tlsRoutingEnabled: options.tlsRoutingEnabled,
+			insecure:          options.insecureSkipTLSVerify,
 		}
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)

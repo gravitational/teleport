@@ -175,16 +175,13 @@ func (t *Tracker) getOrCreate() *proxySet {
 	return t.sets
 }
 
-// WithProxy runs the supplied closure if and only if
-// no other work is currently being done with the proxy
-// identified by principals.
-func (t *Tracker) WithProxy(work func(), principals ...string) (didWork bool) {
+// Claim attempts to claim a lease based on the given principals returning a
+// function to unclaim and if the claim was successful. unclaim is never nil.
+func (t *Tracker) Claim(principals ...string) (unclaim func(), ok bool) {
 	if ok := t.claim(principals...); !ok {
-		return false
+		return func() {}, false
 	}
-	defer t.release(principals...)
-	work()
-	return true
+	return func() { t.release(principals...) }, true
 }
 
 func (t *Tracker) claim(principals ...string) (ok bool) {
