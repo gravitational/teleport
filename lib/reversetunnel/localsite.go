@@ -210,6 +210,9 @@ func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 // IsClosed always returns false because localSite is never closed.
 func (s *localSite) IsClosed() bool { return false }
 
+// Close always returns nil because a localSite isn't closed.
+func (s *localSite) Close() error { return nil }
+
 func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	if params.GetUserAgent == nil {
 		return nil, trace.BadParameter("user agent getter missing")
