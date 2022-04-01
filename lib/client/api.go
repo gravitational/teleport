@@ -167,6 +167,9 @@ type HostKeyCallback func(host string, ip net.Addr, key ssh.PublicKey) error
 type Config struct {
 	// Username is the Teleport account username (for logging into Teleport proxies)
 	Username string
+	// ExplicitUsername is true if Username was initially set by the end-user
+	// (for example, using command-line flags).
+	ExplicitUsername bool
 
 	// Remote host to connect
 	Host string
@@ -568,10 +571,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	return fn()
 }
 
-// readProfile reads in the profile as well as the associated certificate
+// ReadProfileStatus reads in the profile as well as the associated certificate
 // and returns a *ProfileStatus which can be used to print the status of the
 // profile.
-func readProfile(profileDir string, profileName string) (*ProfileStatus, error) {
+func ReadProfileStatus(profileDir string, profileName string) (*ProfileStatus, error) {
 	var err error
 
 	if profileDir == "" {
@@ -780,7 +783,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	// Read in the target profile first. If readProfile returns trace.NotFound,
 	// that means the profile may have been corrupted (for example keys were
 	// deleted but profile exists), treat this as the user not being logged in.
-	profileStatus, err = readProfile(profileDir, profileName)
+	profileStatus, err = ReadProfileStatus(profileDir, profileName)
 	if err != nil {
 		log.Debug(err)
 		if !trace.IsNotFound(err) {
@@ -801,7 +804,7 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 			// already loaded this one
 			continue
 		}
-		ps, err := readProfile(profileDir, name)
+		ps, err := ReadProfileStatus(profileDir, name)
 		if err != nil {
 			log.Debug(err)
 			// parts of profile are missing?
@@ -2489,6 +2492,15 @@ func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingR
 	return pr, nil
 }
 
+// GetWebConfig retreives Teleport proxy web config
+func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*WebConfig, error) {
+	cfg, err := GetWebConfig(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg, nil
+}
+
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
 //
 // If tc.Passwordless is set, then the passwordless authentication flow is used.
@@ -2620,7 +2632,10 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 	}
 
 	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+		User:                tc.Username,
+		OptimisticAssertion: !tc.ExplicitUsername,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
