@@ -5,20 +5,57 @@ description: How to rotate Teleport's certificate authority
 
 ## Prerequisites
 
-- Installed [Teleport](../../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
-- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+<Tabs>
+<TabItem scope={["oss"]} label="Self-Hosted">
+
+- A running Teleport cluster. For details on how to set this up, see [Getting
+  Started on a Linux Server](../../getting-started/linux-server.mdx).
+
+- The `tctl` admin tool version >= (=teleport.version=).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  See [Installation](../../installation.mdx) for details.
+
+</TabItem>
+<TabItem
+  scope={["enterprise"]} label="Enterprise">
+
+- A running Teleport cluster. For details on setting this up, see our
+  [Enterprise getting started guide](../../enterprise/getting-started.mdx).
+
+- The `tctl` admin tool version >= (=teleport.version=), which you can download
+  by visiting the
+  [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+<TabItem scope={["cloud"]}
+  label="Cloud">
+
+- A Teleport Cloud account. If you do not have one, visit the
+  [sign up page](https://goteleport.com/signup/) to begin your free trial.
+
+- The Enterprise version of the `tctl` admin tool. To download this, visit
+the [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+</Tabs>
 
 (!docs/pages/includes/tctl.mdx!)
 
-<Admonition type="note">
-  For Cloud, log in with a Teleport user with editor privileges:
-  ```code
-  # tsh logs you in and receives short-lived certificates
-  $ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
-  # try out the connection
-  $ tctl get nodes
-  ```
-</Admonition>
 
 ## Certificate Authority rotation
 

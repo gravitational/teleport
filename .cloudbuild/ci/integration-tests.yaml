@@ -1,4 +1,5 @@
 timeout: 25m
+
 options:
   machineType: E2_HIGHCPU_32
 
@@ -9,7 +10,7 @@ steps:
     id: fetch-history
     args: ['fetch', '--unshallow']
 
-  # Run the integration tests. Actual content of this job depends on the changes 
+  # Run the integration tests. Actual content of this job depends on the changes
   # detected in the PR
   - name: quay.io/gravitational/teleport-buildbox:teleport9
     id: run-tests
@@ -19,8 +20,8 @@ steps:
       - -c
       - |
         go run ./cmd/integration-tests \
-          -target $_BASE_BRANCH        \
+          -target "$_BASE_BRANCH"      \
           -bucket test-logs            \
-          -build $BUILD_ID             \
+          -build "$BUILD_ID"           \
           -a "test-logs/*.json"
     timeout: 25m

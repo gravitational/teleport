@@ -887,7 +887,7 @@ func TestEnvFlags(t *testing.T) {
 		}))
 		t.Run("TELEPORT_HOME set", testEnvFlag(testCase{
 			envMap: map[string]string{
-				homeEnvVar: "teleport-data/",
+				types.HomeEnvVar: "teleport-data/",
 			},
 			outCLIConf: CLIConf{
 				HomePath: "teleport-data",
@@ -898,7 +898,7 @@ func TestEnvFlags(t *testing.T) {
 				HomePath: "teleport-data",
 			},
 			envMap: map[string]string{
-				homeEnvVar: "teleport-data/",
+				types.HomeEnvVar: "teleport-data/",
 			},
 			outCLIConf: CLIConf{
 				HomePath: "teleport-data",
