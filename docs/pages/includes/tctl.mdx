@@ -12,6 +12,10 @@ $ tctl status
 # Version  (=teleport.version=)
 # CA pin   sha256:sha-hash-here
 ```
+
+Remain logged in to your Auth Service host so you can run subsequent `tctl`
+commands in this guide.
+
 </Details>
 <Details 
 title="Make sure you can connect to Teleport" 
@@ -20,8 +24,7 @@ scopeOnly={true}
 opened={true}
 >
 
-<Admonition type="note" title="Connecting to the cloud">
-To try this flow in the cloud, login into your cluster using tsh, then use tctl remotely:
+Log in to your cluster using `tsh`, then use `tctl` remotely:
 
 ```code
 $ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
@@ -31,5 +34,6 @@ $ tctl status
 # CA pin   sha256:sha-hash-here
 ```
 
-</Admonition>
+You can run subsequent `tctl` commands in this guide on your local machine.
+
 </Details>
