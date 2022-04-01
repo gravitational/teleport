@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/net/http/httpproxy"
 )
 
@@ -64,11 +65,7 @@ func parse(addr string) (*url.URL, error) {
 	// url.Parse won't correctly parse an absolute URL without a scheme, so try again with a scheme.
 	addrURL, err2 := url.Parse("http://" + addr)
 	if err2 != nil {
-		// If there was an original error, prefer to return that.
-		if err != nil {
-			return nil, err
-		}
-		return nil, err2
+		return nil, trace.NewAggregate(err, err2)
 	}
 	addrURL.Scheme = ""
 	return addrURL, nil
