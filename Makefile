@@ -732,6 +732,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'e/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/web/build/**' \
+		-ignore 'lib/teleterm/api/protogen/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
@@ -914,6 +915,23 @@ buildbox-grpc:
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		envelope.proto
 
+# grpc-teleterm generates Go, TypeScript and JavaScript gRPC stubs from definitions for Teleport
+# Terminal. This target runs in the buildbox-teleterm container.
+#
+# It exists as a separate target because on M1 MacBooks we must build grpc_node_plugin from source.
+# That involves apt-get install of cmake & build-essential as well pulling hundreds of megabytes of
+# git repos. It would significantly increase the time it takes to build buildbox for M1 users that
+# don't need to generate Teleterm gRPC files.
+# TODO(ravicious): incorporate grpc-teleterm into grpc once grpc-tools adds arm64 binary.
+# https://github.com/grpc/grpc-node/issues/1405
+.PHONY: grpc-teleterm
+grpc-teleterm:
+	$(MAKE) -C build.assets grpc-teleterm
+
+# buildbox-grpc generates GRPC stubs
+.PHONY: buildbox-grpc-teleterm
+buildbox-grpc-teleterm:
+	cd lib/teleterm && buf generate
 
 .PHONY: goinstall
 goinstall:
