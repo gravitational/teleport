@@ -85,7 +85,15 @@ spec:
     # if unspecified. If one or more of the user's roles has disabled
     # the clipboard, then it will be disabled.
     desktop_clipboard: true
-
+    # Specify a list of names and associated values to be included in user SSH keys.
+    # The key type can only be "ssh" and the mode can only be "extension".
+    # The name and value fields can be arbitrary strings and the value field
+    # supports variable interpolation.
+    cert_extensions:
+     - type: ssh
+       mode: extension
+       name: login@github.com
+       value: "{{ external.github_login }}"
   # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default, nothing is allowed.
   allow:

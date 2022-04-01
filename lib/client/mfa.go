@@ -39,18 +39,13 @@ var promptWebauthn = wancli.Login
 // MFA, but the implementation exists in case we find some unusual
 // authenticators out there.
 type mfaPrompt struct {
-	ctx       context.Context
-	otpCancel context.CancelFunc
+	wancli.LoginPrompt
+	otpCancelAndWait func()
 }
 
 func (p *mfaPrompt) PromptPIN() (string, error) {
-	p.otpCancel()
-	return prompt.Password(p.ctx, os.Stderr, prompt.Stdin(), "Enter your security key PIN")
-}
-
-func (p *mfaPrompt) PromptAdditionalTouch() error {
-	fmt.Fprintln(os.Stderr, "Tap your security key again to complete login")
-	return nil
+	p.otpCancelAndWait()
+	return p.LoginPrompt.PromptPIN()
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
@@ -104,14 +99,17 @@ func PromptMFAChallenge(
 		wg.Wait()
 	}
 
-	// Use otpCtx and otpCancel to cancel an ongoing OTP read.
+	// Use variables below to cancel OTP reads and make sure the goroutine exited.
+	otpWait := &sync.WaitGroup{}
 	otpCtx, otpCancel := context.WithCancel(ctx)
 	defer otpCancel()
 
 	// Fire TOTP goroutine.
 	if hasTOTP {
+		otpWait.Add(1)
 		wg.Add(1)
 		go func() {
+			defer otpWait.Done()
 			defer wg.Done()
 			const kind = "TOTP"
 			var msg string
@@ -151,9 +149,19 @@ func PromptMFAChallenge(
 		go func() {
 			defer wg.Done()
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
+
+			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
+			prompt.FirstTouchMessage = "" // First prompt printed above.
+			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
+			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
+				otpCancel()
+				otpWait.Wait()
+			}}
+
 			const user = ""
-			prompt := &mfaPrompt{ctx: ctx, otpCancel: otpCancel}
-			resp, _, err := promptWebauthn(ctx, origin, user, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), prompt)
+			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
+				User: user,
+			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()
 	}
