@@ -197,7 +197,10 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		t.log.Errorf("Error upgrading to websocket: %v", err)
+		errMsg := "Error upgrading to websocket"
+		t.log.Errorf("%v: %v", errMsg, err)
+		http.Error(w, errMsg, http.StatusInternalServerError)
+		return
 	}
 
 	t.handler(ws, r)
