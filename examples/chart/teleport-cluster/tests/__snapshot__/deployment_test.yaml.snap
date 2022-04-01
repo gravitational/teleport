@@ -1181,7 +1181,7 @@ should mount tls.existingSecretName when set in values:
     - name: data
       persistentVolumeClaim:
         claimName: RELEASE-NAME
-should mount tls.existingSecretNameCA and set environment when set in values:
+should mount tls.existingCASecretName and set environment when set in values:
   1: |
     containers:
     - args:
@@ -1241,7 +1241,7 @@ should mount tls.existingSecretNameCA and set environment when set in values:
     - name: data
       persistentVolumeClaim:
         claimName: RELEASE-NAME
-should mount tls.existingSecretNameCA and set extra environment when set in values:
+should mount tls.existingCASecretName and set extra environment when set in values:
   1: |
     containers:
     - args:

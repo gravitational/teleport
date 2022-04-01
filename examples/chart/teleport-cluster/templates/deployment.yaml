@@ -116,12 +116,12 @@ spec:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
         imagePullPolicy: {{ .Values.imagePullPolicy }}
-        {{- if or .Values.extraEnv .Values.tls.existingSecretNameCA }}
+        {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
         env:
         {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}
         {{- end }}
-        {{- if .Values.tls.existingSecretNameCA }}
+        {{- if .Values.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
           value: /etc/teleport-tls-ca/ca.pem
         {{- end }}
@@ -183,7 +183,7 @@ spec:
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
-        {{- if .Values.tls.existingSecretNameCA }}
+        {{- if .Values.tls.existingCASecretName }}
         - mountPath: /etc/teleport-tls-ca
           name: "teleport-tls-ca"
           readOnly: true
@@ -216,10 +216,10 @@ spec:
       - name: teleport-tls
         secret:
           secretName: {{ .Values.tls.existingSecretName }}
-      {{- if .Values.tls.existingSecretNameCA }}
+      {{- if .Values.tls.existingCASecretName }}
       - name: teleport-tls-ca
         secret:
-          secretName: {{ .Values.tls.existingSecretNameCA }}
+          secretName: {{ .Values.tls.existingCASecretName }}
       {{- end }}
 {{- end }}
       - name: "config"

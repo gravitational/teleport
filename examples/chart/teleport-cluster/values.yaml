@@ -179,7 +179,7 @@ tls:
   # This will automatically set the SSL_CERT_FILE environment variable to trust the CA.
   # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem
   # The filename inside the secret is important - it _must_ be ca.pem
-  existingSecretNameCA: ""
+  existingCASecretName: ""
 
 ##################################################
 # Values that you shouldn't need to change.

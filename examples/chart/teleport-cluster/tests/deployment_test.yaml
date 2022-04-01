@@ -596,7 +596,7 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should mount tls.existingSecretNameCA and set environment when set in values
+  - it: should mount tls.existingCASecretName and set environment when set in values
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
     asserts:
@@ -632,7 +632,7 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should mount tls.existingSecretNameCA and set extra environment when set in values
+  - it: should mount tls.existingCASecretName and set extra environment when set in values
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
       - ../.lint/extra-env.yaml

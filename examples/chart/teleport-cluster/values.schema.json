@@ -312,7 +312,7 @@
             "type": "object",
             "required": [
                 "existingSecretName",
-                "existingSecretNameCA"
+                "existingCASecretName"
             ],
             "properties": {
                 "existingSecretName": {
@@ -320,8 +320,8 @@
                     "type": "string",
                     "default": ""
                 },
-                "existingSecretNameCA": {
-                    "$id": "#/properties/tls/properties/existingSecretNameCA",
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
                     "type": "string",
                     "default": ""
                 }
