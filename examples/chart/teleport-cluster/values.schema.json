@@ -67,6 +67,16 @@
             "type": "string",
             "default": ""
         },
+        "separatePostgresListener": {
+            "$id": "#/properties/separatePostgresListener",
+            "type": "boolean",
+            "default": false
+        },
+        "separateMongoListener": {
+            "$id": "#/properties/separateMongoListener",
+            "type": "boolean",
+            "default": false
+        },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
             "type": "string",
