@@ -5,16 +5,18 @@ videoBanner: x0eYFUEIOrM
 ---
 
 Teleport is fully compatible with OpenSSH and can be quickly set up to record and
-audit all SSH activity. Using Teleport and OpenSSH has the advantage of getting you up
+audit all SSH activity. 
+
+Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 We've outlined these reasons in [OpenSSH vs Teleport SSH for Servers?](https://gravitational.com/blog/openssh-vs-teleport/)
 
-Teleport is a standards-compliant SSH proxy and it can work in environments with
-existing SSH implementations, such as OpenSSH. This section will cover:
+Teleport is a standards-compliant SSH proxy and can work in environments with
+existing SSH implementations, such as OpenSSH. This guide will cover:
 
-- Configuring OpenSSH server `sshd` to join a Teleport cluster. Existing fleets of
+- Configuring the OpenSSH server `sshd` to join a Teleport cluster. Existing fleets of
   OpenSSH servers can be configured to accept SSH certificates dynamically issued by a Teleport CA.
-- Configuring OpenSSH client `ssh` to login into nodes inside a Teleport
+- Configuring the OpenSSH client `ssh` to log in to Nodes inside a Teleport
   cluster.
 
 <Admonition
@@ -28,94 +30,36 @@ existing SSH implementations, such as OpenSSH. This section will cover:
   ```
 </Admonition>
 
-## Overview
+(!docs/pages/includes/tctl.mdx!)
 
-<Figure
-  align="center"
-  bordered
-  caption="Teleport OpenSSH Recording Proxy"
->
-  ![Teleport OpenSSH Recording Proxy](../../../img/server-access/openssh-proxy.svg)
-</Figure>
+## Configure an OpenSSH server to join a Teleport cluster
 
-The recording proxy mode, although less secure, was added to allow Teleport users
-to enable session recording for OpenSSH's servers running `sshd`, which is helpful
-when gradually transitioning large server fleets to Teleport.
+`sshd` must be told to allow users to log in with certificates generated
+by the Teleport User CA. Start by exporting the Teleport CA public key.
 
-We consider the "recording proxy mode" to be less secure for two reasons:
-
-- It grants additional privileges to the Teleport proxy. In the default "node recording" mode, the proxy stores no secrets and cannot "see" the decrypted data. This makes a proxy less critical to the security of the overall cluster. But if an attacker gains physical access to a proxy node running in the "recording" mode, they will be able to see the decrypted traffic and client keys stored in the proxy's process memory.
-- Recording proxy mode requires the use of SSH agent forwarding. Agent forwarding is required because without it, a proxy will not be able to establish the 2nd connection to the destination node.
-
-Teleport proxy should be available to clients and be set up with TLS.
-
-Teleport OpenSSH supports:
-
-- FQDN `ec2-user@ip-172-31-14-137.us-west-2.compute.internal`
-- IPv4 `ubuntu@184.45.45.30`
-- IPv6 `root@2001:db8::2`
-
-## Set up OpenSSH recording proxy mode
-
-The first step is install and setup Teleport, we recommend starting with our [Getting Started Guide](../../getting-started.mdx) and [Admin Manual](../../setup/admin.mdx).
-
-(!docs/pages/includes/permission-warning.mdx!)
-
-(!docs/pages/includes/backup-warning.mdx!)
-
-To enable session recording for `sshd` nodes, the cluster must be switched to
-["recording proxy" mode](../../architecture/proxy.mdx#recording-proxy-mode).
-
-In this mode, the recording will be done on the proxy level:
-
-```yaml
-# snippet from /etc/teleport.yaml
-auth_service:
-   # Session Recording must be set to Proxy to work with OpenSSH
-   session_recording: "proxy"  # can also be "off" and "node" (default)
-```
-
-Next, `sshd` must be told to allow users to log in with certificates generated
-by the Teleport User CA. Start by exporting the Teleport CA public key:
-
-Export the Teleport Certificate Authority certificate into a file and update
-SSH configuration to trust Teleport's CA:
+Export the Teleport certificate authority certificate into a file and update
+your SSH configuration to trust Teleport's CA:
 
 ```code
-# tctl needs to be run on the auth server.
+# tctl needs to be run on the Auth Server.
 $ sudo tctl auth export --type=user | sed s/cert-authority\ // > teleport_user_ca.pub
 $ sudo mv ./teleport_user_ca.pub /etc/ssh/teleport_user_ca.pub
 $ echo "TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub" | sudo tee -a /etc/ssh/sshd_config
 ```
 
-Restart SSH daemon.
+Restart `sshd`.
 
 Now, `sshd` will trust users who present a Teleport-issued certificate.
 The next step is to configure host authentication.
 
-When in recording mode, Teleport will check that the host certificate of any
-node a user connects to is signed by a Teleport CA. By default, this is a strict
-check. If the node presents just a key or a certificate signed by a different
-CA, Teleport will reject this connection with the error message saying *"ssh:
-handshake failed: remote host presented a public key, expected a host
-certificate"*
-
-You can disable strict host checks as shown below. However, this opens the
-possibility for Man-in-the-Middle (MITM) attacks and is not recommended.
-
-```yaml
-# snippet from /etc/teleport.yaml
-auth_service:
-  proxy_checks_host_keys: no
-```
-
 The recommended solution is to ask Teleport to issue valid host certificates for
-all OpenSSH nodes. To generate a host certificate, run this on your Teleport auth server:
+all OpenSSH nodes. To generate a host certificate, run the following `tctl` command:
 
 ```code
 # Creating host certs, with an array of every host to be accessed.
-# Wildcard certs aren't supported by OpenSSH, must be full FQDN.
-# Management of the host certificates can become complex, this is another
+# Wildcard certs aren't supported by OpenSSH. The domain must be fully 
+# qualified.
+# Management of the host certificates can become complex. This is another
 # reason we recommend using Teleport SSH on nodes.
 $ sudo tctl auth sign \
       --host=api.example.com,ssh.example.com,64.225.88.175,64.225.88.178 \
@@ -144,90 +88,48 @@ $ ssh-keygen -L -f api.example.com-cert.pub
 #                x-teleport-role UNKNOWN OPTION (len 8)
 ```
 
-Then add the following lines to `/etc/ssh/sshd_config` on all OpenSSH nodes, and restart `sshd`.
+Then add the following lines to `/etc/ssh/sshd_config` on all OpenSSH nodes, and
+restart `sshd`.
 
 ```yaml
 HostKey /etc/ssh/api.example.com
 HostCertificate /etc/ssh/api.example.com-cert.pub
 ```
 
-Now you can use [`tsh ssh --port=22 user@api.example.com`](../../setup/reference/cli.mdx#tsh) to login
-into any `sshd` node in the cluster and the session will be recorded.
+## Use the OpenSSH client to access Teleport Nodes
 
-```code
-# tsh ssh to use default ssh port:22
-$ tsh ssh --port=22 user@host.example.com
-# Example for a Amazon EC2 Host
-# tsh ssh --port=22 ec2-user@ec2-54-EXAMPLE.us-west-2.compute.amazonaws.com
-```
-
-If you want to use OpenSSH `ssh` client for logging into `sshd` servers behind a proxy
-in "recording mode", you have to tell the `ssh` client to use the jump host and
-enable SSH agent forwarding, otherwise, a recording proxy will not be able to
-terminate the SSH connection to record it:
-
-```code
-# Note that agent forwarding is enabled twice: one from a client to a proxy
-# (mandatory if using a recording proxy), and then optionally from a proxy
-# to the end server if you want your agent running on the end server or not
-$ ssh -o "ForwardAgent yes" \
-    -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@p.example.com -s proxy:%h:%p" \
-    user@host.example.com
-```
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  To avoid typing all this and use the usual `ssh user@host.example.com`, users can update their `~/.ssh/config` file.
-</Admonition>
-
-### Setup SSH agent forwarding
-
-It's important to remember that SSH agent forwarding must be enabled on the
-client. Verify that a Teleport certificate is loaded into the agent after
-logging in:
-
-```code
-# Login as Joe
-$ tsh login --proxy=proxy.example.com --user=joe
-# see if the certificate is present (look for "teleport:joe") at the end of the cert
-$ ssh-add -L
-```
-
-<Admonition
-  type="warning"
-  title="GNOME Keyring SSH Agent and GPG Agent"
->
-  It is well-known that the Gnome Keyring SSH agent, used by many popular Linux desktops like Ubuntu, and `gpg-agent` from GnuPG do not support SSH
-  certificates. We recommend using the `ssh-agent` from OpenSSH.
-  Alternatively, you can disable SSH agent integration entirely using the
-  `--no-use-local-ssh-agent` flag or `TELEPORT_USE_LOCAL_SSH_AGENT=false`
-  environment variable with `tsh`.
-</Admonition>
-
-## Use OpenSSH client
-
-It is possible to use the OpenSSH client `ssh` to connect to nodes within a
+It is possible to use the OpenSSH client `ssh` to connect to Nodes within a
 Teleport cluster. Teleport supports SSH subsystems and includes a `proxy` subsystem that can be used like `netcat` is with `ProxyCommand` to connect
 through a jump host.
 
 OpenSSH client configuration may be generated automatically by `tsh`, or it can
 be configured manually. In either case, make sure you are running OpenSSH's
-`ssh-agent`, and have logged in to the Teleport proxy:
+`ssh-agent`, and have logged in to the Teleport Proxy Service:
+
+<ScopedBlock scope={["oss","enterprise"]}>
 
 ```code
 $ eval `ssh-agent`
 $ tsh --proxy=root.example.com login
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ eval `ssh-agent`
+$ tsh --proxy=mytenant.teleport.sh login
+```
+
+</ScopedBlock>
+
 `ssh-agent` will print environment variables into the console. Either `eval` the
 output as in the example above, or copy and paste the output into the shell you
-will be using to connect to a Teleport node. The output exports the
+will be using to connect to a Teleport Node. The output exports the
 `SSH_AUTH_SOCK` and `SSH_AGENT_PID` environment variables that allow OpenSSH
 clients to find the SSH agent.
 
-### Automatic Setup
+### Automatic setup
 
 <Admonition
   type="note"
@@ -240,14 +142,27 @@ clients to find the SSH agent.
 `tsh` can automatically generate the necessary OpenSSH client configuration to
 connect using the standard OpenSSH client:
 
+<ScopedBlock scope={["oss","enterprise"]}>
+
 ```code
-# on the machine where you want to run the ssh client
+# On the machine where you want to run the SSH client
 $ tsh --proxy=root.example.com config
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+# On the machine where you want to run the SSH client
+$ tsh --proxy=mytenant.teleport.sh config
+```
+
+</ScopedBlock>
+
 This will generate an OpenSSH client configuration block for the root cluster
-and all currently-known leaf clusters. Append this to your local OpenSSH config
-file (usually `~/.ssh/config`) using your text editor of choice.
+and all currently-known leaf clusters (if you are using Trusted Clusters).
+Append this to your local OpenSSH config file (usually `~/.ssh/config`) using
+your text editor of choice.
 
 <Admonition
   type="warning"
@@ -262,8 +177,9 @@ file (usually `~/.ssh/config`) using your text editor of choice.
   ```
 </Admonition>
 
-Once configured, log into any node in the `root.example.com` cluster as any
-principal listed in your Teleport profile:
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+Once configured, log in to any Node in the `root.example.com` cluster:
 
 ```code
 $ ssh user@node1.root.example.com
@@ -271,109 +187,201 @@ $ ssh user@node1.root.example.com
 
 This will connect to the node `node1` on the `root.example.com` cluster. This
 name does not need to be DNS accessible as the connection will be routed through
-your Teleport proxy.
+your Teleport Proxy Service.
 
-If any [trusted clusters](../../setup/admin/trustedclusters.mdx) exist, they are also configured:
+If any Trusted Clusters exist, they are also configured:
+
 ```code
 $ ssh user@node2.leaf.example.com
 ```
 
-When connecting to nodes with Teleport daemons running on non-standard ports
+When connecting to Nodes with Teleport daemons running on non-standard ports
 (other than `3022`), a port may be specified:
+
 ```code
 $ ssh -p 4022 user@node3.leaf.example.com
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Once configured, log in to any Node in the `mytenant.teleport.sh` cluster:
+
+```code
+$ ssh user@node1.mytenant.teleport.sh
+```
+
+This will connect to the node `node1` on the `mytenant.teleport.sh` cluster. This
+name does not need to be DNS accessible as the connection will be routed through
+your Teleport Proxy Service.
+
+If any Trusted Clusters exist, they are also configured:
+
+```code
+$ ssh user@node2.mytenant.teleport.sh
+```
+
+When connecting to Nodes with Teleport daemons running on non-standard ports
+(other than `3022`), a port may be specified:
+
+```code
+$ ssh -p 4022 user@node3.mytenant.teleport.sh
+```
+
+</ScopedBlock>
+
 
 <Admonition
   type="tip"
   title="Automatic OpenSSH and Multiple Clusters"
 >
-  If you switch between multiple Teleport proxy servers, you'll need to re-run 
+
+  If you switch between multiple Teleport Proxy Servers, you'll need to re-run
   `tsh config` for each to generate the cluster-specific configuration.
 
-  Similarly, if [trusted clusters](../../setup/admin/trustedclusters.mdx) are added or
-  removed, be sure to re-run the above command and replace the previous
-  configuration.
+  Similarly, if Trusted Clusters are added or removed, be sure to re-run the
+  above command and replace the previous configuration.
+
 </Admonition>
 
-### Manual Setup
+### Manual setup
 
 On your client machine, you need to import the public key of Teleport's host
 certificate. This will allow your OpenSSH client to verify that host certificates
 are signed by Teleport's trusted host CA:
 
 ```code
-# on the Teleport auth server
 $ tctl auth export --type=host > teleport_host_ca.pub
 
-# on the machine where you want to run the ssh client
+# On the machine where you want to run the ssh client
 $ cat teleport_host_ca.pub >> ~/.ssh/known_hosts
 ```
 
 If you have multiple Teleport clusters, you have to export and set up these
 certificate authorities for each cluster individually.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
 <Admonition
   type="tip"
   title="OpenSSH and Trusted Clusters"
 >
-  If you use [recording proxy mode](../../architecture/proxy.mdx) and [trusted clusters](../../setup/admin/trustedclusters.mdx),
+  If you use [Recording Proxy Mode](../../architecture/proxy.mdx) and [Trusted Clusters](../../setup/admin/trustedclusters.mdx),
   you need to set up the certificate authority from
-  the *root* cluster to match **all** nodes, even those that belong to *leaf*
-  clusters. For example, if your node naming scheme is `*.root.example.com`,
+  the root cluster to match all Nodes, even those that belong to leaf
+  clusters. 
+  
+  For example, if your Node naming scheme is `*.root.example.com`,
   `*.leaf1.example.com`, `*.leaf2.example.com`, then the
   `@certificate-authority` entry should match `*.example.com` and use the CA
-  from the root auth server only.
+  from the root Auth Server only.
 </Admonition>
 
-Lastly, configure the OpenSSH client to use the Teleport proxy when connecting
-to nodes with matching names. Edit `~/.ssh/config` for your user or
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+Lastly, configure the OpenSSH client to use the Teleport Proxy Service when connecting
+to Nodes with matching names. Edit `~/.ssh/config` for your user or
 `/etc/ssh/ssh_config` for global changes:
 
 ```txt
-# root.example.com is the jump host (proxy). credentials will be obtained from the
-# openssh agent.
+# root.example.com is the jump host (Proxy Service). Credentials will be
+# obtained from the SSH agent.
 Host root.example.com
     HostName 192.168.1.2
     Port 3023
 
-# connect to nodes in the root.example.com cluster through the jump
-# host (proxy) using the same. credentials will be obtained from the
-# openssh agent.
+# Connect to Nodes in the root.example.com cluster through the jump
+# host (Proxy Service). Credentials will be obtained from the
+# SSH agent.
 Host *.root.example.com
     HostName %h
     Port 3022
     ProxyCommand tsh proxy ssh %r@%h:%p
 
-# connect to nodes within a trusted cluster with the name "leaf1.example.com".
+# Connect to Nodes within a Trusted Cluster with the name "leaf1.example.com".
 Host *.leaf1.example.com
    HostName %h
    Port 3022
    ProxyCommand tsh proxy ssh --cluster=leaf1.example.com %r@%h:%p
 ```
 
-When everything is configured properly, you can use ssh to connect to any node
-behind `root.example.com` :
+When everything is configured properly, you can use SSH to connect to any Node
+behind `root.example.com`:
 
 ```code
 $ ssh root@database.root.example.com
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Lastly, configure the OpenSSH client to use the Teleport Proxy Service when connecting
+to Nodes with matching names. Edit `~/.ssh/config` for your user or
+`/etc/ssh/ssh_config` for global changes:
+
+```txt
+# mytenant.teleport.sh is the jump host (Proxy Service). Credentials will be
+# obtained from the SSH agent.
+Host mytenant.teleport.sh
+    HostName 192.168.1.2
+    Port 3023
+
+# Connect to Nodes in the mytenant.teleport.sh cluster through the jump
+# host (Proxy Service). Credentials will be obtained from the
+# SSH agent.
+Host *.mytenant.teleport.sh
+    HostName %h
+    Port 3022
+    ProxyCommand tsh proxy ssh %r@%h:%p
+
+# Connect to Nodes within a Trusted Cluster with the name "leaf1.mytenant.teleport.sh".
+Host *.mytenant.teleport.sh
+   HostName %h
+   Port 3022
+   ProxyCommand tsh proxy ssh --cluster=mytenant.teleport.sh %r@%h:%p
+```
+
+When everything is configured properly, you can use SSH to connect to any Node
+behind `mytenant.teleport.sh`:
+
+```code
+$ ssh root@database.root.mytenant.teleport.sh
+```
+
+</ScopedBlock>
+
 <Admonition
   type="tip"
   title="Note"
 >
-  Teleport uses OpenSSH certificates instead of keys which means you cannot ordinarily connect to a Teleport node by IP address. You have to connect by
-  DNS name. This is because OpenSSH ensures the DNS name of the node you are connecting to is listed under the `Principals` section of the OpenSSH certificate to verify you are connecting to the correct node.
+  Teleport uses OpenSSH certificates instead of keys, which means you cannot ordinarily connect to a Teleport Node by IP address. You have to connect by
+  DNS name. This is because OpenSSH ensures the DNS name of the Node you are connecting to is listed under the `Principals` section of the OpenSSH certificate to verify you are connecting to the correct Node.
 </Admonition>
 
 To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
 
-Example ssh to `database.work.example.com` as `root` with an OpenSSH server on port 22 via `tsh`:
+<ScopedBlock scope={["oss","enterprise"]}>
+
+Example `tsh ssh` command to access `database.work.example.com` as `root` with
+an OpenSSH server on port 22 via `tsh`:
 
 ```code
 $ tsh ssh --port=22 dev@database.root.example.com
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Example `tsh ssh` command to access `database.work.mytenant.teleport.sh` as `root` with
+an OpenSSH server on port 22 via `tsh`:
+
+```code
+$ tsh ssh --port=22 dev@database.root.mytenant.teleport.sh
+```
+
+</ScopedBlock>
 
 <Admonition
   type="warning"
@@ -381,25 +389,6 @@ $ tsh ssh --port=22 dev@database.root.example.com
 >
   The principal/username (`dev@` in the example above) being used to connect must be listed in the Teleport user/role configuration.
 </Admonition>
-
-## OpenSSH rate limiting
-
-When using a Teleport proxy in "recording mode", be aware of OpenSSH built-in
-rate-limiting. On large numbers of proxy connections, you may encounter errors
-like:
-
-```txt
-channel 0: open failed: connect failed: ssh: handshake failed: EOF
-```
-
-See `MaxStartups` setting in `man sshd_config`. This setting means that by
-default OpenSSH only allows 10 unauthenticated connections at a time and starts
-dropping connections 30% of the time when the number of connections goes over 10.
-When it hits 100 authentication connections, all new connections are
-dropped.
-
-To increase the concurrency level, increase the value to something like
-`MaxStartups 50:30:100`. This allows 50 concurrent connections and a max of 100.
 
 ## Revoke an SSH certificate
 
