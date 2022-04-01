@@ -214,8 +214,8 @@ it shouldn't pose a maintenance burden.
 package webauthn;
 
 message User {
-  // ID is the Teleport user ID.
-  string id = 1;
+  // Teleport user ID.
+  string teleport_user = 1;
 }
 ```
 
@@ -235,10 +235,10 @@ package types;
 message WebauthnDevice {
   // (existing fields omitted)
 
-  // Authenticator data returned during registration.
-  // Stored for audit and migration purposes.
-  // May be absent in legacy entries (Teleport 9.x or earlier).
-  bytes authenticator_data = 6;
+  // Raw attestation object, as returned by the authentication during
+  // registration.
+  // Absent for legacy entries.
+  bytes attestation_object = 6;
 
   // True if the device is the result of a requested resident key
   // (ie, it is passwordless-capable).
@@ -309,10 +309,10 @@ type MFAChallengeRequest struct {
 ```proto
 package proto; // api/client/proto
 
-message CreateAuthenticateChallengeRequest {
-  message ContextUser {}
-  message Passwordless {}
+message ContextUser {}
+message Passwordless {}
 
+message CreateAuthenticateChallengeRequest {
   oneof Request {
     // (existing fields omitted)
 
