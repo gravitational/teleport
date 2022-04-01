@@ -1,0 +1,50 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.terminal.v1;
+
+option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
+
+import "v1/label.proto";
+
+// App describes connected Application
+message App {
+    // uri is the app resource URI
+    string uri = 1;
+    // name is the app name
+    string name = 2;
+    // description is the app description.
+    string description = 3;
+    // uri is the internal address the application is available at.
+    string app_uri = 4;
+    // public_addr is the public address the application is accessible at.
+    string public_addr = 5;
+    // fqdn is a fully qualified domain name of the application (app.example.com)
+    string fqdn = 6;
+    // labels is a map of static labels associated with an application.
+    repeated Label labels = 7;
+    // aws_console if true, indicates that the app represents AWS management console.
+    bool aws_console = 8;
+    // aws_roles is a list of AWS IAM roles for the application representing AWS console.
+    repeated AWSRole aws_roles = 9;
+
+    message AWSRole {
+        // display is the role display name.
+        string display = 1;
+        // arn is the full role ARN.
+        string arn = 2;
+    }
+}
