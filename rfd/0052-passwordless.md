@@ -179,10 +179,9 @@ https://github.com/gravitational/teleport/blob/f423f7fedc088b97cb666c13dcdcf54bd
 
 Because the user is unknown when the challenge is generated (1), the server has
 no knowledge of registered devices, nor it can safely supply any user
-information (as the user is untrusted at this point). In practice, this means
-that the choice to attempt a passwordless login depends on the user (once the
-first login is done we can use local storage to record whether they are
-passwordless-capable).
+information (as the user is untrusted at this point). In practice, this commonly
+means that the choice to attempt a passwordless login comes from the user (see
+the [cluster settings](#cluster-settings) section for our take on this).
 
 In regards to authenticator interactions (2), it is important to note that the
 user may have multiple credentials attached to an
@@ -436,6 +435,106 @@ passwordless, but those roots are dropped as soon as the admin defines _any_
 attestation lists, in order to avoid configurations that are impossible to
 satisfy. The presence of an admin-defined attestation list is also interpreted
 as a decision, by the admin, to take control over such configurations.
+
+### Cluster settings
+
+As explained in the [authentication](#authentication) section, the decision to
+perform a passwordless login is commonly made by the end user. This is because
+Teleport has no information about the user prior to login. In order to provide a
+more seamless passwordless experience, admins may switch the default login
+method of a cluster to passwordless.
+
+Fallback methods are provided for users who may lack passwordless credentials:
+namely `tsh --auth` for CLI and UI options for the Web UI (not discussed in this
+design).
+
+Any cluster capable of WebAuthn is, by default, capable of passwordless.
+Teleport also offers a toggle to disable passwordless, in case admins so desire.
+
+teleport.yaml:
+
+```yaml
+auth_service:
+  authentication:
+    type: local
+    second_factor: on
+    webauthn:
+      rp_id: "example.com"
+
+    # Explicitly enable/disable passwordless.
+    # Defaults to "true".
+    passwordless: true
+
+    # Sets passwordless as the default connector.
+    connector_name: local:passwordless
+```
+
+`cluster_auth_preference` / [AuthPreferenceSpecV2](
+https://github.com/gravitational/teleport/blob/d3de6c489dd93da8ddc0baca2b37042a2d98b65c/api/types/types.proto#L992):
+
+```yaml
+version: v2
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factor: on
+  webauthn:
+    rp_id: example.com
+  allow_passwordless: true
+  connector_name: local:passwordless
+```
+
+#### Virtual connectors
+
+The design extends the [`local` users connector](
+https://goteleport.com/docs/architecture/users/#multiple-identity-sources) by
+adding the `local:passwordless` connector, a variant that uses passwordless
+logins.
+
+Users may manually change their login method, as long as the cluster supports
+it, by running `tsh login --auth=local` or `tsh login
+--auth=local:passwordless`. `tsh` and Web UI should check the connector name
+from `/ping` endpoints and react accordingly.
+
+`local:passwordless` is now a system-reserved connector name, taking precedence
+over similarly named connectors. Furthermore, the design suggests forbidding
+user-created connectors from containing the `:` character, so that other virtual
+connectors may be added, as necessary. (For example,
+`$connector_name:passwordless` for OIDC and SAML.)
+
+<!--
+References:
+- Resource.Name validation:
+  https://github.com/gravitational/teleport/blob/d3de6c489dd93da8ddc0baca2b37042a2d98b65c/api/types/resource.go#L305
+- OIDC forbids "local":
+  https://github.com/gravitational/teleport/blob/d3de6c489dd93da8ddc0baca2b37042a2d98b65c/api/types/oidc.go#L359
+- SAML forbids "local":
+  https://github.com/gravitational/teleport/blob/d3de6c489dd93da8ddc0baca2b37042a2d98b65c/api/types/saml.go#L346
+-->
+
+#### /ping endpoints
+
+The Web API `/ping` and `/ping/{connector}` responses are modified as follows:
+
+```diff
+type PingResponse struct {
+	Auth AuthenticationSettings
+	// (...)
+}
+
+type AuthenticationSettings struct {
+	// (...)
++	AllowPasswordless bool
++	Local             LocalSettings
+}
+
++type LocalSettings struct {
++	// Name is the internal name of the connector.
++	Name string `json:"name"`
++}
+```
 
 ### Security
 
