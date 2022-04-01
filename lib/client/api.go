@@ -167,6 +167,9 @@ type HostKeyCallback func(host string, ip net.Addr, key ssh.PublicKey) error
 type Config struct {
 	// Username is the Teleport account username (for logging into Teleport proxies)
 	Username string
+	// ExplicitUsername is true if Username was initially set by the end-user
+	// (for example, using command-line flags).
+	ExplicitUsername bool
 
 	// Remote host to connect
 	Host string
@@ -2620,7 +2623,10 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 	}
 
 	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), tc.Username, challenge.WebauthnChallenge, prompt)
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+		User:                tc.Username,
+		OptimisticAssertion: !tc.ExplicitUsername,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
