@@ -657,7 +657,7 @@ func handlePeerControls(term *terminal.Terminal, remoteStdin io.Writer) {
 			case escape.ErrDisconnect:
 				fmt.Fprint(term.Stderr(), "\r\nDisconnected\r\n")
 			case escape.ErrTooMuchBufferedData:
-				fmt.Fprint(term.Stderr(), "\r\nremote peer may be unreachable, check your connectivity\r\n")
+				fmt.Fprint(term.Stderr(), "\r\nRemote peer may be unreachable, check your connectivity\r\n")
 			default:
 				fmt.Fprint(term.Stderr(), "\r\nunknown error\r\n")
 			}
@@ -666,8 +666,8 @@ func handlePeerControls(term *terminal.Terminal, remoteStdin io.Writer) {
 
 	_, err := io.Copy(remoteStdin, stdin)
 	if err != nil && err != io.EOF {
-		log.Debugf("error copying data to remote peer: %v", err)
-		fmt.Fprint(term.Stderr(), "\r\nerror copying data to remote peer\r\n")
+		log.Debugf("Error copying data to remote peer: %v", err)
+		fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
 	}
 }
 
