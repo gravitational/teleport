@@ -202,7 +202,7 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, mode types.SessionParticipantM
 			handleNonPeerControls(mode, s.term, func() {
 				err := s.stream.ForceTerminate()
 				if err != nil {
-					log.Debugf("error sending force termination request: %v", err)
+					log.Debugf("Error sending force termination request: %v", err)
 					fmt.Print("\n\rError while sending force termination request\n\r")
 				}
 			})
