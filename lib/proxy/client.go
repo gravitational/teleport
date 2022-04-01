@@ -302,7 +302,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 	return trace.NewAggregate(errs...)
 }
 
-// Dial dials a node through a peer proxy.
+// DialNode dials a node through a peer proxy.
 func (c *Client) DialNode(
 	proxyIDs []string,
 	nodeID string,
