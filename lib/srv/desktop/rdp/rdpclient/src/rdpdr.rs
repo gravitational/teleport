@@ -21,6 +21,7 @@ use rdp::core::mcs;
 use rdp::core::tpkt;
 use rdp::model::data::Message;
 use rdp::model::error::*;
+use std::convert::TryFrom;
 use std::io::{Read, Write};
 
 pub const CHANNEL_NAME: &str = "rdpdr";
@@ -293,39 +294,50 @@ struct ServerCoreCapabilityRequest {
 impl ServerCoreCapabilityRequest {
     fn new_response() -> Self {
         // Clients are always required to send the "general" capability set.
-        // In addition, we also send the optional smartcard capability.
+        // In addition, we also send the optional smartcard capability (CAP_SMARTCARD_TYPE)
+        // and drive capability (CAP_DRIVE_TYPE).
+        let capabilities = vec![
+            CapabilitySet {
+                header: CapabilityHeader {
+                    cap_type: CapabilityType::CAP_GENERAL_TYPE,
+                    length: 8 + 36, // 8 byte header + 36 byte capability descriptor
+                    version: GENERAL_CAPABILITY_VERSION_02,
+                },
+                data: Capability::General(GeneralCapabilitySet {
+                    os_type: 0,
+                    os_version: 0,
+                    protocol_major_version: VERSION_MAJOR,
+                    protocol_minor_version: VERSION_MINOR,
+                    io_code_1: 0x00007fff, // Combination of all the required bits.
+                    io_code_2: 0,
+                    extended_pdu: 0x00000001 | 0x00000002, // RDPDR_DEVICE_REMOVE_PDUS | RDPDR_CLIENT_DISPLAY_NAME_PDU
+                    extra_flags_1: 0,
+                    extra_flags_2: 0,
+                    special_type_device_cap: 1, // Request redirection of 1 special device - smartcard.
+                }),
+            },
+            CapabilitySet {
+                header: CapabilityHeader {
+                    cap_type: CapabilityType::CAP_SMARTCARD_TYPE,
+                    length: 8, // 8 byte header + empty capability descriptor
+                    version: SMARTCARD_CAPABILITY_VERSION_01,
+                },
+                data: Capability::Smartcard,
+            },
+            CapabilitySet {
+                header: CapabilityHeader {
+                    cap_type: CapabilityType::CAP_DRIVE_TYPE,
+                    length: 8, // 8 byte header + empty capability descriptor
+                    version: DRIVE_CAPABILITY_VERSION_02,
+                },
+                data: Capability::Drive,
+            },
+        ];
+
         Self {
-            num_capabilities: 2,
             padding: 0,
-            capabilities: vec![
-                CapabilitySet {
-                    header: CapabilityHeader {
-                        cap_type: CapabilityType::CAP_GENERAL_TYPE,
-                        length: 8 + 36, // 8 byte header + 36 byte capability descriptor
-                        version: GENERAL_CAPABILITY_VERSION_02,
-                    },
-                    data: Capability::General(GeneralCapabilitySet {
-                        os_type: 0,
-                        os_version: 0,
-                        protocol_major_version: VERSION_MAJOR,
-                        protocol_minor_version: VERSION_MINOR,
-                        io_code_1: 0x00007fff, // Combination of all the required bits.
-                        io_code_2: 0,
-                        extended_pdu: 0x00000001 | 0x00000002, // RDPDR_DEVICE_REMOVE_PDUS | RDPDR_CLIENT_DISPLAY_NAME_PDU
-                        extra_flags_1: 0,
-                        extra_flags_2: 0,
-                        special_type_device_cap: 1, // Request redirection of 1 special device - smartcard.
-                    }),
-                },
-                CapabilitySet {
-                    header: CapabilityHeader {
-                        cap_type: CapabilityType::CAP_SMARTCARD_TYPE,
-                        length: 8, // 8 byte header + empty capability descriptor
-                        version: SMARTCARD_CAPABILITY_VERSION_01,
-                    },
-                    data: Capability::Smartcard,
-                },
-            ],
+            num_capabilities: u16::try_from(capabilities.len()).ok().unwrap(),
+            capabilities,
         }
     }
 
@@ -376,6 +388,7 @@ impl CapabilitySet {
 }
 
 const SMARTCARD_CAPABILITY_VERSION_01: u32 = 0x00000001;
+const DRIVE_CAPABILITY_VERSION_02: u32 = 0x00000002;
 #[allow(dead_code)]
 const GENERAL_CAPABILITY_VERSION_01: u32 = 0x00000001;
 const GENERAL_CAPABILITY_VERSION_02: u32 = 0x00000002;
