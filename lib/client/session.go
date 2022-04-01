@@ -644,6 +644,8 @@ func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Ter
 	}
 }
 
+// handlePeerControls streams the terminal input to the remote shell's standard input.
+// Escape sequences for stopping the stream on the client side are supported via `escape.NewReader`.
 func handlePeerControls(term *terminal.Terminal, remoteStdin io.Writer) {
 	stdin := term.Stdin()
 	if term.IsAttached() {
@@ -659,13 +661,13 @@ func handlePeerControls(term *terminal.Terminal, remoteStdin io.Writer) {
 			case escape.ErrTooMuchBufferedData:
 				fmt.Fprint(term.Stderr(), "\r\nRemote peer may be unreachable, check your connectivity\r\n")
 			default:
-				fmt.Fprint(term.Stderr(), "\r\nunknown error\r\n")
+				fmt.Fprintf(term.Stderr(), "\r\nunknown error: %v\r\n", err.Error())
 			}
 		})
 	}
 
 	_, err := io.Copy(remoteStdin, stdin)
-	if err != nil && err != io.EOF {
+	if err != nil {
 		log.Debugf("Error copying data to remote peer: %v", err)
 		fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
 	}

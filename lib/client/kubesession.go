@@ -196,9 +196,10 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, mode types.SessionParticipantM
 	go func() {
 		defer s.cancel()
 
-		if mode == types.SessionPeerMode {
+		switch mode {
+		case types.SessionPeerMode:
 			handlePeerControls(s.term, s.stream)
-		} else {
+		default:
 			handleNonPeerControls(mode, s.term, func() {
 				err := s.stream.ForceTerminate()
 				if err != nil {
