@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { app } from 'electron';
-import { Logger } from 'shared/libs/logger';
+import Logger from 'teleterm/logger';
 import { RuntimeSettings } from './types';
 
 const { argv, env } = process;
