@@ -1,5 +1,16 @@
 # Changelog
 
+## 9.0.3
+
+This release of Teleport contains multiple fixes.
+
+* Fixed issue with `tctl` ignoring `TELEPORT_HOME` environment variable. [#11561](https://github.com/gravitational/teleport/pull/11561)
+* Fixed multiple moderated sessions stability issues. [#11494](https://github.com/gravitational/teleport/pull/11494)
+* Fixed issue with `tsh version` exiting with error when tsh config file is not present. [#11571](https://github.com/gravitational/teleport/pull/11571)
+* Fixed issue with `tsh` not respecting proxy hosts. [#11496](https://github.com/gravitational/teleport/pull/11496)
+* Fixed issue with Kubernetes forwarder taking HTTP proxies into account. [#11462](https://github.com/gravitational/teleport/pull/11462)
+* Fixed issue with stale DynamoDB Auth Services disrupting agent reconnect attempts. [#11598](https://github.com/gravitational/teleport/pull/11598)
+
 ## 9.0.2
 
 This release of Teleport contains multiple features, improvements and bug fixes.

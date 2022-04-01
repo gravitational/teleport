@@ -224,7 +224,7 @@ your Teleport Proxy Service address and `--uri` to the SQL Server endpoint.
     --name=sqlserver \
     --protocol=sqlserver \
     --uri=sqlserver.example.com:1433 \
-    --ad-keytab=/path/to/teleport.keytab \
+    --ad-keytab-file=/path/to/teleport.keytab \
     --ad-domain=EXAMPLE.COM \
     --ad-spn=MSSQLSvc/sqlserver.example.com:1433 \
     --labels=env=dev
@@ -234,7 +234,7 @@ Provide Active Directory parameters:
 
 | Flag | Description |
 | ---- | ----------- |
-| `--ad-keytab` | Path to Kerberos keytab file generated above. |
+| `--ad-keytab-file` | Path to Kerberos keytab file generated above. |
 | `--ad-domain` | Active Directory domain (Kerberos realm) that SQL Server is joined. |
 | `--ad-spn` | Service Principal Name for SQL Server to fetch Kerberos tickets for. |
 

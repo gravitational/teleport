@@ -148,11 +148,14 @@ certificate-based smart card authentication, and ensuring RDP is enabled.
 
 ### Export the Teleport CA
 
-<Admonition type="note" title="Requires Existing Cluster">
-  The following step requires an existing cluster. If you don't already have a
-  Teleport cluster up and running, see our general [Getting
-  Started](../getting-started.mdx) guide.
+The following step requires an existing cluster. If you don't already have a
+Teleport cluster up and running, see our general [Getting
+Started](../getting-started.mdx) guide.
+
+<Admonition type="note" title="User CA Rotation">
+These steps will need to be repeated if Teleport's user certificate authority is rotated.
 </Admonition>
+
 
 1. Get the Teleport user CA certificate by running:
 
