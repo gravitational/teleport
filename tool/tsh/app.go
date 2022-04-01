@@ -306,8 +306,8 @@ const (
 	appFormatKey = "key"
 	// appFormatCURL prints app curl command.
 	appFormatCURL = "curl"
-	// appFormatJSON prints app URI, CA cert path, cert path and key path in JSON format.
+	// appFormatJSON prints app URI, CA cert path, cert path, key path, and curl command in JSON format.
 	appFormatJSON = "json"
-	// appFormatYAML prints app URI, CA cert path, cert path and key path in YAML format.
+	// appFormatYAML prints app URI, CA cert path, cert path, key path, and curl command in YAML format.
 	appFormatYAML = "yaml"
 )
