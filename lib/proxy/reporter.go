@@ -42,14 +42,19 @@ func newReporter(m metrics) *reporter {
 	}
 }
 
+// resetConnections resets the current number of connections.
+func (r *reporter) resetConnections() {
+	r.getConnectionGauge().Reset()
+}
+
 // incConnection increases the current number of connections.
-func (r *reporter) incConnection(localAddr, remoteAddr string) {
-	r.getConnectionGauge().WithLabelValues(localAddr, remoteAddr).Inc()
+func (r *reporter) incConnection(localID, remoteID, state string) {
+	r.getConnectionGauge().WithLabelValues(localID, remoteID, state).Inc()
 }
 
 // decConnection decreases the current number of connections.
-func (r *reporter) decConnection(localAddr, remoteAddr string) {
-	r.getConnectionGauge().WithLabelValues(localAddr, remoteAddr).Dec()
+func (r *reporter) decConnection(localAddr, remoteAddr, state string) {
+	r.getConnectionGauge().WithLabelValues(localAddr, remoteAddr, state).Dec()
 }
 
 // incRPC increases the current number of rpcs.

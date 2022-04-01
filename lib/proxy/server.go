@@ -104,9 +104,8 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 
 // Server is a proxy service server using grpc and tls.
 type Server struct {
-	config  ServerConfig
-	server  *grpc.Server
-	metrics *serverMetrics
+	config ServerConfig
+	server *grpc.Server
 }
 
 // NewServer creates a new proxy server instance.
@@ -121,10 +120,12 @@ func NewServer(config ServerConfig) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	reporter := newReporter(metrics)
+
 	transportCreds := newProxyCredentials(credentials.NewTLS(config.TLSConfig))
 	server := grpc.NewServer(
 		grpc.Creds(transportCreds),
-		grpc.StatsHandler(newStatsHandler(metrics)),
+		grpc.StatsHandler(newStatsHandler(reporter)),
 		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, utils.GRPCServerStreamErrorInterceptor),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			Time:    peerKeepAlive,
@@ -139,9 +140,8 @@ func NewServer(config ServerConfig) (*Server, error) {
 	proto.RegisterProxyServiceServer(server, config.service)
 
 	return &Server{
-		config:  config,
-		server:  server,
-		metrics: metrics,
+		config: config,
+		server: server,
 	}, nil
 }
 

@@ -63,7 +63,7 @@ func TestClientConn(t *testing.T) {
 	server2.Shutdown()
 	stream, cached, err = client.dial([]string{"s2"})
 	require.Error(t, err)
-	require.False(t, cached)
+	require.True(t, cached)
 	require.Nil(t, stream)
 }
 

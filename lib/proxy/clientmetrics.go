@@ -21,10 +21,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+const (
+	errorProxyPeerTunnelNotFound     = "TUNNEL_NOT_FOUND"
+	errorProxyPeerTunnelDial         = "TUNNEL_DIAL"
+	errorProxyPeerTunnelDirectDial   = "TUNNEL_DIRECT_DIAL"
+	errorProxyPeerTunnelRPC          = "TUNNEL_RPC"
+	errorProxyPeerFetchProxies       = "FETCH_PROXIES"
+	errorProxyPeerProxiesUnreachable = "PROXIES_UNREACHABLE"
+)
+
 // clientMetrics represents a collection of metrics for a proxy peer client
 type clientMetrics struct {
-	tunnelErrorCounter *prometheus.CounterVec
-
+	dialErrors      *prometheus.CounterVec
 	connections     *prometheus.GaugeVec
 	rpcs            *prometheus.GaugeVec
 	rpcTotal        *prometheus.CounterVec
@@ -36,7 +44,7 @@ type clientMetrics struct {
 // newClientMetrics inits and registers client metrics prometheus collectors.
 func newClientMetrics() (*clientMetrics, error) {
 	cm := &clientMetrics{
-		tunnelErrorCounter: prometheus.NewCounterVec(
+		dialErrors: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: "proxy_peer",
 				Subsystem: "client",
@@ -53,7 +61,7 @@ func newClientMetrics() (*clientMetrics, error) {
 				Name:      "connections",
 				Help:      "Number of currently opened connection to proxy peer servers.",
 			},
-			[]string{"local_addr", "remote_addr"},
+			[]string{"local_id", "remote_id", "state"},
 		),
 
 		rpcs: prometheus.NewGaugeVec(
@@ -108,7 +116,7 @@ func newClientMetrics() (*clientMetrics, error) {
 	}
 
 	if err := utils.RegisterPrometheusCollectors(
-		cm.tunnelErrorCounter,
+		cm.dialErrors,
 		cm.connections,
 		cm.rpcs,
 		cm.rpcTotal,
@@ -123,8 +131,8 @@ func newClientMetrics() (*clientMetrics, error) {
 }
 
 // reportTunnelError reports errors encountered dialing an existing peer tunnel.
-func (c *clientMetrics) reportTunnelError(status string) {
-	c.tunnelErrorCounter.WithLabelValues(status).Inc()
+func (c *clientMetrics) reportTunnelError(errorType string) {
+	c.dialErrors.WithLabelValues(errorType).Inc()
 }
 
 // getConnectionGauge is a getter for the connections collector.
