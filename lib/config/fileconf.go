@@ -437,7 +437,6 @@ func (c *CachePolicy) Enabled() bool {
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Type:    c.Type,
 		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
