@@ -20,7 +20,12 @@ package multiplexer
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net"
 	"strconv"
 	"strings"
@@ -121,4 +126,73 @@ func parseIP(protocol string, addrString string) (net.IP, error) {
 		return nil, trace.BadParameter("got IPV6 address %v %q for IPV4 proto %q", len(addr), addr.String(), protocol)
 	}
 	return addr, nil
+}
+
+type proxyV2Header struct {
+	Signature      [12]uint8
+	VersionCommand uint8
+	Protocol       uint8
+	Length         uint16
+}
+
+type proxyV2Address4 struct {
+	Source          [4]uint8
+	Destination     [4]uint8
+	SourcePort      uint16
+	DestinationPort uint16
+}
+
+type proxyV2Address6 struct {
+	Source          [16]uint8
+	Destination     [16]uint8
+	SourcePort      uint16
+	DestinationPort uint16
+}
+
+func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
+	var header proxyV2Header
+	var ret ProxyLine
+	if err := binary.Read(reader, binary.BigEndian, &header); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if bytes.Compare(header.Signature[:], proxyV2Prefix) != 0 {
+		return nil, trace.BadParameter("unrecognized signature %s", hex.EncodeToString(header.Signature[:]))
+	}
+	cmd, ver := header.VersionCommand&0xF, header.VersionCommand>>4
+	if ver != 2 {
+		return nil, trace.BadParameter("unsupported version %d", ver)
+	}
+	if cmd == 0 {
+		// LOCAL command, just skip address information and keep original addresses (no proxy line)
+		if header.Length > 0 {
+			_, err := io.CopyN(ioutil.Discard, reader, int64(header.Length))
+			return nil, trace.Wrap(err)
+		}
+		return nil, nil
+	}
+	if cmd != 1 {
+		return nil, trace.BadParameter("unsupported command %d", cmd)
+	}
+	switch header.Protocol {
+	case 0x11:
+		var addr proxyV2Address4
+		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ret.Protocol = TCP4
+		ret.Source = net.TCPAddr{IP: addr.Source[:], Port: int(addr.SourcePort)}
+		ret.Destination = net.TCPAddr{IP: addr.Destination[:], Port: int(addr.DestinationPort)}
+	case 0x21:
+		var addr proxyV2Address6
+		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ret.Protocol = TCP6
+		ret.Source = net.TCPAddr{IP: addr.Source[:], Port: int(addr.SourcePort)}
+		ret.Destination = net.TCPAddr{IP: addr.Destination[:], Port: int(addr.DestinationPort)}
+	default:
+		return nil, trace.BadParameter("unsupported protocol %d", header.Protocol)
+	}
+
+	return &ret, nil
 }
