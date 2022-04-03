@@ -18,7 +18,6 @@ package cache
 
 import (
 	"context"
-	"strings"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -842,12 +841,6 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 func (c *certAuthority) fetchCertAuthorities(ctx context.Context, caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
 	authorities, err := c.Trust.GetCertAuthorities(ctx, caType, c.watch.LoadSecrets)
 	if err != nil {
-		// DELETE IN: 5.1
-		//
-		// All clusters will support JWT signers in 5.1.
-		if strings.Contains(err.Error(), "authority type is not supported") {
-			return func(ctx context.Context) error { return nil }, nil
-		}
 		return nil, trace.Wrap(err)
 	}
 

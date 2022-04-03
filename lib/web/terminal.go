@@ -102,28 +102,12 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("term: bad term dimensions")
 	}
 
-	servers, err := authProvider.GetNodes(ctx, req.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// DELETE IN: 5.0
-	//
-	// All proxies will support lookup by uuid, so host/port lookup
-	// and fallback can be dropped entirely.
-	hostName, hostPort, err := resolveServerHostPort(req.Server, servers)
-	if err != nil {
-		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
-	}
-
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
 		}),
 		params:       req,
 		ctx:          sessCtx,
-		hostName:     hostName,
-		hostPort:     hostPort,
 		hostUUID:     req.Server,
 		authProvider: authProvider,
 		encoder:      unicode.UTF8.NewEncoder(),

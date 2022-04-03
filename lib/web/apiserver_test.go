@@ -1370,63 +1370,6 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 	c.Assert(sess.ClusterName, Equals, s.server.ClusterName())
 }
 
-// DELETE IN: 5.0.0
-// Tests the code snippet from apiserver.(*Handler).siteSessionGet/siteSessionsGet
-// that tests empty ClusterName and ServerHostname gets set.
-func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
-	nodeClient, err := s.server.NewClient(auth.TestBuiltin(types.RoleNode))
-	c.Assert(err, IsNil)
-
-	// Create a session with empty ClusterName.
-	sess1 := session.Session{
-		ClusterName:    "",
-		ServerID:       string(session.NewID()),
-		ID:             session.NewID(),
-		Namespace:      apidefaults.Namespace,
-		Login:          "foo",
-		Created:        time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-		TerminalParams: session.TerminalParams{W: 100, H: 100},
-	}
-	err = nodeClient.CreateSession(sess1)
-	c.Assert(err, IsNil)
-
-	// Retrieve the session with the empty ClusterName.
-	pack := s.authPack(c, "baz")
-	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions", sess1.ID.String()), url.Values{})
-	c.Assert(err, IsNil)
-
-	// Test that empty ClusterName and ServerHostname got set.
-	var sessionResult *session.Session
-	err = json.Unmarshal(res.Bytes(), &sessionResult)
-	c.Assert(err, IsNil)
-	c.Assert(sessionResult.ClusterName, Equals, s.server.ClusterName())
-	c.Assert(sessionResult.ServerHostname, Equals, sess1.ServerID)
-
-	// Create another session to test sessions list.
-	sess2 := sess1
-	sess2.ID = session.NewID()
-	sess2.ServerID = string(session.NewID())
-	err = nodeClient.CreateSession(sess2)
-	c.Assert(err, IsNil)
-
-	// Retrieve sessions list.
-	res, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
-	c.Assert(err, IsNil)
-
-	var sessionList *siteSessionsGetResponse
-	err = json.Unmarshal(res.Bytes(), &sessionList)
-	c.Assert(err, IsNil)
-
-	s1 := sessionList.Sessions[0]
-	s2 := sessionList.Sessions[1]
-
-	c.Assert(s1.ClusterName, Equals, s.server.ClusterName())
-	c.Assert(s2.ClusterName, Equals, s.server.ClusterName())
-	c.Assert(s1.ServerHostname, Equals, s1.ServerID)
-	c.Assert(s2.ServerHostname, Equals, s2.ServerID)
-}
-
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c, "foo")

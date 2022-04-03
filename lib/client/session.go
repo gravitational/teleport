@@ -102,7 +102,6 @@ func newSession(client *NodeClient,
 	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
-	legacyID bool,
 	enableEscapeSequences bool,
 ) (*NodeSession, error) {
 	// Initialize the terminal. Note that at this point, we don't know if this
