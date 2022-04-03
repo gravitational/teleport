@@ -329,13 +329,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	io := srv.NewTermManager()
 
-	if tty {
-		err = io.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", id.String()))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	s := &session{
 		ctx:                            ctx,
 		forwarder:                      forwarder,
@@ -360,6 +353,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		stateUpdate:                    sync.NewCond(&sync.Mutex{}),
 		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
 	}
+
+	s.BroadcastMessage("Creating session with ID: %v...", id.String())
+	s.BroadcastMessage(srv.SessionControlsInfoBroadcast)
 
 	go func() {
 		if _, open := <-s.io.TerminateNotifier(); open {
