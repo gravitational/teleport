@@ -820,7 +820,6 @@ func (s *session) launch(ctx *ServerContext) error {
 
 	s.log.Debugf("Launching session %v.", s.id)
 	s.BroadcastMessage("Connecting to %v over SSH", ctx.srv.GetInfo().GetHostname())
-	s.state = types.SessionState_SessionStateRunning
 
 	err := s.io.On()
 	if err != nil {
@@ -1550,8 +1549,10 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 					}
 				}()
 			} else {
-				s.state = types.SessionState_SessionStateRunning
-				s.stateUpdate.Broadcast()
+				err := trackerUpdateState(types.SessionState_SessionStateRunning)
+				if err != nil {
+					s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
+				}
 			}
 		} else if !s.started {
 			base := "Waiting for required participants..."
