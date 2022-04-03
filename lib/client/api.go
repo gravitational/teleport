@@ -3234,37 +3234,6 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 		fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
 }
 
-type serverResponse struct {
-	version string
-	err     error
-}
-
-// getServerVersion makes a SSH global request to the server to request the
-// version.
-func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, error) {
-	responseCh := make(chan serverResponse)
-
-	go func() {
-		ok, payload, err := nodeClient.Client.SendRequest(teleport.VersionRequest, true, nil)
-		if err != nil {
-			responseCh <- serverResponse{err: trace.NotFound(err.Error())}
-		} else if !ok {
-			responseCh <- serverResponse{err: trace.NotFound("server does not support version request")}
-		}
-		responseCh <- serverResponse{version: string(payload)}
-	}()
-
-	select {
-	case resp := <-responseCh:
-		if resp.err != nil {
-			return "", trace.Wrap(resp.err)
-		}
-		return resp.version, nil
-	case <-time.After(500 * time.Millisecond):
-		return "", trace.NotFound("timed out waiting for server response")
-	}
-}
-
 // loadTLS returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set
 // or teleport core TLS certificate for the local agent.
 func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
