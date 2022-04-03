@@ -378,12 +378,6 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Warn(warningMessage)
 	}
 
-	// Migrate any legacy resources to new format.
-	err = migrateLegacyResources(ctx, asrv)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create presets - convenience and example resources.
 	err = createPresets(asrv)
 	if err != nil {
@@ -483,16 +477,6 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 	// more authoritative file configuration to replace it.  Keep the stored
 	// dynamic resource.
 	return false, nil
-}
-
-func migrateLegacyResources(ctx context.Context, asrv *Server) error {
-	if err := migrateRemoteClusters(ctx, asrv); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := migrateCertAuthorities(ctx, asrv); err != nil {
-		return trace.Wrap(err, "fail to migrate certificate authorities to the v7 storage format: %v; please report this at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md including the *redacted* output of 'tctl get cert_authority'", err)
-	}
-	return nil
 }
 
 // createPresets creates preset resources (eg, roles).
@@ -939,118 +923,4 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 	}
 	defer storage.Close()
 	return storage.ReadIdentity(IdentityCurrent, id.Role)
-}
-
-// DELETE IN: 2.7.0
-// NOTE: Sadly, our integration tests depend on this logic
-// because they create remote cluster resource. Our integration
-// tests should be migrated to use trusted clusters instead of manually
-// creating tunnels.
-// This migration adds remote cluster resource migrating from 2.5.0
-// where the presence of remote cluster was identified only by presence
-// of host certificate authority with cluster name not equal local cluster name
-func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
-	clusterName, err := asrv.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	certAuthorities, err := asrv.GetCertAuthorities(ctx, types.HostCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// loop over all roles and make sure any v3 roles have permit port
-	// forward and forward agent allowed
-	for _, certAuthority := range certAuthorities {
-		if certAuthority.GetName() == clusterName.GetClusterName() {
-			log.Debugf("Migrations: skipping local cluster cert authority %q.", certAuthority.GetName())
-			continue
-		}
-		// remote cluster already exists
-		_, err = asrv.GetRemoteCluster(certAuthority.GetName())
-		if err == nil {
-			log.Debugf("Migrations: remote cluster already exists for cert authority %q.", certAuthority.GetName())
-			continue
-		}
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// the cert authority is associated with trusted cluster
-		_, err = asrv.GetTrustedCluster(ctx, certAuthority.GetName())
-		if err == nil {
-			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
-			continue
-		}
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		remoteCluster, err := types.NewRemoteCluster(certAuthority.GetName())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		err = asrv.CreateRemoteCluster(remoteCluster)
-		if err != nil {
-			if !trace.IsAlreadyExists(err) {
-				return trace.Wrap(err)
-			}
-		}
-		log.Infof("Migrations: added remote cluster resource for cert authority %q.", certAuthority.GetName())
-	}
-
-	return nil
-}
-
-// DELETE IN: 8.0.0
-// migrateCertAuthorities migrates the keypair storage format in cert
-// authorities to the new format.
-func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
-	var errors []error
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		cas, err := asrv.GetCertAuthorities(ctx, caType, true)
-		if err != nil {
-			errors = append(errors, trace.Wrap(err, "fetching %v CAs", caType))
-			continue
-		}
-		for _, ca := range cas {
-			if err := migrateCertAuthority(asrv, ca); err != nil {
-				errors = append(errors, trace.Wrap(err, "failed to migrate %v: %v", ca, err))
-				continue
-			}
-		}
-	}
-	if len(errors) > 0 {
-		log.Errorf("Failed to migrate certificate authorities to the v7 storage format.")
-		log.Errorf("Please report the *exact* errors below and *redacted* output of 'tctl get cert_authority' at https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md")
-		for _, err := range errors {
-			log.Errorf("    %v", err)
-		}
-		return trace.Errorf("fail to migrate certificate authorities to the v7 storage format")
-	}
-	return nil
-}
-
-func migrateCertAuthority(asrv *Server, ca types.CertAuthority) error {
-	// Check if we need to migrate.
-	if needsMigration, err := services.CertAuthorityNeedsMigration(ca); err != nil || !needsMigration {
-		return trace.Wrap(err)
-	}
-	log.Infof("Migrating %v to 7.0 storage format.", ca)
-	// CA rotation can cause weird edge cases during migration, don't allow
-	// rotation and migration in parallel.
-	if ca.GetRotation().State == types.RotationStateInProgress {
-		return trace.BadParameter("CA rotation is in progress; please finish CA rotation before upgrading teleport")
-	}
-
-	if err := services.SyncCertAuthorityKeys(ca); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Sanity-check and upsert the modified CA.
-	if err := services.ValidateCertAuthority(ca); err != nil {
-		return trace.Wrap(err, "the migrated CA is invalid: %v", err)
-	}
-	if err := asrv.UpsertCertAuthority(ca); err != nil {
-		return trace.Wrap(err, "failed storing the migrated CA: %v", err)
-	}
-	log.Infof("Successfully migrated %v to 7.0 storage format.", ca)
-	return nil
 }

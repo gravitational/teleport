@@ -194,13 +194,6 @@ type Config struct {
 	// Emitter is event emitter
 	Emitter events.StreamEmitter
 
-	// DELETE IN: 8.0.0
-	//
-	// NewCachingAccessPointOldProxy is an access point that can be configured
-	// with the old access point policy until all clusters are migrated to 7.0.0
-	// and above.
-	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
-
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 }
@@ -1061,22 +1054,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteClient = clt
-
-	// Check if the cluster that is connecting is a pre-v8 cluster. If it is,
-	// don't assume the newer organization of cluster configuration resources
-	// (RFD 28) because older proxy servers will reject that causing the cache
-	// to go into a re-sync loop.
-	var accessPointFunc auth.NewRemoteProxyCachingAccessPoint
-	ok, err := isPreV8Cluster(closeContext, sconn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if ok {
-		log.Debugf("Pre-v8 cluster connecting, loading old cache policy.")
-		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
-	} else {
-		accessPointFunc = srv.newAccessPoint
-	}
+	var accessPointFunc auth.NewRemoteProxyCachingAccessPoint = srv.newAccessPoint
 
 	// Configure access to the cached subset of the Auth Server API of the remote
 	// cluster this remote site provides access to.

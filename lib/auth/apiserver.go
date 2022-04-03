@@ -1752,15 +1752,7 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 		return nil, trace.AccessDenied("failed to validate event")
 	}
 
-	// DELETE IN: 4.1.0.
-	//
-	// For backwards compatibility, check if the full event struct has
-	// been sent in the request or just the event type.
-	if req.Event.Name != "" {
-		err = auth.EmitAuditEventLegacy(req.Event, req.Fields)
-	} else {
-		err = auth.EmitAuditEventLegacy(events.Event{Name: req.Type}, req.Fields)
-	}
+	err = auth.EmitAuditEventLegacy(req.Event, req.Fields)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
