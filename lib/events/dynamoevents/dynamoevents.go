@@ -590,59 +590,6 @@ func (l *Log) setExpiry(e *event) {
 	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod.Value()).Unix())
 }
 
-// PostSessionSlice sends chunks of recorded session to the event log
-func (l *Log) PostSessionSlice(slice events.SessionSlice) error {
-	var requests []*dynamodb.WriteRequest
-	for _, chunk := range slice.Chunks {
-		// if legacy event with no type or print event, skip it
-		if chunk.EventType == events.SessionPrintEvent || chunk.EventType == "" {
-			continue
-		}
-		fields, err := events.EventFromChunk(slice.SessionID, chunk)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		timeAt := time.Unix(0, chunk.Time).In(time.UTC)
-
-		event := event{
-			SessionID:      slice.SessionID,
-			EventNamespace: apidefaults.Namespace,
-			EventType:      chunk.EventType,
-			EventIndex:     chunk.EventIndex,
-			CreatedAt:      timeAt.Unix(),
-			FieldsMap:      fields,
-			CreatedAtDate:  timeAt.Format(iso8601DateFormat),
-		}
-		l.setExpiry(&event)
-		item, err := dynamodbattribute.MarshalMap(event)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		requests = append(requests, &dynamodb.WriteRequest{
-			PutRequest: &dynamodb.PutRequest{
-				Item: item,
-			},
-		})
-	}
-	// no chunks to post (all chunks are print events)
-	if len(requests) == 0 {
-		return nil
-	}
-	input := dynamodb.BatchWriteItemInput{
-		RequestItems: map[string][]*dynamodb.WriteRequest{
-			l.Tablename: requests,
-		},
-	}
-	req, _ := l.svc.BatchWriteItemRequest(&input)
-	err := req.Send()
-	err = convertError(err)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 func (l *Log) UploadSessionRecording(events.SessionRecording) error {
 	return trace.BadParameter("not supported")
 }

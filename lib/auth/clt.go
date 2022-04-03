@@ -17,12 +17,10 @@ limitations under the License.
 package auth
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -566,15 +564,6 @@ func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error 
 		Token: token,
 	})
 	return trace.Wrap(err)
-}
-
-// DELETE IN: 5.1.0
-//
-// This logic has been moved to KeepAliveServer.
-//
-// KeepAliveNode updates node keep alive information.
-func (c *Client) KeepAliveNode(ctx context.Context, keepAlive types.KeepAlive) error {
-	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
 // KeepAliveServer not implemented: can only be called locally.
@@ -1277,33 +1266,6 @@ func (c *Client) EmitAuditEventLegacy(event events.Event, fields events.EventFie
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// PostSessionSlice allows clients to submit session stream chunks to the audit log
-// (part of evets.IAuditLog interface)
-//
-// The data is POSTed to HTTP server as a simple binary body (no encodings of any
-// kind are needed)
-func (c *Client) PostSessionSlice(slice events.SessionSlice) error {
-	data, err := slice.Marshal()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", slice.SessionID, "slice"), bytes.NewReader(data))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	r.Header.Set("Content-Type", "application/grpc")
-	c.Client.SetAuthHeader(r.Header)
-	re, err := c.Client.HTTPClient().Do(r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// we **must** consume response by reading all of its body, otherwise the http
-	// client will allocate a new connection for subsequent requests
-	defer re.Body.Close()
-	responseBytes, _ := io.ReadAll(re.Body)
-	return trace.ReadError(re.StatusCode, responseBytes)
 }
 
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded

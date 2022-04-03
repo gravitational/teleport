@@ -190,26 +190,27 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
-	err = s.Log.PostSessionSlice(events.SessionSlice{
-		Namespace: apidefaults.Namespace,
-		SessionID: string(sessionID),
-		Chunks: []*events.SessionChunk{
-			// start the seession
-			{
-				Time:       s.Clock.Now().UTC().UnixNano(),
-				EventIndex: 0,
-				EventType:  events.SessionStartEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob"}),
-			},
-			// emitting session end event should close the session
-			{
-				Time:       s.Clock.Now().Add(time.Hour).UTC().UnixNano(),
-				EventIndex: 4,
-				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob", events.SessionParticipants: []string{"bob", "alice"}}),
-			},
+	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionStart{
+		Metadata: apievents.Metadata{
+			Time:  s.Clock.Now().UTC(),
+			Index: 0,
+			Type:  events.SessionStartEvent,
 		},
-		Version: events.V2,
+		UserMetadata: apievents.UserMetadata{
+			Login: "bob",
+		},
+	})
+	c.Assert(err, check.IsNil)
+	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Time:  s.Clock.Now().Add(time.Hour).UTC(),
+			Index: 4,
+			Type:  events.SessionEndEvent,
+		},
+		UserMetadata: apievents.UserMetadata{
+			Login: "bob",
+		},
+		Participants: []string{"bob", "alice"},
 	})
 	c.Assert(err, check.IsNil)
 

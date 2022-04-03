@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -105,12 +104,10 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
-	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert)) // DELETE IN: 4.2.0
 
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
 	srv.GET("/:version/users/:user", srv.withAuth(srv.getUser))
-	srv.DELETE("/:version/users/:user", srv.withAuth(srv.deleteUser)) // DELETE IN: 5.2 REST method is replaced by grpc method with context.
 
 	// Generating keypairs
 	srv.POST("/:version/keypair", srv.withAuth(srv.generateKeyPair))
@@ -128,7 +125,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
-	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.withAuth(srv.keepAliveNode))
 	srv.PUT("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNodes))
 	srv.GET("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.getNodes))
 	srv.DELETE("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.deleteAllNodes))
@@ -176,7 +172,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.deleteSession))
 	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
-	srv.POST("/:version/namespaces/:namespace/sessions/:id/slice", srv.withAuth(srv.postSessionSlice))
 	srv.POST("/:version/namespaces/:namespace/sessions/:id/recording", srv.withAuth(srv.uploadSessionRecording))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
@@ -363,18 +358,6 @@ func (s *APIServer) upsertServer(auth services.Presence, role types.SystemRole, 
 		}
 	default:
 		return nil, trace.BadParameter("unknown server role %q", role)
-	}
-	return message("ok"), nil
-}
-
-// keepAliveNode updates node TTL in the backend
-func (s *APIServer) keepAliveNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var handle types.KeepAlive
-	if err := httplib.ReadJSON(r, &handle); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.KeepAliveServer(r.Context(), handle); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
@@ -688,36 +671,6 @@ func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.R
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-// DELETE IN: 4.2.0
-type generateUserCertReq struct {
-	Key           []byte        `json:"key"`
-	User          string        `json:"user"`
-	TTL           time.Duration `json:"ttl"`
-	Compatibility string        `json:"compatibility,omitempty"`
-}
-
-// DELETE IN: 4.2.0
-func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateUserCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := auth.GenerateUserCerts(r.Context(), proto.UserCertsRequest{
-		PublicKey: req.Key,
-		Username:  req.User,
-		Expires:   s.Now().UTC().Add(req.TTL),
-		Format:    certificateFormat,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return string(certs.SSH), nil
-}
-
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -882,15 +835,6 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 		out[i] = data
 	}
 	return out, nil
-}
-
-// DELETE IN: 5.2 REST method is replaced by grpc method with context.
-func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user := p.ByName("user")
-	if err := auth.DeleteUser(r.Context(), user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("user %q deleted", user)), nil
 }
 
 type generateKeyPairReq struct {
@@ -1818,44 +1762,6 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 		err = auth.EmitAuditEventLegacy(events.Event{Name: req.Type}, req.Fields)
 	}
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// HTTP POST /:version/sessions/:id/slice
-func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var slice events.SessionSlice
-	if err := slice.Unmarshal(data); err != nil {
-		return nil, trace.BadParameter("failed to unmarshal %v", err)
-	}
-
-	// Validate serverID field in event matches server ID from x509 identity. This
-	// check makes sure nodes can only submit events for themselves.
-	serverID, err := s.getServerID(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, v := range slice.GetChunks() {
-		var f events.EventFields
-		err = utils.FastUnmarshal(v.GetData(), &f)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		err := events.ValidateEvent(f, serverID)
-		if err != nil {
-			log.Warnf("Rejecting audit event %v from %v: %v. System may be under attack, a "+
-				"node is attempting to submit events for an identity other than its own.",
-				f.GetType(), serverID, err)
-			return nil, trace.AccessDenied("failed to validate event")
-		}
-	}
-
-	if err := auth.PostSessionSlice(slice); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil

@@ -2534,13 +2534,6 @@ func (a *ServerWithRoles) EmitAuditEventLegacy(event events.Event, fields events
 	return a.alog.EmitAuditEventLegacy(event, fields)
 }
 
-func (a *ServerWithRoles) PostSessionSlice(slice events.SessionSlice) error {
-	if err := a.action(slice.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.alog.PostSessionSlice(slice)
-}
-
 func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) error {
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)

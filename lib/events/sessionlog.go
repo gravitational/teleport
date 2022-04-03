@@ -55,9 +55,6 @@ type SessionLogger interface {
 	// Finalize is called by the session when it's closing. This is where we're
 	// releasing audit resources associated with the session
 	Finalize() error
-
-	// PostSessionSlice posts session slice
-	PostSessionSlice(slice SessionSlice) error
 }
 
 // eventsFileName consists of session id and the first global event index

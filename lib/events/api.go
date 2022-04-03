@@ -669,12 +669,6 @@ type IAuditLog interface {
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, apievents.AuditEvent) error
 
-	// DELETE IN: 2.7.0
-	// This method is no longer necessary as nodes and proxies >= 2.7.0
-	// use UploadSessionRecording method.
-	// PostSessionSlice sends chunks of recorded session to the event log
-	PostSessionSlice(SessionSlice) error
-
 	// UploadSessionRecording uploads session recording to the audit server
 	UploadSessionRecording(r SessionRecording) error
 

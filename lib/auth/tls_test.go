@@ -1144,67 +1144,6 @@ func makeSessionRecording(sessionID string, serverID string) (io.Reader, error) 
 	return &tbuf, nil
 }
 
-func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
-	serverID, err := s.server.Identity.ID.HostID()
-	c.Assert(err, check.IsNil)
-
-	tests := []struct {
-		inServerID string
-		outError   bool
-	}{
-		// Invalid.
-		{
-			inServerID: "00000000-0000-0000-0000-000000000000",
-			outError:   true,
-		},
-		// Valid.
-		{
-			inServerID: serverID,
-			outError:   false,
-		},
-	}
-	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(types.RoleNode, serverID))
-		c.Assert(err, check.IsNil)
-
-		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-		sess := session.Session{
-			ID:             session.NewID(),
-			TerminalParams: session.TerminalParams{W: 100, H: 100},
-			Created:        date,
-			LastActive:     date,
-			Login:          "bob",
-			Namespace:      apidefaults.Namespace,
-		}
-		c.Assert(clt.CreateSession(sess), check.IsNil)
-
-		marshal := func(f events.EventFields) []byte {
-			data, err := json.Marshal(f)
-			if err != nil {
-				panic(err)
-			}
-			return data
-		}
-
-		err = clt.PostSessionSlice(events.SessionSlice{
-			Namespace: apidefaults.Namespace,
-			SessionID: string(sess.ID),
-			Chunks: []*events.SessionChunk{
-				{
-					Time:       time.Now().UTC().UnixNano(),
-					EventIndex: 0,
-					EventType:  events.SessionStartEvent,
-					Data: marshal(events.EventFields{
-						events.SessionServerID: tt.inServerID,
-					}),
-				},
-			},
-			Version: events.V3,
-		})
-		c.Assert(err != nil, check.Equals, tt.outError)
-	}
-}
-
 func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
