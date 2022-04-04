@@ -1559,7 +1559,7 @@ func TestSessionTracker(t *testing.T) {
 
 	// session tracker should be created
 	var tracker types.SessionTracker
-	condition := func() bool {
+	trackerFound := func() bool {
 		trackers, err := f.testSrv.Auth().GetActiveSessionTrackers(ctx)
 		require.NoError(t, err)
 
@@ -1569,33 +1569,40 @@ func TestSessionTracker(t *testing.T) {
 		}
 		return false
 	}
-	require.Eventually(t, condition, time.Second*5, time.Second)
+	require.Eventually(t, trackerFound, time.Second*5, time.Second)
 
 	// Advance the clock to trigger the session tracker expiration to be extended
 	f.clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
 
 	// The session's expiration should be udpated
-	condition = func() bool {
+	trackerUpdated := func() bool {
 		updatedTracker, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
 		require.NoError(t, err)
-		return updatedTracker.Expiry().After(tracker.Expiry())
+		return updatedTracker.Expiry().Equal(tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval))
 	}
-	require.Eventually(t, condition, time.Second*5, time.Millisecond*1000)
+	require.Eventually(t, trackerUpdated, time.Second*5, time.Millisecond*1000)
 
 	// Close the session from the client side
 	err = se.Close()
 	require.NoError(t, err)
 
-	// Wait for session to close in the background
-	time.Sleep(defaults.SessionIdlePeriod)
+	// Advance clock to make session clock in background.
+	go func() {
+		for {
+			// Advance clock every 1/10 of a second. Ideally
+			// we could use clock.BlockUntil, but there are
+			// are a variable number of sleepers.
+			time.Sleep(time.Millisecond * 100)
+			f.clock.Advance(defaults.SessionIdlePeriod)
+		}
+	}()
 
-	// once the session is closed, the tracker should expire.
-	condition = func() bool {
-		expiredTracker, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
-		require.NoError(t, err)
-		return time.Now().After(expiredTracker.Expiry())
+	// once the session is closed, the tracker should expire (not found)
+	trackerExpired := func() bool {
+		_, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
+		return trace.IsNotFound(err)
 	}
-	require.Eventually(t, condition, time.Second*5, time.Millisecond*100)
+	require.Eventually(t, trackerExpired, time.Second*5, time.Millisecond*100)
 }
 
 // rawNode is a basic non-teleport node which holds a

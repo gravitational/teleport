@@ -9912,7 +9912,7 @@ func (m *SessionTrackerRemoveParticipant) GetParticipantID() string {
 	return ""
 }
 
-// SessionTrackerUpdateExpiry is used to update the session tracker expirationt time.
+// SessionTrackerUpdateExpiry is used to update the session tracker expiration time.
 type SessionTrackerUpdateExpiry struct {
 	// Expires is when the session tracker will expire.
 	Expires              *time.Time `protobuf:"bytes,1,opt,name=Expires,proto3,stdtime" json:"expires"`

@@ -22,8 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -312,40 +310,5 @@ loop:
 	if err := u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-type MockSessionTrackerService struct {
-	clock        clockwork.Clock
-	mockTrackers []types.SessionTracker
-}
-
-func (m *MockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	return nil, nil
-}
-
-func (m *MockSessionTrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	for _, tracker := range m.mockTrackers {
-		// mock session tracker expiration
-		if tracker.GetSessionID() == sessionID && tracker.Expiry().After(m.clock.Now()) {
-			return tracker, nil
-		}
-	}
-	return nil, trace.NotFound("tracker not found")
-}
-
-func (m *MockSessionTrackerService) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	return nil, nil
-}
-
-func (m *MockSessionTrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	return nil
-}
-
-func (m *MockSessionTrackerService) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	return nil
-}
-
-func (m *MockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return nil
 }

@@ -366,11 +366,12 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 	lingerAndDie := func() {
 		lingerTTL := sess.GetLingerTTL()
 		if lingerTTL > 0 {
-			time.Sleep(lingerTTL)
+			sess.scx.srv.GetClock().Sleep(lingerTTL)
 		}
 		// not lingering anymore? someone reconnected? cool then... no need
 		// to die...
 		if !sess.isLingering() {
+			fmt.Println("Lingering")
 			s.log.Infof("Session %v has become active again.", sess.id)
 			return
 		}
@@ -759,9 +760,12 @@ func (s *session) Close() error {
 				s.recorder.Close(s.serverCtx)
 			}
 
+			s.stateUpdate.L.Lock()
+			defer s.stateUpdate.L.Unlock()
+
 			err := s.trackerUpdateState(types.SessionState_SessionStateTerminated)
 			if err != nil {
-				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateTerminated)
+				s.log.Warnf("Failed to set tracker state to %v: %v", types.SessionState_SessionStateTerminated, err)
 			}
 		}()
 	})
@@ -815,8 +819,6 @@ func (s *session) BroadcastMessage(format string, args ...interface{}) {
 func (s *session) launch(ctx *ServerContext) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.stateUpdate.L.Lock()
-	defer s.stateUpdate.L.Unlock()
 
 	s.log.Debugf("Launching session %v.", s.id)
 	s.BroadcastMessage("Connecting to %v over SSH", ctx.srv.GetInfo().GetHostname())
@@ -825,6 +827,9 @@ func (s *session) launch(ctx *ServerContext) error {
 	if err != nil {
 		s.log.Warnf("Failed to turn enable IO: %v.", err)
 	}
+
+	s.stateUpdate.L.Lock()
+	defer s.stateUpdate.L.Unlock()
 
 	err = s.trackerUpdateState(types.SessionState_SessionStateRunning)
 	if err != nil {
@@ -1549,7 +1554,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 					}
 				}()
 			} else {
-				err := trackerUpdateState(types.SessionState_SessionStateRunning)
+				err := s.trackerUpdateState(types.SessionState_SessionStateRunning)
 				if err != nil {
 					s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 				}
@@ -1749,8 +1754,8 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		defer ticker.Stop()
 		for {
 			select {
-			case <-ticker.Chan():
-				if err := s.trackerUpdateExpiry(time.Now().Add(defaults.SessionTrackerTTL)); err != nil {
+			case time := <-ticker.Chan():
+				if err := s.trackerUpdateExpiry(time.Add(defaults.SessionTrackerTTL)); err != nil {
 					s.log.WithError(err).Warningf("Failed to update session tracker expiration.")
 				}
 			case <-s.closeC:
