@@ -25,7 +25,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"strconv"
 	"strings"
@@ -173,7 +172,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 	if cmd == LocalCommand {
 		// LOCAL command, just skip address information and keep original addresses (no proxy line)
 		if header.Length > 0 {
-			_, err := io.CopyN(ioutil.Discard, reader, int64(header.Length))
+			_, err := io.CopyN(io.Discard, reader, int64(header.Length))
 			return nil, trace.Wrap(err)
 		}
 		return nil, nil
