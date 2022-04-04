@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -84,7 +85,7 @@ type server struct {
 	srv     *sshutils.Server
 	limiter *limiter.Limiter
 
-	// remoteSites is the list of conencted remote clusters
+	// remoteSites is the list of connected remote clusters
 	remoteSites []*remoteSite
 
 	// localSites is the list of local (our own cluster) tunnel clients,
@@ -348,7 +349,7 @@ func remoteClustersMap(rc []types.RemoteCluster) map[string]types.RemoteCluster 
 }
 
 // disconnectClusters disconnects reverse tunnel connections from remote clusters
-// that were deleted from the the local cluster side and cleans up in memory objects.
+// that were deleted from the local cluster side and cleans up in memory objects.
 // In this case all local trust has been deleted, so all the tunnel connections have to be dropped.
 func (s *server) disconnectClusters() error {
 	connectedRemoteClusters := s.getRemoteClusters()
@@ -363,9 +364,7 @@ func (s *server) disconnectClusters() error {
 	for _, cluster := range connectedRemoteClusters {
 		if _, ok := remoteMap[cluster.GetName()]; !ok {
 			s.log.Infof("Remote cluster %q has been deleted. Disconnecting it from the proxy.", cluster.GetName())
-			s.removeSite(cluster.GetName())
-			err := cluster.Close()
-			if err != nil {
+			if err := s.onSiteTunnelClose(&alwaysClose{RemoteSite: cluster}); err != nil {
 				s.log.Debugf("Failure closing cluster %q: %v.", cluster.GetName(), err)
 			}
 		}
@@ -957,22 +956,48 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 	return nil, trace.NotFound("cluster %q is not found", name)
 }
 
-func (s *server) removeSite(domainName string) error {
+// alwaysClose forces onSiteTunnelClose to remove and close
+// the site by always returning false from HasValidConnections.
+type alwaysClose struct {
+	RemoteSite
+}
+
+func (a *alwaysClose) HasValidConnections() bool {
+	return false
+}
+
+// siteCloser is used by onSiteTunnelClose to determine if a site should be closed
+// when a tunnel is closed
+type siteCloser interface {
+	GetName() string
+	HasValidConnections() bool
+	io.Closer
+}
+
+// onSiteTunnelClose will close and stop tracking the site with the given name
+// if it has 0 active tunnels. This is done here to ensure that no new tunnels
+// can be established while cleaning up a site.
+func (s *server) onSiteTunnelClose(site siteCloser) error {
 	s.Lock()
 	defer s.Unlock()
+
+	if site.HasValidConnections() {
+		return nil
+	}
+
 	for i := range s.remoteSites {
-		if s.remoteSites[i].domainName == domainName {
+		if s.remoteSites[i].domainName == site.GetName() {
 			s.remoteSites = append(s.remoteSites[:i], s.remoteSites[i+1:]...)
-			return nil
+			return trace.Wrap(site.Close())
 		}
 	}
 	for i := range s.localSites {
-		if s.localSites[i].domainName == domainName {
+		if s.localSites[i].domainName == site.GetName() {
 			s.localSites = append(s.localSites[:i], s.localSites[i+1:]...)
-			return nil
+			return trace.Wrap(site.Close())
 		}
 	}
-	return trace.NotFound("cluster %q is not found", domainName)
+	return trace.NotFound("site %q is not found", site.GetName())
 }
 
 // fanOutProxies is a non-blocking call that updated the watches proxies

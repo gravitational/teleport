@@ -47,9 +47,9 @@ type LoginPrompt interface {
 // IsFIDO2Available.
 func FIDO2Login(
 	ctx context.Context,
-	origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt,
+	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	return fido2Login(ctx, origin, user, assertion, prompt)
+	return fido2Login(ctx, origin, assertion, prompt, opts)
 }
 
 // RegisterPrompt is the user interface for FIDO2Register.
