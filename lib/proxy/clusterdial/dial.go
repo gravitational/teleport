@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// clusterDialerFunc is a function that implements a ClusterDialer.
+// ClusterDialerFunc is a function that implements a proxy.ClusterDialer.
 type ClusterDialerFunc func(clusterName string, request proxy.DialParams) (net.Conn, error)
 
 // Dial dials makes a dial request to the given cluster.
@@ -30,7 +30,7 @@ func (f ClusterDialerFunc) Dial(clusterName string, request proxy.DialParams) (n
 	return f(clusterName, request)
 }
 
-// NewClusterDialer implements ClusterDialer for a reverse tunnel server.
+// NewClusterDialer implements proxy.ClusterDialer for a reverse tunnel server.
 func NewClusterDialer(server reversetunnel.Server) ClusterDialerFunc {
 	return ClusterDialerFunc(func(clusterName string, request proxy.DialParams) (net.Conn, error) {
 		site, err := server.GetSite(clusterName)

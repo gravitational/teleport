@@ -315,14 +315,14 @@ func (s *localSite) tryProxyPeering(params DialParams) bool {
 
 // skipDirectDial determines if a direct dial attempt should be made.
 func (s *localSite) skipDirectDial(params DialParams) bool {
-	// Never direct dial when teh client is already connecting from
+	// Never direct dial when the client is already connecting from
 	// a peer proxy.
 	if params.FromPeerProxy {
 		return true
 	}
 
 	// Connections to application and database servers should never occur
-	// over a direct dial, return right away.
+	// over a direct dial.
 	switch params.ConnType {
 	case types.AppTunnel, types.DatabaseTunnel:
 		return true
@@ -330,7 +330,7 @@ func (s *localSite) skipDirectDial(params DialParams) bool {
 
 	// This node can only be reached over a tunnel, don't attempt to dial
 	// remotely.
-	if params.To.String() == "" {
+	if params.To == nil || params.To.String() == "" {
 		return true
 	}
 

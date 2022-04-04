@@ -209,7 +209,7 @@ func (p *AgentPool) Start() error {
 	p.wg.Add(1)
 	go func() {
 		err := p.run()
-		p.log.WithError(err).Error("Agent pool stopped.")
+		p.log.WithError(err).Warn("Agent pool exited.")
 
 		p.cancel()
 		p.wg.Done()
@@ -226,13 +226,12 @@ func (p *AgentPool) run() error {
 
 		err := p.connectAgent(p.ctx, p.tracker.Acquire(), p.events)
 		if err != nil {
-			p.log.WithError(err).Debugf("Unexpected agent pool error.")
+			p.log.WithError(err).Debugf("Failed to connect agent.")
 		}
-		p.backoff.Inc()
 
 		err = p.waitForBackoff(p.ctx, p.events)
 		if err != nil {
-			p.log.WithError(err).Debugf("Unexpected agent pool error.")
+			p.log.WithError(err).Debugf("Failed to wait for backoff.")
 		}
 	}
 }
@@ -352,7 +351,10 @@ func (p *AgentPool) disconnectAgents() {
 		}
 
 		p.log.Debugf("Disconnecting agent %s.", agent)
-		go agent.Stop()
+		go func() {
+			agent.Stop()
+			p.wg.Done()
+		}()
 	}
 }
 
@@ -377,6 +379,7 @@ func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan *Agent) er
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-p.backoff.After():
+			p.backoff.Inc()
 			return nil
 		case agent := <-events:
 			p.handleEvent(ctx, agent)
@@ -462,8 +465,13 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	return agent, nil
 }
 
-// Wait blocks until the pool context is done.
+// Wait blocks until the pool context is stopped.
 func (p *AgentPool) Wait() {
+	if p == nil {
+		return
+	}
+
+	<-p.ctx.Done()
 	p.wg.Wait()
 }
 
@@ -534,11 +542,7 @@ func (c *agentPoolRuntimeConfig) reportConnectedProxies() bool {
 	if c.ignoreTunnelStrategy {
 		return false
 	}
-	if c.tunnelStrategyType == types.ProxyPeering {
-		return true
-	}
-
-	return false
+	return c.tunnelStrategyType == types.ProxyPeering
 }
 
 // reportConnectedProxies returns true if the the number of agents should be restricted.
@@ -559,10 +563,7 @@ func (c *agentPoolRuntimeConfig) useReverseTunnelV2() bool {
 
 // useALPNRouting returns true agents should connect using alpn routing.
 func (c *agentPoolRuntimeConfig) useALPNRouting() bool {
-	if c.ignoreTunnelStrategy {
-		return false
-	}
-	return c.tunnelStrategyType == types.ProxyPeering
+	return c.proxyListenerMode == types.ProxyListenerMode_Multiplex
 }
 
 func (c *agentPoolRuntimeConfig) update(netConfig types.ClusterNetworkingConfig) error {
