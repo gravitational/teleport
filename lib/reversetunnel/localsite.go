@@ -30,10 +30,11 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/proxy"
+	alpnproxy "github.com/gravitational/teleport/lib/utils/proxy"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/trace"
@@ -41,7 +42,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSite, error) {
+func newlocalSite(srv *server, domainName string, client auth.ClientI, peerClient *proxy.Client) (*localSite, error) {
 	err := utils.RegisterPrometheusCollectors(localClusterCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -76,6 +77,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 			},
 		}),
 		offlineThreshold: srv.offlineThreshold,
+		peerClient:       peerClient,
 	}
 
 	// Start periodic functions for the the local cluster in the background.
@@ -114,6 +116,8 @@ type localSite struct {
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
+
+	peerClient *proxy.Client
 }
 
 // GetTunnelsCount always the number of tunnel connections to this cluster.
@@ -186,7 +190,7 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 
 	// If the proxy is in recording mode and a SSH connection is being requested,
 	// use the agent to dial and build an in-memory forwarding server.
-	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) && !params.FromPeerProxy {
 		return s.dialWithAgent(params)
 	}
 
@@ -293,6 +297,63 @@ func (s *localSite) dialTunnel(dreq *sshutils.DialReq) (net.Conn, error) {
 	return conn, nil
 }
 
+// tryProxyPeering determines whether the node should try to be reached over
+// a peer proxy.
+func (s *localSite) tryProxyPeering(params DialParams) bool {
+	if s.peerClient == nil {
+		return false
+	}
+	if params.FromPeerProxy {
+		return false
+	}
+	if params.ConnType == "" || params.ConnType == types.ProxyTunnel {
+		return false
+	}
+
+	return true
+}
+
+// skipDirectDial determines if a direct dial attempt should be made.
+func (s *localSite) skipDirectDial(params DialParams) bool {
+	// Never direct dial when teh client is already connecting from
+	// a peer proxy.
+	if params.FromPeerProxy {
+		return true
+	}
+
+	// Connections to application and database servers should never occur
+	// over a direct dial, return right away.
+	switch params.ConnType {
+	case types.AppTunnel, types.DatabaseTunnel:
+		return true
+	}
+
+	// This node can only be reached over a tunnel, don't attempt to dial
+	// remotely.
+	if params.To.String() == "" {
+		return true
+	}
+
+	return false
+}
+
+func getTunnelErrorMessage(params DialParams, connStr string, err error) string {
+	errorMessageTemplate := `Teleport proxy failed to connect to %q agent %q over %s:
+
+  %v
+
+This usually means that the agent is offline or has disconnected. Check the
+agent logs and, if the issue persists, try restarting it or re-registering it
+with the cluster.`
+
+	var toAddr string
+	if params.To != nil {
+		toAddr = params.To.String()
+	}
+
+	return fmt.Sprintf(errorMessageTemplate, params.ConnType, toAddr, connStr, err)
+}
+
 func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, err error) {
 	dreq := &sshutils.DialReq{
 		ServerID: params.ServerID,
@@ -302,49 +363,48 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 		dreq.Address = params.To.String()
 	}
 
+	var (
+		tunnelErr error
+		peerErr   error
+		directErr error
+	)
+
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a tunnel connection to that node. Otherwise net.Dial to the target host.
-	conn, tunnelErr := s.dialTunnel(dreq)
+	conn, tunnelErr = s.dialTunnel(dreq)
 	if tunnelErr == nil {
 		return conn, true, nil
 	}
-
 	if !trace.IsNotFound(tunnelErr) {
 		return nil, false, trace.Wrap(tunnelErr)
 	}
-
 	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
-	errorMessageTemplate := `Teleport proxy failed to connect to %q agent %q over %s:
+	if s.tryProxyPeering(params) {
+		s.log.Info("Dialing over peer proxy")
+		conn, peerErr = s.peerClient.DialNode(
+			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
+		)
+		if peerErr == nil {
+			return conn, true, nil
+		}
+		s.log.WithError(peerErr).WithField("address", dreq.Address).Debug("Error occurred while dialing over peer proxy.")
+	}
 
-  %v
+	err = trace.NewAggregate(tunnelErr, peerErr)
+	tunnelMsg := getTunnelErrorMessage(params, "reverse tunnel", err)
 
-This usually means that the agent is offline or has disconnected. Check the
-agent logs and, if the issue persists, try restarting it or re-registering it
-with the cluster.`
-
-	tunnelMsg := fmt.Sprintf(errorMessageTemplate, params.ConnType, dreq.Address, "reverse tunnel", tunnelErr)
-
-	// Connections to application and database servers should never occur
-	// over a direct dial, return right away.
-	switch params.ConnType {
-	case types.AppTunnel, types.DatabaseTunnel:
+	if s.skipDirectDial(params) {
 		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
 	}
 
-	// This node can only be reached over a tunnel, don't attempt to dial
-	// remotely.
-	if params.To.String() == "" {
-		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
-	}
-
 	// If no tunnel connection was found, dial to the target host.
-	dialer := proxy.DialerFromEnvironment(params.To.String())
-	conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
+	dialer := alpnproxy.DialerFromEnvironment(params.To.String())
+	conn, directErr = dialer.DialTimeout(params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
 	if directErr != nil {
-		directMsg := fmt.Sprintf(errorMessageTemplate, params.ConnType, dreq.Address, "direct dial", directErr)
+		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
-		aggregateErr := trace.NewAggregate(tunnelErr, directErr)
+		aggregateErr := trace.NewAggregate(tunnelErr, peerErr, directErr)
 		return nil, false, trace.ConnectionProblem(aggregateErr, directMsg)
 	}
 

@@ -55,9 +55,16 @@ type DialParams struct {
 	// that are connected over a reverse tunnel.
 	ServerID string
 
+	// ProxyIDs is a list of proxy ids the node is connected to.
+	ProxyIDs []string
+
 	// ConnType is the type of connection requested, either node or application.
 	// Only used when connecting through a tunnel.
 	ConnType types.TunnelType
+
+	// FromPeerProxy indicates that the dial request is being tunneled from
+	// a peer proxy.
+	FromPeerProxy bool
 }
 
 func (params DialParams) String() string {

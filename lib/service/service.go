@@ -2843,7 +2843,24 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnel.Server
+	var peerClient *proxy.Client
+
 	if !process.Config.Proxy.DisableReverseTunnel {
+		if listeners.proxy != nil {
+			peerClient, err = proxy.NewClient(proxy.ClientConfig{
+				Context:     process.ExitContext(),
+				ID:          process.Config.HostUUID,
+				AuthClient:  conn.Client,
+				AccessPoint: accessPoint,
+				TLSConfig:   clientTLSConfig,
+				Log:         process.log,
+				Clock:       process.Clock,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		tsrv, err = reversetunnel.NewServer(
 			reversetunnel.Config{
 				Component:                     teleport.Component(teleport.ComponentProxy, process.id),
@@ -2873,6 +2890,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Emitter:       streamEmitter,
 				Log:           process.log,
 				LockWatcher:   lockWatcher,
+				PeerClient:    peerClient,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3310,6 +3328,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if proxyServer != nil {
 				warnOnErr(proxyServer.Close(), log)
 			}
+			if peerClient != nil {
+				warnOnErr(peerClient.Stop(), log)
+			}
 			if webServer != nil {
 				warnOnErr(webServer.Close(), log)
 			}
@@ -3335,6 +3356,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			if proxyServer != nil {
 				warnOnErr(proxyServer.Shutdown(), log)
+			}
+			if peerClient != nil {
+				peerClient.Shutdown()
 			}
 			if webServer != nil {
 				warnOnErr(webServer.Shutdown(ctx), log)
