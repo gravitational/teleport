@@ -167,28 +167,14 @@ registered in the Enclave _without_ user interaction. Because all Touch ID keys
 are functionally resident keys, as long as the server supports passwordless,
 then `tsh` is free to use it.
 
-If Touch ID passwordless authentication is possible, then it is the preferred
-authentication mode and is used by default.
-
-If passwordless is not possible, but Touch ID is present, then Touch ID MFA is
-also preferred and used by default.
+If Touch ID keys are present, then it's the preferred method of authentication,
+both for passwordless and MFA.
 
 To allow users agency over the eager behaviors of Touch ID, `tsh` is augmented
-with the following flags:
+with the global `--mfa-mode` flag:
 
-* `tsh --pwdless-mode={auto,on,off}` - activate/deactivate passwordless
-  authentication
-
-    `auto` is the default behavior described above (passwordless is preferred
-    if we are certain it may be used)
-
-    `on` enables passwordless logins (`tsh login --pwdless`, described in the
-    [Passwordless FIDO2 RFD][passwordless fido2], is a shortcut to it)
-
-    `off` disables passwordless logins
-
-* `tsh --mfa-mode={auto,platform,cross-platform}` - choose whether to use
-  platform or cross-platform MFA
+`tsh --mfa-mode={auto,platform,cross-platform}` - choose whether to use platform
+or cross-platform MFA
 
     `auto` is the default behavior described above, which favors Touch ID
 
@@ -196,11 +182,6 @@ with the following flags:
     portable FIDO2 keys
 
     `cross-platform` prefers FIDO2 or OTP (aka `tsh` behavior prior to this RFD)
-
-Both `--pwdless-mode` and `--mfa-mode` may be specified for fine-grained control
-over `tsh` authentication logic. Note that those flags apply not only to
-`tsh login`, but also for any commands that require re-authentication (such as
-`tsh mfa add`).
 
 Finally, if there are Touch ID credentials for multiple users and the login user
 is not known, `tsh login` may prompt the user to specify the `--user` flag.
@@ -300,13 +281,13 @@ and [Passwordless RFDs][passwordless rfd].
 UX is discussed throughout the design, but here is a summary of changes:
 
 `tsh login --proxy=example.com` will automatically do passwordless Touch ID
-login, if possible (server allows passwordless, appropriate hardware exists, one
-credential registered for "example.com")
+login, if appropriate (server allows passwordless, hardware present, credential
+registered for "example.com")
 
 `tsh login --proxy=example.com --user=llama` behaves as above, but using a
 specific user
 
-`tsh login --pwdless-mode=on --mfa-mode=platform --proxy=example.com
+`tsh login --auth=local:passwordless --mfa-mode=platform --proxy=example.com
 --user=llama` is the zero ambiguity, (needlessly) long form of the above.
 
 `tsh mfa add` adds support for Touch ID, both for authentication and registering
