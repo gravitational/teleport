@@ -3589,7 +3589,7 @@ func (a *ServerWithRoles) filterKubeServices(server types.Server) error {
 	if hasLocalUserRole(a.context.Checker) {
 		roles := a.context.Checker.(LocalUserRoleSet)
 		if roles.HasModeratedSessionsPolicies() && agentVersion.LessThan(*minSupportedModeratedSessions) {
-			return trace.AccessDenied("moderated sessions are not supported on this server")
+			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
 		}
 	}
 
