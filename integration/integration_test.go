@@ -2164,7 +2164,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name so it would not
+	// modify trusted cluster resource name, so it would not
 	// match the cluster name to check that it does not matter
 	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
 
@@ -2263,7 +2263,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	}
 	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
 
-	// remove trusted cluster from aux cluster side, and recrete right after
+	// remove trusted cluster from aux cluster side, and recreate right after
 	// this should re-establish connection
 	err = aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName())
 	require.NoError(t, err)
@@ -2305,7 +2305,7 @@ func waitForClusters(tun reversetunnel.Server, expected int) func() bool {
 			return false
 		}
 
-		// Check the expected number of clusters are connected and they have all
+		// Check the expected number of clusters are connected, and they have all
 		// connected with the past 10 seconds.
 		if len(clusters) >= expected {
 			for _, cluster := range clusters {
@@ -2374,7 +2374,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	// modify trusted cluster resource name so it would not
+	// modify trusted cluster resource name, so it would not
 	// match the cluster name to check that it does not matter
 	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
 
@@ -3732,7 +3732,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// wait until service reload
-	svc, err = suite.waitForReload(serviceC, svc)
+	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 	defer svc.Shutdown(context.TODO())
 
@@ -3763,7 +3763,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
 	// wait until service reloaded
-	svc, err = suite.waitForReload(serviceC, svc)
+	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 	defer svc.Shutdown(context.TODO())
 
@@ -3792,7 +3792,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
 	// wait until service reloaded
-	svc, err = suite.waitForReload(serviceC, svc)
+	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 	defer svc.Shutdown(context.TODO())
 
@@ -3878,7 +3878,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// wait until service reload
-	svc, err = s.waitForReload(serviceC, svc)
+	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
 	cfg := ClientConfig{
@@ -3904,7 +3904,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// wait until service reloaded
-	svc, err = s.waitForReload(serviceC, svc)
+	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseRollback)
@@ -3917,7 +3917,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// wait until service reloaded
-	svc, err = s.waitForReload(serviceC, svc)
+	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
 	// old client works
@@ -4064,7 +4064,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 				Clock:     tconf.Clock,
 				Client:    aux.GetSiteAPI(clusterAux),
 			},
-			WatchHostCA: true,
+			WatchCertTypes: []types.CertAuthType{types.HostCA},
 		})
 		if err != nil {
 			return err
@@ -4101,7 +4101,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// wait until service reloaded
-	svc, err = suite.waitForReload(serviceC, svc)
+	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
 	err = waitForPhase(types.RotationPhaseUpdateClients)
@@ -4121,7 +4121,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// wait until service reloaded
-	svc, err = suite.waitForReload(serviceC, svc)
+	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 
 	err = waitForPhase(types.RotationPhaseUpdateServers)
@@ -4149,7 +4149,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 	// wait until service reloaded
 	t.Log("Waiting for service reload.")
-	svc, err = suite.waitForReload(serviceC, svc)
+	svc, err = waitForReload(serviceC, svc)
 	require.NoError(t, err)
 	t.Log("Service reload completed, waiting for phase.")
 
@@ -4257,7 +4257,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 
 		// wait until service reload
-		svc, err = suite.waitForReload(serviceC, svc)
+		svc, err = waitForReload(serviceC, svc)
 		require.NoError(t, err)
 
 		t.Logf("Rotation phase: %q.", types.RotationPhaseUpdateServers)
@@ -4268,7 +4268,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 
 		// wait until service reloaded
-		svc, err = suite.waitForReload(serviceC, svc)
+		svc, err = waitForReload(serviceC, svc)
 		require.NoError(t, err)
 
 		t.Logf("rotation phase: %q", types.RotationPhaseStandby)
@@ -4279,7 +4279,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 
 		// wait until service reloaded
-		svc, err = suite.waitForReload(serviceC, svc)
+		svc, err = waitForReload(serviceC, svc)
 		require.NoError(t, err)
 
 		return svc
@@ -4367,7 +4367,7 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 // 2. old service, if present to shut down
 //
 // this helper function allows to serialize tests for reloads.
-func (s *integrationTestSuite) waitForReload(serviceC chan *service.TeleportProcess, old *service.TeleportProcess) (*service.TeleportProcess, error) {
+func waitForReload(serviceC chan *service.TeleportProcess, old *service.TeleportProcess) (*service.TeleportProcess, error) {
 	var svc *service.TeleportProcess
 	select {
 	case svc = <-serviceC:
