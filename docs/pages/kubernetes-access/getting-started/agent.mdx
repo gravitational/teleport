@@ -136,7 +136,7 @@ commands, assigning `PROXY_ADDR` to the address of your Teleport Cloud tenant.
 
 ```code
 # Add teleport-agent chart to charts repository
-$ PROXY_ADDR=mytenant.teleport.sh
+$ PROXY_ADDR=mytenant.teleport.sh:443
 $ helm repo add teleport https://charts.releases.teleport.dev
 $ helm repo update
 
