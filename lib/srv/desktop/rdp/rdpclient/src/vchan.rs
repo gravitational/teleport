@@ -70,8 +70,8 @@ impl Client {
     /// add_header_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
     /// adds the appropriate virtual channel header, and splits it into chunks if the payload exceeds
     /// the maximum size. The caller may optionally provide any any non-chunk-related Channel PDU Header
-    /// flags that should be set (any flags besides CHANNEL_FLAG_FIRST and CHANNEL_FLAG_LAST, which
-    /// are handled by this function automatically).
+    /// flags that should be set. "Non-chunk-related" means any flags besides CHANNEL_FLAG_FIRST and CHANNEL_FLAG_LAST, which
+    /// are handled by this function automatically.
     pub fn add_header_and_chunkify(
         &self,
         channel_flags: Option<ChannelPDUFlags>,
