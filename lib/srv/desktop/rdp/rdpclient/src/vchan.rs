@@ -68,7 +68,7 @@ impl Client {
     }
 
     /// add_header_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
-    /// adds the appropriate virtual channel header, and splits it into chunks if the payload exceeds
+    /// adds the appropriate (virtual) Channel PDU Header, and splits it into chunks if the payload exceeds
     /// the maximum size. The caller may optionally provide any any non-chunk-related Channel PDU Header
     /// flags that should be set. "Non-chunk-related" means any flags besides CHANNEL_FLAG_FIRST and CHANNEL_FLAG_LAST, which
     /// are handled by this function automatically.
@@ -78,7 +78,6 @@ impl Client {
         payload: Vec<u8>,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let mut inner = payload;
-        // inner.extend(payload);
         let total_len = inner.len() as u32;
 
         let mut result = Vec::new();
