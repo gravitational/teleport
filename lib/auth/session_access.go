@@ -70,7 +70,7 @@ func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPoli
 	return policies
 }
 
-func containsKind(s []string, e types.SessionKind) bool {
+func ContainsSessionKind(s []string, e types.SessionKind) bool {
 	for _, a := range s {
 		if types.SessionKind(a) == e {
 			return true
@@ -162,7 +162,7 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 }
 
 func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
-	if containsKind(allow, e.kind) || containsKind(allow, "*") {
+	if ContainsSessionKind(allow, e.kind) || ContainsSessionKind(allow, "*") {
 		return true
 	}
 
