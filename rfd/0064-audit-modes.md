@@ -36,7 +36,7 @@ failures vary depending on how session recording is configured:
 | Recording mode                 | Failures handled                                             |
 | ------------------------------ | ------------------------------------------------------------ |
 | `node` and `proxy`             | I/O errors while writing audit logs/session recording data on the server disk. |
-| `node-async` and `proxy-async` | Connection errors with Proxy/Auth server while streaming audit logs/session recording data. |
+| `node-sync` and `proxy-sync` | Connection errors with Proxy/Auth server while streaming audit logs/session recording data. |
 
 There are going to be two audit modes:
 
