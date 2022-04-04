@@ -6012,24 +6012,28 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 
 	testCases := []testCase{
 		{
+			name:     "unrestricted user, v8 agent",
 			server:   v8Agent,
 			role:     plainRole,
 			user:     plainUser,
 			wantsLen: 1,
 		},
 		{
+			name:     "restricted user, v8 agent",
 			server:   v8Agent,
 			role:     moderatedRole,
 			user:     moderatedUser,
 			wantsLen: 0,
 		},
 		{
+			name:     "unrestricted user, v9 agent",
 			server:   v9Agent,
 			role:     plainRole,
 			user:     plainUser,
 			wantsLen: 1,
 		},
 		{
+			name:     "restricted user, v9 agent",
 			server:   v9Agent,
 			role:     moderatedRole,
 			user:     moderatedUser,
