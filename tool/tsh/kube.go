@@ -23,6 +23,8 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -187,7 +190,13 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode))
+	ciphers := utils.DefaultCipherSuites()
+	tlsConfig, err := k.KubeClientTLSConfig(ciphers, kubeCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, err := client.NewKubeSession(cf.Context, tc, meta, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -292,11 +301,12 @@ type ExecOptions struct {
 	ExecutablePodFn  polymorphichelpers.AttachablePodForObjectFunc
 	restClientGetter genericclioptions.RESTClientGetter
 
-	Pod           *corev1.Pod
-	Executor      RemoteExecutor
-	PodClient     coreclient.PodsGetter
-	GetPodTimeout time.Duration
-	Config        *restclient.Config
+	Pod                            *corev1.Pod
+	Executor                       RemoteExecutor
+	PodClient                      coreclient.PodsGetter
+	GetPodTimeout                  time.Duration
+	Config                         *restclient.Config
+	displayParticipantRequirements bool
 }
 
 // Run executes a validated remote execution against a pod.
@@ -365,7 +375,8 @@ func (p *ExecOptions) Run() error {
 			Resource("pods").
 			Name(pod.Name).
 			Namespace(pod.Namespace).
-			SubResource("exec")
+			SubResource("exec").
+			Param("displayParticipantRequirements", strconv.FormatBool(p.displayParticipantRequirements))
 		req.VersionedParams(&corev1.PodExecOptions{
 			Container: containerName,
 			Command:   p.Command,
@@ -383,15 +394,16 @@ func (p *ExecOptions) Run() error {
 
 type kubeExecCommand struct {
 	*kingpin.CmdClause
-	target    string
-	container string
-	filename  string
-	quiet     bool
-	stdin     bool
-	tty       bool
-	reason    string
-	invited   string
-	command   []string
+	target                         string
+	container                      string
+	filename                       string
+	quiet                          bool
+	stdin                          bool
+	tty                            bool
+	reason                         string
+	invited                        string
+	command                        []string
+	displayParticipantRequirements bool
 }
 
 func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
@@ -406,6 +418,7 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
 	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
 	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
+	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.displayParticipantRequirements)
 	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
 	c.Arg("command", "Command to execute in the container").Required().StringsVar(&c.command)
 	return c
@@ -434,6 +447,7 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	p.Builder = f.NewBuilder
 	p.restClientGetter = f
 	p.Executor = &DefaultRemoteExecutor{}
+	p.displayParticipantRequirements = c.displayParticipantRequirements
 	p.Namespace, p.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return trace.Wrap(err)
@@ -482,6 +496,10 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 			filteredSessions = append(filteredSessions, session)
 		}
 	}
+
+	sort.Slice(filteredSessions, func(i, j int) bool {
+		return filteredSessions[i].GetCreated().Before(filteredSessions[j].GetCreated())
+	})
 
 	printSessions(filteredSessions)
 	return nil
@@ -837,7 +855,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	}
 
 	if cf.HomePath != "" {
-		v.Exec.Env[homeEnvVar] = cf.HomePath
+		v.Exec.Env[types.HomeEnvVar] = cf.HomePath
 	}
 
 	// Only switch the current context if kube-cluster is explicitly set on the command line.

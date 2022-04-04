@@ -42,11 +42,7 @@ import (
 func TestAuthSignKubeconfig(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp("", "auth_command_test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",

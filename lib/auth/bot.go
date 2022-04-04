@@ -242,7 +242,7 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 // random dynamic provision token which allows bots to join with the given
 // botName. Returns the token and any error.
 func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBotRequest) (types.ProvisionToken, error) {
-	resourceName := BotResourceName(req.Name)
+	botName := req.Name
 
 	// if the request includes a TokenID it should already exist
 	if req.TokenID != "" {
@@ -258,9 +258,9 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 			return nil, trace.BadParameter("token %q is not valid for role %q",
 				req.TokenID, types.RoleBot)
 		}
-		if provisionToken.GetBotName() != resourceName {
+		if provisionToken.GetBotName() != botName {
 			return nil, trace.BadParameter("token %q is valid for bot with name %q, not %q",
-				req.TokenID, provisionToken.GetBotName(), resourceName)
+				req.TokenID, provisionToken.GetBotName(), botName)
 		}
 		switch provisionToken.GetJoinMethod() {
 		case types.JoinMethodToken, types.JoinMethodIAM:
@@ -286,7 +286,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 	tokenSpec := types.ProvisionTokenSpecV2{
 		Roles:      []types.SystemRole{types.RoleBot},
 		JoinMethod: types.JoinMethodToken,
-		BotName:    resourceName,
+		BotName:    botName,
 	}
 	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
 	if err != nil {
@@ -397,7 +397,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 
 		// Emit an audit event.
 		userMetadata := ClientUserMetadata(ctx)
-		if s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
+		if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
 			Metadata: apievents.Metadata{
 				Type: events.RenewableCertificateGenerationMismatchEvent,
 				Code: events.RenewableCertificateGenerationMismatchCode,

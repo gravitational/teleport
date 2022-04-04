@@ -1,7 +1,8 @@
 timeout: 25m
+
 options:
   machineType: E2_HIGHCPU_32
-  
+
   # This build needs to run in environments where the _GITHUB_DEPLOY_KEY_SRC
   # substitution is defined, but also environments where it isn't. The
   # ALLOW_LOOSE option disables GCBs strict checking of substitution usage,
@@ -9,19 +10,19 @@ options:
   substitution_option: ALLOW_LOOSE
 
 steps:
-  # Run the integration tests. Actual content of this job depends on the changes 
+  # Run the integration tests. Actual content of this job depends on the changes
   # detected in the PR
   - name: quay.io/gravitational/teleport-buildbox:teleport10
     id: run-tests
     dir: /workspace/.cloudbuild/scripts
     entrypoint: bash
-    args: 
+    args:
       - -c
       - |
         go run ./cmd/integration-tests          \
           -target "$_BASE_BRANCH"               \
           -bucket test-logs                     \
-          -build $BUILD_ID                      \
+          -build "$BUILD_ID"                    \
           -key-secret "$_GITHUB_DEPLOY_KEY_SRC" \
-          -a "test-logs/*.json"          
+          -a "test-logs/*.json"
     timeout: 25m

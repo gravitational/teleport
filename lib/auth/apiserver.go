@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -970,10 +969,7 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
-	// Teleport 8 clients are still expecting the legacy JSON format.
-	// Teleport 9 clients handle both legacy and new.
-	// TODO(zmb3) return certs directly in Teleport 10
-	return LegacyCertsFromProto(certs), nil
+	return certs, nil
 }
 
 type registerNewAuthServerReq struct {
@@ -1829,7 +1825,7 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 
 // HTTP POST /:version/sessions/:id/slice
 func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

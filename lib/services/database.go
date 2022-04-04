@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -180,7 +181,9 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	var errors []error
 	var databases types.Databases
 	for _, endpoint := range cluster.CustomEndpoints {
-		endpointName, err := parseRDSCustomEndpoint(aws.StringValue(endpoint))
+		// RDS custom endpoint format:
+		// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
+		endpointName, _, err := awsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 			continue
@@ -295,21 +298,6 @@ func engineToProtocol(engine string) string {
 		return defaults.ProtocolMySQL
 	}
 	return ""
-}
-
-// parseRDSCustomEndpoint endpoint name from the provided RDS custom endpoint.
-func parseRDSCustomEndpoint(endpoint string) (name string, err error) {
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Custom
-	//
-	// RDS custom endpoint format:
-	// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
-	//
-	// Note that endpoint name can only contain letters, numbers, and hyphens, so it's safe to to split on ".".
-	parts := strings.Split(endpoint, ".")
-	if !strings.HasSuffix(endpoint, rdsEndpointSuffix) || len(parts) != 6 {
-		return "", trace.BadParameter("failed to parse %v as RDS custom endpoint", endpoint)
-	}
-	return parts[0], nil
 }
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
@@ -546,11 +534,6 @@ const (
 	labelEngineVersion = "engine-version"
 	// labelEndpointType is the label key containing the RDS endpoint type.
 	labelEndpointType = "endpoint-type"
-)
-
-const (
-	// rdsEndpointSuffix is the RDS/Aurora endpoint suffix.
-	rdsEndpointSuffix = ".rds.amazonaws.com"
 )
 
 const (
