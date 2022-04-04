@@ -392,7 +392,7 @@ func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, sessionCtx *Session) 
 	// Remove certificate validation if set.
 	tlsConfig.VerifyConnection = nil
 
-	return a.appendClientCert(ctx, sessionCtx, tlsConfig)
+	return tlsConfig, nil
 }
 
 // getTLSConfigVerifyCA generates tls.Config when TLS mode is equal to 'verify-ca'.
