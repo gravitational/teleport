@@ -49,7 +49,6 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/siddontang/go-mysql/client"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -1222,15 +1221,16 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 		case <-time.Tick(500 * time.Millisecond):
 			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
-				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+				// Use root logger as we need a configured logger instance and the root cluster have one.
+				p.root.cluster.log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
 			}
 			if !containsDB(servers, p.leaf.mysqlService.Name) {
-				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
+				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
 				continue
 			}
 			if !containsDB(servers, p.leaf.postgresService.Name) {
-				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
+				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
 				continue
 			}
 			return
