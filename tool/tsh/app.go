@@ -23,6 +23,7 @@ import (
 	"text/template"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -211,7 +212,12 @@ func onAppConfig(cf *CLIConf) error {
 }
 
 func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) (string, error) {
-	uri := fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
+	var uri string
+	if port := tc.WebProxyPort(); port == teleport.StandardHTTPSPort {
+		uri = fmt.Sprintf("https://%v", appPublicAddr)
+	} else {
+		uri = fmt.Sprintf("https://%v:%v", appPublicAddr, port)
+	}
 	curlCmd := fmt.Sprintf(`curl \
   --cacert %v \
   --cert %v \
