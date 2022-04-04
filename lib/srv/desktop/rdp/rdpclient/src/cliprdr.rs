@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::errors::invalid_data_error;
+use crate::util::to_unicode;
 use crate::{vchan, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -577,10 +578,7 @@ impl FormatName for LongFormatName {
             // must be encoded as a single Unicode null character (two zero bytes)
             None => w.write_u16::<LittleEndian>(0)?,
             Some(name) => {
-                for c in str::encode_utf16(name) {
-                    w.write_u16::<LittleEndian>(c)?;
-                }
-                w.write_u16::<LittleEndian>(0)?; // terminating null
+                w.append(&mut to_unicode(name));
             }
         };
 
@@ -996,10 +994,7 @@ mod tests {
     #[test]
     fn responds_to_format_data_request_hasdata() {
         // a null-terminated utf-16 string, represented as a Vec<u8>
-        let test_data: Vec<u8> = "test\0"
-            .encode_utf16()
-            .flat_map(|v| v.to_le_bytes())
-            .collect();
+        let test_data = to_unicode("test");
 
         let mut c: Client = Default::default();
         c.clipboard

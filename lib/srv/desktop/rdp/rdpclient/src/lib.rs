@@ -17,6 +17,7 @@ pub mod errors;
 pub mod piv;
 pub mod rdpdr;
 pub mod scard;
+pub mod util;
 pub mod vchan;
 
 #[macro_use]
