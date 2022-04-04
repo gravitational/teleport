@@ -284,7 +284,10 @@ func TestRootDatabaseAccessRedisRootCluster(t *testing.T) {
 		Address:    pack.root.redisAddr,
 	}
 
-	startRedis(t, serverConfig)
+	containerAddress := startRedis(t, serverConfig)
+
+	// use Redis container address
+	pack.root.redisAddr = containerAddress
 
 	config := &common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -1141,7 +1144,7 @@ func makeTestServerTLSConfig(config common.TestServerConfig) ([]byte, []byte, []
 	return privateKey, certPem, cas, nil
 }
 
-func startRedis(t *testing.T, config common.TestServerConfig) {
+func startRedis(t *testing.T, config common.TestServerConfig) string {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "could not connect to docker")
 
@@ -1201,4 +1204,7 @@ func startRedis(t *testing.T, config common.TestServerConfig) {
 			t.Fatalf("Could not purge resource: %s", err)
 		}
 	})
+
+	network := resource.Container.NetworkSettings.Networks["cloudbuild"]
+	return net.JoinHostPort(network.IPAddress, port)
 }
