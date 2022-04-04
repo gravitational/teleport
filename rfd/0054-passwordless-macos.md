@@ -32,14 +32,19 @@ In order to make use of the Keychain Sharing services, required for Secure
 Enclave protection, the `tsh` macOS binary needs to be:
 
 1. Code signed,
-2. Contain the necessary entitlements to use the Keychain; and
+2. Contain the necessary entitlements to use the Keychain,
 3. Embed a matching [provisioning profile](
-   https://developer.apple.com/forums/thread/685723).
+   https://developer.apple.com/forums/thread/685723); and
+4. Notarized
+
+<!--
+TODO(codingllama): Add more details about notarization.
+-->
 
 The requirements above mean that `tsh` needs to be [packaged in a macOS .app](
 https://developer.apple.com/documentation/xcode/signing-a-daemon-with-a-restricted-entitlement)
-for distribution, mainly so the provisioning profile is embedded within the
-binary. An account enrolled in the Apple Developer Program is also necessary.
+for distribution. An account enrolled in the Apple Developer Program is also
+necessary.
 
 See below for an example of the necessary entitlements:
 
@@ -151,7 +156,7 @@ hidden [`tsh` support commands](#tsh-support-commands) for a manual cleanup.
 
 ### Authentication
 
-Authentication offers a plethora of options, depending on both server settings
+Authentication offers a plethora of options, depending both on server settings
 (otp, webauthn, passwordless) and client state (FIDO2 keys present, Touch ID
 keys registered). In order to decide which flow to follow, `tsh` must first
 assess what is possible, preferably without asking for unnecessary user
@@ -220,8 +225,8 @@ $ tsh login --proxy=example.com
 Detecting Touch ID support is important so `tsh` may enable/disable related
 features as appropriate.
 
-Apart from Go build tags, which are a rather coarse "detection" mechanism, we
-can take inspiration from [Chromium's implementation](
+Apart from Go build tags, which are a rather coarse detection mechanism, we can
+take inspiration from [Chromium's implementation](
 https://github.com/chromium/chromium/blob/c4d3c31083a2e1481253ff2d24298a1dfe19c754/device/fido/mac/touch_id_context.mm#L126)
 and do the following checks:
 
