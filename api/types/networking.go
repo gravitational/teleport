@@ -292,6 +292,10 @@ func (c *ClusterNetworkingConfigV2) SetRoutingStrategy(strategy RoutingStrategy)
 
 // GetTunnelStrategy gets the tunnel strategy type.
 func (c *ClusterNetworkingConfigV2) GetTunnelStrategyType() (TunnelStrategyType, error) {
+	if c.Spec.TunnelStrategy == nil {
+		return "", trace.BadParameter("tunnel strategy is nil")
+	}
+
 	switch c.Spec.TunnelStrategy.Strategy.(type) {
 	case *TunnelStrategyV1_AgentMesh:
 		return AgentMesh, nil
