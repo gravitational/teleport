@@ -41,7 +41,7 @@ func TestCTRLCCapture(t *testing.T) {
 	m := NewTermManager()
 	r, w := io.Pipe()
 	m.AddReader("foo", r)
-	go w.Write([]byte("\x03"))
+	w.Write([]byte("\x03"))
 
 	select {
 	case <-m.TerminateNotifier():
