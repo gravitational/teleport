@@ -54,11 +54,11 @@ description: Connecting a Kubernetes cluster to Teleport
 - The `jq` tool to process `JSON` output. This is available via common package
   managers.
 
-- The `tctl` admin tool version >= (=teleport.version=).
+- The `tctl` admin tool version >= (=cloud.version=).
 
   ```code
   $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  # Teleport v(=cloud.version=) go(=teleport.golang=)
   ```
 
   See [Installation](../../installation.mdx) for details.
@@ -102,6 +102,12 @@ $ echo $TOKEN
 
 ## Step 2/2. Deploy teleport-kube-agent
 
+<Notice type="tip" >
+
+The Teleport agent version should be the same as the Teleport Cluster version 
+or up to one major version back.  You can set the version override with the override variable, ex: `--set teleportVersionOverride=(=teleport.version=)`.
+
+</Notice>
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -136,8 +142,10 @@ $ helm repo update
 
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
 $ CLUSTER='cookie'
+# Run the helm install specifying to match to the Teleport Cloud version of Teleport
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
+  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent \
+  --set teleportVersionOverride=(=cloud.version=)
 ```
 
 </TabItem>
