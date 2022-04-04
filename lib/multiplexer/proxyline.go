@@ -162,7 +162,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 	if err := binary.Read(reader, binary.BigEndian, &header); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if bytes.Compare(header.Signature[:], proxyV2Prefix) != 0 {
+	if !bytes.Equal(header.Signature[:], proxyV2Prefix) {
 		return nil, trace.BadParameter("unrecognized signature %s", hex.EncodeToString(header.Signature[:]))
 	}
 	cmd, ver := header.VersionCommand&0xF, header.VersionCommand>>4
