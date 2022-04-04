@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -887,7 +888,7 @@ func TestEnvFlags(t *testing.T) {
 		}))
 		t.Run("TELEPORT_HOME set", testEnvFlag(testCase{
 			envMap: map[string]string{
-				homeEnvVar: "teleport-data/",
+				types.HomeEnvVar: "teleport-data/",
 			},
 			outCLIConf: CLIConf{
 				HomePath: "teleport-data",
@@ -898,7 +899,7 @@ func TestEnvFlags(t *testing.T) {
 				HomePath: "teleport-data",
 			},
 			envMap: map[string]string{
-				homeEnvVar: "teleport-data/",
+				types.HomeEnvVar: "teleport-data/",
 			},
 			outCLIConf: CLIConf{
 				HomePath: "teleport-data",
@@ -1232,6 +1233,45 @@ func TestSetX11Config(t *testing.T) {
 			require.Equal(t, tc.expectConfig, clt)
 		})
 	}
+}
+
+// TestAuthClientFromTSHProfile tests if API Client can be successfully created from tsh profile where clusters
+// certs are stored separately in CAS directory and in case where legacy certs.pem file was used.
+func TestAuthClientFromTSHProfile(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	})
+	require.NoError(t, err)
+
+	profile, err := profile.FromDir(tmpHomePath, "")
+	require.NoError(t, err)
+
+	mustCreateAuthClientFormUserProfile(t, tmpHomePath, proxyAddr.String())
+
+	// Simulate legacy tsh client behavior where all clusters certs were stored in the certs.pem file.
+	require.NoError(t, os.RemoveAll(profile.TLSClusterCASDir()))
+
+	// Verify that authClient created from profile will create a valid client in case where cas dir doesn't exit.
+	mustCreateAuthClientFormUserProfile(t, tmpHomePath, proxyAddr.String())
 }
 
 type testServersOpts struct {

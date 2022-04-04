@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os/user"
 	"testing"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -245,4 +247,17 @@ func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 			t.Fatalf("service server didn't receved %v event after 30s", event)
 		}
 	}
+}
+
+func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string) {
+	ctx := context.Background()
+	credentials := apiclient.LoadProfile(tshHomePath, "")
+	c, err := apiclient.New(context.Background(), apiclient.Config{
+		Addrs:                    []string{addr},
+		Credentials:              []apiclient.Credentials{credentials},
+		InsecureAddressDiscovery: true,
+	})
+	require.NoError(t, err)
+	_, err = c.Ping(ctx)
+	require.NoError(t, err)
 }

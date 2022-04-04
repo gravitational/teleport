@@ -197,68 +197,6 @@ func checkAndSetEventFields(event apievents.AuditEvent, clock clockwork.Clock, u
 	return nil
 }
 
-// DiscardStream returns a stream that discards all events
-type DiscardStream struct {
-}
-
-// Write discards data
-func (*DiscardStream) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-// Status returns a channel that always blocks
-func (*DiscardStream) Status() <-chan apievents.StreamStatus {
-	return nil
-}
-
-// Done returns channel closed when streamer is closed
-// should be used to detect sending errors
-func (*DiscardStream) Done() <-chan struct{} {
-	return nil
-}
-
-// Close flushes non-uploaded flight stream data without marking
-// the stream completed and closes the stream instance
-func (*DiscardStream) Close(ctx context.Context) error {
-	return nil
-}
-
-// Complete does nothing
-func (*DiscardStream) Complete(ctx context.Context) error {
-	return nil
-}
-
-// EmitAuditEvent discards audit event
-func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding stream event: %v", event)
-	return nil
-}
-
-// NewDiscardEmitter returns a no-op discard emitter
-func NewDiscardEmitter() *DiscardEmitter {
-	return &DiscardEmitter{}
-}
-
-// DiscardEmitter discards all events
-type DiscardEmitter struct {
-}
-
-// EmitAuditEvent discards audit event
-func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding event: %v", event)
-	return nil
-}
-
-// CreateAuditStream creates a stream that discards all events
-func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	return &DiscardStream{}, nil
-}
-
-// ResumeAuditStream resumes a stream that discards all events
-func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	return &DiscardStream{}, nil
-}
-
 // NewWriterEmitter returns a new instance of emitter writing to writer
 func NewWriterEmitter(w io.WriteCloser) *WriterEmitter {
 	return &WriterEmitter{
