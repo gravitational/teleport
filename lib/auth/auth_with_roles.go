@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -3580,6 +3581,17 @@ func (a *ServerWithRoles) filterKubeServices(server types.Server) error {
 	// MFA is not required to list the clusters, but will be required to
 	// connect to them.
 	mfaParams := services.AccessMFAParams{Verified: true}
+
+	// Filter out agents that don't have support for moderated sessions access
+	// checking if the user has any roles that require it.
+	minSupportedModeratedSessions := semver.New(utils.VersionBeforeAlpha("9.0.0"))
+	agentVersion := semver.New(server.GetTeleportVersion())
+	if hasLocalUserRole(a.context.Checker) {
+		roles := a.context.Checker.(LocalUserRoleSet)
+		if roles.HasModeratedSessionsPolicies() && agentVersion.LessThan(*minSupportedModeratedSessions) {
+			return trace.AccessDenied("moderated sessions are not supported on this server")
+		}
+	}
 
 	filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
 	for _, kube := range server.GetKubernetesClusters() {

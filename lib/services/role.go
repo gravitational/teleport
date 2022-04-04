@@ -862,6 +862,16 @@ func NewRoleSet(roles ...types.Role) RoleSet {
 // RoleSet is a set of roles that implements access control functionality
 type RoleSet []types.Role
 
+func (r RoleSet) HasModeratedSessionsPolicies() bool {
+	for _, role := range r {
+		if len(role.GetSessionRequirePolicies()) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
 func MatchNamespace(selectors []string, namespace string) (bool, string) {
