@@ -521,6 +521,11 @@ func (fs *fsLocalNonSessionKeyStore) tlsCertPath(idx KeyIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
+// tlsCAsPath returns the TLS CA certificates path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) tlsCAsPath(proxy string) string {
+	return keypaths.TLSCAsPath(fs.KeyDir, proxy)
+}
+
 // sshCertPath returns the SSH certificate path for the given KeyIndex.
 func (fs *fsLocalNonSessionKeyStore) sshCertPath(idx KeyIndex) string {
 	return keypaths.SSHCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
@@ -681,6 +686,20 @@ func (fs *fsLocalNonSessionKeyStore) SaveTrustedCerts(proxyHost string, cas []au
 		return trace.ConvertSystemError(err)
 	}
 
+	// Save trusted clusters certs in CAS directory.
+	if err := fs.saveTrustedCertsInCASDir(proxyHost, cas); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// For backward compatibility save trusted in legacy certs.pem file.
+	if err := fs.saveTrustedCertsInLegacyCAFile(proxyHost, cas); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (fs *fsLocalNonSessionKeyStore) saveTrustedCertsInCASDir(proxyHost string, cas []auth.TrustedCerts) error {
 	casDirPath := filepath.Join(fs.casDir(proxyHost))
 	if err := os.MkdirAll(casDirPath, os.ModeDir|profileDirPerms); err != nil {
 		fs.log.Error(err)
@@ -701,9 +720,28 @@ func (fs *fsLocalNonSessionKeyStore) SaveTrustedCerts(proxyHost string, cas []au
 		if err := writeClusterCertificates(caFile, ca.TLSCertificates); err != nil {
 			return trace.Wrap(err)
 		}
-
 	}
 	return nil
+}
+
+func (fs *fsLocalNonSessionKeyStore) saveTrustedCertsInLegacyCAFile(proxyHost string, cas []auth.TrustedCerts) (retErr error) {
+	certsFile := fs.tlsCAsPath(proxyHost)
+	fp, err := os.OpenFile(certsFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer utils.StoreErrorOf(fp.Close, &retErr)
+	for _, ca := range cas {
+		for _, cert := range ca.TLSCertificates {
+			if _, err := fp.Write(cert); err != nil {
+				return trace.ConvertSystemError(err)
+			}
+			if _, err := fmt.Fprintln(fp); err != nil {
+				return trace.ConvertSystemError(err)
+			}
+		}
+	}
+	return fp.Sync()
 }
 
 // isSafeClusterName check if cluster name is safe and doesn't contain miscellaneous characters.
