@@ -121,6 +121,9 @@ func TestDatabaseAccessPostgresLeafCluster(t *testing.T) {
 }
 
 func TestDatabaseRotateTrustedCluster(t *testing.T) {
+	// TODO(jakule): Fix flaky test
+	t.Skip("flaky test, skip for now")
+
 	pack := setupDatabaseTest(t,
 		// set tighter rotation intervals
 		withLeafConfig(func(config *service.Config) {
