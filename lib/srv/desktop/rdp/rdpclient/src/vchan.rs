@@ -86,10 +86,7 @@ impl Client {
             let i = std::cmp::min(inner.len(), CHANNEL_CHUNK_LEGNTH);
             let leftover = inner.split_off(i);
 
-            let mut channel_flags = match channel_flags {
-                Some(flags) => flags,
-                None => ChannelPDUFlags::from_bits_truncate(0),
-            };
+            let mut channel_flags = channel_flags.unwrap_or(ChannelPDUFlags::from_bits_truncate(0));
 
             if first {
                 channel_flags.set(ChannelPDUFlags::CHANNEL_FLAG_FIRST, true);
@@ -111,13 +108,6 @@ impl Client {
 
         Ok(result)
     }
-}
-
-/// A struct that is Encodable is able to be sent as part of an RDP PDU.
-pub trait Encodeable {
-    /// encode takes a struct representing part of a PDU, and converts it
-    /// into a stream of bytes according to its RDP spec.
-    fn encode(&self) -> RdpResult<Vec<u8>>;
 }
 
 /// The default maximum chunk size for virtual channel data.
