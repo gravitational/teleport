@@ -149,6 +149,14 @@ type proxyV2Address6 struct {
 	DestinationPort uint16
 }
 
+const (
+	Version2     = 2
+	ProxyCommand = 1
+	LocalCommand = 0
+	ProtocolTCP4 = 0x11
+	ProtocolTCP6 = 0x21
+)
+
 func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 	var header proxyV2Header
 	var ret ProxyLine
@@ -159,10 +167,10 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 		return nil, trace.BadParameter("unrecognized signature %s", hex.EncodeToString(header.Signature[:]))
 	}
 	cmd, ver := header.VersionCommand&0xF, header.VersionCommand>>4
-	if ver != 2 {
+	if ver != Version2 {
 		return nil, trace.BadParameter("unsupported version %d", ver)
 	}
-	if cmd == 0 {
+	if cmd == LocalCommand {
 		// LOCAL command, just skip address information and keep original addresses (no proxy line)
 		if header.Length > 0 {
 			_, err := io.CopyN(ioutil.Discard, reader, int64(header.Length))
@@ -170,11 +178,11 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 		}
 		return nil, nil
 	}
-	if cmd != 1 {
+	if cmd != ProxyCommand {
 		return nil, trace.BadParameter("unsupported command %d", cmd)
 	}
 	switch header.Protocol {
-	case 0x11:
+	case ProtocolTCP4:
 		var addr proxyV2Address4
 		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
 			return nil, trace.Wrap(err)
@@ -182,7 +190,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 		ret.Protocol = TCP4
 		ret.Source = net.TCPAddr{IP: addr.Source[:], Port: int(addr.SourcePort)}
 		ret.Destination = net.TCPAddr{IP: addr.Destination[:], Port: int(addr.DestinationPort)}
-	case 0x21:
+	case ProtocolTCP6:
 		var addr proxyV2Address6
 		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
 			return nil, trace.Wrap(err)
@@ -191,7 +199,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 		ret.Source = net.TCPAddr{IP: addr.Source[:], Port: int(addr.SourcePort)}
 		ret.Destination = net.TCPAddr{IP: addr.Destination[:], Port: int(addr.DestinationPort)}
 	default:
-		return nil, trace.BadParameter("unsupported protocol %d", header.Protocol)
+		return nil, trace.BadParameter("unsupported protocol %x", header.Protocol)
 	}
 
 	return &ret, nil

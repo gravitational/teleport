@@ -192,7 +192,7 @@ func TestMux(t *testing.T) {
 	// ProxyLineV2 tests proxy protocol v2
 	t.Run("ProxyLineV2", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		mux, err := New(Config{
 			Listener:            listener,
@@ -213,10 +213,10 @@ func TestMux(t *testing.T) {
 		defer backend1.Close()
 
 		parsedURL, err := url.Parse(backend1.URL)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		conn, err := net.Dial("tcp", parsedURL.Host)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		defer conn.Close()
 		// send proxy header + addresses before establishing TLS connection
 		_, err = conn.Write([]byte{
@@ -227,7 +227,7 @@ func TestMux(t *testing.T) {
 			0x7F, 0x00, 0x00, 0x01, //destination address: 127.0.0.1
 			0x1F, 0x40, 0x23, 0x28, //source port: 8000, destination port: 9000
 		})
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		// upgrade connection to TLS
 		tlsConn := tls.Client(conn, clientConfig(backend1))
@@ -236,7 +236,7 @@ func TestMux(t *testing.T) {
 		// make sure the TLS call succeeded and we got remote address
 		// correctly
 		out, err := utils.RoundtripWithConn(tlsConn)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, out, "127.0.0.1:8000")
 	})
 
