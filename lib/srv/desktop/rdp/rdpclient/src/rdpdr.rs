@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::util::to_unicode;
 use crate::Payload;
 use crate::{scard, vchan};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -129,6 +130,8 @@ impl Client {
         debug!("got {:?}", req);
 
         if req.device_id != SCARD_DEVICE_ID {
+            // TODO: delete
+            debug!("Didn't get SCARD_DEVICE_ID!!!!!!!!!!!!!!!!!!!!");
             Err(invalid_data_error(&format!(
                 "got ServerDeviceAnnounceResponse for unknown device_id {}",
                 &req.device_id
@@ -167,6 +170,16 @@ impl Client {
                 &req.major_function
             )))
         }
+    }
+
+    pub fn write_drive_announce<S: Read + Write>(
+        &self,
+        drive_name: String,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        let new_drive = ClientDeviceListAnnounce::new(drive_name);
+        debug!("announcing drive: {:?}", new_drive);
+        mcs.write(&CHANNEL_NAME.to_string(), new_drive.encode()?)
     }
 }
 
@@ -512,21 +525,23 @@ impl GeneralCapabilitySet {
 
 type ClientCoreCapabilityResponse = ServerCoreCapabilityRequest;
 
-// If there were multiple redirected devices, they would need unique IDs. In our case there is only
-// one permanent smartcard device, so we hardcode an ID 1.
+// Each redirected device requires a unique ID.
 const SCARD_DEVICE_ID: u32 = 1;
+const DRIVE_DEVICE_ID: u32 = 2;
 
 #[derive(Debug)]
 struct ClientDeviceListAnnounceRequest {
-    count: u32,
-    devices: Vec<DeviceAnnounceHeader>,
+    device_count: u32,
+    device_list: Vec<DeviceAnnounceHeader>,
 }
 
 impl ClientDeviceListAnnounceRequest {
+    // We only need to announce the smartcard in this Client Device List Announce Request.
+    // Drives (directories) can be announced at any time with a Client Drive Device List Announce.
     fn new_smartcard() -> Self {
         Self {
-            count: 1,
-            devices: vec![DeviceAnnounceHeader {
+            device_count: 1,
+            device_list: vec![DeviceAnnounceHeader {
                 device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
                 device_id: SCARD_DEVICE_ID,
                 // This name is a constant defined by the spec.
@@ -539,8 +554,8 @@ impl ClientDeviceListAnnounceRequest {
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
-        w.write_u32::<LittleEndian>(self.count)?;
-        for dev in self.devices.iter() {
+        w.write_u32::<LittleEndian>(self.device_count)?;
+        for dev in self.device_list.iter() {
             w.extend_from_slice(&dev.encode()?);
         }
         Ok(w)
@@ -731,6 +746,58 @@ impl DeviceControlResponse {
         w.extend_from_slice(&self.header.encode()?);
         w.write_u32::<LittleEndian>(self.output_buffer_length)?;
         w.extend_from_slice(&self.output_buffer);
+        Ok(w)
+    }
+}
+
+/// [MS-RDPEFS] 2.2.3.1 Client Device List Announce
+/// This message can be sent from the client to the server
+/// at any point, in order to announce a new drive that's ready
+/// for redirection (aka RDP's version of "mounting a network drive").
+#[derive(Debug)]
+struct ClientDeviceListAnnounce {
+    header: SharedHeader,
+    device_count: u32,
+    device_announce: Vec<DeviceAnnounceHeader>,
+}
+
+impl ClientDeviceListAnnounce {
+    fn new(drive_name: String) -> Self {
+        let header = SharedHeader::new(
+            Component::RDPDR_CTYP_CORE,
+            PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
+        );
+
+        let device_data = to_unicode(&drive_name);
+
+        let device_announce = vec![DeviceAnnounceHeader {
+            device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
+            device_id: DRIVE_DEVICE_ID,
+            preferred_dos_name: drive_name,
+            // According to the spec:
+            //
+            // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
+            // then the full name MUST also be specified in the DeviceData field, as a null-terminated
+            // Unicode string. If the DeviceDataLength field is nonzero, the content of the
+            // PreferredDosName field is ignored.
+            device_data_length: device_data.len() as u32,
+            device_data,
+        }];
+
+        Self {
+            header,
+            device_count: 1,
+            device_announce,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.header.encode()?);
+        w.write_u32::<LittleEndian>(self.device_count)?;
+        for dev in self.device_announce.iter() {
+            w.extend_from_slice(&dev.encode()?);
+        }
         Ok(w)
     }
 }

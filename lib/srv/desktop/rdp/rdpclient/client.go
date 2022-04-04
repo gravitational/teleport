@@ -308,18 +308,28 @@ func (c *Client) start() {
 				default:
 					button = C.PointerButtonNone
 				}
-				if err := cgoError(C.write_rdp_pointer(
-					c.rustClient,
-					C.CGOMousePointerEvent{
-						x:      C.uint16_t(mouseX),
-						y:      C.uint16_t(mouseY),
-						button: uint32(button),
-						down:   m.State == tdp.ButtonPressed,
-						wheel:  C.PointerWheelNone,
-					},
-				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP mouse button: %v", err)
-					return
+				if button == C.PointerButtonRight {
+					// TODO: hack for testing
+					driveName := C.CString("testing testing 123")
+					defer C.free(unsafe.Pointer(driveName))
+					if err := cgoError(C.announce_drive_rdp(c.rustClient, driveName)); err != nil {
+						c.cfg.Log.Errorf("Device announce failed: %v", err)
+						return
+					}
+				} else {
+					if err := cgoError(C.write_rdp_pointer(
+						c.rustClient,
+						C.CGOMousePointerEvent{
+							x:      C.uint16_t(mouseX),
+							y:      C.uint16_t(mouseY),
+							button: uint32(button),
+							down:   m.State == tdp.ButtonPressed,
+							wheel:  C.PointerWheelNone,
+						},
+					)); err != nil {
+						c.cfg.Log.Warningf("Failed forwarding RDP mouse button: %v", err)
+						return
+					}
 				}
 			case tdp.MouseWheel:
 				var wheel C.CGOPointerWheel

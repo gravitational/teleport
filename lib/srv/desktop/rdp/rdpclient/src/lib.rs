@@ -17,6 +17,7 @@ pub mod errors;
 pub mod piv;
 pub mod rdpdr;
 pub mod scard;
+pub mod util;
 pub mod vchan;
 
 #[macro_use]
@@ -302,6 +303,10 @@ impl<S: Read + Write> RdpClient<S> {
         }
     }
 
+    pub fn write_drive_announce(&mut self, drive_name: String) -> RdpResult<()> {
+        self.rdpdr.write_drive_announce(drive_name, &mut self.mcs)
+    }
+
     pub fn shutdown(&mut self) -> RdpResult<()> {
         self.mcs.shutdown()
     }
@@ -418,6 +423,34 @@ pub unsafe extern "C" fn update_clipboard(
             Err(e) => to_cgo_error(format!("failed updating clipboard: {:?}", e)),
         },
         None => CGO_OK,
+    }
+}
+
+/// announce_drive_rdp announces a new drive with the name drive_name that's ready to be
+/// redirected over RDP.
+///
+/// # Safety
+///
+/// The caller mmust ensure that drive_name points to a valid buffer.
+#[no_mangle]
+pub unsafe extern "C" fn announce_drive_rdp(
+    client_ptr: *mut Client,
+    drive_name: *mut c_char,
+) -> CGOError {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let drive_name = from_go_string(drive_name);
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+
+    match rdp_client.write_drive_announce(drive_name) {
+        Ok(()) => CGO_OK,
+        Err(e) => to_cgo_error(format!("failed to announce new drive: {:?}", e)),
     }
 }
 
@@ -660,6 +693,8 @@ pub unsafe extern "C" fn free_rust_string(s: *mut c_char) {
 /// # Safety
 ///
 /// s must be a C-style null terminated string.
+/// s is cloned here, and the caller is responsible for
+/// ensuring its memory is freed.
 unsafe fn from_go_string(s: *mut c_char) -> String {
     CStr::from_ptr(s).to_string_lossy().into_owned()
 }

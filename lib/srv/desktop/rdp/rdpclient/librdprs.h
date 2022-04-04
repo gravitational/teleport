@@ -129,6 +129,16 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
 CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
 
 /**
+ * announce_drive_rdp announces a new drive with the name drive_name that's ready to be
+ * redirected over RDP.
+ *
+ * # Safety
+ *
+ * The caller mmust ensure that drive_name points to a valid buffer.
+ */
+CGOError announce_drive_rdp(struct Client *client_ptr, char *drive_name);
+
+/**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
  * handle_bitmap.
  *
