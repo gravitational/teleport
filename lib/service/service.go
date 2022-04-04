@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/proxy/clusterdial"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -3002,13 +3003,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var peerAddr string
 	var proxyServer *proxy.Server
-	if listeners.proxy != nil {
+	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {
 		peerAddr = listeners.proxy.Addr().String()
 		proxyServer, err = proxy.NewServer(proxy.ServerConfig{
 			AccessCache:   accessPoint,
 			Listener:      listeners.proxy,
 			TLSConfig:     serverTLSConfig,
-			ClusterDialer: proxy.NewClusterDialer(tsrv),
+			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
+			Log:           log,
 		})
 		if err != nil {
 			return trace.Wrap(err)
