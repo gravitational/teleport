@@ -5968,6 +5968,7 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
 
 	type testCase struct {
+		name     string
 		server   types.Server
 		role     types.Role
 		user     types.User
@@ -6037,32 +6038,35 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, testCase := range testCases {
-		teleport := suite.newTeleport(t, nil, true)
-		adminSite := teleport.Process.GetAuthServer()
+		t.Run(testCase.name, func(t *testing.T) {
+			teleport := suite.newTeleport(t, nil, true)
+			defer teleport.StopAll()
 
-		_, err := adminSite.UpsertKubeServiceV2(ctx, testCase.server)
-		require.NoError(t, err)
-		err = adminSite.UpsertRole(ctx, testCase.role)
-		require.NoError(t, err)
-		err = adminSite.CreateUser(ctx, testCase.user)
-		require.NoError(t, err)
+			adminSite := teleport.Process.GetAuthServer()
+			_, err := adminSite.UpsertKubeServiceV2(ctx, testCase.server)
+			require.NoError(t, err)
+			err = adminSite.UpsertRole(ctx, testCase.role)
+			require.NoError(t, err)
+			err = adminSite.CreateUser(ctx, testCase.user)
+			require.NoError(t, err)
 
-		cl, err := teleport.NewClient(ClientConfig{
-			Login:   testCase.user.GetName(),
-			Cluster: Site,
-			Host:    Host,
-			Port:    teleport.GetPortSSHInt(),
+			cl, err := teleport.NewClient(ClientConfig{
+				Login:   testCase.user.GetName(),
+				Cluster: Site,
+				Host:    Host,
+				Port:    teleport.GetPortSSHInt(),
+			})
+			require.NoError(t, err)
+
+			proxy, err := cl.ConnectToProxy(ctx)
+			require.NoError(t, err)
+
+			userSite, err := proxy.ConnectToCluster(ctx, Site, false)
+			require.NoError(t, err)
+
+			services, err := userSite.GetKubeServices(ctx)
+			require.NoError(t, err)
+			require.Len(t, services, testCase.wantsLen)
 		})
-		require.NoError(t, err)
-
-		proxy, err := cl.ConnectToProxy(ctx)
-		require.NoError(t, err)
-
-		userSite, err := proxy.ConnectToCluster(ctx, Site, false)
-		require.NoError(t, err)
-
-		services, err := userSite.GetKubeServices(ctx)
-		require.NoError(t, err)
-		require.Len(t, services, testCase.wantsLen)
 	}
 }
