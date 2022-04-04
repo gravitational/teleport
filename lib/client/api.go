@@ -397,7 +397,7 @@ type ProfileStatus struct {
 	Dir string `json:"dir"`
 
 	// ProxyURL is the URL the web client is accessible at.
-	ProxyURL url.URL
+	ProxyURL url.URL `json:"proxy_url"`
 
 	// Username is the Teleport username.
 	Username string `json:"username"`
@@ -447,7 +447,7 @@ type ProfileStatus struct {
 // MarshalJSON marshals the status into JSON with custom URL serialization.
 func (p *ProfileStatus) MarshalJSON() ([]byte, error) {
 	type Alias ProfileStatus
-	return json.Marshal(&struct {
+	return utils.FastMarshal(&struct {
 		ProxyURL string `json:"proxy_url"`
 		*Alias
 	}{p.ProxyURL.String(), (*Alias)(p)})
