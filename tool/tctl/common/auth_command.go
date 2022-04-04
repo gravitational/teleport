@@ -67,7 +67,7 @@ type AuthCommand struct {
 	leafCluster                string
 	kubeCluster                string
 	appName                    string
-	db                         string
+	dbService                  string
 	dbName                     string
 	dbUser                     string
 	signOverwrite              bool
@@ -121,10 +121,10 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("kube-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).Hidden().StringVar(&a.leafCluster)
 	a.authSign.Flag("leaf-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.leafCluster)
 	a.authSign.Flag("kube-cluster-name", `Kubernetes cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
-	a.authSign.Flag("app-name", `Application to generate identity file for. Mutually exclusive with "--db-name".`).StringVar(&a.appName)
-	a.authSign.Flag("db", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.db)
-	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db" is set.`).StringVar(&a.dbUser)
-	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db" is set.`).StringVar(&a.dbName)
+	a.authSign.Flag("app-name", `Application to generate identity file for. Mutually exclusive with "--db-service".`).StringVar(&a.appName)
+	a.authSign.Flag("db-service", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbService)
+	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbUser)
+	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
@@ -607,8 +607,8 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	)
 
 	// `appName` and `db` are mutually exclusive.
-	if a.appName != "" && a.db != "" {
-		return trace.BadParameter("only --app-name or --db can be set, not both")
+	if a.appName != "" && a.dbService != "" {
+		return trace.BadParameter("only --app-name or --db-service can be set, not both")
 	}
 
 	switch {
@@ -634,14 +634,14 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 			SessionID:   appSession.GetName(),
 		}
 		certUsage = proto.UserCertsRequest_App
-	case a.db != "":
-		server, err := getDatabaseServer(context.TODO(), clusterAPI, a.db)
+	case a.dbService != "":
+		server, err := getDatabaseServer(context.TODO(), clusterAPI, a.dbService)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		routeToDatabase = proto.RouteToDatabase{
-			ServiceName: a.db,
+			ServiceName: a.dbService,
 			Protocol:    server.GetDatabase().GetProtocol(),
 			Database:    a.dbName,
 			Username:    a.dbUser,
