@@ -203,7 +203,7 @@ type Identity interface {
 	CreateSAMLAuthRequest(req SAMLAuthRequest, ttl time.Duration) error
 
 	// GetSAMLAuthRequest returns SAML auth request if found
-	GetSAMLAuthRequest(id string) (*SAMLAuthRequest, error)
+	GetSAMLAuthRequest(ctx context.Context, id string) (*SAMLAuthRequest, error)
 
 	// CreateSSODiagnosticInfo creates new SSO diagnostic info record.
 	CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error

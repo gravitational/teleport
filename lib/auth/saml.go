@@ -367,7 +367,7 @@ type SAMLAuthResponse struct {
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
-func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
+func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) (*SAMLAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -377,7 +377,7 @@ func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, e
 
 	auxInfo := validateSAMLAuxInfo{}
 
-	auth, err := a.validateSAMLResponse(samlResponse, &auxInfo)
+	auth, err := a.validateSAMLResponse(ctx, samlResponse, &auxInfo)
 
 	if auxInfo.attributeStatements != nil {
 		attributes, err := apievents.EncodeMapStrings(auxInfo.attributeStatements)
@@ -425,9 +425,7 @@ type validateSAMLAuxInfo struct {
 	ssoTestFlow         bool
 }
 
-func (a *Server) validateSAMLResponse(samlResponse string, auxInfo *validateSAMLAuxInfo) (*SAMLAuthResponse, error) {
-	ctx := context.TODO()
-
+func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, auxInfo *validateSAMLAuxInfo) (*SAMLAuthResponse, error) {
 	requestID, err := ParseSAMLInResponseTo(samlResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -454,7 +452,7 @@ func (a *Server) validateSAMLResponse(samlResponse string, auxInfo *validateSAML
 		diagInfo(types.SSOInfoType_ERROR, errInfo{Message: msg, Error: errDetails.Error()})
 	}
 
-	request, err := a.Identity.GetSAMLAuthRequest(requestID)
+	request, err := a.Identity.GetSAMLAuthRequest(ctx, requestID)
 	if err != nil {
 		traceErr("Failed to get SAML Auth Request", err)
 		return nil, trace.Wrap(err)

@@ -1163,8 +1163,8 @@ func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 }
 
 // GetSAMLAuthRequest gets SAML AuthnRequest
-func (c *Client) GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error) {
-	out, err := c.Get(context.Background(), c.Endpoint("saml", "requests", "get", id), url.Values{})
+func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
+	out, err := c.Get(ctx, c.Endpoint("saml", "requests", "get", id), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1189,8 +1189,8 @@ func (c *Client) GetSSODiagnosticInfo(ctx context.Context, authKind string, auth
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
-func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
+func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
 		Response: re,
 	})
 	if err != nil {
@@ -1777,10 +1777,10 @@ type IdentityService interface {
 	CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error)
 
 	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(re string) (*SAMLAuthResponse, error)
+	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
 
 	// GetSAMLAuthRequest returns SAML auth request if found
-	GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error)
+	GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error)
 
 	// GetSSODiagnosticInfo returns SSO diagnostic info records.
 	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error)

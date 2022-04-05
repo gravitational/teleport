@@ -1435,7 +1435,7 @@ func (s *APIServer) createSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r
 }
 
 func (s *APIServer) getSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	request, err := auth.GetSAMLAuthRequest(p.ByName("id"))
+	request, err := auth.GetSAMLAuthRequest(r.Context(), p.ByName("id"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1480,7 +1480,7 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.ValidateSAMLResponse(req.Response)
+	response, err := auth.ValidateSAMLResponse(r.Context(), req.Response)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

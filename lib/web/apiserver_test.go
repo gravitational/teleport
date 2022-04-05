@@ -566,7 +566,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	id := doc.Root().SelectAttr("ID")
 	c.Assert(id, NotNil)
 
-	authRequest, err := s.server.Auth().GetSAMLAuthRequest(id.Value)
+	authRequest, err := s.server.Auth().GetSAMLAuthRequest(context.Background(), id.Value)
 	c.Assert(err, IsNil)
 
 	// now swap the request id to the hardcoded one in fixtures
