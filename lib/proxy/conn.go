@@ -23,11 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
-)
-
-const (
-	// bufferSize is the connection buffer size.
-	bufferSize = 4 * 1024
+	"google.golang.org/grpc"
 )
 
 // Stream is a common interface for grpc client and server streams.
@@ -40,121 +36,80 @@ type Stream interface {
 // streamConn wraps a grpc stream with a net.streamConn interface.
 type streamConn struct {
 	stream Stream
-	local  net.Conn
-	remote net.Conn
+
+	wLock  sync.Mutex
+	rLock  sync.Mutex
+	rBytes []byte
+	rOff   int
 
 	src net.Addr
 	dst net.Addr
-
-	once sync.Once
-	wg   sync.WaitGroup
-	err  error
 }
 
 // newStreamConn creates a new streamConn.
 func newStreamConn(stream Stream, src net.Addr, dst net.Addr) *streamConn {
-	local, remote := net.Pipe()
 	return &streamConn{
 		stream: stream,
-		local:  local,
-		remote: remote,
 		src:    src,
 		dst:    dst,
 	}
 }
 
-// start begins copying data between the grpc stream and internal pipe.
-func (c *streamConn) run() error {
-	var (
-		sendErr    error
-		receiveErr error
-	)
-	c.wg.Add(2)
+// Read reads data reveived over the grpc stream.
+func (c *streamConn) Read(b []byte) (n int, err error) {
+	c.rLock.Lock()
+	defer c.rLock.Unlock()
 
-	go func() {
-		defer c.Close()
-		receiveErr = c.receive(c.stream)
-		c.wg.Done()
-	}()
-	go func() {
-		defer c.Close()
-		sendErr = c.send(c.stream)
-		c.wg.Done()
-	}()
-
-	c.wg.Wait()
-	return trace.NewAggregate(sendErr, receiveErr)
-}
-
-// receive reveives data from the stream and copies it to the internal pipe.
-func (c *streamConn) receive(stream Stream) error {
-	for {
-		frame, err := stream.Recv()
+	if c.rOff == 0 {
+		frame, err := c.stream.Recv()
 		if err != nil {
-			return trace.Wrap(err)
+			return 0, trace.ConnectionProblem(err, "failed to receive on stream")
 		}
 
 		data := frame.GetData()
 		if data == nil {
-			return trace.Errorf("failed to get data from tunnel frame")
+			return 0, trace.ConnectionProblem(trace.Errorf("failed to receive on stream"), "invalid data frame")
 		}
 
-		_, err = c.remote.Write(data.Bytes)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		c.rBytes = data.Bytes
 	}
-}
 
-// send reads data from the internal pipe and sends it over the stream.
-func (c *streamConn) send(stream Stream) error {
-	b := make([]byte, bufferSize)
+	copy(b, c.rBytes[c.rOff:])
 
-	for {
-		n, err := c.remote.Read(b)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if n == 0 {
-			continue
-		}
-
-		frame := &proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{Bytes: b[:n]}}}
-		err = stream.Send(frame)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// Reset the read offset if all the data has been read.
+	if (len(c.rBytes) - c.rOff) <= len(b) {
+		n := len(c.rBytes) - c.rOff
+		c.rOff = 0
+		return n, nil
 	}
-}
 
-// Read reads data reveived over the grpc stream.
-func (c *streamConn) Read(b []byte) (n int, err error) {
-	return c.local.Read(b)
+	c.rOff += len(b)
+	return len(b), nil
 }
 
 // Write sends data over the grpc stream.
-func (c *streamConn) Write(b []byte) (n int, err error) {
-	return c.local.Write(b)
+func (c *streamConn) Write(b []byte) (int, error) {
+	c.wLock.Lock()
+	defer c.wLock.Unlock()
+
+	err := c.stream.Send(&proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{
+		Bytes: b,
+	}}})
+	if err != nil {
+		return 0, trace.ConnectionProblem(err, "failed to send on stream")
+	}
+
+	return len(b), nil
 }
 
 // Close cleans up resources used by the connection.
 func (c *streamConn) Close() error {
-	c.once.Do(func() {
-		err := c.close()
-		c.err = err
-	})
+	var err error
+	if cstream, ok := c.stream.(grpc.ClientStream); ok {
+		err = cstream.CloseSend()
+	}
 
-	c.wg.Wait()
-	return trace.Wrap(c.err)
-}
-
-// close cleans up resources used by the connection.
-func (c *streamConn) close() error {
-	localErr := c.local.Close()
-	remoteErr := c.remote.Close()
-
-	return trace.NewAggregate(localErr, remoteErr)
+	return trace.Wrap(err)
 }
 
 // LocalAddr is the original source address of the client.
@@ -168,15 +123,15 @@ func (c *streamConn) RemoteAddr() net.Addr {
 }
 
 func (c *streamConn) SetDeadline(t time.Time) error {
-	return c.local.SetDeadline(t)
+	return nil
 }
 
 func (c *streamConn) SetReadDeadline(t time.Time) error {
-	return c.local.SetReadDeadline(t)
+	return nil
 }
 
 func (c *streamConn) SetWriteDeadline(t time.Time) error {
-	return c.local.SetWriteDeadline(t)
+	return nil
 }
 
 // pipeConn copies between two ReadWriteCloser and closes them when done.
@@ -190,9 +145,9 @@ func pipeConn(ctx context.Context, src net.Conn, dst net.Conn) (int64, int64, er
 	errC := make(chan error, 1)
 	cleanup := func(err error) {
 		o.Do(func() {
-			src.Close()
-			dst.Close()
-			errC <- err
+			srcErr := src.Close()
+			dstErr := dst.Close()
+			errC <- trace.NewAggregate(err, srcErr, dstErr)
 			close(errC)
 		})
 	}

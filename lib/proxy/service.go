@@ -89,10 +89,6 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	}
 
 	streamConn := newStreamConn(stream, source, destination)
-	go func() {
-		err := streamConn.run()
-		log.WithError(err).Debug("Stream connection exited.")
-	}()
 
 	sent, received, err := pipeConn(stream.Context(), streamConn, nodeConn)
 	log.Debugf("Closing dial request from peer. sent: %d reveived %d", sent, received)
