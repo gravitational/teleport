@@ -57,9 +57,13 @@ const formatProtocol = (input: DbProtocol) => {
     case 'postgres':
       return 'PostgreSQL';
     case 'mysql':
-      return 'MySQL';
+      return 'MySQL/MariaDB';
     case 'mongodb':
       return 'MongoDB';
+    case 'sqlserver':
+      return 'SQL Server';
+    case 'redis':
+      return 'Redis';
     default:
       return input;
   }

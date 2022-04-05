@@ -54,12 +54,14 @@ test('null response from database fetch', async () => {
 describe('correct formatting of all type and protocol combos', () => {
   test.each`
     type                 | protocol                 | combined
-    ${'self-hosted'}     | ${'mysql'}               | ${'Self-hosted MySQL'}
-    ${'rds'}             | ${'mysql'}               | ${'RDS MySQL'}
+    ${'self-hosted'}     | ${'mysql'}               | ${'Self-hosted MySQL/MariaDB'}
+    ${'rds'}             | ${'mysql'}               | ${'RDS MySQL/MariaDB'}
     ${'self-hosted'}     | ${'postgres'}            | ${'Self-hosted PostgreSQL'}
     ${'rds'}             | ${'postgres'}            | ${'RDS PostgreSQL'}
     ${'gcp'}             | ${'postgres'}            | ${'Cloud SQL PostgreSQL'}
     ${'redshift'}        | ${'postgres'}            | ${'Redshift'}
+    ${'self-hosted'}     | ${'sqlserver'}           | ${'Self-hosted SQL Server'}
+    ${'self-hosted'}     | ${'redis'}               | ${'Self-hosted Redis'}
     ${'some other type'} | ${'some other protocol'} | ${'some other type some other protocol'}
   `(
     'should combine type: $type and protocol: $protocol correctly',
