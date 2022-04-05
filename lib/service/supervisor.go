@@ -366,7 +366,6 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 		select {
 		case s.eventsC <- e:
 		case <-s.closeContext.Done():
-			return
 		}
 	}
 
