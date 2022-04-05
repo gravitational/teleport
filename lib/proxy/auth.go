@@ -103,13 +103,14 @@ func checkProxyRole(authInfo credentials.AuthInfo) error {
 // appropriate client certificate authorities.
 func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+		tlsCopy := tlsConfig.Clone()
+
 		pool, err := getCertPool(ap)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
-			return tlsConfig, nil
+			return tlsCopy, nil
 		}
 
-		tlsCopy := tlsConfig.Clone()
 		tlsCopy.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsCopy.ClientCAs = pool
 		return tlsCopy, nil
@@ -120,13 +121,14 @@ func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.F
 // appropriate server certificate authorities.
 func getConfigForServer(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger) func() (*tls.Config, error) {
 	return func() (*tls.Config, error) {
+		tlsCopy := tlsConfig.Clone()
+
 		pool, err := getCertPool(ap)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve server CA pool.")
-			return tlsConfig, nil
+			return tlsCopy, nil
 		}
 
-		tlsCopy := tlsConfig.Clone()
 		tlsCopy.RootCAs = pool
 		return tlsCopy, nil
 	}

@@ -475,9 +475,6 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 		return nil, false, trace.Wrap(err)
 	}
 
-	c.Lock()
-	defer c.Unlock()
-
 	var errs []error
 	for _, proxy := range proxies {
 		id := proxy.GetName()
@@ -494,12 +491,18 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 		}
 
 		conns = append(conns, conn)
-		c.conns[id] = conn
 	}
 
 	if len(conns) == 0 {
 		c.metrics.reportTunnelError(errorProxyPeerProxiesUnreachable)
 		return nil, false, trace.ConnectionProblem(trace.NewAggregate(errs...), "Error dialing all proxies")
+	}
+
+	c.Lock()
+	defer c.Unlock()
+
+	for _, conn := range conns {
+		c.conns[conn.id] = conn
 	}
 
 	return conns, false, nil
