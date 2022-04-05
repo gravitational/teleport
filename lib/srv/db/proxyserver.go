@@ -187,7 +187,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log, types.UserCA)
 	return server, nil
 }
 
@@ -625,9 +625,19 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
+	// with UserCA where Teleport 10+ uses DatabaseCA.
+	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), "10.0.0")
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
+	}
+
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
 		ClusterName: identity.RouteToCluster,
+		// TODO: Remove in Teleport 11.
+		SignWithDatabaseCA: ver10orAbove,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -650,7 +660,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	}, nil
 }
 
-func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger, caTypes ...types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -660,7 +670,7 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, err := auth.ClientCertPool(ap, clusterName)
+		pool, err := auth.ClientCertPool(ap, clusterName, caTypes...)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return nil, nil // Fall back to the default config.
