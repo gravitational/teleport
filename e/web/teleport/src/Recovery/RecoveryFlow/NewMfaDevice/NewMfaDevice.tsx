@@ -11,7 +11,7 @@ import {
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import useNewMfaDevice, { State, Props } from './useNewMfaDevice';
 
-const u2fGraphic = require('design/assets/images/u2f-graphic.svg');
+const secKeyGraphic = require('design/assets/images/sec-key-graphic.svg');
 
 export default function Container(props: Props) {
   const state = useNewMfaDevice(props);
@@ -23,7 +23,6 @@ export function NewMfaDevice({
   clearSubmitAttempt,
   qrCode,
   setNewTotpDevice,
-  setNewU2fDevice,
   setNewWebauthnDevice,
   auth2faType,
   preferredMfaType,
@@ -60,22 +59,19 @@ export function NewMfaDevice({
 
     if (mfaOption.value === 'otp') {
       setNewTotpDevice(otpToken, deviceName);
-    } else if (mfaOption.value === 'u2f') {
-      setNewU2fDevice(deviceName);
     } else if (mfaOption.value === 'webauthn') {
       setNewWebauthnDevice(deviceName);
     }
   }
 
   const imgSrc =
-    mfaOption.value === 'otp' ? `data:image/png;base64,${qrCode}` : u2fGraphic;
+    mfaOption.value === 'otp'
+      ? `data:image/png;base64,${qrCode}`
+      : secKeyGraphic;
 
   let hardwareInstructions = 'Enter a name for your hardware key.';
   if (attempt.status === 'processing') {
-    hardwareInstructions =
-      mfaOption.value === 'u2f'
-        ? 'Insert your new hardware key and press the button on the key.'
-        : 'Follow the prompts from your browser.';
+    hardwareInstructions = 'Follow the prompts from your browser.';
   }
 
   return (
@@ -123,8 +119,7 @@ export function NewMfaDevice({
                     </Text>
                   </Text>
                 )}
-                {(mfaOption.value === 'u2f' ||
-                  mfaOption.value === 'webauthn') && (
+                {mfaOption.value === 'webauthn' && (
                   <Text mt={3}>{hardwareInstructions}</Text>
                 )}
               </Flex>

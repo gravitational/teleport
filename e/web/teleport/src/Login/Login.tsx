@@ -22,7 +22,6 @@ export default function Container() {
 export function Login({
   attempt,
   onLogin,
-  onLoginWithU2f,
   onLoginWithWebauthn,
   onLoginWithSso,
   authProviders,
@@ -43,7 +42,6 @@ export function Login({
         preferredMfaType={preferredMfaType}
         isLocalAuthEnabled={isLocalAuthEnabled}
         onLoginWithSso={onLoginWithSso}
-        onLoginWithU2f={onLoginWithU2f}
         onLoginWithWebauthn={onLoginWithWebauthn}
         onLogin={onLogin}
         attempt={attempt}

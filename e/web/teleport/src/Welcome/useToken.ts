@@ -34,20 +34,6 @@ export default function useToken(tokenId: string) {
       .catch(submitAttempt.handleError);
   }
 
-  function onSubmitWithU2f(password: string) {
-    submitAttempt.setAttempt({ status: 'processing' });
-    auth
-      .resetPasswordWithU2f(tokenId, password)
-      .then(recoveryCodes => {
-        if (recoveryCodes.createdDate) {
-          setRecoveryCodes(recoveryCodes);
-        } else {
-          redirect();
-        }
-      })
-      .catch(submitAttempt.handleError);
-  }
-
   function onSubmitWithWebauthn(password: string) {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
@@ -77,7 +63,6 @@ export default function useToken(tokenId: string) {
     submitAttempt: submitAttempt.attempt,
     clearSubmitAttempt,
     onSubmit,
-    onSubmitWithU2f,
     onSubmitWithWebauthn,
     passwordToken,
     recoveryCodes,

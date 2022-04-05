@@ -31,14 +31,6 @@ export default function useVerifyUser({ recoveryService, token, done }: Props) {
       .catch(handleError);
   }
 
-  function submitU2fCreds() {
-    setAttempt({ status: 'processing' });
-    recoveryService
-      .verifyUserWithU2f(token.id, token.username)
-      .then(done)
-      .catch(handleError);
-  }
-
   function submitWebauthnCreds() {
     setAttempt({ status: 'processing' });
     recoveryService
@@ -52,7 +44,6 @@ export default function useVerifyUser({ recoveryService, token, done }: Props) {
     token,
     submitPasswordCreds,
     submitTotpCreds,
-    submitU2fCreds,
     submitWebauthnCreds,
     auth2faType,
     preferredMfaType: cfg.oss.getPreferredMfaType(),

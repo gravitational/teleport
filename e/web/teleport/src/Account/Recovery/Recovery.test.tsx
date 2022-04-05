@@ -29,10 +29,6 @@ describe('recovery dashboard testing', () => {
       .mockResolvedValue(privilegeToken);
 
     jest
-      .spyOn(AuthService, 'createPrivilegeTokenWithU2f')
-      .mockResolvedValue(privilegeToken);
-
-    jest
       .spyOn(AuthService, 'createPrivilegeTokenWithWebauthn')
       .mockResolvedValue(privilegeToken);
 
@@ -50,8 +46,6 @@ describe('recovery dashboard testing', () => {
     });
 
     jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('on');
-
-    jest.spyOn(cfg.oss, 'getPreferredMfaType').mockReturnValue('u2f');
   });
 
   afterEach(() => {
@@ -85,33 +79,6 @@ describe('recovery dashboard testing', () => {
     expect(AuthService.createPrivilegeTokenWithTotp).toHaveBeenCalledWith(
       '321321'
     );
-
-    expect(ctx.recoveryService.generateRecoveryCodes).toHaveBeenCalledWith(
-      privilegeToken
-    );
-
-    expect(ctx.recoveryService.fetchRecoveryCodesMetadata).toHaveBeenCalled();
-
-    expect(screen.getByText('New Backup & Recovery Codes')).toBeInTheDocument();
-    expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
-    expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
-    expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
-  });
-
-  test('generating new codes with u2f', async () => {
-    await waitFor(() => renderRecoveryDashboard());
-
-    expect(ctx.recoveryService.fetchRecoveryCodesMetadata).toHaveBeenCalled();
-
-    fireEvent.click(screen.getByText('Generate new recovery codes'));
-
-    expect(screen.getByText('Verify your identity')).toBeInTheDocument();
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-    });
-
-    expect(AuthService.createPrivilegeTokenWithU2f).toHaveBeenCalled();
 
     expect(ctx.recoveryService.generateRecoveryCodes).toHaveBeenCalledWith(
       privilegeToken

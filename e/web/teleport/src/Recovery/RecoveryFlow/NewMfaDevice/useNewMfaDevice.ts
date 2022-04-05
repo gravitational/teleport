@@ -23,14 +23,6 @@ export default function useNewMfaDevice({
       .catch(handleError);
   }
 
-  function setNewU2fDevice(deviceName: string) {
-    setAttempt({ status: 'processing' });
-    recoveryService
-      .setNewU2fDevice({ tokenId, deviceName })
-      .then(onNext)
-      .catch(handleError);
-  }
-
   function setNewWebauthnDevice(deviceName: string) {
     setAttempt({ status: 'processing' });
     recoveryService
@@ -47,7 +39,6 @@ export default function useNewMfaDevice({
     attempt,
     clearSubmitAttempt,
     setNewTotpDevice,
-    setNewU2fDevice,
     setNewWebauthnDevice,
     qrCode,
     auth2faType,

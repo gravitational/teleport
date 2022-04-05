@@ -66,10 +66,6 @@ describe('all recovery flows should show correct screens', () => {
       .mockResolvedValue({});
 
     jest
-      .spyOn(RecoveryService.prototype, 'setNewU2fDevice')
-      .mockResolvedValue({});
-
-    jest
       .spyOn(RecoveryService.prototype, 'generateRecoveryCodes')
       .mockResolvedValue(recoveryCodes);
 
@@ -144,91 +140,8 @@ describe('all recovery flows should show correct screens', () => {
     );
 
     const newPasswordField = screen.getByPlaceholderText('Password');
-    const newConfirmPasswordField = screen.getByPlaceholderText(
-      'Confirm Password'
-    );
-
-    fireEvent.change(newPasswordField, { target: { value: 'password123' } });
-    fireEvent.change(newConfirmPasswordField, {
-      target: { value: 'password123' },
-    });
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      mockHistory.push(routeNewCodesWithApprovedToken);
-    });
-
-    expect(
-      RecoveryService.prototype.setNewTotpDeviceOrPassword
-    ).toHaveBeenCalledWith({
-      tokenId: approvedToken.id,
-      password: 'password123',
-    });
-
-    expect(history.push).toHaveBeenLastCalledWith(
-      routeNewCodesWithApprovedToken
-    );
-
-    expect(
-      RecoveryService.prototype.generateRecoveryCodes
-    ).toHaveBeenCalledWith(approvedToken.id);
-
-    expect(screen.getByText('New Backup & Recovery Codes')).toBeInTheDocument();
-    expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
-    expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
-    expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(recoveryCodes.createdDate.toString(), { exact: false })
-    ).toBeInTheDocument();
-  });
-
-  test('new password with u2f', async () => {
-    jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('u2f');
-    jest
-      .spyOn(RecoveryService.prototype, 'fetchRecoveryToken')
-      .mockResolvedValue({
-        ...startToken,
-        isRecoverPassword: true,
-      });
-    jest
-      .spyOn(RecoveryService.prototype, 'verifyUserWithU2f')
-      .mockResolvedValue({
-        ...approvedToken,
-        isRecoverPassword: true,
-      });
-
-    await waitFor(() => {
-      renderRecovery();
-      mockHistory.replace(route1VerifyWithStartToken);
-    });
-
-    expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
-
-    jest
-      .spyOn(RecoveryService.prototype, 'fetchRecoveryToken')
-      .mockResolvedValue({
-        ...approvedToken,
-        isRecoverPassword: true,
-      });
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      mockHistory.push(route2NewPasswordWithApprovedToken);
-    });
-
-    expect(RecoveryService.prototype.verifyUserWithU2f).toHaveBeenCalledWith(
-      startToken.id,
-      startToken.username
-    );
-
-    expect(history.push).toHaveBeenLastCalledWith(
-      route2NewPasswordWithApprovedToken
-    );
-
-    const newPasswordField = screen.getByPlaceholderText('Password');
-    const newConfirmPasswordField = screen.getByPlaceholderText(
-      'Confirm Password'
-    );
+    const newConfirmPasswordField =
+      screen.getByPlaceholderText('Confirm Password');
 
     fireEvent.change(newPasswordField, { target: { value: 'password123' } });
     fireEvent.change(newConfirmPasswordField, {
@@ -328,106 +241,6 @@ describe('all recovery flows should show correct screens', () => {
       secondFactorToken: '321321',
       deviceName: 'backup',
     });
-
-    expect(history.push).toHaveBeenLastCalledWith(
-      route3DevicesWithApprovedToken
-    );
-
-    expect(MfaService.prototype.fetchDevicesWithToken).toHaveBeenCalledWith(
-      approvedToken.id
-    );
-
-    expect(
-      screen.getByText(/take a look at your enrolled devices below/i)
-    ).toBeInTheDocument();
-    expect(screen.getByText(/iphone 12/i)).toBeInTheDocument();
-    expect(screen.getByText(/solokey/i)).toBeInTheDocument();
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      mockHistory.push(routeNewCodesWithApprovedToken);
-    });
-
-    expect(history.push).toHaveBeenLastCalledWith(
-      routeNewCodesWithApprovedToken
-    );
-
-    expect(
-      RecoveryService.prototype.generateRecoveryCodes
-    ).toHaveBeenCalledWith(approvedToken.id);
-
-    expect(screen.getByText('New Backup & Recovery Codes')).toBeInTheDocument();
-    expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
-    expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
-    expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(recoveryCodes.createdDate.toString(), { exact: false })
-    ).toBeInTheDocument();
-  });
-
-  test('new u2f device using password', async () => {
-    jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('u2f');
-    jest
-      .spyOn(RecoveryService.prototype, 'fetchRecoveryToken')
-      .mockResolvedValue({
-        ...startToken,
-        isRecoverPassword: false,
-      });
-    jest.spyOn(RecoveryService.prototype, 'verifyUser').mockResolvedValue({
-      ...approvedToken,
-      isRecoverPassword: false,
-    });
-
-    await waitFor(() => {
-      renderRecovery();
-      mockHistory.replace(route1VerifyWithStartToken);
-    });
-
-    expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
-
-    jest
-      .spyOn(RecoveryService.prototype, 'fetchRecoveryToken')
-      .mockResolvedValue({
-        ...approvedToken,
-        isRecoverPassword: false,
-      });
-
-    const passwordField = screen.getByPlaceholderText('Password');
-
-    fireEvent.change(passwordField, { target: { value: 'password123' } });
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      mockHistory.push(route2NewDeviceWithApprovedToken);
-    });
-
-    expect(RecoveryService.prototype.verifyUser).toHaveBeenCalledWith({
-      tokenId: startToken.id,
-      username: startToken.username,
-      password: 'password123',
-    });
-
-    expect(history.push).toHaveBeenLastCalledWith(
-      route2NewDeviceWithApprovedToken
-    );
-
-    const deviceNameField = screen.getByPlaceholderText(/name/i);
-    const registerKeyBtn = screen.getByText(/continue/i);
-
-    fireEvent.change(deviceNameField, { target: { value: 'backup' } });
-    fireEvent.click(registerKeyBtn);
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText(/continue/i));
-      mockHistory.push(route3DevicesWithApprovedToken);
-    });
-
-    expect(RecoveryService.prototype.setNewU2fDevice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tokenId: approvedToken.id,
-        deviceName: 'backup',
-      })
-    );
 
     expect(history.push).toHaveBeenLastCalledWith(
       route3DevicesWithApprovedToken

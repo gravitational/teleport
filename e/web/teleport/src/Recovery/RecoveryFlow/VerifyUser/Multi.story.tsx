@@ -30,6 +30,5 @@ const props: State = {
   attempt: { status: '' },
   submitPasswordCreds: () => null,
   submitTotpCreds: () => null,
-  submitU2fCreds: () => null,
   submitWebauthnCreds: () => null,
 };

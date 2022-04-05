@@ -2,7 +2,6 @@ import React from 'react';
 import { render } from 'design/utils/testing';
 import {
   LoadedMulti,
-  LoadedU2f,
   LoadedWebauthn,
   LoadedTotp,
   Failed,
@@ -16,12 +15,6 @@ test('render correct form to add with multi option', () => {
 
 test('render correct form to add TOTP device', () => {
   const { container } = render(<LoadedTotp />);
-
-  expect(container.firstChild).toMatchSnapshot();
-});
-
-test('render correct form to add U2F device', () => {
-  const { container } = render(<LoadedU2f />);
 
   expect(container.firstChild).toMatchSnapshot();
 });

@@ -23,7 +23,7 @@ function getMethodDescription(auth2faType: Auth2faType) {
       return 'two-factor device';
     case 'otp':
       return 'authenticator app';
-    case 'u2f' || 'webauthn':
+    case 'webauthn':
       return 'hardware key';
     default:
       return 'unknown device type';
@@ -35,7 +35,6 @@ export function VerifyUser({
   token,
   submitPasswordCreds,
   submitTotpCreds,
-  submitU2fCreds,
   submitWebauthnCreds,
   auth2faType,
   preferredMfaType,
@@ -69,9 +68,6 @@ export function VerifyUser({
       switch (mfaOption.value) {
         case 'otp':
           submitTotpCreds(otpToken);
-          break;
-        case 'u2f':
-          submitU2fCreds();
           break;
         case 'webauthn':
           submitWebauthnCreds();
@@ -149,13 +145,6 @@ export function VerifyUser({
                       readonly={attempt.status === 'processing'}
                     />
                   )}
-                  {mfaOption.value === 'u2f' &&
-                    attempt.status === 'processing' && (
-                      <Text typography="body2">
-                        Insert your hardware key and press the button on the
-                        key.
-                      </Text>
-                    )}
                 </Flex>
               )}
               <ButtonPrimary

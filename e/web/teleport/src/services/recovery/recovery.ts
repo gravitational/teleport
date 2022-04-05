@@ -1,4 +1,3 @@
-import 'u2f-api-polyfill';
 import api from 'teleport/services/api';
 import auth, {
   makeWebauthnAssertionResponse,
@@ -8,7 +7,6 @@ import auth, {
 import cfg from 'e-teleport/config';
 import makeRecoveryToken from './makeRecoveryToken';
 import {
-  RecoveryToken,
   StartRecoveryRequest,
   VerifyUserRequest,
   NewCredentialRequest,
@@ -29,38 +27,6 @@ class RecoveryService {
     return api
       .post(cfg.api.recoveryVerifyUserPath, credentials)
       .then(makeRecoveryToken);
-  }
-
-  // verifyUserWithU2f authenticates the user defined in token with their u2f creds
-  verifyUserWithU2f(tokenId: string, username: string) {
-    const err = auth.u2fBrowserSupported();
-    if (err) {
-      return Promise.reject(err);
-    }
-
-    return new Promise<RecoveryToken>((resolve, reject) => {
-      auth.createMfaAuthnChallengeWithToken(tokenId).then(data => {
-        const { appId, challenge, registeredKeys } = data.u2f;
-        window['u2f'].sign(appId, challenge, registeredKeys, res => {
-          if (res.errorCode) {
-            const err = auth._getU2fErr(res.errorCode);
-            reject(err);
-            return;
-          }
-
-          api
-            .post(cfg.api.recoveryVerifyUserPath, {
-              tokenId,
-              username,
-              u2fSignResponse: res,
-            })
-            .then(res => resolve(makeRecoveryToken(res)))
-            .catch(err => {
-              reject(err);
-            });
-        });
-      });
-    });
   }
 
   verifyUserWithWebauthn(tokenId: string, username: string) {
@@ -86,20 +52,6 @@ class RecoveryService {
 
   setNewTotpDeviceOrPassword(data: NewCredentialRequest) {
     return api.post(cfg.api.recoveryNewCredentialsPath, data);
-  }
-
-  setNewU2fDevice(data: NewCredentialRequest) {
-    const err = auth.u2fBrowserSupported();
-    if (err) {
-      return Promise.reject(err);
-    }
-
-    return auth._getU2FRegisterRes(data.tokenId).then(u2fRegisterResponse => {
-      return api.post(cfg.api.recoveryNewCredentialsPath, {
-        ...data,
-        u2fRegisterResponse,
-      });
-    });
   }
 
   setNewWebauthnDevice(data: NewCredentialRequest) {

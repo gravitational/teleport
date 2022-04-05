@@ -9,14 +9,12 @@ export type VerifyUserRequest = {
   username: string;
   password?: string;
   secondFactorToken?: string;
-  u2fSignResponse?: string;
 };
 
 export type NewCredentialRequest = {
   tokenId: string;
   password?: string;
   secondFactorToken?: string;
-  u2fRegisterResponse?: string;
   deviceName?: string;
 };
 

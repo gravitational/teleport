@@ -22,18 +22,6 @@ export const ProcessingWebauthn = () => (
     attempt={{ status: 'processing' }}
   />
 );
-export const LoadedU2f = () => <NewMfaDevice {...props} auth2faType="u2f" />;
-LoadedU2f.storyName = 'Loaded U2F';
-
-export const ProcessingU2f = () => (
-  <NewMfaDevice
-    {...props}
-    auth2faType="u2f"
-    attempt={{ status: 'processing' }}
-  />
-);
-
-ProcessingU2f.storyName = 'Processing U2F';
 
 export const Failed = () => (
   <NewMfaDevice
@@ -46,7 +34,6 @@ const props: State = {
   attempt: { status: '' },
   clearSubmitAttempt: () => null,
   setNewTotpDevice: () => null,
-  setNewU2fDevice: () => null,
   setNewWebauthnDevice: () => null,
   auth2faType: 'on',
   preferredMfaType: 'webauthn',
