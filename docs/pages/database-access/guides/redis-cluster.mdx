@@ -23,17 +23,73 @@ This guide will help you to:
 
 ## Prerequisites
 
-- Teleport version `9.0` or newer.
 - Redis version `6.0` or newer.
 - `redis-cli` installed and added to your system's `PATH` environment variable.
+- A host where you will run the Teleport Database Service. Teleport must be installed.
+
+  See [Installation](../../installation.mdx) for details.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
 
 <Admonition type="note" title="Note">
   Redis `7.0` and RESP3 (REdis Serialization Protocol) are currently not supported.
 </Admonition>
 
-## Step 1/6. Set up Teleport Auth and Proxy
+## Step 1/6. Install and configure Teleport
+
+### Set up the Teleport Auth and Proxy Services
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+
+### Set up the Teleport Database Service
+
+(!docs/pages/includes/database-access/token.mdx!)
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+Start the Teleport Database Service, pointing the `--auth-server` flag to the
+address of your Teleport Proxy Service:
+
+```code
+$ teleport db start \
+  --token=/tmp/token \
+  --auth-server=teleport.example.com:3080 \
+  --name=example-redis \
+  --protocol=redis \
+  --uri=rediss://redis.example.com:6379?mode=cluster \
+  --labels=env=dev
+```
+
+<Admonition type="note">
+
+The `--auth-server` flag must point to the Teleport cluster's Proxy Service
+endpoint because the Database Service always connects back to the cluster over a
+reverse tunnel.
+
+</Admonition>
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Start the Teleport Database Service, pointing the `--auth-server` flag to the
+address of your Teleport Cloud tenant:
+
+```code
+$ teleport db start \
+  --token=/tmp/token \
+  --auth-server=mytenant.teleport.sh \
+  --name=example-redis \
+  --protocol=redis \
+  --uri=rediss://redis.example.com:6379?mode=cluster \
+  --labels=env=dev
+```
+
+</ScopedBlock>
+
+<Admonition type="tip">
+  You can start the Database Service using a configuration file instead of CLI flags.
+  See the [YAML reference](../reference/configuration.mdx) for details.
+</Admonition>
 
 ## Step 2/6. Create a Teleport user
 
@@ -48,7 +104,6 @@ This guide will help you to:
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
 We will show you how to use the `tctl auth sign` command below.
-
 
 When connecting to Redis Cluster, sign certificates for each member
 using their hostnames and IP addresses.
@@ -96,7 +151,7 @@ from clients that do not present a certificate.
 See [TLS Support](https://redis.io/topics/encryption)
 in the Redis documentation for more details.
 
-## Step 5/6. Create cluster
+## Step 5/6. Create a cluster
 
 Use the following command to create the cluster. Please note `redis-cli --cluster create` accepts only IP addresses.
 ```sh
