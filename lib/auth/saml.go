@@ -375,7 +375,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 		Method: events.LoginMethodSAML,
 	}
 
-	auxInfo := validateSAMLAuxInfo{}
+	var auxInfo validateSAMLAuxInfo
 
 	auth, err := a.validateSAMLResponse(ctx, samlResponse, &auxInfo)
 
