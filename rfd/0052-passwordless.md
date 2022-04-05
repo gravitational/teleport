@@ -466,7 +466,7 @@ auth_service:
     passwordless: true
 
     # Sets passwordless as the default connector.
-    connector_name: local:passwordless
+    connector_name: passwordless
 ```
 
 `cluster_auth_preference` / [AuthPreferenceSpecV2](
@@ -483,26 +483,24 @@ spec:
   webauthn:
     rp_id: example.com
   allow_passwordless: true
-  connector_name: local:passwordless
+  connector_name: passwordless
 ```
 
 #### Virtual connectors
 
 The design extends the [`local` users connector](
 https://goteleport.com/docs/architecture/users/#multiple-identity-sources) by
-adding the `local:passwordless` connector, a variant that uses passwordless
-logins.
+adding the `passwordless` connector, a variant that uses passwordless logins.
 
 Users may manually change their login method, as long as the cluster supports
-it, by running `tsh login --auth=local` or `tsh login
---auth=local:passwordless`. `tsh` and Web UI should check the connector name
-from `/ping` endpoints and react accordingly.
+it, by running `tsh login --auth=local` or `tsh login --auth=passwordless`.
+`tsh` and Web UI should check the connector name from `/ping` endpoints and
+react accordingly.
 
-`local:passwordless` is now a system-reserved connector name, taking precedence
-over similarly named connectors. Furthermore, the design suggests forbidding
-user-created connectors from containing the `:` character, so that other virtual
-connectors may be added, as necessary. (For example,
-`$connector_name:passwordless` for OIDC and SAML.)
+`passwordless` is now a system-reserved connector name, taking precedence over
+equally named connectors. A similar solution using virtual connectors could be
+used to "decorate" existing OIDC/SAML connectors for passwordless, but this is
+left for a future design.
 
 <!--
 References:

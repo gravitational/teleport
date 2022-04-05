@@ -287,7 +287,7 @@ registered for "example.com")
 `tsh login --proxy=example.com --user=llama` behaves as above, but using a
 specific user
 
-`tsh login --auth=local:passwordless --mfa-mode=platform --proxy=example.com
+`tsh login --auth=passwordless --mfa-mode=platform --proxy=example.com
 --user=llama` is the zero ambiguity, (needlessly) long form of the above.
 
 `tsh mfa add` adds support for Touch ID, both for authentication and registering
