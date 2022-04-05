@@ -472,8 +472,9 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 			//   https://golang.org/doc/go1.15#commonname
 			ServerNames: principals,
 			// Include legacy ServerName for compatibility.
-			ServerName: principals[0],
-			TTL:        proto.Duration(a.genTTL),
+			ServerName:     principals[0],
+			TTL:            proto.Duration(a.genTTL),
+			KeysGeneration: true,
 		})
 	if err != nil {
 		return trace.Wrap(err)
