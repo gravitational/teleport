@@ -978,6 +978,12 @@ type MetricsConfig struct {
 	// use for mTLS.
 	// Used in conjunction with MTLS = true
 	CACerts []string
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCServerLatency bool
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCClientLatency bool
 }
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop

@@ -55,6 +55,7 @@ require (
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.1.17
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
+	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-20220308023801-e4a6915ea237
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jackc/pgconn v1.11.0
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
@@ -178,6 +179,7 @@ require (
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2.0.20220308023801-e4a6915ea237 // indirect
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -229,6 +231,7 @@ require (
 	github.com/spf13/cobra v1.2.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/thales-e-security/pool v0.0.2 // indirect
+	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.0.2 // indirect
