@@ -16,6 +16,7 @@ import {
   subscribeToConfigServiceEvents,
 } from '../services/config';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
+import theme from 'teleterm/ui/ThemeProvider/theme';
 
 type Options = {
   settings: RuntimeSettings;
@@ -52,6 +53,7 @@ export default class MainProcess {
       height,
       title: 'Teleport Terminal',
       icon: getAssetPath('icon.png'),
+      backgroundColor: theme.colors.primary.main,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
