@@ -1,5 +1,20 @@
 # Changelog
 
+## 8.3.7
+
+This release of Teleport contains multiple fixes and improvements.
+
+* Fixed issue with `tctl` not respecting TELEPORT_HOME environment variable. [#11560](https://github.com/gravitational/teleport/pull/11560)
+* Fixed issue with `:` not being allowed in label keys. [#11562](https://github.com/gravitational/teleport/pull/11562)
+* Fixed issue with panic in Kubernetes access in certain cases. [#11611](https://github.com/gravitational/teleport/pull/11611)
+* Added `connect_to_node_attempts_total` metric that tracks number of connection attempts to SSH nodes. [#11630](https://github.com/gravitational/teleport/pull/11630)
+* Multiple CA rotation stability improvements. [#11659](https://github.com/gravitational/teleport/pull/11659)
+* Fixed multiple session player issues. [#11559](https://github.com/gravitational/teleport/pull/11559), [#11491](https://github.com/gravitational/teleport/pull/11491)
+* Fixed issue with `tsh version` exiting with error when no tsh config is present. [#11727](https://github.com/gravitational/teleport/pull/11727)
+* Fixed issue with the logger not respecting JSON config. [#11602](https://github.com/gravitational/teleport/pull/11602)
+* Fixed issue with stale Auth Service entries causing connection issues. [#11597](https://github.com/gravitational/teleport/pull/11597)
+* Fixed issue with remote cluster without reverse tunnels not being cleaned up. [#11435](https://github.com/gravitational/teleport/pull/11435)
+
 ## 8.3.6
 
 This release of Teleport contains multiple fixes.
