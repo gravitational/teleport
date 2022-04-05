@@ -49,132 +49,138 @@ type UtilsSuite struct {
 var _ = check.Suite(&UtilsSuite{})
 
 // TestCapitalize tests capitalize function
-func (s *UtilsSuite) TestCapitalize(c *check.C) {
+func TestCapitalize(t *testing.T) {
 	type testCase struct {
-		in  string
-		out string
+		name string
+		in   string
+		out  string
 	}
 	cases := []testCase{
-		{in: "hello there", out: "Hello there"},
-		{in: " ", out: " "},
-		{in: "", out: ""},
+		{name: "capitalize text", in: "hello there", out: "Hello there"},
+		{name: "ignore whitespace-only", in: " ", out: " "},
+		{name: "ignore empty", in: "", out: ""},
 	}
-	for i, tc := range cases {
-		comment := check.Commentf("Test case %v", i)
-		c.Assert(Capitalize(tc.in), check.Equals, tc.out, comment)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.out, Capitalize(tc.in))
+		})
 	}
 }
 
 // TestLinear tests retry logic
-func (s *UtilsSuite) TestLinear(c *check.C) {
+func TestLinear(t *testing.T) {
 	r, err := NewLinear(LinearConfig{
 		Step: time.Second,
 		Max:  3 * time.Second,
 	})
-	c.Assert(err, check.IsNil)
-	c.Assert(r.Duration(), check.Equals, time.Duration(0))
+	require.NoError(t, err)
+	require.Equal(t, r.Duration(), time.Duration(0))
 	r.Inc()
-	c.Assert(r.Duration(), check.Equals, time.Second)
+	require.Equal(t, r.Duration(), time.Second)
 	r.Inc()
-	c.Assert(r.Duration(), check.Equals, 2*time.Second)
+	require.Equal(t, r.Duration(), 2*time.Second)
 	r.Inc()
-	c.Assert(r.Duration(), check.Equals, 3*time.Second)
+	require.Equal(t, r.Duration(), 3*time.Second)
 	r.Inc()
-	c.Assert(r.Duration(), check.Equals, 3*time.Second)
+	require.Equal(t, r.Duration(), 3*time.Second)
 	r.Reset()
-	c.Assert(r.Duration(), check.Equals, time.Duration(0))
+	require.Equal(t, r.Duration(), time.Duration(0))
 }
 
-func (s *UtilsSuite) TestHostUUID(c *check.C) {
+func TestHostUUID(t *testing.T) {
 	// call twice, get same result
-	dir := c.MkDir()
+	dir := t.TempDir()
 	uuid, err := ReadOrMakeHostUUID(dir)
-	c.Assert(uuid, check.HasLen, 36)
-	c.Assert(err, check.IsNil)
+	require.Len(t, uuid, 36)
+	require.NoError(t, err)
 	uuidCopy, err := ReadOrMakeHostUUID(dir)
-	c.Assert(err, check.IsNil)
-	c.Assert(uuid, check.Equals, uuidCopy)
+	require.NoError(t, err)
+	require.Equal(t, uuid, uuidCopy)
 
 	// call with a read-only dir, make sure to get an error
 	uuid, err = ReadOrMakeHostUUID("/bad-location")
-	c.Assert(err, check.NotNil)
-	c.Assert(uuid, check.Equals, "")
-	c.Assert(err.Error(), check.Matches, "^.*no such file or directory.*$")
+	require.Equal(t, uuid, "")
+	require.Error(t, err)
+	require.Regexp(t, "^.*no such file or directory.*$", err.Error())
 
 	// newlines are getting ignored
-	dir = c.MkDir()
+	dir = t.TempDir()
 	id := "id-with-newline\n"
 	err = os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	out, err := ReadHostUUID(dir)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.Equals, strings.TrimSpace(id))
+	require.NoError(t, err)
+	require.Equal(t, strings.TrimSpace(id), out)
 }
 
-func (s *UtilsSuite) TestSelfSignedCert(c *check.C) {
+func TestSelfSignedCert(t *testing.T) {
 	creds, err := GenerateSelfSignedCert([]string{"example.com"})
-	c.Assert(err, check.IsNil)
-	c.Assert(creds, check.NotNil)
-	c.Assert(len(creds.PublicKey)/100, check.Equals, 4)
-	c.Assert(len(creds.PrivateKey)/100, check.Equals, 16)
+	require.NoError(t, err)
+	require.NotNil(t, creds)
+	require.Equal(t, 4, len(creds.PublicKey)/100)
+	require.Equal(t, 16, len(creds.PrivateKey)/100)
 }
 
-func (s *UtilsSuite) TestRandomDuration(c *check.C) {
+func TestRandomDuration(t *testing.T) {
 	expectedMin := time.Duration(0)
 	expectedMax := time.Second * 10
 	for i := 0; i < 50; i++ {
 		dur := RandomDuration(expectedMax)
-		c.Assert(dur >= expectedMin, check.Equals, true)
-		c.Assert(dur < expectedMax, check.Equals, true)
+		require.True(t, dur >= expectedMin)
+		require.True(t, dur < expectedMax)
 	}
 }
 
-func (s *UtilsSuite) TestMiscFunctions(c *check.C) {
+func TestMiscFunctions(t *testing.T) {
 	// SliceContainsStr
-	c.Assert(apiutils.SliceContainsStr([]string{"two", "one"}, "one"), check.Equals, true)
-	c.Assert(apiutils.SliceContainsStr([]string{"two", "one"}, "five"), check.Equals, false)
-	c.Assert(apiutils.SliceContainsStr([]string(nil), "one"), check.Equals, false)
+	require.True(t, apiutils.SliceContainsStr([]string{"two", "one"}, "one"))
+	require.False(t, apiutils.SliceContainsStr([]string{"two", "one"}, "five"))
+	require.False(t, apiutils.SliceContainsStr([]string(nil), "one"), check.Equals)
 
 	// Deduplicate
-	c.Assert(apiutils.Deduplicate([]string{}), check.DeepEquals, []string{})
-	c.Assert(apiutils.Deduplicate([]string{"a", "b"}), check.DeepEquals, []string{"a", "b"})
-	c.Assert(apiutils.Deduplicate([]string{"a", "b", "b", "a", "c"}), check.DeepEquals, []string{"a", "b", "c"})
+	require.Equal(t, []string{}, apiutils.Deduplicate([]string{}))
+	require.Equal(t, []string{"a", "b"}, apiutils.Deduplicate([]string{"a", "b"}))
+	require.Equal(t, []string{"a", "b", "c"}, apiutils.Deduplicate([]string{"a", "b", "b", "a", "c"}))
 
 	// RemoveFromSlice
-	c.Assert(RemoveFromSlice([]string{}, "a"), check.DeepEquals, []string{})
-	c.Assert(RemoveFromSlice([]string{"a"}, "a"), check.DeepEquals, []string{})
-	c.Assert(RemoveFromSlice([]string{"a", "b"}, "a"), check.DeepEquals, []string{"b"})
-	c.Assert(RemoveFromSlice([]string{"a", "b"}, "b"), check.DeepEquals, []string{"a"})
-	c.Assert(RemoveFromSlice([]string{"a", "a", "b"}, "a"), check.DeepEquals, []string{"b"})
+	require.Equal(t, []string{}, RemoveFromSlice([]string{}, "a"))
+	require.Equal(t, []string{}, RemoveFromSlice([]string{"a"}, "a"))
+	require.Equal(t, []string{"b"}, RemoveFromSlice([]string{"a", "b"}, "a"))
+	require.Equal(t, []string{"a"}, RemoveFromSlice([]string{"a", "b"}, "b"))
+	require.Equal(t, []string{"b"}, RemoveFromSlice([]string{"a", "a", "b"}, "a"))
 }
 
 // TestVersions tests versions compatibility checking
-func (s *UtilsSuite) TestVersions(c *check.C) {
-	testCases := []struct {
+func TestVersions(t *testing.T) {
+	type tc struct {
 		info      string
 		client    string
 		minClient string
-		err       error
-	}{
-		{info: "client older than min version", client: "1.0.0", minClient: "1.1.0", err: trace.BadParameter("")},
+	}
+	successTestCases := []tc{
 		{info: "client same as min version", client: "1.0.0", minClient: "1.0.0"},
 		{info: "client newer than min version", client: "1.1.0", minClient: "1.0.0"},
 		{info: "pre-releases clients are ok", client: "1.1.0-alpha.1", minClient: "1.0.0"},
-		{info: "older pre-releases are no ok", client: "1.1.0-alpha.1", minClient: "1.1.0", err: trace.BadParameter("")},
 	}
-	for i, testCase := range testCases {
-		comment := check.Commentf("test case %v %q", i, testCase.info)
-		err := CheckVersion(testCase.client, testCase.minClient)
-		if testCase.err == nil {
-			c.Assert(err, check.IsNil, comment)
-		} else {
-			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
-		}
+	for _, testCase := range successTestCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			require.NoError(t, CheckVersion(testCase.client, testCase.minClient))
+		})
+	}
+
+	failTestCases := []tc{
+		{info: "client older than min version", client: "1.0.0", minClient: "1.1.0"},
+		{info: "older pre-releases are no ok", client: "1.1.0-alpha.1", minClient: "1.1.0"},
+	}
+	for _, testCase := range failTestCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			fixtures.AssertBadParameter(t, CheckVersion(testCase.client, testCase.minClient))
+		})
 	}
 }
 
 // TestClickableURL tests clickable URL conversions
-func (s *UtilsSuite) TestClickableURL(c *check.C) {
+func TestClickableURL(t *testing.T) {
 	testCases := []struct {
 		info string
 		in   string
@@ -186,15 +192,16 @@ func (s *UtilsSuite) TestClickableURL(c *check.C) {
 		{info: "specified IPV4", in: "http://192.168.1.1:5050/howdy", out: "http://192.168.1.1:5050/howdy"},
 		{info: "specified IPV6", in: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy", out: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy"},
 	}
-	for i, testCase := range testCases {
-		comment := check.Commentf("test case %v %q", i, testCase.info)
-		out := ClickableURL(testCase.in)
-		c.Assert(out, check.Equals, testCase.out, comment)
+	for _, testCase := range testCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			out := ClickableURL(testCase.in)
+			require.Equal(t, testCase.out, out)
+		})
 	}
 }
 
 // TestParseSessionsURI parses sessions URI
-func (s *UtilsSuite) TestParseSessionsURI(c *check.C) {
+func TestParseSessionsURI(t *testing.T) {
 	testCases := []struct {
 		info string
 		in   string
@@ -205,56 +212,63 @@ func (s *UtilsSuite) TestParseSessionsURI(c *check.C) {
 		{info: "explicit filesystem URI", in: "file:///home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
 		{info: "S3 URI", in: "s3://my-bucket", url: &url.URL{Scheme: teleport.SchemeS3, Host: "my-bucket"}},
 	}
-	for i, testCase := range testCases {
-		comment := check.Commentf("test case %v %q", i, testCase.info)
-		out, err := ParseSessionsURI(testCase.in)
-		if testCase.err == nil {
-			c.Assert(err, check.IsNil, comment)
-			c.Assert(out, check.DeepEquals, testCase.url)
-		} else {
-			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
-		}
+	for _, testCase := range testCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			out, err := ParseSessionsURI(testCase.in)
+			if testCase.err == nil {
+				require.NoError(t, err)
+				require.Equal(t, testCase.url, out)
+			} else {
+				require.ErrorIs(t, err, testCase.err)
+			}
+		})
 	}
 }
 
 // TestParseAdvertiseAddr tests parsing of advertise address
-func (s *UtilsSuite) TestParseAdvertiseAddr(c *check.C) {
-	testCases := []struct {
+func TestParseAdvertiseAddr(t *testing.T) {
+	type tc struct {
 		info string
 		in   string
 		host string
 		port string
-		err  error
-	}{
+	}
+	successTestCases := []tc{
 		{info: "ok address", in: "192.168.1.1", host: "192.168.1.1"},
 		{info: "trim space", in: "   192.168.1.1    ", host: "192.168.1.1"},
-		{info: "multicast address", in: "224.0.0.0", err: trace.BadParameter("")},
-		{info: "multicast address", in: "   224.0.0.0   ", err: trace.BadParameter("")},
 		{info: "ok address and port", in: "192.168.1.1:22", host: "192.168.1.1", port: "22"},
-		{info: "ok address and bad port", in: "192.168.1.1:b", err: trace.BadParameter("")},
 		{info: "ok host", in: "localhost", host: "localhost"},
 		{info: "ok host and port", in: "localhost:33", host: "localhost", port: "33"},
-		{info: "missing host ", in: ":33", err: trace.BadParameter("")},
-		{info: "missing port", in: "localhost:", err: trace.BadParameter("")},
 		{info: "ipv6 address", in: "2001:0db8:85a3:0000:0000:8a2e:0370:7334", host: "2001:0db8:85a3:0000:0000:8a2e:0370:7334"},
 		{info: "ipv6 address and port", in: "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:443", host: "2001:0db8:85a3:0000:0000:8a2e:0370:7334", port: "443"},
 	}
-	for i, testCase := range testCases {
-		comment := check.Commentf("test case %v %q", i, testCase.info)
-		host, port, err := ParseAdvertiseAddr(testCase.in)
-		if testCase.err == nil {
-			c.Assert(err, check.IsNil, comment)
-			c.Assert(host, check.Equals, testCase.host)
-			c.Assert(port, check.Equals, testCase.port)
-		} else {
-			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
-		}
+	for _, testCase := range successTestCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			host, port, err := ParseAdvertiseAddr(testCase.in)
+			require.NoError(t, err)
+			require.Equal(t, testCase.host, host)
+			require.Equal(t, testCase.port, port)
+		})
+	}
+
+	failTestCases := []tc{
+		{info: "multicast address", in: "224.0.0.0"},
+		{info: "multicast address", in: "   224.0.0.0   "},
+		{info: "ok address and bad port", in: "192.168.1.1:b"},
+		{info: "missing host ", in: ":33"},
+		{info: "missing port", in: "localhost:"},
+	}
+	for _, testCase := range failTestCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			_, _, err := ParseAdvertiseAddr(testCase.in)
+			fixtures.AssertBadParameter(t, err)
+		})
 	}
 }
 
 // TestGlobToRegexp tests replacement of glob-style wildcard values
 // with regular expression compatible value
-func (s *UtilsSuite) TestGlobToRegexp(c *check.C) {
+func TestGlobToRegexp(t *testing.T) {
 	testCases := []struct {
 		comment string
 		in      string
@@ -281,15 +295,16 @@ func (s *UtilsSuite) TestGlobToRegexp(c *check.C) {
 			out:     `a-\.(.*)-b-(.*)\$`,
 		},
 	}
-	for i, testCase := range testCases {
-		comment := check.Commentf("test case %v %v", i, testCase.comment)
-		out := GlobToRegexp(testCase.in)
-		c.Assert(out, check.Equals, testCase.out, comment)
+	for _, testCase := range testCases {
+		t.Run(testCase.comment, func(t *testing.T) {
+			out := GlobToRegexp(testCase.in)
+			require.Equal(t, testCase.out, out)
+		})
 	}
 }
 
 // TestReplaceRegexp tests regexp-style replacement of values
-func (s *UtilsSuite) TestReplaceRegexp(c *check.C) {
+func TestReplaceRegexp(t *testing.T) {
 	testCases := []struct {
 		comment string
 		expr    string
@@ -376,21 +391,28 @@ func (s *UtilsSuite) TestReplaceRegexp(c *check.C) {
 			out:     "replace-hello",
 		},
 	}
-	for i, testCase := range testCases {
-		comment := check.Commentf("test case %v %v", i, testCase.comment)
-		out, err := ReplaceRegexp(testCase.expr, testCase.replace, testCase.in)
-		if testCase.err == nil {
-			c.Assert(err, check.IsNil, comment)
-			c.Assert(out, check.Equals, testCase.out, comment)
-		} else {
-			comment := check.Commentf("test case %v %v, expected type %T, got type %T", i, testCase.comment, testCase.err, err)
-			c.Assert(err, check.FitsTypeOf, testCase.err, comment)
-		}
+	for _, testCase := range testCases {
+		t.Run(testCase.comment, func(t *testing.T) {
+			out, err := ReplaceRegexp(testCase.expr, testCase.replace, testCase.in)
+			if testCase.err == nil {
+				require.NoError(t, err)
+				require.Equal(t, testCase.out, out)
+			} else {
+				switch {
+				case trace.IsNotFound(testCase.err):
+					fixtures.AssertNotFound(t, err)
+				case trace.IsBadParameter(testCase.err):
+					fixtures.AssertBadParameter(t, err)
+				default:
+					t.Fatalf("unexpected test case error: %v", testCase.err)
+				}
+			}
+		})
 	}
 }
 
 // TestContainsExpansion tests whether string contains expansion value
-func (s *UtilsSuite) TestContainsExpansion(c *check.C) {
+func TestContainsExpansion(t *testing.T) {
 	testCases := []struct {
 		comment  string
 		val      string
@@ -427,15 +449,16 @@ func (s *UtilsSuite) TestContainsExpansion(c *check.C) {
 			contains: true,
 		},
 	}
-	for i, testCase := range testCases {
-		comment := check.Commentf("test case %v %v", i, testCase.comment)
-		contains := ContainsExpansion(testCase.val)
-		c.Assert(contains, check.Equals, testCase.contains, comment)
+	for _, testCase := range testCases {
+		t.Run(testCase.comment, func(t *testing.T) {
+			contains := ContainsExpansion(testCase.val)
+			require.Equal(t, testCase.contains, contains)
+		})
 	}
 }
 
 // TestMarshalYAML tests marshal/unmarshal of elements
-func (s *UtilsSuite) TestMarshalYAML(c *check.C) {
+func TestMarshalYAML(t *testing.T) {
 	type kv struct {
 		Key string
 	}
@@ -471,98 +494,106 @@ func (s *UtilsSuite) TestMarshalYAML(c *check.C) {
 			isDoc:   true,
 		},
 	}
-	for i, testCase := range testCases {
-		comment := check.Commentf("test case %v %v", i, testCase.comment)
-		buf := &bytes.Buffer{}
-		err := WriteYAML(buf, testCase.val)
-		c.Assert(err, check.IsNil, comment)
-		if testCase.isDoc {
-			c.Assert(bytes.Contains(buf.Bytes(),
-				[]byte(yamlDocDelimiter)), check.Equals, true,
-				check.Commentf("test case %v: expected to find --- in %q", testCase.comment, buf.String()))
-		}
-		out, err := ReadYAML(bytes.NewReader(buf.Bytes()))
-		c.Assert(err, check.IsNil, comment)
-		if testCase.expected != nil {
-			fixtures.DeepCompare(c, out, testCase.expected)
-		} else {
-			fixtures.DeepCompare(c, out, testCase.val)
-		}
+	for _, testCase := range testCases {
+		t.Run(testCase.comment, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			err := WriteYAML(buf, testCase.val)
+			require.NoError(t, err)
+			if testCase.isDoc {
+				require.Contains(t, buf.String(), yamlDocDelimiter)
+			}
+			out, err := ReadYAML(bytes.NewReader(buf.Bytes()))
+			require.NoError(t, err)
+			if testCase.expected != nil {
+				require.Equal(t, testCase.expected, out)
+			} else {
+				require.Equal(t, testCase.val, out)
+			}
+		})
 	}
 }
 
 // TestReadToken tests reading token from file and as is
-func (s *UtilsSuite) TestReadToken(c *check.C) {
+func TestReadToken(t *testing.T) {
 	tok, err := ReadToken("token")
-	c.Assert(tok, check.Equals, "token")
-	c.Assert(err, check.IsNil)
+	require.Equal(t, "token", tok)
+	require.NoError(t, err)
 
 	_, err = ReadToken("/tmp/non-existent-token-for-teleport-tests-not-found")
-	fixtures.ExpectNotFound(c, err)
+	fixtures.AssertNotFound(t, err)
 
-	dir := c.MkDir()
+	dir := t.TempDir()
 	tokenPath := filepath.Join(dir, "token")
 	err = os.WriteFile(tokenPath, []byte("shmoken"), 0644)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	tok, err = ReadToken(tokenPath)
-	c.Assert(err, check.IsNil)
-	c.Assert(tok, check.Equals, "shmoken")
+	require.NoError(t, err)
+	require.Equal(t, "shmoken", tok)
 }
 
 // TestStringsSet makes sure that nil slice returns empty set (less error prone)
-func (s *UtilsSuite) TestStringsSet(c *check.C) {
+func TestStringsSet(t *testing.T) {
 	out := StringsSet(nil)
-	c.Assert(out, check.HasLen, 0)
-	c.Assert(out, check.NotNil)
+	require.Len(t, out, 0)
+	require.NotNil(t, out)
 }
 
 // TestRepeatReader tests repeat reader
-func (s *UtilsSuite) TestRepeatReader(c *check.C) {
+func TestRepeatReader(t *testing.T) {
 	type tc struct {
+		name     string
 		repeat   byte
 		count    int
 		expected string
 	}
 	tcs := []tc{
 		{
+			name:     "repeat once",
 			repeat:   byte('a'),
 			count:    1,
 			expected: "a",
 		},
 		{
+			name:     "repeat zero times",
 			repeat:   byte('a'),
 			count:    0,
 			expected: "",
 		},
 		{
+			name:     "repeat multiple times",
 			repeat:   byte('a'),
 			count:    3,
 			expected: "aaa",
 		},
 	}
 	for _, tc := range tcs {
-		data, err := io.ReadAll(NewRepeatReader(tc.repeat, tc.count))
-		c.Assert(err, check.IsNil)
-		c.Assert(string(data), check.Equals, tc.expected)
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := io.ReadAll(NewRepeatReader(tc.repeat, tc.count))
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, string(data))
+		})
 	}
 }
 
 func TestReadAtMost(t *testing.T) {
 	testCases := []struct {
+		name  string
 		limit int64
 		data  string
 		err   error
 	}{
-		{4, "hell", ErrLimitReached},
-		{5, "hello", ErrLimitReached},
-		{6, "hello", nil},
+		{name: "limit reached at 4", limit: 4, data: "hell", err: ErrLimitReached},
+		{name: "limit reached at 5", limit: 5, data: "hello", err: ErrLimitReached},
+		{name: "limit not reached", limit: 6, data: "hello", err: nil},
 	}
 
 	for _, tc := range testCases {
-		r := strings.NewReader("hello")
-		data, err := ReadAtMost(r, tc.limit)
-		require.Equal(t, []byte(tc.data), data)
-		require.Equal(t, tc.err, err)
+		t.Run(tc.name, func(t *testing.T) {
+			r := strings.NewReader("hello")
+			data, err := ReadAtMost(r, tc.limit)
+			require.Equal(t, []byte(tc.data), data)
+			require.Equal(t, tc.err, err)
+		})
 	}
 }
