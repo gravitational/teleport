@@ -5,6 +5,11 @@ state: draft
 
 # RFD 67 - Redis database access in AWS ElatiCache and MemoryDB
 
+## Required Approvers
+* Engineering: @r0mant && @smallinsky
+* Product: (@klizhentas || @xinding33)
+* Security: @reed
+
 ## What
 
 Support Redis database access in AWS [ElatiCache](https://aws.amazon.com/elasticache/redis/) and [MemoryDB](https://aws.amazon.com/memorydb/).
