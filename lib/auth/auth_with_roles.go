@@ -2364,13 +2364,10 @@ func (a *ServerWithRoles) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	switch authKind {
 	case types.KindSAML:
 		resource = types.KindSAMLRequest
-		break
 	case types.KindGithub:
 		resource = types.KindGithubRequest
-		break
 	case types.KindOIDC:
 		resource = types.KindOIDCRequest
-		break
 	default:
 		return nil, trace.BadParameter("unsupported authKind %q", authKind)
 	}

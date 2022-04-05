@@ -1226,14 +1226,10 @@ func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind 
 	switch authKind {
 	case types.KindSAML:
 		prefix = samlPrefix
-		break
 	case types.KindGithub:
 		prefix = githubPrefix
-		break
 	case types.KindOIDC:
 		prefix = oidcPrefix
-		break
-
 	default:
 		return trace.BadParameter("unsupported authKind %q", authKind)
 	}
@@ -1265,14 +1261,10 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	switch authKind {
 	case types.KindSAML:
 		prefix = samlPrefix
-		break
 	case types.KindGithub:
 		prefix = githubPrefix
-		break
 	case types.KindOIDC:
 		prefix = oidcPrefix
-		break
-
 	default:
 		return nil, trace.BadParameter("unsupported authKind %q", authKind)
 	}
