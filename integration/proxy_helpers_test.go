@@ -64,6 +64,9 @@ type proxySuiteOptions struct {
 	rootConfigModFunc []func(config *service.Config)
 	leafConfigModFunc []func(config *service.Config)
 
+	rootClusterNodeName string
+	leafClusterNodeName string
+
 	rootClusterPorts *InstancePorts
 	leafClusterPorts *InstancePorts
 
@@ -79,8 +82,10 @@ type proxySuiteOptions struct {
 
 func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
-		rootClusterPorts: singleProxyPortSetup(),
-		leafClusterPorts: singleProxyPortSetup(),
+		rootClusterNodeName: Host,
+		leafClusterNodeName: Host,
+		rootClusterPorts:    singleProxyPortSetup(),
+		leafClusterPorts:    singleProxyPortSetup(),
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -89,7 +94,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
-		NodeName:    Host,
+		NodeName:    options.rootClusterNodeName,
 		log:         utils.NewLoggerForTests(),
 		Ports:       options.rootClusterPorts,
 	})
@@ -98,7 +103,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	lc := NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
-		NodeName:    Host,
+		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
 		log:         utils.NewLoggerForTests(),
@@ -261,6 +266,18 @@ func withRootAndLeafTrustedClusterReset() proxySuiteOptionsFunc {
 		options.leafTrustedFunc = func(suite *ProxySuite) []*InstanceSecrets {
 			return nil
 		}
+	}
+}
+
+func withRootClusterNodeName(nodeName string) proxySuiteOptionsFunc {
+	return func(options *proxySuiteOptions) {
+		options.rootClusterNodeName = nodeName
+	}
+}
+
+func withLeafClusterNodeName(nodeName string) proxySuiteOptionsFunc {
+	return func(options *proxySuiteOptions) {
+		options.leafClusterNodeName = nodeName
 	}
 }
 

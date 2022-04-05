@@ -22,10 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"strings"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
@@ -86,37 +83,6 @@ func DialProxyWithDialer(ctx context.Context, proxyAddr, addr string, dialer Con
 	}, nil
 }
 
-// GetProxyAddress gets the HTTP proxy address to use for a given address, if any.
-func GetProxyAddress(addr string) string {
-	envs := []string{
-		constants.HTTPSProxy,
-		strings.ToLower(constants.HTTPSProxy),
-		constants.HTTPProxy,
-		strings.ToLower(constants.HTTPProxy),
-	}
-
-	for _, v := range envs {
-		envAddr := os.Getenv(v)
-		if envAddr == "" {
-			continue
-		}
-		proxyAddr, err := parse(envAddr)
-		if err != nil {
-			log.Debugf("Unable to parse environment variable %q: %q.", v, envAddr)
-			continue
-		}
-		log.Debugf("Successfully parsed environment variable %q: %q to %q.", v, envAddr, proxyAddr)
-		if !useProxy(addr) {
-			log.Debugf("Matched NO_PROXY override for %q: %q, going to ignore proxy variable.", v, envAddr)
-			return ""
-		}
-		return proxyAddr
-	}
-
-	log.Debugf("No valid environment variables found.")
-	return ""
-}
-
 // bufferedConn is used when part of the data on a connection has already been
 // read by a *bufio.Reader. Reads will first try and read from the
 // *bufio.Reader and when everything has been read, reads will go to the
@@ -133,18 +99,4 @@ func (bc *bufferedConn) Read(b []byte) (n int, err error) {
 		return bc.reader.Read(b)
 	}
 	return bc.Conn.Read(b)
-}
-
-// parse will extract the host:port of the proxy to dial to. If the
-// value is not prefixed by "http", then it will prepend "http" and try.
-func parse(addr string) (string, error) {
-	proxyurl, err := url.Parse(addr)
-	if err != nil || !strings.HasPrefix(proxyurl.Scheme, "http") {
-		proxyurl, err = url.Parse("http://" + addr)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-	}
-
-	return proxyurl.Host, nil
 }
