@@ -403,6 +403,40 @@ func TestChangeUserAuthentication(t *testing.T) {
 			},
 		},
 		{
+			name: "with passwordless",
+			setAuthPreference: func() {
+				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorWebauthn,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
+					},
+				})
+				require.NoError(t, err)
+				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				require.NoError(t, err)
+			},
+			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
+				require.NoError(t, err)
+
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password3"), // should not be set even if provided
+					NewMFARegisterResponse: webauthnRes,
+					Passwordless:           true,
+				}
+			},
+			// Missing webauthn for passwordless.
+			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				return &proto.ChangeUserAuthenticationRequest{
+					TokenID:                resetTokenID,
+					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
+					Passwordless:           true,
+				}
+			},
+		},
+		{
 			name: "with second factor on",
 			setAuthPreference: func() {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -475,6 +509,10 @@ func TestChangeUserAuthentication(t *testing.T) {
 				invalidReq := c.getInvalidReq(token.GetName())
 				_, err = srv.Auth().changeUserAuthentication(ctx, invalidReq)
 				require.True(t, trace.IsBadParameter(err))
+
+				if invalidReq.Passwordless {
+					require.Contains(t, err.Error(), "passwordless")
+				}
 			}
 
 			validReq := c.getReq(token.GetName())

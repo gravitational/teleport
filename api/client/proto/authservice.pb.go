@@ -8209,10 +8209,12 @@ func (m *CRL) GetCRL() []byte {
 }
 
 // ChangeUserAuthenticationRequest defines a request to change a password and if enabled
-// also adds a new MFA device from a user reset or from a new user invite. After successful changing
-// of authentications a new web session is created. Users may also receive new recovery codes if the
-// user meets the requirement to receive recovery codes. If a user previously had recovery codes,
-// the previous codes become invalid as it is replaced with newly generated ones.
+// also adds a new MFA device from a user reset or from a new user invite. User can also skip
+// setting a new password if passwordless is enabled and just provide a new webauthn register
+// response. After successful changing of authentications a new web session is created. Users may
+// also receive new recovery codes if the user meets the requirement to receive recovery codes. If a
+// user previously had recovery codes, the previous codes become invalid as it is replaced with
+// newly generated ones.
 type ChangeUserAuthenticationRequest struct {
 	// TokenID is the ID of a reset or invite token.
 	// The token allows the user to change their credentials without being logged

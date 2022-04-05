@@ -315,9 +315,15 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
-	err = services.VerifyPassword(req.GetNewPassword())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch {
+	case req.Passwordless:
+		if req.GetNewMFARegisterResponse() == nil || req.NewMFARegisterResponse.GetWebauthn() == nil {
+			return nil, trace.BadParameter("missing passwordless credentials")
+		}
+	default:
+		if err := services.VerifyPassword(req.GetNewPassword()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Check if token exists.
@@ -344,9 +350,10 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 	}
 
 	// Set a new password.
-	err = s.UpsertPassword(username, req.GetNewPassword())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if !req.Passwordless {
+		if err := s.UpsertPassword(username, req.GetNewPassword()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	user, err := s.GetUser(username, false)
