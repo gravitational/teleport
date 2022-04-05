@@ -425,13 +425,6 @@ func (s *LocalSupervisor) getWaiters(name string) []*waiter {
 	return out
 }
 
-func (w *waiter) notify(event Event) {
-	select {
-	case w.eventC <- event:
-	case <-w.context.Done():
-	}
-}
-
 func (s *LocalSupervisor) fanOut() {
 	for {
 		select {
@@ -449,6 +442,13 @@ func (s *LocalSupervisor) fanOut() {
 type waiter struct {
 	eventC  chan Event
 	context context.Context
+}
+
+func (w *waiter) notify(event Event) {
+	select {
+	case w.eventC <- event:
+	case <-w.context.Done():
+	}
 }
 
 // Service is a running teleport service function
