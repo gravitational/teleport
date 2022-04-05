@@ -334,26 +334,30 @@ type createUserParams struct {
 	sessionTTL time.Duration
 }
 
-func (params createUserParams) toMap() map[string]interface{} {
-	result := map[string]interface{}{}
-
-	result["connectorName"] = params.connectorName
-	result["username"] = params.username
-	result["roles"] = params.roles
-	result["traits"] = params.traits
-	result["sessionTTL"] = params.sessionTTL
-
-	if len(params.logins) > 0 {
-		result["logins"] = params.logins
+func (cup createUserParams) MarshalJSON() ([]byte, error) {
+	j, err := json.Marshal(struct {
+		ConnectorName string              `json:"connector_name"`
+		Username      string              `json:"username"`
+		Logins        []string            `json:"logins"`
+		KubeGroups    []string            `json:"kube_groups,omitempty"`
+		KubeUsers     []string            `json:"kube_users,omitempty"`
+		Roles         []string            `json:"roles"`
+		Traits        map[string][]string `json:"traits"`
+		SessionTTL    time.Duration       `json:"session_ttl"`
+	}{
+		ConnectorName: cup.connectorName,
+		Username:      cup.username,
+		Logins:        cup.logins,
+		KubeGroups:    cup.kubeGroups,
+		KubeUsers:     cup.kubeUsers,
+		Roles:         cup.roles,
+		Traits:        cup.traits,
+		SessionTTL:    cup.sessionTTL,
+	})
+	if err != nil {
+		return nil, err
 	}
-	if len(params.kubeGroups) > 0 {
-		result["kubeGroups"] = params.kubeGroups
-	}
-	if len(params.kubeUsers) > 0 {
-		result["kubeUsers"] = params.kubeUsers
-	}
-
-	return result
+	return j, nil
 }
 
 func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
