@@ -1640,8 +1640,12 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 
 	username := suite.me.Username
 
-	a := suite.newNamedTeleportInstance(t, "site-A")
-	b := suite.newNamedTeleportInstance(t, "site-B")
+	// httpproxy doesn't allow proxying when the target is localhost, so use
+	// this address instead.
+	addr, err := getLocalIP()
+	require.NoError(t, err)
+	a := suite.newNamedTeleportInstance(t, "site-A", WithNodeName(addr))
+	b := suite.newNamedTeleportInstance(t, "site-B", WithNodeName(addr))
 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
@@ -5670,6 +5674,12 @@ func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterNam
 		opt(&cfg)
 	}
 	return NewInstance(cfg)
+}
+
+func WithNodeName(nodeName string) InstanceConfigOption {
+	return func(config *InstanceConfig) {
+		config.NodeName = nodeName
+	}
 }
 
 func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
