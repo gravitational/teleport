@@ -15,24 +15,29 @@
         {
           "title": "Getting Started",
           "slug": "/getting-started/",
+          "hideInScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "Linux Server",
-              "slug": "/getting-started/linux-server/"
+              "slug": "/getting-started/linux-server/",
+              "hideInScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Docker Compose",
-              "slug": "/getting-started/docker-compose/"
+              "slug": "/getting-started/docker-compose/",
+              "hideInScopes": ["enterprise", "cloud"]
             },
             {
               "title": "DigitalOcean",
-              "slug": "/getting-started/digitalocean/"
+              "slug": "/getting-started/digitalocean/",
+              "hideInScopes": ["enterprise", "cloud"]
             }
           ]
         },
         {
           "title": "Installation",
-          "slug": "/installation/"
+          "slug": "/installation/",
+          "hideInScopes": ["enterprise", "cloud"]
         },
         {
           "title": "FAQ",
@@ -89,18 +94,22 @@
         {
           "title": "Deployments",
           "slug": "/setup/deployments/",
+          "hideInScopes": "cloud",
           "entries": [
             {
               "title": "AWS Terraform",
-              "slug": "/setup/deployments/aws-terraform/"
+              "slug": "/setup/deployments/aws-terraform/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "GCP",
-              "slug": "/setup/deployments/gcp/"
+              "slug": "/setup/deployments/gcp/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "IBM",
-              "slug": "/setup/deployments/ibm/"
+              "slug": "/setup/deployments/ibm/",
+              "hideInScopes": "cloud"
             }
           ]
         },
@@ -110,7 +119,8 @@
           "entries": [
             {
               "title": "Scaling",
-              "slug": "/setup/operations/scaling/"
+              "slug": "/setup/operations/scaling/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Upgrading",
@@ -126,7 +136,8 @@
             },
             {
               "title": "TLS Routing Migration",
-              "slug": "/setup/operations/tls-routing/"
+              "slug": "/setup/operations/tls-routing/",
+              "hideInScopes": "cloud"
             }
           ]
         },
@@ -166,7 +177,8 @@
             },
             {
               "title": "Joining Nodes via AWS EC2",
-              "slug": "/setup/guides/joining-nodes-aws-ec2/"
+              "slug": "/setup/guides/joining-nodes-aws-ec2/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Using Teleport's CA with GitHub",
@@ -208,7 +220,8 @@
             },
             {
               "title": "Storage Backends",
-              "slug": "/setup/reference/backends/"
+              "slug": "/setup/reference/backends/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Networking",
@@ -300,7 +313,8 @@
             },
             {
               "title": "Recording Proxy Mode",
-              "slug": "/server-access/guides/recording-proxy-mode/"
+              "slug": "/server-access/guides/recording-proxy-mode/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "BPF Session Recording",
@@ -336,7 +350,8 @@
             },
             { 
               "title": "Cluster", 
-              "slug": "/kubernetes-access/getting-started/cluster/" 
+              "slug": "/kubernetes-access/getting-started/cluster/",
+              "hideInScopes": "cloud"
             },
             { 
               "title": "Agent", 
@@ -369,26 +384,32 @@
         {
           "title": "Helm Guides",
           "slug": "/kubernetes-access/helm/guides/",
+          "hideInScopes": "cloud",
           "entries": [
             {
               "title": "AWS EKS Cluster",
-              "slug": "/kubernetes-access/helm/guides/aws/"
+              "slug": "/kubernetes-access/helm/guides/aws/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Google Cloud GKE Cluster",
-              "slug": "/kubernetes-access/helm/guides/gcp/"
+              "slug": "/kubernetes-access/helm/guides/gcp/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "DigitalOcean Kubernetes Cluster",
-              "slug": "/kubernetes-access/helm/guides/digitalocean/"
+              "slug": "/kubernetes-access/helm/guides/digitalocean/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Customize Deployment Config",
-              "slug": "/kubernetes-access/helm/guides/custom/"
+              "slug": "/kubernetes-access/helm/guides/custom/",
+              "hideInScopes": "cloud"
             },
             {
               "title": "Migrating From Older Charts",
-              "slug": "/kubernetes-access/helm/guides/migration/"
+              "slug": "/kubernetes-access/helm/guides/migration/",
+              "hideInScopes": "cloud"
             }
           ]
         },
@@ -398,7 +419,8 @@
           "entries": [
             {
               "title": "teleport-cluster",
-              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
+              "slug": "/kubernetes-access/helm/reference/teleport-cluster/",
+              "hideInScopes": "cloud"
             },
             {
                "title": "teleport-kube-agent",
@@ -719,52 +741,64 @@
         {
           "title": "Single sign-on (SSO)",
           "slug": "/enterprise/sso/",
+          "hideInScopes": ["cloud", "oss"],
           "entries": [
             {
               "title": "Azure Active Directory (AD)",
-              "slug": "/enterprise/sso/azuread/"
+              "slug": "/enterprise/sso/azuread/",
+              "hideInScopes": ["cloud", "oss"]
             },
             {
               "title": "Active Directory (ADFS)",
-              "slug": "/enterprise/sso/adfs/"
+              "slug": "/enterprise/sso/adfs/",
+              "hideInScopes": ["cloud", "oss"]
             },
             {
               "title": "Google Workspace",
-              "slug": "/enterprise/sso/google-workspace/"
+              "slug": "/enterprise/sso/google-workspace/",
+              "hideInScopes": ["cloud", "oss"]
             },
             {
               "title": "GitLab",
-              "slug": "/enterprise/sso/gitlab/"
+              "slug": "/enterprise/sso/gitlab/",
+              "hideInScopes": ["cloud", "oss"]
             },
             {
               "title": "OneLogin",
-              "slug": "/enterprise/sso/one-login/"
+              "slug": "/enterprise/sso/one-login/",
+              "hideInScopes": ["cloud", "oss"]
             },
             {
               "title": "OIDC",
-              "slug": "/enterprise/sso/oidc/"
+              "slug": "/enterprise/sso/oidc/",
+              "hideInScopes": ["cloud", "oss"]
             },
             {
               "title": "Okta",
-              "slug": "/enterprise/sso/okta/"
+              "slug": "/enterprise/sso/okta/",
+              "hideInScopes": ["cloud", "oss"]
             }
           ]
         },
         {
           "title": "Access Requests",
-          "slug": "/enterprise/workflow/"
+          "slug": "/enterprise/workflow/",
+          "hideInScopes": ["cloud", "oss"]
         },
         {
           "title": "FedRAMP",
-          "slug": "/enterprise/fedramp/"
+          "slug": "/enterprise/fedramp/",
+          "hideInScopes": ["cloud", "oss"]
         },
         {
           "title": "SOC2",
-          "slug": "/enterprise/soc2/"
+          "slug": "/enterprise/soc2/",
+          "hideInScopes": ["cloud", "oss"]
         },
         {
           "title": "HSM",
-          "slug": "/enterprise/hsm/"
+          "slug": "/enterprise/hsm/",
+          "hideInScopes": ["cloud", "oss"]
         }
       ]
     },
@@ -778,19 +812,23 @@
         },
         {
           "title": "Getting Started",
-          "slug": "/cloud/getting-started/"
+          "slug": "/cloud/getting-started/",
+          "hideInScopes": ["oss", "enterprise"]
         },
         {
           "title": "Architecture",
-          "slug": "/cloud/architecture/"
+          "slug": "/cloud/architecture/",
+          "hideInScopes": ["oss", "enterprise"]
         },
         {
           "title": "Downloads",
-          "slug": "/cloud/downloads/"
+          "slug": "/cloud/downloads/",
+          "hideInScopes": ["oss", "enterprise"]
         },
         {
           "title": "FAQ",
-          "slug": "/cloud/faq/"
+          "slug": "/cloud/faq/",
+          "hideInScopes": ["oss", "enterprise"]
         }
       ]
     },
