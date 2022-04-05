@@ -3586,7 +3586,7 @@ func (a *ServerWithRoles) filterKubeServices(server types.Server) error {
 	// checking if the user has any roles that require it.
 	if hasLocalUserRole(a.context.Checker) {
 		roles := a.context.Checker.(LocalUserRoleSet)
-		agentVersion := semver.New(server.GetTeleportVersion())
+		agentVersion, versionErr := semver.NewVersion(server.GetTeleportVersion())
 
 		hasK8SRequirePolicy := func() bool {
 			for _, role := range roles.RoleSet {
@@ -3600,7 +3600,7 @@ func (a *ServerWithRoles) filterKubeServices(server types.Server) error {
 			return false
 		}
 
-		if hasK8SRequirePolicy() && agentVersion.LessThan(*MinSupportedModeratedSessionsVersion) {
+		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
 			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
 		}
 	}
