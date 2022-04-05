@@ -36,12 +36,12 @@ export class StatePersistenceService {
   private readonly putIntoFileStorage: (path: string, json: any) => void;
 
   constructor(private _fileStorage: FileStorage) {
-    const restored =
-      this._fileStorage.get<StatePersistenceState>('state');
+    const restored = this._fileStorage.get<StatePersistenceState>('state');
     if (restored) {
       this.state = restored;
     }
-    this.putIntoFileStorage = debounce(this._fileStorage.put, 2000);
+    // TODO(gzdunek) increase debounce value, run additional save before closing the app
+    this.putIntoFileStorage = debounce(this._fileStorage.put, 500);
   }
 
   saveConnectionTrackerState(navigatorState: ConnectionTrackerState): void {
@@ -57,8 +57,11 @@ export class StatePersistenceService {
     this.state.workspacesState.rootClusterUri = workspacesState.rootClusterUri;
     for (let w in workspacesState.workspaces) {
       if (workspacesState.workspaces[w]) {
-        this.state.workspacesState.workspaces[w] =
-          workspacesState.workspaces[w];
+        this.state.workspacesState.workspaces[w] = {
+          location: workspacesState.workspaces[w].location,
+          localClusterUri: workspacesState.workspaces[w].localClusterUri,
+          documents: workspacesState.workspaces[w].documents,
+        };
       }
     }
     this.putIntoFileStorage('state', this.state);

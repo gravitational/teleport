@@ -52,6 +52,16 @@ export class ModalsService extends ImmutableStore<Dialog> {
     }));
   }
 
+  openDocumentsReopenDialog(options: {
+    onConfirm?(): void;
+    onCancel?(): void;
+  }) {
+    this.setState(() => ({
+      kind: 'documents-reopen',
+      ...options,
+    }));
+  }
+
   closeDialog() {
     this.setState(() => ({
       kind: 'none',
@@ -86,8 +96,17 @@ export interface DialogClusterLogout {
   clusterTitle: string;
 }
 
+export interface DialogDocumentsReopen {
+  kind: 'documents-reopen';
+
+  onConfirm?(): void;
+
+  onCancel?(): void;
+}
+
 export type Dialog =
   | DialogBase
   | DialogClusterConnect
   | DialogNewGateway
-  | DialogClusterLogout;
+  | DialogClusterLogout
+  | DialogDocumentsReopen;
