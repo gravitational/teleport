@@ -4,6 +4,12 @@ description: How to install and configure Teleport in Kubernetes using Helm
 layout: tocless-doc
 ---
 
+## Helm guides
+
+These guides show you how to set up a full self-hosted Teleport deployment using
+our `teleport-cluster` Helm chart.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 <TileSet>
     <Tile icon="kubernetes" title="Standalone Teleport Cluster" href="../getting-started.mdx">
         Getting started with Kubernetes Access
@@ -18,6 +24,25 @@ layout: tocless-doc
         Running a Teleport cluster in Kubernetes with a custom Teleport config
     </Tile>
 </TileSet>
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+<TileSet>
+    <Tile 
+    icon="wrench"
+    title="Open Source Teleport"
+    href="./guides.mdx/?scope=oss"
+  >
+    Learn how to deploy an open source Teleport cluster using Helm.
+    </Tile>
+    <Tile 
+    icon="wrench"
+    title="Teleport Enterprise"
+    href="./guides.mdx/?scope=enterprise"
+  >
+    Learn how to deploy a Teleport Enterprise cluster using Helm.
+    </Tile>
+  </TileSet>
+</ScopedBlock>
 
 ## Migration Guides
 

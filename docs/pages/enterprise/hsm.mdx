@@ -12,9 +12,11 @@ This guide will show you how to set up the Teleport Auth Server to use a hardwar
 - An HSM reachable from your Teleport auth server.
 - The PKCS#11 module for your HSM.
 
-<Details scope={["cloud", "oss"]} opened={true} scopeOnly={true} title="Compatibility Warning">
+<Admonition type="warning" scope={["cloud", "oss"]} opened={true} scopeOnly={true} title="Compatibility Warning">
 Teleport Cloud and Teleport Open Source do not currently support HSM.
-</Details>
+
+You can view this guide as a [Teleport Enterprise user](./hsm.mdx/?scope=enterprise).
+</Admonition>
 
 While most PKCS#11 HSMs should be supported, the Teleport team tests with AWS
 CloudHSM, YubiHSM2, and SoftHSM2.

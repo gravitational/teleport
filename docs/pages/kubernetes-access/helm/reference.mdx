@@ -4,12 +4,14 @@ description: A list of values that can be set using Teleport Helm charts and the
 ---
 
 <TileSet>
-<Tile href="./reference/teleport-cluster.mdx" icon="kubernetes" title="teleport-cluster">
-![Teleport ](../../../img/k8s/mini-diagrams/teleport-in-k8s-mono.svg)
+<ScopedBlock scope={["oss", "enterprise"]}>
+    <Tile href="./reference/teleport-cluster.mdx" icon="kubernetes" title="teleport-cluster">
+    ![Teleport ](../../../img/k8s/mini-diagrams/teleport-in-k8s-mono.svg)
 
-Deploy the Teleport Auth Service and Proxy Service on Kubernetes.
+    Deploy the Teleport Auth Service and Proxy Service on Kubernetes.
 
-</Tile>
+    </Tile>
+</ScopedBlock>
 <Tile href="./reference/teleport-kube-agent.mdx" icon="kubernetes" title="teleport-kube-agent">
 ![Kubernetes agent](../../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
 

@@ -10,10 +10,12 @@ layout: tocless-doc
     ![Teleport ](../../img/k8s/mini-diagrams/teleport-in-k8s-mono.svg)
     Quickly see how Teleport works with Kubernetes on your laptop.
   </Tile>
-  <Tile title="Teleport Cluster in Kubernetes" href="./getting-started/cluster.mdx">
-    ![Teleport ](../../img/k8s/mini-diagrams/teleport-in-k8s-mono.svg)
-    Deploy a standalone Teleport cluster in a Kubernetes cluster.
-  </Tile>
+  <ScopedBlock scope={["oss", "enterprise"]}>
+    <Tile title="Teleport Cluster in Kubernetes" href="./getting-started/cluster.mdx">
+      ![Teleport ](../../img/k8s/mini-diagrams/teleport-in-k8s-mono.svg)
+      Deploy a standalone Teleport cluster in a Kubernetes cluster.
+    </Tile>
+  </ScopedBlock>
   <Tile title="Teleport Kubernetes Agent" href="./getting-started/agent.mdx">
     ![Kubernetes agent](../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
     Connect a Kubernetes cluster to an existing Teleport cluster.
