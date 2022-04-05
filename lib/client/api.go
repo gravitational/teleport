@@ -2493,7 +2493,7 @@ func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingR
 }
 
 // GetWebConfig retreives Teleport proxy web config
-func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*WebConfig, error) {
+func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*webclient.WebConfig, error) {
 	cfg, err := GetWebConfig(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 	if err != nil {
 		return nil, trace.Wrap(err)
