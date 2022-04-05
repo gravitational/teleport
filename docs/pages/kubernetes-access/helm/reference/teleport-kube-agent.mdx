@@ -1332,3 +1332,26 @@ Kubernetes Tolerations to set for pod assignment.
   ```
   </TabItem>
 </Tabs>
+
+## `probeTimeoutSeconds`
+
+| Type | Default value |
+| - | - |
+| `integer` | `1` |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
+
+Kubernetes timeouts for the liveness and readiness probes.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  probeTimeoutSeconds: 5
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set probeTimeoutSeconds=5
+  ```
+  </TabItem>
+</Tabs>

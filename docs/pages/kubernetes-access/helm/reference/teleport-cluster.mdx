@@ -129,6 +129,83 @@ By default no devices are forbidden.
 
 `proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`.
 
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  proxyListenerMode: multiplex
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set proxyListenerMode=multiplex
+  ```
+  </TabItem>
+</Tabs>
+
+## `separatePostgresListener`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `bool` | `false` | no | `proxy_service.postgres_listen_addr` | ❌ |
+
+`separatePostgresListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
+over a separate TLS listener to Teleport's web UI.
+
+When `separatePostgresListener` is `false` (the default), PostgreSQL traffic will be directed to port 443 (the default Teleport web
+UI port). This works in situations when Teleport is terminating its own TLS traffic, i.e. when using certificates from LetsEncrypt
+or providing a certificate/private key pair via Teleport's `proxy_service.https_keypairs` config.
+
+When `separatePostgresListener` is `true`, PostgreSQL traffic will be directed to a separate Postgres-only listener on port 5432.
+This also adds the port to the `Service` that the chart creates. This is useful when terminating TLS at a load balancer
+in front of Teleport, such as when using AWS ACM.
+
+These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  separatePostgresListener: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set separatePostgresListener=true
+  ```
+  </TabItem>
+</Tabs>
+
+## `separateMongoListener`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `bool` | `false` | no | `proxy_service.mongo_listen_addr` | ❌ |
+
+`separateMongoListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
+over a separate TLS listener to Teleport's web UI.
+
+When `separateMongoListener` is `false` (the default), MongoDB traffic will be directed to port 443 (the default Teleport web
+UI port). This works in situations when Teleport is terminating its own TLS traffic, i.e. when using certificates from LetsEncrypt
+or providing a certificate/private key pair via Teleport's `proxy_service.https_keypairs` config.
+
+When `separateMongoListener` is `true`, MongoDB traffic will be directed to a separate Mongo-only listener on port 27017.
+This also adds the port to the `Service` that the chart creates. This is useful when terminating TLS at a load balancer
+in front of Teleport, such as when using AWS ACM.
+
+These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  separateMongoListener: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set separateMongoListener=true
+  ```
+  </TabItem>
+</Tabs>
+
 ## `enterprise`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -660,6 +737,74 @@ Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-man
   <TabItem label="--set">
   ```code
   --set highAvailability.certManager.issuerGroup=cert-manager.io
+  ```
+  </TabItem>
+</Tabs>
+
+## `tls.existingSecretName`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `""` | ✅ | `proxy_service.https_keypairs` |
+
+`tls.existingSecretName` tells Teleport to use an existing Kubernetes TLS secret to secure its web UI using HTTPS. This can be
+set to use a TLS certificate issued by a trusted internal CA rather than a public-facing CA like Let's Encrypt.
+
+You should create the secret in the same namespace as Teleport using a command like this:
+
+```shell
+kubectl create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
+```
+
+See https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets for more information.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tls:
+    existingSecretName: my-tls-secret
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tls.existingSecretName=my-tls-secret
+  ```
+  </TabItem>
+</Tabs>
+
+## `tls.existingCASecretName`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `""` | ✅ |
+
+`tls.existingCASecretName` sets the `SSL_CERT_FILE` environment variable to load a trusted CA or bundle in PEM format into Teleport pods.
+This can be set to inject a root and/or intermediate CA so that Teleport can build a full trust chain on startup.
+
+This is likely to be needed
+if Teleport fails to start when `tls.existingSecretName` is set with a `User Message: unable to verify HTTPS certificate chain` error
+in the pod logs.
+
+You should create the secret in the same namespace as Teleport using a command like this:
+
+```shell
+kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
+
+<Notice type="warning" title="Root CA filename">
+  The filename used for the root CA in the secret must be `ca.pem`.
+</Notice>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tls:
+    existingCASecretName: my-root-ca
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tls.existingSecretName=my-root-ca
   ```
   </TabItem>
 </Tabs>
@@ -1346,3 +1491,25 @@ Kubernetes PriorityClass to set for pod.
   </TabItem>
 </Tabs>
 
+## `probeTimeoutSeconds`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `integer` | `1` | ✅ |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
+
+Kubernetes timeouts for the liveness and readiness probes.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  probeTimeoutSeconds: 5
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set probeTimeoutSeconds=5
+  ```
+  </TabItem>
+</Tabs>

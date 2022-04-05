@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1252,8 +1253,8 @@ type testContext struct {
 	webListener    *multiplexer.WebListener
 	fakeRemoteSite *reversetunnel.FakeRemoteSite
 	server         *Server
-	emitter        *testEmitter
-	hostCA         types.CertAuthority
+	emitter        *eventstest.ChannelEmitter
+	databaseCA     types.CertAuthority
 	// postgres is a collection of Postgres databases the test uses.
 	postgres map[string]testPostgres
 	// mysql is a collection of MySQL databases the test uses.
@@ -1522,7 +1523,7 @@ func (c *testContext) makeTLSConfig(t *testing.T) *tls.Config {
 	conf := utils.TLSConfig(nil)
 	conf.Certificates = append(conf.Certificates, cert)
 	conf.ClientAuth = tls.VerifyClientCertIfGiven
-	conf.ClientCAs, err = auth.ClientCertPool(c.authServer, c.clusterName)
+	conf.ClientCAs, err = auth.DefaultClientCertPool(c.authServer, c.clusterName)
 	require.NoError(t, err)
 	return conf
 }
@@ -1612,7 +1613,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.authClient.Close()) })
 
-	testCtx.hostCA, err = testCtx.authClient.GetCertAuthority(ctx, types.CertAuthID{Type: types.HostCA, DomainName: testCtx.clusterName}, false)
+	testCtx.databaseCA, err = testCtx.authClient.GetCertAuthority(ctx, types.CertAuthID{Type: types.DatabaseCA, DomainName: testCtx.clusterName}, false)
 	require.NoError(t, err)
 
 	// Auth client, lock watcher and authorizer for database proxy.
@@ -1644,9 +1645,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 
 	// Establish fake reversetunnel b/w database proxy and database service.
 	testCtx.fakeRemoteSite = reversetunnel.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
-	t.Cleanup(func() {
-		testCtx.fakeRemoteSite.Close()
-	})
+	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
 	tunnel := &reversetunnel.FakeServer{
 		Sites: []reversetunnel.RemoteSite{
 			testCtx.fakeRemoteSite,
@@ -1657,7 +1656,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Create test audit events emitter.
-	testCtx.emitter = newTestEmitter()
+	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
@@ -1700,6 +1699,8 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *cloud.GCPSQLAdminClientMock
+	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
+	OnHeartbeat func(error)
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -1765,6 +1766,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		Limiter:          connLimiter,
 		Auth:             testAuth,
 		Databases:        p.Databases,
+		OnHeartbeat:      p.OnHeartbeat,
 		ResourceMatchers: p.ResourceMatchers,
 		GetServerInfoFn:  p.GetServerInfoFn,
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
@@ -1848,7 +1850,7 @@ func withRDSPostgres(name, authToken string) withDatabaseOption {
 				Region: testAWSRegion,
 			},
 			// Set CA cert, otherwise we will attempt to download RDS roots.
-			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -1880,7 +1882,7 @@ func withRedshiftPostgres(name, authToken string) withDatabaseOption {
 				Redshift: types.Redshift{ClusterID: "redshift-cluster-1"},
 			},
 			// Set CA cert, otherwise we will attempt to download Redshift roots.
-			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -1915,7 +1917,7 @@ func withCloudSQLPostgres(name, authToken string) withDatabaseOption {
 				InstanceID: "instance-1",
 			},
 			// Set CA cert to pass cert validation.
-			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -1946,7 +1948,7 @@ func withAzurePostgres(name, authToken string) withDatabaseOption {
 				Name: name,
 			},
 			// Set CA cert, otherwise we will attempt to download RDS roots.
-			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.postgres[name] = testPostgres{
@@ -2006,7 +2008,7 @@ func withRDSMySQL(name, authUser, authToken string) withDatabaseOption {
 				Region: testAWSRegion,
 			},
 			// Set CA cert, otherwise we will attempt to download RDS roots.
-			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.mysql[name] = testMySQL{
@@ -2042,7 +2044,7 @@ func withCloudSQLMySQL(name, authUser, authToken string) withDatabaseOption {
 				InstanceID: "instance-1",
 			},
 			// Set CA cert to pass cert validation.
-			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.mysql[name] = testMySQL{
@@ -2082,7 +2084,7 @@ func withCloudSQLMySQLTLS(name, authUser, authToken string) withDatabaseOption {
 				InstanceID: "instance-1",
 			},
 			// Set CA cert to pass cert validation.
-			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.mysql[name] = testMySQL{
@@ -2114,7 +2116,7 @@ func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 				Name: name,
 			},
 			// Set CA cert, otherwise we will attempt to download RDS roots.
-			CACert: string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert),
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
 		})
 		require.NoError(t, err)
 		testCtx.mysql[name] = testMySQL{

@@ -18,10 +18,13 @@ package db
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 
 	"github.com/jackc/pgconn"
@@ -176,4 +179,68 @@ func TestDatabaseServerLimiting(t *testing.T) {
 
 		require.FailNow(t, "we should exceed the connection limit by now")
 	})
+}
+
+func TestHeartbeatEvents(t *testing.T) {
+	ctx := context.Background()
+
+	dbOne, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbOne",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	dbTwo, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbOne",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	})
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		staticDatabases types.Databases
+		heartbeatCount  int64
+	}{
+		"SingleStaticDatabase": {
+			staticDatabases: types.Databases{dbOne},
+			heartbeatCount:  1,
+		},
+		"MultipleStaticDatabases": {
+			staticDatabases: types.Databases{dbOne, dbTwo},
+			heartbeatCount:  2,
+		},
+		"EmptyStaticDatabases": {
+			staticDatabases: types.Databases{},
+			heartbeatCount:  1,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			var heartbeatEvents int64
+			heartbeatRecorder := func(err error) {
+				require.NoError(t, err)
+				atomic.AddInt64(&heartbeatEvents, 1)
+			}
+
+			testCtx := setupTestContext(ctx, t)
+			server := testCtx.setupDatabaseServer(ctx, t, agentParams{
+				NoStart:     true,
+				OnHeartbeat: heartbeatRecorder,
+				Databases:   test.staticDatabases,
+			})
+			require.NoError(t, server.Start(ctx))
+			t.Cleanup(func() {
+				server.Close()
+			})
+
+			require.NotNil(t, server)
+			require.Eventually(t, func() bool {
+				return atomic.LoadInt64(&heartbeatEvents) == test.heartbeatCount
+			}, 2*time.Second, 500*time.Millisecond)
+		})
+	}
 }

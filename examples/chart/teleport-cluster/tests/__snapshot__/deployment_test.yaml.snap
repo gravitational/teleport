@@ -12,6 +12,7 @@ sets Deployment annotations when specified:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -24,6 +25,7 @@ sets Deployment annotations when specified:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -55,6 +57,7 @@ sets Pod annotations when specified:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -67,6 +70,7 @@ sets Pod annotations when specified:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -98,6 +102,7 @@ should add PersistentVolumeClaim as volume when in standalone mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -110,6 +115,7 @@ should add PersistentVolumeClaim as volume when in standalone mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -153,6 +159,7 @@ should add emptyDir for data in AWS mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -165,6 +172,7 @@ should add emptyDir for data in AWS mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -207,6 +215,7 @@ should add emptyDir for data in GCP mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -219,6 +228,7 @@ should add emptyDir for data in GCP mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport-secrets
         name: gcp-credentials
@@ -252,6 +262,7 @@ should add emptyDir for data in custom mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -264,6 +275,7 @@ should add emptyDir for data in custom mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -295,6 +307,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -307,6 +320,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -338,6 +352,7 @@ should add named PersistentVolumeClaim as volume when in standalone mode and sta
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -350,6 +365,7 @@ should add named PersistentVolumeClaim as volume when in standalone mode and sta
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -381,6 +397,7 @@ should do enterprise things when when enterprise is set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -393,6 +410,7 @@ should do enterprise things when when enterprise is set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /var/lib/license
         name: license
@@ -430,6 +448,7 @@ should expose diag port:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -442,6 +461,52 @@ should expose diag port:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+should have Recreate strategy in standalone mode:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -485,6 +550,7 @@ should have multiple replicas when replicaCount is set:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -497,6 +563,7 @@ should have multiple replicas when replicaCount is set:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -539,6 +606,7 @@ should mount ConfigMap for config in AWS mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -551,6 +619,7 @@ should mount ConfigMap for config in AWS mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -593,6 +662,7 @@ should mount ConfigMap for config in GCP mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -605,6 +675,7 @@ should mount ConfigMap for config in GCP mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport-secrets
         name: gcp-credentials
@@ -638,6 +709,7 @@ should mount ConfigMap for config in custom mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -650,6 +722,7 @@ should mount ConfigMap for config in custom mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -680,6 +753,7 @@ should mount ConfigMap for config in standalone mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -692,6 +766,7 @@ should mount ConfigMap for config in standalone mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -735,6 +810,7 @@ should mount GCP credentials for initContainer in GCP mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -747,6 +823,7 @@ should mount GCP credentials for initContainer in GCP mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport-secrets
         name: gcp-credentials
@@ -806,6 +883,7 @@ should mount GCP credentials in GCP mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -818,6 +896,7 @@ should mount GCP credentials in GCP mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport-secrets
         name: gcp-credentials
@@ -863,6 +942,7 @@ should mount TLS certs for initContainer when cert-manager is enabled:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -875,6 +955,7 @@ should mount TLS certs for initContainer when cert-manager is enabled:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport-secrets
         name: gcp-credentials
@@ -943,6 +1024,7 @@ should mount TLS certs when cert-manager is enabled:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -955,10 +1037,73 @@ should mount TLS certs when cert-manager is enabled:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport-secrets
         name: gcp-credentials
         readOnly: true
+      - mountPath: /etc/teleport-tls
+        name: teleport-tls
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - name: teleport-tls
+      secret:
+        secretName: teleport-tls
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
+should mount cert-manager TLS secret when highAvailability.certManager.enabled is true:
+  1: |
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
       - mountPath: /etc/teleport-tls
         name: teleport-tls
         readOnly: true
@@ -994,6 +1139,7 @@ should mount extraVolumes and extraVolumeMounts:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1006,6 +1152,7 @@ should mount extraVolumes and extraVolumeMounts:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1028,6 +1175,179 @@ should mount extraVolumes and extraVolumeMounts:
     - name: my-mount
       secret:
         secretName: mySecret
+should mount tls.existingCASecretName and set environment when set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: SSL_CERT_FILE
+        value: /etc/teleport-tls-ca/ca.pem
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport-tls
+        name: teleport-tls
+        readOnly: true
+      - mountPath: /etc/teleport-tls-ca
+        name: teleport-tls-ca
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - name: teleport-tls
+      secret:
+        secretName: helm-lint-existing-tls-secret
+    - name: teleport-tls-ca
+      secret:
+        secretName: helm-lint-existing-tls-secret-ca
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+should mount tls.existingCASecretName and set extra environment when set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: SOME_ENVIRONMENT_VARIABLE
+        value: some-value
+      - name: SSL_CERT_FILE
+        value: /etc/teleport-tls-ca/ca.pem
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport-tls
+        name: teleport-tls
+        readOnly: true
+      - mountPath: /etc/teleport-tls-ca
+        name: teleport-tls-ca
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - name: teleport-tls
+      secret:
+        secretName: helm-lint-existing-tls-secret
+    - name: teleport-tls-ca
+      secret:
+        secretName: helm-lint-existing-tls-secret-ca
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+should mount tls.existingSecretName when set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport-tls
+        name: teleport-tls
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - name: teleport-tls
+      secret:
+        secretName: helm-lint-existing-tls-secret
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should not do enterprise things when when enterprise is not set in values:
   1: |
     containers:
@@ -1042,6 +1362,7 @@ should not do enterprise things when when enterprise is not set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1054,6 +1375,7 @@ should not do enterprise things when when enterprise is not set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1085,6 +1407,7 @@ should not have more than one replica in standalone mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1097,6 +1420,211 @@ should not have more than one replica in standalone mode:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+should not have strategy in AWS mode:
+  1: |
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
+should not have strategy in GCP mode:
+  1: |
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport-secrets
+        name: gcp-credentials
+        readOnly: true
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
+should not have strategy in custom mode:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - emptyDir: {}
+      name: data
+should not mount TLS secrets when when highAvailability.certManager.enabled is false and tls.existingSecretName is not set:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1120,8 +1648,8 @@ should provision initContainer correctly when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
-      - name: SSL_CERT_FILE
-        value: /etc/tls/some-cert-file.pem
+      - name: SOME_ENVIRONMENT_VARIABLE
+        value: some-value
       image: quay.io/gravitational/teleport:10.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1131,6 +1659,7 @@ should provision initContainer correctly when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1143,6 +1672,7 @@ should provision initContainer correctly when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       resources:
         limits:
           cpu: 2
@@ -1208,6 +1738,7 @@ should set affinity when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1220,6 +1751,7 @@ should set affinity when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1242,8 +1774,8 @@ should set environment when extraEnv set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
-      - name: SSL_CERT_FILE
-        value: /etc/tls/some-cert-file.pem
+      - name: SOME_ENVIRONMENT_VARIABLE
+        value: some-value
       image: quay.io/gravitational/teleport:10.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1253,6 +1785,7 @@ should set environment when extraEnv set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1265,6 +1798,7 @@ should set environment when extraEnv set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1296,6 +1830,7 @@ should set imagePullPolicy when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1308,6 +1843,7 @@ should set imagePullPolicy when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1345,6 +1881,7 @@ should set postStart command if set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1357,6 +1894,7 @@ should set postStart command if set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1388,6 +1926,7 @@ should set priorityClassName when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1400,6 +1939,7 @@ should set priorityClassName when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1407,6 +1947,51 @@ should set priorityClassName when set in values:
       - mountPath: /var/lib/teleport
         name: data
     priorityClassName: system-cluster-critical
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+should set probeTimeoutSeconds when set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 5
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
     serviceAccountName: RELEASE-NAME
     volumes:
     - name: gcp-credentials
@@ -1442,6 +2027,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1454,6 +2040,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1484,6 +2071,7 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1496,6 +2084,7 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       resources:
         limits:
           cpu: 2
@@ -1546,6 +2135,7 @@ should set tolerations when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1558,6 +2148,7 @@ should set tolerations when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       volumeMounts:
       - mountPath: /etc/teleport
         name: config

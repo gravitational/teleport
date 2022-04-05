@@ -161,8 +161,16 @@
               "slug": "/setup/guides/ec2-tags/"
             },
             {
-              "title": "Joining Nodes in AWS",
-              "slug": "/setup/guides/joining-nodes-aws/"
+              "title": "Joining Nodes via AWS IAM",
+              "slug": "/setup/guides/joining-nodes-aws-iam/"
+            },
+            {
+              "title": "Joining Nodes via AWS EC2",
+              "slug": "/setup/guides/joining-nodes-aws-ec2/"
+            },
+            {
+              "title": "Using Teleport's CA with GitHub",
+              "slug": "/setup/guides/ssh-key-extensions/"
             }
           ]
         },
@@ -291,6 +299,10 @@
               "slug": "/server-access/guides/openssh/"
             },
             {
+              "title": "Recording Proxy Mode",
+              "slug": "/server-access/guides/recording-proxy-mode/"
+            },
+            {
               "title": "BPF Session Recording",
               "slug": "/server-access/guides/bpf-session-recording/"
             },
@@ -317,14 +329,18 @@
         {
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
-          "entries": [
-            {
-              "title": "Cluster",
-              "slug": "/kubernetes-access/getting-started/cluster/"
+           "entries": [
+            { 
+              "title": "Local Demo Cluster", 
+              "slug": "/kubernetes-access/getting-started/local/"
             },
-            {
-              "title": "Agent",
-              "slug": "/kubernetes-access/getting-started/agent/"
+            { 
+              "title": "Cluster", 
+              "slug": "/kubernetes-access/getting-started/cluster/" 
+            },
+            { 
+              "title": "Agent", 
+              "slug": "/kubernetes-access/getting-started/agent/" 
             }
           ]
         },
@@ -457,6 +473,10 @@
               "slug": "/database-access/guides/redis/"
             },
             {
+              "title": "Self-Hosted Redis Cluster",
+              "slug": "/database-access/guides/redis-cluster/"
+            },
+            {
               "title": "SQL Server (Preview)",
               "slug": "/database-access/guides/sql-server-ad/"
             },
@@ -559,7 +579,7 @@
       ]
     },
     {
-      "icon": "wand",
+      "icon": "chip",
       "title": "Machine ID",
       "entries": [
         {
@@ -591,6 +611,10 @@
             {
               "title": "Machine ID with Ansible",
               "slug": "/machine-id/guides/ansible/"
+            },
+            {
+              "title": "Machine ID with Jenkins",
+              "slug": "/machine-id/guides/jenkins/"
             }
           ]
         }
@@ -761,6 +785,10 @@
           "slug": "/cloud/architecture/"
         },
         {
+          "title": "Downloads",
+          "slug": "/cloud/downloads/"
+        },
+        {
           "title": "FAQ",
           "slug": "/cloud/faq/"
         }
@@ -835,7 +863,7 @@
       "version": "3.4.2"
     },
     "terraform": {
-      "version": "0.12.0"
+      "version": "1.0.0"
     },
     "presets": {
       "tokens": {
@@ -851,6 +879,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
+      "version": "8.3.4",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1096,6 +1125,11 @@
     {
       "source": "/kubernetes-access/guides/migration/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/guides/joining-nodes-aws/",
+      "destination": "/setup/guides/joining-nodes-aws-iam/",
       "permanent": true
     }
   ]
