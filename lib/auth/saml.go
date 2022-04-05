@@ -415,7 +415,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return auth, nil
 }
@@ -463,15 +463,15 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 	connector, provider, err := a.getConnectorAndProvider(ctx, *request)
 	if err != nil {
 		traceErr("Failed to get SAML connector and provider", err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		errV := trace.AccessDenied(
+		err = trace.AccessDenied(
 			"received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err)
-		traceErr("Failed to retrieve assertion info. This may indicate IdP configuration error.", errV)
-		return nil, errV
+		traceErr("Failed to retrieve assertion info. This may indicate IdP configuration error.", err)
+		return nil, trace.Wrap(err)
 	}
 
 	diagInfo(types.SSOInfoType_SAML_ASSERTION_INFO, assertionInfo)
@@ -479,13 +479,13 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 	if assertionInfo.WarningInfo.InvalidTime {
 		err = trace.AccessDenied("invalid time in SAML assertion info")
 		traceErr("SAML assertion info contained warning: invalid time.", err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	if assertionInfo.WarningInfo.NotInAudience {
 		err = trace.AccessDenied("no audience in SAML assertion info")
 		traceErr("SAML: not in expected audience. Check auth connector audience field and IdP configuration for typos and other errors.", err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
@@ -512,7 +512,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 	if len(connector.GetAttributesToRoles()) == 0 {
 		err = trace.BadParameter("no attributes to roles mapping, check connector documentation")
 		traceErr("Attributes-to-roles mapping is empty, SSO user will never have any roles.", err)
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))

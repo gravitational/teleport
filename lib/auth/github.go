@@ -355,7 +355,7 @@ func (cup createUserParams) MarshalJSON() ([]byte, error) {
 		SessionTTL:    cup.sessionTTL,
 	})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	return j, nil
 }

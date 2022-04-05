@@ -162,7 +162,7 @@ func CheckSAMLEntityDescriptor(entityDescriptor string) ([]*x509.Certificate, er
 func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
 	roots, errEd := CheckSAMLEntityDescriptor(sc.GetEntityDescriptor())
 	if errEd != nil {
-		return nil, errEd
+		return nil, trace.Wrap(errEd)
 	}
 
 	certStore := dsig.MemoryX509CertificateStore{Roots: roots}
