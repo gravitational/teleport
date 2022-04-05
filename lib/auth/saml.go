@@ -178,7 +178,7 @@ func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServicePr
 	return serviceProvider, nil
 }
 
-func (a *Server) calculateSAMLUser(connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateSAMLUser(ctx context.Context, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
 	var err error
 
 	p := createUserParams{
@@ -194,7 +194,7 @@ func (a *Server) calculateSAMLUser(connector types.SAMLConnector, assertionInfo 
 			log.WithError(err).Warn("Failed to serialize SSO diag info.")
 		}
 
-		err = a.Identity.CreateSSODiagnosticInfo(context.Background(), types.KindSAML, request.ID, *entry)
+		err = a.Identity.CreateSSODiagnosticInfo(ctx, types.KindSAML, request.ID, *entry)
 		if err != nil {
 			log.WithError(err).Warn("Failed to create SSO diag info.")
 		}
@@ -437,7 +437,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 			log.WithError(err).Warn("Failed to serialize SSO diag info.")
 		}
 
-		err = a.Identity.CreateSSODiagnosticInfo(context.Background(), types.KindSAML, requestID, *entry)
+		err = a.Identity.CreateSSODiagnosticInfo(ctx, types.KindSAML, requestID, *entry)
 		if err != nil {
 			log.WithError(err).Warn("Failed to create SSO diag info.")
 		}
@@ -519,7 +519,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateSAMLUser(connector, *assertionInfo, request)
+	params, err := a.calculateSAMLUser(ctx, connector, *assertionInfo, request)
 	if err != nil {
 		traceErr("Failed to calculate user attributes.", err)
 		return nil, trace.Wrap(err)
