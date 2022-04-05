@@ -344,10 +344,7 @@ func (c *Client) DialNode(
 		return nil, trace.ConnectionProblem(nil, "received malformed connection established frame")
 	}
 
-	conn := newStreamConn(stream, src, dst)
-	go conn.run()
-
-	return conn, nil
+	return newStreamConn(stream, src, dst), nil
 }
 
 // Shutdown gracefully shuts down all existing client connections.
