@@ -42,6 +42,12 @@ func TestSSODiagnosticInfo_GetValue(t *testing.T) {
 			want:    map[string]interface{}{"Message": "oh!", "Error": "no..."},
 			wantErr: false,
 		},
+		{
+			name:    "bad JSON",
+			info:    &SSODiagnosticInfo{},
+			want:    nil,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
