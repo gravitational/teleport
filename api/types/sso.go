@@ -16,9 +16,33 @@ limitations under the License.
 
 package types
 
-// SsoDiagInfoEntry records diagnostic information about sso auth requests.
-type SsoDiagInfoEntry struct {
-	Key       string        `json:"key"`
-	Value     interface{}   `json:"value"`
-	ExtraInfo []interface{} `json:"extra_info,omitempty"`
+import (
+	"encoding/json"
+
+	"github.com/gravitational/trace"
+)
+
+// NewSSODiagnosticInfo creates new SSODiagnosticInfo object using arbitrary value, which is serialized using JSON.
+func NewSSODiagnosticInfo(infoType SSOInfoType, value interface{}) (*SSODiagnosticInfo, error) {
+	out, err := json.Marshal(value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &SSODiagnosticInfo{InfoType: infoType, Value: out}, nil
+}
+
+// GetValue deserializes embedded JSON of SSODiagnosticInfo.Value with no assumption about underlying type.
+func (m *SSODiagnosticInfo) GetValue() (interface{}, error) {
+	var value interface{}
+	err := json.Unmarshal(m.Value, &value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return value, nil
+}
+
+// GetValueTyped deserializes embedded JSON of SSODiagnosticInfo.Value given typed pointer.
+func (m *SSODiagnosticInfo) GetValueTyped(value interface{}) error {
+	return trace.Wrap(json.Unmarshal(m.Value, &value))
 }

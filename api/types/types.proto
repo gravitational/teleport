@@ -2609,6 +2609,39 @@ message GithubConnectorSpecV3 {
     string Display = 5 [ (gogoproto.jsontag) = "display" ];
 }
 
+// SSOInfoType represents the SSO diagnostic info type.
+enum SSOInfoType {
+    // Unknown info type.
+    UNKNOWN = 0;
+    // Error info type, used for reporting errors.
+    ERROR = 1;
+    // Success info type, used for marking successful flows.
+    SUCCESS = 2;
+    // Create user params, contains info about attempted user creation parameters.
+    CREATE_USER_PARAMS = 3;
+    // [SAML] Attributes to roles mapping.
+    SAML_ATTRIBUTES_TO_ROLES = 4;
+    // [SAML] Attributes to roles warnings.
+    SAML_ATTRIBUTES_TO_ROLES_WARNINGS = 5;
+    // [SAML] Assertion info.
+    SAML_ASSERTION_INFO = 6;
+    // [SAML] Attribute statements.
+    SAML_ATTRIBUTE_STATEMENTS = 7;
+    // [SAML] Traits calculated from assertions.
+    SAML_TRAITS_FROM_ASSERTIONS = 8;
+    // [SAML] Assertion-to-trait mapping as specified in the connector.
+    SAML_CONNECTOR_TRAIT_MAPPING = 9;
+}
+
+// SSODiagnosticInfo is a single SSO diagnostic info entry.
+message SSODiagnosticInfo {
+    // SSO Diagnostic info type.
+    SSOInfoType InfoType = 1 [ (gogoproto.jsontag) = "info_type" ];
+    // Value is arbitrary string encoding of particular value. The meaning depends on particular SSO
+    // diagnostic info type.
+    bytes Value = 2 [ (gogoproto.jsontag) = "value" ];
+}
+
 // TeamMapping represents a single team membership mapping.
 message TeamMapping {
     // Organization is a Github organization a user belongs to.
