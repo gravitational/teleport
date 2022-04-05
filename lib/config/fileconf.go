@@ -20,9 +20,10 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"net"
 	"net/url"
 	"os"
@@ -92,7 +93,10 @@ type FileConfig struct {
 func ReadFromFile(filePath string) (*FileConfig, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
+		if errors.Is(err, fs.ErrPermission) {
+			return nil, trace.Wrap(err, "failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath)
+		}
+		return nil, trace.Wrap(err, "failed to open file for Teleport configuration at %v", filePath)
 	}
 	defer f.Close()
 	return ReadConfig(f)
@@ -111,7 +115,7 @@ func ReadFromString(configString string) (*FileConfig, error) {
 // ReadConfig reads Teleport configuration from reader in YAML format
 func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	// read & parse YAML config:
-	bytes, err := ioutil.ReadAll(reader)
+	bytes, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed reading Teleport configuration")
 	}
@@ -437,7 +441,6 @@ func (c *CachePolicy) Enabled() bool {
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Type:    c.Type,
 		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
@@ -797,7 +800,7 @@ func getAttestationPEM(certOrPath string) (string, error) {
 	}
 
 	// Try reading as a file and parsing that.
-	data, err := ioutil.ReadFile(certOrPath)
+	data, err := os.ReadFile(certOrPath)
 	if err != nil {
 		// Don't use trace in order to keep a clean error message.
 		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
@@ -1436,6 +1439,12 @@ type Metrics struct {
 	// CACerts is a list of prometheus CA certificates to validate clients against.
 	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
 	CACerts []string `yaml:"ca_certs,omitempty"`
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCServerLatency bool `yaml:"grpc_server_latency,omitempty"`
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCClientLatency bool `yaml:"grpc_client_latency,omitempty"`
 }
 
 // MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
@@ -1483,12 +1492,4 @@ type LDAPConfig struct {
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
-
-	// PasswordFile was used in Teleport 8 before we supported client certificates
-	// for LDAP authentication. Support for LDAP passwords was removed for Teleport 9
-	// and this field remains only to issue a warning to users who are upgrading to
-	// Teleport 9.
-	//
-	// TODO(zmb3) DELETE IN 10.0
-	PasswordFile string `yaml:"password_file"`
 }

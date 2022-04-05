@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -279,7 +278,7 @@ const hostID = "00000000-0000-0000-0000-000000000000"
 func startReadAll(r io.Reader) <-chan []byte {
 	ch := make(chan []byte)
 	go func() {
-		data, _ := ioutil.ReadAll(r)
+		data, _ := io.ReadAll(r)
 		ch <- data
 	}()
 	return ch
@@ -449,7 +448,7 @@ func TestDirectTCPIP(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Make sure the response is what was expected.
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, []byte("hello, world\n"), body)
 }
@@ -620,7 +619,7 @@ func TestAgentForward(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a temp file to collect the shell output into:
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "teleport-agent-forward-test")
+	tmpFile, err := os.CreateTemp(os.TempDir(), "teleport-agent-forward-test")
 	require.NoError(t, err)
 	tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
@@ -632,7 +631,7 @@ func TestAgentForward(t *testing.T) {
 	// wait for the output
 	var socketPath string
 	require.Eventually(t, func() bool {
-		output, err := ioutil.ReadFile(tmpFile.Name())
+		output, err := os.ReadFile(tmpFile.Name())
 		if err == nil && len(output) != 0 {
 			socketPath = strings.TrimSpace(string(output))
 			return true

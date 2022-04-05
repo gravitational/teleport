@@ -24,7 +24,6 @@ import (
 	"bufio"
 	"crypto/x509"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -48,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -275,6 +276,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if fc.Storage.Type == lite.AlternativeName {
 			fc.Storage.Type = lite.GetName()
 		}
+		// If the alternative name "cockroachdb" is given, update it to "postgres".
+		if fc.Storage.Type == postgres.AlternativeName {
+			fc.Storage.Type = postgres.GetName()
+		}
+
+		// Fix yamlv2 issue with nested storage sections.
+		fc.Storage.Params.Cleanse()
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
@@ -297,7 +305,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	if fc.CachePolicy.TTL != "" {
-		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+		log.Warn("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+	if fc.CachePolicy.Type == memory.GetName() {
+		log.Debugf("cache.type config option is explicitly set to %v.", memory.GetName())
+	} else if fc.CachePolicy.Type != "" {
+		log.Warn("cache.type config option is deprecated and will be ignored, caches are always in memory in this version.")
 	}
 
 	// apply cache policy for node and proxy
@@ -1223,6 +1236,9 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Metrics.ListenAddr = addr
 
+	cfg.Metrics.GRPCServerLatency = fc.Metrics.GRPCServerLatency
+	cfg.Metrics.GRPCClientLatency = fc.Metrics.GRPCClientLatency
+
 	if !fc.Metrics.MTLSEnabled() {
 		return nil
 	}
@@ -1285,15 +1301,6 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 // applyWindowsDesktopConfig applies file configuration for the "windows_desktop_service" section.
 func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.WindowsDesktop.Enabled = true
-
-	// Support for reading an LDAP password from a file was dropped for Teleport 9.
-	// Check if this old option is still set and issue a clear error for one major version.
-	// DELETE IN 10.0 (zmb3)
-	if len(fc.WindowsDesktop.LDAP.PasswordFile) > 0 {
-		return trace.BadParameter("Support for password_file was deprecated in Teleport 9 " +
-			"in favor of certificate-based authentication. Remove the password_file field from " +
-			"teleport.yaml to fix this error.")
-	}
 
 	if fc.WindowsDesktop.ListenAddress != "" {
 		listenAddr, err := utils.ParseHostPortAddr(fc.WindowsDesktop.ListenAddress, int(defaults.WindowsDesktopListenPort))
@@ -1761,7 +1768,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// apply --debug flag to config:
 	if clf.Debug {
-		cfg.Console = ioutil.Discard
+		cfg.Console = io.Discard
 		cfg.Debug = clf.Debug
 	}
 

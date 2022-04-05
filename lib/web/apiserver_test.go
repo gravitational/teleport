@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -559,7 +558,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(u.Scheme+"://"+u.Host+u.Path, Equals, fixtures.SAMLOktaSSO)
 	data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
 	c.Assert(err, IsNil)
-	buf, err := ioutil.ReadAll(flate.NewReader(bytes.NewReader(data)))
+	buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(data)))
 	c.Assert(err, IsNil)
 	doc := etree.NewDocument()
 	err = doc.ReadFromBytes(buf)

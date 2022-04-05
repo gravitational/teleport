@@ -19,7 +19,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -68,6 +67,9 @@ type AuthCommand struct {
 	leafCluster                string
 	kubeCluster                string
 	appName                    string
+	dbService                  string
+	dbName                     string
+	dbUser                     string
 	signOverwrite              bool
 
 	rotateGracePeriod time.Duration
@@ -119,7 +121,10 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("kube-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).Hidden().StringVar(&a.leafCluster)
 	a.authSign.Flag("leaf-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.leafCluster)
 	a.authSign.Flag("kube-cluster-name", `Kubernetes cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
-	a.authSign.Flag("app-name", `Application to generate identity file for`).StringVar(&a.appName)
+	a.authSign.Flag("app-name", `Application to generate identity file for. Mutually exclusive with "--db-service".`).StringVar(&a.appName)
+	a.authSign.Flag("db-service", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbService)
+	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbUser)
+	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
@@ -304,12 +309,12 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = ioutil.WriteFile(a.genPubPath, pubBytes, 0600)
+	err = os.WriteFile(a.genPubPath, pubBytes, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = ioutil.WriteFile(a.genPrivPath, privBytes, 0600)
+	err = os.WriteFile(a.genPrivPath, privBytes, 0600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -555,7 +560,7 @@ cockroach start \
 To enable mutual TLS on your Redis server, add the following to your redis.conf:
 
 tls-ca-cert-file /path/to/{{.output}}.cas
-tls-cert-file /path/to/{{.output}}.crt 
+tls-cert-file /path/to/{{.output}}.crt
 tls-key-file /path/to/{{.output}}.key
 tls-protocols "TLSv1.2 TLSv1.3"
 `))
@@ -595,10 +600,19 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		return trace.Wrap(err)
 	}
 
-	var routeToApp proto.RouteToApp
-	var certUsage proto.UserCertsRequest_CertUsage
+	var (
+		routeToApp      proto.RouteToApp
+		routeToDatabase proto.RouteToDatabase
+		certUsage       proto.UserCertsRequest_CertUsage
+	)
 
-	if a.appName != "" {
+	// `appName` and `db` are mutually exclusive.
+	if a.appName != "" && a.dbService != "" {
+		return trace.BadParameter("only --app-name or --db-service can be set, not both")
+	}
+
+	switch {
+	case a.appName != "":
 		server, err := getApplicationServer(ctx, clusterAPI, a.appName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -620,6 +634,19 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 			SessionID:   appSession.GetName(),
 		}
 		certUsage = proto.UserCertsRequest_App
+	case a.dbService != "":
+		server, err := getDatabaseServer(context.TODO(), clusterAPI, a.dbService)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		routeToDatabase = proto.RouteToDatabase{
+			ServiceName: a.dbService,
+			Protocol:    server.GetDatabase().GetProtocol(),
+			Database:    a.dbName,
+			Username:    a.dbUser,
+		}
+		certUsage = proto.UserCertsRequest_Database
 	}
 
 	reqExpiry := time.Now().UTC().Add(a.genTTL)
@@ -633,6 +660,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		KubernetesCluster: a.kubeCluster,
 		RouteToApp:        routeToApp,
 		Usage:             certUsage,
+		RouteToDatabase:   routeToDatabase,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -832,4 +860,21 @@ func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName 
 		}
 	}
 	return nil, trace.NotFound("app %q not found", appName)
+}
+
+// getDatabaseServer fetches a single `DatabaseServer` by name using the
+// provided `auth.ClientI`.
+func getDatabaseServer(ctx context.Context, clientAPI auth.ClientI, dbName string) (types.DatabaseServer, error) {
+	servers, err := clientAPI.GetDatabaseServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, server := range servers {
+		if server.GetName() == dbName {
+			return server, nil
+		}
+	}
+
+	return nil, trace.NotFound("database %q not found", dbName)
 }

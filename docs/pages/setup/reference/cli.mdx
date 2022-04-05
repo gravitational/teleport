@@ -38,7 +38,7 @@ the following services.
 | - | - | - | - |
 | `-d, --debug` | none | none | enable verbose logging to stderr |
 | `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally. |
-| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](../../architecture/overview.mdx) document. |
+| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, auth, node, db, app` or `windowsdesktop` | start listed services/roles. These roles are explained in the [Teleport Architecture](../../architecture/overview.mdx) document. |
 | `--pid-file` | none | **string** filepath | create a PID file at the path |
 | `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT |
 | `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP |
@@ -688,6 +688,30 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
 
+### tsh configuration file
+
+`tsh` has an optional configuration file that is stored in `$TELEPORT_HOME/config/config.yaml`.
+
+The `tsh` configuration file enables you to specify HTTP headers to be
+included in requests to Teleport Proxy Servers with addresses matching
+the `proxy` field.
+
+```yaml
+add_headers:
+  - proxy: "*.example.com" # matching proxies will have headers included
+    headers: # headers are pairs to include in the http headers
+      foo: bar # Key/Value to be included in the http request
+```
+
+Adding HTTP headers may be useful, if for example an intermediate HTTP
+proxy is in place that requires setting an authentication token:
+
+```yaml
+add_headers:
+  - proxy: "*.infra.corp.xyz"
+    headers:
+      "Authorization": "Bearer tokentokentoken"
+```
 
 ## tctl
 
@@ -772,11 +796,10 @@ These flags are available for all commands `--debug, --config`. Run
 
 ```code
 # Adds teleport user "joe" with mappings to
-# OS users "joe" and "root"
-$ tctl users add joe joe,root
-# Adds teleport user "joe" with mappings to
-# OS users "joe" only
-$ tctl users add joe
+# OS users and {{ internal.logins }} to "joe" and "ubuntu"
+$ tctl users add joe --roles=access joe,ubuntu
+# Adds Teleport user "joe" with mappings to the editor role
+$ tctl users add joe --roles=editor
 ```
 
 ### tctl users update
@@ -938,7 +961,7 @@ $ tctl nodes add [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--roles` | `node` | `node,auth` or `proxy` | Comma-separated list of roles for the new node to assume |
+| `--roles` | `node` | `proxy, auth, node, db, app` or `windowsdesktop` | Comma-separated list of roles for the new node to assume |
 | `--ttl` | 30m | relative duration like 5s, 2m, or 3h | Time to live for a generated token |
 | `--token` | none | **string** token value | A custom token to use, auto-generated if not provided. Should match token set with `teleport start --token` |
 
@@ -989,7 +1012,7 @@ $ tctl tokens add --type=TYPE [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--type` | none | `trusted_cluster`, `node`, `proxy` | Type of token to add |
+| `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
 
@@ -1008,6 +1031,8 @@ $ tctl tokens add --type=trusted_cluster --labels=env=prod
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type=node
+# Generate a join token for both a Node and the Database Service
+$ tctl tokens add --type=node,db
 # Generate an invite token for a kubernetes_service
 $ tctl tokens add --type=kube
 # Generate an invite token for an app_service
