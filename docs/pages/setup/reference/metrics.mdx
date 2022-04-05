@@ -132,10 +132,11 @@ Teleport Cloud does not expose monitoring endpoints for the Auth Service and Pro
 
 | Name | Type | Component | Description |
 | - | - | - | - |
-| `failed_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of times a user failed connecting to a Node. |
+| `failed_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of failed SSH connection attempts to a node. Use with `teleport_connect_to_node_attempts_total` to get the failure rate. |
 | `failed_login_attempts_total` | counter | Teleport Proxy | Number of failed `tsh login` or `tsh ssh` logins. |
 | `proxy_connection_limit_exceeded_total` | counter | Teleport Proxy | Number of connections that exceeded the proxy connection limit. |
 | `proxy_missing_ssh_tunnels` | gauge | Teleport Proxy | Number of missing SSH tunnels. Used to debug if nodes have discovered all proxies. |
+| `teleport_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of SSH connection attempts to a node. Use with `failed_connect_to_node_attempts_total` to get the failure rate. |
 | `teleport_reverse_tunnels_connected` | gauge | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances. |
 
 ## Teleport Nodes

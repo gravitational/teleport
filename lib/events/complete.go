@@ -26,6 +26,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 
 	"github.com/gravitational/trace"
 
@@ -105,11 +106,16 @@ type UploadCompleter struct {
 }
 
 func (u *UploadCompleter) run() {
-	ticker := u.cfg.Clock.NewTicker(u.cfg.CheckPeriod)
-	defer ticker.Stop()
+	periodic := interval.New(interval.Config{
+		Duration:      u.cfg.CheckPeriod,
+		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
+		Jitter:        utils.NewSeventhJitter(),
+	})
+	defer periodic.Stop()
+
 	for {
 		select {
-		case <-ticker.Chan():
+		case <-periodic.Next():
 			if err := u.CheckUploads(u.closeCtx); err != nil {
 				u.log.WithError(err).Warningf("Failed to check uploads.")
 			}
@@ -134,6 +140,10 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 		parts, err := u.cfg.Uploader.ListParts(ctx, upload)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				u.log.WithError(err).Warnf("Missing parts for upload %v. Moving on to next upload.", upload.ID)
+				continue
+			}
 			return trace.Wrap(err)
 		}
 
@@ -161,7 +171,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			case <-time.After(2 * time.Minute):
 				u.log.Debugf("checking for session end event for session %v", upload.SessionID)
 				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
-					u.log.WithError(err).Warningf("failed to ensure session end event")
+					u.log.WithError(err).Warningf("failed to ensure session end event for session %v", upload.SessionID)
 				}
 			}
 		}()
