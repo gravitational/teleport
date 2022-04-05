@@ -508,21 +508,22 @@ func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 	if err := srv.Start(); err != nil {
 		return trace.Wrap(err, "startup failed")
 	}
+
+	// Wait for the service to report that it has started.
+	startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
+	defer startCancel()
+	eventC := make(chan Event, 1)
+	srv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent, eventC)
+	select {
+	case <-eventC:
+		cfg.Log.Infof("Service has started successfully.")
+	case <-startTimeoutCtx.Done():
+		warnOnErr(srv.Close(), cfg.Log)
+		return trace.BadParameter("service has failed to start")
+	}
+
 	// Wait and reload until called exit.
 	for {
-		// Wait for the service to report that it has started.
-		startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
-		defer startCancel()
-		eventC := make(chan Event, 1)
-		srv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent, eventC)
-		select {
-		case <-eventC:
-			cfg.Log.Infof("Service has started successfully.")
-		case <-startTimeoutCtx.Done():
-			warnOnErr(srv.Close(), cfg.Log)
-			return trace.BadParameter("service has failed to start")
-		}
-
 		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
 		if err != nil {
 			// This error means that was a clean shutdown
@@ -561,7 +562,20 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.Wrap(err, "failed to start a new service")
 	}
-	// Shut down the old service.
+	// Wait for the new server to report that it has started
+	// before shutting down the old one.
+	startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
+	defer startCancel()
+	eventC := make(chan Event, 1)
+	newSrv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent, eventC)
+	select {
+	case <-eventC:
+		cfg.Log.Infof("New service has started successfully.")
+	case <-startTimeoutCtx.Done():
+		warnOnErr(newSrv.Close(), cfg.Log)
+		warnOnErr(srv.Close(), cfg.Log)
+		return nil, trace.BadParameter("the new service has failed to start")
+	}
 	shutdownTimeout := cfg.ShutdownTimeout
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
