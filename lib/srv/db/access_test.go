@@ -1642,6 +1642,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		ConnCh:      testCtx.proxyConn,
 		AccessPoint: proxyAuthClient,
 	}
+	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
 	tunnel := &reversetunnel.FakeServer{
 		Sites: []reversetunnel.RemoteSite{
 			testCtx.fakeRemoteSite,

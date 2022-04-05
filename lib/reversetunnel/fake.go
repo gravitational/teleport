@@ -79,3 +79,7 @@ func (s *FakeRemoteSite) Dial(params DialParams) (net.Conn, error) {
 	s.ConnCh <- readerConn
 	return writerConn, nil
 }
+
+func (s *FakeRemoteSite) Close() error {
+	return nil
+}
