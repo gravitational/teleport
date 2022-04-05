@@ -8,6 +8,7 @@ import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { isEqual } from 'lodash';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 
 export interface WorkspacesState {
   rootClusterUri?: string;
@@ -32,8 +33,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   };
 
   constructor(
-    private clustersService: ClustersService,
     private modalsService: ModalsService,
+    private clustersService: ClustersService,
+    private notificationsService: NotificationsService,
     private statePersistenceService: StatePersistenceService
   ) {
     super();
@@ -134,17 +136,33 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       });
     };
 
-    const isConnected = this.clustersService.findCluster(clusterUri)?.connected;
-    return new Promise((resolve, reject) => {
-      if (clusterUri && !isConnected) {
-        this.modalsService.openClusterConnectDialog(clusterUri, () => {
+    const cluster = this.clustersService.findCluster(clusterUri);
+    if (!cluster) {
+      this.notificationsService.notifyError({
+        title: 'Could not set cluster as active',
+        description: `Cluster with URI ${clusterUri} does not exist`,
+      });
+      this.logger.warn(
+        `Could not find cluster with uri ${clusterUri} when changing active cluster`
+      );
+      return Promise.resolve();
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      if (cluster.connected) {
+        setWorkspace();
+        return resolve();
+      }
+      this.modalsService.openClusterConnectDialog({
+        clusterUri: clusterUri,
+        onCancel: () => {
+          reject();
+        },
+        onSuccess: () => {
           setWorkspace();
           resolve();
-        });
-      } else {
-        setWorkspace();
-        resolve();
-      }
+        },
+      });
     })
       .then(() => {
         return new Promise<void>(resolve => {

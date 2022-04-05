@@ -41,14 +41,14 @@ export class ModalsService extends ImmutableStore<Dialog> {
     }));
   }
 
-  openClusterConnectDialog(
-    clusterUri?: string,
-    onSuccess?: (clusterUri: string) => void
-  ) {
+  openClusterConnectDialog(options: {
+    clusterUri?: string;
+    onSuccess?(clusterUri: string): void;
+    onCancel?(): void;
+  }) {
     this.setState(() => ({
       kind: 'cluster-connect',
-      clusterUri,
-      onSuccess,
+      ...options,
     }));
   }
 
@@ -87,7 +87,10 @@ export interface DialogNewGateway {
 export interface DialogClusterConnect {
   kind: 'cluster-connect';
   clusterUri?: string;
+
   onSuccess?(clusterUri: string): void;
+
+  onCancel?(): void;
 }
 
 export interface DialogClusterLogout {

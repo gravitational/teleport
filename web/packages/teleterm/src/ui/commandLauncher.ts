@@ -140,10 +140,10 @@ const commands = {
         ctx.commandLauncher.executeCommand('cluster-open', { clusterUri });
       };
 
-      ctx.modalsService.openClusterConnectDialog(
-        args.clusterUri,
-        args.onSuccess || defaultHandler
-      );
+      ctx.modalsService.openClusterConnectDialog({
+        clusterUri: args.clusterUri,
+        onSuccess: args.onSuccess || defaultHandler,
+      });
     },
   },
 

@@ -17,15 +17,18 @@ export function ClusterConnect(props: ClusterConnectProps) {
         padding: '20px',
       })}
       disableEscapeKeyDown={false}
-      onClose={props.onClose}
+      onClose={props.onCancel}
       open={true}
     >
       {!clusterUri ? (
-        <ClusterAdd onClose={props.onClose} onSuccess={setCreatedClusterUri} />
+        <ClusterAdd
+          onCancel={props.onCancel}
+          onSuccess={setCreatedClusterUri}
+        />
       ) : (
         <ClusterLogin
           clusterUri={clusterUri}
-          onClose={props.onClose}
+          onCancel={props.onCancel}
           onSuccess={() => props.onSuccess(clusterUri)}
         />
       )}
@@ -35,6 +38,8 @@ export function ClusterConnect(props: ClusterConnectProps) {
 
 interface ClusterConnectProps {
   clusterUri?: string;
-  onClose(): void;
+
+  onCancel(): void;
+
   onSuccess(clusterUri: string): void;
 }

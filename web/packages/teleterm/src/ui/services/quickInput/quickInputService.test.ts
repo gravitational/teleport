@@ -61,7 +61,7 @@ test('getAutocompleteResult returns correct result for a command suggestion with
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult = quickInputService.getAutocompleteResult('');
@@ -81,7 +81,7 @@ test('getAutocompleteResult returns correct result for a command suggestion', ()
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult = quickInputService.getAutocompleteResult('ts');
@@ -118,7 +118,7 @@ test('getAutocompleteResult returns correct result for an SSH login suggestion',
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult =
@@ -159,7 +159,7 @@ test('getAutocompleteResult returns correct result for an SSH login suggestion w
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult =
@@ -210,7 +210,7 @@ test('getAutocompleteResult returns correct result for a database name suggestio
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult =
@@ -251,7 +251,7 @@ test("getAutocompleteResult doesn't return any suggestions if the only suggestio
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult = quickInputService.getAutocompleteResult('foobar');
@@ -280,7 +280,7 @@ test('getAutocompleteResult returns no match if any of the pickers returns parti
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult = quickInputService.getAutocompleteResult('');
@@ -296,7 +296,7 @@ test("the SSH login autocomplete isn't shown if there's no space after `tsh ssh`
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult = quickInputService.getAutocompleteResult('tsh ssh');
@@ -329,7 +329,7 @@ test("the SSH login autocomplete is shown only if there's at least one space aft
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult =
@@ -371,7 +371,7 @@ test('getAutocompleteResult returns correct result for an SSH host suggestion ri
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult =
@@ -416,7 +416,7 @@ test('getAutocompleteResult returns correct result for a partial match on an SSH
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult = quickInputService.getAutocompleteResult(
@@ -458,7 +458,7 @@ test("getAutocompleteResult returns the first argument as loginHost when there's
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
 
   const autocompleteResult =
@@ -478,7 +478,7 @@ test('picking a command suggestion in an empty input autocompletes the command',
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
   quickInputService.setState({ inputValue: '' });
 
@@ -504,7 +504,7 @@ test('picking a command suggestion in an input with a single space preserves the
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
   quickInputService.setState({ inputValue: ' ' });
 
@@ -530,7 +530,7 @@ test('picking an SSH login suggestion replaces target token in input value', () 
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
   quickInputService.setState({ inputValue: 'tsh ssh roo --foo' });
 
@@ -553,7 +553,7 @@ test('pickSuggestion appends the appendToToken field to the token', () => {
   const quickInputService = new QuickInputService(
     new CommandLauncherMock(undefined),
     new ClustersServiceMock(undefined, undefined),
-    new WorkspacesServiceMock(undefined, undefined, undefined)
+    new WorkspacesServiceMock(undefined, undefined, undefined, undefined)
   );
   quickInputService.setState({ inputValue: 'tsh ssh foo' });
 

@@ -52,9 +52,10 @@ export default class AppContext {
       this.notificationsService
     );
     this.workspacesService = new WorkspacesService(
-      this.clustersService,
       this.modalsService,
-      this.statePersistenceService
+      this.clustersService,
+      this.notificationsService,
+      this.statePersistenceService,
     );
     this.terminalsService = new TerminalsService(ptyServiceClient);
 

@@ -25,7 +25,7 @@ export const Story = () => {
   return (
     <ClusterAddPresentation
       addCluster={() => null}
-      onClose={() => null}
+      onCancel={() => null}
       status="success"
       statusText="Success"
     />

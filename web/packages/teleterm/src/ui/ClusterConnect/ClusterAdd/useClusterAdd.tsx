@@ -18,7 +18,7 @@ export function useClusterAdd(
     addCluster,
     status,
     statusText,
-    onClose: props.onClose,
+    onCancel: props.onCancel,
   };
 }
 

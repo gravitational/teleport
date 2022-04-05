@@ -30,7 +30,7 @@ export function ClusterAdd(props: ClusterAddProps) {
 }
 
 export function ClusterAddPresentation({
-  onClose,
+  onCancel,
   addCluster,
   status,
   statusText,
@@ -73,7 +73,7 @@ export function ClusterAddPresentation({
                 type="button"
                 onClick={e => {
                   e.preventDefault();
-                  onClose();
+                  onCancel();
                 }}
               >
                 CANCEL
@@ -87,12 +87,12 @@ export function ClusterAddPresentation({
 }
 
 export type ClusterAddProps = {
-  onClose(): void;
+  onCancel(): void;
   onSuccess(clusterUri: string): void;
 };
 
 export type ClusterAddPresentationProps = {
-  onClose(): void;
+  onCancel(): void;
   addCluster(address: string): void;
   status: Attempt<any>['status'];
   statusText: string;
