@@ -88,7 +88,6 @@ func SetTestTimeouts(t time.Duration) {
 	defaults.ResyncInterval = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t
-	defaults.CachePollPeriod = t
 }
 
 // TeleInstance represents an in-memory instance of a teleport
@@ -1755,4 +1754,27 @@ func genUserKey() (*client.Key, error) {
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, nil
+}
+
+// getLocalIP gets the non-loopback IP address of this host.
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		default:
+			continue
+		}
+		if !ip.IsLoopback() {
+			return ip.String(), nil
+		}
+	}
+	return "", trace.NotFound("No non-loopback local IP address found")
 }

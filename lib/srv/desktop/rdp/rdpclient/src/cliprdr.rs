@@ -13,40 +13,24 @@
 // limitations under the License.
 
 use crate::errors::invalid_data_error;
-use crate::vchan::ChannelPDUFlags;
 use crate::{vchan, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::FromPrimitive;
 use rdp::core::{mcs, tpkt};
 use rdp::model::error::*;
-use rdp::try_let;
 use std::collections::HashMap;
-use std::io::{Cursor, Read, Write};
+use std::io::{Read, Write};
 
 pub const CHANNEL_NAME: &str = "cliprdr";
-
-struct PendingData {
-    data: Vec<u8>,
-    total_length: u32,
-    clipboard_header: Option<ClipboardPDUHeader>,
-}
-
-impl PendingData {
-    fn reset(&mut self, length: u32) {
-        self.data.clear();
-        self.total_length = length;
-        self.clipboard_header = None;
-    }
-}
 
 /// Client implements a client for the clipboard virtual channel
 /// (CLIPRDR) extension, as defined in:
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/fb9b7e0b-6db4-41c2-b83c-f889c1ee7688
 pub struct Client {
     clipboard: HashMap<u32, Vec<u8>>,
-    pending: PendingData,
     on_remote_copy: Box<dyn Fn(Vec<u8>)>,
+    vchan: vchan::Client,
 }
 
 impl Default for Client {
@@ -59,90 +43,57 @@ impl Client {
     pub fn new(on_remote_copy: Box<dyn Fn(Vec<u8>)>) -> Self {
         Client {
             clipboard: HashMap::new(),
-            pending: PendingData {
-                data: Vec::new(),
-                total_length: 0,
-                clipboard_header: None,
-            },
             on_remote_copy,
+            vchan: vchan::Client::new(),
         }
     }
-
-    pub fn read<S: Read + Write>(
+    /// Reads raw RDP messages sent on the cliprdr virtual channel and replies as necessary.
+    pub fn read_and_reply<S: Read + Write>(
         &mut self,
         payload: tpkt::Payload,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        let mut payload = try_let!(tpkt::Payload::Raw, payload)?;
-        let pdu_header = vchan::ChannelPDUHeader::decode(&mut payload)?;
+        if let Some(mut payload) = self.vchan.read(payload)? {
+            let header = ClipboardPDUHeader::decode(&mut payload)?;
 
-        // TODO(zmb3): this logic is the same for all virtual channels, and should
-        // be moved to vchan.rs and reused for the rdpdr client as well
-        if pdu_header
-            .flags
-            .contains(ChannelPDUFlags::CHANNEL_FLAG_FIRST)
-        {
-            self.pending.reset(pdu_header.length);
-            self.pending.clipboard_header = Some(ClipboardPDUHeader::decode(&mut payload)?);
-        }
+            debug!("received {:?}", header.msg_type);
 
-        payload.read_to_end(&mut self.pending.data)?;
-
-        if pdu_header
-            .flags
-            .contains(ChannelPDUFlags::CHANNEL_FLAG_LAST)
-            && self.pending.clipboard_header.is_some()
-        {
-            let full_msg = self.pending.data.split_off(0);
-            let mut payload = Cursor::new(full_msg);
-            let header = self.pending.clipboard_header.take().unwrap();
-            return self.handle_message(header, &mut payload, mcs);
-        }
-
-        Ok(())
-    }
-
-    fn handle_message<S: Read + Write>(
-        &mut self,
-        header: ClipboardPDUHeader,
-        payload: &mut Payload,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
-        debug!("received {:?}", header.msg_type);
-
-        let responses = match header.msg_type {
-            ClipboardPDUType::CB_CLIP_CAPS => self.handle_server_caps(payload)?,
-            ClipboardPDUType::CB_MONITOR_READY => self.handle_monitor_ready(payload)?,
-            ClipboardPDUType::CB_FORMAT_LIST => {
-                self.handle_format_list(payload, header.data_len)?
-            }
-            ClipboardPDUType::CB_FORMAT_LIST_RESPONSE => {
-                self.handle_format_list_response(header.msg_flags)?
-            }
-            ClipboardPDUType::CB_FORMAT_DATA_REQUEST => self.handle_format_data_request(payload)?,
-            ClipboardPDUType::CB_FORMAT_DATA_RESPONSE => {
-                if header
-                    .msg_flags
-                    .contains(ClipboardHeaderFlags::CB_RESPONSE_OK)
-                {
-                    self.handle_format_data_response(payload, header.data_len)?
-                } else {
-                    warn!("RDP server failed to process format data request");
+            let responses = match header.msg_type {
+                ClipboardPDUType::CB_CLIP_CAPS => self.handle_server_caps(&mut payload)?,
+                ClipboardPDUType::CB_MONITOR_READY => self.handle_monitor_ready(&mut payload)?,
+                ClipboardPDUType::CB_FORMAT_LIST => {
+                    self.handle_format_list(&mut payload, header.data_len)?
+                }
+                ClipboardPDUType::CB_FORMAT_LIST_RESPONSE => {
+                    self.handle_format_list_response(header.msg_flags)?
+                }
+                ClipboardPDUType::CB_FORMAT_DATA_REQUEST => {
+                    self.handle_format_data_request(&mut payload)?
+                }
+                ClipboardPDUType::CB_FORMAT_DATA_RESPONSE => {
+                    if header
+                        .msg_flags
+                        .contains(ClipboardHeaderFlags::CB_RESPONSE_OK)
+                    {
+                        self.handle_format_data_response(&mut payload, header.data_len)?
+                    } else {
+                        warn!("RDP server failed to process format data request");
+                        vec![]
+                    }
+                }
+                _ => {
+                    warn!(
+                        "CLIPRDR message {:?} not implemented, ignoring",
+                        header.msg_type
+                    );
                     vec![]
                 }
-            }
-            _ => {
-                warn!(
-                    "CLIPRDR message {:?} not implemented, ignoring",
-                    header.msg_type
-                );
-                vec![]
-            }
-        };
+            };
 
-        let chan = &CHANNEL_NAME.to_string();
-        for resp in responses {
-            mcs.write(chan, resp)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in responses {
+                mcs.write(chan, resp)?;
+            }
         }
 
         Ok(())
@@ -368,6 +319,14 @@ impl ClipboardPDUHeader {
         }
     }
 
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u16::<LittleEndian>(self.msg_type as u16)?;
+        w.write_u16::<LittleEndian>(self.msg_flags.bits())?;
+        w.write_u32::<LittleEndian>(self.data_len)?;
+        Ok(w)
+    }
+
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let typ = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
@@ -378,15 +337,8 @@ impl ClipboardPDUHeader {
             data_len: payload.read_u32::<LittleEndian>()?,
         })
     }
-
-    fn encode(&self) -> RdpResult<Vec<u8>> {
-        let mut w = vec![];
-        w.write_u16::<LittleEndian>(self.msg_type as u16)?;
-        w.write_u16::<LittleEndian>(self.msg_flags.bits())?;
-        w.write_u32::<LittleEndian>(self.data_len)?;
-        Ok(w)
-    }
 }
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 enum ClipboardPDUType {
