@@ -34,6 +34,8 @@ const (
 	fileNameKnownHosts = "known_hosts"
 	// fileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
 	fileExtTLSCert = "-x509.pem"
+	// fileNameTLSCerts is a file where TLS Cert Authorities are stored.
+	fileNameTLSCerts = "certs.pem"
 	// fileExtCert is the suffix/extension of a file where an SSH Cert is stored.
 	fileExtSSHCert = "-cert.pub"
 	// fileExtPub is the extension of a file where a public key is stored.
@@ -142,6 +144,14 @@ func SSHCAsPath(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/cas
 func CAsDir(baseDir, proxy string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), casDir)
+}
+
+// TLSCAsPath returns the path to the users's TLS CA's certificates
+// for the given proxy.
+// <baseDir>/keys/<proxy>/certs.pem
+// DELETE IN 10.0. Deprecated
+func TLSCAsPath(baseDir, proxy string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), fileNameTLSCerts)
 }
 
 // TLSCAsPathCluster returns the path to the specified cluster's CA directory.

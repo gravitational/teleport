@@ -106,9 +106,10 @@ func (s *FakeRemoteSite) Dial(params DialParams) (net.Conn, error) {
 	return writerConn, nil
 }
 
-func (s *FakeRemoteSite) Close() {
+func (s *FakeRemoteSite) Close() error {
 	s.closedMtx.Lock()
 	defer s.closedMtx.Unlock()
 	close(s.connCh)
 	s.closed = true
+	return nil
 }
