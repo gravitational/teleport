@@ -162,7 +162,7 @@ func (rd *Redirector) Start() error {
 
 	response, err := rd.IssueSSOLoginConsoleRequest(req)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	// notice late binding of the redirect URL here, it is referenced
@@ -225,7 +225,7 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SS
 
 	if r.URL.Query().Has("err") {
 		err := r.URL.Query().Get("err")
-		return nil, trace.Errorf("sso flow failed, error: %v", err)
+		return nil, trace.Errorf("received error: %v", err)
 	}
 
 	// Decrypt ciphertext to get login response.
