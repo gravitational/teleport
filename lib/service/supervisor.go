@@ -55,7 +55,7 @@ type Supervisor interface {
 	Wait() error
 
 	// Run starts and waits for the service to complete
-	// it's a combinatioin Start() and Wait()
+	// it's a combination Start() and Wait()
 	Run() error
 
 	// Services returns list of running services
@@ -362,33 +362,27 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 		s.signalReload()
 	}
 
-	s.events[event.Name] = event
+	sendEvent := func(e Event) {
+		select {
+		case s.eventsC <- e:
+		case <-s.closeContext.Done():
+			return
+		}
+	}
 
+	s.events[event.Name] = event
+	go sendEvent(event)
 	// Log all events other than recovered events to prevent the logs from
 	// being flooded.
 	if event.String() != TeleportOKEvent {
 		s.log.WithField("event", event.String()).Debug("Broadcasting event.")
 	}
 
-	go func() {
-		select {
-		case s.eventsC <- event:
-		case <-s.closeContext.Done():
-			return
-		}
-	}()
-
 	for _, m := range s.eventMappings {
 		if m.matches(event.Name, s.events) {
 			mappedEvent := Event{Name: m.Out}
 			s.events[mappedEvent.Name] = mappedEvent
-			go func(e Event) {
-				select {
-				case s.eventsC <- e:
-				case <-s.closeContext.Done():
-					return
-				}
-			}(mappedEvent)
+			go sendEvent(mappedEvent)
 			s.log.WithFields(logrus.Fields{
 				"in":  event.String(),
 				"out": m.String(),
@@ -416,7 +410,7 @@ func (s *LocalSupervisor) WaitForEvent(ctx context.Context, name string, eventC 
 	waiter := &waiter{eventC: eventC, context: ctx}
 	event, ok := s.events[name]
 	if ok {
-		go s.notifyWaiter(waiter, event)
+		go waiter.notify(event)
 		return
 	}
 	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
@@ -432,7 +426,7 @@ func (s *LocalSupervisor) getWaiters(name string) []*waiter {
 	return out
 }
 
-func (s *LocalSupervisor) notifyWaiter(w *waiter, event Event) {
+func (w *waiter) notify(event Event) {
 	select {
 	case w.eventC <- event:
 	case <-w.context.Done():
@@ -445,7 +439,7 @@ func (s *LocalSupervisor) fanOut() {
 		case event := <-s.eventsC:
 			waiters := s.getWaiters(event.Name)
 			for _, waiter := range waiters {
-				go s.notifyWaiter(waiter, event)
+				go waiter.notify(event)
 			}
 		case <-s.closeContext.Done():
 			return

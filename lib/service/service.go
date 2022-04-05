@@ -172,10 +172,6 @@ const (
 	// is ready to start accepting connections.
 	DatabasesReady = "DatabasesReady"
 
-	// MetricsReady is generated when the Teleport metrics service is ready to
-	// start accepting connections.
-	MetricsReady = "MetricsReady"
-
 	// WindowsDesktopReady is generated when the Teleport windows desktop
 	// service is ready to start accepting connections.
 	WindowsDesktopReady = "WindowsDesktopReady"
@@ -514,6 +510,19 @@ func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 	}
 	// Wait and reload until called exit.
 	for {
+		// Wait for the service to report that it has started.
+		startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
+		defer startCancel()
+		eventC := make(chan Event, 1)
+		srv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent, eventC)
+		select {
+		case <-eventC:
+			cfg.Log.Infof("Service has started successfully.")
+		case <-startTimeoutCtx.Done():
+			warnOnErr(srv.Close(), cfg.Log)
+			return trace.BadParameter("service has failed to start")
+		}
+
 		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
 		if err != nil {
 			// This error means that was a clean shutdown
@@ -552,20 +561,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.Wrap(err, "failed to start a new service")
 	}
-	// Wait for the new server to report that it has started
-	// before shutting down the old one.
-	startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
-	defer startCancel()
-	eventC := make(chan Event, 1)
-	newSrv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-		cfg.Log.Infof("New service has started successfully.")
-	case <-startTimeoutCtx.Done():
-		warnOnErr(newSrv.Close(), cfg.Log)
-		warnOnErr(srv.Close(), cfg.Log)
-		return nil, trace.BadParameter("the new service has failed to start")
-	}
+	// Shut down the old service.
 	shutdownTimeout := cfg.ShutdownTimeout
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
@@ -785,9 +781,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 	if cfg.Databases.Enabled {
 		eventMapping.In = append(eventMapping.In, DatabasesReady)
-	}
-	if cfg.Metrics.Enabled {
-		eventMapping.In = append(eventMapping.In, MetricsReady)
 	}
 	if cfg.WindowsDesktop.Enabled {
 		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
@@ -1381,7 +1374,7 @@ func (process *TeleportProcess) initAuthService() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentAuth, "Auth service %s:%s is starting on %v.",
 			teleport.Version, teleport.Gitref, authAddr)
 
-		// since tlsServer.Serve is a blocking call, we emit this even right before
+		// since tlsServer.Serve is a blocking call, we emit this event right before
 		// the service has started
 		process.BroadcastEvent(Event{Name: AuthTLSReady, Payload: nil})
 		err := tlsServer.Serve()
