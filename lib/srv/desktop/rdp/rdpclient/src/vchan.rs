@@ -86,7 +86,8 @@ impl Client {
             let i = std::cmp::min(inner.len(), CHANNEL_CHUNK_LEGNTH);
             let leftover = inner.split_off(i);
 
-            let mut channel_flags = channel_flags.unwrap_or(ChannelPDUFlags::from_bits_truncate(0));
+            let mut channel_flags =
+                channel_flags.unwrap_or_else(|| ChannelPDUFlags::from_bits_truncate(0));
 
             if first {
                 channel_flags.set(ChannelPDUFlags::CHANNEL_FLAG_FIRST, true);
