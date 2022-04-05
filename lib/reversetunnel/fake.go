@@ -20,7 +20,6 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/lib/auth"
-
 	"github.com/gravitational/trace"
 )
 
@@ -78,4 +77,8 @@ func (s *FakeRemoteSite) Dial(params DialParams) (net.Conn, error) {
 	readerConn, writerConn := net.Pipe()
 	s.ConnCh <- readerConn
 	return writerConn, nil
+}
+
+func (s *FakeRemoteSite) Close() error {
+	return nil
 }
