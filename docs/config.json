@@ -879,7 +879,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
-      "version": "8.3.4",
+      "version": "8.3.6",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -911,10 +911,10 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "9.0.0",
+      "version": "9.0.3",
       "golang": "1.16",
       "plugin": {
-        "version": "9.0.0"
+        "version": "9.0.3"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:9",
