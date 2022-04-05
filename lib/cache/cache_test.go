@@ -47,6 +47,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const eventBufferSize = 1024
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
@@ -119,20 +121,29 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 
 type packCfg struct {
 	memoryBackend bool
+	bufferSize    int
 }
 
 type packOption func(cfg *packCfg)
 
-func memoryBackend(bool) packOption {
+func memoryBackend(b bool) packOption {
 	return func(cfg *packCfg) {
-		cfg.memoryBackend = true
+		cfg.memoryBackend = b
+	}
+}
+
+func bufferSize(i int) packOption {
+	return func(cfg *packCfg) {
+		cfg.bufferSize = i
 	}
 }
 
 // newPackWithoutCache returns a new test pack without creating cache
 func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
-	var cfg packCfg
+	cfg := packCfg{
+		bufferSize: eventBufferSize,
+	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -167,7 +178,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.eventsC = make(chan Event, 100)
+	p.eventsC = make(chan Event, cfg.bufferSize)
 
 	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
 	if err != nil {
@@ -2246,4 +2257,83 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 	defer p.Unlock()
 	p.watchers = append(p.watchers, w)
 	return w, nil
+}
+
+func TestRelativeExpiryOverflow(t *testing.T) {
+	ctx := context.Background()
+	nodeCount := 90000
+	expireBlock := 4500
+	clock := clockwork.NewFakeClock()
+	p, err := newPack(
+		t.TempDir(),
+		func(c Config) Config {
+			c.RelativeExpiryCheckInterval = time.Minute
+			c.Clock = clock
+			return ForAuth(c)
+		},
+		memoryBackend(true),
+		bufferSize(nodeCount),
+	)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	expiry := -10
+	for i := 0; i < nodeCount; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+
+			if i%expireBlock == 0 {
+				expiry += 20
+			}
+
+			// expire servers in blocks of expireBlock every 20 minutes
+			server.SetExpiry(clock.Now().Add(time.Duration(expiry) * time.Minute))
+
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(t, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(t, EventProcessed, event.Type)
+			case <-timeout.C:
+				t.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	proxy := ForProxy(Config{})
+	watcher, err := p.cache.NewWatcher(ctx, types.Watch{
+		Kinds:     proxy.Watches,
+		QueueSize: proxy.QueueSize,
+	})
+	require.NoError(t, err)
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, nodeCount)
+
+	clock.Advance(20 * time.Minute)
+	require.NoError(t, p.cache.performRelativeNodeExpiry(ctx))
+
+	expired := nodeCount - expireBlock
+	var processed int
+	for {
+		select {
+		case <-watcher.Done():
+			require.NoError(t, watcher.Error())
+		case evt := <-watcher.Events():
+			require.NotNil(t, evt)
+
+			if processed++; processed > expireBlock/3 {
+				clock.Advance(20 * time.Minute)
+				require.NoError(t, p.cache.performRelativeNodeExpiry(ctx))
+				processed = 0
+			}
+
+			if expired--; expired < 0 {
+				return
+			}
+		}
+	}
 }

@@ -19,8 +19,11 @@ package services
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 
@@ -34,6 +37,41 @@ type fanoutEntry struct {
 	watcher *fanoutWatcher
 }
 
+type bufferConfig struct {
+	gracePeriod time.Duration
+	capacity    int
+	clock       clockwork.Clock
+}
+
+type BufferOption func(*bufferConfig)
+
+// BufferCapacity sets the event capacity of the circular buffer.
+func BufferCapacity(c int) BufferOption {
+	return func(cfg *bufferConfig) {
+		if c > 0 {
+			cfg.capacity = c
+		}
+	}
+}
+
+// BacklogGracePeriod sets the amount of time a watcher with a backlog will be tolerated.
+func BacklogGracePeriod(d time.Duration) BufferOption {
+	return func(cfg *bufferConfig) {
+		if d > 0 {
+			cfg.gracePeriod = d
+		}
+	}
+}
+
+// BufferClock sets a custom clock for the buffer (used in tests).
+func BufferClock(c clockwork.Clock) BufferOption {
+	return func(cfg *bufferConfig) {
+		if c != nil {
+			cfg.clock = c
+		}
+	}
+}
+
 // Fanout is a helper which allows a stream of events to be fanned-out to many
 // watchers.  Used by the cache layer to forward events.
 type Fanout struct {
@@ -42,14 +80,22 @@ type Fanout struct {
 	watchers     map[string][]fanoutEntry
 	// eventsCh is used in tests
 	eventsCh chan FanoutEvent
+	cfg      bufferConfig
 }
 
 // NewFanout creates a new Fanout instance in an uninitialized
 // state.  Until initialized, watchers will be queued but no
 // events will be sent.
 func NewFanout(eventsCh ...chan FanoutEvent) *Fanout {
+	cfg := bufferConfig{
+		gracePeriod: backend.DefaultBacklogGracePeriod,
+		capacity:    backend.DefaultBufferCapacity,
+		clock:       clockwork.NewRealClock(),
+	}
+
 	f := &Fanout{
 		watchers: make(map[string][]fanoutEntry),
+		cfg:      cfg,
 	}
 	if len(eventsCh) != 0 {
 		f.eventsCh = eventsCh[0]
@@ -306,6 +352,10 @@ type fanoutWatcher struct {
 	ctx      context.Context
 	initOnce sync.Once
 	initOk   bool
+
+	bmu          sync.Mutex
+	backlog      []types.Event
+	backlogSince time.Time
 }
 
 // init transmits the OpInit event.  safe to double-call.
@@ -322,18 +372,65 @@ func (w *fanoutWatcher) init() (ok bool) {
 }
 
 func (w *fanoutWatcher) emit(event types.Event) error {
+	w.bmu.Lock()
+	defer w.bmu.Unlock()
+
+	if !w.flushBacklog() {
+		if w.fanout.cfg.clock.Now().After(w.backlogSince.Add(w.fanout.cfg.gracePeriod)) {
+			// backlog has existed for longer than grace period,
+			// this watcher needs to be removed.
+			return trace.BadParameter("buffer overflow")
+		}
+		// backlog exists, but we are still within grace period.
+		w.backlog = append(w.backlog, event)
+		return nil
+	}
+
 	select {
 	case <-w.ctx.Done():
 		return trace.Wrap(w.ctx.Err(), "watcher closed")
 	case w.eventC <- event:
 		return nil
 	default:
-		return trace.BadParameter("buffer overflow")
+		// primary event buffer is full; start backlog.
+		w.backlog = append(w.backlog, event)
+		w.backlogSince = w.fanout.cfg.clock.Now()
+		return nil
 	}
 }
 
+func (w *fanoutWatcher) backlogLen() int {
+	w.bmu.Lock()
+	defer w.bmu.Unlock()
+	return len(w.backlog)
+}
+
 func (w *fanoutWatcher) Events() <-chan types.Event {
+	w.bmu.Lock()
+	defer w.bmu.Unlock()
+	// it is possible that the channel has been drained, but events exist in
+	// the backlog, so make sure to flush the backlog.  we can ignore the result
+	// of the flush here since we don't actually care if the backlog was fully
+	// flushed, only that the event channel is non-empty if a backlog does exist.
+	w.flushBacklog()
+
 	return w.eventC
+}
+
+// flushBacklog attempts to push any backlogged events into the
+// event channel.  returns true if backlog is empty.
+func (w *fanoutWatcher) flushBacklog() (ok bool) {
+	for i, e := range w.backlog {
+		select {
+		case w.eventC <- e:
+		default:
+			w.backlog = w.backlog[i:]
+			return false
+		}
+	}
+	w.backlogSince = time.Time{}
+	w.backlog = nil
+	return true
 }
 
 func (w *fanoutWatcher) Done() <-chan struct{} {
