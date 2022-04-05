@@ -205,11 +205,11 @@ type Identity interface {
 	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(id string) (*SAMLAuthRequest, error)
 
-	// TraceSAMLDiagnosticInfo creates new SAML diagnostic info record.
-	TraceSAMLDiagnosticInfo(ctx context.Context, authRequestID string, key string, value interface{}, extraInfo ...interface{}) error
+	// CreateSSODiagnosticInfo creates new SSO diagnostic info record.
+	CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error
 
-	// GetSAMLDiagnosticInfo returns SAML diagnostic info records.
-	GetSAMLDiagnosticInfo(ctx context.Context, authRequestID string) (map[string]types.SsoDiagInfoEntry, error)
+	// GetSSODiagnosticInfo returns SSO diagnostic info records.
+	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error)
 
 	// CreateGithubConnector creates a new Github connector
 	CreateGithubConnector(connector types.GithubConnector) error

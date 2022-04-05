@@ -1215,22 +1215,36 @@ func (s *IdentityService) GetSAMLAuthRequest(id string) (*services.SAMLAuthReque
 	return &req, nil
 }
 
-// TraceSAMLDiagnosticInfo creates new SAML diagnostic info record.
-func (s *IdentityService) TraceSAMLDiagnosticInfo(ctx context.Context, authRequestID string, key string, value interface{}, extraInfo ...interface{}) error {
+// CreateSSODiagnosticInfo creates new SAML diagnostic info record.
+func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error {
 	if authRequestID == "" {
 		return trace.BadParameter("missing parameter authRequestID")
 	}
-	jsonValue, err := json.Marshal(types.SsoDiagInfoEntry{
-		Key:       key,
-		Value:     value,
-		ExtraInfo: extraInfo,
-	})
+
+	var prefix string
+
+	switch authKind {
+	case types.KindSAML:
+		prefix = samlPrefix
+		break
+	case types.KindGithub:
+		prefix = githubPrefix
+		break
+	case types.KindOIDC:
+		prefix = oidcPrefix
+		break
+
+	default:
+		return trace.BadParameter("unsupported authKind %q", authKind)
+	}
+
+	jsonValue, err := json.Marshal(entry)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsTracePrefix, authRequestID, uuid.New().String()),
+		Key:     backend.Key(webPrefix, connectorsPrefix, prefix, requestsTracePrefix, authRequestID, uuid.New().String()),
 		Value:   jsonValue,
 		Expires: backend.Expiry(s.Clock(), time.Minute*15),
 	}
@@ -1241,25 +1255,41 @@ func (s *IdentityService) TraceSAMLDiagnosticInfo(ctx context.Context, authReque
 	return nil
 }
 
-// GetSAMLDiagnosticInfo returns SAML diagnostic info records.
-func (s *IdentityService) GetSAMLDiagnosticInfo(ctx context.Context, authRequestID string) (map[string]types.SsoDiagInfoEntry, error) {
+// GetSSODiagnosticInfo returns SSO diagnostic info records.
+func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error) {
 	if authRequestID == "" {
 		return nil, trace.BadParameter("missing parameter id")
 	}
+	var prefix string
 
-	startKey := backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsTracePrefix, authRequestID)
+	switch authKind {
+	case types.KindSAML:
+		prefix = samlPrefix
+		break
+	case types.KindGithub:
+		prefix = githubPrefix
+		break
+	case types.KindOIDC:
+		prefix = oidcPrefix
+		break
+
+	default:
+		return nil, trace.BadParameter("unsupported authKind %q", authKind)
+	}
+
+	startKey := backend.Key(webPrefix, connectorsPrefix, prefix, requestsTracePrefix, authRequestID)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out := make(map[string]types.SsoDiagInfoEntry)
+	var out []types.SSODiagnosticInfo
 	for _, item := range result.Items {
-		var req types.SsoDiagInfoEntry
+		var req types.SSODiagnosticInfo
 		if err := json.Unmarshal(item.Value, &req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out[req.Key] = req
+		out = append(out, req)
 	}
 
 	return out, nil

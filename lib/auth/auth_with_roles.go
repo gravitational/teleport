@@ -2358,12 +2358,28 @@ func (a *ServerWithRoles) GetSAMLAuthRequest(id string) (*services.SAMLAuthReque
 	return a.authServer.GetSAMLAuthRequest(id)
 }
 
-func (a *ServerWithRoles) GetSAMLDiagnosticInfo(ctx context.Context, authRequestID string) (map[string]types.SsoDiagInfoEntry, error) {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbRead); err != nil {
+func (a *ServerWithRoles) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error) {
+	var resource string
+
+	switch authKind {
+	case types.KindSAML:
+		resource = types.KindSAMLRequest
+		break
+	case types.KindGithub:
+		resource = types.KindGithubRequest
+		break
+	case types.KindOIDC:
+		resource = types.KindOIDCRequest
+		break
+	default:
+		return nil, trace.BadParameter("unsupported authKind %q", authKind)
+	}
+
+	if err := a.action(apidefaults.Namespace, resource, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetSAMLDiagnosticInfo(ctx, authRequestID)
+	return a.authServer.GetSSODiagnosticInfo(ctx, authKind, authRequestID)
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
