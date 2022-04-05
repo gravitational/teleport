@@ -18,6 +18,7 @@ package utils
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/url"
 	"os"
@@ -26,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -90,27 +92,35 @@ func TestLinear(t *testing.T) {
 func TestHostUUID(t *testing.T) {
 	// call twice, get same result
 	dir := t.TempDir()
-	uuid, err := ReadOrMakeHostUUID(dir)
-	require.Len(t, uuid, 36)
+	id, err := ReadOrMakeHostUUID(dir)
+	require.Len(t, id, 36)
 	require.NoError(t, err)
 	uuidCopy, err := ReadOrMakeHostUUID(dir)
 	require.NoError(t, err)
-	require.Equal(t, uuid, uuidCopy)
+	require.Equal(t, id, uuidCopy)
 
 	// call with a read-only dir, make sure to get an error
-	uuid, err = ReadOrMakeHostUUID("/bad-location")
-	require.Equal(t, uuid, "")
+	id, err = ReadOrMakeHostUUID("/bad-location")
+	require.Equal(t, id, "")
 	require.Error(t, err)
 	require.Regexp(t, "^.*no such file or directory.*$", err.Error())
 
 	// newlines are getting ignored
 	dir = t.TempDir()
-	id := "id-with-newline\n"
+	id = fmt.Sprintf("%s\n", uuid.New().String())
 	err = os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
 	require.NoError(t, err)
 	out, err := ReadHostUUID(dir)
 	require.NoError(t, err)
 	require.Equal(t, strings.TrimSpace(id), out)
+
+	// empty UUID in file is regenerated
+	dir = t.TempDir()
+	err = os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(""), 0666)
+	require.NoError(t, err)
+	out, err = ReadOrMakeHostUUID(dir)
+	require.NoError(t, err)
+	require.Len(t, out, 36)
 }
 
 func TestSelfSignedCert(t *testing.T) {

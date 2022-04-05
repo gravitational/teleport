@@ -465,13 +465,17 @@ func WriteHostUUID(dataDir string, id string) error {
 // returns the UUID from it, otherwise generates one
 func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	id, err := ReadHostUUID(dataDir)
-	if err == nil {
+	if err == nil && id != "" {
 		return id, nil
 	}
-	if !trace.IsNotFound(err) {
+	if err != nil && !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.New().String()
+	rawID, err := uuid.NewRandom()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	id = rawID.String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}

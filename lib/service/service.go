@@ -653,8 +653,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// if there's no host uuid initialized yet, try to read one from the
 	// one of the identities
 	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
-	if err != nil {
-		if !trace.IsNotFound(err) {
+	if err != nil || cfg.HostUUID == "" {
+		if err != nil && !trace.IsNotFound(err) {
 			if errors.Is(err, fs.ErrPermission) {
 				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
 			}
@@ -666,7 +666,11 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		} else {
 			switch cfg.JoinMethod {
 			case types.JoinMethodToken, types.JoinMethodUnspecified, types.JoinMethodIAM:
-				cfg.HostUUID = uuid.New().String()
+				rawID, err := uuid.NewRandom()
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				cfg.HostUUID = rawID.String()
 			case types.JoinMethodEC2:
 				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
