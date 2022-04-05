@@ -1,18 +1,23 @@
-import React, { ReactNode, useEffect } from 'react';
+import React, { FC, useEffect } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import useAsync from 'teleterm/ui/useAsync';
+import styled from 'styled-components';
 
-interface AppInitializerProps {
-  children?: ReactNode;
-}
-
-export function AppInitializer(props: AppInitializerProps) {
+export const AppInitializer: FC = props => {
   const ctx = useAppContext();
+  const [{ status }, init] = useAsync(() => ctx.init());
+
   useEffect(() => {
-    const { rootClusterUri } = ctx.statePersistenceService.getWorkspaces();
-    if (rootClusterUri) {
-      ctx.workspacesService.setActiveWorkspace(rootClusterUri);
-    }
+    init();
   }, []);
 
-  return <>{props.children}</>;
-}
+  if (status === 'success' || status === 'error') {
+    return <>{props.children}</>;
+  }
+
+  return <Centered>Loading</Centered>;
+};
+
+const Centered = styled.div`
+  margin: auto;
+`;
