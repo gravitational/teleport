@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,10 +38,6 @@ export const AuthMfaOn = () => (
   <MockedWelcome url="/web/invite/1234/continue" Form={MfaOn} />
 );
 
-export const AuthMfaOnWithU2f = () => (
-  <MockedWelcome url="/web/invite/1234/continue" Form={MfaOnWithU2f} />
-);
-
 export const AuthMfaOptional = () => (
   <MockedWelcome url="/web/invite/1234/continue" Form={MfaOptional} />
 );
@@ -56,15 +52,6 @@ const MfaOn = (props: Props) => (
 
 const Otp = (props: Props) => (
   <NewCredentials {...props} {...mockedProps} auth2faType="otp" />
-);
-
-const MfaOnWithU2f = (props: Props) => (
-  <NewCredentials
-    {...props}
-    {...mockedProps}
-    auth2faType="on"
-    preferredMfaType="u2f"
-  />
 );
 
 const MfaOptional = (props: Props) => (
@@ -91,4 +78,3 @@ Continue.storyName = 'Continue';
 AuthMfaOnOtp.storyName = 'MfaOnOtp';
 AuthMfaOn.storyName = 'MfaOn';
 AuthMfaOptional.storyName = 'MfaOptional';
-AuthMfaOnWithU2f.storyName = 'MfaOnWithU2f';

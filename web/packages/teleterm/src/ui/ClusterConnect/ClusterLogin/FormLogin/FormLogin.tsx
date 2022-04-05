@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -175,12 +175,6 @@ export default function LoginForm(props: Props) {
                         placeholder="123 456"
                         mb={0}
                       />
-                    )}
-                    {mfaType.value === 'u2f' && isProcessing && (
-                      <Text typography="body2" mb={1}>
-                        Insert your hardware key and press the button on the
-                        key.
-                      </Text>
                     )}
                   </Flex>
                 </Box>

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,14 +30,6 @@ export default function useReAuthenticate({ onAuthenticated, onClose }: Props) {
       .catch(handleError);
   }
 
-  function submitWithU2f() {
-    setAttempt({ status: 'processing' });
-    auth
-      .createPrivilegeTokenWithU2f()
-      .then(onAuthenticated)
-      .catch(handleError);
-  }
-
   function submitWithWebauthn() {
     setAttempt({ status: 'processing' });
     auth
@@ -54,7 +46,6 @@ export default function useReAuthenticate({ onAuthenticated, onClose }: Props) {
     attempt,
     clearAttempt,
     submitWithTotp,
-    submitWithU2f,
     submitWithWebauthn,
     auth2faType: cfg.getAuth2faType(),
     preferredMfaType: cfg.getPreferredMfaType(),

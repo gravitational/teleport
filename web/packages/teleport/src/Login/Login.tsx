@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2021 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ export default function Container() {
 export function Login({
   attempt,
   onLogin,
-  onLoginWithU2f,
   onLoginWithWebauthn,
   onLoginWithSso,
   authProviders,
@@ -48,7 +47,6 @@ export function Login({
         preferredMfaType={preferredMfaType}
         isLocalAuthEnabled={isLocalAuthEnabled}
         onLoginWithSso={onLoginWithSso}
-        onLoginWithU2f={onLoginWithU2f}
         onLoginWithWebauthn={onLoginWithWebauthn}
         onLogin={onLogin}
         attempt={attempt}

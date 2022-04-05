@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ export default function Container() {
 
 export function ChangePassword({
   changePassword,
-  changePasswordWithU2f,
   changePasswordWithWebauthn,
   preferredMfaType,
   auth2faType,
@@ -40,7 +39,6 @@ export function ChangePassword({
         auth2faType={auth2faType}
         preferredMfaType={preferredMfaType}
         onChangePass={changePassword}
-        onChangePassWithU2f={changePasswordWithU2f}
         onChangePassWithWebauthn={changePasswordWithWebauthn}
       />
     </>

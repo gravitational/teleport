@@ -23,7 +23,6 @@ import {
   Cloud,
   ServerError,
   SSOProviders,
-  Universal2ndFactor,
   LocalAuthDisabled,
   LocalAuthDisabledNoSSO,
 } from './FormLogin.story';
@@ -61,11 +60,6 @@ test('server error rendering', () => {
 
 test('sso providers rendering', () => {
   const { container } = render(<SSOProviders />);
-  expect(container.firstChild).toMatchSnapshot();
-});
-
-test('auth2faType: u2f rendering', () => {
-  const { container } = render(<Universal2ndFactor />);
   expect(container.firstChild).toMatchSnapshot();
 });
 

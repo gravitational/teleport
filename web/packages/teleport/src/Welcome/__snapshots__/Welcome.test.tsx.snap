@@ -330,7 +330,7 @@ exports[`teleport/components/Welcome auth type "on" should render form with hard
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-5-input"
+                      id="react-select-4-input"
                       readonly=""
                       tabindex="0"
                       value=""
@@ -708,7 +708,7 @@ exports[`teleport/components/Welcome auth type "optional" should render form wit
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-6-input"
+                      id="react-select-5-input"
                       readonly=""
                       tabindex="0"
                       value=""

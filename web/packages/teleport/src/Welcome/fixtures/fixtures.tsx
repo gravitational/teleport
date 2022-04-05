@@ -6,7 +6,6 @@ export const mockedProps: Partial<Props> = {
   submitAttempt: { status: '' },
   clearSubmitAttempt: () => null,
   fetchAttempt: { status: 'success' },
-  onSubmitWithU2f: () => null,
   onSubmitWithWebauthn: () => null,
   onSubmit: () => null,
   passwordToken: {

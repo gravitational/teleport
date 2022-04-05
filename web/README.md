@@ -150,40 +150,11 @@ auth_service:
     second_factor: optional
     webauthn:
       rp_id: proxy.0.0.0.0.nip.io
+
+proxy_service:
+  enabled: yes
+  # setting public_addr is optional, useful if using different port e.g. 8080 instead of default 3080
+  public_addr: ['proxy.0.0.0.0.nip.io']
 ```
 
 Then start the dev server like `yarn start-teleport --target=https://proxy.0.0.0.0.nip.io:3080` and access it at https://proxy.0.0.0.0.nip.io:8080.
-
-Though `u2f` tends to be more forgiving about using localhost, its still sometimes useful to configure it with nip.io in order that your registered u2f keys are compatible with webauthn. For example, if you wished to configure a u2f version of the webauthn setup above, you could use an `auth_service` like this:
-
-```yaml
-auth_service:
-  authentication:
-    type: local
-    second_factor: optional
-    webauthn:
-      disabled: true
-    u2f:
-      app_id: https://proxy.0.0.0.0.nip.io
-      facets:
-        - https://proxy.0.0.0.0.nip.io
-        - https://proxy.0.0.0.0.nip.io:8080
-```
-
-After registering a key, you could switch your server to use `webauthn` by changing the configuration to
-
-```yaml
-auth_service:
-  authentication:
-    type: local
-    second_factor: optional
-    webauthn:
-      rp_id: proxy.0.0.0.0.nip.io
-    u2f:
-      app_id: https://proxy.0.0.0.0.nip.io
-      facets:
-        - https://proxy.0.0.0.0.nip.io
-        - https://proxy.0.0.0.0.nip.io:8080
-```
-
-and your previously registered u2f key would be able to remain in use.

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,14 +42,6 @@ export default function useToken(tokenId: string) {
       .catch(submitAttempt.handleError);
   }
 
-  function onSubmitWithU2f(password: string) {
-    submitAttempt.setAttempt({ status: 'processing' });
-    auth
-      .resetPasswordWithU2f(tokenId, password)
-      .then(redirect)
-      .catch(submitAttempt.handleError);
-  }
-
   function onSubmitWithWebauthn(password: string) {
     submitAttempt.setAttempt({ status: 'processing' });
     auth
@@ -73,7 +65,6 @@ export default function useToken(tokenId: string) {
     submitAttempt: submitAttempt.attempt,
     clearSubmitAttempt,
     onSubmit,
-    onSubmitWithU2f,
     onSubmitWithWebauthn,
     passwordToken,
   };

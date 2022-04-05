@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2021 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ export const MessageTypeEnum = {
   AUDIT: 'a',
   SESSION_END: 'c',
   RESIZE: 'w',
-  U2F_CHALLENGE: 'u',
   WEBAUTHN_CHALLENGE: 'n',
 };
 

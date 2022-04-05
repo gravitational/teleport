@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ const props: Props = {
   },
   authProviders: [],
   onLoginWithSso: () => null,
-  onLoginWithU2f: () => null,
   onLoginWithWebauthn: () => null,
   onLogin: () => null,
   clearAttempt: () => null,
@@ -44,22 +43,6 @@ export const Off = () => <FormLogin {...props} />;
 export const Otp = () => <FormLogin {...props} auth2faType="otp" />;
 
 export const Webauthn = () => <FormLogin {...props} auth2faType="webauthn" />;
-
-export const Universal2ndFactor = () => {
-  const attempt = {
-    ...props.attempt,
-    isProcessing: true,
-  };
-
-  return (
-    <FormLogin
-      {...props}
-      title="Welcome!"
-      auth2faType="u2f"
-      attempt={attempt}
-    />
-  );
-};
 
 export const Optional = () => <FormLogin {...props} auth2faType="optional" />;
 

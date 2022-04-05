@@ -34,7 +34,6 @@ export default function LoginForm(props: Props) {
   const {
     title,
     attempt,
-    onLoginWithU2f,
     onLoginWithWebauthn,
     onLogin,
     onLoginWithSso,
@@ -78,9 +77,6 @@ export default function LoginForm(props: Props) {
     }
 
     switch (mfaType?.value) {
-      case 'u2f':
-        onLoginWithU2f(user, pass);
-        break;
       case 'webauthn':
         onLoginWithWebauthn(user, pass);
         break;
@@ -198,12 +194,6 @@ export default function LoginForm(props: Props) {
                         mb={0}
                       />
                     )}
-                    {mfaType.value === 'u2f' && isProcessing && (
-                      <Text typography="body2" mb={1}>
-                        Insert your hardware key and press the button on the
-                        key.
-                      </Text>
-                    )}
                   </Flex>
                   {isRecoveryEnabled && (
                     <ButtonLink
@@ -288,7 +278,6 @@ export type Props = {
   onRecover?: (isRecoverPassword: boolean) => void;
   clearAttempt?: () => void;
   onLoginWithSso(provider: AuthProvider): void;
-  onLoginWithU2f(username: string, password: string): void;
   onLoginWithWebauthn(username: string, password: string): void;
   onLogin(username: string, password: string, token: string): void;
 };

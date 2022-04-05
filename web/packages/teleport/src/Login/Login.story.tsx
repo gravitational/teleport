@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2021 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ export default {
 
 export const Off = () => <Login {...sample} />;
 export const Otp = () => <Login {...sample} auth2faType="otp" />;
-export const Universal2ndFactor = () => <Login {...sample} auth2faType="u2f" />;
 export const Webauthn = () => <Login {...sample} auth2faType="webauthn" />;
 export const Optional = () => <Login {...sample} auth2faType="optional" />;
 export const On = () => <Login {...sample} auth2faType="on" />;
@@ -42,7 +41,6 @@ const sample: State = {
     message: '',
   },
   onLogin: () => null,
-  onLoginWithU2f: () => null,
   onLoginWithWebauthn: () => null,
   onLoginWithSso: () => null,
   authProviders: [],

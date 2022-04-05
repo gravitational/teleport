@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,8 +23,6 @@ export default {
 };
 
 export const LoadedWebauthn = () => <AddDevice {...props} />;
-
-export const LoadedU2f = () => <AddDevice {...props} preferredMfaType="u2f" />;
 
 export const Failed = () => (
   <AddDevice
@@ -56,7 +54,6 @@ const props: State = {
   addDeviceAttempt: { status: '' },
   fetchQrCodeAttempt: { status: 'success' },
   addTotpDevice: () => null,
-  addU2fDevice: () => null,
   addWebauthnDevice: () => null,
   clearAttempt: () => null,
   onClose: () => null,

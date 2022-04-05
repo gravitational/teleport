@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Gravitational, Inc.
+ * Copyright 2021-2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,16 +36,6 @@ export default function useLogin() {
       });
   }
 
-  function onLoginWithU2f(name, password) {
-    attemptActions.start();
-    auth
-      .loginWithU2f(name, password)
-      .then(onSuccess)
-      .catch(err => {
-        attemptActions.error(err);
-      });
-  }
-
   function onLoginWithWebauthn(name, password) {
     attemptActions.start();
     auth
@@ -66,7 +56,6 @@ export default function useLogin() {
   return {
     attempt,
     onLogin,
-    onLoginWithU2f,
     onLoginWithSso,
     authProviders,
     auth2faType,

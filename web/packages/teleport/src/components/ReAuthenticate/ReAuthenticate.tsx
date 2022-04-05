@@ -38,7 +38,6 @@ export default function Container(props: Props) {
 export function ReAuthenticate({
   attempt,
   clearAttempt,
-  submitWithU2f,
   submitWithTotp,
   submitWithWebauthn,
   onClose,
@@ -56,9 +55,6 @@ export function ReAuthenticate({
   function onSubmit(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
 
-    if (mfaOption?.value === 'u2f') {
-      submitWithU2f();
-    }
     if (mfaOption?.value === 'webauthn') {
       submitWithWebauthn();
     }
@@ -118,11 +114,6 @@ export function ReAuthenticate({
                     readonly={attempt.status === 'processing'}
                     mb={0}
                   />
-                )}
-                {mfaOption.value === 'u2f' && attempt.status === 'processing' && (
-                  <Text typography="body2" mb={1}>
-                    Insert your hardware key and press the button on the key.
-                  </Text>
                 )}
               </Box>
             </Flex>

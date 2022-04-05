@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2020-2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,48 +65,6 @@ test('auth2faType: otp', () => {
   expect(onLogin).toHaveBeenCalledWith('username', '123', '456');
 });
 
-test('auth2faType: u2f', async () => {
-  const onLoginWithU2f = jest.fn();
-
-  const { getByText, getByPlaceholderText, rerender, getByTestId } = render(
-    <FormLogin {...props} auth2faType="u2f" onLoginWithU2f={onLoginWithU2f} />
-  );
-
-  // Rendering of mfa dropdown.
-  expect(getByTestId('mfa-select')).not.toBeEmptyDOMElement();
-
-  // fill form
-  fireEvent.change(getByPlaceholderText(/username/i), {
-    target: { value: 'username' },
-  });
-  fireEvent.change(getByPlaceholderText(/password/i), {
-    target: { value: '123' },
-  });
-
-  fireEvent.click(getByText(/login/i));
-  expect(onLoginWithU2f).toHaveBeenCalledWith('username', '123');
-
-  // test u2f instructions
-  rerender(
-    <FormLogin
-      {...props}
-      auth2faType="u2f"
-      onLoginWithU2f={onLoginWithU2f}
-      attempt={{
-        isFailed: false,
-        isProcessing: true,
-        message: '',
-        isSuccess: false,
-      }}
-    />
-  );
-  const expEl = getByText(
-    /insert your hardware key and press the button on the key/i
-  );
-  expect(expEl).toBeInTheDocument();
-  expect(getByText(/login/i)).toBeDisabled();
-});
-
 test('auth2faType: webauthn', async () => {
   const onLoginWithWebauthn = jest.fn();
 
@@ -136,7 +94,6 @@ test('auth2faType: webauthn', async () => {
 test('input validation error handling', async () => {
   const onLogin = jest.fn();
   const onLoginWithSso = jest.fn();
-  const onLoginWithU2f = jest.fn();
   const onLoginWithWebauthn = jest.fn();
 
   const { getByText } = render(
@@ -145,7 +102,6 @@ test('input validation error handling', async () => {
       auth2faType="otp"
       onLogin={onLogin}
       onLoginWithSso={onLoginWithSso}
-      onLoginWithU2f={onLoginWithU2f}
       onLoginWithWebauthn={onLoginWithWebauthn}
     />
   );
@@ -156,7 +112,6 @@ test('input validation error handling', async () => {
 
   expect(onLogin).not.toHaveBeenCalled();
   expect(onLoginWithSso).not.toHaveBeenCalled();
-  expect(onLoginWithU2f).not.toHaveBeenCalled();
   expect(onLoginWithWebauthn).not.toHaveBeenCalled();
 
   expect(getByText(/username is required/i)).toBeInTheDocument();
@@ -210,6 +165,5 @@ const props: Props = {
   },
   onLogin: null,
   onLoginWithSso: null,
-  onLoginWithU2f: null,
   onLoginWithWebauthn: null,
 };

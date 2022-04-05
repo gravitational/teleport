@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,35 +37,6 @@ export const OtpError = () => (
   />
 );
 
-export const U2f = () => (
-  <FormNewCredentials
-    {...props}
-    auth2faType="u2f"
-    attempt={{ status: 'processing' }}
-  />
-);
-
-U2f.storyName = 'U2f';
-
-export const U2fError = () => (
-  <FormNewCredentials
-    {...props}
-    auth2faType="u2f"
-    attempt={{ status: 'failed', statusText: 'Message with has [U2F] word' }}
-  />
-);
-
-U2fError.storyName = 'U2f Error';
-
-export const OptionalWithU2f = () => (
-  <FormNewCredentials
-    {...props}
-    auth2faType="optional"
-    preferredMfaType="u2f"
-  />
-);
-OptionalWithU2f.storyName = 'Optional With U2f';
-
 export const Webauthn = () => (
   <FormNewCredentials {...props} auth2faType="webauthn" />
 );
@@ -74,7 +45,7 @@ export const WebauthnError = () => (
   <FormNewCredentials
     {...props}
     auth2faType="webauthn"
-    attempt={{ status: 'failed', statusText: 'Message with has [U2F] word' }}
+    attempt={{ status: 'failed', statusText: 'Some error message' }}
   />
 );
 
@@ -87,7 +58,6 @@ export const On = () => <FormNewCredentials {...props} auth2faType="on" />;
 const props: Props = {
   auth2faType: 'otp',
   preferredMfaType: 'webauthn',
-  onSubmitWithU2f() {},
   onSubmitWithWebauthn() {},
   onSubmit() {},
   attempt: {

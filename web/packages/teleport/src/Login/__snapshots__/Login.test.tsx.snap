@@ -325,7 +325,7 @@ exports[`2fa set to "on" with preferredMfa renders hardware key as first in drop
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-6-input"
+                      id="react-select-5-input"
                       readonly=""
                       tabindex="0"
                       value=""

@@ -31,49 +31,26 @@ describe('test retrieving mfa options', () => {
     {
       name: 'type off',
       type: 'off',
-      preferred: 'u2f',
       expect: [],
     },
     {
-      name: 'type on with u2f preferred',
+      name: 'type on',
       type: 'on',
-      preferred: 'u2f',
-      expect: ['u2f', 'otp'],
-    },
-    {
-      name: 'type on with webauthn preferred',
-      type: 'on',
-      preferred: 'webauthn',
       expect: ['webauthn', 'otp'],
     },
     {
-      name: 'type optional with u2f preferred',
+      name: 'type optional',
       type: 'optional',
-      preferred: 'u2f',
-      expect: ['u2f', 'otp', 'optional'],
-    },
-    {
-      name: 'type optional with webauthn preferred',
-      type: 'optional',
-      preferred: 'webauthn',
       expect: ['webauthn', 'otp', 'optional'],
-    },
-    {
-      name: 'type u2f only',
-      type: 'u2f',
-      preferred: 'webauthn',
-      expect: ['u2f'],
     },
     {
       name: 'type webauthn only',
       type: 'webauthn',
-      preferred: 'u2f',
       expect: ['webauthn'],
     },
     {
       name: 'type otp only',
       type: 'otp',
-      preferred: 'webauthn',
       expect: ['otp'],
     },
   ];
@@ -81,7 +58,6 @@ describe('test retrieving mfa options', () => {
   test.each(testCases)('$name', testCase => {
     const mfa = createMfaOptions({
       auth2faType: testCase.type,
-      preferredType: testCase.preferred,
     }).map(o => o.value);
     expect(mfa).toEqual(testCase.expect);
   });
@@ -89,7 +65,6 @@ describe('test retrieving mfa options', () => {
   test('no "none" option if requireMfa=true', () => {
     const mfa = createMfaOptions({
       auth2faType: 'optional',
-      preferredType: 'webauthn',
       required: true,
     }).map(o => o.value);
     expect(mfa).toEqual(['webauthn', 'otp']);

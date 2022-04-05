@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,12 +37,7 @@ export const Optional = () => (
   <FormPassword auth2faType="optional" {...props} preferredMfaType="webauthn" />
 );
 
-export const Universal2ndFactor = () => (
-  <FormPassword auth2faType="u2f" {...props} />
-);
-
 const props = {
   onChangePass: () => Promise.resolve(),
-  onChangePassWithU2f: () => Promise.reject(new Error('server error')),
   onChangePassWithWebauthn: () => Promise.reject(new Error('server error')),
 };

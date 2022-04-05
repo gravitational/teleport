@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2020-2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,28 +53,6 @@ test('login with username and password', async () => {
   // test login pathways
   await waitFor(() => fireEvent.click(getByText(/login/i)));
   expect(auth.login).toHaveBeenCalledWith('username', '123', '');
-  expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
-});
-
-test('login with password and u2f', async () => {
-  jest.spyOn(auth, 'loginWithU2f').mockResolvedValue(null);
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'u2f');
-
-  const { getByPlaceholderText, getByText } = render(<Login />);
-
-  // test validation errors
-  fireEvent.click(getByText(/login/i));
-  expect(auth.loginWithU2f).not.toHaveBeenCalled();
-
-  // fill form
-  const username = getByPlaceholderText(/username/i);
-  const password = getByPlaceholderText(/password/i);
-  fireEvent.change(username, { target: { value: 'username' } });
-  fireEvent.change(password, { target: { value: '123' } });
-
-  // test login pathways
-  await waitFor(() => fireEvent.click(getByText(/login/i)));
-  expect(auth.loginWithU2f).toHaveBeenCalledWith('username', '123');
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
 
@@ -133,8 +111,7 @@ test('login with SSO', () => {
       displayName: 'With Github',
       type: 'github',
       name: 'github',
-      url:
-        '/github/login/web?redirect_url=:redirect?connector_id=:providerName',
+      url: '/github/login/web?redirect_url=:redirect?connector_id=:providerName',
     },
   ]);
 

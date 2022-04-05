@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,18 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
-import {
-  LoadedU2f,
-  LoadedWebauthn,
-  Failed,
-  QrCodeFailed,
-} from './AddDevice.story';
-
-test('render dialog to add a new mfa device with u2f as preferred type', () => {
-  render(<LoadedU2f />);
-
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
-});
+import { LoadedWebauthn, Failed, QrCodeFailed } from './AddDevice.story';
 
 test('render dialog to add a new mfa device with webauthn as preferred type', () => {
   render(<LoadedWebauthn />);

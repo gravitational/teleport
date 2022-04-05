@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import React from 'react';
 import { Box, Text, Link } from 'design';
 import { Auth2faType } from 'shared/services';
 
-export default function TwoFAData({ auth2faType, qr, submitBtnText }: Props) {
+export default function TwoFAData({ auth2faType, qr }: Props) {
   const imgSrc = `data:image/png;base64,${qr}`;
 
   if (auth2faType === 'otp') {
@@ -40,28 +40,10 @@ export default function TwoFAData({ auth2faType, qr, submitBtnText }: Props) {
     );
   }
 
-  if (auth2faType === 'u2f') {
-    return (
-      <Box width="168px">
-        <Text typography="h5" mb="2">
-          Insert your hardware key
-        </Text>
-        <Text typography="paragraph2" mb={3}>
-          Press the button on the hardware key after you press the{' '}
-          <Text as="span" caps bold>
-            {submitBtnText}
-          </Text>{' '}
-          button.
-        </Text>
-      </Box>
-    );
-  }
-
   return null;
 }
 
 type Props = {
   qr: string;
   auth2faType: Auth2faType;
-  submitBtnText: string;
 };

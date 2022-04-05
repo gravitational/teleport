@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Gravitational, Inc.
+ * Copyright 2021-2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ export default function useClusterLogin(props: Props) {
     token: '',
     authType?: types.Auth2faType
   ) => {
-    promptHardwareKey(authType === 'webauthn' || authType === 'u2f');
+    promptHardwareKey(authType === 'webauthn');
     login({
       clusterUri,
       local: {

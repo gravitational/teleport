@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2021 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -74,9 +74,6 @@ export default class TtyTerminal {
     this.tty.on(TermEventEnum.RESET, () => this.reset());
     this.tty.on(TermEventEnum.CONN_CLOSE, e => this._processClose(e));
     this.tty.on(TermEventEnum.DATA, data => this._processData(data));
-    this.tty.on(TermEventEnum.U2F_CHALLENGE, payload =>
-      this._processU2FChallenge(payload)
-    );
 
     // subscribe tty resize event (used by session player)
     this.tty.on(TermEventEnum.RESIZE, ({ h, w }) => this.resize(w, h));
@@ -161,48 +158,6 @@ export default class TtyTerminal {
 
     displayText = `\x1b[31m${displayText}\x1b[m\r\n`;
     this.term.write(displayText);
-  }
-
-  _processU2FChallenge(payload: string) {
-    if (!window['u2f']) {
-      const termMsg =
-        'This browser does not support U2F required for hardware tokens, please try Chrome or Firefox instead.';
-      this.term.write(`\x1b[31m${termMsg}\x1b[m\r\n`);
-      return;
-    }
-
-    const data = JSON.parse(payload);
-    window['u2f'].sign(
-      data.appId,
-      data.challenge,
-      data.u2f_challenges,
-      this._processU2FResponse.bind(this)
-    );
-
-    const actionMsg =
-      'Authentication is required. Tap any *registered* security key.';
-    this.term.write(`\x1b[37m${actionMsg}\x1b[m\r\n`);
-  }
-
-  _processU2FResponse(res) {
-    if (res.errorCode) {
-      var errorMsg;
-      if (res.errorMessage) {
-        errorMsg = res.errorMessage;
-      } else {
-        errorMsg = `error code ${res.errorCode}`;
-        // lookup error message for code.
-        for (var msg in window['u2f'].ErrorCodes) {
-          if (window['u2f'].ErrorCodes[msg] == res.errorCode) {
-            errorMsg = msg;
-          }
-        }
-      }
-      const termMsg = `Please check your U2F settings, make sure it is plugged in and you are using the supported browser.\r\nU2F error: ${errorMsg}`;
-      this.term.write(`\x1b[31m${termMsg}\x1b[m\r\n`);
-      return;
-    }
-    this.tty.send(JSON.stringify(res));
   }
 }
 

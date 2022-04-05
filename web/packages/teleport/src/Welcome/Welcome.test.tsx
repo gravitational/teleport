@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -152,28 +152,6 @@ describe('teleport/components/Welcome', () => {
       'pwd_value',
       '2222'
     );
-  });
-
-  it('reset password with U2F', async () => {
-    jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'u2f');
-    jest
-      .spyOn(auth, 'resetPassword')
-      .mockImplementation(() => new Promise(() => null));
-    jest
-      .spyOn(auth, 'resetPasswordWithU2f')
-      .mockImplementation(() => new Promise(() => null));
-
-    await act(async () => renderInvite());
-
-    // fill out input boxes and trigger submit
-    const pwdField = screen.getByPlaceholderText('Password');
-    const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
-    fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
-    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
-    fireEvent.click(screen.getByRole('button'));
-
-    expect(auth.resetPassword).not.toHaveBeenCalled();
-    expect(auth.resetPasswordWithU2f).toHaveBeenCalledWith('5182', 'pwd_value');
   });
 
   it('reset password with webauthn', async () => {

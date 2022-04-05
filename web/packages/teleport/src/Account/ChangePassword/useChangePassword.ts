@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,16 +22,11 @@ export default function useChangePassword() {
     return authService.changePassword(oldPass, newPass, otpToken);
   }
 
-  function changePasswordWithU2f(oldPass: string, newPass: string) {
-    return authService.changePasswordWithU2f(oldPass, newPass);
-  }
-
   function changePasswordWithWebauthn(oldPass: string, newPass: string) {
     return authService.changePasswordWithWebauthn(oldPass, newPass);
   }
   return {
     changePassword,
-    changePasswordWithU2f,
     changePasswordWithWebauthn,
     preferredMfaType: cfg.getPreferredMfaType(),
     auth2faType: cfg.getAuth2faType(),

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ export const TermEventEnum = {
   RESET: 'terminal.reset',
   DATA: 'terminal.data',
   CONN_CLOSE: 'connection.close',
-  U2F_CHALLENGE: 'terminal.u2f',
   WEBAUTHN_CHALLENGE: 'terminal.webauthn',
 };
 

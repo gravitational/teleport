@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2021 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -137,9 +137,6 @@ class Tty extends EventEmitterWebAuthnSender {
       const uintArray = new Uint8Array(ev.data);
       const msg = this._proto.decode(uintArray);
       switch (msg.type) {
-        case MessageTypeEnum.U2F_CHALLENGE:
-          this.emit(TermEventEnum.U2F_CHALLENGE, msg.payload);
-          break;
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
           this.emit(TermEventEnum.WEBAUTHN_CHALLENGE, msg.payload);
           break;

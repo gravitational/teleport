@@ -21,7 +21,6 @@
     "react-router": "5.1.1",
     "react-router-dom": "5.1.1",
     "react-select": "^3.0.8",
-    "u2f-api-polyfill": "^0.4.3",
     "whatwg-fetch": "^3.0.0",
     "@gravitational/design": "1.0.0"
   }

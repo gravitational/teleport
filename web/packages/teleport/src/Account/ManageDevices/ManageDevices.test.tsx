@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -52,11 +52,8 @@ describe('mfa device dashboard testing', () => {
       .spyOn(authService, 'createMfaRegistrationChallenge')
       .mockResolvedValue({
         qrCode: '123456',
-        u2fRegisterRequest: null,
         webauthnPublicKey: null,
       });
-
-    jest.spyOn(ctx.mfaService, 'addNewU2fDevice').mockResolvedValue({});
 
     jest.spyOn(ctx.mfaService, 'addNewTotpDevice').mockResolvedValue({});
 
@@ -73,16 +70,10 @@ describe('mfa device dashboard testing', () => {
 
     jest.spyOn(cfg, 'getAuth2faType').mockReturnValue('optional');
 
-    jest.spyOn(cfg, 'getPreferredMfaType').mockReturnValue('u2f');
-
     jest.spyOn(authService, 'checkWebauthnSupport').mockResolvedValue();
 
     jest
       .spyOn(authService, 'createPrivilegeTokenWithTotp')
-      .mockResolvedValue(privilegeToken);
-
-    jest
-      .spyOn(authService, 'createPrivilegeTokenWithU2f')
       .mockResolvedValue(privilegeToken);
 
     jest
@@ -98,7 +89,7 @@ describe('mfa device dashboard testing', () => {
     jest.clearAllMocks();
   });
 
-  test('re-authenticating with totp and adding a u2f device', async () => {
+  test('re-authenticating with totp and adding a webauthn device', async () => {
     await waitFor(() => renderManageDevices());
 
     fireEvent.click(screen.getByText(/add two-factor device/i));
@@ -131,50 +122,10 @@ describe('mfa device dashboard testing', () => {
       fireEvent.click(screen.getByText('Add device'));
     });
 
-    expect(ctx.mfaService.addNewU2fDevice).toHaveBeenCalledWith(
+    expect(ctx.mfaService.addNewWebauthnDevice).toHaveBeenCalledWith(
       expect.objectContaining({
         tokenId: privilegeToken,
         deviceName: 'yubikey',
-      })
-    );
-  });
-
-  test('re-authenticating with u2f and adding a totp device', async () => {
-    await waitFor(() => renderManageDevices());
-
-    fireEvent.click(screen.getByText(/add two-factor device/i));
-
-    expect(screen.getByText('Verify your identity')).toBeInTheDocument();
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-    });
-
-    expect(authService.createPrivilegeTokenWithU2f).toHaveBeenCalled();
-
-    expect(screen.getByText('Add New Two-Factor Device')).toBeInTheDocument();
-
-    const addDeviceMfaSelectEl = screen
-      .getByTestId('mfa-select')
-      .querySelector('input');
-    fireEvent.keyDown(addDeviceMfaSelectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getAllByText(/authenticator app/i)[1]);
-
-    const addDeviceTokenField = screen.getByPlaceholderText('123 456');
-    fireEvent.change(addDeviceTokenField, { target: { value: '321321' } });
-
-    const deviceNameField = screen.getByPlaceholderText('Name');
-    fireEvent.change(deviceNameField, { target: { value: 'iphone 12' } });
-
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Add device'));
-    });
-
-    expect(ctx.mfaService.addNewTotpDevice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tokenId: privilegeToken,
-        deviceName: 'iphone 12',
-        secondFactorToken: '321321',
       })
     );
   });
@@ -240,7 +191,7 @@ describe('mfa device dashboard testing', () => {
       fireEvent.click(screen.getByText('Add device'));
     });
 
-    expect(ctx.mfaService.addNewU2fDevice).toHaveBeenCalledWith(
+    expect(ctx.mfaService.addNewWebauthnDevice).toHaveBeenCalledWith(
       expect.objectContaining({
         tokenId: restrictedPrivilegeToken,
         deviceName: 'yubikey',
@@ -259,7 +210,7 @@ describe('mfa device dashboard testing', () => {
       fireEvent.click(screen.getByText('Continue'));
     });
 
-    expect(authService.createPrivilegeTokenWithU2f).toHaveBeenCalled();
+    expect(authService.createPrivilegeTokenWithWebauthn).toHaveBeenCalled();
 
     expect(
       screen.getByText(/Are you sure you want to remove device/i)

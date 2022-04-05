@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,18 +16,14 @@ limitations under the License.
 
 export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
-export type Auth2faType =
-  | 'u2f'
-  | 'otp'
-  | 'off'
-  | 'optional'
-  | 'on'
-  | 'webauthn';
+export type Auth2faType = 'otp' | 'off' | 'optional' | 'on' | 'webauthn';
 
 // PreferredMfaType is used to determine which MFA option
 // is preferred when more than one option can be available
 // and only one should be preferred.
-export type PreferredMfaType = 'webauthn' | 'u2f' | '';
+//
+// TODO(lisa) remove, currently does nothing.
+export type PreferredMfaType = 'webauthn' | '';
 
 export type AuthProvider = {
   displayName?: string;

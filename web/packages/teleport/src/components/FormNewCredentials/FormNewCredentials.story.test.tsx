@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,11 +25,6 @@ test('story.off', () => {
 
 test('story.Otp', () => {
   const { container } = render(<story.Otp />);
-  expect(container.firstChild).toMatchSnapshot();
-});
-
-test('story.U2f', () => {
-  const { container } = render(<story.U2f />);
   expect(container.firstChild).toMatchSnapshot();
 });
 

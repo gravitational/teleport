@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Gravitational, Inc.
+ * Copyright 2021-2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,26 +17,20 @@
 import { Auth2faType, PreferredMfaType } from 'shared/services/types';
 
 export default function createMfaOptions(opts: Options) {
-  const { auth2faType, preferredType, required = false } = opts;
+  const { auth2faType, required = false } = opts;
   const mfaOptions: MfaOption[] = [];
 
   if (auth2faType === 'off' || !auth2faType) {
     return mfaOptions;
   }
 
-  const enabled = auth2faType === 'on' || auth2faType === 'optional';
-  const preferWebauthn = enabled && preferredType === 'webauthn';
-  const preferU2f = enabled && preferredType === 'u2f';
+  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
 
-  if (auth2faType === 'webauthn' || preferWebauthn) {
+  if (auth2faType === 'webauthn' || mfaEnabled) {
     mfaOptions.push({ value: 'webauthn', label: 'Hardware Key' });
   }
 
-  if (auth2faType === 'u2f' || preferU2f) {
-    mfaOptions.push({ value: 'u2f', label: 'Hardware Key' });
-  }
-
-  if (auth2faType === 'otp' || enabled) {
+  if (auth2faType === 'otp' || mfaEnabled) {
     mfaOptions.push({ value: 'otp', label: 'Authenticator App' });
   }
 
@@ -54,6 +48,7 @@ export type MfaOption = {
 
 type Options = {
   auth2faType: Auth2faType;
-  preferredType: PreferredMfaType;
+  // TODO(lisa) remove preferredType, does nothing atm
+  preferredType?: PreferredMfaType;
   required?: boolean;
 };
