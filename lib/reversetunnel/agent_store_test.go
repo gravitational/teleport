@@ -9,10 +9,10 @@ import (
 func TestAgentStore(t *testing.T) {
 	store := newAgentStore()
 
-	agents := []*Agent{{}, {}, {}, {}, {}}
+	agents := []*agent{{}, {}, {}, {}, {}}
 
-	for i, agent := range agents {
-		store.add(agent)
+	for i := range agents {
+		store.add(agents[i])
 		require.Equal(t, i+1, store.len())
 	}
 

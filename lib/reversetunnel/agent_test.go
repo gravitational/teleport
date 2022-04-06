@@ -20,6 +20,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -143,7 +144,7 @@ func (m *mockAgentInjection) getVersion(context.Context) (string, error) {
 	return teleport.Version, nil
 }
 
-func testAgent(t *testing.T) (*Agent, *mockSSHClient) {
+func testAgent(t *testing.T) (*agent, *mockSSHClient) {
 	tracker, err := track.New(context.Background(), track.Config{
 		ClusterName: "test",
 	})
@@ -183,9 +184,9 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 	agent, client := testAgent(t)
 	claimedProxy := "claimed-proxy"
 
-	var calls int
-	agent.stateCallback = func(a *Agent) {
-		calls++
+	var calls int64
+	agent.stateCallback = func(a Agent) {
+		atomic.AddInt64(&calls, 1)
 	}
 
 	agent.tracker.Claim(claimedProxy)
@@ -194,7 +195,7 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 	err := agent.Start(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Failed to claim proxy", "Expected failed to claim proxy error.")
-	require.Equal(t, 0, calls, "Unexpected number of state changes.")
+	require.Equal(t, int64(0), calls, "Unexpected number of state changes.")
 
 	err = agent.Stop()
 	require.NoError(t, err)
@@ -204,10 +205,10 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 func TestAgentStart(t *testing.T) {
 	agent, client := testAgent(t)
 
-	var calls int
+	var calls int64
 	states := make(chan AgentState)
-	agent.stateCallback = func(a *Agent) {
-		calls++
+	agent.stateCallback = func(a Agent) {
+		atomic.AddInt64(&calls, 1)
 		states <- a.GetState()
 	}
 
@@ -257,7 +258,7 @@ func TestAgentStart(t *testing.T) {
 
 	state := <-states
 	require.Equal(t, AgentConnected, state, "Unexpected state change")
-	require.Equal(t, 1, calls, "Unexpected number of state changes.")
+	require.Equal(t, int64(1), calls, "Unexpected number of state changes.")
 
 	unclaimed := false
 	agent.unclaim = func() {
@@ -269,5 +270,5 @@ func TestAgentStart(t *testing.T) {
 	require.True(t, unclaimed, "Expected unclaim to be called.")
 	state = <-states
 	require.Equal(t, AgentClosed, state, "Unexpected state change")
-	require.Equal(t, 2, calls, "Unexpected number of state changes.")
+	require.Equal(t, int64(2), calls, "Unexpected number of state changes.")
 }

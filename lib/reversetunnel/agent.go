@@ -23,6 +23,7 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,7 +51,7 @@ const (
 )
 
 // AgentStateCallback is called when an agent's state changes.
-type AgentStateCallback func(*Agent)
+type AgentStateCallback func(Agent)
 
 // transporter handles the creation of new transports over ssh.
 type transporter interface {
@@ -126,8 +127,20 @@ func (c *agentConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// Agent creates and manages a reverse tunnel to a remote proxy server.
-type Agent struct {
+// Agent represents a reverse tunnel agent.
+type Agent interface {
+	// Start starts the agent in the background.
+	Start(context.Context) error
+	// Stop closes the agent and releases resources.
+	Stop() error
+	// GetState returns the current state of the agent.
+	GetState() AgentState
+	// GetProxyID returns the proxy id of the proxy the agent is connected to.
+	GetProxyID() (string, bool)
+}
+
+// agent creates and manages a reverse tunnel to a remote proxy server.
+type agent struct {
 	agentConfig
 	// client is a client for the agent's ssh connection.
 	client SSHClient
@@ -153,32 +166,60 @@ type Agent struct {
 }
 
 // newAgent intializes a reverse tunnel agent.
-func newAgent(config agentConfig) (*Agent, error) {
+func newAgent(config agentConfig) (*agent, error) {
 	err := config.checkAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Agent{
+	return &agent{
 		agentConfig: config,
 		state:       AgentInitial,
 	}, nil
 }
 
 // String returns the string representation of an agent.
-func (a *Agent) String() string {
+func (a *agent) String() string {
 	return fmt.Sprintf("agent(leaseID=%d,state=%s) -> %s", a.lease.ID(), a.GetState(), a.addr.String())
 }
 
 // GetState returns the current state of the agent.
-func (a *Agent) GetState() AgentState {
+func (a *agent) GetState() AgentState {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.state
 }
 
+// GetProxyID returns the proxy id of the proxy the agent is connected to.
+func (a *agent) GetProxyID() (string, bool) {
+	if a.client == nil {
+		return "", false
+	}
+	return proxyIDFromPrincipals(a.client.Principals())
+}
+
+// proxyIDFromPrincipals gets the proxy id from a list of principals.
+func proxyIDFromPrincipals(principals []string) (string, bool) {
+	if len(principals) == 0 {
+		return "", false
+	}
+
+	// The proxy id will always be the first principal.
+	id := principals[0]
+
+	// Return the uuid from the format "<uuid>.<cluster-name>".
+	split := strings.Split(id, ".")
+	id = split[0]
+
+	if id == "" {
+		return "", false
+	}
+
+	return id, true
+}
+
 // updateState updates the internal state of the agent.
-func (a *Agent) updateState(state AgentState) {
+func (a *agent) updateState(state AgentState) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.state != state {
@@ -193,7 +234,7 @@ func (a *Agent) updateState(state AgentState) {
 
 // Start starts an agent returning after successfully connecting and sending
 // the first heatbeat.
-func (a *Agent) Start(ctx context.Context) error {
+func (a *agent) Start(ctx context.Context) error {
 	a.log.Debugf("Starting agent %v", a.addr)
 	a.ctx, a.cancel = context.WithCancel(ctx)
 
@@ -232,7 +273,7 @@ func (a *Agent) Start(ctx context.Context) error {
 }
 
 // connect connects to the server and finishes setting up the agent.
-func (a *Agent) connect() error {
+func (a *agent) connect() error {
 	client, err := a.sshDialer.DialContext(a.ctx, a.addr)
 	if err != nil {
 		return trace.Wrap(err)
@@ -272,7 +313,7 @@ func (a *Agent) connect() error {
 
 // sendFirstHeartbeat opens the heartbeat channel and sends the first
 // heartbeat.
-func (a *Agent) sendFirstHeartbeat(ctx context.Context) error {
+func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
 	channel, requests, err := a.client.OpenChannel(chanHeartbeat, nil)
 	if err != nil {
 		return trace.Wrap(err)
@@ -290,7 +331,7 @@ func (a *Agent) sendFirstHeartbeat(ctx context.Context) error {
 }
 
 // Stop stops the agent ensuring the cleanup runs exactly once.
-func (a *Agent) Stop() error {
+func (a *agent) Stop() error {
 	a.stopOnce.Do(func() {
 		a.stop()
 	})
@@ -298,7 +339,7 @@ func (a *Agent) Stop() error {
 }
 
 // stop closes the connection gracefully. This should only be called once.
-func (a *Agent) stop() error {
+func (a *agent) stop() error {
 	// Only update state if the agent was started.
 	if a.GetState() != AgentInitial {
 		defer a.updateState(AgentClosed)
@@ -323,7 +364,7 @@ func (a *Agent) stop() error {
 }
 
 // handleGlobalRequests processes global requests from the server.
-func (a *Agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.Request) error {
+func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.Request) error {
 	for {
 		select {
 		case r := <-requests:
@@ -362,7 +403,7 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 }
 
 // handleChannels handles tranports, discoveries, and heartbeats.
-func (a *Agent) handleChannels() error {
+func (a *agent) handleChannels() error {
 	ticker := time.NewTicker(a.keepAlive)
 	defer ticker.Stop()
 
@@ -435,7 +476,7 @@ func (a *Agent) handleChannels() error {
 //
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
-func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
+func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	a.log.Debugf("handleDiscovery requests channel.")
 	defer func() {
 		if err := ch.Close(); err != nil {

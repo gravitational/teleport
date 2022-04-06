@@ -1176,7 +1176,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	require.NoError(t, err)
 
 	// start agent and load balance requests
-	events := make(chan *reversetunnel.Agent, 2)
+	events := make(chan reversetunnel.Agent, 2)
 
 	resolver := func() (*utils.NetAddr, error) {
 		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, nil
@@ -1189,7 +1189,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		HostSigner:  f.signer,
 		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
 		Cluster:     "remote",
-		StateCallback: func(a *reversetunnel.Agent) {
+		StateCallback: func(a reversetunnel.Agent) {
 			events <- a
 		},
 	})
@@ -1206,7 +1206,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		HostSigner:  f.signer,
 		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
 		Cluster:     "remote",
-		StateCallback: func(a *reversetunnel.Agent) {
+		StateCallback: func(a reversetunnel.Agent) {
 			events <- a
 		},
 	})

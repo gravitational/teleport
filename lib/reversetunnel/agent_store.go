@@ -17,20 +17,19 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"strings"
 	"sync"
 )
 
 // agentStore handles adding and removing agents from an in memory store.
 type agentStore struct {
-	agents []*Agent
+	agents []Agent
 	mu     sync.RWMutex
 }
 
 // newAgentStore creates a new agentStore instance.
 func newAgentStore() *agentStore {
 	return &agentStore{
-		agents: make([]*Agent, 0),
+		agents: make([]Agent, 0),
 	}
 }
 
@@ -42,14 +41,14 @@ func (s *agentStore) len() int {
 }
 
 // add adds an agent to the store.
-func (s *agentStore) add(agent *Agent) {
+func (s *agentStore) add(agent *agent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.agents = append(s.agents, agent)
 }
 
 // unsafeRemove removes an agent. Warning this is not threadsafe.
-func (s *agentStore) unsafeRemove(agent *Agent) bool {
+func (s *agentStore) unsafeRemove(agent Agent) bool {
 	for i := range s.agents {
 		if s.agents[i] != agent {
 			continue
@@ -62,7 +61,7 @@ func (s *agentStore) unsafeRemove(agent *Agent) bool {
 }
 
 // remove removes the given agent from the store.
-func (s *agentStore) remove(agent *Agent) bool {
+func (s *agentStore) remove(agent Agent) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.unsafeRemove(agent)
@@ -70,7 +69,7 @@ func (s *agentStore) remove(agent *Agent) bool {
 
 // poplen pops an agent from the store if there are more agents in the store
 // than the the given value. The oldest agent is always returned first.
-func (s *agentStore) poplen(l int) (*Agent, bool) {
+func (s *agentStore) poplen(l int) (Agent, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -93,29 +92,9 @@ func (s *agentStore) proxyIDs() []string {
 
 	var ids []string
 	for i := len(s.agents) - 1; i >= 0; i-- {
-		if id, ok := proxyIDFromPrincipals(s.agents[i].client.Principals()); ok {
+		if id, ok := s.agents[i].GetProxyID(); ok {
 			ids = append(ids, id)
 		}
 	}
 	return ids
-}
-
-// proxyIDFromPrincipals gets the proxy id from a list of principals.
-func proxyIDFromPrincipals(principals []string) (string, bool) {
-	if len(principals) == 0 {
-		return "", false
-	}
-
-	// The proxy id will always be the first principal.
-	id := principals[0]
-
-	// Return the uuid from the format "<uuid>.<cluster-name>".
-	split := strings.Split(id, ".")
-	id = split[0]
-
-	if id == "" {
-		return "", false
-	}
-
-	return id, true
 }

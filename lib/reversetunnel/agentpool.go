@@ -60,7 +60,7 @@ type AgentPool struct {
 	// runtimeConfig contains dynamic configuration values.
 	runtimeConfig *agentPoolRuntimeConfig
 	// events receives agent state change events.
-	events chan *Agent
+	events chan Agent
 
 	// wg waits for the pool and all agents to complete.
 	wg     sync.WaitGroup
@@ -158,7 +158,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	pool := &AgentPool{
 		AgentPoolConfig: config,
 		active:          newAgentStore(),
-		events:          make(chan *Agent),
+		events:          make(chan Agent),
 		wg:              sync.WaitGroup{},
 		backoff:         retry,
 		log: logrus.WithFields(logrus.Fields{
@@ -242,7 +242,7 @@ func (p *AgentPool) run() error {
 
 // connectAgent connects a new agent and processes any agent events blocking until a
 // new agent is connected or an error occurs.
-func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease, events <-chan *Agent) (*Agent, error) {
+func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease, events <-chan Agent) (*agent, error) {
 	lease, err := p.waitForLease(ctx, leases, events)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -285,7 +285,7 @@ func (p *AgentPool) updateRuntimeConfig(ctx context.Context) {
 
 // processEvents handles all events in the queue. Unblocking when a new agent
 // is required.
-func (p *AgentPool) processEvents(ctx context.Context, events <-chan *Agent) error {
+func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) error {
 	// Processes any queued events without blocking.
 	for {
 		select {
@@ -352,7 +352,7 @@ func (p *AgentPool) disconnectAgents() {
 }
 
 // waitForLease processes events while waiting to acquire a lease.
-func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan track.Lease, events <-chan *Agent) (track.Lease, error) {
+func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan track.Lease, events <-chan Agent) (track.Lease, error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -366,7 +366,7 @@ func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan track.Lease,
 }
 
 // waitForBackoff processes events while waiting for the backoff.
-func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan *Agent) error {
+func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -381,7 +381,7 @@ func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan *Agent) er
 }
 
 // handleEvent processes a single event.
-func (p *AgentPool) handleEvent(ctx context.Context, agent *Agent) {
+func (p *AgentPool) handleEvent(ctx context.Context, agent Agent) {
 	state := agent.GetState()
 	switch state {
 	case AgentConnected:
@@ -395,7 +395,7 @@ func (p *AgentPool) handleEvent(ctx context.Context, agent *Agent) {
 }
 
 // stateCallback adds events to the queue for each agent state change.
-func (p *AgentPool) stateCallback(agent *Agent) {
+func (p *AgentPool) stateCallback(agent Agent) {
 	if p.StateCallback != nil {
 		go p.StateCallback(agent)
 	}
@@ -408,7 +408,7 @@ func (p *AgentPool) stateCallback(agent *Agent) {
 }
 
 // newAgent creates a new agent instance.
-func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease track.Lease) (*Agent, error) {
+func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease track.Lease) (*agent, error) {
 	addr, err := p.Resolver()
 	if err != nil {
 		return nil, trace.Wrap(err)
