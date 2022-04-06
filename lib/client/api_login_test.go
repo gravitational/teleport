@@ -182,11 +182,12 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 		{
 			name:         "Webauthn and UseStrongestAuth",
 			secondFactor: constants.SecondFactorOptional,
-			inputReader: prompt.NewFakeReader().
-				AddString(password).
-				AddReply(func(ctx context.Context) (string, error) {
-					panic("this should not be called")
-				}),
+			solveOTP: func(ctx context.Context) (string, error) {
+				panic("unused")
+			},
+			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+				panic("unused")
+			},
 			solveWebauthn:    solveWebauthn,
 			useStrongestAuth: true,
 		},

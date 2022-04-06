@@ -1342,7 +1342,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params,
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
+			return PromptMFAChallenge(ctx, c, proxyAddr, nil /* opts */)
 		})
 
 	return key, err
@@ -3069,8 +3069,9 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
 		},
-		User:     tc.Config.Username,
-		Password: password,
+		User:             tc.Username,
+		Password:         password,
+		UseStrongestAuth: tc.UseStrongestAuth,
 	})
 
 	return response, trace.Wrap(err)
