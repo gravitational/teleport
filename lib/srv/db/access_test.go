@@ -1809,6 +1809,7 @@ func withSelfHostedPostgres(name string) withDatabaseOption {
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
+			ClientAuth: tls.RequireAndVerifyClientCert,
 		})
 		require.NoError(t, err)
 		go postgresServer.Serve()
@@ -1963,6 +1964,7 @@ func withSelfHostedMySQL(name string) withDatabaseOption {
 		mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
+			ClientAuth: tls.RequireAndVerifyClientCert,
 		})
 		require.NoError(t, err)
 		go mysqlServer.Serve()
@@ -2130,6 +2132,7 @@ func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withData
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
+			ClientAuth: tls.RequireAndVerifyClientCert,
 		}, opts...)
 		require.NoError(t, err)
 		go mongoServer.Serve()
@@ -2155,6 +2158,7 @@ func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDataba
 		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
+			ClientAuth: tls.RequireAndVerifyClientCert,
 		}, opts...)
 		require.NoError(t, err)
 
