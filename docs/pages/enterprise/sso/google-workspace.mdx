@@ -43,7 +43,7 @@ Before you get started you’ll need:
   ```code
   $ tctl version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
-  
+
   $ tsh version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
@@ -61,7 +61,7 @@ Before you get started you’ll need:
   ```code
   $ tctl version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
-  
+
   $ tsh version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
@@ -92,7 +92,7 @@ The setup will consist of:
 ### Ensure your Google Workspace plan is correct
 
 Teleport's Google Workspace integration works differently depending on your
-Google Workspace plan. In this section, we will explain how to determine if 
+Google Workspace plan. In this section, we will explain how to determine if
 Teleport supports your current Google Workspace setup.
 
 #### How Google Workspace APIs differ by service level
@@ -104,8 +104,8 @@ a member of the parent group.
 
 Google Workspace service accounts can determine whether a user has a transitive
 membership to a specific group by calling methods within the Google Workspace
-**Cloud Identity API**. These API methods are available only to service accounts
-belonging to specific Google Workspace plans:
+**Cloud Identity API**. These API methods are only usable for users belonging to
+specific Google Workspace plans:
 
 - Enterprise Standard
 - Enterprise Plus
@@ -120,7 +120,7 @@ Workspace plans.
 #### How Teleport uses Google Workspace APIs
 
 Teleport's OIDC connector uses Google Workspace's APIs differently depending
-on the resource version. 
+on the resource version.
 
 We will show you how to configure the connector later in the
 guide, but for now, you should ensure that your Google Workspace plan allows you
@@ -145,14 +145,14 @@ fetch credentials for calling Cloud Identity API methods, then use these
 credentials to query a user's transitive group memberships.
 
 If these credentials do not exist, Teleport will fetch credentials for the
-Directory API instead, and will use this API to list the user's groups within
-your Google Workspace domain. Any group registered on a different domain or
-subdomain than the user's will be ignored.
+Directory API instead, and will use this API to list the user's groups in your
+entire Google Workspace account. Groups that the user belongs to that are
+external to the workspace will not be listed.
 
 </TabItem>
 <TabItem label="v2">
 
-The OIDC connector maps a user's roles to the Google Workspace groups they belong to. 
+The OIDC connector maps a user's roles to the Google Workspace groups they belong to.
 
 If these credentials do not exist, Teleport will fetch credentials for the
 Directory API instead, and will use this API to list the user's groups within
@@ -172,10 +172,11 @@ Google Admin Console, which relies on the Cloud Identity API.
 If your Google Workspace plan does not support the Cloud Identity API, you must
 ensure that your RBAC does not depend on transitive group memberships.
 
-Regardless of your plan, we recommend blocking access to external groups at the
-workspace level (following
-[these instructions](https://support.google.com/a/answer/9468710)) to prevent
-unexpected results when Teleport queries group memberships.
+When querying transitive group memberships we recommend blocking access to
+external groups at the workspace level (following [these
+instructions](https://support.google.com/a/answer/9468710)), as membership into
+any group that the service account doesn't have full visibility on (including
+all groups external to the workspace) will prevent users from logging in.
 
 ### Create a new project
 
