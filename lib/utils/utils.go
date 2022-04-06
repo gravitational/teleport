@@ -443,9 +443,13 @@ func ReadHostUUID(dataDir string) (string, error) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
 			return "", err
 		}
-		return "", trace.Wrap(err)
+		return "", trace.ConvertSystemError(err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	id := strings.TrimSpace(string(out))
+	if id == "" {
+		return "", trace.NotFound("host uuid is empty")
+	}
+	return id, nil
 }
 
 // WriteHostUUID writes host UUID into a file
@@ -465,10 +469,10 @@ func WriteHostUUID(dataDir string, id string) error {
 // returns the UUID from it, otherwise generates one
 func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	id, err := ReadHostUUID(dataDir)
-	if err == nil && id != "" {
+	if err == nil {
 		return id, nil
 	}
-	if err != nil && !trace.IsNotFound(err) {
+	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
 	rawID, err := uuid.NewRandom()
