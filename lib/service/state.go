@@ -69,7 +69,7 @@ type componentState struct {
 }
 
 // newProcessState returns a new FSM that tracks the state of the Teleport process.
-func newProcessState(process *TeleportProcess) (*processState, error) {
+func newProcessState(process *TeleportProcess, componentCount int) (*processState, error) {
 	err := utils.RegisterPrometheusCollectors(stateGauge)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -78,7 +78,7 @@ func newProcessState(process *TeleportProcess) (*processState, error) {
 	return &processState{
 		process:             process,
 		states:              make(map[string]*componentState),
-		totalComponentCount: process.ComponentCount(),
+		totalComponentCount: componentCount,
 	}, nil
 }
 

@@ -366,11 +366,6 @@ func (process *TeleportProcess) onHeartbeat(component string) func(err error) {
 	}
 }
 
-// ComponentCount returns the number of components enabled (based on the configuration) that will send heartbeats.
-func (process *TeleportProcess) ComponentCount() int {
-	return process.Config.ComponentCount()
-}
-
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
 	for i := range process.Config.Identities {
 		identity := process.Config.Identities[i]
@@ -755,6 +750,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	process.registerAppDepend()
 
+	// Produce global TeleportReadyEvent when all components have started
+	componentCount := process.registerTeleportReadyEvent(cfg)
+
 	process.log = cfg.Log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentProcess, process.id),
 	})
@@ -762,7 +760,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	serviceStarted := false
 
 	if !cfg.DiagnosticAddr.IsEmpty() {
-		if err := process.initDiagnosticService(); err != nil {
+		if err := process.initDiagnosticService(componentCount); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
@@ -780,9 +778,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 		cfg.Keygen = native.New(process.ExitContext(), native.PrecomputeKeys(precomputeCount))
 	}
-
-	// Produce global TeleportReadyEvent when all components have started
-	process.registerTeleportReadyEvent(cfg)
 
 	if cfg.Auth.Enabled {
 		if err := process.initAuthService(); err != nil {
@@ -2208,7 +2203,7 @@ func (process *TeleportProcess) initMetricsService() error {
 
 // initDiagnosticService starts diagnostic service currently serving healthz
 // and prometheus endpoints
-func (process *TeleportProcess) initDiagnosticService() error {
+func (process *TeleportProcess) initDiagnosticService(componentCount int) error {
 	mux := http.NewServeMux()
 
 	// support legacy metrics collection in the diagnostic service.
@@ -2239,7 +2234,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	// Create a state machine that will process and update the internal state of
 	// Teleport based off Events. Use this state machine to return return the
 	// status from the /readyz endpoint.
-	ps, err := newProcessState(process)
+	ps, err := newProcessState(process, componentCount)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3450,11 +3445,9 @@ func (process *TeleportProcess) waitForAppDepend() {
 }
 
 // registerTeleportReadyEvent ensures that a TeleportReadyEvent is produced
-// when all components have started.
-// Note that this function should be kept in sync with the Config.ComponentCount function so that
-// - if Config.ComponentCount undercounts, then the service fails to start (i.e. TeleportReadyEvent is not produced)
-// - if Config.ComponentCount overcounts, then an error is logged (in processState.getStateLocked)
-func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) {
+// when all components enabled (based on the configuration) have started.
+// It returns the number of components enabled.
+func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) int {
 	eventMapping := EventMapping{
 		Out: TeleportReadyEvent,
 	}
@@ -3491,7 +3484,9 @@ func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) {
 		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
 	}
 
+	componentCount := len(eventMapping.In)
 	process.RegisterEventMapping(eventMapping)
+	return componentCount
 }
 
 // appDependEvents is a list of events that the application service depends on.
