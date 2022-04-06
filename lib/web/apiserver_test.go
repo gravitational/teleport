@@ -161,11 +161,17 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.user = u.Username
 	s.clock = clockwork.NewFakeClock()
 
+	networkingConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		KeepAliveInterval: types.Duration(time.Second),
+	})
+	c.Assert(err, IsNil)
+
 	s.server, err = auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
-			ClusterName: "localhost",
-			Dir:         c.MkDir(),
-			Clock:       s.clock,
+			ClusterName:             "localhost",
+			Dir:                     c.MkDir(),
+			Clock:                   s.clock,
+			ClusterNetworkingConfig: networkingConfig,
 		},
 	})
 	c.Assert(err, IsNil)
