@@ -1574,7 +1574,7 @@ func TestSessionTracker(t *testing.T) {
 	// Advance the clock to trigger the session tracker expiration to be extended
 	f.clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
 
-	// The session's expiration should be udpated
+	// The session's expiration should be updated
 	trackerUpdated := func() bool {
 		updatedTracker, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
 		require.NoError(t, err)
