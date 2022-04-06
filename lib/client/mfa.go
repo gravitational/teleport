@@ -47,8 +47,6 @@ type PromptMFAChallengeOpts struct {
 	// "device". It is used to emphasize between different kinds of devices, like
 	// registered vs new.
 	PromptDevicePrefix string
-	// Quiet suppresses users prompts.
-	Quiet bool
 	// UseStrongestAuth prompts the user to solve only the strongest challenge
 	// available.
 	// If set it also avoids stdin hijacking, as only one prompt is necessary.
@@ -70,7 +68,6 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 		opts = &PromptMFAChallengeOpts{}
 	}
 	promptDevicePrefix := opts.PromptDevicePrefix
-	quiet := opts.Quiet
 
 	// We have three maximum challenges, from which we only pick two: TOTP and
 	// either Webauthn (preferred) or U2F.
@@ -87,7 +84,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	}
 
 	// Prompt only for the strongest auth method available?
-	if opts.UseStrongestAuth && hasWebauthn {
+	if opts.UseStrongestAuth && hasNonTOTP {
 		hasTOTP = false
 	}
 

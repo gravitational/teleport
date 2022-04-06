@@ -2973,8 +2973,9 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
 		},
-		User:     tc.Config.Username,
-		Password: password,
+		User:             tc.Config.Username,
+		Password:         password,
+		UseStrongestAuth: tc.UseStrongestAuth,
 	})
 
 	return response, trace.Wrap(err)
