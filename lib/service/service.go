@@ -172,10 +172,6 @@ const (
 	// is ready to start accepting connections.
 	DatabasesReady = "DatabasesReady"
 
-	// MetricsReady is generated when the Teleport metrics service is ready to
-	// start accepting connections.
-	MetricsReady = "MetricsReady"
-
 	// WindowsDesktopReady is generated when the Teleport windows desktop
 	// service is ready to start accepting connections.
 	WindowsDesktopReady = "WindowsDesktopReady"
@@ -512,6 +508,20 @@ func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 	if err := srv.Start(); err != nil {
 		return trace.Wrap(err, "startup failed")
 	}
+
+	// Wait for the service to report that it has started.
+	startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
+	defer startCancel()
+	eventC := make(chan Event, 1)
+	srv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent, eventC)
+	select {
+	case <-eventC:
+		cfg.Log.Infof("Service has started successfully.")
+	case <-startTimeoutCtx.Done():
+		warnOnErr(srv.Close(), cfg.Log)
+		return trace.BadParameter("service has failed to start")
+	}
+
 	// Wait and reload until called exit.
 	for {
 		srv, err = waitAndReload(ctx, cfg, srv, newTeleport)
@@ -763,36 +773,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		cfg.Keygen = native.New(process.ExitContext(), native.PrecomputeKeys(precomputeCount))
 	}
 
-	// Produce global TeleportReadyEvent
-	// when all components have started
-	eventMapping := EventMapping{
-		Out: TeleportReadyEvent,
-	}
-	if cfg.Auth.Enabled {
-		eventMapping.In = append(eventMapping.In, AuthTLSReady)
-	}
-	if cfg.SSH.Enabled {
-		eventMapping.In = append(eventMapping.In, NodeSSHReady)
-	}
-	if cfg.Proxy.Enabled {
-		eventMapping.In = append(eventMapping.In, ProxySSHReady)
-	}
-	if cfg.Kube.Enabled {
-		eventMapping.In = append(eventMapping.In, KubernetesReady)
-	}
-	if cfg.Apps.Enabled {
-		eventMapping.In = append(eventMapping.In, AppsReady)
-	}
-	if cfg.Databases.Enabled {
-		eventMapping.In = append(eventMapping.In, DatabasesReady)
-	}
-	if cfg.Metrics.Enabled {
-		eventMapping.In = append(eventMapping.In, MetricsReady)
-	}
-	if cfg.WindowsDesktop.Enabled {
-		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
-	}
-	process.RegisterEventMapping(eventMapping)
+	// Produce global TeleportReadyEvent when all components have started
+	process.registerTeleportReadyEvent(cfg)
 
 	if cfg.Auth.Enabled {
 		if err := process.initAuthService(); err != nil {
@@ -1381,7 +1363,7 @@ func (process *TeleportProcess) initAuthService() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentAuth, "Auth service %s:%s is starting on %v.",
 			teleport.Version, teleport.Gitref, authAddr)
 
-		// since tlsServer.Serve is a blocking call, we emit this even right before
+		// since tlsServer.Serve is a blocking call, we emit this event right before
 		// the service has started
 		process.BroadcastEvent(Event{Name: AuthTLSReady, Payload: nil})
 		err := tlsServer.Serve()
@@ -3454,6 +3436,44 @@ func (process *TeleportProcess) waitForAppDepend() {
 			process.log.Debugf("Process is exiting.")
 		}
 	}
+}
+
+// registerTeleportReadyEvent ensures that a TeleportReadyEvent is produced
+// when all components have started.
+func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) {
+	eventMapping := EventMapping{
+		Out: TeleportReadyEvent,
+	}
+
+	if cfg.Auth.Enabled {
+		eventMapping.In = append(eventMapping.In, AuthTLSReady)
+	}
+
+	if cfg.SSH.Enabled {
+		eventMapping.In = append(eventMapping.In, NodeSSHReady)
+	}
+
+	if cfg.Proxy.Enabled {
+		eventMapping.In = append(eventMapping.In, ProxySSHReady)
+	}
+
+	if cfg.Kube.Enabled {
+		eventMapping.In = append(eventMapping.In, KubernetesReady)
+	}
+
+	if cfg.Apps.Enabled {
+		eventMapping.In = append(eventMapping.In, AppsReady)
+	}
+
+	if cfg.Databases.Enabled {
+		eventMapping.In = append(eventMapping.In, DatabasesReady)
+	}
+
+	if cfg.WindowsDesktop.Enabled {
+		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
+	}
+
+	process.RegisterEventMapping(eventMapping)
 }
 
 // appDependEvents is a list of events that the application service depends on.
