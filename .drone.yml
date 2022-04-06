@@ -1756,6 +1756,8 @@ steps:
     source: /go/artifacts/*
     strip_prefix: /go/artifacts/
     target: teleport/tag/${DRONE_TAG##v}
+- name: Register artifacts
+  image: docker
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
