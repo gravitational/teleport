@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"math"
 	"path/filepath"
+	"strings"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
@@ -147,7 +148,6 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	rotation := state.Spec.Rotation
 
 	switch rotation.State {
@@ -164,6 +164,15 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 		process.log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
 		clt, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
+			// In the event that a user is attempting to connect a machine to
+			// a different cluster it will give a cryptic warning about an
+			// unknown certificate authority. Unfortunately we cannot intercept
+			// this error as it comes from the http package before a request is
+			// made. So provide a more user friendly error as a hint of what
+			// they can do to resolve the issue.
+			if strings.Contains(err.Error(), "certificate signed by unknown authority") {
+				process.log.Errorf("Was this node already registered to a different cluster? To join this node to a new cluster, remove `%s` and try again", process.Config.DataDir)
+			}
 			return nil, trace.Wrap(err)
 		}
 		return &Connector{
@@ -852,18 +861,19 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
 	logger.Debug("Attempting to connect to Auth Server directly.")
-	directClient, err := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
-	if err == nil {
+
+	directClient, directErr := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
+	if directErr == nil {
 		logger.Debug("Connected to Auth Server with direct connection.")
 		return directClient, nil
 	}
 	logger.Debug("Failed to connect to Auth Server directly.")
 	// store err in directLogger, only log it if tunnel dial fails.
-	directErrLogger := logger.WithError(err)
+	directErrLogger := logger.WithError(directErr)
 
 	// Don't attempt to connect through a tunnel as a proxy or auth server.
 	if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(directErr)
 	}
 
 	logger.Debug("Attempting to discover reverse tunnel address.")
@@ -877,7 +887,9 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	if err != nil {
 		directErrLogger.Debug("Failed to connect to Auth Server directly.")
 		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
-		return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
+		return nil, trace.WrapWithMessage(
+			trace.NewAggregate(directErr, err),
+			trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining."))
 	}
 
 	logger.Debug("Connected to Auth Server through tunnel.")
