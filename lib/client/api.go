@@ -391,66 +391,57 @@ func MakeDefaultConfig() *Config {
 // SSH certificate.
 type ProfileStatus struct {
 	// Name is the profile name.
-	Name string `json:"name"`
+	Name string
 
 	// Dir is the directory where profile is located.
-	Dir string `json:"dir"`
+	Dir string
 
 	// ProxyURL is the URL the web client is accessible at.
-	ProxyURL url.URL `json:"proxy_url"`
+	ProxyURL url.URL
 
 	// Username is the Teleport username.
-	Username string `json:"username"`
+	Username string
 
 	// Roles is a list of Teleport Roles this user has been assigned.
-	Roles []string `json:"roles,omitempty"`
+	Roles []string
 
 	// Logins are the Linux accounts, also known as principals in OpenSSH terminology.
-	Logins []string `json:"logins,omitempty"`
+	Logins []string
 
 	// KubeEnabled is true when this profile is configured to connect to a
 	// kubernetes cluster.
-	KubeEnabled bool `json:"kube_enabled"`
+	KubeEnabled bool
 
 	// KubeUsers are the kubernetes users used by this profile.
-	KubeUsers []string `json:"kube_users,omitempty"`
+	KubeUsers []string
 
 	// KubeGroups are the kubernetes groups used by this profile.
-	KubeGroups []string `json:"kube_groups,omitempty"`
+	KubeGroups []string
 
 	// Databases is a list of database services this profile is logged into.
-	Databases []tlsca.RouteToDatabase `json:"databases,omitempty"`
+	Databases []tlsca.RouteToDatabase
 
 	// Apps is a list of apps this profile is logged into.
-	Apps []tlsca.RouteToApp `json:"apps,omitempty"`
+	Apps []tlsca.RouteToApp
 
 	// ValidUntil is the time at which this SSH certificate will expire.
-	ValidUntil time.Time `json:"valid_until"`
+	ValidUntil time.Time
 
 	// Extensions is a list of enabled SSH features for the certificate.
-	Extensions []string `json:"extensions,omitempty"`
+	Extensions []string
 
 	// Cluster is a selected cluster
-	Cluster string `json:"cluster"`
+	Cluster string
 
 	// Traits hold claim data used to populate a role at runtime.
-	Traits wrappers.Traits `json:"traits"`
+	Traits wrappers.Traits
 
 	// ActiveRequests tracks the privilege escalation requests applied
 	// during certificate construction.
-	ActiveRequests services.RequestIDs `json:"active_requests"`
+	ActiveRequests services.RequestIDs
 
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
-	AWSRolesARNs []string `json:"aws_role_arns,omitempty"`
-}
-
-// MarshalJSON marshals the status into JSON with custom URL serialization.
-func (p *ProfileStatus) MarshalJSON() ([]byte, error) {
-	type Alias ProfileStatus
-	return utils.FastMarshal(&struct {
-		ProxyURL string `json:"proxy_url"`
-		*Alias
-	}{p.ProxyURL.String(), (*Alias)(p)})
+	AWSRolesARNs []string
 }
 
 // IsExpired returns true if profile is not expired yet

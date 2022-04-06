@@ -17,17 +17,11 @@ limitations under the License.
 package client
 
 import (
-	"fmt"
-	"net/url"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
@@ -46,81 +40,6 @@ type APITestSuite struct{}
 func TestClientAPI(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&APITestSuite{})
-
-func TestProfileStatusMarshalJSON(t *testing.T) {
-	t2 := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
-	ps := &ProfileStatus{
-		Name:        "profile",
-		Dir:         "/some/dir",
-		ProxyURL:    url.URL{Scheme: "https", Host: "localhost:8080"},
-		Username:    "user",
-		Roles:       []string{"a", "b", "c"},
-		Logins:      []string{"d", "e", "f"},
-		KubeEnabled: true,
-		KubeUsers:   []string{"g", "h", "i"},
-		KubeGroups:  []string{"j", "k", "l"},
-		Databases: []tlsca.RouteToDatabase{
-			{
-				ServiceName: "db",
-				Protocol:    "protocol",
-				Username:    "user",
-				Database:    "db",
-			},
-		},
-		Apps: []tlsca.RouteToApp{
-			{
-				SessionID:   "id",
-				PublicAddr:  "https://example.com",
-				ClusterName: "cluster",
-				Name:        "app name",
-				AWSRoleARN:  "role",
-			},
-		},
-		ValidUntil:     t2,
-		Extensions:     []string{"e1", "e2", "e3"},
-		Cluster:        "cluster",
-		Traits:         wrappers.Traits{"a": []string{"1", "2", "3"}},
-		ActiveRequests: services.RequestIDs{AccessRequests: []string{"1", "2", "3"}},
-		AWSRolesARNs:   []string{"a", "b", "c"},
-	}
-	expectedJSON := fmt.Sprintf(`{
-	"name": "profile",
-	"dir": "/some/dir",
-	"proxy_url": "https://localhost:8080",
-	"username": "user",
-	"roles": ["a", "b", "c"],
-	"logins": ["d", "e", "f"],
-	"kube_enabled": true,
-	"kube_users": ["g", "h", "i"],
-	"kube_groups": ["j", "k", "l"],
-	"databases": [
-		{
-			"service_name": "db",
-			"protocol": "protocol",
-			"username": "user",
-			"database": "db"
-		}
-	],
-	"apps": [
-		{
-			"session_id": "id",
-			"public_addr": "https://example.com",
-			"cluster_name": "cluster",
-			"name": "app name",
-			"aws_role_arn": "role"
-		}
-	],
-	"valid_until": %q,
-	"extensions": ["e1", "e2", "e3"],
-	"cluster": "cluster",
-	"traits": {"a": ["1", "2", "3"]},
-	"active_requests": {"access_requests": ["1", "2", "3"]},
-	"aws_role_arns": ["a", "b", "c"]
-}`, t2.Format(time.RFC3339))
-	out, err := ps.MarshalJSON()
-	require.NoError(t, err)
-	require.JSONEq(t, expectedJSON, string(out))
-}
 
 func TestParseProxyHostString(t *testing.T) {
 	t.Parallel()

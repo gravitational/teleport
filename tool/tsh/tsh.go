@@ -40,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -1573,16 +1574,15 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, format string
 	case teleport.Text:
 		showAppsAsText(apps, active, verbose)
 	case teleport.JSON, teleport.YAML:
-		appList := struct {
-			Apps   []types.Application `json:"apps"`
-			Active []tlsca.RouteToApp  `json:"active"`
-		}{apps, active}
+		if apps == nil {
+			apps = []types.Application{}
+		}
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(appList, "", "  ")
+			out, err = utils.FastMarshalIndent(apps, "", "  ")
 		} else {
-			out, err = yaml.Marshal(appList)
+			out, err = yaml.Marshal(apps)
 		}
 		if err != nil {
 			return trace.Wrap(err)
@@ -1642,16 +1642,15 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 	case teleport.Text:
 		showDatabasesAsText(clusterFlag, databases, active, verbose)
 	case teleport.JSON, teleport.YAML:
-		dbInfo := struct {
-			Active    []tlsca.RouteToDatabase `json:"active"`
-			Databases []types.Database        `json:"databases"`
-		}{active, databases}
+		if databases == nil {
+			databases = []types.Database{}
+		}
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(dbInfo, "", "  ")
+			out, err = utils.FastMarshalIndent(databases, "", "  ")
 		} else {
-			out, err = yaml.Marshal(dbInfo)
+			out, err = yaml.Marshal(databases)
 		}
 		if err != nil {
 			return trace.Wrap(err)
@@ -2490,20 +2489,20 @@ func onStatus(cf *CLIConf) error {
 
 	format := strings.ToLower(cf.Format)
 	switch format {
-	case teleport.JSON:
-		if profiles == nil {
-			profiles = []*client.ProfileStatus{}
+	case teleport.JSON, teleport.YAML:
+		profileData := struct {
+			Active   *profileInfo   `json:"active"`
+			Profiles []*profileInfo `json:"profiles"`
+		}{makeProfileInfo(profile), []*profileInfo{}}
+		for _, prof := range profiles {
+			profileData.Profiles = append(profileData.Profiles, makeProfileInfo(prof))
 		}
-		profileInfo := struct {
-			Active   *client.ProfileStatus   `json:"active"`
-			Profiles []*client.ProfileStatus `json:"profiles"`
-		}{profile, profiles}
 		var out []byte
 		var err error
 		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(profileInfo, "", "  ")
+			out, err = utils.FastMarshalIndent(profileData, "", "  ")
 		} else {
-			out, err = yaml.Marshal(profileInfo)
+			out, err = yaml.Marshal(profileData)
 		}
 		if err != nil {
 			return trace.Wrap(err)
@@ -2523,6 +2522,45 @@ func onStatus(cf *CLIConf) error {
 	}
 
 	return nil
+}
+
+type profileInfo struct {
+	ProfileURL        string          `json:"profile_url"`
+	Username          string          `json:"username"`
+	ActiveRequests    []string        `json:"active_requests"`
+	Cluster           string          `json:"cluster"`
+	Roles             []string        `json:"roles"`
+	Traits            wrappers.Traits `json:"traits"`
+	Logins            []string        `json:"logins"`
+	KubernetesEnabled bool            `json:"kubernetes_enabled"`
+	KubernetesCluster string          `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers   []string        `json:"kubernetes_users,omitempty"`
+	KubernetesGroups  []string        `json:"kubernetes_groups,omitempty"`
+	Databases         []string        `json:"databases,omitempty"`
+	ValidUntil        time.Time       `json:"valid_until"`
+	Extensions        []string        `json:"extensions,omitempty"`
+}
+
+func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
+	if p == nil {
+		return nil
+	}
+	return &profileInfo{
+		ProfileURL:        p.ProxyURL.String(),
+		Username:          p.Username,
+		ActiveRequests:    p.ActiveRequests.AccessRequests,
+		Cluster:           p.Cluster,
+		Roles:             p.Roles,
+		Traits:            p.Traits,
+		Logins:            p.Logins,
+		KubernetesEnabled: p.KubeEnabled,
+		KubernetesCluster: selectedKubeCluster(p.Cluster),
+		KubernetesUsers:   p.KubeUsers,
+		KubernetesGroups:  p.KubeGroups,
+		Databases:         p.DatabaseServices(),
+		ValidUntil:        p.ValidUntil,
+		Extensions:        p.Extensions,
+	}
 }
 
 func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
