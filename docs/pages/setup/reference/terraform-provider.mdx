@@ -35,15 +35,19 @@ The provider supports the following options:
 |-------------------------|------------|-------------------------------------------------------|----------------------------------|
 |                   `addr`|     string | Teleport auth or proxy address in "host:port" format. | `TF_TELEPORT_ADDR`               |
 |              `cert_path`|     string | Path to Teleport certificate file.                    | `TF_TELEPORT_CERT`               |
+|            `cert_base64`|     string | Teleport certificate as base64.                       | `TF_TELEPORT_CERT_BASE64`        |
 |     `identity_file_path`|     string | Path to Teleport identity file.                       | `TF_TELEPORT_IDENTITY_FILE_PATH` |
 |               `key_path`|     string | Path to Teleport key file.                            | `TF_TELEPORT_KEY`                |
+|             `key_base64`|     string | Teleport key as base64.                               | `TF_TELEPORT_KEY_BASE64`        |
 |            `profile_dir`|     string | Teleport profile path.                                | `TF_TELEPORT_PROFILE_PATH`       |
 |           `profile_name`|     string | Teleport profile name.                                | `TF_TELEPORT_PROFILE_NAME`       |
 |           `root_ca_path`|     string | Path to Teleport CA file.                             | `TF_TELEPORT_ROOT_CA`            |
+|         `root_ca_base64`|     string | Teleport CA as base64.                                | `TF_TELEPORT_ROOT_CA_BASE64`     |
 
 You need to specify either:
 
 - `cert_path`, `key_path`,`root_ca_path` and `addr` to connect using key files.
+- `cert_base64`, `key_base64`,`root_ca_base64` and `addr` to connect using base64 encoded key.
 - `identity_file_path` and `addr` to connect using identity file.
 - `profile_name` and `profile_dir` (both can be empty) and Teleport will try to connect using current profile from `~/.tsh`
 
