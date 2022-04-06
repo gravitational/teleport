@@ -1045,13 +1045,13 @@ func (s *WebSuite) TestTerminalPing(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 	defer ws.Close()
-	closed := new(bool)
+	closed := false
 
 	done := make(chan struct{})
 	ws.SetPingHandler(func(message string) error {
-		if *closed == false {
+		if closed == false {
 			close(done)
-			*closed = true
+			closed = true
 		}
 
 		err := ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
