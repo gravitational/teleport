@@ -128,7 +128,6 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		authProvider: authProvider,
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
-		readDeadline: time.Now().Add(req.KeepAliveInterval),
 		wsLock:       &sync.Mutex{},
 	}, nil
 }
