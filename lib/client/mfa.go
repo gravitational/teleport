@@ -48,21 +48,36 @@ func (p *mfaPrompt) PromptPIN() (string, error) {
 	return p.LoginPrompt.PromptPIN()
 }
 
+// PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
+type PromptMFAChallengeOpts struct {
+	// PromptDevicePrefix is an optional prefix printed before "security key" or
+	// "device". It is used to emphasize between different kinds of devices, like
+	// registered vs new.
+	PromptDevicePrefix string
+	// Quiet suppresses users prompts.
+	Quiet bool
+	// UseStrongestAuth prompts the user to solve only the strongest challenge
+	// available.
+	// If set it also avoids stdin hijacking, as only one prompt is necessary.
+	UseStrongestAuth bool
+}
+
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
-// If promptDevicePrefix is set, it will be printed in prompts before "security
-// key" or "device". This is used to emphasize between different kinds of
-// devices, like registered vs new.
 // PromptMFAChallenge makes an attempt to read OTPs from prompt.Stdin and
 // abandons the read if the user chooses WebAuthn instead. For this reason
 // callers must use prompt.Stdin exclusively after calling this function.
-func PromptMFAChallenge(
-	ctx context.Context,
-	proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+// Set opts.UseStrongestAuth to avoid stdin hijacking.
+func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
+	if opts == nil {
+		opts = &PromptMFAChallengeOpts{}
+	}
+	promptDevicePrefix := opts.PromptDevicePrefix
+	quiet := opts.Quiet
 
 	hasTOTP := c.TOTP != nil
 	hasWebauthn := c.WebauthnChallenge != nil
@@ -75,6 +90,9 @@ func PromptMFAChallenge(
 		// Do not prompt for hardware devices, it won't work.
 		hasWebauthn = false
 	}
+
+	// Prompt only for the strongest auth method available?
+	hasTOTP = !(opts.UseStrongestAuth && hasWebauthn) && hasTOTP
 
 	var numGoroutines int
 	if hasTOTP && hasWebauthn {

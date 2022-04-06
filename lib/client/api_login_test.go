@@ -138,11 +138,11 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	ctx := context.Background()
 	tests := []struct {
-		name          string
-		secondFactor  constants.SecondFactorType
-		inputReader   *prompt.FakeReader
-		solveWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
-		pwdless       bool
+		name                      string
+		secondFactor              constants.SecondFactorType
+		inputReader               *prompt.FakeReader
+		solveWebauthn             func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		pwdless, useStrongestAuth bool
 	}{
 		{
 			name:          "OTP device login",
@@ -154,6 +154,12 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			name:          "Webauthn device login",
 			secondFactor:  constants.SecondFactorOptional,
 			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
+			solveWebauthn: solveWebauthn,
+		},
+		{
+			name:          "Webauthn and UseStrongestAuth",
+			secondFactor:  constants.SecondFactorOptional,
+			inputReader:   prompt.NewFakeReader().AddString(password), // no inputs after password
 			solveWebauthn: solveWebauthn,
 		},
 		{
@@ -195,6 +201,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
 			tc.Passwordless = test.pwdless
+			tc.UseStrongestAuth = test.useStrongestAuth
 
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
