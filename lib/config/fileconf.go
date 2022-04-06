@@ -149,6 +149,8 @@ type SampleFlags struct {
 	KeyFile string
 	// CertFile is a TLS Certificate file
 	CertFile string
+	// DataDir is a path to a directory where Teleport keep its data
+	DataDir string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -174,7 +176,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.Logger.Format.Output = "text"
-	g.DataDir = defaults.DataDir
+	g.DataDir = flags.DataDir
 
 	// SSH config:
 	var s SSH
