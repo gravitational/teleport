@@ -128,6 +128,7 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		authProvider: authProvider,
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
+		readDeadline: time.Now().Add(req.KeepAliveInterval),
 		wsLock:       &sync.Mutex{},
 	}, nil
 }
@@ -203,6 +204,7 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ws.SetReadDeadline(time.Now().Add(t.params.KeepAliveInterval))
 	t.handler(ws, r)
 }
 
@@ -219,6 +221,31 @@ func (t *TerminalHandler) Close() error {
 		t.terminalCancel()
 	})
 	return nil
+}
+
+// startPingLoop starts a loop that will continuously send a ping frame through the websocket
+// to prevent the connection between web client and teleport proxy from becoming idle.
+// Interval is determined by the keep_alive_interval config set by user (or default).
+// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
+func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
+	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
+	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
+	defer tickerCh.Stop()
+
+	for {
+		select {
+		case <-tickerCh.C:
+			deadline := time.Now().Add(t.params.KeepAliveInterval)
+			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+				t.Close()
+				return
+			}
+		case <-t.terminalContext.Done():
+			t.log.Debug("Terminating websocket ping loop.")
+			return
+		}
+	}
 }
 
 // handler is the main websocket loop. It creates a Teleport client and then
@@ -243,6 +270,16 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	}
 
 	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
+
+	// Update the read deadline upon receiving a pong message.
+	ws.SetPongHandler(func(_ string) error {
+		deadline := time.Now().Add(t.params.KeepAliveInterval)
+		ws.SetReadDeadline(deadline)
+		return nil
+	})
+
+	// Start sending ping frames through websocket to client.
+	go t.startPingLoop(ws)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
