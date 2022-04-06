@@ -3,97 +3,104 @@ authors: STeve Huang (xin.huang@goteleport.com)
 state: draft
 ---
 
-# RFD 67 - Redis database access in AWS ElatiCache and MemoryDB
+# RFD 67 - Redis database access in AWS ElastiCache and MemoryDB
 
 ## Required Approvers
-* Engineering: @r0mant && @smallinsky
-* Product: (@klizhentas || @xinding33)
+* Engineering: @r0mant && @smallinsky Product: (@klizhentas || @xinding33)
 * Security: @reed
 
 ## What
 
-Support Redis database access in AWS [ElatiCache](https://aws.amazon.com/elasticache/redis/) and [MemoryDB](https://aws.amazon.com/memorydb/).
+Support Redis database access in AWS
+[ElastiCache](https://aws.amazon.com/elasticache/redis/) and
+[MemoryDB](https://aws.amazon.com/memorydb/).
 
 ## Why
 
-Redis is one of the most popular in-memory databases, and Amazon offers AWS managed solutions like ElatiCache and MemoryDB.
+Redis is one of the most popular in-memory databases, and Amazon offers AWS
+managed solutions like ElastiCache and MemoryDB.
 
-As described in [Database Access RFD](https://github.com/gravitational/teleport/blob/master/rfd/0011-database-access.md), mutual TLS is used between database clients and proxy, and between proxy and database service. The same applies for Redis access.
+As described in [Database Access
+RFD](https://github.com/gravitational/teleport/blob/master/rfd/0011-database-access.md),
+mutual TLS is used between database clients and proxy, and between proxy and
+database service. The same applies to Redis access.
 
-However, neither mutual TLS nor IAM authentication is supported by Redis managed by AWS. This document mainly focus on access from database service to the Redis managed by AWS.
+However, neither mutual TLS nor IAM authentication is supported by Redis
+managed by AWS. This document mainly focuses on access from database service to
+the Redis managed by AWS.
 
 ## Details
 
 ### In-transit encryption (TLS)
-For security purpose, Teleport should ONLY support databases with in-transit encryption (TLS) enabled.
 
-[Enabling TLS on ElastiCache Redis](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/in-transit-encryption.html#in-transit-encryption-enable) can be a complicated process, and all client applications must be updated at the same time. Therefore, Teleport should NOT automatically enable TLS for existing clusters. Redis servers without TLS are NOT supported, and users are recommended to enable TLS separately in order to enable Teleport database access.
+For security purposes, Teleport should ONLY
+support databases with in-transit encryption (TLS) enabled.
 
-For clusters with TLS enabled, Teleport performs full certificate validation at connection.
+[Enabling TLS on ElastiCache
+Redis](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/in-transit-encryption.html#in-transit-encryption-enable)
+can be a complicated process, and all client applications must be updated at
+the same time. Therefore, Teleport should NOT automatically enable TLS for
+existing clusters. Redis servers without TLS are NOT supported, and users are
+recommended to enable TLS separately to enable Teleport database access.
 
 ### Auth
-Redis can be configured with one the following authentication methods, and only one at a time.
+
+Redis can be configured with one of the following authentication methods, and
+only one at a time.
 
 #### Auth - Redis with no auth
-Redis can be configured without any auth method. "default" user is always used in this configuration, and no `auth` command is required upon succesfull connection.
+
+Redis can be configured without any auth method.
+
+"default" user is always used in this configuration, and no `auth` command is
+required upon a successful connection.
 
 #### Auth - Redis with Redis Auth
-[Redis Auth](https://redis.io/commands/auth/) uses a single token/password that must be shared for all client applications.
 
-Teleport does NOT support Redis configured in this state, and users are recommended to migrate the database to use ACL/RBAC.<sup>[1]</sup>
+[Redis Auth](https://redis.io/commands/auth/)
+uses a single token/password that must be shared for all client applications.
+
+"default" user is always used in this configuration, and users have to manually
+input `auth` command upon a successful connection. <sup>1<sup>
 
 #### Auth - Redis with ACL
-[Redis ACL](https://redis.io/docs/manual/security/acl/) (also known as RBAC for ElatiCache Redis) is introduced in Redis 6. Both ElatiCache and MemoryDB provide APIs to manage database users and user groups for ACL.
 
-As with all other databases, the database users should be created by "database admins" (by users, not Teleport) to assign desired permissions.
+[Redis ACL](https://redis.io/docs/manual/security/acl/) (also known as RBAC for
+ElastiCache Redis) is introduced in Redis 6. Both ElastiCache and MemoryDB
+provide APIs to manage database users and user groups for ACL.
 
-When an user runs `tsh db connect --db-user <database-user> <aws-rediaws-redis-server>`, database agent automatically sends `auth <database-user> <password>` to Redis server upon succesfull connection, to prevent user from entering the password manually.
+As with all other databases, the database users should be created by "database
+admins" (by users, not Teleport) to assign desired permissions. 
 
-To provide better security than using a static password, Teleport must take control of these database users and apply periodic password rotation (more details on secret store in later section). Users can separate the database users used by Teleport vs other client applications.
+To provide better security than using static passwords, users can tag
+ElastiCache and MemoryDB users with label **`teleport.dev/managed: true`** for
+Teleport to manage the passwords for those database users.
 
-Here is a sample database service config to specify which database users to manage:
-```
-db_service:
-  enabled: "yes"
+Database service discovers databases users by listing users in the ElastiCache
+user group or MemoryDB ACL attached to the Redis database. For database users
+discovered with label **`teleport.dev/managed: true`**, passwords are randomly
+generated, periodically rotated, and securely stored in the secret store.
 
-  aws:
-  # Discovers ElastiCache/MemoryDB Redis databases.
-  - types: ["elasticache", "memorydb"]
-    regions: ["us-west-1"]
-    tags:
-      "vpc-id": "xyz"
+When a client tries to connect to ElastiCache and MemoryDB Redis servers, the
+database service automatically logins Teleport managed database users by
+sending `auth` command with the stored passwords to the Redis server. For
+database users not managed by Teleport, users can manually input `auth`
+command.
 
-  # Manage (e.g. rotate password for) database users matching provided tags.
-  - types: ["elasticache-user", "memorydb-user"]
-    regions: ["us-west-1"]
-    tags:
-      "managed-by-teleport": "true"
-
-  # Statically list database users (as alternative to using tags matching).
-  users:
-  - arn: "arn:aws:elasticache:ca-central-1:123456789000:user:steve-teleport"
-
-```
-The database service creates one secret with random password per database user, rotates it frequently (e.g. 15 minutes), and updates the database user with new password value using AWS APIs.
-
-When database service tries to establish connection with Redis server, the password is retrieved from the secret store to perform `auth <database-user> <password>`. If the secret does not exist or expired, the connection is aborted.
-
-In HA mode, minimum one database service is required to manage the database users. If more than one services try to rotate the password at the same time, the secret store implementation guarantees only the first succeeds.
+In HA mode, if more than one database service tries to rotate the password for
+the same user at the same time, the secret store implementation guarantees only
+the first succeeds. And only the successor should call AWS APIs to update the
+database user's password.
 
 ### Secret store
-Using a password is undesirable but necessary in situation like this. For ElastiCache/MemoryDB Redis usage, it is natural to use a AWS native solution (aka [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/)). Though other secret stores could be supported in the future. <sup>[2]<sup>
 
-Here is a sample config for specifying the secret store in database service.
-```
-db_service:
-  ...
+#### Secret store - Interface
 
-  secert_store:
-    type: "aws-secrets-manager"
-    key_prefix: "teleport/"
-```
+For ElastiCache/MemoryDB Redis usage, it is natural to use an AWS native
+solution (aka [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/)).
+Though other secret stores could be supported in the future. <sup>[2]<sup>
 
-And here is a sample interface for managing secrets using the secret store.
+Here is a sample interface for managing secrets using the secret store.
 ```
 // SecretValue is the secret value.
 type SecretValue struct {
@@ -133,36 +140,57 @@ type PutValueRequest struct {
 }
 
 // Secrets defines an interface for managing secrets. A secret consists of a
-// key path and a list of versions which hold copies of current or past secret
+// key path and a list of versions that hold copies of current or past secret
 // values.
 type Secrets interface {
     // Create creates a new secret.
     Create(req CreateRequest) (*SecretValue, error)
 
-    // Delete deletes the secret for provided path.
+    // Delete deletes the secret for the provided path.
     Delete(key string) error
 
     // PutValue creates a new secret version for the secret. Implementations
     // must guarantee that only the first of many calls to PutValue succeeds,
-    // when req.CurrentValue are the same.
+    // when req.CurrentValue is the same.
     PutValue(req PutValueRequest) (*SecretValue, error)
 
     // GetValue returns the secret value for provided version. Besides version
     // string returned from PutValue, two specials versions "CURRENT" and
     // "PREVIOUS" can also be used to retrieve the current and previous
-    // versions respectively. If version is empty, "CURRENT" is used.
+    // versions respectively. If the version is empty, "CURRENT" is used.
     GetValue(key string, version string) (*SecretValue, error)
 }
 ```
 It is up to the caller to call `PutValue` periodically to rotate the secret.
 
-#### Secret store - Random password generation
-[sethvargo/go-password](https://github.com/sethvargo/go-password) can be used to generate random passwords. <sup>[3]<sup>
-
-A minimum length of 16 should be enforced for generating random passwords. A mix of lower case letters, upper case letters, digits, and symobols should be also enforced.
-
 #### Secret store - AWS Secrets Manager
-With `iam:PutUserPolicy` and `iam:PutRolePolicy` permissions, Teleport service can grant required permissions to itself to perform Secrets Manager APIs. Users can limit the permissions by setting the following permissions boundaries (preferably using bootstrap configurator):
+
+AWS Secrets Manager is used to store passwords for ElastiCache and MemoryDB
+users. An optional `secret_store` block can be specified per database to
+overwrite default settings.
+```
+db_service:
+  enabled: "yes"
+
+  databases:
+  - name: "elasticache-example"
+    protocol: "redis"
+    uri: "master.example.xxxxxx.use1.cache.amazonaws.com"
+    aws:
+      region: "us-east-1"
+
+      # Optional secret store settings.
+      secret_store:
+        # Secert name prefix. Defaults to "teleport/".
+        key_prefix: "teleport/"
+
+        # The ARN, key ID, or alias of the AWS KMS key that Secrets Manager
+        # uses to encrypt the secret value. Defaults to `aws/secretsmanager`.
+        kms_key_id: "my-kms-key"
+```
+
+The user must grant Teleport service the following IAM permissions to manage
+the secrets:
 ```json
 {
   "Version": "2012-10-17",
@@ -178,44 +206,55 @@ With `iam:PutUserPolicy` and `iam:PutRolePolicy` permissions, Teleport service c
   }
 }
 ```
-Here `key-prefix` is used to prevent Teleport from accessing other secrets in the AWS Secrets Manager.
+Here `key-prefix` can be used to prevent Teleport from accessing other secrets
+in the AWS Secrets Manager. To encrypt the secret with a KMS key other than the
+default `aws/secretsmanager`, `kms:GenerateDataKey` and `kms:Decrypt` to the
+key are also required.
 
-For racing `PutSecretValue` calls, [`PutSecretValueInput.ClientRequestToken`](https://docs.aws.amazon.com/sdk-for-go/api/service/secretsmanager/#PutSecretValueInput) can be used to "ensure idempotency" as AWS prevents different secret values of the same `ClientRequestToken` to be writen. When preparing `PutSecretValue` call, a MD5 UUID can be generated from version string of the CURRENT value, and used for `ClientRequestToken`. When `PutSecretValue succeeds, the `ClientRequestToken` becomes the version string of the latest value. This effectively makes version strings rolling MD5 UUIDs of their previous versions, and only the first call to create each version can succeed.
-
-Some other limitations/considerations when using AWS Secrets Manager: <sup>[4]<sup>
-- Secrets, by default, are bound to a single AWS region.
-- A secret can have at most [100 versions per day](https://docs.aws.amazon.com/secretsmanager/latest/userguide/reference_limits.html) (about one version per 15 minutes).
-- Secrets are encrypted with KMS keys. By default, `aws/secretsmanager` (managed by AWS) is used.
+For racing `PutSecretValue` calls,
+[`PutSecretValueInput.ClientRequestToken`](https://docs.aws.amazon.com/sdk-for-go/api/service/secretsmanager/#PutSecretValueInput)
+can be used to "ensure idempotency" as AWS prevents different secret values of
+the same `ClientRequestToken` to be written. When preparing `PutSecretValue`
+call, an MD5 UUID can be generated from the version string of the CURRENT
+value, and used for `ClientRequestToken`. When `PutSecretValue succeeds, the
+`ClientRequestToken` becomes the version string of the latest value. This
+effectively makes version strings rolling MD5 UUIDs of their previous versions,
+and only the first call to create each version can succeed.
 
 ## Security
 
-First and foremost, it is important that users are NOT required to manually input any passwords/tokens. In case of Redis access, users will not be asked to manually input `auth` command after `tsh db` connection. And users will not be asked to input any database user credentials when configuring database service.
+To reduce security risks by using passwords in backend services:
+- Only well-known and attested secrets management tools are used to store
+  secrets securely (e.g. AWS Secrets Manager).
+- Generate random passwords (using maximum length available).
+- Rotate passwords frequently.
 
-Using passwords in the backend services should also be avoided at all cost. Unfortunately using passwords is the only viable solution for ElastiCache and MemoryDB users at the moment. To reduce security risks:
-- Only well-known and attested secrets management tools are used to store secrets securely (e.g. AWS Secrets Manager).
-- Generate long and complex random passwords.
-- Rotate passwords frequently (e.g. minutes).
-
-Lastly, permissions to all AWS resources used by Teleport services are granted through AWS IAM by users.
+Lastly, permissions to all AWS resources used by Teleport services are granted
+through AWS IAM by users.
 
 ## UX
 
-The user experience when using `tsh` client to connect Redis in AWS is the same as connecting to self-hosted Redis (or other databases).
+The user experience when using the `tsh` client to connect Redis in AWS is the
+same as connecting to self-hosted Redis (or other databases).
 
-Configuring database services to manage database users for ElastiCache and MemoryDB do require some planning and effort from users. To improve "time-to-first-value", [Database access configurator](https://github.com/gravitational/teleport/blob/master/rfd/0046-database-access-config.md) can be expanded to help configuring ElastiCache and MemoryDB auto discovery, database users, and secret stores.
-
-As discussed earlier, some ElastiCache configurations will NOT be supported due to security concerns or other limitations. These constrains must be clearly documented.
+Configuring database services to manage database users for ElastiCache and
+MemoryDB does require some planning and effort from users. To improve
+"time-to-first-value", [Database access
+configurator](https://github.com/gravitational/teleport/blob/master/rfd/0046-database-access-config.md)
+can be expanded to generate required IAM policies for ElastiCache, MemoryDB,
+and Secrets Manager.
 
 ## Alternatives considered
-1. Supporting Redis with Redis Auth
-  - Teleport can potentially take control of the shared token and rotate it for security. However, users must update all other Redis client applications to use tokens generated by Teleport, which might require a complicated migration process. Teleport might also need to provide APIs for retrieving secret key paths or values. This could be a potential feature in the future.
+
+1. Rotating secrets for Redis with Redis Auth
+  - Teleport can potentially take control of the shared token and rotate it for
+    security. However, users must update all other Redis client applications to
+    use tokens generated by Teleport, which might require a complicated
+    migration process. Teleport might also need to provide APIs for retrieving
+    secret key paths or values. This could be a potential feature in the
+    future.
 
 2. Potential secret store implementations:
-  - [Password Rotation with HarshiCorp vault](https://www.hashicorp.com/resources/painless-password-rotation-hashicorp-vault). (Note: `put` operation supports CheckAndSet.)
-
-3. Random password generation alternative:
-  - AWS secrets manager does have a `GetRandomPassword` API for generating random passwords. Though the same may not be supported by other secret services, and the generated passwords may not be consistent across different secret services.
-
-4. Native rotation support in AWS Secrets Manager is not used because:
-  - Minimum auto rotation period is 1 day, which is way too slow for what's desired.
-  - `RotateSecret` requires a lambda function for non RDS/DocumentDB/Redshift secrets.
+  - [Password Rotation with HashiCorp
+    vault](https://www.hashicorp.com/resources/painless-password-rotation-hashicorp-vault).
+    (Note: `put` operation supports CheckAndSet.)
