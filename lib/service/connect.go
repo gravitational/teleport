@@ -18,7 +18,6 @@ package service
 
 import (
 	"crypto/tls"
-	"github.com/gravitational/teleport"
 	"path/filepath"
 	"strings"
 
@@ -30,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/metadata"
