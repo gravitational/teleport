@@ -32,17 +32,7 @@ func NewSSODiagnosticInfo(infoType SSOInfoType, value interface{}) (*SSODiagnost
 	return &SSODiagnosticInfo{InfoType: infoType, Value: out}, nil
 }
 
-// GetValue deserializes embedded JSON of SSODiagnosticInfo.Value with no assumption about underlying type.
-func (m *SSODiagnosticInfo) GetValue() (interface{}, error) {
-	var value interface{}
-	err := json.Unmarshal(m.Value, &value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return value, nil
-}
-
-// GetValueTyped deserializes embedded JSON of SSODiagnosticInfo.Value given typed pointer.
-func (m *SSODiagnosticInfo) GetValueTyped(value interface{}) error {
+// GetValue deserializes embedded JSON of SSODiagnosticInfo.Value given typed pointer.
+func (m *SSODiagnosticInfo) GetValue(value interface{}) error {
 	return trace.Wrap(json.Unmarshal(m.Value, &value))
 }
