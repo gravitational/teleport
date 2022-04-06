@@ -157,10 +157,15 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			solveWebauthn: solveWebauthn,
 		},
 		{
-			name:          "Webauthn and UseStrongestAuth",
-			secondFactor:  constants.SecondFactorOptional,
-			inputReader:   prompt.NewFakeReader().AddString(password), // no inputs after password
-			solveWebauthn: solveWebauthn,
+			name:         "Webauthn and UseStrongestAuth",
+			secondFactor: constants.SecondFactorOptional,
+			inputReader: prompt.NewFakeReader().
+				AddString(password).
+				AddReply(func(ctx context.Context) (string, error) {
+					panic("this should not be called")
+				}),
+			solveWebauthn:    solveWebauthn,
+			useStrongestAuth: true,
 		},
 		{
 			name:          "Webauthn device with PIN", // a bit hypothetical, but _could_ happen.
