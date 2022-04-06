@@ -172,9 +172,9 @@ Google Admin Console, which relies on the Cloud Identity API.
 If your Google Workspace plan does not support the Cloud Identity API, you must
 ensure that your RBAC does not depend on transitive group memberships.
 
-When querying transitive group memberships we recommend blocking access to
+When querying transitive group memberships, we recommend blocking access to
 external groups at the workspace level (following [these
-instructions](https://support.google.com/a/answer/9468710)), as membership into
+instructions](https://support.google.com/a/answer/9468710)), as membership in
 any group that the service account doesn't have full visibility on (including
 all groups external to the workspace) will prevent users from logging in.
 
