@@ -16,15 +16,7 @@ limitations under the License.
 
 import { Gateway } from 'teleterm/ui/services/clusters';
 
-export type MongoProps = {
-  title: string;
-  disconnect(): void;
-  gateway: Gateway;
-};
-
-export function useMongo(props: MongoProps) {
-  const { gateway, disconnect, title } = props;
-
+export function useMongo(gateway: Gateway) {
   const mongoConnectionStr = [
     `mongo`,
     `--host ${gateway.localAddress}`,
@@ -34,20 +26,5 @@ export function useMongo(props: MongoProps) {
     `--sslCAFile ${gateway.caCertPath}`,
   ].join(' ');
 
-  const mongoshConnectionStr = [
-    `mongosh`,
-    `--host ${gateway.localAddress}`,
-    `--port ${gateway.localPort}`,
-    `--tls`,
-    `--tlsCertificateKeyFile ${gateway.certPath}`,
-    `--tlsCAFile ${gateway.caCertPath}`,
-  ].join(' ');
-
-  return {
-    title,
-    disconnect,
-    gateway,
-    mongoConnectionStr,
-    mongoshConnectionStr,
-  };
+  return mongoConnectionStr;
 }

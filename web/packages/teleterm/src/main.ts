@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { app, globalShortcut } from 'electron';
+import { app, globalShortcut, shell } from 'electron';
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import createLoggerService from 'teleterm/services/logger';
@@ -67,10 +67,19 @@ app.on('web-contents-created', (_, contents) => {
     event.preventDefault();
   });
 
-  contents.setWindowOpenHandler(({ url }) => {
-    logger.warn(
-      `Opening a new window to ${url} blocked by 'setWindowOpenHandler'`
-    );
+  contents.setWindowOpenHandler(details => {
+    const url = new URL(details.url);
+
+    // Open links to documentation in the external browser.
+    // They need to have `target` set to `_blank`.
+    if (url.host === 'goteleport.com') {
+      shell.openExternal(url.toString());
+    } else {
+      logger.warn(
+        `Opening a new window to ${url} blocked by 'setWindowOpenHandler'`
+      );
+    }
+
     return { action: 'deny' };
   });
 });

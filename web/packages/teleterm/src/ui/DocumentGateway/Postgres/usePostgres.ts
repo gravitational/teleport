@@ -27,15 +27,7 @@ const SSL_MODE_VERIFY_FULL = 'verify-full';
 // https://www.postgresql.org/docs/current/libpq-ssl.html
 const SSL_MODE_VERIFY_CA = 'verify-ca';
 
-export type PostgresProps = {
-  title: string;
-  disconnect(): void;
-  gateway: Gateway;
-};
-
-export function usePostgres(props: PostgresProps) {
-  const { gateway, disconnect, title } = props;
-
+export function usePostgres(gateway: Gateway) {
   const args = [
     `sslrootcert=${gateway.caCertPath}`,
     `sslcert=${gateway.certPath}`,
@@ -48,12 +40,7 @@ export function usePostgres(props: PostgresProps) {
   const psqlConnStr = `psql "postgres://${gateway.localAddress}:${
     gateway.localPort
   }?${args.join('&')}"`;
-  return {
-    title,
-    disconnect,
-    gateway,
-    psqlConnStr,
-  };
+  return psqlConnStr;
 }
 
 export type State = ReturnType<typeof usePostgres>;

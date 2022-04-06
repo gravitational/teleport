@@ -17,14 +17,7 @@ limitations under the License.
 import { Gateway } from 'teleterm/ui/services/clusters';
 import { routing } from 'teleterm/ui/uri';
 
-export type MySqlProps = {
-  title: string;
-  disconnect(): void;
-  gateway: Gateway;
-};
-
-export function useMySql(props: MySqlProps) {
-  const { gateway, disconnect, title } = props;
+export function useMySql(gateway: Gateway) {
   const clusterName = routing.parseClusterName(gateway.targetUri);
   const dbId = routing.parseDbUri(gateway.targetUri)?.params?.dbId;
 
@@ -44,10 +37,5 @@ export function useMySql(props: MySqlProps) {
     mySqlConnArgs.push(`--ssl-mode=VERIFY_CA`);
   }
 
-  return {
-    title,
-    disconnect,
-    gateway,
-    mySqlConnStr: mySqlConnArgs.join(' '),
-  };
+  return mySqlConnArgs.join(' ');
 }
