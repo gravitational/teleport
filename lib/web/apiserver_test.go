@@ -783,7 +783,7 @@ func TestClusterNodesGet(t *testing.T) {
 }
 
 func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
-	_, err := s.makeTerminal(s.authPack(c, "foo"), session.ID("/../../../foo"))
+	_, err := s.makeTerminal(s.authPack(c, "foo"), 0, session.ID("/../../../foo"))
 	c.Assert(err, NotNil)
 }
 
@@ -969,7 +969,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	// Create a new user "foo", open a terminal to a new session, and wait for
 	// it to be ready.
 	pack1 := s.authPack(c, "foo")
-	ws1, err := s.makeTerminal(pack1, sid)
+	ws1, err := s.makeTerminal(pack1, 0, sid)
 	c.Assert(err, IsNil)
 	defer ws1.Close()
 	err = s.waitForRawEvent(ws1, 5*time.Second)
@@ -978,7 +978,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	// Create a new user "bar", open a terminal to the session created above,
 	// and wait for it to be ready.
 	pack2 := s.authPack(c, "bar")
-	ws2, err := s.makeTerminal(pack2, sid)
+	ws2, err := s.makeTerminal(pack2, 0, sid)
 	c.Assert(err, IsNil)
 	defer ws2.Close()
 	err = s.waitForRawEvent(ws2, 5*time.Second)
@@ -1035,8 +1035,33 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	}
 }
 
+func (s *WebSuite) TestTerminalPing(c *C) {
+	interval := time.Second
+	ws, err := s.makeTerminal(s.authPack(c, "foo"), interval)
+	c.Assert(err, IsNil)
+	defer ws.Close()
+	closed := new(bool)
+
+	done := make(chan struct{})
+	ws.SetPingHandler(func(_ string) error {
+		if *closed == false {
+			close(done)
+			*closed = true
+		}
+
+		ws.WriteControl(websocket.PongMessage, nil, time.Now().Add(interval))
+		return nil
+	})
+
+	select {
+	case <-done:
+	case <-time.After(time.Minute):
+		c.Fatal("timeout waiting for ping")
+	}
+}
+
 func (s *WebSuite) TestTerminal(c *C) {
-	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	ws, err := s.makeTerminal(s.authPack(c, "foo"), 0)
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
@@ -1305,7 +1330,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 }
 
 func (s *WebSuite) TestWebAgentForward(c *C) {
-	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	ws, err := s.makeTerminal(s.authPack(c, "foo"), 0)
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
@@ -1323,7 +1348,7 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c, "foo")
 
-	ws, err := s.makeTerminal(pack, sid)
+	ws, err := s.makeTerminal(pack, 0, sid)
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
@@ -1431,7 +1456,7 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c, "foo")
 
-	ws, err := s.makeTerminal(pack, sid)
+	ws, err := s.makeTerminal(pack, 0, sid)
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
@@ -1519,7 +1544,7 @@ func TestCreateSession(t *testing.T) {
 func (s *WebSuite) TestPlayback(c *C) {
 	pack := s.authPack(c, "foo")
 	sid := session.NewID()
-	ws, err := s.makeTerminal(pack, sid)
+	ws, err := s.makeTerminal(pack, 0, sid)
 	c.Assert(err, IsNil)
 	defer ws.Close()
 }
@@ -2879,7 +2904,7 @@ func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p b
 	return []events.EventFields{}, nil
 }
 
-func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
+func (s *WebSuite) makeTerminal(pack *authPack, keepalive time.Duration, opts ...session.ID) (*websocket.Conn, error) {
 	var sessionID session.ID
 	if len(opts) == 0 {
 		sessionID = session.NewID()
@@ -2899,7 +2924,8 @@ func (s *WebSuite) makeTerminal(pack *authPack, opts ...session.ID) (*websocket.
 			W: 100,
 			H: 100,
 		},
-		SessionID: sessionID,
+		SessionID:         sessionID,
+		KeepAliveInterval: keepalive,
 	})
 	if err != nil {
 		return nil, err
