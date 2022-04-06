@@ -171,7 +171,7 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 			// made. So provide a more user friendly error as a hint of what
 			// they can do to resolve the issue.
 			if strings.Contains(err.Error(), "certificate signed by unknown authority") {
-				process.log.Error("Was this node already registered to a different cluster? To join this node to a new cluster, remove `/var/lib/teleport` and try again")
+				process.log.Errorf("Was this node already registered to a different cluster? To join this node to a new cluster, remove `%s` and try again", process.Config.DataDir)
 			}
 			return nil, trace.Wrap(err)
 		}
