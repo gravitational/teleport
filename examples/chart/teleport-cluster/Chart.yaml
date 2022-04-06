@@ -1,7 +1,7 @@
 name: teleport-cluster
 apiVersion: v2
-version: "7.3.18"
-appVersion: "7.3.18"
+version: "7.3.19-dev.1"
+appVersion: "7.3.19-dev.1"
 description: Teleport is a unified access plane for your infrastructure
 icon: https://goteleport.com/images/logos/logo-teleport-square.svg
 keywords:
