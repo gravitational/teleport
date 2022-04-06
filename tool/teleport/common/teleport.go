@@ -392,7 +392,6 @@ type dumpFlags struct {
 	config.SampleFlags
 	output         string
 	testConfigFile string
-	dataDir        string
 }
 
 func (flags *dumpFlags) CheckAndSetDefaults() error {
