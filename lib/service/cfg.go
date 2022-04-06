@@ -306,6 +306,9 @@ func (cfg *Config) DebugDumpToYAML() string {
 }
 
 // ComponentCount returns the number of components enabled (based on the configuration) that will send heartbeats.
+// Note that this function should be kept in sync with the TeleportProcess.registerTeleportReadyEvent function so that
+// - if Config.ComponentCount undercounts, then the service fails to start (i.e. TeleportReadyEvent is not produced)
+// - if Config.ComponentCount overcounts, then an error is logged (in processState.getStateLocked)
 func (cfg *Config) ComponentCount() int {
 	componentCount := 0
 

@@ -157,6 +157,9 @@ const (
 	// and is ready to start accepting connections.
 	ProxySSHReady = "ProxySSHReady"
 
+	// ProxyKubeReady is generated when the kubernetes proxy service has been initialized.
+	ProxyKubeReady = "ProxyKubeReady"
+
 	// NodeSSHReady is generated when the Teleport node has initialized a SSH server
 	// and is ready to start accepting SSH connections.
 	NodeSSHReady = "NodeReady"
@@ -3053,6 +3056,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			})
 
 			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.Kube.ListenAddr.Addr)
+			// since kubeServer.Serve is a blocking call, we emit this event right before
+			// the service has started
+			process.BroadcastEvent(Event{Name: ProxyKubeReady, Payload: nil})
 			err := kubeServer.Serve(listeners.kube)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
@@ -3445,6 +3451,9 @@ func (process *TeleportProcess) waitForAppDepend() {
 
 // registerTeleportReadyEvent ensures that a TeleportReadyEvent is produced
 // when all components have started.
+// Note that this function should be kept in sync with the Config.ComponentCount function so that
+// - if Config.ComponentCount undercounts, then the service fails to start (i.e. TeleportReadyEvent is not produced)
+// - if Config.ComponentCount overcounts, then an error is logged (in processState.getStateLocked)
 func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) {
 	eventMapping := EventMapping{
 		Out: TeleportReadyEvent,
@@ -3458,8 +3467,12 @@ func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) {
 		eventMapping.In = append(eventMapping.In, NodeSSHReady)
 	}
 
-	if cfg.Proxy.Enabled {
+	proxyConfig := cfg.Proxy
+	if proxyConfig.Enabled {
 		eventMapping.In = append(eventMapping.In, ProxySSHReady)
+	}
+	if proxyConfig.Kube.Enabled && !proxyConfig.Kube.ListenAddr.IsEmpty() && !proxyConfig.DisableReverseTunnel {
+		eventMapping.In = append(eventMapping.In, ProxyKubeReady)
 	}
 
 	if cfg.Kube.Enabled {
