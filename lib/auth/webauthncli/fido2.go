@@ -526,16 +526,28 @@ func runOnFIDO2Devices(
 	prompt runPrompt, passwordless bool,
 	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc) error {
-	devices, err := findSuitableDevicesOrTimeout(ctx, filter)
+	// Do we have readily available devices?
+	prompted := false
+	devices, err := findSuitableDevices(filter, make(map[string]struct{}))
+	if err != nil {
+		// No readily available devices means we need to prompt, otherwise the
+		// user gets no feedback whatsoever.
+		prompt.PromptTouch()
+		prompted = true
+
+		devices, err = findSuitableDevicesOrTimeout(ctx, filter)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var dev deviceWithInfo
-	if shouldDoEagerPINPrompt(passwordless, devices) {
+	if !prompted && shouldDoEagerPINPrompt(passwordless, devices) {
 		dev = devices[0] // single device guaranteed in this case
 	} else {
-		prompt.PromptTouch() // about to select
+		if !prompted {
+			prompt.PromptTouch() // about to select
+		}
 
 		d, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, deviceCallback)
 		switch {
