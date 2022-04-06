@@ -230,7 +230,7 @@ type Connector struct {
 	// and x509 certificates to clients.
 	ServerIdentity *auth.Identity
 
-	// Client is authenticated client with credentials from ClientIdenity.
+	// Client is authenticated client with credentials from ClientIdentity.
 	Client *auth.Client
 }
 
@@ -1363,6 +1363,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	go mux.Serve()
+	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1371,6 +1372,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Component:     teleport.Component(teleport.ComponentAuth, process.id),
 		ID:            process.id,
 		Listener:      mux.TLS(),
+		Metrics:       authMetrics,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3366,7 +3368,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		// order to be able to validate certificates provided by app
 		// access CLI clients.
 		var err error
-		tlsClone.ClientCAs, err = auth.ClientCertPool(accessPoint, clusterName)
+		tlsClone.ClientCAs, err = auth.DefaultClientCertPool(accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
