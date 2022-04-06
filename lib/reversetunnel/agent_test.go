@@ -164,7 +164,7 @@ func testAgent(t *testing.T) (*Agent, *mockSSHClient) {
 		client: client,
 	}
 
-	agent, err := NewAgent(&agentConfig{
+	agent, err := newAgent(agentConfig{
 		keepAlive:     time.Minute,
 		addr:          addr,
 		transporter:   inject,

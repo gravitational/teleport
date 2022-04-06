@@ -21,9 +21,9 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
 )
 
 // NewProxiedServiceUpdater creates a new ProxiedServiceUpdater instance.

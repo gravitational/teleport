@@ -35,10 +35,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
 	alpnproxy "github.com/gravitational/teleport/lib/utils/proxy"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 

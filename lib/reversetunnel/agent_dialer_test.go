@@ -28,9 +28,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )

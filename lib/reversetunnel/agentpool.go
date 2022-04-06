@@ -224,9 +224,13 @@ func (p *AgentPool) run() error {
 			return trace.Wrap(p.ctx.Err())
 		}
 
-		err := p.connectAgent(p.ctx, p.tracker.Acquire(), p.events)
+		agent, err := p.connectAgent(p.ctx, p.tracker.Acquire(), p.events)
 		if err != nil {
 			p.log.WithError(err).Debugf("Failed to connect agent.")
+		} else {
+			p.wg.Add(1)
+			p.active.add(agent)
+			p.updateConnectedProxies()
 		}
 
 		err = p.waitForBackoff(p.ctx, p.events)
@@ -238,42 +242,35 @@ func (p *AgentPool) run() error {
 
 // connectAgent connects a new agent and processes any agent events blocking until a
 // new agent is connected or an error occurs.
-func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease, events <-chan *Agent) error {
-	var agent *Agent
+func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease, events <-chan *Agent) (*Agent, error) {
 	lease, err := p.waitForLease(ctx, leases, events)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// Wrap in closure so we can release the lease on error in one place.
-	err = func() error {
-		err = p.processEvents(ctx, events)
+	// Ensure the lease is released on error.
+	defer func() {
 		if err != nil {
-			return trace.Wrap(err)
+			lease.Release()
 		}
-
-		agent, err = p.newAgent(ctx, p.tracker, lease)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = agent.Start(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
 	}()
+
+	err = p.processEvents(ctx, events)
 	if err != nil {
-		lease.Release()
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	p.wg.Add(1)
-	p.active.add(agent)
-	p.updateConnectedProxies()
+	agent, err := p.newAgent(ctx, p.tracker, lease)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return nil
+	err = agent.Start(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return agent, nil
 }
 
 func (p *AgentPool) updateRuntimeConfig(ctx context.Context) {
@@ -290,20 +287,16 @@ func (p *AgentPool) updateRuntimeConfig(ctx context.Context) {
 // is required.
 func (p *AgentPool) processEvents(ctx context.Context, events <-chan *Agent) error {
 	// Processes any queued events without blocking.
-	err := func() error {
-		for {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case agent := <-events:
-				p.handleEvent(ctx, agent)
-			default:
-				return nil
-			}
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case agent := <-events:
+			p.handleEvent(ctx, agent)
+			continue
+		default:
 		}
-	}()
-	if err != nil {
-		return trace.Wrap(err)
+		break
 	}
 
 	p.updateRuntimeConfig(ctx)
@@ -316,7 +309,7 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan *Agent) err
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return trace.Wrap(ctx.Err())
 		case agent := <-events:
 			p.handleEvent(ctx, agent)
 
@@ -363,7 +356,7 @@ func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan track.Lease,
 	for {
 		select {
 		case <-ctx.Done():
-			return track.Lease{}, ctx.Err()
+			return track.Lease{}, trace.Wrap(ctx.Err())
 		case lease := <-leases:
 			return lease, nil
 		case agent := <-events:
@@ -377,7 +370,7 @@ func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan *Agent) er
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return trace.Wrap(ctx.Err())
 		case <-p.backoff.After():
 			p.backoff.Inc()
 			return nil
@@ -447,7 +440,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		log:         p.log,
 	}
 
-	agent, err := NewAgent(&agentConfig{
+	agent, err := newAgent(agentConfig{
 		addr:          *addr,
 		keepAlive:     p.runtimeConfig.keepAliveInterval,
 		stateCallback: p.stateCallback,

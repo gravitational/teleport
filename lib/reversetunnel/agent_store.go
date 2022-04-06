@@ -91,8 +91,7 @@ func (s *agentStore) proxyIDs() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	ids := make([]string, 0)
-
+	var ids []string
 	for i := len(s.agents) - 1; i >= 0; i-- {
 		if id, ok := proxyIDFromPrincipals(s.agents[i].client.Principals()); ok {
 			ids = append(ids, id)
