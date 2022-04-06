@@ -325,10 +325,24 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return []types.CertAuthority{
-		hostCA,
-		userCA,
-	}, nil
+	dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+		Roles:      []string{},
+		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_512,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []types.CertAuthority{hostCA, userCA, dbCA}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -370,7 +384,7 @@ func (s *InstanceSecrets) GetIdentity() *auth.Identity {
 	return i
 }
 
-// GetSiteAPI() is a helper which returns an API endpoint to a site with
+// GetSiteAPI is a helper which returns an API endpoint to a site with
 // a given name. i endpoint implements HTTP-over-SSH access to the
 // site's auth server.
 func (i *TeleInstance) GetSiteAPI(siteName string) auth.ClientI {
