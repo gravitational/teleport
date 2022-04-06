@@ -309,7 +309,7 @@ func (c *Client) start() {
 					button = C.PointerButtonNone
 				}
 				if button == C.PointerButtonRight {
-					// TODO: hack for testing
+					// TODO(isaiah): hack for testing
 					driveName := C.CString("testing testing 123")
 					defer C.free(unsafe.Pointer(driveName))
 					if err := cgoError(C.announce_drive_rdp(c.rustClient, driveName)); err != nil {

@@ -13,17 +13,19 @@
 // limitations under the License.
 
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
-use crate::util::to_unicode;
+use crate::util::{from_unicode, to_unicode};
 use crate::Payload;
 use crate::{scard, vchan};
+use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
 use rdp::core::tpkt;
 use rdp::model::data::Message;
 use rdp::model::error::*;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::io::{Read, Write};
+use utf16string::WString;
 
 pub const CHANNEL_NAME: &str = "rdpdr";
 
@@ -128,11 +130,9 @@ impl Client {
 
     fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
-        debug!("got {:?}", req);
+        debug!("got ServerDeviceAnnounceResponse: {:?}", req);
 
-        if req.device_id != SCARD_DEVICE_ID {
-            // TODO: delete
-            debug!("Didn't get SCARD_DEVICE_ID!!!!!!!!!!!!!!!!!!!!");
+        if req.device_id != SCARD_DEVICE_ID && req.device_id != DRIVE_DEVICE_ID {
             Err(invalid_data_error(&format!(
                 "got ServerDeviceAnnounceResponse for unknown device_id {}",
                 &req.device_id
@@ -143,33 +143,48 @@ impl Client {
                 &req.result_code
             )))
         } else {
+            debug!("ServerDeviceAnnounceResponse was valid");
             Ok(vec![])
         }
     }
 
     fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
-        let req = DeviceIoRequest::decode(payload)?;
-        debug!("got {:?}", req);
+        let device_io_request = DeviceIoRequest::decode(payload)?;
+        debug!("got DeviceIORequest: {:?}", device_io_request);
 
-        if let MajorFunction::IRP_MJ_DEVICE_CONTROL = req.major_function {
-            let ioctl = DeviceControlRequest::decode(req, payload)?;
-            debug!("got {:?}", ioctl);
+        match device_io_request.major_function {
+            // Used for smartcard control
+            MajorFunction::IRP_MJ_DEVICE_CONTROL => {
+                let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
+                debug!("DeviceIORequest was a DeviceControlRequest: {:?}", ioctl);
 
-            let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
-            if code == SPECIAL_NO_RESPONSE {
-                return Ok(vec![]);
+                let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
+                if code == SPECIAL_NO_RESPONSE {
+                    return Ok(vec![]);
+                }
+                let resp = self.add_headers_and_chunkify(
+                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                    DeviceControlResponse::new(&ioctl, code, res).encode()?,
+                )?;
+                debug!("sending device IO response");
+                Ok(resp)
             }
-            let resp = self.add_headers_and_chunkify(
-                PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                DeviceControlResponse::new(&ioctl, code, res).encode()?,
-            )?;
-            debug!("sending device IO response");
-            Ok(resp)
-        } else {
-            Err(invalid_data_error(&format!(
+            // Drive create request. This is sent to us by the server in response to
+            // a ClientDeviceListAnnounce::new_drive, and TODO(isaiah).
+            MajorFunction::IRP_MJ_CREATE => {
+                let server_create_drive_request =
+                    ServerCreateDriveRequest::decode(device_io_request, payload)?;
+                debug!(
+                    "DeviceIORequest was a ServerCreateDriveRequest: {:?}",
+                    server_create_drive_request
+                );
+                // TODO(isaiah)
+                Ok(vec![])
+            }
+            _ => Err(invalid_data_error(&format!(
                 "got unsupported major_function in DeviceIoRequest: {:?}",
-                &req.major_function
-            )))
+                &device_io_request.major_function
+            ))),
         }
     }
 
@@ -178,9 +193,18 @@ impl Client {
         drive_name: String,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        let new_drive = ClientDeviceListAnnounce::new(drive_name);
-        debug!("announcing drive: {:?}", new_drive);
-        mcs.write(&CHANNEL_NAME.to_string(), new_drive.encode()?)
+        let new_drive = ClientDeviceListAnnounce::new_drive(drive_name);
+        debug!("sending new drive for redirection: {:?}", new_drive);
+        let responses = self.add_headers_and_chunkify(
+            PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
+            new_drive.encode()?,
+        )?;
+        let chan = &CHANNEL_NAME.to_string();
+        for resp in responses {
+            mcs.write(chan, resp)?;
+        }
+
+        Ok(())
     }
 
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
@@ -537,6 +561,8 @@ struct ClientDeviceListAnnounceRequest {
     device_list: Vec<DeviceAnnounceHeader>,
 }
 
+type ClientDeviceListAnnounce = ClientDeviceListAnnounceRequest;
+
 impl ClientDeviceListAnnounceRequest {
     // We only need to announce the smartcard in this Client Device List Announce Request.
     // Drives (directories) can be announced at any time with a Client Drive Device List Announce.
@@ -551,6 +577,29 @@ impl ClientDeviceListAnnounceRequest {
                 device_data_length: 0,
                 device_data: vec![],
             }],
+        }
+    }
+
+    fn new_drive(drive_name: String) -> Self {
+        let device_data = to_unicode(&drive_name);
+
+        let device_list = vec![DeviceAnnounceHeader {
+            device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
+            device_id: DRIVE_DEVICE_ID,
+            preferred_dos_name: drive_name,
+            // According to the spec:
+            //
+            // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
+            // then the full name MUST also be specified in the DeviceData field, as a null-terminated
+            // Unicode string. If the DeviceDataLength field is nonzero, the content of the
+            // PreferredDosName field is ignored.
+            device_data_length: device_data.len() as u32,
+            device_data,
+        }];
+
+        Self {
+            device_count: 1,
+            device_list,
         }
     }
 
@@ -630,28 +679,43 @@ impl DeviceIoRequest {
         let file_id = payload.read_u32::<LittleEndian>()?;
         let completion_id = payload.read_u32::<LittleEndian>()?;
         let major_function = payload.read_u32::<LittleEndian>()?;
+        let major_function = MajorFunction::from_u32(major_function).ok_or_else(|| {
+            invalid_data_error(&format!(
+                "invalid major function value {:#010x}",
+                major_function
+            ))
+        })?;
         let minor_function = payload.read_u32::<LittleEndian>()?;
+        // From the spec (2.2.1.4 Device I/O Request (DR_DEVICE_IOREQUEST)):
+        // "This field [MinorFunction] is valid only when the MajorFunction field
+        // is set to IRP_MJ_DIRECTORY_CONTROL. If the MajorFunction field is set
+        // to another value, the MinorFunction field value SHOULD be 0x00000000.""
+        //
+        // SHOULD means implementations are not guaranteed to give us 0x00000000,
+        // so handle that possibility here.
+        let minor_function = if major_function == MajorFunction::IRP_MJ_DIRECTORY_CONTROL {
+            minor_function
+        } else {
+            0x00000000
+        };
+        let minor_function = MinorFunction::from_u32(minor_function).ok_or_else(|| {
+            invalid_data_error(&format!(
+                "invalid minor function value {:#010x}",
+                minor_function
+            ))
+        })?;
+
         Ok(Self {
             device_id,
             file_id,
             completion_id,
-            major_function: MajorFunction::from_u32(major_function).ok_or_else(|| {
-                invalid_data_error(&format!(
-                    "invalid major function value {:#010x}",
-                    major_function
-                ))
-            })?,
-            minor_function: MinorFunction::from_u32(minor_function).ok_or_else(|| {
-                invalid_data_error(&format!(
-                    "invalid minor function value {:#010x}",
-                    minor_function
-                ))
-            })?,
+            major_function,
+            minor_function,
         })
     }
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq)]
 #[allow(non_camel_case_types)]
 enum MajorFunction {
     IRP_MJ_CREATE = 0x00000000,
@@ -752,54 +816,252 @@ impl DeviceControlResponse {
     }
 }
 
-/// [MS-RDPEFS] 2.2.3.1 Client Device List Announce
-/// This message can be sent from the client to the server
-/// at any point, in order to announce a new drive that's ready
-/// for redirection (aka RDP's version of "mounting a network drive").
+/// 2.2.3.3.1 Server Create Drive Request (DR_DRIVE_CREATE_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/95b16fd0-d530-407c-a310-adedc85e9897
+type ServerCreateDriveRequest = DeviceCreateRequest;
+
+/// 2.2.1.4.1 Device Create Request (DR_CREATE_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e
 #[derive(Debug)]
-struct ClientDeviceListAnnounce {
-    header: SharedHeader,
-    device_count: u32,
-    device_announce: Vec<DeviceAnnounceHeader>,
+struct DeviceCreateRequest {
+    /// A DR_DEVICE_IOREQUEST header. The MajorFunction field in this header MUST be set to IRP_MJ_CREATE.
+    device_io_request: DeviceIoRequest,
+    /// A 32-bit unsigned integer that specifies the level of access. This field is specified in [MS-SMB2] section 2.2.13.
+    desired_access: DesiredAccessFlags,
+    /// A 64-bit unsigned integer that specifies the initial allocation size for the file.
+    allocation_size: u64,
+    /// A 32-bit unsigned integer that specifies the attributes for the file being created. This field is specified in [MS-SMB2] section 2.2.13.
+    file_attributes: FileAttributesFlags,
+    /// A 32-bit unsigned integer that specifies the sharing mode for the file being opened. This field is specified in [MS-SMB2] section 2.2.13.
+    shared_access: SharedAccessFlags,
+    /// A 32-bit unsigned integer that specifies the action for the client to take if the file already exists. This field is specified in [MS-SMB2] section 2.2.13. For ports and other devices, this field MUST be set to FILE_OPEN (0x00000001).
+    create_disposition: CreateDispositionFlags,
+    /// A 32-bit unsigned integer that specifies the options for creating the file. This field is specified in [MS-SMB2] section 2.2.13.
+    create_options: CreateOptionsFlags,
+    /// A 32-bit unsigned integer that specifies the number of bytes in the Path field, including the null-terminator.
+    path_length: u32,
+    /// A variable-length array of Unicode characters, including the null-terminator, whose size is specified by the PathLength field. The protocol imposes no limitations on the characters used in this field.
+    path: String,
 }
 
-impl ClientDeviceListAnnounce {
-    fn new(drive_name: String) -> Self {
-        let header = SharedHeader::new(
-            Component::RDPDR_CTYP_CORE,
-            PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-        );
+impl DeviceCreateRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        let invalid_flags = || invalid_data_error("invalid flags in Device Create Request");
 
-        let device_data = to_unicode(&drive_name);
+        let desired_access = DesiredAccessFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+            .ok_or_else(invalid_flags)?;
+        let allocation_size = payload.read_u64::<LittleEndian>()?;
+        let file_attributes = FileAttributesFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+            .ok_or_else(invalid_flags)?;
+        let shared_access = SharedAccessFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+            .ok_or_else(invalid_flags)?;
+        let create_disposition =
+            CreateDispositionFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+                .ok_or_else(invalid_flags)?;
+        let create_options = CreateOptionsFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+            .ok_or_else(invalid_flags)?;
+        let path_length = payload.read_u32::<LittleEndian>()?;
 
-        let device_announce = vec![DeviceAnnounceHeader {
-            device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
-            device_id: DRIVE_DEVICE_ID,
-            preferred_dos_name: drive_name,
-            // According to the spec:
-            //
-            // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
-            // then the full name MUST also be specified in the DeviceData field, as a null-terminated
-            // Unicode string. If the DeviceDataLength field is nonzero, the content of the
-            // PreferredDosName field is ignored.
-            device_data_length: device_data.len() as u32,
-            device_data,
-        }];
+        // usize is 32 bits on a 32 bit target and 64 on a 64, so we can safely say try_into().unwrap()
+        // for a u32 will never panic on the machines that run teleport.
+        let mut path = vec![0u8; path_length.try_into().unwrap()];
+        payload.read_exact(&mut path)?;
+        let path = from_unicode(path)?;
 
-        Self {
-            header,
-            device_count: 1,
-            device_announce,
-        }
+        Ok(Self {
+            device_io_request,
+            desired_access,
+            allocation_size,
+            file_attributes,
+            shared_access,
+            create_disposition,
+            create_options,
+            path_length,
+            path,
+        })
     }
+}
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
-        let mut w = vec![];
-        w.extend_from_slice(&self.header.encode()?);
-        w.write_u32::<LittleEndian>(self.device_count)?;
-        for dev in self.device_announce.iter() {
-            w.extend_from_slice(&dev.encode()?);
-        }
-        Ok(w)
+bitflags! {
+    /// DesiredAccess can be interpreted as either
+    /// 2.2.13.1.1 File_Pipe_Printer_Access_Mask [MS-SMB2] (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/77b36d0f-6016-458a-a7a0-0f4a72ae1534)
+    /// or
+    /// 2.2.13.1.2 Directory_Access_Mask [MS-SMB2] (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/0a5934b1-80f1-4da0-b1bf-5e021c309b71)
+    ///
+    /// This implements the combination of the two. For flags where the names and/or functions are distinct between the two,
+    /// the names are appended with an "_OR_", and the File_Pipe_Printer_Access_Mask functionality is described on the top line comment,
+    /// and the Directory_Access_Mask functionality is described on the bottom (2nd) line comment.
+    struct DesiredAccessFlags: u32 {
+        /// This value indicates the right to read data from the file or named pipe.
+        /// This value indicates the right to enumerate the contents of the directory.
+        const FILE_READ_DATA_OR_FILE_LIST_DIRECTORY = 0x00000001;
+        /// This value indicates the right to write data into the file or named pipe beyond the end of the file.
+        /// This value indicates the right to create a file under the directory.
+        const FILE_WRITE_DATA_OR_FILE_ADD_FILE = 0x00000002;
+        /// This value indicates the right to append data into the file or named pipe.
+        /// This value indicates the right to add a sub-directory under the directory.
+        const FILE_APPEND_DATA_OR_FILE_ADD_SUBDIRECTORY = 0x00000004;
+        /// This value indicates the right to read the extended attributes of the file or named pipe.
+        const FILE_READ_EA = 0x00000008;
+        /// This value indicates the right to write or change the extended attributes to the file or named pipe.
+        const FILE_WRITE_EA = 0x00000010;
+        /// This value indicates the right to traverse this directory if the server enforces traversal checking.
+        const FILE_TRAVERSE = 0x00000020;
+        /// This value indicates the right to delete entries within a directory.
+        const FILE_DELETE_CHILD = 0x00000040;
+        /// This value indicates the right to execute the file/directory.
+        const FILE_EXECUTE = 0x00000020;
+        /// This value indicates the right to read the attributes of the file/directory.
+        const FILE_READ_ATTRIBUTES = 0x00000080;
+        /// This value indicates the right to change the attributes of the file/directory.
+        const FILE_WRITE_ATTRIBUTES = 0x00000100;
+        /// This value indicates the right to delete the file/directory.
+        const DELETE = 0x00010000;
+        /// This value indicates the right to read the security descriptor for the file/directory or named pipe.
+        const READ_CONTROL = 0x00020000;
+        /// This value indicates the right to change the discretionary access control list (DACL) in the security descriptor for the file/directory or named pipe. For the DACL data structure, see ACL in [MS-DTYP].
+        const WRITE_DAC = 0x00040000;
+        /// This value indicates the right to change the owner in the security descriptor for the file/directory or named pipe.
+        const WRITE_OWNER = 0x00080000;
+        /// SMB2 clients set this flag to any value. SMB2 servers SHOULD ignore this flag.
+        const SYNCHRONIZE = 0x00100000;
+        /// This value indicates the right to read or change the system access control list (SACL) in the security descriptor for the file/directory or named pipe. For the SACL data structure, see ACL in [MS-DTYP].
+        const ACCESS_SYSTEM_SECURITY = 0x01000000;
+        /// This value indicates that the client is requesting an open to the file with the highest level of access the client has on this file. If no access is granted for the client on this file, the server MUST fail the open with STATUS_ACCESS_DENIED.
+        const MAXIMUM_ALLOWED = 0x02000000;
+        /// This value indicates a request for all the access flags that are previously listed except MAXIMUM_ALLOWED and ACCESS_SYSTEM_SECURITY.
+        const GENERIC_ALL = 0x10000000;
+        /// This value indicates a request for the following combination of access flags listed above: FILE_READ_ATTRIBUTES| FILE_EXECUTE| SYNCHRONIZE| READ_CONTROL.
+        const GENERIC_EXECUTE = 0x20000000;
+        /// This value indicates a request for the following combination of access flags listed above: FILE_WRITE_DATA| FILE_APPEND_DATA| FILE_WRITE_ATTRIBUTES| FILE_WRITE_EA| SYNCHRONIZE| READ_CONTROL.
+        const GENERIC_WRITE = 0x40000000;
+        /// This value indicates a request for the following combination of access flags listed above: FILE_READ_DATA| FILE_READ_ATTRIBUTES| FILE_READ_EA| SYNCHRONIZE| READ_CONTROL.
+        const GENERIC_READ = 0x80000000;
+    }
+}
+
+bitflags! {
+    /// 2.6 File Attributes [MS-FSCC]
+    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca28ec38-f155-4768-81d6-4bfeb8586fc9
+    struct FileAttributesFlags: u32 {
+        /// A file or directory that is read-only. For a file, applications can read the file but cannot write to it or delete it. For a directory, applications cannot delete it, but applications can create and delete files from that directory.
+        const FILE_ATTRIBUTE_READONLY = 0x00000001;
+        /// A file or directory that is hidden. Files and directories marked with this attribute do not appear in an ordinary directory listing.
+        const FILE_ATTRIBUTE_HIDDEN = 0x00000002;
+        /// A file or directory that the operating system uses a part of or uses exclusively.
+        const FILE_ATTRIBUTE_SYSTEM = 0x00000004;
+        /// This item is a directory.
+        const FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
+        /// A file or directory that requires to be archived. Applications use this attribute to mark files for backup or removal.
+        const FILE_ATTRIBUTE_ARCHIVE = 0x00000020;
+        /// A file that does not have other attributes set. This flag is used to clear all other flags by specifying it with no other flags set. This flag MUST be ignored if other flags are set.<161>
+        const FILE_ATTRIBUTE_NORMAL = 0x00000080;
+        /// A file that is being used for temporary storage. The operating system can choose to store this file's data in memory rather than on mass storage, writing the data to mass storage only if data remains in the file when the file is closed.
+        const FILE_ATTRIBUTE_TEMPORARY = 0x00000100;
+        /// A file that is a sparse file.
+        const FILE_ATTRIBUTE_SPARSE_FILE = 0x00000200;
+        /// A file or directory that has an associated reparse point.
+        const FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400;
+        /// A file or directory that is compressed. For a file, all of the data in the file is compressed. For a directory, compression is the default for newly created files and subdirectories.
+        const FILE_ATTRIBUTE_COMPRESSED = 0x00000800;
+        /// The data in this file is not available immediately. This attribute indicates that the file data is physically moved to offline storage. This attribute is used by Remote Storage, which is hierarchical storage management software.
+        const FILE_ATTRIBUTE_OFFLINE = 0x00001000;
+        /// A file or directory that is not indexed by the content indexing service.
+        const FILE_ATTRIBUTE_NOT_CONTENT_INDEXED = 0x00002000;
+        /// A file or directory that is encrypted. For a file, all data streams in the file are encrypted. For a directory, encryption is the default for newly created files and subdirectories.
+        const FILE_ATTRIBUTE_ENCRYPTED = 0x00004000;
+        /// A file or directory that is configured with integrity support. For a file, all data streams in the file have integrity support. For a directory, integrity support is the default for newly created files and subdirectories, unless the caller specifies otherwise.<162>
+        const FILE_ATTRIBUTE_INTEGRITY_STREAM = 0x00008000;
+        /// A file or directory that is configured to be excluded from the data integrity scan. For a directory configured with FILE_ATTRIBUTE_NO_SCRUB_DATA, the default for newly created files and subdirectories is to inherit the FILE_ATTRIBUTE_NO_SCRUB_DATA attribute.<163>
+        const FILE_ATTRIBUTE_NO_SCRUB_DATA = 0x00020000;
+        /// This attribute appears only in directory enumeration classes (FILE_DIRECTORY_INFORMATION, FILE_BOTH_DIR_INFORMATION, etc.). When this attribute is set, it means that the file or directory has no physical representation on the local system; the item is virtual. Opening the item will be more expensive than usual because it will cause at least some of the file or directory content to be fetched from a remote store. This attribute can only be set by kernel-mode components. This attribute is for use with hierarchical storage management software.<164>
+        const FILE_ATTRIBUTE_RECALL_ON_OPEN = 0x00040000;
+        /// This attribute indicates user intent that the file or directory should be kept fully present locally even when not being actively accessed. This attribute is for use with hierarchical storage management software.<165>
+        const FILE_ATTRIBUTE_PINNED = 0x00080000;
+        /// This attribute indicates that the file or directory should not be kept fully present locally except when being actively accessed. This attribute is for use with hierarchical storage management software.<166>
+        const FILE_ATTRIBUTE_UNPINNED = 0x00100000;
+        /// When this attribute is set, it means that the file or directory is not fully present locally. For a file this means that not all of its data is on local storage (for example, it may be sparse with some data still in remote storage). For a directory it means that some of the directory contents are being virtualized from another location. Reading the file or enumerating the directory will be more expensive than usual because it will cause at least some of the file or directory content to be fetched from a remote store. Only kernel-mode callers can set this attribute. This attribute is for use with hierarchical storage management software.<167>
+        const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x00400000;
+    }
+}
+
+bitflags! {
+    /// Specifies the sharing mode for the open. If ShareAccess values of FILE_SHARE_READ, FILE_SHARE_WRITE and FILE_SHARE_DELETE are set for a printer file or a named pipe, the server SHOULD<35> ignore these values. The field MUST be constructed using a combination of zero or more of the following bit values.
+    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
+    struct SharedAccessFlags: u32 {
+        /// When set, indicates that other opens are allowed to read this file while this open is present. This bit MUST NOT be set for a named pipe or a printer file. Each open creates a new instance of a named pipe. Likewise, opening a printer file always creates a new file.
+        const FILE_SHARE_READ = 0x00000001;
+        /// When set, indicates that other opens are allowed to write this file while this open is present. This bit MUST NOT be set for a named pipe or a printer file. Each open creates a new instance of a named pipe. Likewise, opening a printer file always creates a new file.
+        const FILE_SHARE_WRITE = 0x00000002;
+        /// When set, indicates that other opens are allowed to delete or rename this file while this open is present. This bit MUST NOT be set for a named pipe or a printer file. Each open creates a new instance of a named pipe. Likewise, opening a printer file always creates a new file.
+        const FILE_SHARE_DELETE = 0x00000004;
+    }
+}
+
+bitflags! {
+    /// Defines the action the server MUST take if the file that is specified in the name field already exists. For opening named pipes, this field can be set to any value by the client and MUST be ignored by the server. For other files, this field MUST contain one of the following values.
+    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
+    struct CreateDispositionFlags: u32 {
+        /// If the file already exists, supersede it. Otherwise, create the file. This value SHOULD NOT be used for a printer object.<36>
+        const FILE_SUPERSEDE = 0x00000000;
+        /// If the file already exists, return success; otherwise, fail the operation. MUST NOT be used for a printer object.
+        const FILE_OPEN = 0x00000001;
+        /// If the file already exists, fail the operation; otherwise, create the file.
+        const FILE_CREATE = 0x00000002;
+        /// Open the file if it already exists; otherwise, create the file. This value SHOULD NOT be used for a printer object.<37>
+        const FILE_OPEN_IF = 0x00000003;
+        /// Overwrite the file if it already exists; otherwise, fail the operation. MUST NOT be used for a printer object.
+        const FILE_OVERWRITE = 0x00000004;
+        /// Overwrite the file if it already exists; otherwise, create the file. This value SHOULD NOT be used for a printer object.<38>
+        const FILE_OVERWRITE_IF = 0x00000005;
+    }
+}
+
+bitflags! {
+    /// Specifies the options to be applied when creating or opening the file. Combinations of the bit positions listed below are valid, unless otherwise noted. This field MUST be constructed using the following values.
+    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
+    struct CreateOptionsFlags: u32 {
+        /// The file being created or opened is a directory file. With this flag, the CreateDisposition field MUST be set to FILE_CREATE, FILE_OPEN_IF, or FILE_OPEN. With this flag, only the following CreateOptions values are valid: FILE_WRITE_THROUGH, FILE_OPEN_FOR_BACKUP_INTENT, FILE_DELETE_ON_CLOSE, and FILE_OPEN_REPARSE_POINT. If the file being created or opened already exists and is not a directory file and FILE_CREATE is specified in the CreateDisposition field, then the server MUST fail the request with STATUS_OBJECT_NAME_COLLISION. If the file being created or opened already exists and is not a directory file and FILE_CREATE is not specified in the CreateDisposition field, then the server MUST fail the request with STATUS_NOT_A_DIRECTORY. The server MUST fail an invalid CreateDisposition field or an invalid combination of CreateOptions flags with STATUS_INVALID_PARAMETER.
+        const FILE_DIRECTORY_FILE = 0x00000001;
+        /// The server performs file write-through; file data is written to the underlying storage before completing the write operation on this open.
+        const FILE_WRITE_THROUGH = 0x00000002;
+        /// This indicates that the application intends to read or write at sequential offsets using this handle, so the server SHOULD optimize for sequential access. However, the server MUST accept any access pattern. This flag value is incompatible with the FILE_RANDOM_ACCESS value.
+        const FILE_SEQUENTIAL_ONLY = 0x00000004;
+        /// File buffering is not performed on this open; file data is not retained in memory upon writing it to, or reading it from, the underlying storage.
+        const FILE_NO_INTERMEDIATE_BUFFERING = 0x00000008;
+        /// This bit SHOULD be set to 0 and MUST be ignored by the server.<40>
+        const FILE_SYNCHRONOUS_IO_ALERT = 0x00000010;
+        /// This bit SHOULD be set to 0 and MUST be ignored by the server.<41>
+        const FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020;
+        /// If the name of the file being created or opened matches with an existing directory file, the server MUST fail the request with STATUS_FILE_IS_A_DIRECTORY. This flag MUST NOT be used with FILE_DIRECTORY_FILE or the server MUST fail the request with STATUS_INVALID_PARAMETER.
+        const FILE_NON_DIRECTORY_FILE = 0x00000040;
+        /// This bit SHOULD be set to 0 and MUST be ignored by the server.<42>
+        const FILE_COMPLETE_IF_OPLOCKED = 0x00000100;
+        /// The caller does not understand how to handle extended attributes. If the request includes an SMB2_CREATE_EA_BUFFER create context, then the server MUST fail this request with STATUS_ACCESS_DENIED. If extended attributes with the FILE_NEED_EA flag (see [MS-FSCC] section 2.4.15) set are associated with the file being opened, then the server MUST fail this request with STATUS_ACCESS_DENIED.
+        const FILE_NO_EA_KNOWLEDGE = 0x00000200;
+        /// This indicates that the application intends to read or write at random offsets using this handle, so the server SHOULD optimize for random access. However, the server MUST accept any access pattern. This flag value is incompatible with the FILE_SEQUENTIAL_ONLY value. If both FILE_RANDOM_ACCESS and FILE_SEQUENTIAL_ONLY are set, then FILE_SEQUENTIAL_ONLY is ignored.
+        const FILE_RANDOM_ACCESS = 0x00000800;
+        /// The file MUST be automatically deleted when the last open request on this file is closed. When this option is set, the DesiredAccess field MUST include the DELETE flag. This option is often used for temporary files.
+        const FILE_DELETE_ON_CLOSE = 0x00001000;
+        /// This bit SHOULD be set to 0 and the server MUST fail the request with a STATUS_NOT_SUPPORTED error if this bit is set.<43>
+        const FILE_OPEN_BY_FILE_ID = 0x00002000;
+        /// The file is being opened for backup intent. That is, it is being opened or created for the purposes of either a backup or a restore operation. The server can check to ensure that the caller is capable of overriding whatever security checks have been placed on the file to allow a backup or restore operation to occur. The server can check for access rights to the file before checking the DesiredAccess field.
+        const FILE_OPEN_FOR_BACKUP_INTENT = 0x00004000;
+        /// The file cannot be compressed. This bit is ignored when FILE_DIRECTORY_FILE is set in CreateOptions.
+        const FILE_NO_COMPRESSION = 0x00008000;
+        /// This bit SHOULD be set to 0 and MUST be ignored by the server.
+        const FILE_OPEN_REMOTE_INSTANCE = 0x00000400;
+        /// This bit SHOULD be set to 0 and MUST be ignored by the server.
+        const FILE_OPEN_REQUIRING_OPLOCK = 0x00010000;
+        /// This bit SHOULD be set to 0 and MUST be ignored by the server.
+        const FILE_DISALLOW_EXCLUSIVE = 0x00020000;
+        /// This bit SHOULD be set to 0 and the server MUST fail the request with a STATUS_NOT_SUPPORTED error if this bit is set.<44>
+        const FILE_RESERVE_OPFILTER = 0x00100000;
+        /// If the file or directory being opened is a reparse point, open the reparse point itself rather than the target that the reparse point references.
+        const FILE_OPEN_REPARSE_POINT = 0x00200000;
+        /// In an HSM (Hierarchical Storage Management) environment, this flag means the file SHOULD NOT be recalled from tertiary storage such as tape. The recall can take several minutes. The caller can specify this flag to avoid those delays.
+        const FILE_OPEN_NO_RECALL = 0x00400000;
+        /// Open file to query for free space. The client SHOULD set this to 0 and the server MUST ignore it.<45>
+        const FILE_OPEN_FOR_FREE_SPACE_QUERY = 0x00800000;
     }
 }

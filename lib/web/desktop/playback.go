@@ -107,8 +107,6 @@ const (
 	// actionPlayPause toggles the playback state
 	// between playing and paused
 	actionPlayPause = playbackAction("play/pause")
-
-	// TODO(isaiah): support playbackAction("seek")
 )
 
 // actionMessage is a message passed from the playback client

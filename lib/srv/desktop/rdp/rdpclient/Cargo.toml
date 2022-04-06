@@ -25,3 +25,4 @@ rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "cb61119d2803f647b60e6c9b2ef05ab587cc1966" }
 uuid = { version = "0.8.2", features = ["v4"] }
+utf16string = "0.2.0"

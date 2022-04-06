@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::errors::invalid_data_error;
+use rdp::model::error::RdpResult;
+use utf16string::{WString, LE};
+
 /// According to [MS-RDPEFS] 1.1 Glossary:
 /// Unless otherwise specified, all Unicode strings follow the UTF-16LE
 /// encoding scheme with no Byte Order Mark (BOM).
@@ -21,8 +25,44 @@
 /// to handle some data in the code as a &str (or String), and later
 /// convert it to RDP's preferred format and send it over the wire.
 pub fn to_unicode(s: &str) -> Vec<u8> {
-    let mut buf: Vec<u8> = s.encode_utf16().flat_map(|v| v.to_le_bytes()).collect();
+    let mut buf = WString::<LE>::from(s).as_bytes().to_vec();
     let mut null_terminator: Vec<u8> = vec![0, 0];
     buf.append(&mut null_terminator);
     buf
+}
+
+pub fn from_unicode(s: Vec<u8>) -> RdpResult<String> {
+    let mut with_null_terminator = WString::from_utf16le(s)
+        .or_else(|_| Err(invalid_data_error("invalid Unicode")))?
+        .to_utf8();
+    with_null_terminator.pop();
+    let without_null_terminator = with_null_terminator;
+    Ok(without_null_terminator)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        convert::TryInto,
+        io::{Cursor, Read},
+    };
+
+    use super::*;
+
+    #[test]
+    fn to_and_from() {
+        let hello_vec = to_unicode("hello");
+        assert_eq!(
+            hello_vec,
+            vec![104, 0, 101, 0, 108, 0, 108, 0, 111, 0, 0, 0]
+        );
+
+        let hello_string = from_unicode(hello_vec).unwrap();
+        assert_eq!(hello_string, "hello");
+    }
+
+    #[test]
+    fn from_unicode_empty_vector() {
+        assert_eq!(from_unicode(vec![]).unwrap(), "");
+    }
 }
