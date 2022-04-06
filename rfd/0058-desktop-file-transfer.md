@@ -2,7 +2,9 @@
 authors: Isaiah Becker-Mayer (isaiah@goteleport.com)
 state: draft
 ---
-
+# Required Approvers
+* Engineering: @zmb3 && (@probakowski || @LKozlowski)
+* Product: (@klizhentas || @xinding33)
 # RFD 58 - Desktop Access - File Transfer
 
 File transfer for Teleport Desktop Access is a feature whose implementation includes
