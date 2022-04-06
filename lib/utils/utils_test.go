@@ -29,11 +29,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
 )
@@ -43,15 +41,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestUtils(t *testing.T) { check.TestingT(t) }
-
-type UtilsSuite struct {
-}
-
-var _ = check.Suite(&UtilsSuite{})
-
 // TestCapitalize tests capitalize function
 func TestCapitalize(t *testing.T) {
+	t.Parallel()
 	type testCase struct {
 		name string
 		in   string
@@ -71,6 +63,7 @@ func TestCapitalize(t *testing.T) {
 
 // TestLinear tests retry logic
 func TestLinear(t *testing.T) {
+	t.Parallel()
 	r, err := NewLinear(LinearConfig{
 		Step: time.Second,
 		Max:  3 * time.Second,
@@ -89,7 +82,7 @@ func TestLinear(t *testing.T) {
 	require.Equal(t, r.Duration(), time.Duration(0))
 }
 
-func TestHostUUID(t *testing.T) {
+func TestHostUUIDIdempotent(t *testing.T) {
 	// call twice, get same result
 	dir := t.TempDir()
 	id, err := ReadOrMakeHostUUID(dir)
@@ -98,27 +91,33 @@ func TestHostUUID(t *testing.T) {
 	uuidCopy, err := ReadOrMakeHostUUID(dir)
 	require.NoError(t, err)
 	require.Equal(t, id, uuidCopy)
+}
 
+func TestHostUUIDBadLocation(t *testing.T) {
 	// call with a read-only dir, make sure to get an error
-	id, err = ReadOrMakeHostUUID("/bad-location")
+	id, err := ReadOrMakeHostUUID("/bad-location")
 	require.Equal(t, id, "")
 	require.Error(t, err)
 	require.Regexp(t, "^.*no such file or directory.*$", err.Error())
+}
 
+func TestHostUUIDIgnoreWhitespace(t *testing.T) {
 	// newlines are getting ignored
-	dir = t.TempDir()
-	id = fmt.Sprintf("%s\n", uuid.New().String())
-	err = os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
+	dir := t.TempDir()
+	id := fmt.Sprintf("%s\n", uuid.New().String())
+	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
 	require.NoError(t, err)
 	out, err := ReadHostUUID(dir)
 	require.NoError(t, err)
 	require.Equal(t, strings.TrimSpace(id), out)
+}
 
+func TestHostUUIDRegenerateEmpty(t *testing.T) {
 	// empty UUID in file is regenerated
-	dir = t.TempDir()
-	err = os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(""), 0666)
+	dir := t.TempDir()
+	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), nil, 0666)
 	require.NoError(t, err)
-	out, err = ReadOrMakeHostUUID(dir)
+	out, err := ReadOrMakeHostUUID(dir)
 	require.NoError(t, err)
 	require.Len(t, out, 36)
 }
@@ -141,27 +140,30 @@ func TestRandomDuration(t *testing.T) {
 	}
 }
 
-func TestMiscFunctions(t *testing.T) {
-	// SliceContainsStr
-	require.True(t, apiutils.SliceContainsStr([]string{"two", "one"}, "one"))
-	require.False(t, apiutils.SliceContainsStr([]string{"two", "one"}, "five"))
-	require.False(t, apiutils.SliceContainsStr([]string(nil), "one"), check.Equals)
-
-	// Deduplicate
-	require.Equal(t, []string{}, apiutils.Deduplicate([]string{}))
-	require.Equal(t, []string{"a", "b"}, apiutils.Deduplicate([]string{"a", "b"}))
-	require.Equal(t, []string{"a", "b", "c"}, apiutils.Deduplicate([]string{"a", "b", "b", "a", "c"}))
-
-	// RemoveFromSlice
-	require.Equal(t, []string{}, RemoveFromSlice([]string{}, "a"))
-	require.Equal(t, []string{}, RemoveFromSlice([]string{"a"}, "a"))
-	require.Equal(t, []string{"b"}, RemoveFromSlice([]string{"a", "b"}, "a"))
-	require.Equal(t, []string{"a"}, RemoveFromSlice([]string{"a", "b"}, "b"))
-	require.Equal(t, []string{"b"}, RemoveFromSlice([]string{"a", "a", "b"}, "a"))
+func TestRemoveFromSlice(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		slice    []string
+		target   string
+		expected []string
+	}{
+		{"remove from empty", []string{}, "a", []string{}},
+		{"remove only element", []string{"a"}, "a", []string{}},
+		{"remove a", []string{"a", "b"}, "a", []string{"b"}},
+		{"remove b", []string{"a", "b"}, "b", []string{"a"}},
+		{"remove duplicate elements", []string{"a", "a", "b"}, "a", []string{"b"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, RemoveFromSlice(tc.slice, tc.target))
+		})
+	}
 }
 
 // TestVersions tests versions compatibility checking
 func TestVersions(t *testing.T) {
+	t.Parallel()
 	type tc struct {
 		info      string
 		client    string
@@ -191,6 +193,7 @@ func TestVersions(t *testing.T) {
 
 // TestClickableURL tests clickable URL conversions
 func TestClickableURL(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		info string
 		in   string
@@ -212,11 +215,11 @@ func TestClickableURL(t *testing.T) {
 
 // TestParseSessionsURI parses sessions URI
 func TestParseSessionsURI(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		info string
 		in   string
 		url  *url.URL
-		err  error
 	}{
 		{info: "local default file system URI", in: "/home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
 		{info: "explicit filesystem URI", in: "file:///home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
@@ -225,18 +228,15 @@ func TestParseSessionsURI(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.info, func(t *testing.T) {
 			out, err := ParseSessionsURI(testCase.in)
-			if testCase.err == nil {
-				require.NoError(t, err)
-				require.Equal(t, testCase.url, out)
-			} else {
-				require.ErrorIs(t, err, testCase.err)
-			}
+			require.NoError(t, err)
+			require.Equal(t, testCase.url, out)
 		})
 	}
 }
 
 // TestParseAdvertiseAddr tests parsing of advertise address
 func TestParseAdvertiseAddr(t *testing.T) {
+	t.Parallel()
 	type tc struct {
 		info string
 		in   string
@@ -279,6 +279,7 @@ func TestParseAdvertiseAddr(t *testing.T) {
 // TestGlobToRegexp tests replacement of glob-style wildcard values
 // with regular expression compatible value
 func TestGlobToRegexp(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		comment string
 		in      string
@@ -315,6 +316,7 @@ func TestGlobToRegexp(t *testing.T) {
 
 // TestReplaceRegexp tests regexp-style replacement of values
 func TestReplaceRegexp(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		comment string
 		expr    string
@@ -423,6 +425,7 @@ func TestReplaceRegexp(t *testing.T) {
 
 // TestContainsExpansion tests whether string contains expansion value
 func TestContainsExpansion(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		comment  string
 		val      string
@@ -469,6 +472,7 @@ func TestContainsExpansion(t *testing.T) {
 
 // TestMarshalYAML tests marshal/unmarshal of elements
 func TestMarshalYAML(t *testing.T) {
+	t.Parallel()
 	type kv struct {
 		Key string
 	}
@@ -525,6 +529,7 @@ func TestMarshalYAML(t *testing.T) {
 
 // TestReadToken tests reading token from file and as is
 func TestReadToken(t *testing.T) {
+	t.Parallel()
 	tok, err := ReadToken("token")
 	require.Equal(t, "token", tok)
 	require.NoError(t, err)
@@ -551,6 +556,7 @@ func TestStringsSet(t *testing.T) {
 
 // TestRepeatReader tests repeat reader
 func TestRepeatReader(t *testing.T) {
+	t.Parallel()
 	type tc struct {
 		name     string
 		repeat   byte
@@ -587,6 +593,7 @@ func TestRepeatReader(t *testing.T) {
 }
 
 func TestReadAtMost(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name  string
 		limit int64
@@ -603,7 +610,7 @@ func TestReadAtMost(t *testing.T) {
 			r := strings.NewReader("hello")
 			data, err := ReadAtMost(r, tc.limit)
 			require.Equal(t, []byte(tc.data), data)
-			require.Equal(t, tc.err, err)
+			require.ErrorIs(t, err, tc.err)
 		})
 	}
 }
