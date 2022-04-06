@@ -20,14 +20,16 @@ import (
 	"context"
 	"io"
 	"net"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -166,7 +168,7 @@ func testAgent(t *testing.T) (*agent, *mockSSHClient) {
 	}
 
 	agent, err := newAgent(agentConfig{
-		keepAlive:     time.Minute,
+		keepAlive:     time.Millisecond * 100,
 		addr:          addr,
 		transporter:   inject,
 		sshDialer:     inject,
@@ -179,38 +181,78 @@ func testAgent(t *testing.T) (*agent, *mockSSHClient) {
 	return agent, client
 }
 
+type callbackCounter struct {
+	calls  int
+	states []AgentState
+	recv   chan struct{}
+	mu     sync.Mutex
+}
+
+func newCallback() *callbackCounter {
+	return &callbackCounter{
+		recv: make(chan struct{}, 1),
+	}
+}
+
+func (c *callbackCounter) callback(state AgentState) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	c.states = append(c.states, state)
+
+	select {
+	case c.recv <- struct{}{}:
+	default:
+	}
+}
+
+func (c *callbackCounter) waitForCount(t *testing.T, count int) {
+	timer := time.NewTimer(time.Second * 5)
+	for {
+		c.mu.Lock()
+		if c.calls == count {
+			c.mu.Unlock()
+			return
+		}
+		c.mu.Unlock()
+
+		select {
+		case <-c.recv:
+			continue
+		case <-timer.C:
+			require.FailNow(t, "timeout waiting for agent state changes")
+		}
+	}
+}
+
 // TestAgentFailedToClaimLease tests that an agent fails when it cannot claim a lease.
 func TestAgentFailedToClaimLease(t *testing.T) {
 	agent, client := testAgent(t)
 	claimedProxy := "claimed-proxy"
 
-	var calls int64
-	agent.stateCallback = func(a Agent) {
-		atomic.AddInt64(&calls, 1)
-	}
-
+	callback := newCallback()
+	agent.stateCallback = callback.callback
 	agent.tracker.Claim(claimedProxy)
 
 	client.MockPrincipals = []string{claimedProxy}
 	err := agent.Start(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Failed to claim proxy", "Expected failed to claim proxy error.")
-	require.Equal(t, int64(0), calls, "Unexpected number of state changes.")
 
-	err = agent.Stop()
-	require.NoError(t, err)
+	callback.waitForCount(t, 2)
+	require.Contains(t, callback.states, AgentConnecting)
+	require.Contains(t, callback.states, AgentClosed)
+
+	require.Equal(t, 2, callback.calls, "Unexpected number of state changes.")
+	require.Equal(t, AgentClosed, agent.GetState())
 }
 
 // TestAgentStart tests an agent performs the necessary actions during startup.
 func TestAgentStart(t *testing.T) {
 	agent, client := testAgent(t)
 
-	var calls int64
-	states := make(chan AgentState)
-	agent.stateCallback = func(a Agent) {
-		atomic.AddInt64(&calls, 1)
-		states <- a.GetState()
-	}
+	callback := newCallback()
+	agent.stateCallback = callback.callback
 
 	openChannels := 0
 	sentPings := 0
@@ -228,12 +270,12 @@ func TestAgentStart(t *testing.T) {
 		<-waitForVersion
 
 		openChannels++
-		require.Equal(t, name, chanHeartbeat, "Unexpected channel opened during startup.")
+		assert.Equal(t, name, chanHeartbeat, "Unexpected channel opened during startup.")
 		return &mockSSHChannel{MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
 			sentPings++
 
-			require.Equal(t, name, "ping", "Unexpected request name.")
-			require.False(t, wantReply, "Expected no reply wanted.")
+			assert.Equal(t, name, "ping", "Unexpected request name.")
+			assert.False(t, wantReply, "Expected no reply wanted.")
 			return true, nil
 		}}, make(<-chan *ssh.Request), nil
 	}
@@ -244,8 +286,8 @@ func TestAgentStart(t *testing.T) {
 		close(waitForVersion)
 		versionReplies++
 
-		require.Equal(t, versionRequest, r.Type, "Unexpected request type.")
-		require.Equal(t, teleport.Version, string(b2), "Unexpected version.")
+		assert.Equal(t, versionRequest, r.Type, "Unexpected request type.")
+		assert.Equal(t, teleport.Version, string(b2), "Unexpected version.")
 		return nil
 	}
 
@@ -256,9 +298,11 @@ func TestAgentStart(t *testing.T) {
 	require.GreaterOrEqual(t, 1, sentPings, "Expected at least 1 ping to be sent.")
 	require.Equal(t, 1, versionReplies, "Expected 1 version reply.")
 
-	state := <-states
-	require.Equal(t, AgentConnected, state, "Unexpected state change")
-	require.Equal(t, int64(1), calls, "Unexpected number of state changes.")
+	callback.waitForCount(t, 2)
+	require.Contains(t, callback.states, AgentConnecting)
+	require.Contains(t, callback.states, AgentConnected)
+	require.Equal(t, 2, callback.calls, "Unexpected number of state changes.")
+	require.Equal(t, AgentConnected, agent.GetState())
 
 	unclaimed := false
 	agent.unclaim = func() {
@@ -268,7 +312,53 @@ func TestAgentStart(t *testing.T) {
 	err = agent.Stop()
 	require.NoError(t, err)
 	require.True(t, unclaimed, "Expected unclaim to be called.")
-	state = <-states
-	require.Equal(t, AgentClosed, state, "Unexpected state change")
-	require.Equal(t, int64(2), calls, "Unexpected number of state changes.")
+
+	callback.waitForCount(t, 3)
+	require.Contains(t, callback.states, AgentClosed)
+	require.Equal(t, 3, callback.calls, "Unexpected number of state changes.")
+	require.Equal(t, AgentClosed, agent.GetState())
+}
+
+func TestAgentStateTransitions(t *testing.T) {
+	tests := []struct {
+		start    AgentState
+		noError  []AgentState
+		yesError []AgentState
+	}{
+		{
+			start:    AgentInitial,
+			noError:  []AgentState{AgentConnecting, AgentClosed},
+			yesError: []AgentState{AgentInitial, AgentConnected},
+		},
+		{
+			start:    AgentConnecting,
+			noError:  []AgentState{AgentConnected, AgentClosed},
+			yesError: []AgentState{AgentInitial, AgentConnecting},
+		},
+		{
+			start:    AgentConnected,
+			noError:  []AgentState{AgentClosed},
+			yesError: []AgentState{AgentInitial, AgentConnecting, AgentConnected},
+		},
+		{
+			start:    AgentClosed,
+			yesError: []AgentState{AgentInitial, AgentConnecting, AgentConnected, AgentClosed},
+		},
+	}
+
+	agent, _ := testAgent(t)
+	for _, tc := range tests {
+		msg := "failed testing agent state %s -> %s"
+		for _, state := range tc.noError {
+			agent.state = tc.start
+			prev, err := agent.updateState(state)
+			require.Equal(t, tc.start, prev, msg, tc.start, state)
+			require.NoError(t, err, msg, tc.start, state)
+		}
+		for _, state := range tc.yesError {
+			agent.state = tc.start
+			_, err := agent.updateState(state)
+			require.Error(t, err, msg, tc.start, state)
+		}
+	}
 }

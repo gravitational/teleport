@@ -53,6 +53,7 @@ type ServerHandler interface {
 
 // AgentPool manages a pool of reverse tunnel agents.
 type AgentPool struct {
+	timer *time.Ticker
 	AgentPoolConfig
 	active  *agentStore
 	tracker *track.Tracker
@@ -105,9 +106,6 @@ type AgentPoolConfig struct {
 	Cluster string
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
-	// StateCallback is called for each agent event. This is an optional
-	// parameter that is currently only used for testing.
-	StateCallback AgentStateCallback
 	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
 	ProxiedServiceUpdater *ProxiedServiceUpdater
 	// IgnoreTunnelStrategy ignores the tunnel strategy and connects to all proxies.
@@ -140,6 +138,18 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Agent represents a reverse tunnel agent.
+type Agent interface {
+	// Start starts the agent in the background.
+	Start(context.Context) error
+	// Stop closes the agent and releases resources.
+	Stop() error
+	// GetState returns the current state of the agent.
+	GetState() AgentState
+	// GetProxyID returns the proxy id of the proxy the agent is connected to.
+	GetProxyID() (string, bool)
+}
+
 // NewAgentPool returns new instance of the agent pool.
 func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
@@ -155,7 +165,10 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		return nil, trace.Wrap(err)
 	}
 
+	timer := time.NewTicker(time.Second * 30)
+
 	pool := &AgentPool{
+		timer:           timer,
 		AgentPoolConfig: config,
 		active:          newAgentStore(),
 		events:          make(chan Agent),
@@ -307,6 +320,7 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 
 	// Continue to process new events until an agent is required.
 	for {
+		p.log.Debugf("processing events...")
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
@@ -318,6 +332,17 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 			if p.isAgentRequired() {
 				return nil
 			}
+		case <-p.timer.C:
+			agent, ok := p.active.poplen(0)
+			if !ok {
+				continue
+			}
+			p.log.Debugf("stopping agent...")
+			go func() {
+				agent.Stop()
+				p.wg.Done()
+			}()
+			time.Sleep(time.Second * 15)
 		}
 	}
 }
@@ -384,26 +409,26 @@ func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) err
 func (p *AgentPool) handleEvent(ctx context.Context, agent Agent) {
 	state := agent.GetState()
 	switch state {
+	case AgentConnecting:
+		return
 	case AgentConnected:
 	case AgentClosed:
 		if ok := p.active.remove(agent); ok {
 			p.wg.Done()
 		}
 	}
-
 	p.log.Debugf("Active agent count: %d", p.active.len())
 }
 
 // stateCallback adds events to the queue for each agent state change.
-func (p *AgentPool) stateCallback(agent Agent) {
-	if p.StateCallback != nil {
-		go p.StateCallback(agent)
-	}
-	select {
-	case <-p.ctx.Done():
-		// Handle events directly when the pool is closing.
-		p.handleEvent(p.ctx, agent)
-	case p.events <- agent:
+func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
+	return func(_ AgentState) {
+		select {
+		case <-p.ctx.Done():
+			// Handle events directly when the pool is closing.
+			p.handleEvent(p.ctx, agent)
+		case p.events <- agent:
+		}
 	}
 }
 
@@ -443,7 +468,6 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	agent, err := newAgent(agentConfig{
 		addr:          *addr,
 		keepAlive:     p.runtimeConfig.keepAliveInterval,
-		stateCallback: p.stateCallback,
 		sshDialer:     dialer,
 		transporter:   p,
 		versionGetter: p,
@@ -455,6 +479,8 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	agent.stateCallback = p.getStateCallback(agent)
 	return agent, nil
 }
 
@@ -470,10 +496,7 @@ func (p *AgentPool) Wait() {
 
 // Stop stops the pool and waits for all resources to be released.
 func (p *AgentPool) Stop() {
-	if p.cancel != nil {
-		p.cancel()
-	}
-
+	p.cancel()
 	p.wg.Wait()
 }
 

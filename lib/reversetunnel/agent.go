@@ -42,6 +42,8 @@ type AgentState string
 const (
 	// AgentInitial is the state of an agent when first created.
 	AgentInitial AgentState = "initial"
+	// AgentConnecting is the state when an agent is starting but not yet connected.
+	AgentConnecting AgentState = "connecting"
 	// AgentConnected is the state of an agent when is successfully connects
 	// to a server and sends its first heartbeat.
 	AgentConnected AgentState = "connected"
@@ -51,7 +53,7 @@ const (
 )
 
 // AgentStateCallback is called when an agent's state changes.
-type AgentStateCallback func(Agent)
+type AgentStateCallback func(AgentState)
 
 // transporter handles the creation of new transports over ssh.
 type transporter interface {
@@ -127,18 +129,6 @@ func (c *agentConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// Agent represents a reverse tunnel agent.
-type Agent interface {
-	// Start starts the agent in the background.
-	Start(context.Context) error
-	// Stop closes the agent and releases resources.
-	Stop() error
-	// GetState returns the current state of the agent.
-	GetState() AgentState
-	// GetProxyID returns the proxy id of the proxy the agent is connected to.
-	GetProxyID() (string, bool)
-}
-
 // agent creates and manages a reverse tunnel to a remote proxy server.
 type agent struct {
 	agentConfig
@@ -146,6 +136,10 @@ type agent struct {
 	client SSHClient
 	// state is the internal state of an agent. Use GetState for threadsafe access.
 	state AgentState
+	// doneConnecting is closed when an agent's state will never transition to connecting.
+	doneConnecting chan struct{}
+	// once ensures doneConnecting is closed exactly once.
+	once sync.Once
 	// mu manages concurrent access to agent state.
 	mu sync.RWMutex
 	// hbChannel is the channel heartbeats are sent over.
@@ -154,15 +148,19 @@ type agent struct {
 	hbRequests <-chan *ssh.Request
 	// unclaim releases the claim to the proxy in the tracker.
 	unclaim func()
-	// stopOnce ensure that cleanup when stopping an agent runs once.
-	stopOnce sync.Once
 	// ctx is the internal context used to release resources used by  the agent.
 	ctx context.Context
 	// cancel cancels the internal context.
 	cancel context.CancelFunc
 	// wg ensures that all concurrent operations finish.
-	wg          sync.WaitGroup
-	transportWG sync.WaitGroup
+	wg sync.WaitGroup
+	// drainCtx is used to release resourced that must be stopped to drain the agent.
+	drainCtx context.Context
+	// drainCancel cancels the drain context.
+	drainCancel context.CancelFunc
+	// drainWG tracks transports and other concurrent operations required
+	// to drain a connection are finished.
+	drainWG sync.WaitGroup
 }
 
 // newAgent intializes a reverse tunnel agent.
@@ -172,9 +170,14 @@ func newAgent(config agentConfig) (*agent, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	noop := func() {}
 	return &agent{
-		agentConfig: config,
-		state:       AgentInitial,
+		agentConfig:    config,
+		state:          AgentInitial,
+		cancel:         noop,
+		drainCancel:    noop,
+		unclaim:        noop,
+		doneConnecting: make(chan struct{}),
 	}, nil
 }
 
@@ -218,56 +221,112 @@ func proxyIDFromPrincipals(principals []string) (string, bool) {
 	return id, true
 }
 
-// updateState updates the internal state of the agent.
-func (a *agent) updateState(state AgentState) {
+// updateState updates the internal state of the agent returning
+// the state of the agent before the update and an error if the
+// state transition is not valid.
+func (a *agent) updateState(state AgentState) (AgentState, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.state != state {
-		a.log.Debugf("Changing state %s -> %s.", a.state, state)
+	errMsg := "invalid state transitation: %s -> %s"
+
+	// Once closed no state transitions are allowed.
+	if a.state == AgentClosed {
+		return a.state, trace.Errorf(errMsg, a.state, state)
 	}
 
-	a.state = state
-	if a.stateCallback != nil {
-		go a.stateCallback(a)
+	// A state must not transition to itself.
+	if a.state == state {
+		return a.state, trace.Errorf(errMsg, a.state, state)
 	}
+
+	// A state must never transition back to initial.
+	if state == AgentInitial {
+		return a.state, trace.Errorf(errMsg, a.state, state)
+	}
+
+	// Connecting must transition from initial.
+	if state == AgentConnecting && a.state != AgentInitial {
+		return a.state, trace.Errorf(errMsg, a.state, state)
+	}
+
+	// Connected must transition from connecting.
+	if state == AgentConnected && a.state != AgentConnecting {
+		return a.state, trace.Errorf(errMsg, a.state, state)
+	}
+
+	prevState := a.state
+	a.state = state
+	a.log.Debugf("Changing state %s -> %s.", prevState, state)
+
+	if a.stateCallback != nil {
+		go a.stateCallback(a.state)
+	}
+
+	return prevState, nil
 }
 
 // Start starts an agent returning after successfully connecting and sending
 // the first heatbeat.
 func (a *agent) Start(ctx context.Context) error {
 	a.log.Debugf("Starting agent %v", a.addr)
-	a.ctx, a.cancel = context.WithCancel(ctx)
 
-	err := a.connect()
+	var err error
+	defer func() {
+		a.once.Do(func() {
+			close(a.doneConnecting)
+		})
+		if err != nil {
+			a.Stop()
+		}
+	}()
+
+	_, err = a.updateState(AgentConnecting)
 	if err != nil {
-		a.Stop()
 		return trace.Wrap(err)
 	}
 
-	// Update state before starting handlers. This ensures a future call to
-	// to stop will see the connection was started and update the state.
-	a.updateState(AgentConnected)
+	a.ctx, a.cancel = context.WithCancel(ctx)
+	a.drainCtx, a.drainCancel = context.WithCancel(a.ctx)
+
+	err = a.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Start handing global requests again.
 	a.wg.Add(1)
 	go func() {
-		err := a.handleGlobalRequests(a.ctx, a.client.GlobalRequests())
-		if err != nil {
+		if err := a.handleGlobalRequests(a.ctx, a.client.GlobalRequests()); err != nil {
 			a.log.WithError(err).Debug("Failed to handle global requests.")
 		}
 		a.wg.Done()
 		a.Stop()
 	}()
 
+	// drainWG.Done will be called from handleDrainChannels.
+	a.drainWG.Add(1)
 	a.wg.Add(1)
 	go func() {
-		a.handleChannels()
-		if err != nil {
+		if err := a.handleDrainChannels(); err != nil {
+			a.log.WithError(err).Debug("Failed to handle drainable channels.")
+		}
+		a.wg.Done()
+		a.Stop()
+	}()
+
+	a.wg.Add(1)
+	go func() {
+		if err := a.handleChannels(); err != nil {
 			a.log.WithError(err).Debug("Failed to handle channels.")
 		}
 		a.wg.Done()
 		a.Stop()
 	}()
+
+	_, err = a.updateState(AgentConnected)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
@@ -332,21 +391,23 @@ func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
 
 // Stop stops the agent ensuring the cleanup runs exactly once.
 func (a *agent) Stop() error {
-	a.stopOnce.Do(func() {
-		a.stop()
-	})
-	return nil
-}
-
-// stop closes the connection gracefully. This should only be called once.
-func (a *agent) stop() error {
-	// Only update state if the agent was started.
-	if a.GetState() != AgentInitial {
-		defer a.updateState(AgentClosed)
+	prevState, err := a.updateState(AgentClosed)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
+	// Wait for agent to finish connecting.
+	if prevState == AgentConnecting {
+		<-a.doneConnecting
+	}
+
+	a.drainCancel()
+
+	a.unclaim()
+	a.lease.Release()
+
 	// Wait for open tranports to close before closing the connection.
-	a.transportWG.Wait()
+	a.drainWG.Wait()
 
 	a.cancel()
 	if a.client != nil {
@@ -354,12 +415,6 @@ func (a *agent) stop() error {
 	}
 
 	a.wg.Wait()
-
-	a.lease.Release()
-	if a.unclaim != nil {
-		a.unclaim()
-	}
-
 	return nil
 }
 
@@ -368,7 +423,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 	for {
 		select {
 		case r := <-requests:
-			// When the channel is closing, nil is returned.
+			// The request will be nil when the request channel is closing.
 			if r == nil {
 				return trace.Errorf("global request channel is closing")
 			}
@@ -397,26 +452,54 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 				}
 			}
 		case <-ctx.Done():
-			return ctx.Err()
+			return trace.Wrap(ctx.Err())
 		}
 	}
 }
 
-// handleChannels handles tranports, discoveries, and heartbeats.
-func (a *agent) handleChannels() error {
+func (a *agent) isDraining() bool {
+	select {
+	case <-a.drainCtx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// handleDrainChannels handles channels that should be stopped when the agent is draining.
+func (a *agent) handleDrainChannels() error {
 	ticker := time.NewTicker(a.keepAlive)
 	defer ticker.Stop()
-
 	newTransportC := a.client.HandleChannelOpen(constants.ChanTransport)
-	newDiscoveryC := a.client.HandleChannelOpen(chanDiscovery)
+
+	// once ensures drainWG.Done() is called one more time
+	// after no more transports will be created.
+	once := &sync.Once{}
+	drainWGDone := func() {
+		once.Do(func() {
+			a.drainWG.Done()
+		})
+	}
+	defer drainWGDone()
 
 	for {
+		if a.isDraining() {
+			drainWGDone()
+		}
+
 		select {
-		// need to exit:
 		case <-a.ctx.Done():
-			return trace.ConnectionProblem(nil, "heartbeat: agent is stopped")
-		// time to ping:
+			return trace.Wrap(a.ctx.Err())
+		// Handle closed heartbeat channel.
+		case req := <-a.hbRequests:
+			if req == nil {
+				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
+			}
+		// Send ping over heartbeat channel.
 		case <-ticker.C:
+			if a.isDraining() {
+				continue
+			}
 			bytes, _ := a.clock.Now().UTC().MarshalText()
 			_, err := a.hbChannel.SendRequest("ping", false, bytes)
 			if err != nil {
@@ -424,16 +507,19 @@ func (a *agent) handleChannels() error {
 				return trace.Wrap(err)
 			}
 			a.log.Debugf("Ping -> %v.", a.client.RemoteAddr())
-		// ssh channel closed:
-		case req := <-a.hbRequests:
-			if req == nil {
-				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
-			}
 		// Handle transport requests.
 		case nch := <-newTransportC:
 			if nch == nil {
 				continue
 			}
+			if a.isDraining() {
+				err := nch.Reject(ssh.ConnectionFailed, "agent connection is draining")
+				if err != nil {
+					a.log.WithError(err).Warningf("Failed to reject transport channel.")
+				}
+				continue
+			}
+
 			a.log.Debugf("Transport request: %v.", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
@@ -443,12 +529,25 @@ func (a *agent) handleChannels() error {
 
 			t := a.transporter.transport(a.ctx, ch, req, a.client)
 
-			a.transportWG.Add(1)
+			a.drainWG.Add(1)
 			go func() {
 				t.start()
-				a.transportWG.Done()
+				a.drainWG.Done()
 			}()
 
+		}
+	}
+}
+
+// handleChannels handles channels that should run for the entire lifetime of the agent.
+func (a *agent) handleChannels() error {
+	newDiscoveryC := a.client.HandleChannelOpen(chanDiscovery)
+
+	for {
+		select {
+		// need to exit:
+		case <-a.ctx.Done():
+			return trace.Wrap(a.ctx.Err())
 		// new discovery request channel
 		case nch := <-newDiscoveryC:
 			if nch == nil {
@@ -480,7 +579,7 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	a.log.Debugf("handleDiscovery requests channel.")
 	defer func() {
 		if err := ch.Close(); err != nil {
-			a.log.Warnf("Failed to close discovery channel:: %v", err)
+			a.log.Warnf("Failed to close discovery channel: %v", err)
 		}
 	}()
 
