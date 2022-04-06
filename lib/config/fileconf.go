@@ -1151,8 +1151,18 @@ type App struct {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string `yaml:"redirect"`
+	// Substitute is a list of substitution rules that should be rewritten in the response body.
+	Substitutions []Substitution `yaml:"substitutions,omitempty"`
 	// Headers is a list of extra headers to inject in the request.
 	Headers []string `yaml:"headers,omitempty"`
+}
+
+// Substitution represents a single http body substitution.
+type Substitution struct {
+	// Value to be searched for in the response body.
+	Find string `yaml:"find"`
+	// Value that will replace all found occurrences.
+	Replace string `yaml:"replace"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

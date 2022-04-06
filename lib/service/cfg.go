@@ -1019,8 +1019,18 @@ type LDAPConfig struct {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string
+	// Substitute is a list of substitution rules that should be rewritten in the response body.
+	Substitutions []Substitution
 	// Headers is a list of extra headers to inject in the request.
 	Headers []Header
+}
+
+// Substitution represents a single http body substitution.
+type Substitution struct {
+	// Value to be searched for in the response body.
+	Find string
+	// Value that will replace all found occurrences.
+	Replace string
 }
 
 // Header represents a single http header passed over to the proxied application.

@@ -3584,6 +3584,13 @@ func (process *TeleportProcess) initApps() {
 				rewrite = &types.Rewrite{
 					Redirect: app.Rewrite.Redirect,
 				}
+				for _, substitution := range app.Rewrite.Substitutions {
+					rewrite.Substitutions = append(rewrite.Substitutions,
+						&types.Substitution{
+							Find:    substitution.Find,
+							Replace: substitution.Replace,
+						})
+				}
 				for _, header := range app.Rewrite.Headers {
 					rewrite.Headers = append(rewrite.Headers,
 						&types.Header{
