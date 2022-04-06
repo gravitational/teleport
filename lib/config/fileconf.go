@@ -151,6 +151,8 @@ type SampleFlags struct {
 	CertFile string
 	// DataDir is a path to a directory where Teleport keep its data
 	DataDir string
+	// AuthToken is a token to register with an auth server
+	AuthToken string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -176,7 +178,9 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.Logger.Format.Output = "text"
+
 	g.DataDir = flags.DataDir
+	g.AuthToken = flags.AuthToken
 
 	// SSH config:
 	var s SSH
