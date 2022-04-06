@@ -180,7 +180,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, err := auth.ClientCertPool(accessPoint, clusterName)
+		pool, err := auth.DefaultClientCertPool(accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
