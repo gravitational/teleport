@@ -123,7 +123,13 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 			return nil, trace.Wrap(err)
 		}
 
-		sessions[i] = session
+		if session.Expiry().After(time.Now().UTC()) {
+			sessions[i] = session
+		} else {
+			if err := s.bk.Delete(ctx, item.Key); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	}
 
 	return sessions, nil
@@ -170,7 +176,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	item := backend.Item{Key: backend.Key(sessionPrefix, session.GetSessionID()), Value: json}
+	item := backend.Item{Key: backend.Key(sessionPrefix, session.GetSessionID()), Value: json, Expires: session.Expiry()}
 	_, err = s.bk.Put(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
