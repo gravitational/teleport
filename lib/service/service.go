@@ -483,7 +483,7 @@ type Process interface {
 	Shutdown(context.Context)
 	// WaitForEvent waits for event to occur, sends event to the channel,
 	// this is a non-blocking function.
-	WaitForEvent(ctx context.Context, name string, eventC chan Event)
+	WaitForEvent(ctx context.Context, name string, eventC chan<- Event)
 	// WaitWithContext waits for the service to stop. This is a blocking
 	// function.
 	WaitWithContext(ctx context.Context)
@@ -2274,15 +2274,18 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	process.RegisterFunc("readyz.monitor", func() error {
 		// Start loop to monitor for events that are used to update Teleport state.
+		ctx, cancel := context.WithCancel(process.GracefulExitContext())
+		defer cancel()
+
 		eventCh := make(chan Event, 1024)
-		process.WaitForEvent(process.ExitContext(), TeleportDegradedEvent, eventCh)
-		process.WaitForEvent(process.ExitContext(), TeleportOKEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
 
 		for {
 			select {
 			case e := <-eventCh:
 				ps.update(e)
-			case <-process.GracefulExitContext().Done():
+			case <-ctx.Done():
 				log.Debugf("Teleport is exiting, returning.")
 				return nil
 			}
