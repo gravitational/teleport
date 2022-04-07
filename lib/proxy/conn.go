@@ -26,6 +26,13 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	// maxChunkSize is the maximum number of bytes to send in a single data message.
+	// According to https://github.com/grpc/grpc.github.io/issues/371 the optimal
+	// size is between 16KiB to 64KiB.
+	maxChunkSize int = 1024 * 16
+)
+
 // Stream is a common interface for grpc client and server streams.
 type Stream interface {
 	Context() context.Context
@@ -40,7 +47,6 @@ type streamConn struct {
 	wLock  sync.Mutex
 	rLock  sync.Mutex
 	rBytes []byte
-	rOff   int
 
 	src net.Addr
 	dst net.Addr
@@ -60,31 +66,32 @@ func (c *streamConn) Read(b []byte) (n int, err error) {
 	c.rLock.Lock()
 	defer c.rLock.Unlock()
 
-	if c.rOff == 0 {
+	if len(c.rBytes) == 0 {
 		frame, err := c.stream.Recv()
+		if err == io.EOF {
+			return 0, io.EOF
+		}
 		if err != nil {
 			return 0, trace.ConnectionProblem(err, "failed to receive on stream")
 		}
 
 		data := frame.GetData()
 		if data == nil {
-			return 0, trace.ConnectionProblem(trace.Errorf("failed to receive on stream"), "invalid data frame")
+			return 0, trace.BadParameter("received invalid data frame")
 		}
 
 		c.rBytes = data.Bytes
 	}
 
-	copy(b, c.rBytes[c.rOff:])
+	n = copy(b, c.rBytes)
+	c.rBytes = c.rBytes[n:]
 
-	// Reset the read offset if all the data has been read.
-	if (len(c.rBytes) - c.rOff) <= len(b) {
-		n := len(c.rBytes) - c.rOff
-		c.rOff = 0
-		return n, nil
+	// Stop holding onto buffer immediately
+	if len(c.rBytes) == 0 {
+		c.rBytes = nil
 	}
 
-	c.rOff += len(b)
-	return len(b), nil
+	return n, nil
 }
 
 // Write sends data over the grpc stream.
@@ -92,14 +99,24 @@ func (c *streamConn) Write(b []byte) (int, error) {
 	c.wLock.Lock()
 	defer c.wLock.Unlock()
 
-	err := c.stream.Send(&proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{
-		Bytes: b,
-	}}})
-	if err != nil {
-		return 0, trace.ConnectionProblem(err, "failed to send on stream")
+	var sent int
+	for sent < len(b) {
+		upperBound := len(b)
+		if upperBound-sent > maxChunkSize {
+			upperBound = maxChunkSize + sent
+		}
+
+		send := b[sent:upperBound]
+		err := c.stream.Send(&proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{
+			Bytes: send,
+		}}})
+		if err != nil {
+			return sent, trace.ConnectionProblem(err, "failed to send on stream")
+		}
+		sent += len(send)
 	}
 
-	return len(b), nil
+	return sent, nil
 }
 
 // Close cleans up resources used by the connection.
@@ -134,7 +151,7 @@ func (c *streamConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-// pipeConn copies between two ReadWriteCloser and closes them when done.
+// pipeConn copies between two net.Conns and closes them when done.
 func pipeConn(ctx context.Context, src net.Conn, dst net.Conn) (int64, int64, error) {
 	var (
 		sent, received int64
