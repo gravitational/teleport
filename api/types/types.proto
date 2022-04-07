@@ -941,10 +941,7 @@ message AgentMeshTunnelStrategy {}
 
 // ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
 message ProxyPeeringTunnelStrategy {
-    int64 AgentConnectionCount = 1 [
-        (gogoproto.jsontag) = "agent_connection_count,omitempty",
-        (gogoproto.moretags) = "yaml:\"agent_connection_count,omitempty\""
-    ];
+    int64 AgentConnectionCount = 1 [ (gogoproto.jsontag) = "agent_connection_count,omitempty" ];
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.

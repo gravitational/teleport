@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/teleport/api/utils"
+
 	"github.com/gravitational/trace"
 )
 
@@ -64,9 +65,7 @@ type tunnelStrategyConfig struct {
 
 // newTunnelStrategyConfig creates a new tunnelStrategyConfig instance.
 func newTunnelStrategyConfig() *tunnelStrategyConfig {
-	return &tunnelStrategyConfig{
-		Params: make(map[string]interface{}),
-	}
+	return &tunnelStrategyConfig{}
 }
 
 // setFromMap sets a TunnelStrategyConfig from a map.
@@ -75,12 +74,15 @@ func (c *tunnelStrategyConfig) setFromMap(m map[string]interface{}) error {
 	if !ok {
 		return trace.BadParameter("missing type parameter")
 	}
+
+	// The map representation of TunnelStrategyType is expected to be a string.
 	strategyType, ok := rawStrategy.(string)
 	if !ok {
 		return trace.BadParameter("invalid type parameter")
 	}
 	c.Type = TunnelStrategyType(strategyType)
 
+	c.Params = make(map[string]interface{}, len(m)-1)
 	for k, v := range m {
 		if k == tunnelStrategyTypeParam {
 			continue
@@ -92,11 +94,13 @@ func (c *tunnelStrategyConfig) setFromMap(m map[string]interface{}) error {
 
 // getMapCopy returns a TunnelStrategyConfig as a map.
 func (c *tunnelStrategyConfig) getMapCopy() map[string]interface{} {
-	mCopy := make(map[string]interface{})
+	mCopy := make(map[string]interface{}, len(c.Params)+1)
 	for k, v := range c.Params {
 		mCopy[k] = v
 	}
-	mCopy[tunnelStrategyTypeParam] = c.Type
+
+	// The map representation of TunnelStrategyType is expected to be a string.
+	mCopy[tunnelStrategyTypeParam] = string(c.Type)
 	return mCopy
 }
 
