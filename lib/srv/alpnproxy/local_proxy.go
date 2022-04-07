@@ -75,8 +75,6 @@ type LocalProxyConfig struct {
 	Certs []tls.Certificate
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
-	// ForwardProxyListener is the listener for forward proxy.
-	ForwardProxyListener net.Listener
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -254,14 +252,6 @@ func (l *LocalProxy) GetAddr() string {
 	return l.cfg.Listener.Addr().String()
 }
 
-// GetForwardProxyAddr returns the forward proxy's listener address.
-func (l *LocalProxy) GetForwardProxyAddr() string {
-	if l.cfg.ForwardProxyListener != nil {
-		return l.cfg.ForwardProxyListener.Addr().String()
-	}
-	return ""
-}
-
 // handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
 // traffic to the upstreamConn (TLS connection to remote host).
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
@@ -307,23 +297,15 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 
 func (l *LocalProxy) Close() error {
 	l.cancel()
-	return trace.NewAggregate(
-		utils.CloseListener(l.cfg.Listener),
-		utils.CloseListener(l.cfg.ForwardProxyListener),
-	)
+
+	if err := utils.CloseListener(l.cfg.Listener); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // StartAWSAccessProxy starts the local AWS CLI proxy.
 func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
-	receiver, ok := l.cfg.Listener.(ForwardProxyReceiver)
-	if !ok {
-		return trace.BadParameter("listener must be a forward proxy receiver")
-	}
-
-	if err := l.startForwardProxy(receiver); err != nil {
-		return trace.Wrap(err)
-	}
-
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			NextProtos:         []string{string(l.cfg.Protocol)},
@@ -346,6 +328,9 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 			return
 		}
 
+		// Requests forwarded from forward proxy have original hostnames
+		// instead of localhost. Set appropriate header to keep this
+		// information.
 		if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
 			req.Header.Set("X-Forwarded-Host", req.Host)
 		}
@@ -355,26 +340,5 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-// startForwardProxy starts the forward proxy.
-func (l *LocalProxy) startForwardProxy(receiver ForwardProxyReceiver) error {
-	localForwardProxy, err := NewForwardProxy(ForwardProxyConfig{
-		TunnelProtocol:      "https",
-		Listener:            l.cfg.ForwardProxyListener,
-		Receivers:           []ForwardProxyReceiver{receiver},
-		InsecureSystemProxy: l.cfg.InsecureSkipVerify,
-		CloseContext:        l.context,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	go func() {
-		err := localForwardProxy.Start()
-		if err != nil {
-			log.WithError(err).Error("Failed to start forward proxy.")
-		}
-	}()
 	return nil
 }

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"sort"
@@ -35,6 +36,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -86,6 +88,17 @@ func onAWS(cf *CLIConf) error {
 		}
 	}()
 
+	forwardProxy, err := createAWSForwardProxy(cf, lp)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer forwardProxy.Close()
+	go func() {
+		if err := forwardProxy.Start(); err != nil {
+			log.WithError(err).Errorf("Failed to start forward proxy.")
+		}
+	}()
+
 	// Setup the command to run.
 	cmd := exec.Command(awsCLIBinaryName, cf.AWSCommandArgs...)
 	if cf.LocalExec {
@@ -103,8 +116,8 @@ func onAWS(cf *CLIConf) error {
 		fmt.Sprintf("AWS_ACCESS_KEY_ID=%s", credValues.AccessKeyID),
 		fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%s", credValues.SecretAccessKey),
 		fmt.Sprintf("AWS_CA_BUNDLE=%s", tmpCert.getCAPath()),
-		fmt.Sprintf("HTTPS_PROXY=%s", "http://"+lp.GetForwardProxyAddr()),
-		fmt.Sprintf("https_proxy=%s", "http://"+lp.GetForwardProxyAddr()),
+		fmt.Sprintf("HTTPS_PROXY=%s", "http://"+forwardProxy.GetAddr()),
+		fmt.Sprintf("https_proxy=%s", "http://"+forwardProxy.GetAddr()),
 	)
 
 	cmd.Stdout = os.Stdout
@@ -140,7 +153,6 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 		return nil, trace.Wrap(err)
 	}
 
-	forwardProxyListenAddr := "localhost:0"
 	listenAddr := "localhost:0"
 	if cf.LocalProxyPort != "" {
 		port, err := strconv.Atoi(cf.LocalProxyPort)
@@ -148,8 +160,51 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 			return nil, trace.BadParameter("invalid local proxy port %s", cf.LocalProxyPort)
 		}
 
-		forwardProxyListenAddr = fmt.Sprintf("localhost:%d", port)
+		// cf.LocalProxyPort is reserved for forward proxy.
 		listenAddr = fmt.Sprintf("localhost:%d", port+1)
+	}
+
+	// Create listener for receiving AWS requests tunneled from forward proxy:
+	// client request -> forward proxy -> ALPN local proxy -> remote server
+	//
+	// The listener can also receive AWS calls directly if clients specifies
+	// the listener address as endpoint URLs:
+	// client request -> ALPN local proxy -> remote server
+	//
+	// In either case, AWS clients need to verify CA that can be provided by
+	// AWS_CA_BUNDLE.
+	listener, err := alpnproxy.NewHTTPSListenerWithCertGen(alpnproxy.HTTPSListenerWithCertGenConfig{
+		ListenAddr: listenAddr,
+		CA:         ca,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		Listener:           listener,
+		RemoteProxyAddr:    tc.WebProxyAddr,
+		Protocol:           alpncommon.ProtocolHTTP,
+		InsecureSkipVerify: cf.InsecureSkipVerify,
+		ParentContext:      cf.Context,
+		SNI:                address.Host(),
+		AWSCredentials:     cred,
+		Certs:              []tls.Certificate{appCerts},
+	})
+	if err != nil {
+		return nil, trace.NewAggregate(
+			err,
+			utils.CloseListener(listener),
+		)
+	}
+	return lp, nil
+}
+
+// createAWSForwardProxy creates a forward proxy for AWS requests.
+func createAWSForwardProxy(cf *CLIConf, lp *alpnproxy.LocalProxy) (*alpnproxy.ForwardProxy, error) {
+	listenAddr := "localhost:0"
+	if cf.LocalProxyPort != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", cf.LocalProxyPort)
 	}
 
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to
@@ -166,48 +221,39 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	// information like host and sometimes user agent. In addition, the forward
 	// proxy and its receiver are localhost only so the transport does not
 	// leave the local network.
-	forwardProxyListener, err := net.Listen("tcp", forwardProxyListenAddr)
+	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create listener for receiving AWS requests tunneled from forward proxy:
-	// client request -> forward proxy -> ALPN local proxy -> remote server
-	//
-	// The listener can also receive AWS calls directly if clients specifies
-	// the listener address as endpoint URLs:
-	// client request -> ALPN local proxy -> remote server
-	//
-	// In either case, AWS clients need to verify CA that can be provided by
-	// AWS_CA_BUNDLE.
-	listener, err := alpnproxy.NewHTTPSListenerReceiver(alpnproxy.HTTPSListenerReceiverConfig{
-		ListenAddr: listenAddr,
-		CA:         ca,
-		Want:       alpnproxy.WantAWSRequests,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	forwardProxy, err := alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
+		Listener:     listener,
+		CloseContext: cf.Context,
+		Handlers: []alpnproxy.ConnectRequestHandler{
+			// Forward AWS requests to ALPN proxy.
+			alpnproxy.NewForwardToHostHandler(alpnproxy.ForwardToHostHandlerConfig{
+				MatchFunc: func(req *http.Request) bool {
+					return awsapiutils.IsAWSEndpoint(req.Host)
+				},
+				Host: lp.GetAddr(),
+			}),
 
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		Listener:             listener,
-		ForwardProxyListener: forwardProxyListener,
-		RemoteProxyAddr:      tc.WebProxyAddr,
-		Protocol:             alpncommon.ProtocolHTTP,
-		InsecureSkipVerify:   cf.InsecureSkipVerify,
-		ParentContext:        cf.Context,
-		SNI:                  address.Host(),
-		AWSCredentials:       cred,
-		Certs:                []tls.Certificate{appCerts},
+			// Forward non AWS requests to system proxy, if configured.
+			alpnproxy.NewForwardToSystemProxyHandler(alpnproxy.ForwardToSystemProxyHandlerConfig{
+				InsecureSystemProxy: cf.InsecureSkipVerify,
+			}),
+
+			// Forward non AWS requests to their original hosts.
+			alpnproxy.NewForwardToOriginalHostHandler(),
+		},
 	})
 	if err != nil {
 		return nil, trace.NewAggregate(
 			err,
 			utils.CloseListener(listener),
-			utils.CloseListener(forwardProxyListener),
 		)
 	}
-	return lp, nil
+	return forwardProxy, nil
 }
 
 func loadAWSAppCertificate(tc *client.TeleportClient, appName string) (tls.Certificate, error) {

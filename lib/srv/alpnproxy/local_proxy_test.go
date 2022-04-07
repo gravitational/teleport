@@ -19,7 +19,6 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -83,7 +82,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 			lp := createAWSAccessProxySuite(t, tc.proxyCred)
 
 			url := url.URL{
-				Scheme: "https",
+				Scheme: "http",
 				Host:   lp.GetAddr(),
 				Path:   "/",
 			}
@@ -96,49 +95,24 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 				v4.NewSigner(tc.originCred).Sign(req, pr, awsRegion, awsService, time.Now())
 			}
 
-			resp, err := httpsClient().Do(req)
+			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantStatus, resp.StatusCode)
 			require.NoError(t, resp.Body.Close())
-
-			// Test the same request through forward proxy.
-			t.Run("forward proxy", func(t *testing.T) {
-				url.Host = "test.service.localhost.amazonaws.com:443"
-
-				req, err := http.NewRequest(http.MethodGet, url.String(), pr)
-				require.NoError(t, err)
-
-				if tc.originCred != nil {
-					v4.NewSigner(tc.originCred).Sign(req, pr, awsRegion, awsService, time.Now())
-				}
-
-				resp, err := httpsClientWithProxyURL(lp.GetForwardProxyAddr()).Do(req)
-				require.NoError(t, err)
-				require.Equal(t, tc.wantStatus, resp.StatusCode)
-				if resp.StatusCode == http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					require.NoError(t, err)
-					require.Equal(t, "test.service.localhost.amazonaws.com", string(body))
-				}
-				require.NoError(t, resp.Body.Close())
-			})
 		})
 	}
 }
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
-	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Write([]byte(request.Header.Get("X-Forwarded-Host")))
-	}))
+	hs := httptest.NewTLSServer(httpHandlerReturnsCode(http.StatusOK))
 
 	lp, err := NewLocalProxy(LocalProxyConfig{
-		Listener:             mustCreateHTTPSListenerReceiver(t, WantAWSRequests),
-		ForwardProxyListener: mustCreateLocalListener(t),
-		RemoteProxyAddr:      hs.Listener.Addr().String(),
-		Protocol:             common.ProtocolHTTP,
-		ParentContext:        context.Background(),
-		InsecureSkipVerify:   true,
-		AWSCredentials:       cred,
+		Listener:           mustCreateLocalListener(t),
+		RemoteProxyAddr:    hs.Listener.Addr().String(),
+		Protocol:           common.ProtocolHTTP,
+		ParentContext:      context.Background(),
+		InsecureSkipVerify: true,
+		AWSCredentials:     cred,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

@@ -23,7 +23,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strings"
 	"sync"
@@ -31,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 )
 
@@ -43,46 +42,32 @@ func IsConnectRequest(req *http.Request) bool {
 	return req.Method == "CONNECT"
 }
 
+// ConnectRequestHandler defines handler for handling CONNECT requests.
+type ConnectRequestHandler interface {
+	// Match returns true if this handler wants to handle the provided request.
+	Match(host *http.Request) bool
+
+	// Handle handles the request with provided client connection.
+	Handle(ctx context.Context, clientConn net.Conn, req *http.Request)
+}
+
 // ForwardProxyConfig is the config for forward proxy server.
 type ForwardProxyConfig struct {
-	// TunnelProtocol is the protocol of the requests being tunneled.
-	TunnelProtocol string
 	// Listener is the network listener.
 	Listener net.Listener
-	// Receivers is a list of receivers that may receive from this proxy.
-	Receivers []ForwardProxyReceiver
-	// DropUnwantedRequests drops the request if no receiver wants the request.
-	// If false, forward proxy sends the unwanted request to original host.
-	DropUnwantedRequests bool
-	// Log is the logger.
-	Log logrus.FieldLogger
 	// CloseContext is the close context.
 	CloseContext context.Context
-
-	// InsecureSystemProxy allows insecure system proxy when forwarding
-	// unwanted requests.
-	InsecureSystemProxy bool
-	// SystemProxyFunc is the function that determines the system proxy URL to
-	// use for a given request URL.
-	SystemProxyFunc func(reqURL *url.URL) (*url.URL, error)
+	// Handlers is a list of CONNECT request handlers.
+	Handlers []ConnectRequestHandler
 }
 
 // CheckAndSetDefaults checks and sets default config values.
 func (c *ForwardProxyConfig) CheckAndSetDefaults() error {
-	if c.TunnelProtocol == "" {
-		c.TunnelProtocol = "https"
-	}
 	if c.Listener == nil {
 		return trace.BadParameter("missing listener")
 	}
 	if c.CloseContext == nil {
 		return trace.BadParameter("missing close context")
-	}
-	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "fwdproxy")
-	}
-	if c.SystemProxyFunc == nil {
-		c.SystemProxyFunc = httpproxy.FromEnvironment().ProxyFunc()
 	}
 	return nil
 }
@@ -106,7 +91,7 @@ func NewForwardProxy(cfg ForwardProxyConfig) (*ForwardProxy, error) {
 // Start starts serving requests.
 func (p *ForwardProxy) Start() error {
 	err := http.Serve(p.cfg.Listener, p)
-	if err != nil && !utils.IsOKNetworkError(err) {
+	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -118,6 +103,11 @@ func (p *ForwardProxy) Close() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetAddr returns the listener address.
+func (l *ForwardProxy) GetAddr() string {
+	return l.cfg.Listener.Addr().String()
 }
 
 // ServeHTTP serves HTTP requests. Implements http.Handler.
@@ -132,74 +122,170 @@ func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	clientConn := hijackClientConnection(rw)
 	if clientConn == nil {
-		p.cfg.Log.Errorf("Failed to hijack client connection.")
+		log.Error("Failed to hijack client connection.")
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	defer clientConn.Close()
 
-	for _, receiver := range p.cfg.Receivers {
-		if receiver.Want(req) {
-			err := p.forwardClientToHost(clientConn, receiver.Addr().String(), req)
-			if err != nil {
-				p.cfg.Log.WithError(err).Errorf("Failed to handle forward request for %q.", req.Host)
-				p.writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
-			}
+	for _, handler := range p.cfg.Handlers {
+		if handler.Match(req) {
+			handler.Handle(p.cfg.CloseContext, clientConn, req)
 			return
 		}
 	}
 
-	p.handleUnwantedRequest(clientConn, req)
+	writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadRequest)
 }
 
-// handleUnwantedRequest handles the request when no receiver wants it.
-func (p *ForwardProxy) handleUnwantedRequest(clientConn net.Conn, req *http.Request) {
-	if p.cfg.DropUnwantedRequests {
-		p.cfg.Log.Debugf("Dropped forward request for %q.", req.Host)
-		p.writeHeader(clientConn, req.Proto, http.StatusBadRequest)
-		return
-	}
+// ForwardToHostHandlerConfig is the config for ForwardToHostHandler.
+type ForwardToHostHandlerConfig struct {
+	// Match returns true if this handler wants to handle the provided request.
+	MatchFunc func(req *http.Request) bool
 
-	// Honors system proxy if exists.
-	systemProxyURL, err := p.cfg.SystemProxyFunc(&url.URL{
-		Host:   req.Host,
-		Scheme: p.cfg.TunnelProtocol,
-	})
-	if err == nil && systemProxyURL != nil {
-		err = p.forwardClientToSystemProxy(clientConn, systemProxyURL, req)
-		if err != nil {
-			p.cfg.Log.WithError(err).Errorf("Failed to forward request for %q through system proxy %v.", req.Host, systemProxyURL)
-			p.writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
-		}
-		return
-	}
+	// Host to forward the request to. If empty, request is forwarded to its
+	// original host.
+	Host string
+}
 
-	// Forward to the original host.
-	err = p.forwardClientToHost(clientConn, req.Host, req)
-	if err != nil {
-		p.cfg.Log.WithError(err).Errorf("Failed to forward request for %q.", req.Host)
-		p.writeHeader(clientConn, req.Proto, http.StatusInternalServerError)
+// ForwardToHostHandler is a ConnectRequestHandler that forwards requests to
+// designated host.
+type ForwardToHostHandler struct {
+	cfg ForwardToHostHandlerConfig
+}
+
+// NewForwardToHostHandler creates a new ForwardToHostHandler.
+func NewForwardToHostHandler(cfg ForwardToHostHandlerConfig) *ForwardToHostHandler {
+	return &ForwardToHostHandler{
+		cfg: cfg,
 	}
 }
 
-// forwardClientToHost forwards client connection to provided host.
-func (p *ForwardProxy) forwardClientToHost(clientConn net.Conn, host string, req *http.Request) error {
+// Match returns true if this handler wants to handle the provided request.
+func (h *ForwardToHostHandler) Match(req *http.Request) bool {
+	return h.cfg.MatchFunc(req)
+}
+
+// Handle handles the request with provided client connection.
+func (h *ForwardToHostHandler) Handle(ctx context.Context, clientConn net.Conn, req *http.Request) {
+	host := h.cfg.Host
+	if host == "" {
+		host = req.Host
+	}
+
 	serverConn, err := net.Dial("tcp", host)
 	if err != nil {
-		return trace.Wrap(err)
+		log.WithError(err).Errorf("Failed to connect to host %q", host)
+		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusInternalServerError)
+		return
 	}
-
 	defer serverConn.Close()
 
 	// Let client know we are ready for proxying.
-	if err := writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusOK); err != nil {
-		return trace.Wrap(err)
+	if ok := writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusOK); !ok {
+		return
 	}
-	return p.startTunnel(clientConn, serverConn, req)
+
+	startForwardProxy(ctx, clientConn, serverConn, req.Host)
 }
 
-// forwardClientToSystemProxy forwards client connection to provided system proxy.
-func (p *ForwardProxy) forwardClientToSystemProxy(clientConn net.Conn, systemProxyURL *url.URL, req *http.Request) error {
+// NewForwardToOriginalHostHandler creates a new CONNECT request handler that
+// forwards all requests to their original hosts.
+func NewForwardToOriginalHostHandler() *ForwardToHostHandler {
+	return NewForwardToHostHandler(ForwardToHostHandlerConfig{
+		MatchFunc: func(req *http.Request) bool {
+			return true
+		},
+	})
+}
+
+// ForwardToSystemProxyHandlerConfig is the config for
+// ForwardToSystemProxyHandler.
+type ForwardToSystemProxyHandlerConfig struct {
+	// TunnelProtocol is the protocol of the requests being tunneled.
+	TunnelProtocol string
+	// InsecureSystemProxy allows insecure system proxy when forwarding
+	// unwanted requests.
+	InsecureSystemProxy bool
+	// SystemProxyFunc is the function that determines the system proxy URL to
+	// use for provided request URL.
+	SystemProxyFunc func(reqURL *url.URL) (*url.URL, error)
+}
+
+// SetDefaults sets default config values.
+func (c *ForwardToSystemProxyHandlerConfig) SetDefaults() {
+	if c.TunnelProtocol == "" {
+		c.TunnelProtocol = "https"
+	}
+	if c.SystemProxyFunc == nil {
+		c.SystemProxyFunc = httpproxy.FromEnvironment().ProxyFunc()
+	}
+}
+
+// ForwardToSystemProxyHandler is a ConnectRequestHandler that forwards
+// requests to system proxy.
+type ForwardToSystemProxyHandler struct {
+	cfg ForwardToSystemProxyHandlerConfig
+}
+
+// NewForwardToSystemProxyHandler creates a new ForwardToSystemProxyHandler.
+func NewForwardToSystemProxyHandler(cfg ForwardToSystemProxyHandlerConfig) *ForwardToSystemProxyHandler {
+	cfg.SetDefaults()
+
+	return &ForwardToSystemProxyHandler{
+		cfg: cfg,
+	}
+}
+
+// Match returns true if this handler wants to handle the provided request.
+func (h *ForwardToSystemProxyHandler) Match(req *http.Request) bool {
+	return h.getSystemProxyURL(req) != nil
+}
+
+// Handle handles the request with provided client connection.
+func (h *ForwardToSystemProxyHandler) Handle(ctx context.Context, clientConn net.Conn, req *http.Request) {
+	systemProxyURL := h.getSystemProxyURL(req)
+	if systemProxyURL == nil {
+		// Should not happen assuming Match is called beforehand.
+		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadRequest)
+		return
+	}
+
+	serverConn, err := h.connectToSystemProxy(systemProxyURL)
+	if err != nil {
+		log.WithError(err).Errorf("Failed to connect to system proxy %q", systemProxyURL.Host)
+		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadGateway)
+		return
+	}
+
+	defer serverConn.Close()
+	log.Debugf("Connected to system proxy %v.", systemProxyURL)
+
+	// Send original CONNECT request to system proxy.
+	if err = req.WriteProxy(serverConn); err != nil {
+		log.WithError(err).Errorf("Failed to send CONNTECT request to system proxy %q", systemProxyURL.Host)
+		writeHeaderToHijackedConnection(clientConn, req.Proto, http.StatusBadGateway)
+		return
+	}
+
+	startForwardProxy(ctx, clientConn, serverConn, req.Host)
+}
+
+// getSystemProxyURL returns the system proxy URL.
+func (h *ForwardToSystemProxyHandler) getSystemProxyURL(req *http.Request) *url.URL {
+	systemProxyURL, err := h.cfg.SystemProxyFunc(&url.URL{
+		Host:   req.Host,
+		Scheme: h.cfg.TunnelProtocol,
+	})
+	if err == nil && systemProxyURL != nil {
+		return systemProxyURL
+	}
+	return nil
+}
+
+// connectToSystemProxy connects to the system proxy and returns the server
+// connection.
+func (h *ForwardToSystemProxyHandler) connectToSystemProxy(systemProxyURL *url.URL) (net.Conn, error) {
 	var err error
 	var serverConn net.Conn
 	switch strings.ToLower(systemProxyURL.Scheme) {
@@ -207,56 +293,45 @@ func (p *ForwardProxy) forwardClientToSystemProxy(clientConn net.Conn, systemPro
 	case "http":
 		serverConn, err = net.Dial("tcp", systemProxyURL.Host)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 	case "https":
 		serverConn, err = tls.Dial("tcp", systemProxyURL.Host, &tls.Config{
-			InsecureSkipVerify: p.cfg.InsecureSystemProxy,
+			InsecureSkipVerify: h.cfg.InsecureSystemProxy,
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 	default:
-		return trace.BadParameter("unsupported system proxy %v", systemProxyURL)
+		return nil, trace.BadParameter("unsupported system proxy %v", systemProxyURL)
 	}
-
-	defer serverConn.Close()
-	p.cfg.Log.Debugf("Connected to system proxy %v.", systemProxyURL)
-
-	// Send original CONNECT request to system proxy.
-	connectRequestBytes, err := httputil.DumpRequest(req, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err = serverConn.Write(connectRequestBytes); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return p.startTunnel(clientConn, serverConn, req)
+	return serverConn, nil
 }
 
-// startTunnel starts streaming between client and server.
-func (p *ForwardProxy) startTunnel(clientConn, serverConn net.Conn, req *http.Request) error {
-	p.cfg.Log.Debugf("Started forwarding request for %q", req.Host)
-	defer p.cfg.Log.Debugf("Stopped forwarding request for %q", req.Host)
+// startForwardProxy starts streaming between client and server.
+func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, host string) {
+	log.Debugf("Started forwarding request for %q", host)
+	defer log.Debugf("Stopped forwarding request for %q", host)
+
+	closeContext, closeCancel := context.WithCancel(ctx)
+	defer closeCancel()
 
 	// Force close connections when close context is done.
 	go func() {
-		<-p.cfg.CloseContext.Done()
+		<-closeContext.Done()
 
 		clientConn.Close()
 		serverConn.Close()
 	}()
 
-	errsChan := make(chan error, 2)
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	stream := func(reader, writer net.Conn) {
 		_, err := io.Copy(reader, writer)
 		if err != nil && !utils.IsOKNetworkError(err) {
-			errsChan <- err
+			log.WithError(err).Errorf("Failed to stream from %q to %q", reader.LocalAddr(), writer.LocalAddr())
 		}
 		if readerConn, ok := reader.(*net.TCPConn); ok {
 			readerConn.CloseRead()
@@ -269,21 +344,6 @@ func (p *ForwardProxy) startTunnel(clientConn, serverConn net.Conn, req *http.Re
 	go stream(clientConn, serverConn)
 	go stream(serverConn, clientConn)
 	wg.Wait()
-
-	var errs []error
-	for len(errsChan) > 0 {
-		errs = append(errs, <-errsChan)
-	}
-	return trace.NewAggregate(errs...)
-}
-
-// writeHeader writes HTTP status to hijacked client connection, and log a
-// message if failed.
-func (p *ForwardProxy) writeHeader(conn net.Conn, protocol string, statusCode int) {
-	err := writeHeaderToHijackedConnection(conn, protocol, statusCode)
-	if err != nil && !utils.IsOKNetworkError(err) {
-		p.cfg.Log.WithError(err).Errorf("Failed to write status code %d to client connection", statusCode)
-	}
 }
 
 // hijackClientConnection hijacks client connection.
@@ -298,8 +358,12 @@ func hijackClientConnection(rw http.ResponseWriter) net.Conn {
 }
 
 // writeHeaderToHijackedConnection writes HTTP status to hijacked connection.
-func writeHeaderToHijackedConnection(conn net.Conn, protocol string, statusCode int) error {
+func writeHeaderToHijackedConnection(conn net.Conn, protocol string, statusCode int) bool {
 	formatted := fmt.Sprintf("%s %d %s\r\n\r\n", protocol, statusCode, http.StatusText(statusCode))
 	_, err := conn.Write([]byte(formatted))
-	return trace.Wrap(err)
+	if err != nil && !utils.IsOKNetworkError(err) {
+		log.WithError(err).Errorf("Failed to write status code %d to client connection", statusCode)
+		return false
+	}
+	return true
 }

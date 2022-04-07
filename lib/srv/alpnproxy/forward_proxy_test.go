@@ -18,36 +18,51 @@ package alpnproxy
 
 import (
 	"context"
-	"fmt"
+	"crypto/tls"
+	"crypto/x509/pkix"
+	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/stretchr/testify/require"
 )
 
 func TestForwardProxy(t *testing.T) {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost", defaults.Localhost}, defaults.CATTL)
+	require.NoError(t, err)
+
+	ca, err := tls.X509KeyPair(caCert, caKey)
+	require.NoError(t, err)
+
 	// Use a different status code for each destination for verification
 	// purpose.
 	receiverCode := http.StatusAccepted
 	originalHostCode := http.StatusCreated
-	systemProxyReceiverCode := http.StatusNoContent
 
-	// Setup a receiver that wants a specific domain.
-	receiverWant := func(req *http.Request) bool {
-		return req.Host == "receiver.wanted.com:443"
-	}
-	receiver := mustCreateHTTPSListenerReceiver(t, receiverWant)
-	go http.Serve(receiver, httpHandlerReturnsCode(receiverCode))
+	// Setup a receiver that wants a specific domain. The receiver uses
+	// CertGenListener to generate certificate for this domain on the fly.
+	receiverListener := mustCreateCertGenListener(t, ca)
+	receiverHandler := NewForwardToHostHandler(ForwardToHostHandlerConfig{
+		MatchFunc: func(req *http.Request) bool {
+			return req.Host == "receiver.wanted.com:443"
+		},
+		Host: receiverListener.Addr().String(),
+	})
+	go http.Serve(receiverListener, httpHandlerReturnsCode(receiverCode))
 
-	// Setup a HTTPS server to simulate original domain.
-	originalServer := httptest.NewTLSServer(httpHandlerReturnsCode(originalHostCode))
+	// Setup a HTTPS server to simulate original host.
+	originalHostListener := mustCreateCertGenListener(t, ca)
+	go http.Serve(originalHostListener, httpHandlerReturnsCode(originalHostCode))
 
 	// client -> forward proxy -> receiver
-	t.Run("wanted and sent to receiver", func(t *testing.T) {
-		forwardProxy := createForwardProxy(t, receiver)
-		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String())
+	t.Run("to receiver", func(t *testing.T) {
+		forwardProxy := createForwardProxy(t, receiverHandler, NewForwardToOriginalHostHandler())
+		client := httpsClientWithProxyURL(forwardProxy.GetAddr(), caCert)
 
 		mustCallHTTPSServerAndReceiveCode(
 			t,
@@ -57,96 +72,89 @@ func TestForwardProxy(t *testing.T) {
 		)
 	})
 
-	// client -> forward proxy -> original domain
-	t.Run("not wanted and sent to original domain", func(t *testing.T) {
-		forwardProxy := createForwardProxy(t, receiver)
-		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String())
+	// client -> forward proxy -> original host
+	t.Run("to original host", func(t *testing.T) {
+		forwardProxy := createForwardProxy(t, receiverHandler, NewForwardToOriginalHostHandler())
+		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String(), caCert)
 
 		mustCallHTTPSServerAndReceiveCode(
 			t,
-			originalServer.Listener.Addr().String(),
+			originalHostListener.Addr().String(),
 			*client,
 			originalHostCode,
 		)
 	})
 
-	// client -> forward proxy -> dropped
-	t.Run("not wanted and dropped", func(t *testing.T) {
-		forwardProxy := createForwardProxy(t, receiver, func(config *ForwardProxyConfig) {
-			config.DropUnwantedRequests = true
-		})
-		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String())
+	// client -> forward proxy -> system proxy -> original host
+	t.Run("to system proxy", func(t *testing.T) {
+		systemProxyHTTPServer := createSystemProxy(t, mustCreateLocalListener(t))
 
-		// The "Bad Request" is returend to the CONNECT tunnel request. The
-		// actual call never happens. Thus getting an error instead of a 4xx
-		// status code.
-		// nolint:bodyclose
-		resp, err := client.Get(fmt.Sprintf("https://%s", originalServer.Listener.Addr().String()))
-		require.Nil(t, resp)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "Bad Request")
-	})
-
-	// client -> forward proxy -> system proxy -> system proxy receiver
-	// Use a 2nd ForwardProxy to simulate a system proxy.
-	t.Run("not wanted and system proxied", func(t *testing.T) {
-		systemProxyReceiver := mustCreateHTTPSListenerReceiver(t, WantAllRequests)
-		go http.Serve(systemProxyReceiver, httpHandlerReturnsCode(systemProxyReceiverCode))
-		systemProxyHTTPServer := createForwardProxy(t, systemProxyReceiver)
-		systemProxyHTTPAddr := "http://" + systemProxyHTTPServer.cfg.Listener.Addr().String()
-
-		forwardProxy := createForwardProxy(t, receiver, withSystemProxyTo(systemProxyHTTPAddr))
-		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String())
-
-		mustCallHTTPSServerAndReceiveCode(
-			t,
-			originalServer.Listener.Addr().String(),
-			*client,
-			systemProxyReceiverCode,
-		)
-	})
-
-	// client -> forward proxy -> system proxy (https) -> system proxy receiver
-	// This test is the same as previous one except the system proxy is a HTTPS
-	// server.
-	t.Run("not wanted and system proxied (https)", func(t *testing.T) {
-		systemProxyReceiver := mustCreateHTTPSListenerReceiver(t, WantAllRequests)
-		go http.Serve(systemProxyReceiver, httpHandlerReturnsCode(systemProxyReceiverCode))
-		systemProxyHTTPSServer := createForwardProxy(
-			t,
-			systemProxyReceiver,
-			func(config *ForwardProxyConfig) {
-				config.Listener = mustCreateLocalTLSListener(t)
+		forwardToSystemProxyHandler := NewForwardToSystemProxyHandler(ForwardToSystemProxyHandlerConfig{
+			SystemProxyFunc: func(*url.URL) (*url.URL, error) {
+				return url.Parse("http://" + systemProxyHTTPServer.GetAddr())
 			},
-		)
-		systemProxyHTTPSAddr := "https://" + systemProxyHTTPSServer.cfg.Listener.Addr().String()
+		})
 
-		forwardProxy := createForwardProxy(t, receiver, withSystemProxyTo(systemProxyHTTPSAddr))
-		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String())
+		forwardProxy := createForwardProxy(t, receiverHandler, forwardToSystemProxyHandler)
+		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String(), caCert)
 
 		mustCallHTTPSServerAndReceiveCode(
 			t,
-			originalServer.Listener.Addr().String(),
+			originalHostListener.Addr().String(),
 			*client,
-			systemProxyReceiverCode,
+			originalHostCode,
+		)
+	})
+
+	// client -> forward proxy -> system proxy (https) -> original host
+	t.Run("to system proxy (https)", func(t *testing.T) {
+		// This test is the same as previous one except the system proxy is a
+		// HTTPS server.
+		systemProxyHTTPSServer := createSystemProxy(t, mustCreateLocalTLSListener(t))
+
+		forwardToSystemProxyHandler := NewForwardToSystemProxyHandler(ForwardToSystemProxyHandlerConfig{
+			InsecureSystemProxy: true,
+			SystemProxyFunc: func(*url.URL) (*url.URL, error) {
+				return url.Parse("https://" + systemProxyHTTPSServer.GetAddr())
+			},
+		})
+
+		forwardProxy := createForwardProxy(t, receiverHandler, forwardToSystemProxyHandler)
+		client := httpsClientWithProxyURL(forwardProxy.cfg.Listener.Addr().String(), caCert)
+
+		mustCallHTTPSServerAndReceiveCode(
+			t,
+			originalHostListener.Addr().String(),
+			*client,
+			originalHostCode,
 		)
 	})
 }
 
-func createForwardProxy(t *testing.T, receiver ForwardProxyReceiver, opts ...func(*ForwardProxyConfig)) *ForwardProxy {
+// createForwardProxy creates a ForwardProxy with provided handlers.
+func createForwardProxy(t *testing.T, handlers ...ConnectRequestHandler) *ForwardProxy {
+	return createForwardProxyWithConfig(t, ForwardProxyConfig{
+		Listener: mustCreateLocalListener(t),
+		Handlers: []ConnectRequestHandler(handlers),
+	})
+}
+
+// createSystemProxy creates a ForwardProxy to simulate a system proxy.
+func createSystemProxy(t *testing.T, listener net.Listener) *ForwardProxy {
+	return createForwardProxyWithConfig(t, ForwardProxyConfig{
+		Listener: listener,
+		Handlers: []ConnectRequestHandler{
+			NewForwardToOriginalHostHandler(),
+		},
+	})
+}
+
+// createForwardProxy creates a ForwardProxy with provided config.
+func createForwardProxyWithConfig(t *testing.T, config ForwardProxyConfig) *ForwardProxy {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	config := ForwardProxyConfig{
-		Listener:            mustCreateLocalListener(t),
-		CloseContext:        ctx,
-		InsecureSystemProxy: true,
-		Receivers:           []ForwardProxyReceiver{receiver},
-	}
-
-	for _, opt := range opts {
-		opt(&config)
-	}
+	config.CloseContext = ctx
 
 	forwardProxy, err := NewForwardProxy(config)
 	require.NoError(t, err)
@@ -159,16 +167,4 @@ func createForwardProxy(t *testing.T, receiver ForwardProxyReceiver, opts ...fun
 		require.NoError(t, forwardProxy.Start())
 	}()
 	return forwardProxy
-}
-
-// withSystemProxyTo returns an option function that configures the forward
-// proxy to use a specific URL for system proxy.
-// The default httpproxy.Config.ProxyFunc() bypasses proxy servers that are
-// localhost, so have to force it here for local testing.
-func withSystemProxyTo(proxyURL string) func(*ForwardProxyConfig) {
-	return func(config *ForwardProxyConfig) {
-		config.SystemProxyFunc = func(*url.URL) (*url.URL, error) {
-			return url.Parse(proxyURL)
-		}
-	}
 }

@@ -29,7 +29,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -234,6 +233,19 @@ func mustCreateLocalTLSListener(t *testing.T) net.Listener {
 	return listener
 }
 
+func mustCreateCertGenListener(t *testing.T, ca tls.Certificate) net.Listener {
+	listener, err := NewCertGenListener(CertGenListenerConfig{
+		ListenAddr: "127.0.0.1:0",
+		CA:         ca,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
 func mustSuccessfullyCallHTTPSServer(t *testing.T, addr string, client http.Client) {
 	mustCallHTTPSServerAndReceiveCode(t, addr, client, http.StatusOK)
 }
@@ -264,49 +276,22 @@ func mustStartLocalProxy(t *testing.T, config LocalProxyConfig) {
 	}()
 }
 
-func mustCreateHTTPSListenerReceiver(t *testing.T, want ReceiverWantFunc) *HTTPSListenerReceiver {
-	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
-	require.NoError(t, err)
+func httpsClientWithProxyURL(proxyAddr string, caPem []byte) *http.Client {
+	rootCAs := x509.NewCertPool()
+	rootCAs.AppendCertsFromPEM(caPem)
 
-	listener, err := NewHTTPSListenerReceiver(HTTPSListenerReceiverConfig{
-		CA:         cert,
-		ListenAddr: "localhost:0",
-		Want:       want,
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		listener.Close()
-	})
-	return listener
-}
-
-func httpsClient() *http.Client {
-	// Ideally should use a proper RootCAs pool for validation here. However,
-	// the self-signed CA currently does not have 127.0.0.1 in SAN.
 	return &http.Client{
 		Transport: &http.Transport{
+			Proxy: http.ProxyURL(&url.URL{
+				Scheme: "http",
+				Host:   proxyAddr,
+			}),
+
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				RootCAs: rootCAs,
 			},
 		},
 	}
-}
-
-func httpsClientWithProxyURL(proxyAddr string) *http.Client {
-	proxyURL, err := url.Parse(proxyAddr)
-
-	// If no protocol, assume it is HTTP.
-	if err != nil && !strings.Contains(proxyAddr, "://") {
-		proxyURL = &url.URL{
-			Scheme: "http",
-			Host:   proxyAddr,
-		}
-	}
-
-	client := httpsClient()
-	client.Transport.(*http.Transport).Proxy = http.ProxyURL(proxyURL)
-	return client
 }
 
 func httpHandlerReturnsCode(statusCode int) http.Handler {
