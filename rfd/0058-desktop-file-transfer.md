@@ -2,333 +2,356 @@
 authors: Isaiah Becker-Mayer (isaiah@goteleport.com)
 state: draft
 ---
-# Required Approvers
-* Engineering: @zmb3 && (@probakowski || @LKozlowski)
-* Product: (@klizhentas || @xinding33)
+
 # RFD 58 - Desktop Access - File Transfer
 
-File transfer for Teleport Desktop Access is a feature whose implementation includes
-navigating the constraints imposed by the RDP protocol, the limitations of the browser,
-Teleport's architecture, and storage and bandwidth implications. The purpose of this
-document is to lay out the approaches available to us given these constraints, and
-compare them in terms of user experience, difficulty of technical implementation, and
-other relevant criteria in order determine which approach we should take. Therefore, some
-of the finer technical details of each approach will be left in the abstract in favor of
-keeping this document concise and related to its core purpose.
+The next major feature for Teleport Desktop Access is referred to as "file
+transfer" - by which we mean some ability to get files both:
 
-## RDP Possibilities and Data Flow (RDP Options 1, 2a, and 2b)
+- From a user's workstation to a remote Windows desktop
+- From a remote Windows desktop to the user's workstation
+
+There are a variety of technical approaches that could provide this feature,
+each coming with it's own pros and cons as well as lending itself to a
+particular user experience. The goal of this RFD is to discuss the various
+options and select a path forward.
+
+## Required Approvers
+
+* Engineering: @zmb3 && (@probakowski || @LKozlowski)
+* Product: (@klizhentas || @xinding33)
+
+
+## Overview
+
+In Teleport Desktop Access, data travels from the user's browser, to a Teleport
+proxy (over websockets) where it is then passed to a Windows Desktop Service
+(over mTLS). The Windows Desktop Service initiates the RDP connection to the
+Windows Desktop.
+
+```
+
+                         Teleport Desktop Protocol                         RDP
+                ------------------------------------------        ---------------------
+                |                                        |        |                   |
++----------------------+     +------------------+  +------------------+     +------------------+
+|                      |     |                  |  |                  |     |                  |
+|                      |     |                  |  |    Teleport      |     |                  |
+|  User's Web Browser  ------|  Teleport Proxy -----  Windows Desktop ------|  Windows Desktop |
+|                      |     |                  |  |     Service      |     |                  |
++----------------------+     +------------------+  +------------------+     +------------------+
+```
+
+In order to transfer files across this path, there are two major considerations.
+
+The first is for transferring the file between the Windows Desktop and the
+Teleport Windows Desktop Service over the RDP connection, for which we consider
+the following options (we'll call them 1 and 2):
+
+- (1) using the clipboard virtual channel extension
+- (2) using the file system virtual channel extension
+
+The second is how to transfer the files between the user's browser and Teleport,
+for which we consider:
+
+- (a) using native browser upload/download functionality
+- (b) using the file system access API
+
+This RFD will outline the various options and select one from each group for
+implementation. In other words, the full set of possible outcomes are 1a, 1b,
+2a, or 2b.
+
+## RDP File Transfer
 
 RDP supports two means of transferring files between systems:
 
-1. The clipboard virtual channel extension ([[MS-RDPECLIP]](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip)).
-2. The file system virtual channel extension ([[MS-RDPEFS]](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs)).
+1. The clipboard virtual channel extension
+   ([[MS-RDPECLIP]](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip)).
+2. The file system virtual channel extension
+   ([[MS-RDPEFS]](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs)).
 
 ### Clipboard Virtual Channel Extension (RDP Option 1)
 
-The data flow when using the clipboard virtual channel extension (henceforth referred to
-as RDP Option 1) includes the one described in [Data Flow and Delayed Rendering](https://github.com/gravitational/teleport/blob/master/rfd/0049-desktop-clipboard.md#data-flow-and-delayed-rendering)
-in RFD 0049, but with extra steps appended. In the case that a file, directory, or
-multiple files/directories have been cut or copied onto the shared clipboard, the
-`Format Data Response PDU` doesn't respond with the file data itself, but instead sends a
-[`Packed File List`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/3570c2e4-cdd7-4460-8a7e-1a4595f5ebdc) which contains a list of filenames and
-associated metadata of the files on the clipboard. The files themselves aren't
-transferred until the shared clipboard owner receives a [`File Contents Request PDU`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/cbc851d3-4e68-45f4-9292-26872a9209f2), at which point it sends back the file data in the
-form of [`File Contents Response PDU`(`s`)](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/df87c178-ab02-471a-acde-bb921aa1af85).
+This approach relies on the clipboard to transfer files, which lends itself to a
+user-experience that involves using copy/paste functionality as a way to
+initiate file transfers.
 
-File transfers are limited to files less than 4GB unless huge file support is enabled
-(`CB_HUGE_FILE_SUPPORT_ENABLED`).
+The data flow when using the clipboard virtual channel extension (henceforth
+referred to as RDP Option 1) is similar to any clipboard data, and described in
+[Data Flow and Delayed Rendering](https://github.com/gravitational/teleport/blob/master/rfd/0049-desktop-clipboard.md#data-flow-and-delayed-rendering)
+in RFD 0049.
 
-### File System Virtual Channel Extension (RDP Option 2a and 2b)
+Like with clipboard data, RDP's "delayed rendering" approach notifies the RDP
+client when a file (or files) is copied to the clipboard, but doesn't send the
+contents of the file until the client requests them. This was designed for
+network efficiency - it avoids the need to transfer a copied file until it is
+actually pasted. This approach doesn't work well with Teleport's Desktop
+Protocol, as we don't implement delayed rendering - the notification that was
+copied includes the copied data. While this is acceptable for small amounts of
+text, it will be inefficient for large files.
 
-From a high level, the file system virtual channel extension kicks off by the RDP client
-announcing a directory it wishes to share. From then on out, all actions on that
-directory are initiated by the RDP server, carried out by the RDP client, and then if the
-operation on the client was successful, it is communicated back to and carried out on the
-server.
+Additionally, files transferred via this mechanism are limited to a maximum size
+of 4GB unless "huge file support" is enabled. This is a protocol extension that
+would require extra implmentation to support.
 
-For example, if a program on the server wants to read a shared file, it sends a [`Device Read Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3192516d-36a6-47c5-987a-55c214aa0441),
-and the client reads the requested data and sends it back with a [`Device Read Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9). If instead the server-side program wants to write
-to a shared file, it sends a [`Device Write Request`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/2e25f0aa-a4ce-4ff3-ad62-ab6098280a3a) specifying
-where and what data it wants to write. In the happy path, the client writes that data to
-disk and sends back a [`Device Write Response`](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/58160a47-2379-4c4a-a99d-24a1a666c02a) with the
-number of bytes written. If the client-side write fails, it sends back the
-`Device Write Response` with an `IoStatus` field set to something besides
-`STATUS_SUCCESS` (such as `STATUS_UNSUCCESSFUL`), which alerts the server make the write
-operation fail on its end as well.
+Lastly, this approach is best suited to one-time transfers of a specific file
+(copy file, paste on other machine, make some edits, copy and paste the updated
+version back). It is not well suited to sharing an entire directory or making
+many files available to the remote system simultaneously.
 
-This clever system makes client implementations easier, because the client isn't
-responsible for monitoring and alerting the server of changes to the shared files. For
-example, if a user edits and writes to a shared file on the client side in another
-program that the RDP client doesn't control (like a text editor), the client doesn't need
-to recognize the change and communicate it back to the server. Instead, it just sends
-whatever file data is on disk if/when the server asks for it, and so those sorts of
-situations are handled without such low level control. Additionally, this system
-minimizes bandwidth by only sending whatever data is actually needed, when its needed
-(from client to server). For example, when a directory is first shared, the server only
-asks for metadata like the file names and sizes in the directory, which it can then
-display to the user as if those files are living on the remote Windows system. Only when
-a user actually opens one of those files does it request the file data itself. Also, if
-the file is a gigantic text file that the user opens in a well optimized text editor, it
-needn't request the entire file at once. Instead, it can just request the section of the
-file needed to be displayed at that time. There is no file size limit with this option.
+### File System Virtual Channel Extension (RDP Option 2)
 
-For our purposes, the file system virtual channel extension option (RDP Option 2) can be
-broken down into two sub options, RDP Option 2a and RDP Option 2b. RDP Option 2a is that
-we share a directory on the machine running the RDP client (`windows_desktop_service`),
-and RDP Option 2b is sharing a directory that lives on the Teleport user's client itself
-(via the File System Access API, discussed in more detail below).
+The other option for tranferring files over an RDP connection is the file system
+virtual channel extension. This is a feature supported in many native RDP
+clients. After the connection is established, the RDP client announces a
+directory it wishes to share. This announcement includes basic metadata about the
+directory contents, but not the files themselves.
 
-## Client Side Possibilities (Client Options 1 and 2)
+From this point on, the RDP server makes the directory appear as if it were any
+other directory on the Windows filesystem. When the user attempts to perform any
+sort of file access, the RDP server initiates a request to the client and the
+client is able to respond with the file data.
 
-Irrespective of which option we choose, we will need some means of initiating and
-completing file transfers on the client side (from the browser).
+From a user's perspective, there is no distinct "file transfer" - the files in
+the shared directory simply appear on the Windows machine, where they can be
+copied, opened directly, or even edited. As long as the RDP client responds to
+the server's various requests, the RDP server takes care of making the remote
+file behave like any other file.
 
-### Clipboard API
+From an implmentation perspective, this approach is simpler because the client does
+not need to monitor the directory for changes or alert the server.
 
-At first glance, it seemed like using the `Clipboard.read` and `Clipboard.write` API's
-might be a possibile mechanism for us to make use of. However while some files can be
-transferred to the client's clipboard with this API, browsers are [constrained](https://w3c.github.io/clipboard-apis/#reading-from-clipboard) to the `text/plain` `text/html` and
-`image/png` mime types. Ergo unless we want to limit our users to a very narrow set of
-file transfers, this option is not available to us.
+From an efficiency standpoint, this approach saves on network bandwidth as the RDP
+server is smart enough to ask only for what it needs. For example, when viewing the
+shared directory in Windows Explorer, the RDP server will only ask for file metadata
+until the user actually tries to open a file (at which point it requests file contents).
+Lastly, the 4GB size limit of the clipboard-based approach does not apply here.
 
-### Browser Upload and Download (Client Option 1)
+With this approach we can either elect one of two subcases:
+
+1. Advertise a shared folder that lives on the host running the Windows Desktop Service.
+   Windows Desktop Service would be responsible for responding to any requests from the RDP
+   server, and it would be up to us to figure out a separate means for transferring files
+   between the user's browser and the Windows Desktop Service.
+2. Advertise a shared folder that lives on the user's workstation. In this case, we would
+   define TDP equivalents for the RDP messages related to file changes and requests, and
+   Teleport would forward them all the way to the user. It would ultimately be up to the
+   Teleport client running in the user's browser to respond to them.
+
+## Client Side Possibilities
+
+Once we've decided how we will transfer files between the Windows desktop and
+Teleport, we still need to determine how we will initiate / complete file transfers
+from the user's browser.
+
+For these options, we need to determine both initialization (or how the user
+will start a file send operation) and finalization (how the user will receive a
+file from the remote desktop).
+
+### Clipboard API (not selected)
+
+Since RDP supports file transfer via the clipboard, one option would be to use
+the same mechanism to transfer files between the browser and Teleport's backend.
+Unfortunately, browsers are
+[constrained](https://w3c.github.io/clipboard-apis/#reading-from-clipboard) to
+the `text/plain` `text/html` and `image/png` MIME types when using the clipboard
+API.
+
+This option is not suitable for us, as we want users to be able to transfer any type of file.
+
+### Browser Upload and Download (Client Option a)
+
+This approach uses traditional browser operations for upload and download
 
 #### Initialization: `<input type="file">`
 
-All browsers support us initializing a file transfer from the client side using an
+All browsers support initializing a file transfer from the client side using an
 [`<input type="file">`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file)
-button (and/or drag and drop). It's difficult to find canonical information on the
-size limitations of such transfers, and there may be [a 2GB file size limit for Firefox](https://www.motobit.com/help/scptutl/pa98.htm).
+button (and/or drag and drop). With this approach, the user would click some
+sort of "browse" button, and use a native dialog to select a local file for
+upload. It's difficult to find canonical information on the size limitations of
+such transfers, and there may be
+[a 2GB file size limit for Firefox](https://www.motobit.com/help/scptutl/pa98.htm).
 
-Once a file (or set of files) is uploaded to the browser, it is typically submitted to
-the server via a POST request. In our case, this approach winds up posing a difficult
-technical problem due to Teleport's architecture. If we POST the file data, it will need
-to be handled by an endpoint listening on the `proxy_service`. However that file data
-will ultimately need to be sent to the Windows server via our RDP client, which is
-running on the `windows_desktop_service`. Complicating things further, Teleport might
-have multiple `windows_desktop_service`'s set up, and we would need to develop a
-mechanism for sending the file to the correct one. (From here on out this problem will be
-referred to as the "`proxy_service` <--> `windows_desktop_service` problem").
+Once a file (or set of files) is uploaded to the browser, it is typically
+submitted to the server via a POST request. In our case, this approach winds up
+posing a difficult technical problem due to Teleport's architecture. If we POST
+the file data, it will need to be handled by an HTTP endpoint listening on the
+`proxy_service`. There are several issues with this approach:
+
+1. It occurs "out of band" - data is transferred over HTTP and not over the existing
+   websocket connection that is servicing the desktop session.
+2. The proxy that receives this data will need to get it to the Windows Desktop Service
+   that is handling the RDP connection. There may be multiple Windows Desktop Services,
+   so Teleport will need additional logic to identify the right service.
+
+We could avoid these issues by grabbing the files directly from the input
+element and sending them to the Teleport proxy over the existing websocket
+connection (in a new TDP message). This workaround is suitable for uploading
+files to the remote desktop, but not for downloading files from the remote
+desktop.
 
 #### Finalization: Browser Download
 
-When a file made ready for transfer on the server side (either by copying it to the
-system clipboard or by moving it into the shared drive, depending on which RDP Option we
-go with), it can be displayed as available to the user in a UI widget and they can
-request to download it. Upon the user selecting "download", the client will need to hit
-an HTTP endpoint which must respond with the [appropriate headers](https://stackoverflow.com/questions/20508788/do-i-need-content-type-application-octet-stream-for-file-download)
-to instigate a browser download dialog.
+When a file made ready for transfer on the server side (either by copying it to
+the system clipboard or by moving it into some shared drive, depending on which
+RDP Option we go with), it can be displayed as available to the user in a UI
+widget and they can request to download it. Upon the user selecting "download",
+the client will need to hit an HTTP endpoint which must respond with the
+[appropriate headers](https://stackoverflow.com/questions/20508788/do-i-need-content-type-application-octet-stream-for-file-download)
+to initiate a browser download dialog.
 
-This operation poses a similar problem to the one described above, where we will need to
-develop some mechanism for getting the file from the rdp client on the
-`windows_desktop_service` to the `proxy_service`.
+The user experience of this approach would involve some sort of visual notification
+that a new [remote] file is available for download, and the user would have the option
+of clicking to downloaded.
 
-#### TDP Upload/Download via the Standard Browser API (not viable for files >50mb)
+This operation poses a similar problem to the one described above, where we will
+need to develop some mechanism for getting the file from the RDP client on the
+`windows_desktop_service` to the `proxy_service` serving the websocket
+connection.
 
-One option I considered for navigating the `proxy_service` <--> `windows_desktop_service`
-problem is to avoid it entirely by [grabbing the `FileList`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#getting_information_on_selected_files) (from
-the `<input type="file">` element) and sending the file data to the server in a new TDP
-message. This would be relatively easy because we already have a TDP connection wrapped
-in a websocket which the `proxy_service` is proxying to the appropriate
-`windows_desktop_service`.
+To summarize, any sort of native browser download requires that the file is
+streamed over HTTP from the Teleport proxy, and this out of band approach does
+not fit well with Teleport's architecture. This approach is also less convenient
+for a user, as they have to perform manual actions outside the remote desktop
+interface to perform file transfers.
 
-Unfortunately it doesn't work as well in the opposite direction -- we could use the same
-new TDP message to communicate file data back from the server, convert it to a base64
-encoded string, and add that string as the `href` property of a link (like [`<a href="data:<data_type>;base64,<base64_encoded_file_content>">`](https://stackoverflow.com/a/38203812/6277051)). However this would limit downloads to small files only, since with
-this approach the entire file needs to be loaded into memory.
+### TDP Upload and Download via the File System Access API (Client Option b)
 
-### TDP Upload and Download via the File System Access API (Client Option 2)
+The alternative to native browser upload/download functions (which operate over
+HTTP), is to implement the file transfer in TDP messages over the existing
+websocket connection and use the
+[File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API)
+to read and write to files on the local disk. This API allows us to ask the user
+for permission to access a specific directory on their local file system and
+exposes CRUD functionality for that directory:
 
-There is another option at our disposal which _would_ allow us to both upload and
-download file data over the websocket without ever needing to hold an entire file in
-memory, an approach which could be orchestrated by the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API)
-(also see [here](https://web.dev/file-system-access/)). The File System Access API gives
-us the ability to [ask the user for access to a specific directory on their local filesystem](https://web.dev/file-system-access/#opening-a-directory-and-enumerating-its-contents), at which point we obtain [C](https://web.dev/file-system-access/#creating-or-accessing-files-and-folders-in-a-directory)[R](https://web.dev/file-system-access/#read-file)[U](https://web.dev/file-system-access/#write-file)[D](https://web.dev/file-system-access/#deleting-files-and-folders-in-a-directory)
-capabilities in that section of their filesystem.
+- https://web.dev/file-system-access/
+- https://web.dev/file-system-access/#opening-a-directory-and-enumerating-its-contents
+- https://web.dev/file-system-access/#creating-or-accessing-files-and-folders-in-a-directory
+- https://web.dev/file-system-access/#read-file
+- https://web.dev/file-system-access/#write-file
+- https://web.dev/file-system-access/#deleting-files-and-folders-in-a-directory
 
-Of note is that this API is currently only [available](https://caniuse.com/?search=File%20System%20Access)
-in some Chromium browsers, the most popular being Chrome and Edge (enabling it in Brave
-requires modifying the setting at brave://flags/#file-system-access-api).
+This approach pairs best with RDP's virtual file system channel extension. Since
+the RDP server initiates all actions, the browser can respond by usign the file
+system access API. From a user-experience perspective, the user never has to
+think about a file "transfer" - they just select a directory and then interact
+with it from the remote machine.
 
-#### Initialization and Finalization
+The biggest drawback with this appraoch is that this API is currently only
+[available](https://caniuse.com/?search=File%20System%20Access) in some Chromium
+browsers, the most popular being Chrome and Edge (enabling it in Brave requires
+modifying the setting at brave://flags/#file-system-access-api). However, this
+seems acceptable since some desktop access features (clipboard sharing) already
+require a Chromium based browser.
 
-The initialization and finalization UX and technical details of this option depend on
-which RDP Option its paired with; that discussion is deferred here in favor of further
-discussion in the combined option analyses below.
+## Implementation Options
 
-## Implementation Options (Full Implementation Options 1, 2, 3, and 4)
+In this section, we'll summarize the combinations of options available to us.
 
-The combination of our RDP and Client Options result in the overall set of options
-available. Not all combinations of the RDP and Client Options make sense UX-wise and/or
-technically, and so I've only included the ones which I deemed worthy of exploring in
-greater detail.
+- Option 1a: Pair RDP clipboard with native browser upload and download
+- Option 1b: Pair RDP clipboard with browser's file system access API
+- Option 2a: Pair RDP virtual file system extension with native browser upload/download
+- Option 2b: Pair RDP virtual file system extension with browser's file system access API
 
-### RDP Option 1 + Client Option 1 (Full Implementation Option 1)
+### Option 1a: Pair RDP clipboard with native browser upload and download
 
-With this option, the user initializes server-to-client file transfers by copying a file
-to clipboard and finalizes client-to-server file transfers by pasting the file into the
-Windows desktop. They initialize client-to-server file transfers by uploading or
-drag-and-dropping a file in browser, and finalize server-to-client transfers by
-initiating a browser download by clicking a UI widget that displays the files available
-on the clipboard.
+With this option, the user uploads a file by:
 
-#### Discussion
+- using drag and drop or clicking an "open" button in browser to initiate the transfer
+- "pasting" in the remote desktop
 
-This option comes with the tricky `proxy_service` <--> `windows_desktop_service` problem
-inherent to Client Option 1. TDP would need to be extended, but minimally compared to
-some of the other options: we would need a `files available` message to list the files
-available on the server's clipboard and populate the UI widget, and to alert the server
-that files are available for pasting when uploaded/drag-and-dropped. The rest of the
-upload and download process would be handled by HTTP endpoints and RDP.
+The user downloads a file by:
 
-While there is an obvious advantage to keeping TDP as simple as possible, this option
-would undermine the integrity of the TDP protocol. By pushing so much of the actual file
-sharing implementation outside of the protocol, TDP is left with an awkward `files available` message for sharing files, but no further messages for actually transferring
-the available fiels.
+- copying a file in the remote desktop
+- then clicking download in a UI widget that displays available files
 
-This option also carries an integrity problem for the UX. Cut/copy/paste is used only on
-the Windows side of the equation whereas browser file upload/download is used on the
-client side, which makes the overall system relatively assymetrical for no reason easily
-discernible to the user. Additionally, although cut/copy/paste is not used on the client
-side, the user must still conceptualize the files they upload to the browser as being in
-the clipboard on the client side.
+This approach should work in all browsers.
 
-This option works in all browsers.
+In both cases, the file transfer is a two step operation, and the steps are
+seemingly unrelated/asymmetric. This is a poor user experience, and suffers from
+the "out of band" issues on the technical implementation.
 
-### RDP Option 1 + Client Option 2 (Full Implementation Option 2)
+This option is **NOT** selected.
 
-With this option, the user initializes server-to-client file transfers by copying a file
-to clipboard and finalizes client-to-server file transfers by pasting the file into the
-Windows desktop (the same as Full Implementation Option 1). They initialize
-client-to-server file transfers by moving the file to a selected directory on their
-machine, and finalize server-to-client transfers by initiating a browser download by
-clicking a UI widget that displays the files available on the clipboard, which then
-downloads the file into the selected directory (note that this is not a standard browser
-download, we are instead manually implementing the download with the File System Access
-API).
+### Option 1b: Pair RDP clipboard with browser's file system access API
 
-In theory another option for here would be to automatically download all files that are
-cut/copied onto the server's clipboard into the selected client side directory, but such
-a choice isn't practical due to the bandwidth implications of downloading entire files
-that the user might not actually even want downloaded.
+With this option, the user uploads a file by:
 
-#### Discussion
+- moving the file into a selected directory on their local machine
+- "pasting" in the remote desktop
 
-This option eliminates the `proxy_service` <--> `windows_desktop_service` problem of Full
-Implementation Option 1, and exchanges greater TDP integrity for somewhat greater TDP
-complexity. The upload and download of files into the selected client side directory
-would be done by adding TDP messages similar to RDP's `File Contents Request` and `File Contents Response` PDU's.
+The user downloads a file by:
 
-The UX of this option has the same clipboard assymetry problem described in Full
-Implementation Option 1. The browser upload/download is swapped out for manipulating
-files with the File System Access API, but cut/copy/paste is still only used only on the
-server side.
+- copying a file in the remote desktop
+- then clicking download in a UI widget that displays available files
 
-An idiosyncracy of this option is that we would need to define some semantics for
-initializing a cut/copy on the client side. For example, we could say that any file
-sitting in the File System Access API controlled client directory should be be considered
-"copied" to the clipboard. If we do that, though, then the user will need to more
-actively manage that directory during their sessions. For example, if they downloaded a
-file from the remote server (which would necessarily be downloaded into the File System
-Access API controlled directory on the client side), then it would immediately be "added
-to the clipboard", and the user would need to move it out of that shared directory right
-away. Another option is that we could allow files to sit in that directory, and only
-consider them "copied" when the user hits a "copy" button in the UI, though obviously
-this increases the complexity of the UI. Regardless of which of these we choose, the UX
-will be relatively convoluted.
+This is identical to option 1a, except the upload is initiated by dropping the
+file in a local directory rather than via drag/drop. It suffers from the same UX
+issues.
 
-This option would only work in Chromium based browsers that implement the File system
-Access API.
+This option only works in Chromium-based browsers that support the file system
+access API.
 
-### RDP Option 2a + Client Option 1 (Full Implementation Option 3)
+This option is **NOT** selected.
 
-With this option, the user initializes server-to-client file transfers by moving a file
-to a shared directory and finalizes client-to-server file transfers by accessing the file
-from the shared directory. They initialize client-to-server file transfers by uploading
-or drag-and-dropping a file in browser, and finalize server-to-client transfers by
-initiating a browser download by clicking a UI widget that displays the files available
-on the clipboard.
+### Option 2a: Pair RDP virtual file system extension with native browser upload/download
 
-#### Discussion
+With this option, the user uploads a file by:
 
-This option is the one most comparable to the [file transfer UX in Guacamole](https://guacamole.apache.org/doc/gug/using-guacamole.html#the-rdp-virtual-drive).
-A notable difference is that as I've envisioned it in Client Option 1, the user will
-select a file to download from a UI widget, whereas in Guacamole the user initiates a
-file download by dropping it into the `Download/` directory that is automatically created in the shared drive by Guacamole (this is an option for us as well).
+- drag and drop or upload dialog
+- accessing the file in a shared directory on the windows desktop
 
-This option has the disadvantages of Full Implementation Option 1, minus the lopsided UX
-of only using cut/copy/paste on the server side. The UX is still relatively asymmetrical
-in that the user is using browser upload/drag-and-drop and download on the client side,
-while accessing the native file system on the server side, but the two sides here are
-more similar as compared to either of the Clipboard-Based options.
+The user downloads a file by:
 
-Because this option uses Client Option 1, the `proxy_service` <-->
-`windows_desktop_service` problem remains. Note that Guacamole doesn't have a corollary
-problem, because their web app (client) is served from the same machine as their server.
-In other words their `proxy_service` equivalent is guaranteed to run on the same machine
-as their `windows_desktop_service` equivalent, and one can easily talk to the other.
+- moving a file to a shared directory on the windows desktop
+- then clicking download in a UI widget that displays available files
 
-The `proxy_service` <--> `windows_desktop_service` problem also poses an additional
-problem here that's not present in Full Implementation Option 1 -- because file transfers
-will appear as a file in a directory on the Windows server, the user will likely have
-some expectation of that directory persisting between sessions. However because the files
-are in reality in a directory sitting on the `windows_desktop_service` (see RDP Option 2a),
-and the Teleport cluster can have multiple `windows_desktop_service`'s at once, there
-would need to be some mechanism to ensure that the user was reconnected with the same
-`windows_desktop_service` in subsequent sessions in order for the same files to remain
-accessible (or we would need to devise some other way to share files between
-`windows_desktop_service`'s).
+This option is the one most comparable to the
+[file transfer UX in Guacamole](https://guacamole.apache.org/doc/gug/using-guacamole.html#the-rdp-virtual-drive).
+The UX is still relatively asymmetrical in that the user is using browser
+upload/drag-and-drop and download on the client side, while accessing the native
+file system on the server side, but the two sides here are more similar as
+compared to either of the Clipboard-Based options.
 
-This option would use the same `files available` TDP extension as Full Implementation
-Option 1, with the same simplicity vs integrity tradeoff.
+This option should work in all browsers, but it does not solve the "out of band"
+issue. Additionally, it gives the impression of a true "shared folder" but does
+not provide persistence. Since the shared folder actually lives on the Windows
+Desktop Service, there are no guarantees that future sessions route through the
+same service where those files are present. Lastly, care must be taken to ensure
+that shared files do not exceed the disk on the Windows Desktop Service and are
+appropriately cleaned up.
 
-This option would work in all browsers.
+### Option 2b: Pair RDP virtual file system extension with browser's file system access API
 
-### RDP Option 2b + Client Option 2 (Full Implementation Option 4)
+With this option, the user uploads a file by:
 
-With this option, the user initializes server-to-client file transfers by moving a file
-to a shared directory on the server and finalizes client-to-server file transfers by
-accessing the file from the shared directory on the server. They initialize and finalize
-client-to-server file transfers the same way, except with a directory on the client.
+- move the file to a shared directory on the local machine (if it isn't already there)
+- accessing the file in a shared directory on the windows desktop
 
-#### Discussion
+The user downloads a file by:
 
-Similar to Full Implementation Option 2, this option eliminates the `proxy_service` <-->
-`windows_desktop_service` problem entirely. Unlike that option, the UX of this options is
-very straightforward.From the user's perspective, it appears that they are mounting a
-piece of their local filesystem as a shared drive on the remote Windows machine.
+- moving a file to a shared directory on the windows desktop
+- accessing the file in a shared directory on their local machine
 
-The primary disadvantage of this option is that it would make TDP substantially more
-complex. TDP would need to add messages that are functionally equivalent to the RDP
-messages needed for shared directory initialization and CRUD operations, which would
-include most if not all of the messages listed under [3.3.5.2 Drive Redirection Messages](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/77b4e4ae-c25a-4aad-bd93-8c9b1f35291b).
-Our RDP client would receive these RDP messages and pass them into functions that convert
-them to their TDP equivalents, which would then send them to the browser client.
+This option provides the best UX, as the conceptual model of a "shared
+directory" holds. Users can think of this directory as a place to drop files
+that need to be accessed by both ends, and don't need to think about explicit
+steps to transfer a file. It is also consistent with native RDP clients, which
+current RDP users will appreciate.
 
-This option would only work in Chromium based browsers that implement the File system Access API.
+This approach avoids the "out of band" problem because file transfer would occur
+over the existing TDP connection. Additionally, since the files only ever live
+on the user's workstation or on the Windows Desktop, Teleport doesn't need to
+worry about cleaning up files or running out of disk space.
 
-## Conclusion
+The primary disadvantages of this approach are:
 
-In my opinion the winning solution here is the last option presented, Full Implementation
-Option 4. It optimizes the most important variable of any feature, the UX, and also has
-significant technical design and practical implementation advantages compared to the
-other options.
+- it only works in Chromium-based browsers (a concession we've previously accepted)
+- it makes the TDP protocol more complex, as we need a 1-1 mapping of the TDP messages
+  to the RDP messages that implement Drive Redirection.
 
-Full Implementation Option 4 eliminates all the browser clunkiness and clipboard
-asymmetry of the other options. The user will select a client-side directory to share a
-directory, it will appear as a network drive on the Windows server, and things will work
-as anyone who has experience working with a file system would expect them to.
+https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/77b4e4ae-c25a-4aad-bd93-8c9b1f35291b
 
-On top of having the best UX, this option is also arguably the easiest to implement
-technically. It routes around the `proxy_service` <--> `windows_desktop_service` problem
-by simply piping all file data through the websocket over TDP. TDP's integrity as a
-general remote desktop control protocol remains intact. Assuming we wish TDP to support
-drive redirection, the substantial additional complexity this approach adds is all
-necessary complexity.
-
-Because we are already requesting that users use Chromium based browsers for clipboard
-sharing, it's not much of a leap to limit them to the same for file sharing. There is
-some [_heated_](https://github.com/mozilla/standards-positions/issues/154) debate over in
-Mozilla's web standards repo about whether or not the File System Access API should exist
-at all; given that users are already trusting Teleport with important security
-infrastructure, I think that the concerns raised in that thread are irrelevant to us.
+This option is the **preferred approach** for implementation in Teleport 10.
