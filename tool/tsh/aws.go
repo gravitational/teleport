@@ -192,10 +192,10 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 		Certs:              []tls.Certificate{appCerts},
 	})
 	if err != nil {
-		return nil, trace.NewAggregate(
-			err,
-			utils.CloseListener(listener),
-		)
+		if cerr := listener.Close(); cerr != nil {
+			return nil, trace.NewAggregate(err, cerr)
+		}
+		return nil, trace.Wrap(err)
 	}
 	return lp, nil
 }
@@ -248,10 +248,10 @@ func createAWSForwardProxy(cf *CLIConf, lp *alpnproxy.LocalProxy) (*alpnproxy.Fo
 		},
 	})
 	if err != nil {
-		return nil, trace.NewAggregate(
-			err,
-			utils.CloseListener(listener),
-		)
+		if cerr := listener.Close(); cerr != nil {
+			return nil, trace.NewAggregate(err, cerr)
+		}
+		return nil, trace.Wrap(err)
 	}
 	return forwardProxy, nil
 }
