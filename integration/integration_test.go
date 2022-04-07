@@ -206,6 +206,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
+	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -5949,4 +5950,117 @@ outer:
 	}
 
 	t.FailNow()
+}
+
+// TestKubeAgentFiltering tests that kube-agent filtering for pre-v8 agents and
+// moderated sessions users works as expected.
+func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+
+	type testCase struct {
+		name     string
+		server   types.Server
+		role     types.Role
+		user     types.User
+		wantsLen int
+	}
+
+	v8Agent, err := types.NewServer("kube-h", types.KindKubeService, types.ServerSpecV2{
+		Version:            "8.0.0",
+		KubernetesClusters: []*types.KubernetesCluster{{Name: "foo"}},
+	})
+	require.NoError(t, err)
+
+	v9Agent, err := types.NewServer("kube-h", types.KindKubeService, types.ServerSpecV2{
+		Version:            "9.0.0",
+		KubernetesClusters: []*types.KubernetesCluster{{Name: "foo"}},
+	})
+	require.NoError(t, err)
+
+	plainRole, err := types.NewRole("plain", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	moderatedRole, err := types.NewRole("moderated", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{
+				{
+					Name:  "bar",
+					Kinds: []string{string(types.KubernetesSessionKind)},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	plainUser, err := types.NewUser("bob")
+	require.NoError(t, err)
+	plainUser.SetRoles([]string{plainRole.GetName()})
+
+	moderatedUser, err := types.NewUser("alice")
+	require.NoError(t, err)
+	moderatedUser.SetRoles([]string{moderatedRole.GetName()})
+
+	testCases := []testCase{
+		{
+			name:     "unrestricted user, v8 agent",
+			server:   v8Agent,
+			role:     plainRole,
+			user:     plainUser,
+			wantsLen: 1,
+		},
+		{
+			name:     "restricted user, v8 agent",
+			server:   v8Agent,
+			role:     moderatedRole,
+			user:     moderatedUser,
+			wantsLen: 0,
+		},
+		{
+			name:     "unrestricted user, v9 agent",
+			server:   v9Agent,
+			role:     plainRole,
+			user:     plainUser,
+			wantsLen: 1,
+		},
+		{
+			name:     "restricted user, v9 agent",
+			server:   v9Agent,
+			role:     moderatedRole,
+			user:     moderatedUser,
+			wantsLen: 1,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			teleport := suite.newTeleport(t, nil, true)
+			defer teleport.StopAll()
+
+			adminSite := teleport.Process.GetAuthServer()
+			_, err := adminSite.UpsertKubeServiceV2(ctx, testCase.server)
+			require.NoError(t, err)
+			err = adminSite.UpsertRole(ctx, testCase.role)
+			require.NoError(t, err)
+			err = adminSite.CreateUser(ctx, testCase.user)
+			require.NoError(t, err)
+
+			cl, err := teleport.NewClient(ClientConfig{
+				Login:   testCase.user.GetName(),
+				Cluster: Site,
+				Host:    Host,
+				Port:    teleport.GetPortSSHInt(),
+			})
+			require.NoError(t, err)
+
+			proxy, err := cl.ConnectToProxy(ctx)
+			require.NoError(t, err)
+
+			userSite, err := proxy.ConnectToCluster(ctx, Site, false)
+			require.NoError(t, err)
+
+			services, err := userSite.GetKubeServices(ctx)
+			require.NoError(t, err)
+			require.Len(t, services, testCase.wantsLen)
+		})
+	}
 }
