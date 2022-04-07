@@ -178,6 +178,18 @@ func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServicePr
 	return serviceProvider, nil
 }
 
+func (a *Server) ssoDiagInfo(ctx context.Context, authKind string, id string, infoType types.SSOInfoType, value interface{}) {
+	entry, err := types.NewSSODiagnosticInfo(infoType, value)
+	if err != nil {
+		log.WithError(err).Warn("Failed to serialize SSO diag info.")
+	}
+
+	err = a.Identity.CreateSSODiagnosticInfo(ctx, authKind, id, *entry)
+	if err != nil {
+		log.WithError(err).Warn("Failed to create SSO diag info.")
+	}
+}
+
 func (a *Server) calculateSAMLUser(ctx context.Context, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
 	var err error
 
@@ -189,15 +201,7 @@ func (a *Server) calculateSAMLUser(ctx context.Context, connector types.SAMLConn
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
 	diagInfo := func(infoType types.SSOInfoType, value interface{}) {
-		entry, err := types.NewSSODiagnosticInfo(infoType, value)
-		if err != nil {
-			log.WithError(err).Warn("Failed to serialize SSO diag info.")
-		}
-
-		err = a.Identity.CreateSSODiagnosticInfo(ctx, types.KindSAML, request.ID, *entry)
-		if err != nil {
-			log.WithError(err).Warn("Failed to create SSO diag info.")
-		}
+		a.ssoDiagInfo(ctx, types.KindSAML, request.ID, infoType, value)
 	}
 
 	diagInfo(types.SSOInfoType_SAML_TRAITS_FROM_ASSERTIONS, p.traits)
@@ -432,15 +436,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 	}
 
 	diagInfo := func(infoType types.SSOInfoType, value interface{}) {
-		entry, err := types.NewSSODiagnosticInfo(infoType, value)
-		if err != nil {
-			log.WithError(err).Warn("Failed to serialize SSO diag info.")
-		}
-
-		err = a.Identity.CreateSSODiagnosticInfo(ctx, types.KindSAML, requestID, *entry)
-		if err != nil {
-			log.WithError(err).Warn("Failed to create SSO diag info.")
-		}
+		a.ssoDiagInfo(ctx, types.KindSAML, requestID, infoType, value)
 	}
 
 	traceErr := func(msg string, errDetails error) {
