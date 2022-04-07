@@ -54,6 +54,11 @@ func TestGrpcItemsToBackendItems(t *testing.T) {
 			in:   []*bpb.Item{},
 			want: []backend.Item{},
 		},
+		{
+			desc: "test nil items",
+			in:   nil,
+			want: []backend.Item{},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {

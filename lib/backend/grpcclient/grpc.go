@@ -18,7 +18,8 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
+	"os"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -47,6 +48,9 @@ type Backend struct {
 type Config struct {
 	// Server is the server providing the gRPC service
 	Server string `json:"server,omitempty"`
+	// DialTimeout is the duration we should block before giving up when connecting
+	// to the server.
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 	// BufferSize is a default buffer size
 	// used to pull events
 	BufferSize int `json:"buffer_size,omitempty"`
@@ -87,7 +91,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	// CA + client certs for mTLS
-	caCert, err := ioutil.ReadFile(cfg.ServerCA)
+	caCert, err := os.ReadFile(cfg.ServerCA)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -105,17 +109,18 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	// - InitialWindowSize
 	// - ReadBufferSize
 	// - WriteBuffersize
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		RootCAs:      caCertPool,
-		Certificates: []tls.Certificate{cert},
-	})))
-	opts = append(opts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
-		PermitWithoutStream: true,
-	}))
-	opts = append(opts, grpc.WithBlock())
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+			MinVersion:   tls.VersionTLS13,
+			RootCAs:      caCertPool,
+			Certificates: []tls.Certificate{cert},
+		})),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{PermitWithoutStream: true}),
+		grpc.WithBlock(),
+	}
 
+	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
+	defer cancel()
 	conn, err := grpc.DialContext(ctx, cfg.Server, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,6 +159,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.BufferSize == 0 {
 		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
+	if cfg.DialTimeout == 0 {
+		cfg.DialTimeout = time.Second * 5
+	}
 	return nil
 }
 
@@ -189,7 +197,9 @@ func (b *Backend) GetRange(ctx context.Context, startKey, endKey []byte, limit i
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	return &backend.GetResult{Items: grpcItemsToBackendItems(result.Items)}, nil
+	items := grpcItemsToBackendItems(result.Items)
+	sort.Sort(backend.Items(items))
+	return &backend.GetResult{Items: items}, nil
 }
 
 // Create creates item if it does not exist
