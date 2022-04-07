@@ -16,7 +16,7 @@
 
 */
 
-package main
+package dbcmd
 
 import (
 	"fmt"
@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -90,7 +92,7 @@ type cliCommandBuilder struct {
 	exe execer
 }
 
-func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
+func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	db *tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
 ) *cliCommandBuilder {
 	var options connectionCommandOpts
@@ -103,6 +105,10 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	if options.localProxyPort != 0 && options.localProxyHost != "" {
 		host = options.localProxyHost
 		port = options.localProxyPort
+	}
+
+	if options.log == nil {
+		options.log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
 	return &cliCommandBuilder{
@@ -119,7 +125,7 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 }
 
-func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
+func (c *cliCommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
 		return c.getPostgresCommand(), nil
@@ -150,7 +156,7 @@ func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
 func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
 	if _, err := c.exe.LookPath(cockroachBin); err != nil {
-		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
+		c.options.log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
 		return c.getPostgresCommand()
 	}
@@ -402,4 +408,50 @@ func (c *cliCommandBuilder) getSQLServerCommand() *exec.Cmd {
 	}
 
 	return exec.Command(mssqlBin, args...)
+}
+
+type connectionCommandOpts struct {
+	localProxyPort int
+	localProxyHost string
+	caPath         string
+	noTLS          bool
+	printFormat    bool
+	log            *logrus.Entry
+}
+
+type ConnectCommandFunc func(*connectionCommandOpts)
+
+func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.localProxyPort = port
+		opts.localProxyHost = host
+		opts.caPath = caPath
+	}
+}
+
+// WithNoTLS is the connect command option that makes the command connect
+// without TLS.
+//
+// It is used when connecting through the local proxy that was started in
+// mutual TLS mode (i.e. with a client certificate).
+func WithNoTLS() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.noTLS = true
+	}
+}
+
+// WithPrintFormat is the connect command option that hints the command will be
+// printed instead of being executed.
+func WithPrintFormat() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.printFormat = true
+	}
+}
+
+// WithLogger is the connect command option that allows the caller to pass a logger that will be
+// used by CLICommandBuilder.
+func WithLogger(log *logrus.Entry) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.log = log
+	}
 }
