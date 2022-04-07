@@ -69,6 +69,9 @@ type Supervisor interface {
 	// was already broadcasted, eventC will receive current event immediately.
 	WaitForEvent(ctx context.Context, name string, eventC chan Event)
 
+	// ListenForEvents adds eventC to the list of waiters for the event
+	ListenForEvents(ctx context.Context, name string, eventC chan Event)
+
 	// RegisterEventMapping registers event mapping -
 	// when the sequence in the event mapping triggers, the
 	// outbound event will be generated.
@@ -409,30 +412,48 @@ func (s *LocalSupervisor) WaitForEvent(ctx context.Context, name string, eventC 
 	waiter := &waiter{eventC: eventC, context: ctx}
 	event, ok := s.events[name]
 	if ok {
+		println("=================== WaitForEvent returning immediately for event", name)
 		go waiter.notify(event)
 		return
 	}
 	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
 }
 
-func (s *LocalSupervisor) getWaiters(name string) []*waiter {
+func (s *LocalSupervisor) ListenForEvents(ctx context.Context, name string, eventC chan Event) {
 	s.Lock()
 	defer s.Unlock()
 
-	waiters := s.eventWaiters[name]
-	out := make([]*waiter, len(waiters))
-	copy(out, waiters)
-	return out
+	waiter := &waiter{eventC: eventC, context: ctx}
+	event, ok := s.events[name]
+	if ok {
+		go waiter.notify(event)
+	}
+	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
 }
 
 func (s *LocalSupervisor) fanOut() {
 	for {
 		select {
 		case event := <-s.eventsC:
-			waiters := s.getWaiters(event.Name)
-			for _, waiter := range waiters {
-				go waiter.notify(event)
+			s.Lock()
+			waiters, ok := s.eventWaiters[event.Name]
+			if !ok {
+				s.Unlock()
+				continue
 			}
+			aliveWaiters := waiters[:0]
+			for _, waiter := range waiters {
+				if waiter.context.Err() == nil {
+					aliveWaiters = append(aliveWaiters, waiter)
+					go waiter.notify(event)
+				}
+			}
+			if len(aliveWaiters) == 0 {
+				delete(s.eventWaiters, event.Name)
+			} else {
+				s.eventWaiters[event.Name] = aliveWaiters
+			}
+			s.Unlock()
 		case <-s.closeContext.Done():
 			return
 		}

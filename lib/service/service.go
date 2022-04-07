@@ -2244,15 +2244,18 @@ func (process *TeleportProcess) initDiagnosticService(componentCount int) error 
 
 	process.RegisterFunc("readyz.monitor", func() error {
 		// Start loop to monitor for events that are used to update Teleport state.
+		ctx, cancel := context.WithCancel(process.GracefulExitContext())
+		defer cancel()
+
 		eventCh := make(chan Event, 1024)
-		process.WaitForEvent(process.ExitContext(), TeleportDegradedEvent, eventCh)
-		process.WaitForEvent(process.ExitContext(), TeleportOKEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
 
 		for {
 			select {
 			case e := <-eventCh:
 				ps.update(e)
-			case <-process.GracefulExitContext().Done():
+			case <-ctx.Done():
 				log.Debugf("Teleport is exiting, returning.")
 				return nil
 			}
