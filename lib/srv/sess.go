@@ -51,6 +51,10 @@ import (
 const PresenceVerifyInterval = time.Second * 15
 const PresenceMaxDifference = time.Minute
 
+// SessionControlsInfoBroadcast is sent in tandem with session creation
+// to inform any joining users about the session controls.
+const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
+
 var serverSessions = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: teleport.MetricServerInteractiveSessions,
@@ -300,15 +304,15 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	for _, p := range party.s.getParties() {
 		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
 		if err != nil {
-			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			continue
 		}
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			continue
 		}
-		s.log.Debugf("Sent %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
+		s.log.Debugf("Sent %v to %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr())
 	}
 }
 
@@ -346,20 +350,15 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 // leaveSession removes the given party from this session.
 func (s *SessionRegistry) leaveSession(party *party) error {
 	sess := party.s
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Emit session leave event to both the Audit Log as well as over the
-	// "x-teleport-event" channel in the SSH connection.
-	s.emitSessionLeaveEvent(party)
-
-	sess.mu.Lock()
-	defer sess.mu.Unlock()
 
 	// Remove member from in-members representation of party.
 	if err := sess.removeParty(party); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Emit session leave event to both the Audit Log as well as over the
+	// "x-teleport-event" channel in the SSH connection.
+	s.emitSessionLeaveEvent(party)
 
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit
@@ -1005,6 +1004,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder))
 	s.BroadcastMessage("Creating session with ID: %v...", s.id)
+	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.term.Run(); err != nil {
 		ctx.Errorf("Unable to run shell command: %v.", err)
@@ -1271,6 +1271,9 @@ func sessionsStreamingUploadDir(ctx *ServerContext) string {
 }
 
 func (s *session) broadcastResult(r ExecResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for _, p := range s.parties {
 		p.ctx.SendExecResult(r)
 	}
@@ -1289,6 +1292,9 @@ func (s *session) removePartyMember(party *party) {
 // removeParty removes the party from the in-memory map that holds all party
 // members.
 func (s *session) removeParty(p *party) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	p.ctx.Infof("Removing party %v from session %v", p, s.id)
 
 	// Removes participant from in-memory map of party members.
