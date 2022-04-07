@@ -570,7 +570,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 			tc.UseStrongestAuth = false
 		}()
 		// Avoid stdin hijack on relogin attempts.
-		// Uses can pick an alternative MFA method by explicitly calling Login (or
+		// Users can pick an alternative MFA method by explicitly calling Login (or
 		// running `tsh login`).
 		tc.UseStrongestAuth = true
 		log.Debug("Enabling strongest auth for login. Use `tsh login` for alternative authentication methods.")

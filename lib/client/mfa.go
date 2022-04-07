@@ -92,7 +92,9 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	}
 
 	// Prompt only for the strongest auth method available?
-	hasTOTP = !(opts.UseStrongestAuth && hasWebauthn) && hasTOTP
+	if opts.UseStrongestAuth && hasWebauthn {
+		hasTOTP = false
+	}
 
 	var numGoroutines int
 	if hasTOTP && hasWebauthn {
