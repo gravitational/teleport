@@ -127,7 +127,9 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 			sessions[i] = session
 		} else if item.Expires.IsZero() /* Check if the expiry is not set. */ {
 			if err := s.bk.Delete(ctx, item.Key); err != nil {
-				return nil, trace.Wrap(err)
+				if !trace.IsNotFound(err) {
+					return nil, trace.Wrap(err)
+				}
 			}
 		}
 	}
