@@ -1,5 +1,23 @@
 # Changelog
 
+## 9.0.4
+
+This release of Teleport contains multiple improvements and fixes.
+
+* Fixed issue with `:` not being allowed in label keys. [#11563](https://github.com/gravitational/teleport/pull/11563)
+* Fixed potential panic in Kubernetes Access. [#11614](https://github.com/gravitational/teleport/pull/11614)
+* Added `teleport_connect_to_node_attempts_total` Prometheus metric. [#11629](https://github.com/gravitational/teleport/pull/11629)
+* Multiple CA rotation stability improvements. [#11658](https://github.com/gravitational/teleport/pull/11658)
+* Fixed console player Ctrl-C and Ctrl-D functionality. [#11559](https://github.com/gravitational/teleport/pull/11559)
+* Improved logging in case of node with existing state joining an new cluster. [#11751](https://github.com/gravitational/teleport/pull/11751)
+* Added preview of PostgreSQL/CockroachDB backend. [#11667](https://github.com/gravitational/teleport/pull/11667)
+* Fixed compatibility issues with CA loading between old and new tsh versions. [#11663](https://github.com/gravitational/teleport/pull/11663)
+* Fixed loggers not respecting JSON configuration. [#11655](https://github.com/gravitational/teleport/pull/11655)
+* Added support for Proxy Protocol v2. [#11722](https://github.com/gravitational/teleport/pull/11722)
+* Fixed a number of tsh player stability issues. [#11491](https://github.com/gravitational/teleport/pull/11491)
+* Improved network utilization caused by session uploader. [#11698](https://github.com/gravitational/teleport/pull/11698)
+* Improved remote clusters inventory bookkeeping. [#11707](https://github.com/gravitational/teleport/pull/11707)
+
 ## 9.0.3
 
 This release of Teleport contains multiple fixes.
