@@ -76,6 +76,10 @@ const (
 	// Directories need the execute bit set for most operations on their
 	// contents to succeed.
 	DefaultDirMode fs.FileMode = 0700
+
+	// OpenMode is the mode with which files should be opened for reading and
+	// writing.
+	OpenMode int = os.O_CREATE | os.O_RDWR
 )
 
 // ACLOptions contains parameters needed to configure ACLs
@@ -88,9 +92,10 @@ type ACLOptions struct {
 	ReaderUser *user.User
 }
 
-// openStandard attempts to open the given path for writing with O_CREATE set.
+// openStandard attempts to open the given path for reading and writing with
+// O_CREATE set.
 func openStandard(path string) (*os.File, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, DefaultMode)
+	file, err := os.OpenFile(path, OpenMode, DefaultMode)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
