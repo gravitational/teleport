@@ -108,7 +108,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		//
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
 		if requestID, errParse := auth.ParseSAMLInResponseTo(samlResponse); errParse == nil {
-			if request, errGet := h.cfg.ProxyClient.GetSAMLAuthRequest(r.Context(), requestID); errGet == nil {
+			if request, errGet := h.cfg.ProxyClient.GetSAMLAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
 				if url, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
 					return url.String()
 				}
