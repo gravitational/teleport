@@ -1,8 +1,14 @@
 {{- if and (.Values.acme) (gt (int .Values.highAvailability.replicaCount) 1) }}
-{{- fail "Cannot enable built-in ACME support with more than one replica, use highAvailability.certManager.enabled instead" }}
+{{- fail "Cannot enable built-in ACME support with more than one replica, use highAvailability.certManager.enabled or tls.existingSecretName instead" }}
 {{- end }}
 {{- if and (eq .Values.chartMode "standalone") (gt (int .Values.highAvailability.replicaCount) 1) }}
 {{- fail "Cannot enable multiple replicas in standalone mode, use a different chartMode which supports high availability - see README and docs" }}
+{{- end }}
+{{- if and .Values.highAvailability.certManager.enabled .Values.tls.existingSecretName }}
+{{- fail "Cannot set both highAvailability.certManager.enabled and tls.existingSecretName, choose one or the other" }}
+{{- end }}
+{{- if and .Values.acme .Values.tls.existingSecretName }}
+{{- fail "Cannot set both acme.enabled and tls.existingSecretName, choose one or the other" }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -20,6 +26,10 @@ spec:
   replicas: {{ .Values.highAvailability.replicaCount }}
   {{- else }}
   replicas: 1
+  {{- end }}
+  {{- if eq .Values.chartMode "standalone" }}
+  strategy:
+    type: Recreate
   {{- end }}
   selector:
     matchLabels:
@@ -92,6 +102,10 @@ spec:
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
+  {{- else if .Values.tls.existingSecretName }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
   {{- end }}
         - mountPath: /etc/teleport
           name: "config"
@@ -106,9 +120,15 @@ spec:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
         imagePullPolicy: {{ .Values.imagePullPolicy }}
-        {{- if .Values.extraEnv }}
+        {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
         env:
+        {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}
+        {{- end }}
+        {{- if .Values.tls.existingCASecretName }}
+        - name: SSL_CERT_FILE
+          value: /etc/teleport-tls-ca/ca.pem
+        {{- end }}
         {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
@@ -163,6 +183,15 @@ spec:
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
+{{- else if .Values.tls.existingSecretName }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+        {{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+        {{- end }}
 {{- end }}
         - mountPath: /etc/teleport
           name: "config"
@@ -187,6 +216,15 @@ spec:
       - name: teleport-tls
         secret:
           secretName: teleport-tls
+{{- else if .Values.tls.existingSecretName }}
+      - name: teleport-tls
+        secret:
+          secretName: {{ .Values.tls.existingSecretName }}
+      {{- if .Values.tls.existingCASecretName }}
+      - name: teleport-tls-ca
+        secret:
+          secretName: {{ .Values.tls.existingCASecretName }}
+      {{- end }}
 {{- end }}
       - name: "config"
         configMap:

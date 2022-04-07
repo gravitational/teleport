@@ -54,13 +54,14 @@ description: Connecting a Kubernetes cluster to Teleport
 - The `jq` tool to process `JSON` output. This is available via common package
   managers.
 
-- The Enterprise version of the `tctl` admin tool. To download this, visit
-the [customer portal](https://dashboard.gravitational.com/web/login).
+- The `tctl` admin tool version >= (=cloud.version=).
 
   ```code
   $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  # Teleport v(=cloud.version=) go(=teleport.golang=)
   ```
+
+  See [Installation](../../installation.mdx) for details.
 
   (!docs/pages/includes/tctl.mdx!)
 
@@ -101,6 +102,12 @@ $ echo $TOKEN
 
 ## Step 2/2. Deploy teleport-kube-agent
 
+<Notice type="tip" >
+
+The Teleport agent version should be the same as the Teleport Cluster version 
+or up to one major version back.  You can set the version override with the override variable, ex: `--set teleportVersionOverride=(=teleport.version=)`.
+
+</Notice>
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -129,14 +136,16 @@ commands, assigning `PROXY_ADDR` to the address of your Teleport Cloud tenant.
 
 ```code
 # Add teleport-agent chart to charts repository
-$ PROXY_ADDR=mytenant.teleport.sh
+$ PROXY_ADDR=mytenant.teleport.sh:443
 $ helm repo add teleport https://charts.releases.teleport.dev
 $ helm repo update
 
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
 $ CLUSTER='cookie'
+# Run the helm install specifying to match to the Teleport Cloud version of Teleport
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
+  --set proxyAddr=${PROXY_ADDR?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent \
+  --set teleportVersionOverride=(=cloud.version=)
 ```
 
 </TabItem>

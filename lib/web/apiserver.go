@@ -873,7 +873,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetWebConfigHeaders(w.Header())
 
-	authProviders := []ui.WebConfigAuthProvider{}
+	authProviders := []webclient.WebConfigAuthProvider{}
 
 	// get all OIDC connectors
 	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
@@ -881,9 +881,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve OIDC connectors.")
 	}
 	for _, item := range oidcConnectors {
-		authProviders = append(authProviders, ui.WebConfigAuthProvider{
-			Type:        ui.WebConfigAuthProviderOIDCType,
-			WebAPIURL:   ui.WebConfigAuthProviderOIDCURL,
+		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
+			Type:        webclient.WebConfigAuthProviderOIDCType,
+			WebAPIURL:   webclient.WebConfigAuthProviderOIDCURL,
 			Name:        item.GetName(),
 			DisplayName: item.GetDisplay(),
 		})
@@ -895,9 +895,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
 	for _, item := range samlConnectors {
-		authProviders = append(authProviders, ui.WebConfigAuthProvider{
-			Type:        ui.WebConfigAuthProviderSAMLType,
-			WebAPIURL:   ui.WebConfigAuthProviderSAMLURL,
+		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
+			Type:        webclient.WebConfigAuthProviderSAMLType,
+			WebAPIURL:   webclient.WebConfigAuthProviderSAMLURL,
 			Name:        item.GetName(),
 			DisplayName: item.GetDisplay(),
 		})
@@ -909,26 +909,26 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve Github connectors.")
 	}
 	for _, item := range githubConnectors {
-		authProviders = append(authProviders, ui.WebConfigAuthProvider{
-			Type:        ui.WebConfigAuthProviderGitHubType,
-			WebAPIURL:   ui.WebConfigAuthProviderGitHubURL,
+		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
+			Type:        webclient.WebConfigAuthProviderGitHubType,
+			WebAPIURL:   webclient.WebConfigAuthProviderGitHubURL,
 			Name:        item.GetName(),
 			DisplayName: item.GetDisplay(),
 		})
 	}
 
 	// get auth type & second factor type
-	var authSettings ui.WebConfigAuthSettings
+	var authSettings webclient.WebConfigAuthSettings
 	if cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context()); err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
-		authSettings = ui.WebConfigAuthSettings{
+		authSettings = webclient.WebConfigAuthSettings{
 			Providers:        authProviders,
 			SecondFactor:     constants.SecondFactorOff,
 			LocalAuthEnabled: true,
 			AuthType:         constants.Local,
 		}
 	} else {
-		authSettings = ui.WebConfigAuthSettings{
+		authSettings = webclient.WebConfigAuthSettings{
 			Providers:         authProviders,
 			SecondFactor:      cap.GetSecondFactor(),
 			LocalAuthEnabled:  cap.GetAllowLocalAuth(),
@@ -957,7 +957,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
 	}
 
-	webCfg := ui.WebConfig{
+	webCfg := webclient.WebConfig{
 		Auth:                authSettings,
 		CanJoinSessions:     canJoinSessions,
 		IsCloud:             h.ClusterFeatures.GetCloud(),

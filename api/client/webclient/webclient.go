@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
@@ -77,16 +78,17 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:            cfg.Pool,
-				InsecureSkipVerify: cfg.Insecure,
-			},
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-			},
+	transport := http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: cfg.Insecure,
+			RootCAs:            cfg.Pool,
 		},
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		},
+	}
+	return &http.Client{
+		Transport: proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
 	}, nil
 }
 
