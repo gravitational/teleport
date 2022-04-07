@@ -21,6 +21,21 @@ Teleport Cloud account.
 If you have not set up a Teleport cluster before, follow the
 [Getting started](https://goteleport.com/docs/getting-started) guide.
 
+<Admonition type="note" title="Machine ID and TLS Routing">
+TLS Routing support will be added to Machine ID in [Teleport
+9.1](https://goteleport.com/docs/preview/upcoming-releases/#teleport-91). Until
+that time, the Teleport Proxy Server will need to be configured with a
+dedicated SSH listener.
+
+```yaml
+version: v1
+proxy_service:
+  enabled: "yes"
+  listen_addr: "0.0.0.0:3023"
+  ...
+```
+</Admonition>
+
 ## Step 1/4. Download and install Teleport (=teleport.version=)
 
 In this step, you will be downloading and installing Teleport binaries onto the

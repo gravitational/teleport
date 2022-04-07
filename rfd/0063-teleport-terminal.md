@@ -1,6 +1,6 @@
 ---
 authors: Alexey Kontsevoy (alexey@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0063 - Teleport Terminal
@@ -24,12 +24,13 @@ Electron has been chosen because of cross-platform support and an ability to reu
 1. Built-in fully featured terminal based on [xterm](https://xtermjs.org/) and [node-pty](https://github.com/microsoft/node-pty) to fork processes.
 2. Tabbed layout where a tab can be an ssh session, rdp connection, or any other document.
 3. Ability to add and access multiple Teleport clusters at the same time.
-4. Command Palette for quick access and navigation.
+4. Connection Tracker for quick access and navigation.
+4. Command Bar for quick command execution.
 
 ### tsh daemon
-`tsh daemon` is a `tsh` tool that runs as a service. A hidden flag launches `tsh` in a background process that exposes gRPC API over unix-socket (similarly to docker daemon).
+`tsh daemon` is a `tsh` tool that runs as a service. A hidden command launches `tsh` in a background process that exposes gRPC API over unix-socket (similarly to docker daemon).
 This API is used by `teleterm` to call `tsh` internal methods to access Teleport clusters.
-This makes `tsh` as `teleterm` backend service that stores information about clusters and retrieved certificates.
+This makes `tsh` a backend service for `teleterm` that stores information about clusters and retrieved certificates.
 
 #### gRPC API
 `tsh` gRPC API allows programmatic access to `tsh` functionality. This includes logging into a cluster, k8s, and creating a local proxy (alpn).
@@ -54,7 +55,7 @@ UI will ensure that general [security recommendations](https://www.electronjs.or
 
 ## Packaging and installation
 `teleterm` uses [Electron-Builder](https://github.com/electron-userland/electron-builder) that handles creation of packages for multiple platforms. `tsh` is packaged together with the
-rest of the application and installed into the "app data" folder. After an installation, `teleterm` prompts a dialog asking a user to optionally register `tsh` and `teleterm` globally via symlinks.
+rest of the application and installed into the "app data" folder.
 
 Electron supports automatic updates. The updates happens via a publicly exposed service that Electron trusts. This service can be hosted by the
 cloud team. This functionality currently is not implemented.

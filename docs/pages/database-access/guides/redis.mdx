@@ -13,6 +13,8 @@ description: How to configure Teleport Database Access with Redis.
   Database access for Redis is available starting from Teleport `9.0`.
 </Details>
 
+If you want to configure Redis Cluster, please read [Database Access with Redis Cluster](redis-cluster.mdx).
+
 This guide will help you to:
 
 - Install and configure Teleport.
@@ -22,7 +24,7 @@ This guide will help you to:
 ## Prerequisites
 
 - Teleport version `9.0` or newer.
-- Redis (standalone or cluster) version `6.0` or newer.
+- Redis version `6.0` or newer.
 - `redis-cli` installed and added to your system's `PATH` environment variable.
 
 <Admonition type="note" title="Note">
@@ -39,146 +41,47 @@ This guide will help you to:
 
 ## Step 3/5. Create Redis users
 
-Each Redis user must be protected by a strong password. We recommend using OpenSSL to generate passwords:
-
-```shell
-openssl rand -hex 32
-```
-
-  <Admonition type="note">
-If you have access to Redis you can also generate a password by using the below command from the Redis console:
-
-```
-ACL GENPASS
-```
-  </Admonition>
-
-Create a `users.acl` file, which defines users for your Redis deployment, passwords required to log in as a given user,
- and sets of ACL rules. Redis allows you to provide passwords in plaintext or an SHA256 hash.
-We strongly recommend using an SHA256 hash instead of plaintext passwords.
-
-You can use the command below to generate an SHA256 hash from a password.
-```shell
-echo -n STRONG_GENERATED_PASSWORD | sha256sum
-```
-
-<Tabs>
-  <TabItem label="Standalone">
-    ```text
-    user alice on #57639ed88a85996453555f22f5aa4147b4c9614056585d931e5d976f610651e9 allcommands allkeys
-    user default off
-    ```
-
-    For more ACL examples refer to the [Redis documentation](https://redis.io/docs/manual/security/acl/).
-  </TabItem>
-  <TabItem label="Cluster">
-Redis in cluster mode requires a special user created on leader nodes to enable leader-follower communication.
-    ```text
-    user alice on #57639ed88a85996453555f22f5aa4147b4c9614056585d931e5d976f610651e9 allcommands allkeys
-    user replica-user on #42a9798b99d4afcec9995e47a1d246b98ebc96be7a732323eee39d924006ee1d &* -@all +replconf +ping +psync
-    user default off
-    ```
-
-    For more ACL examples refer to the Redis documentation: [ACL](https://redis.io/docs/manual/security/acl/), [ACL rules for replicas](https://redis.io/docs/manual/security/acl/#acl-rules-for-sentinel-and-replicas).
-  </TabItem>
-</Tabs>
-
-<Admonition type="warning">
-  It's very important to either disable or protect with a password the `default` user. Otherwise, everyone with access
-  to the database can log in as the `default` user, which by default has administrator privileges.
-</Admonition>
+(!docs/pages/includes/database-access/redis-create-users.mdx!)
 
 ## Step 4/5. Set up mutual TLS
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
-Create the secrets:
+We will show you how to use `tctl auth sign` below.
 
-<Tabs>
-  <TabItem label="Standalone">
-    When connecting to standalone Redis, sign the certificate for the hostname over
-    which Teleport will be connecting to it.
+When connecting to standalone Redis, sign the certificate for the hostname over
+which Teleport will be connecting to it.
 
-    For example, if your Redis server is accessible at `redis.example.com`,
- run:
+For example, if your Redis server is accessible at `redis.example.com`,
+run:
 
-    ```code
-    $ tctl auth sign --format=redis --host=redis.example.com --out=server --ttl=2190h
-    ```
+```code
+$ tctl auth sign --format=redis --host=redis.example.com --out=server --ttl=2190h
+```
 
-    (!docs/pages/includes/database-access/ttl-note.mdx!)
+(!docs/pages/includes/database-access/ttl-note.mdx!)
 
-    The command will create three files:
-    - `server.cas` with Teleport's certificate authority
-    - `server.key` with a generated private key
-    - `server.crt` with a generated user certificate
+The command will create three files:
+- `server.cas` with Teleport's certificate authority
+- `server.key` with a generated private key
+- `server.crt` with a generated user certificate
 
 You will need these files to enable mutual TLS on your Redis server.
-  </TabItem>
-  <TabItem label="Cluster">
-    When connecting to Redis Cluster, sign certificates for each member
-    using their hostnames and IP addresses.
-
-    For example, if the first member is accessible at `redis1.example.com` with IP `10.0.0.1` and
-    the second at `redis2.example.com` with IP `10.0.0.2`, run:
-
-    ```code
-    $ tctl auth sign --format=redis --host=redis1.example.com,10.0.0.1 --out=redis1 --ttl=2190h
-    $ tctl auth sign --format=redis --host=redis2.example.com,10.0.0.2 --out=redis2 --ttl=2190h
-    ```
-
-    (!docs/pages/includes/database-access/ttl-note.mdx!)
-
-    The command will create three files:
-    - `server.cas` with Teleport's certificate authority
-    - `server.key` with a generated private key
-    - `server.crt` with a generated user certificate
-
-You will need these files to enable mutual TLS on your Redis server.
-  </TabItem>
-</Tabs>
 
 (!docs/pages/includes/database-access/rotation-note.mdx!)
 
 Use the generated secrets to enable mutual TLS in your `redis.conf` configuration
 file and restart the database:
 
-<Tabs>
-  <TabItem label="Standalone">
-    ```ini
-    tls-port 6379
-    port 0
-
-    aclfile /path/to/users.acl
-
-    tls-ca-cert-file /path/to/server.cas
-    tls-cert-file /path/to/server.crt
-    tls-key-file /path/to/server.key
-    tls-protocols "TLSv1.2 TLSv1.3"
-    ```
-  </TabItem>
-  <TabItem label="Cluster">
-    ```ini
-    tls-port 7001
-    port 0
-
-    cluster-enabled yes
-
-    tls-replication yes
-    tls-cluster yes
-
-    aclfile /path/to/users.acl
-
-    masterauth GENERATED_STRONG_PASSWORD
-    masteruser replica-user
-
-    tls-cert-file /usr/local/etc/redis/certs/server.crt
-    tls-key-file /usr/local/etc/redis/certs/server.key
-    tls-ca-cert-file /usr/local/etc/redis/certs/server.cas
-    tls-protocols "TLSv1.2 TLSv1.3"
-    ```
-  </TabItem>
-</Tabs>
+```ini
+tls-port 6379
+port 0
+aclfile /path/to/users.acl
+tls-ca-cert-file /path/to/server.cas
+tls-cert-file /path/to/server.crt
+tls-key-file /path/to/server.key
+tls-protocols "TLSv1.2 TLSv1.3"
+```
 
 Once mutual TLS has been enabled, you will no longer be able to connect to
 the cluster without providing a valid client certificate. You can use the
@@ -188,187 +91,19 @@ from clients that do not present a certificate.
 See [TLS Support](https://redis.io/topics/encryption)
 in the Redis documentation for more details.
 
-<Admonition type="note" title="Create Redis Cluster">
-  When you're configuring Redis Cluster you need to create the cluster using `redis-cli`.
-
-  Use the following command to create the cluster. Please note `redis-cli --cluster create` accepts only IP addresses.
-
-  ```shell
-  export REDISCLI_AUTH=STRONG_GENERATED_PASSWORD
-  export CERTS_DIR=/path/to/certs/
-  export IP1=10.0.0.1 # update with the real node 1 IP
-  export IP2=10.0.0.2 # update with the real node 2 IP
-  export IP3=10.0.0.3 # update with the real node 3 IP
-  export IP4=10.0.0.4 # update with the real node 4 IP
-  export IP5=10.0.0.5 # update with the real node 5 IP
-  export IP6=10.0.0.6 # update with the real node 6 IP
-
-  redis-cli --user alice --cluster-replicas 1 --tls --cluster-yes \
-  --cluster create ${IP1}:7001 ${IP2}:7002 ${IP3}:7003 ${IP4}:7004 ${IP5}:7005 ${IP6}:7006 \
-  --cacert ${CERTS_DIR}/server.cas --key ${CERTS_DIR}/server.key --cert ${CERTS_DIR}/server.crt
-  ```
-
-</Admonition>
-
-<Admonition type="note" title="Redis Cluster Only">
-
-  To enable Redis cluster mode in Teleport, add the `mode=cluster` parameter to the connection URI in
-  your Teleport Database Service config file.
-
-  ```yaml
-  databases:
-    - name: "redis-cluster"
-      uri: "rediss://redis.example.com:6379?mode=cluster"
-  ```
-
-</Admonition>
-
 ## Step 5/5. Connect
 
-Log into your Teleport cluster and see available databases:
-
-<Tabs>
-  <TabItem scope={["enterprise", "oss"]} label="Self Hosted">
-    ```code
-    $ tsh login --proxy=teleport.example.com --user=alice
-    $ tsh db ls
-    # Name          Description     Labels
-    # ------------- --------------- --------
-    # example-redis Example Redis   env=dev
-    ```
-  </TabItem>
-  <TabItem scope={["cloud"]} label="Cloud">
-    ```code
-    $ tsh login --proxy=mytenant.teleport.sh --user=alice
-    $ tsh db ls
-    # Name          Description     Labels
-    # ------------- --------------- --------
-    # example-redis Example Redis   env=dev
-    ```
-  </TabItem>
-</Tabs>
-
-To connect to a particular database instance, first retrieve its certificate
-using the `tsh db login` command:
-
-```code
-$ tsh db login example-redis
-```
-
-<Admonition type="tip" title="Tip">
-  You can be logged into multiple databases simultaneously.
-</Admonition>
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database instance:
-
-```code
-$ tsh db login --db-user=alice example-redis
-```
-
-<Admonition type="note" title="Note">
-  If flag `--db-user` is not provided, Teleport logs in as the `default` user.
-</Admonition>
-
-Once logged in, connect to the database:
-
-```code
-$ tsh db connect example-redis
-```
-
-<Admonition type="note" title="Note">
-  The `redis-cli` command-line client should be available in the system `PATH` in order to be
-  able to connect.
-</Admonition>
-
-Now you can log in as the previously created user using the below command:
-
-```
-AUTH alice STRONG_GENERATED_PASSWORD
-```
-
-To log out of the database and remove credentials:
-
-```code
-# Remove credentials for a particular database instance.
-$ tsh db logout example-redis
-# Remove credentials for all database instances.
-$ tsh db logout
-```
+(!docs/pages/includes/database-access/redis-connect.mdx!)
 
 ### Supported Redis commands
 
-  <Tabs>
-    <TabItem label="Standalone">
+Redis in standalone mode doesn't support the commands below. If one of the listed commands is called Teleport
+returns the <nobr>`ERR Teleport: not supported by Teleport`</nobr> error.
 
-      Redis in standalone mode doesn't support the commands below. If one of the listed commands is called Teleport
-      returns the `ERR Teleport: not supported by Teleport` error.
-
-      - `HELLO`
-      - `PUNSUBSCRIBE`
-      - `SSUBSCRIBE`
-      - `SUNSUBSCRIBE`
-
-    </TabItem>
-    <TabItem label="Cluster">
-
-      Redis in cluster mode doesn't support below commands. If one of the listed commands above is called Teleport
-      returns the `ERR Teleport: command not supported` error.
-
-      - `ACL`
-      - `ASKING`
-      - `CLIENT`
-      - `CLUSTER`
-      - `CONFIG`
-      - `DEBUG`
-      - `EXEC`
-      - `HELLO`
-      - `INFO`
-      - `LATENCY`
-      - `MEMORY`
-      - `MIGRATE`
-      - `MODULE`
-      - `MONITOR`
-      - `MULTI`
-      - `PFDEBUG`
-      - `PFSELFTEST`
-      - `PSUBSCRIBE`
-      - `PSYNC`
-      - `PUNSUBSCRIBE`
-      - `PUNSUBSCRIBE`
-      - `READONLY`
-      - `READWRITE`
-      - `REPLCONF`
-      - `REPLICAOF`
-      - `ROLE`
-      - `SCAN`
-      - `SCRIPT DEBUG`
-      - `SCRIPT KILL`
-      - `SHUTDOWN`
-      - `SLAVEOF`
-      - `SLOWLOG`
-      - `SSUBSCRIBE`
-      - `SUNSUBSCRIBE`
-      - `SYNC`
-      - `TIME`
-      - `WAIT`
-      - `WATCH`
-
-      Teleport also adds additional processing to:
-
-| Command         | Description                                                                                                                                                                                                  |
-|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `DBSIZE`        | Sends the query to all nodes and returns the number of keys in the whole cluster.                                                                                                                            |
-| `KEYS`          | Sends the query to all nodes and returns a list of all keys in the whole cluster.                                                                                                                            |
-| `MGET`          | Translates the commands to multiple `GET`s and sends them to multiple nodes. Result is merged in Teleport and returned back to the client. If Teleport fails to fetch at least one key an error is returned. |
-| `FLUSHDB`       | Sends the query to all nodes.                                                                                                                                                                                |
-| `FLUSHALL`      | Works the same as `FLUSHDB`.                                                                                                                                                                                 |
-| `SCRIPT EXISTS` | Sends the query to all nodes. `1` is returned only if script exists on all nodes.                                                                                                                            |
-| `SCRIPT LOAD`   | Sends the script to all nodes.                                                                                                                                                                               |
-| `SCRIPT FLUSH`  | Sends the query to all nodes. `ASYNC` parameter is ignored.                                                                                                                                                  |
-
-    </TabItem>
-  </Tabs>
+- `HELLO`
+- `PUNSUBSCRIBE`
+- `SSUBSCRIBE`
+- `SUNSUBSCRIBE`
 
 ## Next steps
 
