@@ -1,6 +1,6 @@
 # Copied from https://github.com/gravitational/teleport-plugins/blob/master/access/slack/example_config.toml
 
-# Example slack plugin configuration TOML file
+# Example Slack plugin configuration TOML file
 
 [teleport]
 # This section 
