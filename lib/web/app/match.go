@@ -20,6 +20,7 @@ import (
 	"context"
 	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -61,6 +63,62 @@ func Match(ctx context.Context, authClient Getter, fn Matcher) ([]types.AppServe
 	})
 
 	return as, nil
+}
+
+// MatchRetryOptions retry options used on `MatchWithRetry` function.
+type MatchRetryOptions struct {
+	// Interval defines the interval between match retries.
+	Interval time.Duration
+	// MaxTime defines max time the match function will retry.
+	MaxTime time.Duration
+}
+
+// CheckAndSetDefaults checks and sets defaults.
+func (cfg *MatchRetryOptions) CheckAndSetDefaults() error {
+	if cfg.Interval == 0 {
+		return trace.BadParameter("must provide retry internal")
+	}
+	if cfg.MaxTime == 0 {
+		return trace.BadParameter("must provide retry max time")
+	}
+
+	return nil
+}
+
+// MatchWithRetry executes the `Match` function with a configurable retry
+// system.
+func MatchWithRetry(ctx context.Context, authClient Getter, fn Matcher, options MatchRetryOptions) ([]types.AppServer, error) {
+	ctx, cancel := context.WithTimeout(ctx, options.MaxTime)
+	defer cancel()
+
+	// Create a constant retry interval.
+	backoff, err := utils.NewConstant(options.Interval)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var servers []types.AppServer
+	err = backoff.For(ctx, func() error {
+		var err error
+
+		servers, err = Match(ctx, authClient, fn)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If match result is empty, retry.
+		if len(servers) == 0 {
+			return trace.NotFound("app servers not found")
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
 }
 
 // Matcher allows matching on different properties of an application.

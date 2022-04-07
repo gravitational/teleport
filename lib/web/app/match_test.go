@@ -17,14 +17,19 @@ limitations under the License.
 package app
 
 import (
+	"context"
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,6 +83,98 @@ func TestMatchHealthy(t *testing.T) {
 	}
 }
 
+func TestMatchWithRetry(t *testing.T) {
+	ctx := context.Background()
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:      "test-app",
+			Namespace: defaults.Namespace,
+		},
+		types.AppSpecV3{
+			URI: "https://app.localhost",
+		},
+	)
+	require.NoError(t, err)
+
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		getter       Getter
+		matchResult  bool
+		retryOptions MatchRetryOptions
+		errAssert    require.ErrorAssertionFunc
+	}{
+		"WithMatchingAppServers": {
+			getter: &mockGetter{
+				getAppServersResult: []types.AppServer{appServer},
+			},
+			matchResult:  true,
+			retryOptions: MatchRetryOptions{Interval: time.Second, MaxTime: time.Second},
+			errAssert:    require.NoError,
+		},
+		"WithoutAppServers": {
+			getter: &mockGetter{
+				getAppServersResult: []types.AppServer{},
+			},
+			matchResult: true,
+			// Retries 3 times before timeout.
+			retryOptions: MatchRetryOptions{Interval: 10 * time.Millisecond, MaxTime: 30 * time.Millisecond},
+			errAssert: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.IsType(t, err, trace.LimitExceeded(""))
+			},
+		},
+		"WithAppServersNoMatching": {
+			getter: &mockGetter{
+				getAppServersResult: []types.AppServer{appServer},
+			},
+			matchResult: false,
+			// Retries 4 times before timeout.
+			retryOptions: MatchRetryOptions{Interval: 10 * time.Millisecond, MaxTime: 40 * time.Millisecond},
+			errAssert: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.IsType(t, err, trace.LimitExceeded(""))
+			},
+		},
+		"FalingToFetchAppServers": {
+			getter: &mockGetter{
+				getAppServersErr: trace.ConnectionProblem(nil, ""),
+			},
+			matchResult: false,
+			// Retries 5 times before timeout.
+			retryOptions: MatchRetryOptions{Interval: 10 * time.Millisecond, MaxTime: 50 * time.Millisecond},
+			errAssert: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.IsType(t, err, trace.LimitExceeded(""))
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			var err error
+
+			// Ensures the match won't execeed the defined max time. We add 5
+			// milliseconds to make the test less time sensitive.
+			maxTime := test.retryOptions.MaxTime + 5*time.Millisecond
+			require.Eventually(t, func() bool {
+				_, err = MatchWithRetry(
+					ctx,
+					test.getter,
+					func(_ types.AppServer) bool { return test.matchResult },
+					test.retryOptions,
+				)
+
+				return true
+			}, maxTime, time.Millisecond)
+
+			test.errAssert(t, err)
+		})
+	}
+}
+
 type mockProxyClient struct {
 	reversetunnel.Tunnel
 	remoteSite *mockRemoteSite
@@ -94,4 +191,19 @@ type mockRemoteSite struct {
 
 func (r *mockRemoteSite) Dial(_ reversetunnel.DialParams) (net.Conn, error) {
 	return nil, r.dialErr
+}
+
+type mockGetter struct {
+	getAppServersResult  []types.AppServer
+	getAppServersErr     error
+	getClusterNameResult types.ClusterName
+	getClusterNameErr    error
+}
+
+func (m *mockGetter) GetApplicationServers(context.Context, string) ([]types.AppServer, error) {
+	return m.getAppServersResult, m.getAppServersErr
+}
+
+func (m *mockGetter) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	return m.getClusterNameResult, m.getClusterNameErr
 }

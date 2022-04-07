@@ -33,6 +33,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	// AppServersRetryInterval interval of match application servers retry
+	// during session creation.
+	AppServersRetryInterval = 500 * time.Millisecond
+	// AppServersRetryMaxTime max time of match application servers retry
+	// during session creation.
+	AppServersRetryMaxTime = 10 * time.Second
+)
+
 // session holds a request forwarder and web session for this request.
 type session struct {
 	// fwd can rewrite and forward requests to the target application.
@@ -69,7 +78,20 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	// server (in cases where there are no healthy servers). This process might
 	// take an additional time to execute, but since it is cached, only a few
 	// requests need to perform it.
-	servers, err := Match(ctx, accessPoint, MatchAll(MatchHealthy(h.c.ProxyClient, identity), MatchPublicAddr(identity.RouteToApp.PublicAddr)))
+	//
+	// In addition, the match function will also retry with a predefined
+	// interval until a server is found or if it exceeds the limit time. This
+	// improves the service resilience in scenarios where the application
+	// servers are unstable (for example, during an update).
+	servers, err := MatchWithRetry(
+		ctx,
+		accessPoint,
+		MatchAll(MatchHealthy(h.c.ProxyClient, identity), MatchPublicAddr(identity.RouteToApp.PublicAddr)),
+		MatchRetryOptions{
+			Interval: AppServersRetryInterval,
+			MaxTime:  AppServersRetryMaxTime,
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
