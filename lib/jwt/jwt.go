@@ -32,7 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/cryptosigner"
-	josejwt "gopkg.in/square/go-jose.v2/jwt"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 // Config defines the clock and PEM encoded bytes of a public and private
@@ -153,17 +153,17 @@ func (k *Key) Sign(p SignParams) (string, error) {
 
 	// Sign the claims and create a JWT token.
 	claims := Claims{
-		Claims: josejwt.Claims{
+		Claims: jwt.Claims{
 			Subject:   p.Username,
 			Issuer:    k.config.ClusterName,
-			Audience:  josejwt.Audience{p.URI},
-			NotBefore: josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
-			Expiry:    josejwt.NewNumericDate(p.Expires),
+			Audience:  jwt.Audience{p.URI},
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    jwt.NewNumericDate(p.Expires),
 		},
 		Username: p.Username,
 		Roles:    p.Roles,
 	}
-	token, err := josejwt.Signed(sig).Claims(claims).CompactSerialize()
+	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -207,7 +207,7 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	}
 
 	// Parse the token.
-	tok, err := josejwt.ParseSigned(p.RawToken)
+	tok, err := jwt.ParseSigned(p.RawToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -219,10 +219,10 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	}
 
 	// Validate the claims on the JWT token.
-	expectedClaims := josejwt.Expected{
+	expectedClaims := jwt.Expected{
 		Issuer:   k.config.ClusterName,
 		Subject:  p.Username,
-		Audience: josejwt.Audience{p.URI},
+		Audience: jwt.Audience{p.URI},
 		Time:     k.config.Clock.Now(),
 	}
 	if err = out.Validate(expectedClaims); err != nil {
@@ -235,7 +235,7 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 // Claims represents public and private claims for a JWT token.
 type Claims struct {
 	// Claims represents public claim values (as specified in RFC 7519).
-	josejwt.Claims
+	jwt.Claims
 
 	// Username returns the Teleport identity of the user.
 	Username string `json:"username"`
