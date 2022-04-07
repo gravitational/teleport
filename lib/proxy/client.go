@@ -238,7 +238,6 @@ func (c *Client) sync() {
 
 func (c *Client) updateConnections(proxies []types.Server) error {
 	c.RLock()
-	var errs []error
 
 	toDial := make(map[string]types.Server)
 	for _, proxy := range proxies {
@@ -265,6 +264,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		toKeep[id] = conn
 	}
 
+	var errs []error
 	for id, proxy := range toDial {
 		// skips itself
 		if id == c.config.ID {
