@@ -17,7 +17,6 @@ limitations under the License.
 import { FileStorage } from 'teleterm/types';
 import { ConnectionTrackerState } from 'teleterm/ui/services/connectionTracker';
 import { WorkspacesState } from 'teleterm/ui/services/workspacesService';
-import { debounce } from 'lodash';
 
 interface StatePersistenceState {
   connectionTracker: ConnectionTrackerState;
@@ -33,20 +32,17 @@ export class StatePersistenceService {
       workspaces: {},
     },
   };
-  private readonly putIntoFileStorage: (path: string, json: any) => void;
 
   constructor(private _fileStorage: FileStorage) {
     const restored = this._fileStorage.get<StatePersistenceState>('state');
     if (restored) {
       this.state = restored;
     }
-    // TODO(gzdunek) increase debounce value, run additional save before closing the app
-    this.putIntoFileStorage = debounce(this._fileStorage.put, 500);
   }
 
   saveConnectionTrackerState(navigatorState: ConnectionTrackerState): void {
     this.state.connectionTracker = navigatorState;
-    this.putIntoFileStorage('state', this.state);
+    this._fileStorage.put('state', this.state);
   }
 
   getConnectionTrackerState(): ConnectionTrackerState {
@@ -64,7 +60,7 @@ export class StatePersistenceService {
         };
       }
     }
-    this.putIntoFileStorage('state', this.state);
+    this._fileStorage.put('state', this.state);
   }
 
   getWorkspaces(): WorkspacesState {

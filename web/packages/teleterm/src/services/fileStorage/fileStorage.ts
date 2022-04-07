@@ -1,10 +1,14 @@
-import fs, { readFileSync, existsSync, writeFileSync } from 'fs';
+import fs, { existsSync, readFileSync, writeFileSync } from 'fs';
 import Logger from 'teleterm/logger';
+import { debounce } from 'lodash';
 
 const logger = new Logger('FileStorage');
 
 export interface FileStorage {
   put(path: string, json: any): void;
+
+  putAllSync(): void;
+
   get<T>(path: string): T;
 }
 
@@ -18,10 +22,16 @@ export function createFileStorage(opts: { filePath: string }): FileStorage {
 
   function put(key: string, json: any) {
     state[key] = json;
-    const text = JSON.stringify(state, null, 2);
-    fs.promises.writeFile(filePath, text).catch(error => {
+    writeStateDebounced(filePath, state);
+  }
+
+  function putAllSync() {
+    const text = stringify(state);
+    try {
+      fs.writeFileSync(filePath, text);
+    } catch (error) {
       logger.error(`Cannot update ${filePath} file`, error);
-    });
+    }
   }
 
   function get<T>(key: string): T {
@@ -30,6 +40,7 @@ export function createFileStorage(opts: { filePath: string }): FileStorage {
 
   return {
     put,
+    putAllSync,
     get,
   };
 }
@@ -46,3 +57,14 @@ function loadState(filePath: string) {
     return {};
   }
 }
+
+function stringify(state: any) {
+  return JSON.stringify(state, null, 2);
+}
+
+const writeStateDebounced = debounce((filePath: string, state: any) => {
+  const text = stringify(state);
+  fs.promises.writeFile(filePath, text).catch(error => {
+    logger.error(`Cannot update ${filePath} file`, error);
+  });
+}, 2000);

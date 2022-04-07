@@ -10,5 +10,7 @@ export function createMockFileStorage(): FileStorage {
     get<T>(key: string): T {
       return state[key] as T;
     },
+
+    putAllSync() {},
   };
 }

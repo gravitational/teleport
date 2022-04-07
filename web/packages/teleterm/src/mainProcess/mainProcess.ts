@@ -8,20 +8,20 @@ import {
   screen,
 } from 'electron';
 import { ChildProcess, spawn } from 'child_process';
-import { Logger, RuntimeSettings } from 'teleterm/types';
-import { getAssetPath } from './runtimeSettings';
+import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import {
   ConfigService,
   subscribeToConfigServiceEvents,
 } from '../services/config';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
-import theme from 'teleterm/ui/ThemeProvider/theme';
+import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 
 type Options = {
   settings: RuntimeSettings;
   logger: Logger;
   configService: ConfigService;
+  fileStorage: FileStorage;
 };
 
 export default class MainProcess {
@@ -29,11 +29,13 @@ export default class MainProcess {
   private readonly logger: Logger;
   private readonly configService: ConfigService;
   private tshdProcess: ChildProcess;
+  private fileStorage: FileStorage;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
     this.logger = opts.logger;
     this.configService = opts.configService;
+    this.fileStorage = opts.fileStorage;
   }
 
   static create(opts: Options) {
@@ -106,6 +108,7 @@ export default class MainProcess {
     subscribeToTerminalContextMenuEvent();
     subscribeToTabContextMenuEvent();
     subscribeToConfigServiceEvents(this.configService);
+    subscribeToFileStorageEvents(this.fileStorage);
   }
 
   private _setAppMenu() {

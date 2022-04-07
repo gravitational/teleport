@@ -1,5 +1,6 @@
 import { ConfigService } from '../services/config';
 import { Kind } from 'teleterm/ui/services/workspacesService';
+import { FileStorage } from 'teleterm/services/fileStorage';
 
 export type RuntimeSettings = {
   dev: boolean;
@@ -20,6 +21,7 @@ export type MainProcessClient = {
   openTerminalContextMenu(): void;
   openTabContextMenu(options: TabContextMenuOptions): void;
   configService: ConfigService;
+  fileStorage: FileStorage;
 };
 
 export type Platform = NodeJS.Platform;
@@ -43,6 +45,7 @@ export interface TabContextMenuOptions {
 export const TerminalContextMenuEventChannel = 'TerminalContextMenuEventChannel';
 export const TabContextMenuEventChannel = 'TabContextMenuEventChannel';
 export const ConfigServiceEventChannel = 'ConfigServiceEventChannel';
+export const FileStorageEventChannel = 'FileStorageEventChannel';
 
 export enum TabContextMenuEventType {
   Close = 'Close',
@@ -54,4 +57,10 @@ export enum TabContextMenuEventType {
 export enum ConfigServiceEventType {
   Get = 'Get',
   Update = 'Update',
+}
+
+export enum FileStorageEventType {
+  Get = 'Get',
+  Put = 'Put',
+  PutAllSync = 'PutAllSync',
 }
