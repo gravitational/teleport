@@ -820,10 +820,15 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return response, nil
 	}
 
+	// collectorNames stores a list of the registered collector names so that
+	// in the event that no connector has matched, the list can be returned.
+	var collectorNames []string
+
 	// first look for a oidc connector with that name
 	oidcConnectors, err := authClient.GetOIDCConnectors(r.Context(), false)
 	if err == nil {
 		for index, value := range oidcConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = oidcSettings(oidcConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
@@ -836,6 +841,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
 	if err == nil {
 		for index, value := range samlConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = samlSettings(samlConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
@@ -848,24 +854,13 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	githubConnectors, err := authClient.GetGithubConnectors(r.Context(), false)
 	if err == nil {
 		for index, value := range githubConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = githubSettings(githubConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 				return response, nil
 			}
 		}
-	}
-
-	// no connector has matched, extract the valid collector names.
-	var collectorNames []string
-	for _, value := range oidcConnectors {
-		collectorNames = append(collectorNames, value.GetMetadata().Name)
-	}
-	for _, value := range samlConnectors {
-		collectorNames = append(collectorNames, value.GetMetadata().Name)
-	}
-	for _, value := range githubConnectors {
-		collectorNames = append(collectorNames, value.GetMetadata().Name)
 	}
 
 	return nil,

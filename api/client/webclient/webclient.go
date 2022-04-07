@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -186,12 +187,12 @@ func Ping(cfg *Config) (*PingResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 400 {
+	if resp.StatusCode == http.StatusBadRequest {
 		per := &PingErrorResponse{}
 		if err := json.NewDecoder(resp.Body).Decode(per); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, fmt.Errorf(per.Error.Message)
+		return nil, errors.New(per.Error.Message)
 	}
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
