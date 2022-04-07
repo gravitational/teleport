@@ -216,9 +216,6 @@ func onStart(botConfig *config.BotConfig) error {
 			return trace.Wrap(err)
 		}
 
-		// TODO: validate that errors from LoadIdentity are sanely typed; we
-		// actually only want to ignore NotFound errors
-
 		// Verify we can write to the destination.
 		if err := identity.VerifyWrite(dest); err != nil {
 			return trace.Wrap(err, "Could not write to destination %s, aborting.", dest)
