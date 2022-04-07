@@ -388,12 +388,18 @@ func OpaqueAccessDenied(err error) error {
 
 // PortList is a list of TCP port
 type PortList struct {
-	ports []string
+	ports []int
 	mu    sync.Mutex
 }
 
 // Pop returns a value from the list, it panics if the value is not there
 func (p *PortList) Pop() string {
+	return strconv.Itoa(p.PopInt())
+}
+
+// PopInt returns a value from the list, it panics if not enough values
+// were allocated
+func (p *PortList) PopInt() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -404,16 +410,6 @@ func (p *PortList) Pop() string {
 	val := p.ports[l-1]
 	p.ports = p.ports[:l-1]
 	return val
-}
-
-// PopInt returns a value from the list, it panics if not enough values
-// were allocated
-func (p *PortList) PopInt() int {
-	i, err := strconv.Atoi(p.Pop())
-	if err != nil {
-		panic(err)
-	}
-	return i
 }
 
 // PopIntSlice returns a slice of values from the list, it panics if not enough
@@ -431,13 +427,13 @@ const PortStartingNumber = 20000
 
 // GetFreeTCPPorts returns n ports starting from port 20000.
 func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
-	list := make([]string, 0, n)
+	list := make([]int, 0, n)
 	start := PortStartingNumber
 	if len(offset) != 0 {
 		start = offset[0]
 	}
 	for i := start; i < start+n; i++ {
-		list = append(list, strconv.Itoa(i))
+		list = append(list, i)
 	}
 	return PortList{ports: list}, nil
 }
