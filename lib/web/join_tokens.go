@@ -21,9 +21,11 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -77,6 +79,30 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}
 
 	expires := time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
+
+	// to prevent generation of redundant IAM tokens
+	// we generate a deterministic name for them
+	if req.JoinMethod == types.JoinMethodIAM {
+		tokenName, err = generateIamTokenName(req.Allow)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// if a token with this name is found, return it
+		// otherwise, go ahead and create it
+		t, err := clt.GetToken(r.Context(), tokenName)
+		if err == nil {
+			return &nodeJoinToken{
+				ID:     t.GetName(),
+				Expiry: *t.GetMetadata().Expires,
+				Method: t.GetJoinMethod(),
+			}, nil
+		}
+
+		// IAM tokens should 'never' expire
+		expires = time.Now().UTC().AddDate(1000, 0, 0)
+	}
+
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -258,6 +284,45 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// generateIamTokenName makes a deterministic name for a iam join token
+// based on its rule set
+func generateIamTokenName(rules []*types.TokenRule) (string, error) {
+	// sort the rules by (account ID, arn)
+	// to make sure a set of rules will produce the same hash,
+	// no matter the order they are in the slice
+	orderedRules := sortRules(rules)
+
+	var sb strings.Builder
+	for _, r := range orderedRules {
+		s := fmt.Sprintf("%s-%s", r.AWSAccount, r.AWSARN)
+		sb.WriteString(s)
+	}
+
+	h := fnv.New32a()
+	_, err := h.Write([]byte(sb.String()))
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("teleport-ui-iam-%d", h.Sum32()), nil
+}
+
+// sortRules sorts a slice of rules based on their AWS Account ID and ARN
+func sortRules(rules []*types.TokenRule) []*types.TokenRule {
+	sort.Slice(rules, func(i, j int) bool {
+		accountID1, accountID2 := rules[i].AWSAccount, rules[j].AWSAccount
+		// if accountID is the same, sort based on arn
+		if accountID1 == accountID2 {
+			arn1, arn2 := rules[i].AWSARN, rules[j].AWSARN
+			return arn1 < arn2
+		}
+
+		return accountID1 < accountID2
+	})
+
+	return rules
 }
 
 type nodeAPIGetter interface {

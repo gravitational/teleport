@@ -46,6 +46,230 @@ func TestCreateNodeJoinToken(t *testing.T) {
 	require.Equal(t, "some-token-id", token.ID)
 }
 
+func TestGenerateIamTokenName(t *testing.T) {
+	rule1 := types.TokenRule{
+		AWSAccount: "100000000000",
+		AWSARN:     "arn:aws:iam:1",
+	}
+
+	rule2 := types.TokenRule{
+		AWSAccount: "200000000000",
+		AWSARN:     "arn:aws:iam:b",
+	}
+
+	// make sure the order doesn't matter
+	hash1, err := generateIamTokenName([]*types.TokenRule{&rule1, &rule2})
+	require.NoError(t, err)
+
+	hash2, err := generateIamTokenName([]*types.TokenRule{&rule2, &rule1})
+	require.NoError(t, err)
+
+	require.Equal(t, hash1, hash2)
+
+	// generate different hashes for different rules
+	hash1, err = generateIamTokenName([]*types.TokenRule{&rule1})
+	require.NoError(t, err)
+
+	hash2, err = generateIamTokenName([]*types.TokenRule{&rule2})
+	require.NoError(t, err)
+
+	require.NotEqual(t, hash1, hash2)
+
+}
+
+func TestSortRules(t *testing.T) {
+	tt := []struct {
+		name     string
+		rules    []*types.TokenRule
+		expected []*types.TokenRule
+	}{
+		{
+			name: "different account ID, no ARN",
+			rules: []*types.TokenRule{
+				{AWSAccount: "200000000000"},
+				{AWSAccount: "100000000000"},
+			},
+			expected: []*types.TokenRule{
+				{AWSAccount: "100000000000"},
+				{AWSAccount: "200000000000"},
+			},
+		},
+		{
+			name: "different account ID, no ARN, already ordered",
+			rules: []*types.TokenRule{
+				{AWSAccount: "100000000000"},
+				{AWSAccount: "200000000000"},
+			},
+			expected: []*types.TokenRule{
+				{AWSAccount: "100000000000"},
+				{AWSAccount: "200000000000"},
+			},
+		},
+		{
+			name: "different account ID, with ARN",
+			rules: []*types.TokenRule{
+				{
+					AWSAccount: "200000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+			},
+			expected: []*types.TokenRule{
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "200000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+			},
+		},
+		{
+			name: "different account ID, with ARN, already ordered",
+			rules: []*types.TokenRule{
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "200000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+			},
+			expected: []*types.TokenRule{
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "200000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+			},
+		},
+		{
+			name: "same account ID, different ARN, already ordered",
+			rules: []*types.TokenRule{
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+			},
+			expected: []*types.TokenRule{
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+			},
+		},
+		{
+			name: "same account ID, different ARN",
+			rules: []*types.TokenRule{
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+			},
+			expected: []*types.TokenRule{
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+			},
+		},
+		{
+			name: "multiple account ID and ARNs",
+			rules: []*types.TokenRule{
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "200000000001",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "200000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+				{
+					AWSAccount: "200000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+
+				{
+					AWSAccount: "200000000001",
+					AWSARN:     "arn:aws:iam:z",
+				},
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+				{
+					AWSAccount: "300000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+			},
+			expected: []*types.TokenRule{
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+				{
+					AWSAccount: "100000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "200000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+				{
+					AWSAccount: "200000000000",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "200000000001",
+					AWSARN:     "arn:aws:iam:b",
+				},
+				{
+					AWSAccount: "200000000001",
+					AWSARN:     "arn:aws:iam:z",
+				},
+				{
+					AWSAccount: "300000000000",
+					AWSARN:     "arn:aws:iam:a",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, sortRules(tc.rules))
+		})
+	}
+}
+
 func TestGetNodeJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{}
 	m.mockGetProxyServers = func() ([]types.Server, error) {
