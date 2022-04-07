@@ -125,7 +125,7 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 
 		if session.Expiry().After(time.Now().UTC()) {
 			sessions[i] = session
-		} else {
+		} else if item.Expires.IsZero() /* Check if the expiry is not set. */ {
 			if err := s.bk.Delete(ctx, item.Key); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -176,7 +176,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	item := backend.Item{Key: backend.Key(sessionPrefix, session.GetSessionID()), Value: json, Expires: session.Expiry()}
+	item := backend.Item{Key: backend.Key(sessionPrefix, session.GetSessionID()), Value: json}
 	_, err = s.bk.Put(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
