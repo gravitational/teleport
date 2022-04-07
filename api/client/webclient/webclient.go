@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -185,8 +186,14 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusBadRequest {
+		per := &PingErrorResponse{}
+		if err := json.NewDecoder(resp.Body).Decode(per); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, errors.New(per.Error.Message)
+	}
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err)
@@ -261,6 +268,17 @@ type PingResponse struct {
 	ServerVersion string `json:"server_version"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
+}
+
+// PingErrorResponse contains the error message if the requested connector
+// does not match one that has been registered.
+type PingErrorResponse struct {
+	Error PingError `json:"error"`
+}
+
+// PingError contains the string message from the PingErrorResponse
+type PingError struct {
+	Message string `json:"message"`
 }
 
 // ProxySettings contains basic information about proxy settings
