@@ -84,6 +84,7 @@ func TestLinear(t *testing.T) {
 
 func TestHostUUIDIdempotent(t *testing.T) {
 	// call twice, get same result
+	t.Parallel()
 	dir := t.TempDir()
 	id, err := ReadOrMakeHostUUID(dir)
 	require.Len(t, id, 36)
@@ -95,6 +96,7 @@ func TestHostUUIDIdempotent(t *testing.T) {
 
 func TestHostUUIDBadLocation(t *testing.T) {
 	// call with a read-only dir, make sure to get an error
+	t.Parallel()
 	id, err := ReadOrMakeHostUUID("/bad-location")
 	require.Equal(t, id, "")
 	require.Error(t, err)
@@ -103,6 +105,7 @@ func TestHostUUIDBadLocation(t *testing.T) {
 
 func TestHostUUIDIgnoreWhitespace(t *testing.T) {
 	// newlines are getting ignored
+	t.Parallel()
 	dir := t.TempDir()
 	id := fmt.Sprintf("%s\n", uuid.New().String())
 	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
@@ -114,6 +117,7 @@ func TestHostUUIDIgnoreWhitespace(t *testing.T) {
 
 func TestHostUUIDRegenerateEmpty(t *testing.T) {
 	// empty UUID in file is regenerated
+	t.Parallel()
 	dir := t.TempDir()
 	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), nil, 0666)
 	require.NoError(t, err)
@@ -131,6 +135,7 @@ func TestSelfSignedCert(t *testing.T) {
 }
 
 func TestRandomDuration(t *testing.T) {
+	t.Parallel()
 	expectedMin := time.Duration(0)
 	expectedMax := time.Second * 10
 	for i := 0; i < 50; i++ {
