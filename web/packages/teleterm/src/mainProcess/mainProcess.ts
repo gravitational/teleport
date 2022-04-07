@@ -1,11 +1,8 @@
-import path from 'path';
 import {
   app,
-  BrowserWindow,
   ipcMain,
   Menu,
   MenuItemConstructorOptions,
-  screen,
 } from 'electron';
 import { ChildProcess, spawn } from 'child_process';
 import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
@@ -46,28 +43,6 @@ export default class MainProcess {
 
   dispose() {
     this.tshdProcess.kill('SIGTERM');
-  }
-
-  createWindow() {
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    const win = new BrowserWindow({
-      width,
-      height,
-      title: 'Teleport Terminal',
-      icon: getAssetPath('icon.png'),
-      backgroundColor: theme.colors.primary.main,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        preload: path.join(__dirname, 'preload.js'),
-      },
-    });
-
-    if (this.settings.dev) {
-      win.loadURL('https://localhost:8080');
-    } else {
-      win.loadFile(path.join(__dirname, '../renderer/index.html'));
-    }
   }
 
   private _init() {

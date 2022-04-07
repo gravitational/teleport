@@ -8,6 +8,7 @@ import * as types from 'teleterm/types';
 import { ConfigServiceImpl } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import path from 'path';
+import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 
 const settings = getRuntimeSettings();
 const fileStorage = createFileStorage({
@@ -15,6 +16,7 @@ const fileStorage = createFileStorage({
 });
 const logger = initMainLogger(settings);
 const configService = new ConfigServiceImpl();
+const windowsManager = new WindowsManager(fileStorage, settings);
 
 process.on('uncaughtException', error => {
   logger.error('', error);
@@ -51,11 +53,11 @@ app.whenReady().then(() => {
         stdio: 'inherit',
       });
       child.unref();
-      app.exit();
+      app.quit();
     });
   }
 
-  mainProcess.createWindow();
+  windowsManager.createWindow();
 });
 
 // Limit navigation capabilities to reduce the attack surface.
