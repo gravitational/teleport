@@ -2613,24 +2613,26 @@ message GithubConnectorSpecV3 {
 enum SSOInfoType {
     // Unknown info type.
     UNKNOWN = 0;
+
     // Error info type, used for reporting errors.
     ERROR = 1;
     // Success info type, used for marking successful flows.
     SUCCESS = 2;
     // Create user params, contains info about attempted user creation parameters.
     CREATE_USER_PARAMS = 3;
+
     // [SAML] Attributes to roles mapping.
-    SAML_ATTRIBUTES_TO_ROLES = 4;
+    SAML_ATTRIBUTES_TO_ROLES = 101;
     // [SAML] Attributes to roles warnings.
-    SAML_ATTRIBUTES_TO_ROLES_WARNINGS = 5;
+    SAML_ATTRIBUTES_TO_ROLES_WARNINGS = 102;
     // [SAML] Assertion info.
-    SAML_ASSERTION_INFO = 6;
+    SAML_ASSERTION_INFO = 103;
     // [SAML] Attribute statements.
-    SAML_ATTRIBUTE_STATEMENTS = 7;
+    SAML_ATTRIBUTE_STATEMENTS = 104;
     // [SAML] Traits calculated from assertions.
-    SAML_TRAITS_FROM_ASSERTIONS = 8;
+    SAML_TRAITS_FROM_ASSERTIONS = 105;
     // [SAML] Assertion-to-trait mapping as specified in the connector.
-    SAML_CONNECTOR_TRAIT_MAPPING = 9;
+    SAML_CONNECTOR_TRAIT_MAPPING = 106;
 }
 
 // SSODiagnosticInfo is a single SSO diagnostic info entry.
