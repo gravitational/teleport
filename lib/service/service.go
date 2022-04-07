@@ -157,6 +157,9 @@ const (
 	// and is ready to start accepting connections.
 	ProxySSHReady = "ProxySSHReady"
 
+	// ProxyKubeReady is generated when the kubernetes proxy service has been initialized.
+	ProxyKubeReady = "ProxyKubeReady"
+
 	// NodeSSHReady is generated when the Teleport node has initialized a SSH server
 	// and is ready to start accepting SSH connections.
 	NodeSSHReady = "NodeReady"
@@ -185,7 +188,7 @@ const (
 	// in a graceful way.
 	TeleportReloadEvent = "TeleportReload"
 
-	// TeleportPhaseChangeEvent is generated to indidate that teleport
+	// TeleportPhaseChangeEvent is generated to indicate that teleport
 	// CA rotation phase has been updated, used in tests
 	TeleportPhaseChangeEvent = "TeleportPhaseChange"
 
@@ -747,6 +750,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 
 	process.registerAppDepend()
 
+	// Produce global TeleportReadyEvent when all components have started
+	componentCount := process.registerTeleportReadyEvent(cfg)
+
 	process.log = cfg.Log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentProcess, process.id),
 	})
@@ -754,7 +760,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	serviceStarted := false
 
 	if !cfg.DiagnosticAddr.IsEmpty() {
-		if err := process.initDiagnosticService(); err != nil {
+		if err := process.initDiagnosticService(componentCount); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
@@ -772,9 +778,6 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 		cfg.Keygen = native.New(process.ExitContext(), native.PrecomputeKeys(precomputeCount))
 	}
-
-	// Produce global TeleportReadyEvent when all components have started
-	process.registerTeleportReadyEvent(cfg)
 
 	if cfg.Auth.Enabled {
 		if err := process.initAuthService(); err != nil {
@@ -2200,7 +2203,7 @@ func (process *TeleportProcess) initMetricsService() error {
 
 // initDiagnosticService starts diagnostic service currently serving healthz
 // and prometheus endpoints
-func (process *TeleportProcess) initDiagnosticService() error {
+func (process *TeleportProcess) initDiagnosticService(componentCount int) error {
 	mux := http.NewServeMux()
 
 	// support legacy metrics collection in the diagnostic service.
@@ -2231,7 +2234,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	// Create a state machine that will process and update the internal state of
 	// Teleport based off Events. Use this state machine to return return the
 	// status from the /readyz endpoint.
-	ps, err := newProcessState(process)
+	ps, err := newProcessState(process, componentCount)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3048,6 +3051,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			})
 
 			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.Kube.ListenAddr.Addr)
+			// since kubeServer.Serve is a blocking call, we emit this event right before
+			// the service has started
+			process.BroadcastEvent(Event{Name: ProxyKubeReady, Payload: nil})
 			err := kubeServer.Serve(listeners.kube)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
@@ -3439,8 +3445,9 @@ func (process *TeleportProcess) waitForAppDepend() {
 }
 
 // registerTeleportReadyEvent ensures that a TeleportReadyEvent is produced
-// when all components have started.
-func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) {
+// when all components enabled (based on the configuration) have started.
+// It returns the number of components enabled.
+func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) int {
 	eventMapping := EventMapping{
 		Out: TeleportReadyEvent,
 	}
@@ -3453,8 +3460,12 @@ func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) {
 		eventMapping.In = append(eventMapping.In, NodeSSHReady)
 	}
 
-	if cfg.Proxy.Enabled {
+	proxyConfig := cfg.Proxy
+	if proxyConfig.Enabled {
 		eventMapping.In = append(eventMapping.In, ProxySSHReady)
+	}
+	if proxyConfig.Kube.Enabled && !proxyConfig.Kube.ListenAddr.IsEmpty() && !proxyConfig.DisableReverseTunnel {
+		eventMapping.In = append(eventMapping.In, ProxyKubeReady)
 	}
 
 	if cfg.Kube.Enabled {
@@ -3473,7 +3484,9 @@ func (process *TeleportProcess) registerTeleportReadyEvent(cfg *Config) {
 		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
 	}
 
+	componentCount := len(eventMapping.In)
 	process.RegisterEventMapping(eventMapping)
+	return componentCount
 }
 
 // appDependEvents is a list of events that the application service depends on.
