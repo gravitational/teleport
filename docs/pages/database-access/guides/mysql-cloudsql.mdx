@@ -9,7 +9,6 @@ on Google Cloud SQL.
 ## Prerequisites
 
 - Google Cloud account
-
 - A host, e.g., a Compute Engine instance, where you will run the Teleport Database
   Service
 
@@ -258,7 +257,7 @@ $ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
 
 The Teleport Database Service must have the credentials of `teleport-db-service` GCP
 service account we created
-[above](#create-a-service-account-for-the-teleport-database-service) in order to
+[above](#step-15-create-a-service-account-for-the-teleport-database-service) in order to
 be able to log in.
 
 The easiest way to ensure that is to set the `GOOGLE_APPLICATION_CREDENTIALS`
