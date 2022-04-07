@@ -1,13 +1,14 @@
 import { RuntimeSettings } from 'teleterm/types';
 import PtyProcess, { TermEventEnum } from './ptyProcess';
 import { PtyCommand, PtyOptions, PtyServiceClient } from './types';
+import { resolveShellEnvCached } from './resolveShellEnv';
 
 export default function createPtyService(
   settings: RuntimeSettings
 ): PtyServiceClient {
   return {
-    createPtyProcess(cmd: PtyCommand) {
-      const options = buildOptions(settings, cmd);
+    async createPtyProcess(cmd: PtyCommand) {
+      const options = await buildOptions(settings, cmd);
       const _ptyProcess = new PtyProcess(options);
 
       return {
@@ -55,8 +56,13 @@ export default function createPtyService(
   };
 }
 
-function buildOptions(settings: RuntimeSettings, cmd: PtyCommand): PtyOptions {
+async function buildOptions(
+  settings: RuntimeSettings,
+  cmd: PtyCommand
+): Promise<PtyOptions> {
   const env = {
+    ...process.env,
+    ...(await resolveShellEnvCached(settings.defaultShell)),
     TELEPORT_HOME: settings.tshd.homeDir,
   };
 

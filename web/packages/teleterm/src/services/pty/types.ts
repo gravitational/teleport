@@ -19,7 +19,7 @@ export type PtyProcess = {
 };
 
 export type PtyServiceClient = {
-  createPtyProcess: (cmd: PtyCommand) => PtyProcess;
+  createPtyProcess: (cmd: PtyCommand) => Promise<PtyProcess>;
 };
 
 export type ShellCommand = {

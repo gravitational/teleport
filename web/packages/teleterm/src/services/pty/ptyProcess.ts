@@ -43,11 +43,10 @@ class PtyProcess extends EventEmitter {
       cols,
       rows,
       name: 'xterm-color',
-      cwd: this.options.cwd || process.cwd(),
-      env: {
-        ...process.env,
-        ...this.options.env,
-      },
+      // HOME should be always defined. But just in case it isn't let's use the cwd from process.
+      // https://unix.stackexchange.com/questions/123858
+      cwd: this.options.cwd || this.options.env['HOME'] || process.cwd(),
+      env: this.options.env,
     });
 
     this._setStatus('open');

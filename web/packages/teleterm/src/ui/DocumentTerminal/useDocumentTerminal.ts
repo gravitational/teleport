@@ -18,16 +18,16 @@ import { useEffect } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { PtyCommand } from 'teleterm/services/pty/types';
-import useAsync from 'teleterm/ui/useAsync';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
+import { PtyCommand, PtyProcess } from 'teleterm/services/pty/types';
+import useAsync from 'teleterm/ui/useAsync';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
 
 export default function useDocumentTerminal(doc: Doc) {
   const ctx = useAppContext();
   const workspaceDocumentsService = useWorkspaceDocumentsService();
   const [state, init] = useAsync(async () =>
-    initState(ctx, workspaceDocumentsService, doc)
+    initState(ctx, workspaceDocumentsService, doc),
   );
 
   useEffect(() => {
@@ -43,10 +43,16 @@ export default function useDocumentTerminal(doc: Doc) {
 async function initState(
   ctx: IAppContext,
   docsService: DocumentsService,
-  doc: Doc
+  doc: Doc,
 ) {
   const cmd = createCmd(doc);
-  const ptyProcess = ctx.terminalsService.createPtyProcess(cmd);
+  let ptyProcess: PtyProcess;
+  try {
+    ptyProcess = await ctx.terminalsService.createPtyProcess(cmd);
+  } catch (e) {
+    ctx.notificationsService.notifyError(e.message);
+    return;
+  }
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();
 
   const refreshTitle = async () => {

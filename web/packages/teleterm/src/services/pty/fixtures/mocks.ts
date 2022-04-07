@@ -23,7 +23,7 @@ export class MockPtyProcess implements PtyProcess {
 }
 
 export class MockPtyServiceClient implements PtyServiceClient {
-  createPtyProcess(): PtyProcess {
-    return new MockPtyProcess();
+  createPtyProcess(): Promise<PtyProcess> {
+    return Promise.resolve(new MockPtyProcess());
   }
 }
