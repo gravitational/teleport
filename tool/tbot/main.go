@@ -208,10 +208,12 @@ func onStart(botConfig *config.BotConfig) error {
 		if ident != nil {
 			// If ident is set here, we detected a token change above.
 			log.Warnf("Detected a token change, will attempt to fetch a new identity.")
-		} else {
+		} else if trace.IsNotFound(err) {
 			// This is _probably_ a fresh start, so we'll log the true error
 			// and try to fetch a fresh identity.
-			log.Debugf("Identity %s could not be loaded, will start from scratch: %+v", dest, err)
+			log.Debugf("Identity %s is not found or empty and could not be loaded, will start from scratch: %+v", dest, err)
+		} else {
+			return trace.Wrap(err)
 		}
 
 		// TODO: validate that errors from LoadIdentity are sanely typed; we
