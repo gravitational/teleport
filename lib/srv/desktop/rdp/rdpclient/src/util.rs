@@ -40,13 +40,13 @@ pub fn from_unicode(s: Vec<u8>) -> RdpResult<String> {
     Ok(without_null_terminator)
 }
 
+/// Converts a &str into a null-terminated UTF-8 encoded Vec<u8>
+pub fn to_utf8(s: &str) -> Vec<u8> {
+    format!("{}\x00", s).into_bytes()
+}
+
 #[cfg(test)]
 mod tests {
-    use std::{
-        convert::TryInto,
-        io::{Cursor, Read},
-    };
-
     use super::*;
 
     #[test]

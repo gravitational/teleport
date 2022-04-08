@@ -264,6 +264,7 @@ func (c *Client) start() {
 		defer c.cfg.Log.Info("TDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
+		var requestSent bool // TODO(isaiah): delete this
 		for {
 			msg, err := c.cfg.Conn.InputMessage()
 			if errors.Is(err, io.EOF) {
@@ -310,11 +311,14 @@ func (c *Client) start() {
 				}
 				if button == C.PointerButtonRight {
 					// TODO(isaiah): hack for testing
-					driveName := C.CString("testing testing 123")
-					defer C.free(unsafe.Pointer(driveName))
-					if err := cgoError(C.announce_drive_rdp(c.rustClient, driveName)); err != nil {
-						c.cfg.Log.Errorf("Device announce failed: %v", err)
-						return
+					if !requestSent {
+						driveName := C.CString("abcdefg")
+						defer C.free(unsafe.Pointer(driveName))
+						if err := cgoError(C.announce_drive_rdp(c.rustClient, driveName)); err != nil {
+							c.cfg.Log.Errorf("Device announce failed: %v", err)
+							return
+						}
+						requestSent = true
 					}
 				} else {
 					if err := cgoError(C.write_rdp_pointer(

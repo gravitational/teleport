@@ -2,7 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// You may obtain a copy of the Li&cense at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
 //
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
-use crate::util::{from_unicode, to_unicode};
+use crate::errors::{invalid_data_error, not_implemented_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use crate::util::{from_unicode, to_utf8};
 use crate::Payload;
 use crate::{scard, vchan};
 use bitflags::bitflags;
@@ -25,7 +25,6 @@ use rdp::model::data::Message;
 use rdp::model::error::*;
 use std::convert::{TryFrom, TryInto};
 use std::io::{Read, Write};
-use utf16string::WString;
 
 pub const CHANNEL_NAME: &str = "rdpdr";
 
@@ -156,7 +155,7 @@ impl Client {
             // Used for smartcard control
             MajorFunction::IRP_MJ_DEVICE_CONTROL => {
                 let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
-                debug!("DeviceIORequest was a DeviceControlRequest: {:?}", ioctl);
+                debug!("DeviceIORequest was the header of a: {:?}", ioctl);
 
                 let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
                 if code == SPECIAL_NO_RESPONSE {
@@ -175,11 +174,48 @@ impl Client {
                 let server_create_drive_request =
                     ServerCreateDriveRequest::decode(device_io_request, payload)?;
                 debug!(
-                    "DeviceIORequest was a ServerCreateDriveRequest: {:?}",
+                    "DeviceIORequest was the header of a: {:?}",
                     server_create_drive_request
                 );
-                // TODO(isaiah)
-                Ok(vec![])
+                // TODO(isaiah) assumes we only receive this after the initial ClientDeviceListAnnounce::new_drive,
+                // which will always be a "success". Will need to have logic for creating files/dirs over TDP
+                // and responding based on failure/success.
+                let resp = DeviceCreateResponse::new(
+                    &server_create_drive_request,
+                    NTSTATUS::STATUS_SUCCESS,
+                );
+                debug!("sending DeviceCreateResponse: {:?}", resp);
+                let resp = self.add_headers_and_chunkify(
+                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                    resp.encode()?,
+                )?;
+                Ok(resp)
+            }
+            MajorFunction::IRP_MJ_QUERY_INFORMATION => {
+                let req = ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
+                debug!("DeviceIORequest was the header of a: {:?}", req);
+
+                // TODO(isaiah): send back NTSTATUS::STATUS_NOT_IMPLEMENTED rather than propagating an error.
+                let resp =
+                    ClientDriveQueryInformationResponse::new(&req, NTSTATUS::STATUS_SUCCESS)?;
+
+                let resp = self.add_headers_and_chunkify(
+                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                    resp.encode()?,
+                )?;
+                Ok(resp)
+            }
+            MajorFunction::IRP_MJ_CLOSE => {
+                let req = DeviceCloseRequest::decode(device_io_request);
+                debug!("DeviceIORequest was the header of a: {:?}", req);
+                // TODO(isaiah) here is where you would tell the client to close the file.
+                let resp = DeviceCloseResponse::new(req, NTSTATUS::STATUS_SUCCESS);
+                debug!("sending DeviceCloseResponse: {:?}", resp);
+                let resp = self.add_headers_and_chunkify(
+                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                    resp.encode()?,
+                )?;
+                Ok(resp)
             }
             _ => Err(invalid_data_error(&format!(
                 "got unsupported major_function in DeviceIoRequest: {:?}",
@@ -581,25 +617,26 @@ impl ClientDeviceListAnnounceRequest {
     }
 
     fn new_drive(drive_name: String) -> Self {
-        let device_data = to_unicode(&drive_name);
-
-        let device_list = vec![DeviceAnnounceHeader {
-            device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
-            device_id: DRIVE_DEVICE_ID,
-            preferred_dos_name: drive_name,
-            // According to the spec:
-            //
-            // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
-            // then the full name MUST also be specified in the DeviceData field, as a null-terminated
-            // Unicode string. If the DeviceDataLength field is nonzero, the content of the
-            // PreferredDosName field is ignored.
-            device_data_length: device_data.len() as u32,
-            device_data,
-        }];
+        // According to the spec:
+        //
+        // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
+        // then the full name MUST also be specified in the DeviceData field, as a null-terminated
+        // Unicode string. If the DeviceDataLength field is nonzero, the content of the
+        // PreferredDosName field is ignored.
+        //
+        // In the RDP spec, Unicode typically means null-terminated UTF-16LE, however empirically it
+        // appears that this field expects null-terminated UTF-8.
+        let device_data = to_utf8(&drive_name);
 
         Self {
             device_count: 1,
-            device_list,
+            device_list: vec![DeviceAnnounceHeader {
+                device_type: DeviceType::RDPDR_DTYP_FILESYSTEM,
+                device_id: DRIVE_DEVICE_ID,
+                preferred_dos_name: drive_name,
+                device_data_length: device_data.len() as u32,
+                device_data,
+            }],
         }
     }
 
@@ -613,12 +650,23 @@ impl ClientDeviceListAnnounceRequest {
     }
 }
 
+/// 2.2.1.3 Device Announce Header (DEVICE_ANNOUNCE)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
 #[derive(Debug)]
 struct DeviceAnnounceHeader {
+    /// A 32-bit unsigned integer that identifies the device type.
     device_type: DeviceType,
+    /// A 32-bit unsigned integer that specifies a unique ID that identifies the announced device. This ID MUST be reused if the device is removed by means of the Client Drive Device List Remove packet specified in section 2.2.3.2.
     device_id: u32,
+    /// A string of ASCII characters (with a maximum length of eight characters) that represents the name of the device as it appears on the client. This field MUST be null-terminated, so the maximum device name is 7 characters long. The following characters are considered invalid for the PreferredDosName field:
+    /// <, >, ", /, \, |
+    /// If any of these characters are present, the DR_CORE_DEVICE_ANNOUNC_RSP packet for this device (section 2.2.2.1) will be sent with STATUS_ACCESS_DENIED set in the ResultCode field.
+    /// If DeviceType is set to RDPDR_DTYP_SMARTCARD, the PreferredDosName MUST be set to "SCARD".
+    /// Note A column character, ":", is valid only when present at the end of the PreferredDosName field, otherwise it is also considered invalid.
     preferred_dos_name: String,
+    /// A 32-bit unsigned integer that specifies the number of bytes in the DeviceData field.
     device_data_length: u32,
+    /// A variable-length byte array whose size is specified by the DeviceDataLength field. The content depends on the DeviceType field. See [MS-RDPEPC] section 2.2.2.1 for the printer device type. See [MS-RDPESP] section 2.2.2.1 for the serial and parallel port device types. See section 2.2.3.1 of this protocol for the file system device type. For a smart card device, the DeviceDataLength field MUST be set to zero. See [MS-RDPESC] for details about the smart card device type.
     device_data: Vec<u8>,
 }
 
@@ -628,8 +676,8 @@ impl DeviceAnnounceHeader {
         w.write_u32::<LittleEndian>(self.device_type.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_id)?;
         let mut name: &str = &self.preferred_dos_name;
-        if name.len() > 8 {
-            name = &name[..8];
+        if name.len() > 7 {
+            name = &name[..7];
         }
         w.extend_from_slice(&format!("{:\x00<8}", name).into_bytes());
         w.write_u32::<LittleEndian>(self.device_data_length)?;
@@ -739,6 +787,8 @@ enum MinorFunction {
     IRP_MN_NOTIFY_CHANGE_DIRECTORY = 0x00000002,
 }
 
+/// 2.2.1.4.5 Device Control Request (DR_CONTROL_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/30662c80-ec6e-4ed1-9004-2e6e367bb59f
 #[derive(Debug)]
 #[allow(dead_code)]
 struct DeviceControlRequest {
@@ -766,6 +816,8 @@ impl DeviceControlRequest {
     }
 }
 
+/// 2.2.1.5 Device I/O Response (DR_DEVICE_IOCOMPLETION)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1c412a84-0776-4984-b35c-3f0445fcae65
 #[derive(Debug)]
 struct DeviceIoResponse {
     device_id: u32,
@@ -1063,5 +1115,426 @@ bitflags! {
         const FILE_OPEN_NO_RECALL = 0x00400000;
         /// Open file to query for free space. The client SHOULD set this to 0 and the server MUST ignore it.<45>
         const FILE_OPEN_FOR_FREE_SPACE_QUERY = 0x00800000;
+    }
+}
+
+/// 2.2.3.4.1 Client Drive Create Response (DR_DRIVE_CREATE_RSP)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3afcdd13-16be-48d1-9c70-558fd3a9a84e
+type ClientDriveCreateResponse = DeviceCreateResponse;
+
+/// 2.2.1.5.1 Device Create Response (DR_CREATE_RSP)
+/// A message with this header describes a response to a Device Create Request (section 2.2.1.4.1).
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76
+#[derive(Debug)]
+struct DeviceCreateResponse {
+    /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4)
+    /// message that had the MajorFunction field set to IRP_MJ_CREATE.
+    device_io_reply: DeviceIoResponse,
+    /// A 32-bit unsigned integer that specifies a unique ID for the created file object.
+    /// The ID MUST be reused after sending a Device Close Response (section 2.2.1.5.2).
+    file_id: u32,
+    /// The values of the CreateDisposition field in the Device Create Request (section 2.2.1.4.1) that determine the value
+    /// of the Information field are associated as follows:
+    /// +---------------------+--------------------+
+    /// | CreateDisposition   |   Information      |
+    /// +---------------------+--------------------+
+    /// | FILE_SUPERSEDE      |   FILE_SUPERSEDED  |
+    /// | FILE_OPEN           |                    |
+    /// | FILE_CREATE         |                    |
+    /// | FILE_OVERWRITE      |                    |
+    /// +---------------------+--------------------+
+    /// | FILE_OPEN_IF        |   FILE_OPENED      |
+    /// +---------------------+--------------------+
+    /// | FILE_OVERWRITE_IF   |   FILE_OVERWRITTEN |
+    /// +---------------------+--------------------+
+    information: InformationFlags,
+}
+
+impl DeviceCreateResponse {
+    fn new(device_create_request: &DeviceCreateRequest, io_status: NTSTATUS) -> Self {
+        let device_io_request = &device_create_request.device_io_request;
+
+        let information: InformationFlags;
+        if device_create_request.create_disposition.intersects(
+            CreateDispositionFlags::FILE_SUPERSEDE
+                | CreateDispositionFlags::FILE_OPEN
+                | CreateDispositionFlags::FILE_CREATE
+                | CreateDispositionFlags::FILE_OVERWRITE,
+        ) {
+            information = InformationFlags::FILE_SUPERSEDED;
+        } else if device_create_request.create_disposition == CreateDispositionFlags::FILE_OPEN_IF {
+            information = InformationFlags::FILE_OPENED;
+        } else if device_create_request.create_disposition
+            == CreateDispositionFlags::FILE_OVERWRITE_IF
+        {
+            information = InformationFlags::FILE_OVERWRITTEN;
+        } else {
+            panic!("program error, CreateDispositionFlags check should be exhaustive");
+        }
+
+        Self {
+            device_io_reply: DeviceIoResponse::new(
+                device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            file_id: device_io_request.file_id,
+            information,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_reply.encode()?);
+        w.write_u32::<LittleEndian>(self.file_id)?;
+        w.write_u8(self.information.bits())?;
+        Ok(w)
+    }
+}
+
+bitflags! {
+    /// An unsigned 8-bit integer. This field indicates the success of the Device Create Request (section 2.2.1.4.1).
+    /// The value of the Information field depends on the value of CreateDisposition field in the Device Create Request
+    /// (section 2.2.1.4.1). If the IoStatus field is set to 0x00000000, this field MAY be skipped, in which case the
+    /// server MUST assume that the Information field is set to 0x00.
+    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76
+    struct InformationFlags: u8 {
+        /// A new file was created.
+        const FILE_SUPERSEDED = 0x00000000;
+        /// An existing file was opened.
+        const FILE_OPENED = 0x00000001;
+        /// An existing file was overwritten.
+        const FILE_OVERWRITTEN = 0x00000003;
+    }
+}
+
+/// Windows defines an absolutely massive list of potential NTSTATUS values.
+/// This enum includes the basic ones we support for communicating with the windows machine.
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
+#[derive(ToPrimitive, Debug)]
+#[repr(u32)]
+#[allow(non_camel_case_types)]
+enum NTSTATUS {
+    STATUS_SUCCESS = 0x00000000,
+    STATUS_UNSUCCESSFUL = 0xC0000001,
+    STATUS_NOT_IMPLEMENTED = 0xC0000002,
+}
+
+/// 2.2.3.3.8 Server Drive Query Information Request (DR_DRIVE_QUERY_INFORMATION_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/e43dcd68-2980-40a9-9238-344b6cf94946
+#[derive(Debug)]
+struct ServerDriveQueryInformationRequest {
+    /// A DR_DEVICE_IOREQUEST (section 2.2.1.4) header. The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_QUERY_INFORMATION.
+    device_io_request: DeviceIoRequest,
+    /// A 32-bit unsigned integer.
+    /// This field MUST contain one of the following values:
+    /// FileBasicInformation
+    /// This information class is used to query a file for the times of creation, last access, last write, and change, in addition to file attribute information. The Reserved field of the FileBasicInformation structure ([MS-FSCC] section 2.4.7) MUST NOT be present.
+    ///
+    /// FileStandardInformation
+    /// This information class is used to query for file information such as allocation size, end-of-file position, and number of links. The Reserved field of the FileStandardInformation structure ([MS-FSCC] section 2.4.41) MUST NOT be present.
+    ///
+    /// FileAttributeTagInformation
+    /// This information class is used to query for file attribute and reparse tag information.
+    fs_information_class_lvl: FsInformationClassLevel,
+    // Length, Padding, and QueryBuffer appear to be vestigial fields and can safely be ignored. Their description
+    // is provided below for documentation purposes.
+    //
+    // Length (4 bytes): A 32-bit unsigned integer that specifies the number of bytes in the QueryBuffer field.
+    //
+    // Padding (24 bytes): An array of 24 bytes. This field is unused and MUST be ignored.
+    //
+    // QueryBuffer (variable): A variable-length array of bytes. The size of the array is specified by the Length field.
+    // The content of this field is based on the value of the FsInformationClass field, which determines the different
+    // structures that MUST be contained in the QueryBuffer field. For a complete list of these structures, see [MS-FSCC]
+    // section 2.4. The "File information class" table defines all the possible values for the FsInformationClass field.
+}
+
+impl ServerDriveQueryInformationRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        if let Some(fs_information_class_lvl) =
+            FsInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
+        {
+            Ok(Self {
+                device_io_request,
+                fs_information_class_lvl,
+            })
+        } else {
+            Err(invalid_data_error(
+                "received invalid FsInformationClass in ServerDriveQueryInformationRequest",
+            ))
+        }
+    }
+}
+
+/// 2.4 File Information Classes [MS-FSCC]
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
+#[derive(FromPrimitive, Debug)]
+#[repr(u32)]
+enum FsInformationClassLevel {
+    FileAccessInformation = 8,
+    FileAlignmentInformation = 17,
+    FileAllInformation = 18,
+    FileAllocationInformation = 19,
+    FileAlternateNameInformation = 21,
+    FileAttributeTagInformation = 35,
+    FileBasicInformation = 4,
+    FileBothDirectoryInformation = 3,
+    FileCompressionInformation = 28,
+    FileDirectoryInformation = 1,
+    FileDispositionInformation = 13,
+    FileEaInformation = 7,
+    FileEndOfFileInformation = 20,
+    FileFullDirectoryInformation = 2,
+    FileFullEaInformation = 15,
+    FileHardLinkInformation = 46,
+    FileIdBothDirectoryInformation = 37,
+    FileIdExtdDirectoryInformation = 60,
+    FileIdFullDirectoryInformation = 38,
+    FileIdGlobalTxDirectoryInformation = 50,
+    FileIdInformation = 59,
+    FileInternalInformation = 6,
+    FileLinkInformation = 11,
+    FileMailslo = 26,
+    FileMailslotSetInformation = 27,
+    FileModeInformation = 16,
+    FileMoveClusterInformation = 31,
+    FileNameInformation = 9,
+    FileNamesInformation = 12,
+    FileNetworkOpenInformation = 34,
+    FileNormalizedNameInformation = 48,
+    FileObjectIdInformation = 29,
+    FilePipeInformation = 23,
+    FilePipInformation = 24,
+    FilePipeRemoteInformation = 25,
+    FilePositionInformation = 14,
+    FileQuotaInformation = 32,
+    FileRenameInformation = 10,
+    FileReparsePointInformation = 33,
+    FileSfioReserveInformation = 44,
+    FileSfioVolumeInformation = 45,
+    FileShortNameInformation = 40,
+    FileStandardInformation = 5,
+    FileStandardLinkInformation = 54,
+    FileStreamInformation = 22,
+    FileTrackingInformation = 36,
+    FileValidDataLengthInformation = 39,
+}
+
+/// 2.4 File Information Classes [MS-FSCC]
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
+#[derive(Debug)]
+enum FsInformationClass {
+    FileBasicInformation(FileBasicInformation),
+    FileStandardInformation(FileStandardInformation),
+}
+
+impl FsInformationClass {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        match self {
+            Self::FileBasicInformation(file_basic_info) => file_basic_info.encode(),
+            Self::FileStandardInformation(file_standard_info) => file_standard_info.encode(),
+        }
+    }
+}
+
+/// 2.4.7 FileBasicInformation [MS-FSCC]
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/16023025-8a78-492f-8b96-c873b042ac50
+#[derive(Debug)]
+struct FileBasicInformation {
+    /// The time when the file was created; see section 2.1.1. A valid time for this field is an integer greater than or equal to 0. When setting file attributes, a value of 0 indicates to the server that it MUST NOT change this attribute. When setting file attributes, a value of -1 indicates to the server that it MUST NOT change this attribute for all subsequent operations on the same file handle. When setting file attributes, a value of -2 indicates to the server that it MUST change this attribute for all subsequent operations on the same file handle. This field MUST NOT be set to a value less than -2.
+    creation_time: i64,
+    /// The last time the file was accessed; see section 2.1.1. A valid time for this field is an integer greater than or equal to 0. When setting file attributes, a value of 0 indicates to the server that it MUST NOT change this attribute. When setting file attributes, a value of -1 indicates to the server that it MUST NOT change this attribute for all subsequent operations on the same file handle. When setting file attributes, a value of -2 indicates to the server that it MUST change this attribute for all subsequent operations on the same file handle. This field MUST NOT be set to a value less than -2.
+    last_access_time: i64,
+    /// The last time information was written to the file; see section 2.1.1. A valid time for this field is an integer greater than or equal to 0. When setting file attributes, a value of 0 indicates to the server that it MUST NOT change this attribute. When setting file attributes, a value of -1 indicates to the server that it MUST NOT change this attribute for all subsequent operations on the same file handle. When setting file attributes, a value of -2 indicates to the server that it MUST change this attribute for all subsequent operations on the same file handle. This field MUST NOT be set to a value less than -2.
+    last_write_time: i64,
+    /// The last time the file was changed; see section 2.1.1. A valid time for this field is an integer greater than or equal to 0. When setting file attributes, a value of 0 indicates to the server that it MUST NOT change this attribute. When setting file attributes, a value of -1 indicates to the server that it MUST NOT change this attribute for all subsequent operations on the same file handle. When setting file attributes, a value of -2 indicates to the server that it MUST change this attribute for all subsequent operations on the same file handle. This field MUST NOT be set to a value less than -2.
+    change_time: i64,
+    /// A 32-bit unsigned integer that contains the file attributes.
+    file_attributes: FileAttributesFlags,
+    // A 32-bit field. This field is reserved. This field can be set to any value, and MUST be ignored.
+    // NOTE: This field MUST not be serialized and sent over RDP, or it will break the server implementation.
+    // FreeRDP does the same: https://github.com/FreeRDP/FreeRDP/blob/1adb263813ca2e76a893ef729a04db8f94b5d757/channels/drive/client/drive_file.c#L508
+    //reserved: u32,
+}
+
+/// 4 i64's and 1 u32's = (4 * 8) + 4
+const FILE_BASIC_INFORMATION_SIZE: u32 = (4 * 8) + 4;
+
+impl FileBasicInformation {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_i64::<LittleEndian>(self.creation_time)?;
+        w.write_i64::<LittleEndian>(self.last_access_time)?;
+        w.write_i64::<LittleEndian>(self.last_write_time)?;
+        w.write_i64::<LittleEndian>(self.change_time)?;
+        w.write_u32::<LittleEndian>(self.file_attributes.bits())?;
+        Ok(w)
+    }
+}
+
+/// 2.4.41 FileStandardInformation [MS-FSCC]
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/5afa7f66-619c-48f3-955f-68c4ece704ae
+#[derive(Debug)]
+struct FileStandardInformation {
+    /// A 64-bit signed integer that contains the file allocation size, in bytes. The value of this field MUST be an
+    /// integer multiple of the cluster size.
+    /// Cluster size is the size of the logical minimal unit of disk space used by the operating system. FreeRDP
+    /// doesn't give the actual size here, but rather just gives the file size itself, which we will mimic.
+    /// (ttps://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L518-L519).
+    ///
+    /// When FileStandardInformation is requested for a directory, its not entirely clear what "file size" means.
+    /// FreeRDP derives this value from the st_size field of a stat struct (https://linux.die.net/man/2/lstat), which says
+    /// "The st_size field gives the size of the file (if it is a regular file or a symbolic link) in bytes. The size of
+    /// a symbolic link is the length of the pathname it contains, without a terminating null byte." Since it's not
+    /// entirely clear what is offered here in the case of a directory, we will just use 0.
+    allocation_size: i64,
+    /// A 64-bit signed integer that contains the absolute end-of-file position as a byte offset from the start of the
+    /// file. EndOfFile specifies the offset to the byte immediately following the last valid byte in the file. Because
+    /// this value is zero-based, it actually refers to the first free byte in the file. That is, it is the offset from
+    /// the beginning of the file at which new bytes appended to the file will be written. The value of this field MUST
+    /// be greater than or equal to 0.
+    end_of_file: i64,
+    /// A 32-bit unsigned integer that contains the number of non-deleted links to this file.
+    number_of_links: u32,
+    /// A Boolean (section 2.1.8) value. Set to TRUE to indicate that a file deletion has been requested; set to FALSE
+    /// otherwise.
+    delete_pending: Boolean,
+    /// A Boolean (section 2.1.8) value. Set to TRUE to indicate that the file is a directory; set to FALSE otherwise.
+    directory: Boolean,
+    // A 16-bit field. This field is reserved. This field can be set to any value, and MUST be ignored.
+    // NOTE: Field omitted, see NOTE in FileBasicInformation struct.
+    // reserved: u16,
+}
+
+impl FileStandardInformation {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_i64::<LittleEndian>(self.allocation_size)?;
+        w.write_i64::<LittleEndian>(self.end_of_file)?;
+        w.write_u32::<LittleEndian>(self.number_of_links)?;
+        w.write_u8(Boolean::to_u8(&self.delete_pending).unwrap())?;
+        w.write_u8(Boolean::to_u8(&self.directory).unwrap())?;
+        Ok(w)
+    }
+}
+
+// 2 i64's + 1 u32 + 2 Boolean (u8) = (2 * 8) + 4 + 2
+const FILE_STANDARD_INFORMATION_SIZE: u32 = (2 * 8) + 4 + 2;
+
+/// 2.1.8 Boolean
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/8ce7b38c-d3cc-415d-ab39-944000ea77ff
+#[derive(Debug, ToPrimitive)]
+#[repr(u8)]
+enum Boolean {
+    TRUE = 1,
+    FALSE = 0,
+}
+
+/// 2.2.3.4.8 Client Drive Query Information Response (DR_DRIVE_QUERY_INFORMATION_RSP)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4
+#[derive(Debug)]
+struct ClientDriveQueryInformationResponse {
+    /// A DR_DEVICE_IOCOMPLETION (section 2.2.1.5) header. The CompletionId field of the DR_DEVICE_IOCOMPLETION header MUST match a Device I/O Request (section 2.2.1.4) that has the MajorFunction field set to IRP_MJ_QUERY_INFORMATION.
+    device_io_response: DeviceIoResponse,
+    /// A 32-bit unsigned integer that specifies the number of bytes in the Buffer field.
+    length: u32,
+    /// A variable-length array of bytes, in which the number of bytes is specified in the Length field. The content of this field is based on the value of the FsInformationClass field in the Server Drive Query Information Request message, which determines the different structures that MUST be contained in the Buffer field. For a complete list of these structures, refer to [MS-FSCC] section 2.4. The "File information class" table defines all the possible values for the FsInformationClass field.
+    buffer: FsInformationClass,
+}
+
+impl ClientDriveQueryInformationResponse {
+    /// Constructs a ClientDriveQueryInformationResponse from a ServerDriveQueryInformationRequest and an NTSTATUS.
+    /// If the ServerDriveQueryInformationRequest.fs_information_class_lvl is currently unsupported, the program will panic.
+    /// TODO(isaiah): We will pass some sort of file structure into here.
+    fn new(req: &ServerDriveQueryInformationRequest, io_status: NTSTATUS) -> RdpResult<Self> {
+        let (length, buffer) = match req.fs_information_class_lvl {
+            FsInformationClassLevel::FileBasicInformation => (
+                FILE_BASIC_INFORMATION_SIZE,
+                FsInformationClass::FileBasicInformation(FileBasicInformation {
+                    creation_time: 1,
+                    last_access_time: 2,
+                    last_write_time: 3,
+                    change_time: 4,
+                    file_attributes: FileAttributesFlags::FILE_ATTRIBUTE_DIRECTORY,
+                }),
+            ),
+            FsInformationClassLevel::FileStandardInformation => (
+                FILE_STANDARD_INFORMATION_SIZE,
+                FsInformationClass::FileStandardInformation(FileStandardInformation {
+                    allocation_size: 0,
+                    end_of_file: 0,
+                    number_of_links: 0,
+                    delete_pending: Boolean::FALSE,
+                    directory: Boolean::TRUE,
+                }),
+            ),
+            _ => {
+                return Err(not_implemented_error(&format!(
+                    "received unsupported NTSTATUS: {:?}",
+                    io_status
+                )))
+            }
+        };
+
+        Ok(Self {
+            device_io_response: DeviceIoResponse::new(
+                &req.device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            length,
+            buffer,
+        })
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_response.encode()?);
+        w.write_u32::<LittleEndian>(self.length)?;
+        w.extend_from_slice(&self.buffer.encode()?);
+        Ok(w)
+    }
+}
+
+/// 2.2.1.4.2 Device Close Request (DR_CLOSE_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3ec6627f-9e0f-4941-a828-3fc6ed63d9e7
+#[derive(Debug)]
+struct DeviceCloseRequest {
+    /// A DR_DEVICE_IOREQUEST header. The MajorFunction field in this header MUST be set to IRP_MJ_CLOSE.
+    device_io_request: DeviceIoRequest,
+    // Padding (32 bytes):  An array of 32 bytes. Reserved. This field can be set to any value, and MUST be ignored.
+}
+
+impl DeviceCloseRequest {
+    fn decode(device_io_request: DeviceIoRequest) -> Self {
+        return Self { device_io_request };
+    }
+}
+
+/// 2.2.1.5.2 Device Close Response (DR_CLOSE_RSP)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5
+#[derive(Debug)]
+struct DeviceCloseResponse {
+    /// A DR_DEVICE_IOCOMPLETION header. The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_CLOSE.
+    device_io_response: DeviceIoResponse,
+    /// An array of 4 bytes. Reserved. This field can be set to any value and MUST be ignored.
+    padding: u32,
+}
+
+impl DeviceCloseResponse {
+    fn new(device_close_request: DeviceCloseRequest, io_status: NTSTATUS) -> Self {
+        Self {
+            device_io_response: DeviceIoResponse::new(
+                &device_close_request.device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            padding: 0,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_response.encode()?);
+        w.write_u32::<LittleEndian>(self.padding)?;
+        Ok(w)
     }
 }
