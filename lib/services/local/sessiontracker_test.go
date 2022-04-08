@@ -16,6 +16,7 @@ package local
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -86,4 +87,52 @@ func TestSessionTrackerStorage(t *testing.T) {
 	session, err = srv.GetSessionTracker(ctx, session.GetSessionID())
 	require.Error(t, err)
 	require.Nil(t, session)
+}
+
+func TestSessionTrackerImplicitExpiry(t *testing.T) {
+	ctx := context.Background()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	id := uuid.New().String()
+	id2 := uuid.New().String()
+	srv, err := NewSessionTrackerService(bk)
+	require.NoError(t, err)
+
+	_, err = srv.CreateSessionTracker(ctx, &proto.CreateSessionTrackerRequest{
+		Namespace:   defaults.Namespace,
+		ID:          id,
+		Type:        types.KindSSHSession,
+		Hostname:    "hostname",
+		ClusterName: "cluster",
+		Login:       "root",
+		Initiator: &types.Participant{
+			ID:   uuid.New().String(),
+			User: "eve",
+			Mode: string(types.SessionPeerMode),
+		},
+		Expires: time.Now().UTC().Add(time.Second),
+	})
+	require.NoError(t, err)
+
+	_, err = srv.CreateSessionTracker(ctx, &proto.CreateSessionTrackerRequest{
+		Namespace:   defaults.Namespace,
+		ID:          id2,
+		Type:        types.KindSSHSession,
+		Hostname:    "hostname",
+		ClusterName: "cluster",
+		Login:       "root",
+		Initiator: &types.Participant{
+			ID:   uuid.New().String(),
+			User: "eve",
+			Mode: string(types.SessionPeerMode),
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		sessions, err := srv.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		return len(sessions) == 1
+	}, time.Minute, time.Second)
 }

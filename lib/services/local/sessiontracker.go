@@ -31,10 +31,11 @@ import (
 )
 
 const (
-	sessionPrefix                 = "session_tracker"
-	retryDelay      time.Duration = time.Second
-	casRetryLimit   int           = 7
-	casErrorMessage string        = "CompareAndSwap reached retry limit"
+	sessionPrefix                      = "session_tracker"
+	retryDelay           time.Duration = time.Second
+	casRetryLimit        int           = 7
+	casErrorMessage      string        = "CompareAndSwap reached retry limit"
+	defaultSessionExpiry time.Duration = time.Hour * 24
 )
 
 type sessionTracker struct {
@@ -126,18 +127,21 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 			return nil, trace.Wrap(err)
 		}
 
+		after := session.GetExpires().After(now)
+
 		switch {
-		case session.Expiry().After(now):
+		case after:
 			// Keep any items that aren't expired.
 			sessions = append(sessions, session)
-		case item.Expires.IsZero():
+		case !after && item.Expires.IsZero():
 			// Clear item if expiry is not set.
 			// We shouldn't need this ideally but we currently do not set
 			// tracker expiries. We will however do this in the future.
 			expired = append(expired, item)
 		default:
 			// If the tracker has expired and there is an expiry set, we can never take this branch
-			// as the backend implementation will not return the key anyway.
+			// as the backend implementation is responsible for cleaning up expired items.
+			return nil, trace.AlreadyExists("Received expired key from backend, this shouldn't happen.")
 		}
 	}
 
@@ -183,6 +187,10 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 		Expires:           req.Expires,
 		KubernetesCluster: req.KubernetesCluster,
 		HostUser:          req.HostUser,
+	}
+
+	if spec.Expires.IsZero() {
+		spec.Expires = now.Add(defaultSessionExpiry)
 	}
 
 	session, err := types.NewSessionTracker(spec)
