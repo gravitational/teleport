@@ -1207,6 +1207,9 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Metrics.ListenAddr = addr
 
+	cfg.Metrics.GRPCServerLatency = fc.Metrics.GRPCServerLatency
+	cfg.Metrics.GRPCClientLatency = fc.Metrics.GRPCClientLatency
+
 	if !fc.Metrics.MTLSEnabled() {
 		return nil
 	}

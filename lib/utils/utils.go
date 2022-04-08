@@ -378,26 +378,29 @@ func OpaqueAccessDenied(err error) error {
 }
 
 // PortList is a list of TCP port
-type PortList []string
+type PortList struct {
+	ports []int
+	mu    sync.Mutex
+}
 
 // Pop returns a value from the list, it panics if the value is not there
 func (p *PortList) Pop() string {
-	if len(*p) == 0 {
-		panic("list is empty")
-	}
-	val := (*p)[len(*p)-1]
-	*p = (*p)[:len(*p)-1]
-	return val
+	return strconv.Itoa(p.PopInt())
 }
 
 // PopInt returns a value from the list, it panics if not enough values
 // were allocated
 func (p *PortList) PopInt() int {
-	i, err := strconv.Atoi(p.Pop())
-	if err != nil {
-		panic(err)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	l := len(p.ports)
+	if l == 0 {
+		panic("list is empty")
 	}
-	return i
+	val := p.ports[l-1]
+	p.ports = p.ports[:l-1]
+	return val
 }
 
 // PopIntSlice returns a slice of values from the list, it panics if not enough
@@ -415,15 +418,15 @@ const PortStartingNumber = 20000
 
 // GetFreeTCPPorts returns n ports starting from port 20000.
 func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
-	list := make(PortList, 0, n)
+	list := make([]int, 0, n)
 	start := PortStartingNumber
 	if len(offset) != 0 {
 		start = offset[0]
 	}
 	for i := start; i < start+n; i++ {
-		list = append(list, strconv.Itoa(i))
+		list = append(list, i)
 	}
-	return list, nil
+	return PortList{ports: list}, nil
 }
 
 // ReadHostUUID reads host UUID from the file in the data dir
