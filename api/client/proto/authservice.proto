@@ -757,6 +757,11 @@ message DatabaseCSRRequest {
     bytes CSR = 1 [ (gogoproto.jsontag) = "csr" ];
     // ClusterName is the name of the cluster the request is for.
     string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
+    // SignWithDatabaseCA if set to true will use Database CA to sign the created certificate.
+    // This flag was created to enable Database CA for new proxies and don't break old one that
+    // are still using UserCA.
+    // DELETE IN 11.0.
+    bool SignWithDatabaseCA = 3 [ (gogoproto.jsontag) = "sign_with_database_ca" ];
 }
 
 // DatabaseCSRResponse contains the signed database certificate.
