@@ -1,5 +1,4 @@
 #!/bin/bash
-# Any changes made to this script must also be made to e/lib/web/scripts/install_node.go
 set -euo pipefail
 SCRIPT_NAME="teleport-installer"
 
