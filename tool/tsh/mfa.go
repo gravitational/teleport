@@ -119,7 +119,7 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 
 	format := strings.ToLower(c.format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		printMFADevices(devs, c.verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeMFADevices(devs, format)

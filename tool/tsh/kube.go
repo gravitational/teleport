@@ -501,7 +501,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 
 	format := strings.ToLower(c.format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		printSessions(filteredSessions)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeKubeSessions(sessions, format)
@@ -662,7 +662,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	selectedCluster := selectedKubeCluster(currentTeleportCluster)
 	format := strings.ToLower(c.format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		var t asciitable.Table
 		if cf.Quiet {
 			t = asciitable.MakeHeadlessTable(2)

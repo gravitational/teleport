@@ -817,7 +817,7 @@ func Run(args []string, opts ...cliOption) error {
 func onVersion(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		utils.PrintVersion()
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeVersion(format)
@@ -1498,7 +1498,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 func printNodes(nodes []types.Server, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		printNodesAsText(nodes, verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeNodes(nodes, format)
@@ -1589,7 +1589,7 @@ func sortedLabels(labels map[string]string) string {
 func showApps(apps []types.Application, active []tlsca.RouteToApp, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		showAppsAsText(apps, active, verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeApps(apps, format)
@@ -1662,7 +1662,7 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		showDatabasesAsText(clusterFlag, databases, active, verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabases(databases, format)
@@ -1816,7 +1816,7 @@ func onListClusters(cf *CLIConf) error {
 
 	format := strings.ToLower(cf.Format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		var t asciitable.Table
 		if cf.Quiet {
 			t = asciitable.MakeHeadlessTable(4)
@@ -2776,7 +2776,7 @@ func onEnvironment(cf *CLIConf) error {
 
 	format := strings.ToLower(cf.Format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		// Print shell built-in commands to set (or unset) environment.
 		switch {
 		case cf.unsetEnvironment:
