@@ -17,7 +17,6 @@ limitations under the License.
 package common
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -132,7 +131,7 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 func createRDSAccessDeniedError(err error, sessionCtx *Session) error {
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolMySQL:
-		return NewIAMAuthError(`Could not connect to database:
+		return trace.AccessDenied(`Could not connect to database:
 
   %v
 
@@ -144,7 +143,7 @@ take a few minutes to propagate):
 `, err, sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
 
 	case defaults.ProtocolPostgres:
-		return NewIAMAuthError(`Could not connect to database:
+		return trace.AccessDenied(`Could not connect to database:
 
   %v
 
@@ -158,41 +157,4 @@ take a few minutes to propagate):
 	default:
 		return trace.Wrap(err)
 	}
-}
-
-// IAMAuthError is an IAM auth error.
-type IAMAuthError struct {
-	trace.AccessDeniedError
-}
-
-// NewIAMAuthError creates a new IAM auth error.
-func NewIAMAuthError(message string, args ...interface{}) error {
-	return trace.Wrap(&IAMAuthError{
-		AccessDeniedError: trace.AccessDeniedError{
-			Message: fmt.Sprintf(message, args...),
-		},
-	})
-}
-
-// IsIAMAuthError indicates that this error is of IAMAuthError type.
-func (e *IAMAuthError) IsIAMAuthError() bool {
-	return true
-}
-
-// Is provides an equivalency check for IAMAuthError to be used with errors.Is.
-func (e *IAMAuthError) Is(target error) bool {
-	err, ok := trace.Unwrap(target).(*IAMAuthError)
-	if !ok {
-		return false
-	}
-
-	return err.Message == e.Message
-}
-
-// IsIAMAuthError returns true if error is an IAM auth error.
-func IsIAMAuthError(err error) bool {
-	_, ok := trace.Unwrap(err).(interface {
-		IsIAMAuthError() bool
-	})
-	return ok
 }

@@ -268,7 +268,7 @@ func (c *IAM) migrateInlinePolicy(ctx context.Context) {
 
 const (
 	// databaseAccessInlinePolicyName is the inline policy name for database
-	// access permissions for the IAM idenity.
+	// access permissions for the IAM identity.
 	databaseAccessInlinePolicyName = "teleport-managed-database-access"
 
 	// defaultIAMTaskQueueSize is the default task queue size for IAM configurator.
