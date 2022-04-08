@@ -26,6 +26,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -34,16 +35,17 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -103,6 +105,9 @@ type CLIConf struct {
 	Approve, Deny bool
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
+	// ExplicitUsername is true if Username was initially set by the end-user
+	// (for example, using command-line flags).
+	ExplicitUsername bool
 	// Proxy keeps the hostname:port of the SSH proxy to use
 	Proxy string
 	// TTL defines how long a session must be active (in minutes)
@@ -135,6 +140,8 @@ type CLIConf struct {
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
+	// DaemonAddr is the daemon listening address.
+	DaemonAddr string
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -259,6 +266,8 @@ type CLIConf struct {
 
 	// overrideStdout allows to switch standard output source for resource command. Used in tests.
 	overrideStdout io.Writer
+	// overrideStderr allows to switch standard error source for resource command. Used in tests.
+	overrideStderr io.Writer
 
 	// mockSSOLogin used in tests to override sso login handler in teleport client.
 	mockSSOLogin client.SSOLoginFunc
@@ -272,6 +281,8 @@ type CLIConf struct {
 	LocalProxyCertFile string
 	// LocalProxyKeyFile is the client key used by local proxy.
 	LocalProxyKeyFile string
+	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
+	LocalProxyTunnel bool
 
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
@@ -290,8 +301,14 @@ type CLIConf struct {
 	// JoinMode is the participant mode someone is joining a session as.
 	JoinMode string
 
+	// Passwordless instructs tsh to do passwordless login.
+	Passwordless bool
+
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
+
+	// ExtraProxyHeaders is configuration read from the .tsh/config/config.yaml file.
+	ExtraProxyHeaders []ExtraProxyHeaders
 }
 
 // Stdout returns the stdout writer.
@@ -300,6 +317,14 @@ func (c *CLIConf) Stdout() io.Writer {
 		return c.overrideStdout
 	}
 	return os.Stdout
+}
+
+// Stderr returns the stderr writer.
+func (c *CLIConf) Stderr() io.Writer {
+	if c.overrideStderr != nil {
+		return c.overrideStderr
+	}
+	return os.Stderr
 }
 
 func main() {
@@ -328,7 +353,6 @@ const (
 	loginEnvVar       = "TELEPORT_LOGIN"
 	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
 	proxyEnvVar       = "TELEPORT_PROXY"
-	homeEnvVar        = "TELEPORT_HOME"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar             = "TELEPORT_SITE"
@@ -349,8 +373,6 @@ const (
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
 	proxyDefaultResolutionTimeout = 2 * time.Second
-
-	teleportNamespace = "teleport.dev"
 )
 
 // cliOption is used in tests to inject/override configuration within Run
@@ -364,12 +386,15 @@ func Run(args []string, opts ...cliOption) error {
 	moduleCfg := modules.GetModules()
 
 	// configure CLI argument parser:
-	app := utils.InitCLIParser("tsh", "TSH: Teleport Authentication Gateway Client").Interspersed(false)
+	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(false)
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
 	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
+	if wancli.IsFIDO2Available() {
+		app.Flag("pwdless", "Do passwordless login").BoolVar(&cf.Passwordless)
+	}
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
@@ -386,7 +411,7 @@ func Run(args []string, opts ...cliOption) error {
 			BoolVar(&cf.InsecureSkipVerify)
 	}
 
-	app.Flag("auth", "Specify the type of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
+	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
@@ -403,7 +428,9 @@ func Run(args []string, opts ...cliOption) error {
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.HelpFlag.Short('h')
+
 	ver := app.Command("version", "Print the version")
+
 	// ssh
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
@@ -422,6 +449,11 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
+
+	// Daemon service for teleterm client
+	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
+	daemonStart := daemon.Command("start", "Starts tsh daemon service").Hidden()
+	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -456,6 +488,7 @@ func Run(args []string, opts ...cliOption) error {
 	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
 	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
+	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
@@ -617,10 +650,14 @@ func Run(args []string, opts ...cliOption) error {
 	}
 
 	// parse CLI commands+flags:
+	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
+		app.Usage(args)
 		return trace.Wrap(err)
 	}
+	// Did we initially get the Username from flags/env?
+	cf.ExplicitUsername = cf.Username != ""
 
 	// apply any options after parsing of arguments to ensure
 	// that defaults don't overwrite options.
@@ -664,6 +701,13 @@ func Run(args []string, opts ...cliOption) error {
 	}
 
 	setEnvFlags(&cf, os.Getenv)
+
+	fullConfigPath := filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath)
+	confOptions, err := loadConfig(fullConfigPath)
+	if err != nil {
+		return trace.Wrap(err, "failed to load tsh config from %s", fullConfigPath)
+	}
+	cf.ExtraProxyHeaders = confOptions.ExtraHeaders
 
 	switch command {
 	case ver.FullCommand():
@@ -755,6 +799,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onConfigProxy(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
+	case daemonStart.FullCommand():
+		err = onDaemonStart(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -880,23 +926,37 @@ func onLogin(cf *CLIConf) error {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+			_, err := tc.PingAndShowMOTD(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
+
 			return nil
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+			_, err := tc.PingAndShowMOTD(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
+
 			return nil
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
+			_, err := tc.PingAndShowMOTD(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			// trigger reissue, preserving any active requests.
 			err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
 				AccessRequests: profile.ActiveRequests.AccessRequests,
@@ -911,11 +971,16 @@ func onLogin(cf *CLIConf) error {
 			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
+
 			return trace.Wrap(onStatus(cf))
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && (cf.DesiredRoles != "" || cf.RequestID != "") && cf.IdentityFileOut == "":
+			_, err := tc.PingAndShowMOTD(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1436,7 +1501,7 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 			rows = append(rows,
 				[]string{n.GetHostname(), getAddr(n), sortedLabels(n.GetAllLabels())})
 		}
-		t = makeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
 }
@@ -1446,7 +1511,7 @@ func sortedLabels(labels map[string]string) string {
 	var namespaced []string
 	var result []string
 	for key, val := range labels {
-		if strings.HasPrefix(key, teleportNamespace+"/") {
+		if strings.HasPrefix(key, types.TeleportNamespace+"/") {
 			teleportNamespaced = append(teleportNamespaced, key)
 			continue
 		}
@@ -1499,58 +1564,10 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool)
 			labels := sortedLabels(app.GetAllLabels())
 			rows = append(rows, []string{name, desc, addr, labels})
 		}
-		t := makeTableWithTruncatedColumn(
+		t := asciitable.MakeTableWithTruncatedColumn(
 			[]string{"Application", "Description", "Public Address", "Labels"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
-}
-
-func makeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) asciitable.Table {
-	width, _, err := term.GetSize(int(os.Stdin.Fd()))
-	if err != nil {
-		width = 80
-	}
-	truncatedColMinSize := 16
-	maxColWidth := (width - truncatedColMinSize) / (len(columnOrder) - 1)
-	t := asciitable.MakeTable([]string{})
-	totalLen := 0
-	columns := []asciitable.Column{}
-
-	for collIndex, colName := range columnOrder {
-		column := asciitable.Column{
-			Title:         colName,
-			MaxCellLength: len(colName),
-		}
-		if colName == truncatedColumn { // truncated column is handled separately in next loop
-			columns = append(columns, column)
-			continue
-		}
-		for _, row := range rows {
-			cellLen := row[collIndex]
-			if len(cellLen) > column.MaxCellLength {
-				column.MaxCellLength = len(cellLen)
-			}
-		}
-		if column.MaxCellLength > maxColWidth {
-			column.MaxCellLength = maxColWidth
-			totalLen += column.MaxCellLength + 4 // "...<space>"
-		} else {
-			totalLen += column.MaxCellLength + 1 // +1 for column separator
-		}
-		columns = append(columns, column)
-	}
-
-	for _, column := range columns {
-		if column.Title == truncatedColumn {
-			column.MaxCellLength = width - totalLen - len("... ")
-		}
-		t.AddColumn(column)
-	}
-
-	for _, row := range rows {
-		t.AddRow(row)
-	}
-	return t
 }
 
 func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
@@ -1595,7 +1612,7 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 				connect,
 			})
 		}
-		t := makeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
+		t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
 }
@@ -1896,6 +1913,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.IdentityFileIn != "" {
 		// Ignore local authentication methods when identity file is provided
 		c.SkipLocalAuth = true
+		// Force the use of the certificate principals so Unix
+		// username does not get used when logging in
+		c.UseKeyPrincipals = hostLogin == ""
+
 		var (
 			key          *client.Key
 			identityAuth ssh.AuthMethod
@@ -1979,10 +2000,28 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
+	c.ExplicitUsername = cf.ExplicitUsername
+	c.Passwordless = cf.Passwordless
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
 	if err := setClientWebProxyAddr(cf, c); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if c.ExtraProxyHeaders == nil {
+		c.ExtraProxyHeaders = map[string]string{}
+	}
+	for _, proxyHeaders := range cf.ExtraProxyHeaders {
+		proxyGlob := utils.GlobToRegexp(proxyHeaders.Proxy)
+		proxyRegexp, err := regexp.Compile(proxyGlob)
+		if err != nil {
+			return nil, trace.Wrap(err, "invalid proxy glob %q in tsh configuration file", proxyGlob)
+		}
+		if proxyRegexp.MatchString(c.WebProxyAddr) {
+			for k, v := range proxyHeaders.Headers {
+				c.ExtraProxyHeaders[k] = v
+			}
+		}
 	}
 
 	if len(fPorts) > 0 {
@@ -2111,6 +2150,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	tc.Config.Stderr = cf.Stderr()
+	tc.Config.Stdout = cf.Stdout()
 
 	tc.Config.Reason = cf.Reason
 	tc.Config.Invited = cf.Invited
@@ -2558,7 +2600,7 @@ func setSiteNameFromEnv(cf *CLIConf, fn envGetter) {
 
 // setTeleportHomeFromEnv sets home directory from environment if configured.
 func setTeleportHomeFromEnv(cf *CLIConf, fn envGetter) {
-	if homeDir := fn(homeEnvVar); homeDir != "" {
+	if homeDir := fn(types.HomeEnvVar); homeDir != "" {
 		cf.HomePath = path.Clean(homeDir)
 	}
 }

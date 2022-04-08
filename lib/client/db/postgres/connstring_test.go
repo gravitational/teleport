@@ -84,7 +84,7 @@ func TestConnString(t *testing.T) {
 				CACertPath: caPath,
 				CertPath:   certPath,
 				KeyPath:    keyPath,
-			}))
+			}, false))
 		})
 	}
 }

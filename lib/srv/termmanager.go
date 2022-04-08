@@ -23,7 +23,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const maxHistory = 1000
+// maxHistoryBytes is the maximum bytes that are retained as history and broadcasted to new clients.
+const maxHistoryBytes = 1000
+
+// maxPausedHistoryBytes is maximum bytes that are buffered when a session is paused.
+const maxPausedHistoryBytes = 10000
 
 // TermManager handles the streams of terminal-like sessions.
 // It performs a number of tasks including:
@@ -31,12 +35,15 @@ const maxHistory = 1000
 // - history scrollback for new clients
 // - stream breaking
 type TermManager struct {
-	mu           sync.Mutex
-	writers      map[string]io.Writer
-	readerState  map[string]*int32
-	OnWriteError func(idString string, err error)
+	// These two fields need to be first in the struct so that they are 64-bit aligned which is a requirement
+	// for atomic operations on certain architectures.
 	countWritten uint64
 	countRead    uint64
+
+	mu           sync.Mutex
+	writers      map[string]io.Writer
+	readerState  map[string]bool
+	OnWriteError func(idString string, err error)
 	// buffer is used to buffer writes when turned off
 	buffer []byte
 	on     bool
@@ -48,7 +55,7 @@ type TermManager struct {
 	// we only support one concurrent reader so this isn't mutex protected
 	remaining         []byte
 	readStateUpdate   *sync.Cond
-	closed            *int32
+	closed            bool
 	lastWasBroadcast  bool
 	terminateNotifier chan struct{}
 }
@@ -57,28 +64,17 @@ type TermManager struct {
 func NewTermManager() *TermManager {
 	return &TermManager{
 		writers:           make(map[string]io.Writer),
-		readerState:       make(map[string]*int32),
-		closed:            new(int32),
+		readerState:       make(map[string]bool),
+		closed:            false,
 		readStateUpdate:   sync.NewCond(&sync.Mutex{}),
 		incoming:          make(chan []byte, 100),
-		terminateNotifier: make(chan struct{}),
+		terminateNotifier: make(chan struct{}, 1),
 	}
 }
 
 func (g *TermManager) writeToClients(p []byte) int {
 	g.lastWasBroadcast = false
-	truncateFront := func(slice []byte, max int) []byte {
-		if len(slice) > max {
-			return slice[len(slice)-max:]
-		}
-
-		return slice
-	}
-
-	g.history = append(g.history, truncateFront(p, maxHistory)...)
-	if len(g.history) > maxHistory {
-		g.history = g.history[:maxHistory]
-	}
+	g.history = truncateFront(append(g.history, p...), maxHistoryBytes)
 
 	atomic.AddUint64(&g.countWritten, uint64(len(p)))
 	for key, w := range g.writers {
@@ -110,7 +106,9 @@ func (g *TermManager) Write(p []byte) (int, error) {
 	if g.on {
 		g.writeToClients(p)
 	} else {
-		g.buffer = append(g.buffer, p...)
+		// Only keep the last maxPausedHistoryBytes of stdout/stderr while the session is paused.
+		// The alternative is flushing to disk but this should be a pretty rare occurrence and shouldn't be an issue in practice.
+		g.buffer = truncateFront(append(g.buffer, p...), maxPausedHistoryBytes)
 	}
 
 	return len(p), nil
@@ -214,8 +212,7 @@ func (g *TermManager) DeleteWriter(name string) {
 }
 
 func (g *TermManager) AddReader(name string, r io.Reader) {
-	readerState := new(int32)
-	g.readerState[name] = readerState
+	g.readerState[name] = false
 
 	go func() {
 		for {
@@ -231,21 +228,24 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				// This is the ASCII control code for CTRL+C.
 				if b == 0x03 {
 					g.mu.Lock()
-					if !g.on {
+					if !g.on && !g.closed {
 						select {
 						case g.terminateNotifier <- struct{}{}:
 						default:
 						}
 					}
 					g.mu.Unlock()
-					return
+					break
 				}
 			}
 
 			g.incoming <- buf[:n]
-			if atomic.LoadInt32(g.closed) == 1 || atomic.LoadInt32(readerState) == 1 {
+			g.mu.Lock()
+			if g.closed || g.readerState[name] {
+				g.mu.Unlock()
 				return
 			}
+			g.mu.Unlock()
 		}
 	}()
 }
@@ -253,10 +253,7 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 func (g *TermManager) DeleteReader(name string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-
-	if g.readerState[name] != nil {
-		atomic.StoreInt32(g.readerState[name], 1)
-	}
+	g.readerState[name] = true
 }
 
 func (g *TermManager) CountWritten() uint64 {
@@ -268,7 +265,11 @@ func (g *TermManager) CountRead() uint64 {
 }
 
 func (g *TermManager) Close() {
-	if atomic.CompareAndSwapInt32(g.closed, 0, 1) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if !g.closed {
+		g.closed = true
 		close(g.terminateNotifier)
 	}
 }
@@ -276,7 +277,15 @@ func (g *TermManager) Close() {
 func (g *TermManager) GetRecentHistory() []byte {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	data := make([]byte, len(g.history))
+	data := make([]byte, 0, len(g.history))
 	data = append(data, g.history...)
 	return data
+}
+
+func truncateFront(slice []byte, max int) []byte {
+	if len(slice) > max {
+		return slice[len(slice)-max:]
+	}
+
+	return slice
 }

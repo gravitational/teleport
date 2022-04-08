@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -559,7 +558,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(u.Scheme+"://"+u.Host+u.Path, Equals, fixtures.SAMLOktaSSO)
 	data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
 	c.Assert(err, IsNil)
-	buf, err := ioutil.ReadAll(flate.NewReader(bytes.NewReader(data)))
+	buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(data)))
 	c.Assert(err, IsNil)
 	doc := etree.NewDocument()
 	err = doc.ReadFromBytes(buf)
@@ -1958,6 +1957,70 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	nodes, err := s.proxyClient.GetNodes(s.ctx, apidefaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
+}
+
+func TestTokenGeneration(t *testing.T) {
+	tt := []struct {
+		name      string
+		roles     types.SystemRoles
+		shouldErr bool
+	}{
+		{
+			name:      "single node role",
+			roles:     types.SystemRoles{types.RoleNode},
+			shouldErr: false,
+		},
+		{
+			name:      "single app role",
+			roles:     types.SystemRoles{types.RoleApp},
+			shouldErr: false,
+		},
+		{
+			name:      "single db role",
+			roles:     types.SystemRoles{types.RoleDatabase},
+			shouldErr: false,
+		},
+		{
+			name:      "multiple roles",
+			roles:     types.SystemRoles{types.RoleNode, types.RoleApp, types.RoleDatabase},
+			shouldErr: false,
+		},
+		{
+			name:      "return error if no role is requested",
+			roles:     types.SystemRoles{},
+			shouldErr: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newWebPack(t, 1)
+
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, "test-user@example.com")
+
+			endpoint := pack.clt.Endpoint("webapi", "token")
+			re, err := pack.clt.PostJSON(context.Background(), endpoint, createTokenRequest{
+				Roles: tc.roles,
+			})
+
+			if tc.shouldErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			var responseToken nodeJoinToken
+			err = json.Unmarshal(re.Bytes(), &responseToken)
+			require.NoError(t, err)
+
+			// generated token roles should match the requested ones
+			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.roles, generatedToken.GetRoles())
+		})
+	}
 }
 
 func TestClusterDatabasesGet(t *testing.T) {
