@@ -521,25 +521,54 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	}
 
 	// export local cluster certificate authority and return it to the cluster
-	validateResponse := ValidateTrustedClusterResponse{
-		CAs: []types.CertAuthority{},
-	}
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA} {
-		log.Warnf("validate request teleport version: %s", validateRequest.TeleportVersion)
-		certAuthority, err := a.GetCertAuthority(
-			ctx,
-			types.CertAuthID{Type: caType, DomainName: domainName},
-			false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		validateResponse.CAs = append(validateResponse.CAs, certAuthority)
+	validateResponse := ValidateTrustedClusterResponse{}
+
+	validateResponse.CAs, err = validationTrustedClusterCerts(ctx, a, domainName, validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// log the local certificate authorities we are sending
 	log.Debugf("Sending validate response: CAs=%v", validateResponse.CAs)
 
 	return &validateResponse, nil
+}
+
+func validationTrustedClusterCerts(ctx context.Context, srv *Server, domainName string, validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthority, error) {
+	var err error
+
+	ver10orAbove := false
+	if validateRequest.TeleportVersion != "" {
+		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
+		// cluster this field will be empty.
+		ver10orAbove, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, "10.0.0")
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
+		}
+	}
+
+	certTypes := []types.CertAuthType{types.HostCA, types.UserCA}
+
+	if ver10orAbove {
+		// Database CA was introduced in Teleport 10.0. Do not send it to older clusters
+		// as they don't understand it.
+		certTypes = append(certTypes, types.DatabaseCA)
+	}
+
+	caCerts := make([]types.CertAuthority, 0, len(certTypes))
+
+	for _, caType := range certTypes {
+		certAuthority, err := srv.GetCertAuthority(
+			ctx,
+			types.CertAuthID{Type: caType, DomainName: domainName},
+			false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		caCerts = append(caCerts, certAuthority)
+	}
+
+	return caCerts, nil
 }
 
 func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName string) (map[string]string, error) {
