@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -443,7 +442,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.Wrap(err)
 		}
 		defer index.Close()
-		indexContent, err := ioutil.ReadAll(index)
+		indexContent, err := io.ReadAll(index)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -763,7 +762,6 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
-
 	defaultSettings, err := defaultAuthenticationSettings(r.Context(), h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -822,38 +820,60 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return response, nil
 	}
 
+	// collectorNames stores a list of the registered collector names so that
+	// in the event that no connector has matched, the list can be returned.
+	var collectorNames []string
+
 	// first look for a oidc connector with that name
-	oidcConnector, err := authClient.GetOIDCConnector(r.Context(), connectorName, false)
+	oidcConnectors, err := authClient.GetOIDCConnectors(r.Context(), false)
 	if err == nil {
-		response.Auth = oidcSettings(oidcConnector, cap)
-		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
-		return response, nil
+		for index, value := range oidcConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
+			if value.GetMetadata().Name == connectorName {
+				response.Auth = oidcSettings(oidcConnectors[index], cap)
+				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				return response, nil
+			}
+		}
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnector, err := authClient.GetSAMLConnector(r.Context(), connectorName, false)
+	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
 	if err == nil {
-		response.Auth = samlSettings(samlConnector, cap)
-		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
-		return response, nil
+		for index, value := range samlConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
+			if value.GetMetadata().Name == connectorName {
+				response.Auth = samlSettings(samlConnectors[index], cap)
+				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				return response, nil
+			}
+		}
 	}
 
 	// look for github connector
-	githubConnector, err := authClient.GetGithubConnector(r.Context(), connectorName, false)
+	githubConnectors, err := authClient.GetGithubConnectors(r.Context(), false)
 	if err == nil {
-		response.Auth = githubSettings(githubConnector, cap)
-		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
-		return response, nil
+		for index, value := range githubConnectors {
+			collectorNames = append(collectorNames, value.GetMetadata().Name)
+			if value.GetMetadata().Name == connectorName {
+				response.Auth = githubSettings(githubConnectors[index], cap)
+				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				return response, nil
+			}
+		}
 	}
 
-	return nil, trace.BadParameter("invalid connector name %v", connectorName)
+	return nil,
+		trace.BadParameter(
+			"invalid connector name: %v; valid options: %s",
+			connectorName, strings.Join(collectorNames, ", "))
 }
 
 // getWebConfig returns configuration for the web application.
 func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetWebConfigHeaders(w.Header())
 
-	authProviders := []ui.WebConfigAuthProvider{}
+	authProviders := []webclient.WebConfigAuthProvider{}
 
 	// get all OIDC connectors
 	oidcConnectors, err := h.cfg.ProxyClient.GetOIDCConnectors(r.Context(), false)
@@ -861,9 +881,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve OIDC connectors.")
 	}
 	for _, item := range oidcConnectors {
-		authProviders = append(authProviders, ui.WebConfigAuthProvider{
-			Type:        ui.WebConfigAuthProviderOIDCType,
-			WebAPIURL:   ui.WebConfigAuthProviderOIDCURL,
+		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
+			Type:        webclient.WebConfigAuthProviderOIDCType,
+			WebAPIURL:   webclient.WebConfigAuthProviderOIDCURL,
 			Name:        item.GetName(),
 			DisplayName: item.GetDisplay(),
 		})
@@ -875,9 +895,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
 	for _, item := range samlConnectors {
-		authProviders = append(authProviders, ui.WebConfigAuthProvider{
-			Type:        ui.WebConfigAuthProviderSAMLType,
-			WebAPIURL:   ui.WebConfigAuthProviderSAMLURL,
+		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
+			Type:        webclient.WebConfigAuthProviderSAMLType,
+			WebAPIURL:   webclient.WebConfigAuthProviderSAMLURL,
 			Name:        item.GetName(),
 			DisplayName: item.GetDisplay(),
 		})
@@ -889,42 +909,32 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve Github connectors.")
 	}
 	for _, item := range githubConnectors {
-		authProviders = append(authProviders, ui.WebConfigAuthProvider{
-			Type:        ui.WebConfigAuthProviderGitHubType,
-			WebAPIURL:   ui.WebConfigAuthProviderGitHubURL,
+		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
+			Type:        webclient.WebConfigAuthProviderGitHubType,
+			WebAPIURL:   webclient.WebConfigAuthProviderGitHubURL,
 			Name:        item.GetName(),
 			DisplayName: item.GetDisplay(),
 		})
 	}
 
 	// get auth type & second factor type
-	authType := constants.Local
-	secondFactor := constants.SecondFactorOff
-	localAuth := true
-	cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
-	if err != nil {
+	var authSettings webclient.WebConfigAuthSettings
+	if cap, err := h.cfg.ProxyClient.GetAuthPreference(r.Context()); err != nil {
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
+		authSettings = webclient.WebConfigAuthSettings{
+			Providers:        authProviders,
+			SecondFactor:     constants.SecondFactorOff,
+			LocalAuthEnabled: true,
+			AuthType:         constants.Local,
+		}
 	} else {
-		authType = cap.GetType()
-		secondFactor = cap.GetSecondFactor()
-		localAuth = cap.GetAllowLocalAuth()
-	}
-
-	// disable joining sessions if proxy session recording is enabled
-	canJoinSessions := true
-	recCfg, err := h.cfg.ProxyClient.GetSessionRecordingConfig(r.Context())
-	if err != nil {
-		h.log.WithError(err).Error("Cannot retrieve SessionRecordingConfig.")
-	} else {
-		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
-	}
-
-	authSettings := ui.WebConfigAuthSettings{
-		Providers:         authProviders,
-		SecondFactor:      secondFactor,
-		LocalAuthEnabled:  localAuth,
-		AuthType:          authType,
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		authSettings = webclient.WebConfigAuthSettings{
+			Providers:         authProviders,
+			SecondFactor:      cap.GetSecondFactor(),
+			LocalAuthEnabled:  cap.GetAllowLocalAuth(),
+			AuthType:          cap.GetType(),
+			PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		}
 	}
 
 	// get tunnel address to display on cloud instances
@@ -938,7 +948,16 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	webCfg := ui.WebConfig{
+	// disable joining sessions if proxy session recording is enabled
+	canJoinSessions := true
+	recCfg, err := h.cfg.ProxyClient.GetSessionRecordingConfig(r.Context())
+	if err != nil {
+		h.log.WithError(err).Error("Cannot retrieve SessionRecordingConfig.")
+	} else {
+		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
+	}
+
+	webCfg := webclient.WebConfig{
 		Auth:                authSettings,
 		CanJoinSessions:     canJoinSessions,
 		IsCloud:             h.ClusterFeatures.GetCloud(),
@@ -2348,10 +2367,7 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	// Teleport 8 clients are still expecting the legacy JSON format.
-	// Teleport 9 clients handle both legacy and new.
-	// TODO(zmb3) return certs directly in Teleport 10
-	return auth.LegacyCertsFromProto(certs), nil
+	return certs, nil
 }
 
 // createSSHCert is a web call that generates new SSH certificate based

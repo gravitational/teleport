@@ -25,6 +25,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/trace"
 )
 
@@ -378,8 +379,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
-	case strings.Contains(d.Spec.URI, RDSEndpointSuffix):
-		instanceID, region, err := parseRDSEndpoint(d.Spec.URI)
+	case awsutils.IsRDSEndpoint(d.Spec.URI):
+		instanceID, region, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -389,8 +390,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
-	case strings.Contains(d.Spec.URI, RedshiftEndpointSuffix):
-		clusterID, region, err := parseRedshiftEndpoint(d.Spec.URI)
+	case awsutils.IsRedshiftEndpoint(d.Spec.URI):
+		clusterID, region, err := awsutils.ParseRedshiftEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -410,36 +411,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
-}
-
-// parseRDSEndpoint extracts region from the provided RDS endpoint.
-func parseRDSEndpoint(endpoint string) (instanceID, region string, err error) {
-	host, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
-	// RDS/Aurora endpoint looks like this:
-	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
-	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, RDSEndpointSuffix) || len(parts) != 6 {
-		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
-	}
-	return parts[0], parts[2], nil
-}
-
-// parseRedshiftEndpoint extracts cluster ID and region from the provided Redshift endpoint.
-func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error) {
-	host, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
-	// Redshift endpoint looks like this:
-	// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
-	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, RedshiftEndpointSuffix) || len(parts) != 6 {
-		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
-	}
-	return parts[0], parts[2], nil
 }
 
 // parseAzureEndpoint extracts database server name from Azure endpoint.
@@ -594,10 +565,6 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
 
 const (
-	// RDSEndpointSuffix is the RDS/Aurora endpoint suffix.
-	RDSEndpointSuffix = ".rds.amazonaws.com"
-	// RedshiftEndpointSuffix is the Redshift endpoint suffix.
-	RedshiftEndpointSuffix = ".redshift.amazonaws.com"
 	// AzureEndpointSuffix is the Azure database endpoint suffix.
 	AzureEndpointSuffix = ".database.azure.com"
 )

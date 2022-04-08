@@ -103,7 +103,7 @@ type OnboardingConfig struct {
 	Token string `yaml:"token"`
 
 	// CAPath is an optional path to a CA certificate.
-	CAPath string
+	CAPath string `yaml:"ca_path"`
 
 	// CAPins is a list of certificate authority pins, used to validate the
 	// connection to the Teleport auth server.
@@ -277,7 +277,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// (CAPath, CAPins, etc follow different codepaths so we don't want a
 	// situation where different fields become set weirdly due to struct
 	// merging)
-	if cf.Token != "" || len(cf.CAPins) > 0 || cf.JoinMethod != "" {
+	if cf.Token != "" || len(cf.CAPins) > 0 || cf.JoinMethod != DefaultJoinMethod {
 		onboarding := config.Onboarding
 		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || cf.JoinMethod != DefaultJoinMethod {
 			// To be safe, warn about possible confusion.

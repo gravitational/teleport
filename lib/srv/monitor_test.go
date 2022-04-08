@@ -30,13 +30,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *events.MockEmitter, MonitorConfig) {
+func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.MockEmitter, MonitorConfig) {
 	conn := &mockTrackingConn{make(chan struct{})}
-	emitter := &events.MockEmitter{}
+	emitter := &eventstest.MockEmitter{}
 	cfg := MonitorConfig{
 		Context:     ctx,
 		Conn:        conn,

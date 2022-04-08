@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -188,7 +190,13 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode))
+	ciphers := utils.DefaultCipherSuites()
+	tlsConfig, err := k.KubeClientTLSConfig(ciphers, kubeCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, err := client.NewKubeSession(cf.Context, tc, meta, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -488,6 +496,10 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 			filteredSessions = append(filteredSessions, session)
 		}
 	}
+
+	sort.Slice(filteredSessions, func(i, j int) bool {
+		return filteredSessions[i].GetCreated().Before(filteredSessions[j].GetCreated())
+	})
 
 	printSessions(filteredSessions)
 	return nil
@@ -843,7 +855,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	}
 
 	if cf.HomePath != "" {
-		v.Exec.Env[homeEnvVar] = cf.HomePath
+		v.Exec.Env[types.HomeEnvVar] = cf.HomePath
 	}
 
 	// Only switch the current context if kube-cluster is explicitly set on the command line.

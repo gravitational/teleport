@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"sort"
@@ -474,7 +473,7 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		return false, nil
 	}
 
-	buff, err := ioutil.ReadFile(certPath)
+	buff, err := os.ReadFile(certPath)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -578,6 +577,7 @@ type connectionCommandOpts struct {
 	localProxyPort int
 	localProxyHost string
 	caPath         string
+	noTLS          bool
 }
 
 type ConnectCommandFunc func(*connectionCommandOpts)
@@ -587,6 +587,17 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 		opts.localProxyPort = port
 		opts.localProxyHost = host
 		opts.caPath = caPath
+	}
+}
+
+// WithNoTLS is the connect command option that makes the command connect
+// without TLS.
+//
+// It is used when connecting through the local proxy that was started in
+// mutual TLS mode (i.e. with a client certificate).
+func WithNoTLS() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.noTLS = true
 	}
 }
 

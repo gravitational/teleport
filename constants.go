@@ -62,18 +62,6 @@ const (
 )
 
 const (
-	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
-	HTTPSProxy = "HTTPS_PROXY"
-
-	// HTTPProxy is an environment variable pointing to a HTTP proxy.
-	HTTPProxy = "HTTP_PROXY"
-
-	// NoProxy is an environment variable matching the cases
-	// when HTTPS_PROXY or HTTP_PROXY is ignored
-	NoProxy = "NO_PROXY"
-)
-
-const (
 	// TOTPValidityPeriod is the number of seconds a TOTP token is valid.
 	TOTPValidityPeriod uint = 30
 
