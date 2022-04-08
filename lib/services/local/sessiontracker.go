@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
