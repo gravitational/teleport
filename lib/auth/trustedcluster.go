@@ -249,8 +249,9 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 
 	// create a request to validate a trusted cluster (token and local certificate authorities)
 	validateRequest := ValidateTrustedClusterRequest{
-		Token: trustedCluster.GetToken(),
-		CAs:   localCertAuthorities,
+		Token:           trustedCluster.GetToken(),
+		CAs:             localCertAuthorities,
+		TeleportVersion: teleport.Version,
 	}
 
 	// log the local certificate authorities that we are sending
@@ -524,6 +525,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 		CAs: []types.CertAuthority{},
 	}
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA} {
+		log.Warnf("validate request teleport version: %s", validateRequest.TeleportVersion)
 		certAuthority, err := a.GetCertAuthority(
 			ctx,
 			types.CertAuthID{Type: caType, DomainName: domainName},
@@ -614,8 +616,9 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 }
 
 type ValidateTrustedClusterRequest struct {
-	Token string                `json:"token"`
-	CAs   []types.CertAuthority `json:"certificate_authorities"`
+	Token           string                `json:"token"`
+	CAs             []types.CertAuthority `json:"certificate_authorities"`
+	TeleportVersion string                `json:"teleport_version"`
 }
 
 func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestRaw, error) {
@@ -631,14 +634,16 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	}
 
 	return &ValidateTrustedClusterRequestRaw{
-		Token: v.Token,
-		CAs:   cas,
+		Token:           v.Token,
+		CAs:             cas,
+		TeleportVersion: v.TeleportVersion,
 	}, nil
 }
 
 type ValidateTrustedClusterRequestRaw struct {
-	Token string   `json:"token"`
-	CAs   [][]byte `json:"certificate_authorities"`
+	Token           string   `json:"token"`
+	CAs             [][]byte `json:"certificate_authorities"`
+	TeleportVersion string   `json:"teleport_version"`
 }
 
 func (v *ValidateTrustedClusterRequestRaw) ToNative() (*ValidateTrustedClusterRequest, error) {
@@ -654,8 +659,9 @@ func (v *ValidateTrustedClusterRequestRaw) ToNative() (*ValidateTrustedClusterRe
 	}
 
 	return &ValidateTrustedClusterRequest{
-		Token: v.Token,
-		CAs:   cas,
+		Token:           v.Token,
+		CAs:             cas,
+		TeleportVersion: v.TeleportVersion,
 	}, nil
 }
 
