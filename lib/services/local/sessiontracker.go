@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -116,23 +117,31 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 		return nil, trace.Wrap(err)
 	}
 
-	sessions := make([]types.SessionTracker, len(result.Items))
-	for i, item := range result.Items {
+	sessions := make([]types.SessionTracker, 0)
+	expired := make([]backend.Item, 0)
+	now := time.Now().UTC()
+	for _, item := range result.Items {
 		session, err := unmarshalSession(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if session.Expiry().After(time.Now().UTC()) {
-			sessions[i] = session
+		if session.Expiry().After(now) {
+			sessions = append(sessions, session)
 		} else if item.Expires.IsZero() { // Check if the expiry is not set.
+			expired = append(expired, item)
+		}
+	}
+
+	go func() {
+		for _, item := range expired {
 			if err := s.bk.Delete(ctx, item.Key); err != nil {
 				if !trace.IsNotFound(err) {
-					return nil, trace.Wrap(err)
+					logrus.WithError(err).Error("Failed to remove stale session tracker")
 				}
 			}
 		}
-	}
+	}()
 
 	return sessions, nil
 }
