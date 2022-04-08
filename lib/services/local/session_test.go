@@ -23,11 +23,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDeleteUserAppSessions(t *testing.T) {
-	identity, clock := newIdentityService(t)
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
 	users := []string{"alice", "bob"}
 	ctx := context.Background()
 
