@@ -472,7 +472,7 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
 		CmdClause: parent.Command("sessions", "Get a list of active kubernetes sessions."),
 	}
-	c.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
+	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 
 	return c
 }
@@ -634,7 +634,7 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	}
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
-	c.Flag("format", "Format output (text, json, yaml)").Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
+	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	return c
 }
