@@ -59,7 +59,7 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 		},
 	}
 
-	// boostrap an load balancer for proxies.
+	// boostrap a load balancer for proxies.
 	p.makeLoadBalancer(t)
 
 	// boostrap an auth instance.
@@ -97,7 +97,7 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 		},
 	}
 
-	// boostrap an load balancer for proxies.
+	// boostrap a load balancer for proxies.
 	p.makeLoadBalancer(t)
 
 	// boostrap an auth instance.
