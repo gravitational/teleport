@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -202,8 +201,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			stderr = tty
 		} else {
 			stdin = os.Stdin
-			stdout = ioutil.Discard
-			stderr = ioutil.Discard
+			stdout = io.Discard
+			stderr = io.Discard
 		}
 
 		// Open the PAM context.
@@ -326,7 +325,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	return ioutil.Discard, exitCode(err), trace.Wrap(err)
+	return io.Discard, exitCode(err), trace.Wrap(err)
 }
 
 // RunForward reads in the command to run from the parent process (over a
@@ -363,8 +362,8 @@ func RunForward() (errw io.Writer, code int, err error) {
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,
-			Stdout:      ioutil.Discard,
-			Stderr:      ioutil.Discard,
+			Stdout:      io.Discard,
+			Stderr:      io.Discard,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
@@ -409,19 +408,19 @@ func RunForward() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	return ioutil.Discard, teleport.RemoteCommandSuccess, nil
+	return io.Discard, teleport.RemoteCommandSuccess, nil
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
 func runCheckHomeDir() (errw io.Writer, code int, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ioutil.Discard, teleport.HomeDirNotFound, nil
+		return io.Discard, teleport.HomeDirNotFound, nil
 	}
 	if !utils.IsDir(home) {
-		return ioutil.Discard, teleport.HomeDirNotFound, nil
+		return io.Discard, teleport.HomeDirNotFound, nil
 	}
-	return ioutil.Discard, teleport.RemoteCommandSuccess, nil
+	return io.Discard, teleport.RemoteCommandSuccess, nil
 }
 
 // RunAndExit will run the requested command and then exit. This wrapper

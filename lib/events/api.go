@@ -502,6 +502,9 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
+
+	// UnknownEvent is any event received that isn't recognized as any other event type.
+	UnknownEvent = apievents.UnknownEvent
 )
 
 const (
@@ -561,12 +564,6 @@ type SessionMetadataSetter interface {
 
 	// SetClusterName sets teleport cluster name
 	SetClusterName(string)
-}
-
-// SetCode is a shortcut that sets code for the audit event
-func SetCode(event apievents.AuditEvent, code string) apievents.AuditEvent {
-	event.SetCode(code)
-	return event
 }
 
 // Streamer creates and resumes event streams for session IDs

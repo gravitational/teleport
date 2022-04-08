@@ -28,6 +28,8 @@ Before you get started you’ll need:
 - To register one or more users in the directory
 - To create at least two security groups in Azure AD and assign one or more users to each group
 
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
+
 ## Configure Azure AD
 
 1. Select **Azure AD -> Enterprise Applications**
@@ -59,7 +61,7 @@ Before you get started you’ll need:
    ![Edit Basic SAML Configuration](../../../img/azuread/azuread-7-editbasicsaml.png)
 
 8. For **Entity ID** and **Reply URL**, enter the same proxy URL.
-  
+
    For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs`.
 
    For Teleport Cloud users, the URL will be similar to `https://mytenant.teleport.sh`.
@@ -167,34 +169,6 @@ $ tctl create dev.yaml
 ```
 
 ## Testing
-
-Update your Teleport configuration to make SAML the default authentication method.
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self Hosted">
-In your Teleport configuration file, include the following:
-
-```yaml
-auth_service:
-  authentication:
-    type: saml
-```
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
-Apply the following `cluster_auth_preference` resource via `tctl create`.
-
-```yaml
-    kind: cluster_auth_preference
-    version: v2
-    metadata:
-      name: cluster-auth-preference
-    spec:
-      type: "saml"
-```
-</TabItem>
-</Tabs>
-
-The Web UI will now present the option to log in via Microsoft.
 
 ![Login with Microsoft](../../../img/azuread/azure-11-loginwithmsft.png)
 
@@ -355,7 +329,7 @@ spec:
     private_key: |
       -----BEGIN RSA PRIVATE KEY-----
       New private key
-      -----END RSA PRIVATE KEY-----  
+      -----END RSA PRIVATE KEY-----
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -372,7 +346,7 @@ version: v2
 Update the connector:
 
 ```code
-$ tctl create -f azure-out.yaml 
+$ tctl create -f azure-out.yaml
 ```
 
 ### Activate token encryption
@@ -393,41 +367,7 @@ If the SSO login with this connector is successful, the encryption works.
 
 ## Troubleshooting
 
-### Access denied
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self Hosted">
-If you get "access denied" errors, the number one place to check is the audit
-log on the Teleport Auth Server. It is located in `/var/lib/teleport/log` by
-default and will contain a detailed reason why a user's login was denied.
-
-Example of a user being denied because the role `clusteradmin` wasn't set up:
-
-```json
-{"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"saml","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
-```
-
-Some errors (like file-system permissions or a misconfigured network) can be
-diagnosed using Teleport's `stderr` log, which is usually available via:
-
-```code
-$ sudo journalctl -fu teleport
-```
-
-If you wish to increase the verbosity of Teleport's logs, you can pass the
-[`--debug`](../../setup/reference/cli.mdx#teleport-start) flag to the `teleport start` command.
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
-If you get "access denied" errors, the number one place to check is the audit
-log on the Teleport Auth Server. You can find it in the **Activity** tab of the Teleport Web UI.
-
-Example of a user being denied because the role `clusteradmin` wasn't set up:
-
-```json
-{"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"saml","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
-```
-</TabItem>
-</Tabs>
+(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
 
 ### Failed to process SAML callback
 

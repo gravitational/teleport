@@ -28,12 +28,13 @@ RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
+        build-essential \
+        ca-certificates \
         clang-10 \
         clang-format-10 \
-        ca-certificates \
+        cmake \
         curl \
         default-jre \
-        gcc \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
         gnupg \
@@ -42,9 +43,10 @@ RUN apt-get update -y --fix-missing && \
         libelf-dev \
         libpam-dev \
         libsqlite3-0 \
+        libssl-dev \
+        libudev-dev \
         llvm-10 \
         locales \
-        make \
         mingw-w64 \
         mingw-w64-x86-64-dev \
         net-tools \
@@ -56,7 +58,6 @@ RUN apt-get update -y --fix-missing && \
         pkg-config \
         shellcheck \
         softhsm2 \
-        tar \
         tree \
         unzip \
         zip \
@@ -83,9 +84,25 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
 
+# Install libcbor.
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
+  cd libcbor && \
+  cmake -DCMAKE_BUILD_TYPE=Release -DCBOR_CUSTOM_ALLOC=ON . && \
+  make && \
+  make install
+
+# Install libfido2.
+# Depends on libcbor, libssl-dev, zlib and libudev-dev.
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
+  cd libfido2 && \
+  cmake -DCMAKE_BUILD_TYPE=Release . && \
+  make && \
+  make install && \
+  ldconfig
+
 # Install Go.
-ARG RUNTIME
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-${BUILDARCH}.tar.gz | tar xz && \
+ARG GOLANG_VERSION
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -114,6 +131,11 @@ RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.44.0
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
      rm -r helm-tarball*)
+RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
+    mkdir -p /home/ci/.local/share/helm && \
+    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
+    chown -R ci /home/ci/.local/share/helm && \
+    HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install bats.
 RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \

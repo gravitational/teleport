@@ -322,3 +322,76 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		})
 	}
 }
+
+func TestResourcesWithLabels_ToMap(t *testing.T) {
+	mkServerHost := func(name string, hostname string) ResourceWithLabels {
+		server, err := NewServerWithLabels(name, KindNode, ServerSpecV2{
+			Hostname: hostname + ".example.com",
+			Addr:     name + ".example.com",
+		}, nil)
+		require.NoError(t, err)
+
+		return server
+	}
+
+	mkServer := func(name string) ResourceWithLabels {
+		return mkServerHost(name, name)
+	}
+
+	tests := []struct {
+		name string
+		r    ResourcesWithLabels
+		want ResourcesWithLabelsMap
+	}{
+		{
+			name: "empty",
+			r:    nil,
+			want: map[string]ResourceWithLabels{},
+		},
+		{
+			name: "simple list",
+			r:    []ResourceWithLabels{mkServer("a"), mkServer("b"), mkServer("c")},
+			want: map[string]ResourceWithLabels{
+				"a": mkServer("a"),
+				"b": mkServer("b"),
+				"c": mkServer("c"),
+			},
+		},
+		{
+			name: "first duplicate wins",
+			r:    []ResourceWithLabels{mkServerHost("a", "a1"), mkServerHost("a", "a2"), mkServerHost("a", "a3")},
+			want: map[string]ResourceWithLabels{
+				"a": mkServerHost("a", "a1"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.r.ToMap(), tt.want)
+		})
+	}
+}
+
+func TestValidLabelKey(t *testing.T) {
+	for _, tc := range []struct {
+		label string
+		valid bool
+	}{
+		{
+			label: "1x/Y*_-",
+			valid: true,
+		},
+		{
+			label: "x:y",
+			valid: true,
+		},
+		{
+			label: "x\\y",
+			valid: false,
+		},
+	} {
+		isValid := IsValidLabelKey(tc.label)
+		require.Equal(t, tc.valid, isValid)
+	}
+}

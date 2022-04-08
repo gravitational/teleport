@@ -51,6 +51,10 @@ import (
 const PresenceVerifyInterval = time.Second * 15
 const PresenceMaxDifference = time.Minute
 
+// SessionControlsInfoBroadcast is sent in tandem with session creation
+// to inform any joining users about the session controls.
+const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
+
 var serverSessions = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: teleport.MetricServerInteractiveSessions,
@@ -93,6 +97,7 @@ func NewSessionRegistry(srv Server, auth auth.ClientI) (*SessionRegistry, error)
 		}),
 		srv:      srv,
 		sessions: make(map[rsession.ID]*session),
+		auth:     auth,
 	}, nil
 }
 
@@ -299,15 +304,15 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	for _, p := range party.s.getParties() {
 		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
 		if err != nil {
-			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			continue
 		}
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			continue
 		}
-		s.log.Debugf("Sent %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
+		s.log.Debugf("Sent %v to %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr())
 	}
 }
 
@@ -319,7 +324,7 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 	}
 
 	sess.terminated = true
-	sess.io.BroadcastMessage("Forcefully terminating session...")
+	sess.BroadcastMessage("Forcefully terminating session...")
 	sess.term.Kill()
 	sess.doneCh <- struct{}{}
 
@@ -345,20 +350,15 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 // leaveSession removes the given party from this session.
 func (s *SessionRegistry) leaveSession(party *party) error {
 	sess := party.s
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Emit session leave event to both the Audit Log as well as over the
-	// "x-teleport-event" channel in the SSH connection.
-	s.emitSessionLeaveEvent(party)
-
-	sess.mu.Lock()
-	defer sess.mu.Unlock()
 
 	// Remove member from in-members representation of party.
 	if err := sess.removeParty(party); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Emit session leave event to both the Audit Log as well as over the
+	// "x-teleport-event" channel in the SSH connection.
+	s.emitSessionLeaveEvent(party)
 
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit
@@ -601,6 +601,8 @@ type session struct {
 	bpfContext *bpf.SessionContext
 
 	cgroupID uint64
+
+	displayParticipantRequirements bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -669,24 +671,34 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
 		}),
-		id:              id,
-		registry:        r,
-		parties:         make(map[rsession.ID]*party),
-		participants:    make(map[rsession.ID]*party),
-		login:           ctx.Identity.Login,
-		closeC:          make(chan bool),
-		lingerTTL:       defaults.SessionIdlePeriod,
-		startTime:       startTime,
-		serverCtx:       ctx.srv.Context(),
-		state:           types.SessionState_SessionStatePending,
-		access:          auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind),
-		scx:             ctx,
-		presenceEnabled: ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
-		io:              NewTermManager(),
-		stateUpdate:     sync.NewCond(&sync.Mutex{}),
-		doneCh:          make(chan struct{}, 2),
-		initiator:       ctx.Identity.TeleportUser,
+		id:                             id,
+		registry:                       r,
+		parties:                        make(map[rsession.ID]*party),
+		participants:                   make(map[rsession.ID]*party),
+		login:                          ctx.Identity.Login,
+		closeC:                         make(chan bool),
+		lingerTTL:                      defaults.SessionIdlePeriod,
+		startTime:                      startTime,
+		serverCtx:                      ctx.srv.Context(),
+		state:                          types.SessionState_SessionStatePending,
+		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind),
+		scx:                            ctx,
+		presenceEnabled:                ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
+		io:                             NewTermManager(),
+		stateUpdate:                    sync.NewCond(&sync.Mutex{}),
+		doneCh:                         make(chan struct{}, 2),
+		initiator:                      ctx.Identity.TeleportUser,
+		displayParticipantRequirements: utils.AsBool(ctx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
 	}
+
+	go func() {
+		if _, open := <-sess.io.TerminateNotifier(); open {
+			err := sess.registry.ForceTerminate(sess.scx)
+			if err != nil {
+				sess.log.Errorf("Failed to terminate session: %v.", err)
+			}
+		}
+	}()
 
 	err = sess.trackerCreate(ctx.Identity.TeleportUser, policySets)
 	if err != nil {
@@ -710,7 +722,7 @@ func (s *session) PID() int {
 	return s.term.PID()
 }
 
-// Recorder returns a events.SessionRecorder which can be used to emit events
+// Recorder returns a StreamWriter which can be used to emit events
 // to a session as well as the audit log.
 func (s *session) Recorder() events.StreamWriter {
 	s.mu.RLock()
@@ -730,7 +742,7 @@ func (s *session) Close() error {
 			defer s.mu.Unlock()
 
 			close(s.closeC)
-			s.io.BroadcastMessage("Closing session...")
+			s.BroadcastMessage("Closing session...")
 			s.log.Infof("Closing session %v.", s.id)
 			if s.term != nil {
 				s.term.Close()
@@ -768,10 +780,7 @@ func (s *session) isLingering() bool {
 
 func (s *session) waitOnAccess() error {
 	s.io.Off()
-	err := s.io.BroadcastMessage("Session paused, Waiting for required participants...")
-	if err != nil {
-		log.WithError(err).Errorf("Failed to broadcast message.")
-	}
+	s.BroadcastMessage("Session paused, Waiting for required participants...")
 
 	s.stateUpdate.L.Lock()
 	defer s.stateUpdate.L.Unlock()
@@ -789,9 +798,19 @@ outer:
 		s.stateUpdate.Wait()
 	}
 
-	s.io.BroadcastMessage("Resuming session...")
+	s.BroadcastMessage("Resuming session...")
 	s.io.On()
 	return nil
+}
+
+func (s *session) BroadcastMessage(format string, args ...interface{}) {
+	if s.access.IsModerated() && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
+		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
+
+		if err != nil {
+			s.log.Debugf("Failed to broadcast message: %v", err)
+		}
+	}
 }
 
 func (s *session) launch(ctx *ServerContext) error {
@@ -801,7 +820,7 @@ func (s *session) launch(ctx *ServerContext) error {
 	defer s.stateUpdate.L.Unlock()
 
 	s.log.Debugf("Launching session %v.", s.id)
-	s.io.BroadcastMessage("Launching session...")
+	s.BroadcastMessage("Connecting to %v over SSH", ctx.srv.GetInfo().GetHostname())
 	s.state = types.SessionState_SessionStateRunning
 
 	err := s.io.On()
@@ -927,34 +946,11 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// create a new "party" (connected client)
 	p := newParty(s, types.SessionPeerMode, ch, ctx)
 
-	// Nodes discard events in cases when proxies are already recording them.
-	if s.registry.srv.Component() == teleport.ComponentNode &&
-		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
-		s.recorder = &events.DiscardStream{}
-	} else {
-		streamer, err := s.newStreamer(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed
-			Context:      ctx.srv.Context(),
-			Streamer:     streamer,
-			Clock:        ctx.srv.GetClock(),
-			SessionID:    s.id,
-			Namespace:    ctx.srv.GetNamespace(),
-			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
-			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-			ClusterName:  ctx.ClusterName,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	rec, err := newRecorder(s, ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	var err error
+	s.recorder = rec
 
 	// allocate a terminal or take the one previously allocated via a
 	// seaprate "allocate TTY" SSH request
@@ -1007,10 +1003,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	s.inWriter = inWriter
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder))
-	err = s.io.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", s.id))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	s.BroadcastMessage("Creating session with ID: %v...", s.id)
+	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.term.Run(); err != nil {
 		ctx.Errorf("Unable to run shell command: %v.", err)
@@ -1055,36 +1049,45 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	return nil
 }
 
-func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
-	var err error
-
+// newRecorder creates a new events.StreamWriter to be used as the recorder
+// of the passed in session.
+func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
-		s.recorder = &events.DiscardStream{}
-	} else {
-		streamer, err := s.newStreamer(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		rec, err := events.NewAuditWriter(events.AuditWriterConfig{
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed
-			Context:      ctx.srv.Context(),
-			Streamer:     streamer,
-			SessionID:    s.id,
-			Clock:        ctx.srv.GetClock(),
-			Namespace:    ctx.srv.GetNamespace(),
-			ServerID:     ctx.srv.HostUUID(),
-			RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
-			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-			ClusterName:  ctx.ClusterName,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.recorder = rec
+		return &events.DiscardStream{}, nil
 	}
+
+	streamer, err := s.newStreamer(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rec, err := events.NewAuditWriter(events.AuditWriterConfig{
+		// Audit stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context:      ctx.srv.Context(),
+		Streamer:     streamer,
+		SessionID:    s.id,
+		Clock:        ctx.srv.GetClock(),
+		Namespace:    ctx.srv.GetNamespace(),
+		ServerID:     ctx.srv.HostUUID(),
+		RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
+		Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+		ClusterName:  ctx.ClusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rec, nil
+}
+
+func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
+	rec, err := newRecorder(s, ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.recorder = rec
 
 	// Emit a session.start event for the exec session.
 	sessionStartEvent := &apievents.SessionStart{
@@ -1268,6 +1271,9 @@ func sessionsStreamingUploadDir(ctx *ServerContext) string {
 }
 
 func (s *session) broadcastResult(r ExecResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for _, p := range s.parties {
 		p.ctx.SendExecResult(r)
 	}
@@ -1286,6 +1292,9 @@ func (s *session) removePartyMember(party *party) {
 // removeParty removes the party from the in-memory map that holds all party
 // members.
 func (s *session) removeParty(p *party) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	p.ctx.Infof("Removing party %v from session %v", p, s.id)
 
 	// Removes participant from in-memory map of party members.
@@ -1316,7 +1325,7 @@ func (s *session) removeParty(p *party) error {
 	}
 
 	s.io.DeleteWriter(string(p.id))
-	s.io.BroadcastMessage(fmt.Sprintf("User %v left the session.", p.user))
+	s.BroadcastMessage("User %v left the session.", p.user)
 	return nil
 }
 
@@ -1477,6 +1486,18 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(s.parties) == 0 {
+		canStart, _, err := s.checkIfStart()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !canStart && services.IsRecordAtProxy(p.ctx.SessionRecordingConfig.GetMode()) {
+			go s.Close()
+			return trace.AccessDenied("session requires additional moderation but is in proxy-record mode")
+		}
+	}
+
 	// Adds participant to in-memory map of party members.
 	s.parties[p.id] = p
 	s.participants[p.id] = p
@@ -1497,7 +1518,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
-	s.io.BroadcastMessage(fmt.Sprintf("User %v joined the session.", p.user))
+	s.BroadcastMessage("User %v joined the session.", p.user)
 	s.log.Infof("New party %v joined session: %v", p.String(), s.id)
 
 	if mode == types.SessionPeerMode {
@@ -1538,6 +1559,14 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			} else {
 				s.state = types.SessionState_SessionStateRunning
 				s.stateUpdate.Broadcast()
+			}
+		} else if !s.started {
+			base := "Waiting for required participants..."
+
+			if s.displayParticipantRequirements {
+				s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
+			} else {
+				s.BroadcastMessage(base)
 			}
 		}
 	}
@@ -1692,9 +1721,12 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 
 	reason := s.scx.env[teleport.EnvSSHSessionReason]
 	var invited []string
-	err := json.Unmarshal([]byte(s.scx.env[teleport.EnvSSHSessionInvited]), &invited)
-	if err != nil {
-		return trace.Wrap(err)
+
+	if s.scx.env[teleport.EnvSSHSessionInvited] != "" {
+		err := json.Unmarshal([]byte(s.scx.env[teleport.EnvSSHSessionInvited]), &invited)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	req := &proto.CreateSessionTrackerRequest{
@@ -1713,7 +1745,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		HostPolicies: policySet,
 	}
 
-	_, err = s.registry.auth.CreateSessionTracker(s.serverCtx, req)
+	_, err := s.registry.auth.CreateSessionTracker(s.serverCtx, req)
 	return trace.Wrap(err)
 }
 

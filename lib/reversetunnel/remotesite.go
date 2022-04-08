@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -89,7 +90,7 @@ type remoteSite struct {
 
 func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 	// check if all cert authorities are initiated and if everything is OK
-	ca, err := s.srv.localAccessPoint.GetCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
+	ca, err := s.srv.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -151,7 +152,7 @@ func (s *remoteSite) connectionCount() int {
 	return len(s.connections)
 }
 
-func (s *remoteSite) hasValidConnections() bool {
+func (s *remoteSite) HasValidConnections() bool {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -314,13 +315,20 @@ func (s *remoteSite) fanOutProxies(proxies []types.Server) {
 	}
 }
 
-// handleHearbeat receives heartbeat messages from the connected agent
+// handleHeartbeat receives heartbeat messages from the connected agent
 // if the agent has missed several heartbeats in a row, Proxy marks
 // the connection as invalid.
 func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	defer func() {
 		s.Infof("Cluster connection closed.")
-		conn.Close()
+
+		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			s.WithError(err).Warnf("Failed to close remote connection for remote site %s", s.domainName)
+		}
+
+		if err := s.srv.onSiteTunnelClose(s); err != nil {
+			s.WithError(err).Warnf("Failed to close remote site %s", s.domainName)
+		}
 	}()
 
 	firstHeartbeat := true
@@ -344,7 +352,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			if req == nil {
 				s.Infof("Cluster agent disconnected.")
 				conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
-				if !s.hasValidConnections() {
+				if !s.HasValidConnections() {
 					s.Debugf("Deleting connection record.")
 					s.deleteConnectionRecord()
 				}
@@ -431,8 +439,7 @@ func (s *remoteSite) updateCertAuthorities(retry utils.Retry) {
 				s.Debugf("Remote cluster %v does not support cert authorities rotation yet.", s.domainName)
 			case trace.IsCompareFailed(err):
 				s.Infof("Remote cluster has updated certificate authorities, going to force reconnect.")
-				s.srv.removeSite(s.domainName)
-				s.Close()
+				s.srv.onSiteTunnelClose(&alwaysClose{RemoteSite: s})
 				return
 			case trace.IsConnectionProblem(err):
 				s.Debugf("Remote cluster %v is offline.", s.domainName)
@@ -452,8 +459,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 			Clock:     s.clock,
 			Client:    s.localAccessPoint,
 		},
-		WatchUserCA: true,
-		WatchHostCA: true,
+		WatchCertTypes: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -467,7 +473,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 			Clock:     s.clock,
 			Client:    s.remoteAccessPoint,
 		},
-		WatchHostCA: true,
+		WatchCertTypes: []types.CertAuthType{types.HostCA},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -489,11 +495,11 @@ func (s *remoteSite) watchCertAuthorities() error {
 			for _, localCA := range cas {
 				if localCA.GetClusterName() != s.srv.ClusterName ||
 					(localCA.GetType() != types.HostCA &&
-						localCA.GetType() != types.UserCA) {
+						localCA.GetType() != types.UserCA && localCA.GetType() != types.DatabaseCA) {
 					continue
 				}
 
-				if err := s.remoteClient.RotateExternalCertAuthority(localCA); err != nil {
+				if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, localCA); err != nil {
 					s.WithError(err).Warn("Failed to rotate external ca")
 					return trace.Wrap(err)
 				}
@@ -505,7 +511,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 					continue
 				}
 
-				oldRemoteCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
+				oldRemoteCA, err := s.localClient.GetCertAuthority(s.ctx, types.CertAuthID{
 					Type:       types.HostCA,
 					DomainName: remoteCA.GetClusterName(),
 				}, false)

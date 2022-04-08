@@ -389,12 +389,6 @@ var (
 	// TopRequestsCapacity sets up default top requests capacity
 	TopRequestsCapacity = 128
 
-	// CachePollPeriod is a period for cache internal events polling,
-	// used in cases when cache is being used to subscribe for events
-	// and this parameter controls how often cache checks for new events
-	// to arrive
-	CachePollPeriod = 500 * time.Millisecond
-
 	// AuthQueueSize is auth service queue size
 	AuthQueueSize = 8192
 
@@ -466,6 +460,17 @@ const (
 	// LimiterMaxConcurrentSignatures limits maximum number of concurrently
 	// generated signatures by the auth server
 	LimiterMaxConcurrentSignatures = 10
+)
+
+// Default rate limits for unauthenticated passwordless endpoints.
+const (
+	// LimiterPasswordlessPeriod is the default period for passwordless limiters.
+	LimiterPasswordlessPeriod = 1 * time.Minute
+	// LimiterPasswordlessAverage is the default average for passwordless
+	// limiters.
+	LimiterPasswordlessAverage = 10
+	// LimiterPasswordlessBurst is the default burst for passwordless limiters.
+	LimiterPasswordlessBurst = 20
 )
 
 const (

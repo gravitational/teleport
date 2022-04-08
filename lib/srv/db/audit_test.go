@@ -25,8 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -122,22 +120,22 @@ func TestAuditMongo(t *testing.T) {
 	waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 
 	// Connect should trigger successful session start event.
-	mongo, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
+	mongoClient, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
 	require.NoError(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 
 	// Find command in a database we don't have access to.
-	_, err = mongo.Database("notadmin").Collection("test").Find(ctx, bson.M{})
+	_, err = mongoClient.Database("notadmin").Collection("test").Find(ctx, bson.M{})
 	require.Error(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionQueryFailedCode)
 
 	// Find command should trigger the query event.
-	_, err = mongo.Database("admin").Collection("test").Find(ctx, bson.M{})
+	_, err = mongoClient.Database("admin").Collection("test").Find(ctx, bson.M{})
 	require.NoError(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
 
 	// Closing connection should trigger session end event.
-	err = mongo.Disconnect(ctx)
+	err = mongoClient.Disconnect(ctx)
 	require.NoError(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionEndCode)
 }
@@ -194,7 +192,7 @@ func requireQueryEvent(t *testing.T, testCtx *testContext, code, query string) {
 
 func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
 	select {
-	case event := <-testCtx.emitter.eventsCh:
+	case event := <-testCtx.emitter.C():
 		return event
 	case <-time.After(time.Second):
 		t.Fatalf("didn't receive any event after 1 second")
@@ -206,7 +204,7 @@ func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
 func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditEvent {
 	for {
 		select {
-		case event := <-testCtx.emitter.eventsCh:
+		case event := <-testCtx.emitter.C():
 			if event.GetCode() != code {
 				continue
 			}
@@ -215,25 +213,4 @@ func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditE
 			t.Fatalf("didn't receive %v event after 1 second", code)
 		}
 	}
-}
-
-// testEmitter pushes all received audit events into a channel.
-type testEmitter struct {
-	eventsCh chan events.AuditEvent
-	log      logrus.FieldLogger
-}
-
-// newTestEmitter returns a new instance of test emitter.
-func newTestEmitter() *testEmitter {
-	return &testEmitter{
-		eventsCh: make(chan events.AuditEvent, 100),
-		log:      logrus.WithField(trace.Component, "emitter"),
-	}
-}
-
-// EmitAuditEvent records the provided event in the test emitter.
-func (e *testEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	e.log.Infof("EmitAuditEvent(%v)", event)
-	e.eventsCh <- event
-	return nil
 }

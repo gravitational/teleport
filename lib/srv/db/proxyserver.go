@@ -24,6 +24,9 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -85,10 +88,49 @@ type ProxyServerConfig struct {
 	Clock clockwork.Clock
 	// ServerID is the ID of the audit log server.
 	ServerID string
-	// Shuffle allows to override shuffle logic in tests.
-	Shuffle func([]types.DatabaseServer) []types.DatabaseServer
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+}
+
+// ShuffleFunc defines a function that shuffles a list of database servers.
+type ShuffleFunc func([]types.DatabaseServer) []types.DatabaseServer
+
+// ShuffleRandom is a ShuffleFunc that randomizes the order of database servers.
+// Used to provide load balancing behavior when proxying to multiple agents.
+func ShuffleRandom(servers []types.DatabaseServer) []types.DatabaseServer {
+	rand.New(rand.NewSource(time.Now().UnixNano())).Shuffle(
+		len(servers), func(i, j int) {
+			servers[i], servers[j] = servers[j], servers[i]
+		})
+	return servers
+}
+
+// ShuffleSort is a ShuffleFunc that sorts database servers by name and host ID.
+// Used to provide predictable behavior in tests.
+func ShuffleSort(servers []types.DatabaseServer) []types.DatabaseServer {
+	sort.Sort(types.DatabaseServers(servers))
+	return servers
+}
+
+var (
+	// mu protects the shuffleFunc global access.
+	mu sync.RWMutex
+	// shuffleFunc provides shuffle behavior for multiple database agents.
+	shuffleFunc ShuffleFunc = ShuffleRandom
+)
+
+// SetShuffleFunc sets the shuffle behavior when proxying to multiple agents.
+func SetShuffleFunc(fn ShuffleFunc) {
+	mu.Lock()
+	defer mu.Unlock()
+	shuffleFunc = fn
+}
+
+// getShuffleFunc returns the configured function used to shuffle agents.
+func getShuffleFunc() ShuffleFunc {
+	mu.RLock()
+	defer mu.RUnlock()
+	return shuffleFunc
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -113,15 +155,6 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ServerID == "" {
 		return trace.BadParameter("missing ServerID")
-	}
-	if c.Shuffle == nil {
-		c.Shuffle = func(servers []types.DatabaseServer) []types.DatabaseServer {
-			rand.New(rand.NewSource(c.Clock.Now().UnixNano())).Shuffle(
-				len(servers), func(i, j int) {
-					servers[i], servers[j] = servers[j], servers[i]
-				})
-			return servers
-		}
 	}
 	if c.LockWatcher == nil {
 		return trace.BadParameter("missing LockWatcher")
@@ -154,7 +187,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log, types.UserCA)
 	return server, nil
 }
 
@@ -177,7 +210,7 @@ func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 		go func() {
 			defer clientConn.Close()
 			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
-			if err != nil {
+			if err != nil && !utils.IsOKNetworkError(err) {
 				s.log.WithError(err).Warn("Failed to handle Postgres client connection.")
 			}
 		}()
@@ -231,7 +264,9 @@ func (s *ProxyServer) serveGenericTLS(listener net.Listener, tlsConfig *tls.Conf
 			defer clientConn.Close()
 			tlsConn := tls.Server(clientConn, tlsConfig)
 			if err := tlsConn.Handshake(); err != nil {
-				s.log.WithError(err).Errorf("%s TLS handshake failed.", dbName)
+				if !utils.IsOKNetworkError(err) {
+					s.log.WithError(err).Errorf("%s TLS handshake failed.", dbName)
+				}
 				return
 			}
 			err := s.handleConnection(tlsConn)
@@ -287,6 +322,10 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
+	case defaults.ProtocolPostgres:
+		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
+	case defaults.ProtocolMySQL:
+		return s.MySQLProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
@@ -313,6 +352,16 @@ func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	}
 }
 
+// PostgresProxyNoTLS returns a new instance of the non-TLS Postgres proxy.
+func (s *ProxyServer) PostgresProxyNoTLS() *postgres.Proxy {
+	return &postgres.Proxy{
+		Middleware: s.middleware,
+		Service:    s,
+		Limiter:    s.cfg.Limiter,
+		Log:        s.log,
+	}
+}
+
 // MySQLProxy returns a new instance of the MySQL protocol aware proxy.
 func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	return &mysql.Proxy{
@@ -324,15 +373,19 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	}
 }
 
+// MySQLProxyNoTLS returns a new instance of the non-TLS MySQL proxy.
+func (s *ProxyServer) MySQLProxyNoTLS() *mysql.Proxy {
+	return &mysql.Proxy{
+		Middleware: s.middleware,
+		Service:    s,
+		Limiter:    s.cfg.Limiter,
+		Log:        s.log,
+	}
+}
+
 // SQLServerProxy returns a new instance of the SQL Server protocol aware proxy.
 func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
-	// SQL Server clients don't support client certificates, connections
-	// come over TLS routing tunnel.
-	tlsConf := s.cfg.TLSConfig.Clone()
-	tlsConf.ClientAuth = tls.NoClientCert
-	tlsConf.GetConfigForClient = nil
 	return &sqlserver.Proxy{
-		TLSConfig:  tlsConf,
 		Middleware: s.middleware,
 		Service:    s,
 		Log:        s.log,
@@ -351,7 +404,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
-	for _, server := range s.cfg.Shuffle(proxyCtx.Servers) {
+	for _, server := range getShuffleFunc()(proxyCtx.Servers) {
 		s.log.Debugf("Dialing to %v.", server)
 		tlsConfig, err := s.getConfigForServer(ctx, proxyCtx.Identity, server)
 		if err != nil {
@@ -364,9 +417,9 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 			ConnType: types.DatabaseTunnel,
 		})
 		if err != nil {
-			// Connection problem indicates reverse tunnel to this server is down.
-			if trace.IsConnectionProblem(err) {
-				s.log.WithError(err).Warnf("Failed to dial %v.", server)
+			// If an agent is down, we'll retry on the next one (if available).
+			if isReverseTunnelDownError(err) {
+				s.log.WithError(err).Warnf("Failed to dial database %v.", server)
 				continue
 			}
 			return nil, trace.Wrap(err)
@@ -378,6 +431,13 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		return serviceConn, nil
 	}
 	return nil, trace.BadParameter("failed to connect to any of the database servers")
+}
+
+// isReverseTunnelDownError returns true if the provided error indicates that
+// the reverse tunnel connection is down e.g. because the agent is down.
+func isReverseTunnelDownError(err error) bool {
+	return trace.IsConnectionProblem(err) ||
+		strings.Contains(err.Error(), reversetunnel.NoDatabaseTunnel)
 }
 
 // Proxy starts proxying all traffic received from database client between
@@ -583,9 +643,19 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
+	// with UserCA where Teleport 10+ uses DatabaseCA.
+	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), "10.0.0")
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
+	}
+
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
 		ClusterName: identity.RouteToCluster,
+		// TODO: Remove in Teleport 11.
+		SignWithDatabaseCA: ver10orAbove,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -608,7 +678,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	}, nil
 }
 
-func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger, caTypes ...types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -618,7 +688,7 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, err := auth.ClientCertPool(ap, clusterName)
+		pool, err := auth.ClientCertPool(ap, clusterName, caTypes...)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return nil, nil // Fall back to the default config.

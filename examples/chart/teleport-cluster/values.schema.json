@@ -9,6 +9,7 @@
         "labels",
         "chartMode",
         "highAvailability",
+        "tls",
         "image",
         "enterpriseImage",
         "log",
@@ -19,7 +20,8 @@
         "imagePullPolicy",
         "initContainers",
         "resources",
-        "tolerations"
+        "tolerations",
+        "probeTimeoutSeconds"
     ],
     "properties": {
         "clusterName": {
@@ -32,10 +34,50 @@
             "type": "string",
             "default": "local"
         },
+        "authenticationSecondFactor": {
+            "$id": "#/properties/authenticationSecondFactor",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "secondFactor": {
+                    "$id": "#/properties/authenticationSecondFactor/properties/secondFactor",
+                    "type": "string",
+                    "enum": ["off", "on", "otp", "optional", "webauthn"],
+                    "default": "otp"
+                },
+                "webauthn": {
+                    "$id": "#/properties/authenticationSecondFactor/properties/webauthn",
+                    "type": "object",
+                    "required": [],
+                    "properties": {
+                        "attestationAllowedCas": {
+                            "$id": "#/properties/authenticationSecondFactor/properties/webauthn/properties/attestationAllowedCas",
+                            "type": "array",
+                            "default": []
+                        },
+                        "attestationDeniedCas": {
+                            "$id": "#/properties/authenticationSecondFactor/properties/webauthn/properties/attestationDeniedCas",
+                            "type": "array",
+                            "default": []
+                        }
+                    }
+                }
+            }
+        },
         "proxyListenerMode": {
             "$id": "#/properties/proxyListenerMode",
             "type": "string",
             "default": ""
+        },
+        "separatePostgresListener": {
+            "$id": "#/properties/separatePostgresListener",
+            "type": "boolean",
+            "default": false
+        },
+        "separateMongoListener": {
+            "$id": "#/properties/separateMongoListener",
+            "type": "boolean",
+            "default": false
         },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
@@ -265,6 +307,26 @@
                 }
             }
         },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingSecretName",
+                "existingCASecretName"
+            ],
+            "properties": {
+                "existingSecretName": {
+                    "$id": "#/properties/tls/properties/existingSecretName",
+                    "type": "string",
+                    "default": ""
+                },
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
         "image": {
             "$id": "#/properties/image",
             "type": "string",
@@ -455,6 +517,11 @@
             "$id": "#/properties/priorityClassName",
             "type": "string",
             "default": ""
+        },
+        "probeTimeoutSeconds": {
+            "$id": "#/properties/probeTimeoutSeconds",
+            "type": "integer",
+            "default": 1
         }
     }
 }

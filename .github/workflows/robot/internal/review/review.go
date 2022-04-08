@@ -195,7 +195,7 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 }
 
 // CheckExternal requires two admins have approved.
-func (r *Assignments) CheckExternal(author string, reviews map[string]*github.Review) error {
+func (r *Assignments) CheckExternal(author string, reviews []github.Review) error {
 	log.Printf("Check: Found external author %v.", author)
 
 	reviewers := r.getAdminReviewers(author)
@@ -209,7 +209,7 @@ func (r *Assignments) CheckExternal(author string, reviews map[string]*github.Re
 // CheckInternal will verify if required reviewers have approved. Checks if
 // docs and if each set of code reviews have approved. Admin approvals bypass
 // all checks.
-func (r *Assignments) CheckInternal(author string, reviews map[string]*github.Review, docs bool, code bool) error {
+func (r *Assignments) CheckInternal(author string, reviews []github.Review, docs bool, code bool) error {
 	log.Printf("Check: Found internal author %v.", author)
 
 	// Skip checks if admins have approved.
@@ -247,7 +247,7 @@ func (r *Assignments) CheckInternal(author string, reviews map[string]*github.Re
 	return nil
 }
 
-func (r *Assignments) checkDocsReviews(author string, reviews map[string]*github.Review) error {
+func (r *Assignments) checkDocsReviews(author string, reviews []github.Review) error {
 	reviewers := r.getDocsReviewers(author)
 
 	if check(reviewers, reviews) {
@@ -257,7 +257,7 @@ func (r *Assignments) checkDocsReviews(author string, reviews map[string]*github
 	return trace.BadParameter("requires at least one approval from %v", reviewers)
 }
 
-func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github.Review) error {
+func (r *Assignments) checkCodeReviews(author string, reviews []github.Review) error {
 	// External code reviews should never hit this path, if they do, fail and
 	// return an error.
 	v, ok := r.c.CodeReviewers[author]
@@ -314,23 +314,42 @@ func getReviewerSets(author string, team string, reviewers map[string]Reviewer, 
 	return setA, setB
 }
 
-func check(reviewers []string, reviews map[string]*github.Review) bool {
+func check(reviewers []string, reviews []github.Review) bool {
 	return checkN(reviewers, reviews) > 0
 }
 
-func checkN(reviewers []string, reviews map[string]*github.Review) int {
+func checkN(reviewers []string, reviews []github.Review) int {
+	r := reviewsByAuthor(reviews)
+
 	var n int
 	for _, reviewer := range reviewers {
-		if review, ok := reviews[reviewer]; ok {
-			if review.State == approved && review.Author == reviewer {
-				n++
-			}
+		if state, ok := r[reviewer]; ok && state == approved {
+			n++
 		}
 	}
 	return n
 }
 
+func reviewsByAuthor(reviews []github.Review) map[string]string {
+	m := map[string]string{}
+
+	for _, review := range reviews {
+		// Always pick up the last submitted review from each reviewer.
+		if state, ok := m[review.Author]; ok {
+			// If the reviewer left comments after approval, skip this review.
+			if review.State == commented && state == approved {
+				continue
+			}
+		}
+		m[review.Author] = review.State
+	}
+
+	return m
+}
+
 const (
+	// commented is a code review where the reviewer has left comments only.
+	commented = "COMMENTED"
 	// approved is a code review where the reviewer has approved changes.
 	approved = "APPROVED"
 	// changesRequested is a code review where the reviewer has requested changes.

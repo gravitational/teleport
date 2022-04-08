@@ -32,6 +32,7 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -99,7 +100,7 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	user := "fake@fake.com"
@@ -130,7 +131,7 @@ func TestStartAccountRecovery(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 	fakeClock := srv.Clock().(clockwork.FakeClock)
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -313,7 +314,7 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 	fakeClock := srv.Clock().(clockwork.FakeClock)
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -446,7 +447,7 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -515,7 +516,7 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -614,7 +615,7 @@ func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 func TestCompleteAccountRecovery(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -728,7 +729,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -1291,7 +1292,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 
 func triggerLoginLock(t *testing.T, srv *Server, username string) {
 	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
-		_, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
+		_, _, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
 			Username: username,
 			OTP:      &OTPCreds{},
 		})

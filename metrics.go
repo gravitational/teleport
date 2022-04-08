@@ -49,6 +49,9 @@ const (
 	// MetricFailedLoginAttempts counts failed login attempts
 	MetricFailedLoginAttempts = "failed_login_attempts_total"
 
+	// MetricConnectToNodeAttempts counts ssh attempts
+	MetricConnectToNodeAttempts = "connect_to_node_attempts_total"
+
 	// MetricFailedConnectToNodeAttempts counts failed ssh attempts
 	MetricFailedConnectToNodeAttempts = "failed_connect_to_node_attempts_total"
 
@@ -227,4 +230,10 @@ const (
 
 	// TagType is a prometheus label for type of resource or tunnel connected
 	TagType = "type"
+
+	// TagServer is a prometheus label to indicate what server the metric is tied to
+	TagServer = "server"
+
+	// TagClient is a prometheus label to indicate what client the metric is tied to
+	TagClient = "client"
 )

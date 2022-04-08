@@ -46,6 +46,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const eventBufferSize = 1024
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
@@ -165,7 +167,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.eventsC = make(chan Event, 100)
+	p.eventsC = make(chan Event, eventBufferSize)
 
 	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
 	if err != nil {
@@ -239,6 +241,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 func TestCA(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
+	ctx := context.Background()
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
@@ -249,7 +252,7 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), true)
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	ca.SetResourceID(out.GetResourceID())
 	require.Empty(t, cmp.Diff(ca, out))
@@ -263,7 +266,7 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetCertAuthority(ca.GetID(), false)
+	_, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -576,7 +579,7 @@ func TestCompletenessInit(t *testing.T) {
 
 		p.backend.SetReadError(nil)
 
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -633,7 +636,7 @@ func TestCompletenessReset(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
@@ -644,7 +647,7 @@ func TestCompletenessReset(t *testing.T) {
 		p.backend.SetReadError(nil)
 
 		// load CAs while connection is bad
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -654,87 +657,6 @@ func TestCompletenessReset(t *testing.T) {
 			require.True(t, trace.IsConnectionProblem(err))
 		}
 	}
-}
-
-// TestTombstones verifies that healthy caches leave tombstones
-// on closure, giving new caches the ability to start from a known
-// good state if the origin state is unavailable.
-func TestTombstones(t *testing.T) {
-	ctx := context.Background()
-	const caCount = 10
-	p := newTestPackWithoutCache(t)
-	t.Cleanup(p.Close)
-
-	// put lots of CAs in the backend
-	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
-	}
-
-	var err error
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
-
-	require.NoError(t, p.cache.Close())
-	// wait for TombstoneWritten, ignoring all other event types
-	expectEvent(t, p.eventsC, TombstoneWritten)
-	// simulate bad connection to auth server
-	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
-	p.eventsS.closeWatchers()
-
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available despite the fact
-	// that the origin state was never available.
-	cas, err = p.cache.GetCertAuthorities(types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
 }
 
 // TestInitStrategy verifies that cache uses expected init strategy
@@ -926,7 +848,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		IsDesc: true,
 	}
 	require.Eventually(t, func() bool {
-		page, nextKey, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
 			StartKey:     listResourcesStartKey,
@@ -934,8 +856,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			SortBy:       sortBy,
 		})
 		require.NoError(t, err)
-		resources = append(resources, page...)
-		listResourcesStartKey = nextKey
+		resources = append(resources, resp.Resources...)
+		listResourcesStartKey = resp.NextKey
 		return len(resources) == nodeCount
 	}, 5*time.Second, 100*time.Millisecond)
 
@@ -976,7 +898,7 @@ func initStrategy(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	_, err = p.cache.GetCertAuthorities(types.UserCA, false)
+	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
@@ -998,7 +920,7 @@ func initStrategy(t *testing.T) {
 	}
 	_ = normalizeCA
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), false)
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 
@@ -1012,7 +934,7 @@ func initStrategy(t *testing.T) {
 	expectNextEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
 
 	// backend is out, but old value is available
-	out2, err := p.cache.GetCertAuthority(ca.GetID(), false)
+	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Equal(t, out.GetResourceID(), out2.GetResourceID())
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
@@ -1030,7 +952,7 @@ func initStrategy(t *testing.T) {
 	expectEvent(t, p.eventsC, WatcherStarted)
 
 	// new value is available now
-	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
+	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 }
@@ -1070,7 +992,7 @@ func TestRecovery(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca2.GetID(), false)
+	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
 	ca2.SetResourceID(out.GetResourceID())
 	types.RemoveCASecrets(ca2)
@@ -1405,7 +1327,7 @@ func TestRoles(t *testing.T) {
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRole("role1", types.RoleSpecV5{
+	role, err := types.NewRoleV3("role1", types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},
@@ -2331,6 +2253,10 @@ func TestRelativeExpiry(t *testing.T) {
 	const checkInterval = time.Second
 	const nodeCount = int64(100)
 
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
+
 	ctx := context.Background()
 
 	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
@@ -2349,7 +2275,10 @@ func TestRelativeExpiry(t *testing.T) {
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
-		// Check that information has been replicated to the cache.
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := int64(0); i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 

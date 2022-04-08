@@ -203,10 +203,10 @@ func (m *monitoredApps) setResources(apps types.Apps) {
 	m.resources = apps
 }
 
-func (m *monitoredApps) get() types.ResourcesWithLabels {
+func (m *monitoredApps) get() types.ResourcesWithLabelsMap {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append(m.static, m.resources...).AsResources()
+	return append(m.static, m.resources...).AsResources().ToMap()
 }
 
 // New returns a new application server.
@@ -775,7 +775,7 @@ func (s *Server) getConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, err
 
 	// Fetch list of CAs that could have signed this certificate. If clusterName
 	// is empty, all CAs that this cluster knows about are returned.
-	pool, err := auth.ClientCertPool(s.c.AccessPoint, clusterName)
+	pool, err := auth.DefaultClientCertPool(s.c.AccessPoint, clusterName)
 	if err != nil {
 		// If this request fails, return nil and fallback to the default ClientCAs.
 		s.log.Debugf("Failed to retrieve client pool: %v.", trace.DebugReport(err))

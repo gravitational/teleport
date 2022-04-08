@@ -18,10 +18,10 @@ package events
 
 import (
 	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"encoding/json"
 )
@@ -31,14 +31,14 @@ import (
 //
 // This is mainly used to convert from the backend format used by
 // our various event backends.
-func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
+func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	data, err := json.Marshal(fields)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	eventType := fields.GetString(EventType)
-	var e apievents.AuditEvent
+	var e events.AuditEvent
 
 	switch eventType {
 	case SessionPrintEvent:
@@ -213,8 +213,21 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
 		e = &events.RenewableCertificateGenerationMismatch{}
+	case UnknownEvent:
+		e = &events.Unknown{}
 	default:
-		return nil, trace.BadParameter("unknown event type: %q", eventType)
+		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
+		unknown := &events.Unknown{}
+		if err := utils.FastUnmarshal(data, unknown); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		unknown.Type = UnknownEvent
+		unknown.Code = UnknownCode
+		unknown.UnknownType = eventType
+		unknown.UnknownCode = fields.GetString(EventCode)
+		unknown.Data = string(data)
+		return unknown, nil
 	}
 
 	if err := utils.FastUnmarshal(data, e); err != nil {
@@ -226,7 +239,7 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 
 // GetSessionID pulls the session ID from the events that have a
 // SessionMetadata. For other events an empty string is returned.
-func GetSessionID(event apievents.AuditEvent) string {
+func GetSessionID(event events.AuditEvent) string {
 	var sessionID string
 
 	if g, ok := event.(SessionMetadataGetter); ok {
@@ -239,7 +252,7 @@ func GetSessionID(event apievents.AuditEvent) string {
 // ToEventFields converts from the typed interface-style event representation
 // to the old dynamic map style representation in order to provide outer compatibility
 // with existing public API routes when the backend is updated with the typed events.
-func ToEventFields(event apievents.AuditEvent) (EventFields, error) {
+func ToEventFields(event events.AuditEvent) (EventFields, error) {
 	var fields EventFields
 	if err := apiutils.ObjectToStruct(event, &fields); err != nil {
 		return nil, trace.Wrap(err)
