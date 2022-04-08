@@ -215,28 +215,34 @@ func onDatabaseEnv(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	switch strings.ToLower(cf.Format) {
+	format := strings.ToLower(cf.Format)
+	switch format {
 	case dbFormatText:
 		for k, v := range env {
 			fmt.Printf("export %v=%v\n", k, v)
 		}
-	case dbFormatJSON:
-		out, err := utils.FastMarshalIndent(env, "", "  ")
+	case dbFormatJSON, dbFormatYAML:
+		out, err := serializeDatabaseEnvironment(env, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
-	case dbFormatYAML:
-		out, err := yaml.Marshal(env)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 
 	return nil
+}
+
+func serializeDatabaseEnvironment(env map[string]string, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == dbFormatJSON {
+		out, err = utils.FastMarshalIndent(env, "", "  ")
+	} else {
+		out, err = yaml.Marshal(env)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // onDatabaseConfig implements "tsh db config" command.
@@ -281,32 +287,17 @@ func onDatabaseConfig(cf *CLIConf) error {
 		}
 		fmt.Println(cmd.Path, strings.Join(cmd.Args[1:], " "))
 	case dbFormatJSON, dbFormatYAML:
-		dbConfigInfo := struct {
-			Name     string `json:"name"`
-			Host     string `json:"host"`
-			Port     int    `json:"port"`
-			User     string `json:"user,omitempty"`
-			Database string `json:"database,omitempty"`
-			CA       string `json:"ca"`
-			Cert     string `json:"cert"`
-			Key      string `json:"key"`
-		}{
+		configInfo := &dbConfigInfo{
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPathForCluster(rootCluster),
 			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
 			profile.KeyPath(),
 		}
-		var out []byte
-		var err error
-		if format == dbFormatJSON {
-			out, err = utils.FastMarshalIndent(dbConfigInfo, "", "  ")
-		} else {
-			out, err = yaml.Marshal(dbConfigInfo)
-		}
+		out, err := serializeDatabaseConfig(configInfo, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		fmt.Printf(`Name:      %v
 Host:      %v
@@ -322,6 +313,28 @@ Key:       %v
 			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName), profile.KeyPath())
 	}
 	return nil
+}
+
+type dbConfigInfo struct {
+	Name     string `json:"name"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	User     string `json:"user,omitempty"`
+	Database string `json:"database,omitempty"`
+	CA       string `json:"ca"`
+	Cert     string `json:"cert"`
+	Key      string `json:"key"`
+}
+
+func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == dbFormatJSON {
+		out, err = utils.FastMarshalIndent(configInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(configInfo)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // maybeStartLocalProxy starts local TLS ALPN proxy if needed depending on the

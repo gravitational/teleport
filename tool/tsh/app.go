@@ -240,24 +240,11 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 	case appFormatCURL:
 		return curlCmd, nil
 	case appFormatJSON, appFormatYAML:
-		appConfig := struct {
-			Name string `json:"name"`
-			URI  string `json:"uri"`
-			CA   string `json:"ca"`
-			Cert string `json:"cert"`
-			Key  string `json:"key"`
-			Curl string `json:"curl"`
-		}{
+		appConfig := &appConfigInfo{
 			appName, uri, profile.CACertPathForCluster(cluster),
 			profile.AppCertPath(appName), profile.KeyPath(), curlCmd,
 		}
-		var out []byte
-		var err error
-		if format == appFormatJSON {
-			out, err = utils.FastMarshalIndent(appConfig, "", "  ")
-		} else {
-			out, err = yaml.Marshal(appConfig)
-		}
+		out, err := serializeAppConfig(appConfig, format)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -270,6 +257,26 @@ Cert:      %v
 Key:       %v
 `, appName, uri, profile.CACertPathForCluster(cluster),
 		profile.AppCertPath(appName), profile.KeyPath()), nil
+}
+
+type appConfigInfo struct {
+	Name string `json:"name"`
+	URI  string `json:"uri"`
+	CA   string `json:"ca"`
+	Cert string `json:"cert"`
+	Key  string `json:"key"`
+	Curl string `json:"curl"`
+}
+
+func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == appFormatJSON {
+		out, err = utils.FastMarshalIndent(configInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(configInfo)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // pickActiveApp returns the app the current profile is logged into.

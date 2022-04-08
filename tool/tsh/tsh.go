@@ -820,28 +820,33 @@ func onVersion(cf *CLIConf) error {
 	case teleport.Text:
 		utils.PrintVersion()
 	case teleport.JSON, teleport.YAML:
-		versionInfo := struct {
-			Version string `json:"version"`
-			Gitref  string `json:"gitref"`
-			Runtime string `json:"runtime"`
-		}{
-			teleport.Version, teleport.Gitref, runtime.Version(),
-		}
-		var out []byte
-		var err error
-		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(versionInfo, "", "  ")
-		} else {
-			out, err = yaml.Marshal(versionInfo)
-		}
+		out, err := serializeVersion(format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 	return nil
+}
+
+func serializeVersion(format string) (string, error) {
+	versionInfo := struct {
+		Version string `json:"version"`
+		Gitref  string `json:"gitref"`
+		Runtime string `json:"runtime"`
+	}{
+		teleport.Version, teleport.Gitref, runtime.Version(),
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(versionInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(versionInfo)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // onPlay replays a session with a given ID
@@ -1491,21 +1496,16 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 }
 
 func printNodes(nodes []types.Server, format string, verbose bool) error {
-	switch strings.ToLower(format) {
+	format = strings.ToLower(format)
+	switch format {
 	case teleport.Text:
 		printNodesAsText(nodes, verbose)
-	case teleport.JSON:
-		out, err := utils.FastMarshalIndent(nodes, "", "  ")
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeNodes(nodes, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
-	case teleport.YAML:
-		out, err := yaml.Marshal(nodes)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	case teleport.Names:
 		for _, n := range nodes {
 			fmt.Println(n.GetHostname())
@@ -1515,6 +1515,20 @@ func printNodes(nodes []types.Server, format string, verbose bool) error {
 	}
 
 	return nil
+}
+
+func serializeNodes(nodes []types.Server, format string) (string, error) {
+	if nodes == nil {
+		nodes = []types.Server{}
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(nodes, "", "  ")
+	} else {
+		out, err = yaml.Marshal(nodes)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func printNodesAsText(nodes []types.Server, verbose bool) {
@@ -1578,24 +1592,29 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, format string
 	case teleport.Text:
 		showAppsAsText(apps, active, verbose)
 	case teleport.JSON, teleport.YAML:
-		if apps == nil {
-			apps = []types.Application{}
-		}
-		var out []byte
-		var err error
-		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(apps, "", "  ")
-		} else {
-			out, err = yaml.Marshal(apps)
-		}
+		out, err := serializeApps(apps, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
 	return nil
+}
+
+func serializeApps(apps []types.Application, format string) (string, error) {
+	if apps == nil {
+		apps = []types.Application{}
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(apps, "", "  ")
+	} else {
+		out, err = yaml.Marshal(apps)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
@@ -1646,24 +1665,29 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 	case teleport.Text:
 		showDatabasesAsText(clusterFlag, databases, active, verbose)
 	case teleport.JSON, teleport.YAML:
-		if databases == nil {
-			databases = []types.Database{}
-		}
-		var out []byte
-		var err error
-		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(databases, "", "  ")
-		} else {
-			out, err = yaml.Marshal(databases)
-		}
+		out, err := serializeDatabases(databases, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
 	return nil
+}
+
+func serializeDatabases(databases []types.Database, format string) (string, error) {
+	if databases == nil {
+		databases = []types.Database{}
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(databases, "", "  ")
+	} else {
+		out, err = yaml.Marshal(databases)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
@@ -1810,32 +1834,40 @@ func onListClusters(cf *CLIConf) error {
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
-		type cluster struct {
-			ClusterName string `json:"cluster_name"`
-			Status      string `json:"status"`
-			ClusterType string `json:"cluster_type"`
-			Selected    bool   `json:"selected"`
-		}
-		clusterInfo := make([]cluster, 0, len(leafClusters)+1)
-		clusterInfo = append(clusterInfo, cluster{rootClusterName, teleport.RemoteClusterStatusOnline, "root", isSelected(rootClusterName)})
+		rootClusterInfo := clusterInfo{rootClusterName, teleport.RemoteClusterStatusOnline, "root", isSelected(rootClusterName)}
+		leafClusterInfo := make([]clusterInfo, 0, len(leafClusters))
 		for _, leaf := range leafClusters {
-			clusterInfo = append(clusterInfo, cluster{leaf.GetName(), leaf.GetConnectionStatus(), "leaf", isSelected(leaf.GetName())})
+			leafClusterInfo = append(leafClusterInfo, clusterInfo{leaf.GetName(), leaf.GetConnectionStatus(), "leaf", isSelected(leaf.GetName())})
 		}
-		var out []byte
-		var err error
-		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
-		} else {
-			out, err = yaml.Marshal(clusterInfo)
-		}
+		out, err := serializeClusters(rootClusterInfo, leafClusterInfo, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 	return nil
+}
+
+type clusterInfo struct {
+	ClusterName string `json:"cluster_name"`
+	Status      string `json:"status"`
+	ClusterType string `json:"cluster_type"`
+	Selected    bool   `json:"selected"`
+}
+
+func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, format string) (string, error) {
+	clusters := []clusterInfo{rootCluster}
+	clusters = append(clusters, leafClusters...)
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(clusters, "", "  ")
+	} else {
+		out, err = yaml.Marshal(clusters)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // onSSH executes 'tsh ssh' command
@@ -2494,24 +2526,11 @@ func onStatus(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.JSON, teleport.YAML:
-		profileData := struct {
-			Active   *profileInfo   `json:"active"`
-			Profiles []*profileInfo `json:"profiles"`
-		}{makeProfileInfo(profile), []*profileInfo{}}
-		for _, prof := range profiles {
-			profileData.Profiles = append(profileData.Profiles, makeProfileInfo(prof))
-		}
-		var out []byte
-		var err error
-		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(profileData, "", "  ")
-		} else {
-			out, err = yaml.Marshal(profileData)
-		}
+		out, err := serializeProfiles(profile, profiles, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		printProfiles(cf.Debug, profile, profiles)
 	}
@@ -2529,13 +2548,13 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProfileURL        string          `json:"profile_url"`
+	ProxyURL          string          `json:"profile_url"`
 	Username          string          `json:"username"`
-	ActiveRequests    []string        `json:"active_requests"`
+	ActiveRequests    []string        `json:"active_requests,omitempty"`
 	Cluster           string          `json:"cluster"`
-	Roles             []string        `json:"roles"`
-	Traits            wrappers.Traits `json:"traits"`
-	Logins            []string        `json:"logins"`
+	Roles             []string        `json:"roles,omitempty"`
+	Traits            wrappers.Traits `json:"traits,omitempty"`
+	Logins            []string        `json:"logins,omitempty"`
 	KubernetesEnabled bool            `json:"kubernetes_enabled"`
 	KubernetesCluster string          `json:"kubernetes_cluster,omitempty"`
 	KubernetesUsers   []string        `json:"kubernetes_users,omitempty"`
@@ -2550,7 +2569,7 @@ func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
 		return nil
 	}
 	return &profileInfo{
-		ProfileURL:        p.ProxyURL.String(),
+		ProxyURL:          p.ProxyURL.String(),
 		Username:          p.Username,
 		ActiveRequests:    p.ActiveRequests.AccessRequests,
 		Cluster:           p.Cluster,
@@ -2565,6 +2584,27 @@ func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
 		ValidUntil:        p.ValidUntil,
 		Extensions:        p.Extensions,
 	}
+}
+
+func serializeProfiles(profile *client.ProfileStatus, profiles []*client.ProfileStatus, format string) (string, error) {
+	profileData := struct {
+		Active   *profileInfo   `json:"active,omitempty"`
+		Profiles []*profileInfo `json:"profiles"`
+	}{makeProfileInfo(profile), []*profileInfo{}}
+	for _, prof := range profiles {
+		profileData.Profiles = append(profileData.Profiles, makeProfileInfo(prof))
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(profileData, "", "  ")
+	} else {
+		out, err = yaml.Marshal(profileData)
+	}
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(out), nil
 }
 
 func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
@@ -2734,7 +2774,6 @@ func onEnvironment(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	kubeName := selectedKubeCluster(profile.Cluster)
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text:
@@ -2746,6 +2785,7 @@ func onEnvironment(cf *CLIConf) error {
 			fmt.Printf("unset %v\n", kubeClusterEnvVar)
 			fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 		case !cf.unsetEnvironment:
+			kubeName := selectedKubeCluster(profile.Cluster)
 			fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 			fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
 			if kubeName != "" {
@@ -2755,28 +2795,34 @@ func onEnvironment(cf *CLIConf) error {
 			}
 		}
 	case teleport.JSON, teleport.YAML:
-		env := map[string]string{
-			proxyEnvVar:   profile.ProxyURL.Host,
-			clusterEnvVar: profile.Cluster,
-		}
-		if kubeName != "" {
-			env[kubeClusterEnvVar] = kubeName
-			env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)
-		}
-		var out []byte
-		var err error
-		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(env, "", "  ")
-		} else {
-			out, err = yaml.Marshal(env)
-		}
+		out, err := serializeEnvironment(profile, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	}
 
 	return nil
+}
+
+func serializeEnvironment(profile *client.ProfileStatus, format string) (string, error) {
+	env := map[string]string{
+		proxyEnvVar:   profile.ProxyURL.Host,
+		clusterEnvVar: profile.Cluster,
+	}
+	kubeName := selectedKubeCluster(profile.Cluster)
+	if kubeName != "" {
+		env[kubeClusterEnvVar] = kubeName
+		env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(env, "", "  ")
+	} else {
+		out, err = yaml.Marshal(env)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // envGetter is used to read in the environment. In production "os.Getenv"

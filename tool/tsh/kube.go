@@ -499,25 +499,31 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return filteredSessions[i].GetCreated().Before(filteredSessions[j].GetCreated())
 	})
 
-	switch strings.ToLower(c.format) {
+	format := strings.ToLower(c.format)
+	switch format {
 	case teleport.Text:
 		printSessions(filteredSessions)
-	case teleport.JSON:
-		out, err := utils.FastMarshalIndent(filteredSessions, "", "  ")
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeKubeSessions(sessions, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
-	case teleport.YAML:
-		out, err := yaml.Marshal(filteredSessions)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", c.format)
 	}
 	return nil
+}
+
+func serializeKubeSessions(sessions []types.SessionTracker, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(sessions, "", "  ")
+	} else {
+		out, err = yaml.Marshal(sessions)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func printSessions(sessions []types.SessionTracker) {
@@ -672,30 +678,35 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
-		type cluster struct {
-			KubeClusterName string `json:"kube_cluster_name"`
-			Selected        bool   `json:"selected"`
-		}
-		clusterInfo := make([]cluster, 0, len(kubeClusters))
-		for _, cl := range kubeClusters {
-			clusterInfo = append(clusterInfo, cluster{cl, cl == selectedCluster})
-		}
-		var out []byte
-		var err error
-		if format == teleport.JSON {
-			out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
-		} else {
-			out, err = yaml.Marshal(clusterInfo)
-		}
+		out, err := serializeKubeClusters(kubeClusters, selectedCluster, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 
 	return nil
+}
+
+func serializeKubeClusters(kubeClusters []string, selectedCluster, format string) (string, error) {
+	type cluster struct {
+		KubeClusterName string `json:"kube_cluster_name"`
+		Selected        bool   `json:"selected"`
+	}
+	clusterInfo := make([]cluster, 0, len(kubeClusters))
+	for _, cl := range kubeClusters {
+		clusterInfo = append(clusterInfo, cluster{cl, cl == selectedCluster})
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(clusterInfo)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func selectedKubeCluster(currentTeleportCluster string) string {

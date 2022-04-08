@@ -117,26 +117,32 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 	// Sort by name before printing.
 	sort.Slice(devs, func(i, j int) bool { return devs[i].GetName() < devs[j].GetName() })
 
-	switch strings.ToLower(c.format) {
+	format := strings.ToLower(c.format)
+	switch format {
 	case teleport.Text:
 		printMFADevices(devs, c.verbose)
-	case teleport.JSON:
-		out, err := utils.FastMarshalIndent(devs, "", "  ")
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeMFADevices(devs, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
-	case teleport.YAML:
-		out, err := yaml.Marshal(devs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", c.format)
 	}
 
 	return nil
+}
+
+func serializeMFADevices(devs []*types.MFADevice, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(devs, "", "  ")
+	} else {
+		out, err = yaml.Marshal(devs)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func printMFADevices(devs []*types.MFADevice, verbose bool) {
