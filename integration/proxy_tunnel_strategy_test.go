@@ -77,8 +77,7 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 	waitForActiveTunnelConnections(t, p.proxy2.Tunnel, p.cluster, 1)
 
 	// make sure we can connect to the node going though any proxy.
-	p.dialNode(t, p.auth, p.proxy1, p.node)
-	p.dialNode(t, p.auth, p.proxy2, p.node)
+	p.dialNode(t)
 }
 
 // TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy
@@ -120,39 +119,41 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	waitForMaxActiveTunnelConnections(t, p.proxy2.Tunnel, p.cluster, 0)
 
 	// make sure we can connect to the node going though any proxy.
-	p.dialNode(t, p.auth, p.proxy1, p.node)
-	p.dialNode(t, p.auth, p.proxy2, p.node)
+	p.dialNode(t)
 }
 
 // dialNode starts a client conn to a node reachable through a specific proxy.
-func (p *proxyTunnelStrategy) dialNode(t *testing.T, auth, proxy, node *TeleInstance) {
-	ident, err := node.Process.GetIdentity(types.RoleNode)
-	require.NoError(t, err)
-	nodeuuid, err := ident.ID.HostID()
-	require.NoError(t, err)
+func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
+	proxies := []*TeleInstance{p.proxy1, p.proxy2}
+	for _, proxy := range proxies {
+		ident, err := p.node.Process.GetIdentity(types.RoleNode)
+		require.NoError(t, err)
+		nodeuuid, err := ident.ID.HostID()
+		require.NoError(t, err)
 
-	creds, err := GenerateUserCreds(UserCredsRequest{
-		Process:  auth.Process,
-		Username: p.username,
-	})
-	require.NoError(t, err)
+		creds, err := GenerateUserCreds(UserCredsRequest{
+			Process:  p.auth.Process,
+			Username: p.username,
+		})
+		require.NoError(t, err)
 
-	client, err := proxy.NewClientWithCreds(
-		ClientConfig{
-			Cluster: p.cluster,
-			Host:    nodeuuid,
-		},
-		*creds,
-	)
-	require.NoError(t, err)
+		client, err := proxy.NewClientWithCreds(
+			ClientConfig{
+				Cluster: p.cluster,
+				Host:    nodeuuid,
+			},
+			*creds,
+		)
+		require.NoError(t, err)
 
-	output := &bytes.Buffer{}
-	client.Stdout = output
+		output := &bytes.Buffer{}
+		client.Stdout = output
 
-	cmd := []string{"echo", "hello world"}
-	err = client.SSH(context.Background(), cmd, false)
-	require.NoError(t, err)
-	require.Equal(t, "hello world\n", output.String())
+		cmd := []string{"echo", "hello world"}
+		err = client.SSH(context.Background(), cmd, false)
+		require.NoError(t, err)
+		require.Equal(t, "hello world\n", output.String())
+	}
 }
 
 // makeLoadBalancer bootsraps a new load balancer for proxy instances.
