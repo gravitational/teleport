@@ -155,7 +155,7 @@ func (p *proxyTunnelStrategy) dialNode(t *testing.T, auth, proxy, node *TeleInst
 	require.Equal(t, "hello world\n", output.String())
 }
 
-// makeAuth bootsraps a new load balancer for proxy instances.
+// makeLoadBalancer bootsraps a new load balancer for proxy instances.
 func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 	lbAddr := utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
 	lb, err := utils.NewLoadBalancer(context.TODO(), *lbAddr)
