@@ -254,7 +254,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	}
 	switch cf.Format {
 	case dbFormatCommand:
-		cmd, err := newCmdBuilder(tc, profile, database, rootCluster).getConnectCommand()
+		cmd, err := newCmdBuilder(tc, profile, database, rootCluster, WithPrintFormat()).getConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -578,6 +578,7 @@ type connectionCommandOpts struct {
 	localProxyHost string
 	caPath         string
 	noTLS          bool
+	printFormat    bool
 }
 
 type ConnectCommandFunc func(*connectionCommandOpts)
@@ -598,6 +599,14 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 func WithNoTLS() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.noTLS = true
+	}
+}
+
+// WithPrintFormat is the connect command option that hints the command will be
+// printed instead of being executed.
+func WithPrintFormat() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.printFormat = true
 	}
 }
 
