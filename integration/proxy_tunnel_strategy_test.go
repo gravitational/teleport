@@ -109,7 +109,7 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	// boostrap a node instance.
 	p.makeNode(t)
 
-	// wait for the node to open reverse tunnels to the first proxies.
+	// wait for the node to open a reverse tunnel to the first proxy.
 	waitForActiveTunnelConnections(t, p.proxy1.Tunnel, p.cluster, 1)
 
 	// boostrap the second proxy instance after the node has already established
