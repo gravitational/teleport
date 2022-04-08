@@ -21,6 +21,7 @@ package dbcmd
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -64,6 +65,8 @@ type execer interface {
 	// LookPath returns a full path to a binary if this one is found in system PATH,
 	// error otherwise.
 	LookPath(file string) (string, error)
+	// Command returns the Cmd struct to execute the named program with the given arguments.
+	Command(name string, arg ...string) *exec.Cmd
 }
 
 // systemExecer implements execer interface by using Go exec module.
@@ -77,6 +80,11 @@ func (s systemExecer) RunCommand(name string, arg ...string) ([]byte, error) {
 // LookPath is a wrapper for exec.LookPath(...)
 func (s systemExecer) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
+}
+
+// Command is a wrapper for exec.Command(...)
+func (s systemExecer) Command(name string, arg ...string) *exec.Cmd {
+	return exec.Command(name, arg...)
 }
 
 type cliCommandBuilder struct {
@@ -149,8 +157,22 @@ func (c *cliCommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
 }
 
+func (c *cliCommandBuilder) GetRelativeConnectCommand() (*exec.Cmd, error) {
+	cmd, err := c.GetConnectCommand()
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if filepath.IsAbs(cmd.Path) {
+		cmd.Path = filepath.Base(cmd.Path)
+	}
+
+	return cmd, nil
+}
+
 func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
-	return exec.Command(postgresBin, c.getPostgresConnString())
+	return c.exe.Command(postgresBin, c.getPostgresConnString())
 }
 
 func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
@@ -160,7 +182,7 @@ func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 			cockroachBin, postgresBin, err)
 		return c.getPostgresCommand()
 	}
-	return exec.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
+	return c.exe.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
 }
 
 // getPostgresConnString returns the connection string for postgres.
@@ -226,7 +248,7 @@ func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
-		return exec.Command(mysqlBin, args...)
+		return c.exe.Command(mysqlBin, args...)
 	}
 
 	// defaults-group-suffix must be first.
@@ -238,7 +260,7 @@ func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
 	}
 
-	return exec.Command(mysqlBin, args...)
+	return c.exe.Command(mysqlBin, args...)
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
@@ -247,7 +269,7 @@ func (c *cliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
 	if c.isMariaDBBinAvailable() {
 		args := c.getMariaDBArgs()
-		return exec.Command(mariadbBin, args...), nil
+		return c.exe.Command(mariadbBin, args...), nil
 	}
 
 	// Check for mysql binary. Return with error as mysql and mariadb are missing. There is nothing else we can do here.
@@ -260,7 +282,7 @@ func (c *cliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	mySQLMariaDBFlavor, err := c.isMySQLBinMariaDBFlavor()
 	if mySQLMariaDBFlavor && err == nil {
 		args := c.getMariaDBArgs()
-		return exec.Command(mysqlBin, args...), nil
+		return c.exe.Command(mysqlBin, args...), nil
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql/Oracle command.
@@ -355,11 +377,11 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// use `mongosh` if available
 	if hasMongosh {
-		return exec.Command(mongoshBin, args...)
+		return c.exe.Command(mongoshBin, args...)
 	}
 
 	// fall back to `mongo` if `mongosh` isn't found
-	return exec.Command(mongoBin, args...)
+	return c.exe.Command(mongoBin, args...)
 }
 
 // getRedisCommand returns redis-cli commands used by 'tsh db connect' when connecting to a Redis instance.
@@ -390,7 +412,7 @@ func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
 		args = append(args, []string{"-n", c.db.Database}...)
 	}
 
-	return exec.Command(redisBin, args...)
+	return c.exe.Command(redisBin, args...)
 }
 
 func (c *cliCommandBuilder) getSQLServerCommand() *exec.Cmd {
@@ -407,7 +429,7 @@ func (c *cliCommandBuilder) getSQLServerCommand() *exec.Cmd {
 		args = append(args, "-d", c.db.Database)
 	}
 
-	return exec.Command(mssqlBin, args...)
+	return c.exe.Command(mssqlBin, args...)
 }
 
 type connectionCommandOpts struct {
