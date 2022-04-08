@@ -3,12 +3,12 @@ authors: Gabriel Corado (gabriel.oliveira@goteleport.com)
 state: draft
 ---
 
-# RFD 64 - Audit modes
+# RFD 64 - Session recording modes
 
 ## What
 
 This RFD proposes giving users a configuration to decide how to deal with
-sessions that can't be recorded or have audit logging failures.
+sessions that can't be recorded.
 
 ## Why
 
@@ -20,33 +20,35 @@ back to a normal state.
 
 ## Goals
 
-* Prevent nodes from being inaccessible when there are audit errors.
-* Enable users to configure the strictness of audit failures.
+* Prevent nodes from being inaccessible when there are session recording
+  failures.
+* Enable users to configure the strictness of the presence of session
+  recordings.
 
 **Non-goals:**
 
 * Infrastructure-related metrics (such as disk space left).
 * Enable access when the recording mode is set to the proxy.
+* Handle audit logging (events) failures.
+* Cover applications and databases "session recordings".
 
 ## Details
 
-Audit modes will define how Teleport proceeds in case of audit failures. Those
-failures vary depending on how session recording is configured:
-
-| Recording mode                 | Failures handled                                             |
-| ------------------------------ | ------------------------------------------------------------ |
-| `node` and `proxy`             | I/O errors while writing audit logs/session recording data on the server disk. |
-| `node-sync` and `proxy-sync` | Connection errors with Proxy/Auth server while streaming audit logs/session recording data. |
+As mentioned before, recording modes will define how Teleport proceeds in case
+of failures. We only consider asynchronous session recordings on the servers
+(`session_recording: node` on Teleport config) for this RFD. The failures
+covered are related to I/O while writing session recording events to the server
+disk.
 
 There are going to be two audit modes:
 
-* **Strict**: Teleport won't tolerate session recording or audit logging to fail.
-  In practice, if Teleport cannot record the session, it will not start or will
-  be terminated (in case it is already in progress). This mode will be the
-  recommended one as it guarantees all sessions are being recorded.
-* **Best-effort**: Audit failures are tolerated in this mode, meaning that Teleport
-  will allow sessions without recording them. System administrators might use
-  this mode to be able to access resources continually.
+* **Strict**: Teleport won't tolerate session recording to fail. In practice, if
+  Teleport cannot record the session, it will not start or will be terminated
+  (in case it is already in progress). This mode will be the recommended one as
+  it guarantees all sessions are being recorded.
+* **Best-effort**: Session recording failures are tolerated in this mode, meaning
+  that Teleport will allow sessions without recording them. System
+  administrators might use this mode to be able to access resources continually.
 
 ## UX
 
@@ -55,16 +57,16 @@ There are going to be two audit modes:
 The configuration is going to be done at the role level. The role option
 `record_session` will be extended to hold the audit mode values: `strict` and
 `best_effort`. It will have one entry per session kind (desktop, databases,
-applications, Kubernetes, and SSH) and an `all` entry for cases where users
-want the same behavior for all kinds.
+applications, Kubernetes, and SSH) and a `default` entry for cases where users
+want the same behavior for all kinds. For this RFD, only the `default`, `k8s`
+and `ssh` options are going to be added.
 
-**Note**: Currently, the option  `record_session.desktop` uses a boolean value to
-disable/enable session recording. It will have to be converted into a new
-format: `true` will be charged to the default audit mode, and `false` will be
-`off`. Disabling session recording is out of the scope of this RFD, meaning that
-the `off` value will only be present on the `desktop` kind.
+**Note**: Currently, the option `record_session.desktop` uses a boolean value to
+enable/disable session recordings. When adding recording modes to desktop
+access, this property will have to be converted to a string to support accepting
+the modes. This change will have to be backward compatible.
 
-**Role example (with all session kinds):**
+**Role example:**
 
 ```yaml
 kind: role
@@ -76,12 +78,9 @@ spec:
     ...
   options:
     record_session:
-      all: strict|best_effort
+      default: strict|best_effort
       ssh: strict|best_effort
-      app: strict|best_effort
-      db: strict|best_effort
       k8s: strict|best_effort
-      desktop: strict|best_effort|off
 ```
 
 ### Examples
@@ -91,7 +90,7 @@ spec:
 ```shell
 # Prevent users from starting new SSH sessions when it encounters an audit error.
 $ tsh ssh root@node
-Node could not record audit events: no space left on device.
+Session could not start due to node error: no space left on device.
 ERROR: ssh: could not start shell
 ```
 
@@ -101,7 +100,7 @@ $ tsh ssh root@node
 root@node:~$ echo "Hello server"
 Hello server
 
-Node could not record audit events: no space left on device.
+Session terminating due to node error: no space left on device.
 Closing session...
 
 # Same for Kubernetes exec sessions.
@@ -109,19 +108,8 @@ $ tsh kube exec -t pod-name bash
 root@container:~$ echo "Hello server"
 Hello server
 
-Node could not record audit events: no space left on device.
+Session terminating due to node error: no space left on device.
 Closing session...
-```
-
-```shell
-# Non-interactive sessions (such as Applications and K8S) will fail the next request made.
-$ tsh app login dumper
-$ curl ...
-Forbidden error...
-
-$ tsh kube login my-cluster
-$ kubectl ...
-Forbidden error...
 ```
 
 ### Best effort mode
@@ -129,7 +117,7 @@ Forbidden error...
 ```shell
 # SSH Session starts with a "warning" message.
 $ tsh ssh root@node
-Disabling recording and audit events for this session, reason: node error: no space left on device
+Warning: node error: no space left on device. This might cause some functionalities not to work correctly.
 
 root@node:~$ echo "Hello server"
 Hello server
@@ -139,7 +127,7 @@ the connection was closed on the remote side on 01 Jan 22 00:00 -00
 
 # Same for Kubernetes exec sessions.
 $ tsh kube exec -t pod-name bash
-Disabling recording and audit events for this session, reason: node error: no space left on device
+Warning: node error: no space left on device. This might cause some functionalities not to work correctly.
 root@container:~$ echo "Hello server"
 Hello server
 root@container:~$ exit
@@ -150,26 +138,15 @@ root@container:~$ exit
 $ tsh ssh root@node
 root@node:~$ echo "Hello server"
 Hello server
-Disabling recording and audit events for this session, reason: node error: no space left on device
+Warning: node error: no space left on device. This might cause some functionalities not to work correctly.
 root@node:~$ exit
 
 # Same for Kubernetes exec sessions.
 $ tsh kube exec -t pod-name bash
 root@container:~$ echo "Hello server"
 Hello server
-Disabling recording and audit events for this session, reason: node error: no space left on device
+Warning: node error: no space left on device. This might cause some functionalities not to work correctly.
 root@container:~$ exit
-```
-
-```shell
-# Non-interactive sessions (such as Applications and K8S) will not fail subsequent requests.
-$ tsh app login dumper
-$ curl ...
-...success output...
-
-$ tsh kube login my-cluster
-$ kubectl ...
-...success output...
 ```
 
 ## Security
