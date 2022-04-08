@@ -26,9 +26,9 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -119,8 +119,10 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 		return nil, trace.Wrap(err)
 	}
 
-	sessions := make([]types.SessionTracker, 0)
-	expired := make([]backend.Item, 0)
+	sessions := make([]types.SessionTracker, 0, len(result.Items))
+
+	// We don't overallocate expired since cleaning up sessions here should be rare.
+	noExpiry := make([]backend.Item, 0)
 	now := time.Now().UTC()
 	for _, item := range result.Items {
 		session, err := unmarshalSession(item.Value)
@@ -135,10 +137,9 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 			// Keep any items that aren't expired.
 			sessions = append(sessions, session)
 		case !after && item.Expires.IsZero():
-			// Clear item if expiry is not set.
-			// We shouldn't need this ideally but we currently do not set
-			// tracker expiries. We will however do this in the future.
-			expired = append(expired, item)
+			// Clear item if expiry is not set on the backend.
+			// We currently don't set the expiry here but we will when #11551 is merged.
+			noExpiry = append(noExpiry, item)
 		default:
 			// If the tracker has expired and there is an expiry set, we can never take this branch
 			// as the backend implementation is responsible for cleaning up expired items.
@@ -147,7 +148,7 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 	}
 
 	go func() {
-		for _, item := range expired {
+		for _, item := range noExpiry {
 			if err := s.bk.Delete(ctx, item.Key); err != nil {
 				if !trace.IsNotFound(err) {
 					logrus.WithError(err).Error("Failed to remove stale session tracker")
