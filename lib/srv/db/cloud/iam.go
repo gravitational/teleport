@@ -82,7 +82,6 @@ type IAM struct {
 	cfg         IAMConfig
 	log         logrus.FieldLogger
 	awsIdentity awslib.Identity
-	policyName  string
 	mu          sync.RWMutex
 	tasks       chan iamTask
 }

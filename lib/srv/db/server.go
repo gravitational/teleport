@@ -169,7 +169,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			Semaphores:  c.AuthClient,
 			AccessPoint: c.AccessPoint,
 			Clients:     c.CloudClients,
 			HostID:      c.HostID,
@@ -742,6 +741,10 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
 	}
 
+	err = engine.HandleConnection(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
