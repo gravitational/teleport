@@ -141,9 +141,7 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 			// We currently don't set the expiry here but we will when #11551 is merged.
 			noExpiry = append(noExpiry, item)
 		default:
-			// If the tracker has expired and there is an expiry set, we can never take this branch
-			// as the backend implementation is responsible for cleaning up expired items.
-			return nil, trace.AlreadyExists("Received expired key from backend, this shouldn't happen.")
+			// If we take this branch, the expiry is set and the backend is responsible for cleaning up the item.
 		}
 	}
 
