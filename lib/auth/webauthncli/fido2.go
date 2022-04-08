@@ -527,15 +527,16 @@ func runOnFIDO2Devices(
 	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc) error {
 	// Do we have readily available devices?
+	knownPaths := make(map[string]struct{}) // filled by findSuitableDevices*
 	prompted := false
-	devices, err := findSuitableDevices(filter, make(map[string]struct{}))
+	devices, err := findSuitableDevices(filter, knownPaths)
 	if err != nil {
 		// No readily available devices means we need to prompt, otherwise the
 		// user gets no feedback whatsoever.
 		prompt.PromptTouch()
 		prompted = true
 
-		devices, err = findSuitableDevicesOrTimeout(ctx, filter)
+		devices, err = findSuitableDevicesOrTimeout(ctx, filter, knownPaths)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -595,11 +596,11 @@ func shouldDoEagerPINPrompt(passwordless bool, devices []deviceWithInfo) bool {
 	return info.clientPinSet && !info.bioEnroll
 }
 
-func findSuitableDevicesOrTimeout(ctx context.Context, filter deviceFilterFunc) ([]deviceWithInfo, error) {
+func findSuitableDevicesOrTimeout(
+	ctx context.Context, filter deviceFilterFunc, knownPaths map[string]struct{}) ([]deviceWithInfo, error) {
 	ticker := time.NewTicker(FIDO2PollInterval)
 	defer ticker.Stop()
 
-	knownPaths := make(map[string]struct{})
 	for {
 		devices, err := findSuitableDevices(filter, knownPaths)
 		if err == nil {
