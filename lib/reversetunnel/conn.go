@@ -57,20 +57,20 @@ type remoteConn struct {
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
-	invalid int32
+	invalid *int32
 
 	// lastError is the last error that occurred before this connection became
 	// invalid.
 	lastError error
 
 	// Used to make sure calling Close on the connection multiple times is safe.
-	closed int32
+	closed *int32
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
 
 	// lastHeartbeat is the last time a heartbeat was received.
-	lastHeartbeat int64
+	lastHeartbeat *int64
 }
 
 // connConfig is the configuration for the remoteConn.
@@ -104,9 +104,12 @@ func newRemoteConn(cfg *connConfig) *remoteConn {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: "discovery",
 		}),
-		connConfig:  cfg,
-		clock:       clockwork.NewRealClock(),
-		newProxiesC: make(chan []types.Server, 100),
+		connConfig:    cfg,
+		clock:         clockwork.NewRealClock(),
+		newProxiesC:   make(chan []types.Server, 100),
+		closed:        new(int32),
+		invalid:       new(int32),
+		lastHeartbeat: new(int64),
 	}
 
 	return c
@@ -118,7 +121,7 @@ func (c *remoteConn) String() string {
 
 func (c *remoteConn) Close() error {
 	// If the connection has already been closed, return right away.
-	if !atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
+	if !atomic.CompareAndSwapInt32(c.closed, 0, 1) {
 		return nil
 	}
 
@@ -157,23 +160,23 @@ func (c *remoteConn) markInvalid(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	atomic.StoreInt32(&c.invalid, 1)
+	atomic.StoreInt32(c.invalid, 1)
 	c.lastError = err
 	c.log.Debugf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
 }
 
 func (c *remoteConn) isInvalid() bool {
-	return atomic.LoadInt32(&c.invalid) == 1
+	return atomic.LoadInt32(c.invalid) == 1
 }
 
 func (c *remoteConn) setLastHeartbeat(tm time.Time) {
-	atomic.StoreInt64(&c.lastHeartbeat, tm.UnixNano())
+	atomic.StoreInt64(c.lastHeartbeat, tm.UnixNano())
 }
 
 // isReady returns true when connection is ready to be tried,
 // it returns true when connection has received the first heartbeat
 func (c *remoteConn) isReady() bool {
-	return atomic.LoadInt64(&c.lastHeartbeat) != 0
+	return atomic.LoadInt64(c.lastHeartbeat) != 0
 }
 
 func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
