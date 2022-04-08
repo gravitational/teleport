@@ -2,10 +2,6 @@
 authors: Isaiah Becker-Mayer (isaiah@goteleport.com)
 state: draft
 ---
-# Required Approvers
-* Engineering: @zmb3 && (@probakowski || @LKozlowski)
-* Product: (@klizhentas || @xinding33)
-# RFD 58 - Desktop Access - File Transfer
 
 The next major feature for Teleport Desktop Access is referred to as "file
 transfer" - by which we mean some ability to get files both:
@@ -22,7 +18,6 @@ options and select a path forward.
 
 * Engineering: @zmb3 && (@probakowski || @LKozlowski)
 * Product: (@klizhentas || @xinding33)
-
 
 ## Overview
 
