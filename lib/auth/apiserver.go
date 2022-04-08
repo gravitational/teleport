@@ -88,6 +88,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 		Clock:     clockwork.NewRealClock(),
 	}
 	srv.Router = *httprouter.New()
+	srv.Router.UseRawPath = true
 
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.withAuth(srv.processKubeCSR))

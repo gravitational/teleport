@@ -245,6 +245,8 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		},
 	}
 
+	fwd.router.UseRawPath = true
+
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 
