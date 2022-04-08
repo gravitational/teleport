@@ -126,6 +126,20 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 			return nil, trace.Wrap(err)
 		}
 
+		switch {
+		case session.Expiry().After(now):
+			// Keep any items that aren't expired.
+			sessions = append(sessions, session)
+		case item.Expires.IsZero():
+			// Clear item if expiry is not set.
+			// We shouldn't need this ideally but we currently do not set
+			// tracker expiries. We will however do this in the future.
+			expired = append(expired, item)
+		default:
+			// If the tracker has expired and there is an expiry set, we can never take this branch
+			// as the backend implementation will not return the key anyway.
+		}
+
 		if session.Expiry().After(now) {
 			sessions = append(sessions, session)
 		} else if item.Expires.IsZero() { // Check if the expiry is not set.
