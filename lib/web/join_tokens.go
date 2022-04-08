@@ -219,17 +219,19 @@ func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRol
 }
 
 func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
-	// This token does not need to be validated against the backend because it's not used to
-	// reveal any sensitive information. However, we still need to perform a simple input
-	// validation check by verifying that the token was auto-generated.
-	// Auto-generated tokens must be encoded and must have an expected length.
-	decodedToken, err := hex.DecodeString(settings.token)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	if settings.joinMethod != string(types.JoinMethodIAM) {
+		// This token does not need to be validated against the backend because it's not used to
+		// reveal any sensitive information. However, we still need to perform a simple input
+		// validation check by verifying that the token was auto-generated.
+		// Auto-generated tokens must be encoded and must have an expected length.
+		decodedToken, err := hex.DecodeString(settings.token)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 
-	if len(decodedToken) != auth.TokenLenBytes {
-		return "", trace.BadParameter("invalid token length")
+		if len(decodedToken) != auth.TokenLenBytes {
+			return "", trace.BadParameter("invalid token length")
+		}
 	}
 
 	// Get hostname and port from proxy server address.
