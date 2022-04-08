@@ -1189,20 +1189,6 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 
-	// Upload completer is responsible for checking for initiated but abandoned
-	// session uploads and completing them
-	var uploadCompleter *events.UploadCompleter
-	if uploadHandler != nil {
-		uploadCompleter, err = events.NewUploadCompleter(events.UploadCompleterConfig{
-			Uploader:  uploadHandler,
-			Component: teleport.ComponentAuth,
-			AuditLog:  process.auditLog,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
 		Clock:       process.Clock,
@@ -1275,6 +1261,21 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer.SetLockWatcher(lockWatcher)
 
 	process.setLocalAuth(authServer)
+
+	// Upload completer is responsible for checking for initiated but abandoned
+	// session uploads and completing them
+	var uploadCompleter *events.UploadCompleter
+	if uploadHandler != nil {
+		uploadCompleter, err = events.NewUploadCompleter(events.UploadCompleterConfig{
+			Uploader:       uploadHandler,
+			Component:      teleport.ComponentAuth,
+			AuditLog:       process.auditLog,
+			SessionTracker: authServer.Services,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	connector, err := process.connectToAuthService(types.RoleAdmin)
 	if err != nil {
@@ -1941,7 +1942,7 @@ func (process *TeleportProcess) initSSH() error {
 		// init uploader service for recording SSH node, if proxy is not
 		// enabled on this node, because proxy stars uploader service as well
 		if !cfg.Proxy.Enabled {
-			if err := process.initUploaderService(authClient, conn.Client); err != nil {
+			if err := process.initUploaderService(authClient, conn.Client, conn.Client); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2062,7 +2063,7 @@ func (process *TeleportProcess) registerWithAuthServer(role types.SystemRole, ev
 
 // initUploadService starts a file-based uploader that scans the local streaming logs directory
 // (data/log/upload/streaming/default/)
-func (process *TeleportProcess) initUploaderService(streamer events.Streamer, auditLog events.IAuditLog) error {
+func (process *TeleportProcess) initUploaderService(streamer events.Streamer, auditLog events.IAuditLog, sessionTracker services.SessionTrackerService) error {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentAuditLog, process.id),
 	})
@@ -2106,7 +2107,7 @@ func (process *TeleportProcess) initUploaderService(streamer events.Streamer, au
 		Streamer: streamer,
 		AuditLog: auditLog,
 		EventsC:  process.Config.UploadEventsC,
-	})
+	}, sessionTracker)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3280,7 +3281,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		warnOnErr(conn.Close(), log)
 		log.Infof("Exited.")
 	})
-	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
+
+	if err := process.initUploaderService(accessPoint, conn.Client, conn.Client); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -3579,7 +3581,7 @@ func (process *TeleportProcess) initApps() {
 
 		// Start uploader that will scan a path on disk and upload completed
 		// sessions to the Auth Server.
-		if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
+		if err := process.initUploaderService(accessPoint, conn.Client, conn.Client); err != nil {
 			return trace.Wrap(err)
 		}
 
