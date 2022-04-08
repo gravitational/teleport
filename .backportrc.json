@@ -1,0 +1,13 @@
+{
+  "repoOwner": "gravitational",
+  "repoName": "teleport",
+
+  "targetBranchChoices": ["branch/v7", "branch/v8", "branch/v9"],
+  "targetPRLabels": ["backport"],
+  "autoMerge": true,
+  "autoMergeMethod": "squash",
+
+  "branchLabelMapping": {
+    "^backport-to-(.+)$": "branch/$1"
+  }
+}
