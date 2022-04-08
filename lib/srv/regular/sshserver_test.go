@@ -1586,16 +1586,11 @@ func TestSessionTracker(t *testing.T) {
 	err = se.Close()
 	require.NoError(t, err)
 
-	// Advance clock to make session clock in background.
-	go func() {
-		for {
-			// Advance clock every 1/10 of a second. Ideally
-			// we could use clock.BlockUntil, but there are
-			// are a variable number of sleepers.
-			time.Sleep(time.Millisecond * 100)
-			f.clock.Advance(defaults.SessionIdlePeriod)
-		}
-	}()
+	// Advance server clock to trigger the session to close (after lingering) and
+	// update the session tracker to expired. We don't know when the linger sleeper
+	// will start waiting for clock, so we give it a grace period of 5 seconds.
+	time.Sleep(time.Second * 5)
+	f.clock.Advance(defaults.SessionIdlePeriod)
 
 	// once the session is closed, the tracker should expire (not found)
 	trackerExpired := func() bool {
