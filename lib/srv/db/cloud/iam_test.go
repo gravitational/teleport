@@ -21,8 +21,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -120,7 +123,7 @@ func TestAWSIAM(t *testing.T) {
 		}
 	}
 	configurator, err := NewIAM(ctx, IAMConfig{
-		Semaphores: &SemaphoresMock{},
+		AccessPoint: &mockAccessPoint{},
 		Clients: &common.TestCloudClients{
 			RDS:      rdsClient,
 			Redshift: redshiftClient,
@@ -135,20 +138,23 @@ func TestAWSIAM(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, configurator.Start(ctx))
 
+	policyName, err := configurator.getPolicyName()
+	require.NoError(t, err)
+
 	t.Run("RDS", func(t *testing.T) {
 		// Configure RDS database and make sure IAM was enabled and policy was attached.
 		err = configurator.Setup(ctx, rdsDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
 		require.True(t, aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled))
-		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		policy := iamClient.attachedRolePolicies["test-role"][policyName]
 		require.Contains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 
 		// Deconfigure RDS database, policy should get detached.
 		err = configurator.Teardown(ctx, rdsDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		policy = iamClient.attachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, rdsDatabase.GetAWS().RDS.ResourceID)
 	})
 
@@ -158,14 +164,14 @@ func TestAWSIAM(t *testing.T) {
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
 		require.True(t, aws.BoolValue(auroraCluster.IAMDatabaseAuthenticationEnabled))
-		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		policy := iamClient.attachedRolePolicies["test-role"][policyName]
 		require.Contains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 
 		// Deconfigure Aurora database, policy should get detached.
 		err = configurator.Teardown(ctx, auroraDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		policy = iamClient.attachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, auroraDatabase.GetAWS().RDS.ResourceID)
 	})
 
@@ -174,14 +180,14 @@ func TestAWSIAM(t *testing.T) {
 		err = configurator.Setup(ctx, redshiftDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		policy := iamClient.attachedRolePolicies["test-role"][policyName]
 		require.Contains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 
 		// Deconfigure Redshift database, policy should get detached.
 		err = configurator.Teardown(ctx, redshiftDatabase)
 		require.NoError(t, err)
 		waitForTaskProcessed(t)
-		policy = iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		policy = iamClient.attachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, redshiftDatabase.GetAWS().Redshift.ClusterID)
 	})
 
@@ -190,7 +196,7 @@ func TestAWSIAM(t *testing.T) {
 	t.Run("missing metadata", func(t *testing.T) {
 		err = configurator.Setup(ctx, databaseMissingMetadata)
 		waitForTaskProcessed(t)
-		policy := iamClient.attachedRolePolicies["test-role"][databaseAccessInlinePolicyName]
+		policy := iamClient.attachedRolePolicies["test-role"][policyName]
 		require.NotContains(t, policy, databaseMissingMetadata.GetAWS().Redshift.ClusterID)
 	})
 }
@@ -211,7 +217,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
-		Semaphores: &SemaphoresMock{},
+		AccessPoint: &mockAccessPoint{},
 		Clients: &common.TestCloudClients{
 			STS:      stsClient,
 			RDS:      rdsClient,
@@ -287,7 +293,7 @@ func TestAWSIAMMigration(t *testing.T) {
 
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
-		Semaphores: &SemaphoresMock{},
+		AccessPoint: &mockAccessPoint{},
 		Clients: &common.TestCloudClients{
 			STS: stsClient,
 			IAM: iamClient,
@@ -303,4 +309,27 @@ func TestAWSIAMMigration(t *testing.T) {
 		PolicyName: aws.String("teleport-host-id"),
 	})
 	require.True(t, trace.IsNotFound(common.ConvertError(err)), "expect err is trace.NotFound")
+}
+
+// mockAccessPoint is a mock for auth.DatabaseAccessPoint.
+type mockAccessPoint struct {
+	auth.DatabaseAccessPoint
+}
+
+func (m *mockAccessPoint) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	return types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "cluster.local",
+		ClusterID:   "cluster-id",
+	})
+}
+func (m *mockAccessPoint) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	return &types.SemaphoreLease{
+		SemaphoreKind: params.SemaphoreKind,
+		SemaphoreName: params.SemaphoreName,
+		LeaseID:       uuid.NewString(),
+		Expires:       params.Expires,
+	}, nil
+}
+func (m *mockAccessPoint) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	return nil
 }

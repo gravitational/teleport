@@ -31,10 +31,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
@@ -342,21 +340,4 @@ func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, session
 
 func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, sessionCtx *common.Session) (*tls.Certificate, error) {
 	return g.EphemeralCert, nil
-}
-
-// SemaphoresMock is a mock for types.Semaphores.
-type SemaphoresMock struct {
-	types.Semaphores
-}
-
-func (m *SemaphoresMock) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
-	return &types.SemaphoreLease{
-		SemaphoreKind: params.SemaphoreKind,
-		SemaphoreName: params.SemaphoreName,
-		LeaseID:       uuid.NewString(),
-		Expires:       params.Expires,
-	}, nil
-}
-func (m *SemaphoresMock) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
-	return nil
 }

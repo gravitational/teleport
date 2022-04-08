@@ -18,6 +18,7 @@ package cloud
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -36,8 +38,8 @@ import (
 
 // IAMConfig is the IAM configurator config.
 type IAMConfig struct {
-	// Semaphores is the client to acquire semaphores.
-	Semaphores types.Semaphores
+	// AccessPoint is a caching client connected to the Auth Server.
+	AccessPoint auth.DatabaseAccessPoint
 	// Clients is an interface for retrieving cloud clients.
 	Clients common.CloudClients
 	// HostID is the host identified where this agent is running.
@@ -49,8 +51,8 @@ type IAMConfig struct {
 
 // Check validates the IAM configurator config.
 func (c *IAMConfig) Check() (err error) {
-	if c.Semaphores == nil {
-		return trace.BadParameter("missing Semaphores")
+	if c.AccessPoint == nil {
+		return trace.BadParameter("missing AccessPoint")
 	}
 	if c.Clients == nil {
 		c.Clients = common.NewCloudClients()
@@ -80,6 +82,7 @@ type IAM struct {
 	cfg         IAMConfig
 	log         logrus.FieldLogger
 	awsIdentity awslib.Identity
+	policyName  string
 	mu          sync.RWMutex
 	tasks       chan iamTask
 }
@@ -151,9 +154,13 @@ func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	policyName, err := c.getPolicyName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return newAWS(ctx, awsConfig{
 		clients:    c.cfg.Clients,
-		policyName: databaseAccessInlinePolicyName,
+		policyName: policyName,
 		identity:   identity,
 		database:   database,
 	})
@@ -181,6 +188,20 @@ func (c *IAM) getAWSIdentity(ctx context.Context) (awslib.Identity, error) {
 	return c.awsIdentity, nil
 }
 
+// getPolicyName returns the inline policy name.
+func (c *IAM) getPolicyName() (string, error) {
+	clusterName, err := c.cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	policyName := fmt.Sprintf("teleport-database-access-%s", clusterName)
+	if len(policyName) > maxPolicyNameLength {
+		policyName = policyName[:maxPolicyNameLength]
+	}
+	return policyName, nil
+}
+
 // processTask runs an IAM task.
 func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
@@ -191,9 +212,9 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	// TODO(greedy52) ideally tasks can be bundled so the semaphore is acquired
 	// once per group, and the IAM policy is only get/put once per group.
 	lease, err := services.AcquireSemaphoreWithRetry(ctx, services.AcquireSemaphoreWithRetryConfig{
-		Service: c.cfg.Semaphores,
+		Service: c.cfg.AccessPoint,
 		Request: types.AcquireSemaphoreRequest{
-			SemaphoreKind: databaseAccessInlinePolicyName,
+			SemaphoreKind: configurator.cfg.policyName,
 			SemaphoreName: configurator.cfg.identity.GetName(),
 			MaxLeases:     1,
 			Expires:       time.Now().Add(time.Minute),
@@ -209,7 +230,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	}
 
 	defer func() {
-		err := c.cfg.Semaphores.CancelSemaphoreLease(ctx, *lease)
+		err := c.cfg.AccessPoint.CancelSemaphoreLease(ctx, *lease)
 		if err != nil {
 			c.log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
 		}
@@ -267,9 +288,9 @@ func (c *IAM) migrateInlinePolicy(ctx context.Context) {
 }
 
 const (
-	// databaseAccessInlinePolicyName is the inline policy name for database
-	// access permissions for the IAM identity.
-	databaseAccessInlinePolicyName = "teleport-managed-database-access"
+	// maxPolicyNameLength is the maximum number of characters for IAM policy
+	// name.
+	maxPolicyNameLength = 128
 
 	// defaultIAMTaskQueueSize is the default task queue size for IAM configurator.
 	defaultIAMTaskQueueSize = 10000
