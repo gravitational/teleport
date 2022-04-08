@@ -6,8 +6,9 @@ state: draft
 # RFD 67 - Redis database access in AWS ElastiCache and MemoryDB
 
 ## Required Approvers
-* Engineering: @r0mant && @smallinsky Product: (@klizhentas || @xinding33)
-* Security: @reed
+* Engineering: @r0mant && @smallinsky
+* Product: (@klizhentas || @xinding33)
+* Security: @reedloden
 
 ## What
 
@@ -27,7 +28,7 @@ database service. The same applies to Redis access.
 
 However, neither mutual TLS nor IAM authentication is supported by Redis
 managed by AWS. This document mainly focuses on access from database service to
-the Redis managed by AWS.
+Redis managed by AWS.
 
 ## Details
 
@@ -76,21 +77,31 @@ To provide better security than using static passwords, users can tag
 ElastiCache and MemoryDB users with label **`teleport.dev/managed: true`** for
 Teleport to manage the passwords for those database users.
 
-Database service discovers databases users by listing users in the ElastiCache
+Database service discovers database users by listing users from the ElastiCache
 user group or MemoryDB ACL attached to the Redis database. For database users
 discovered with label **`teleport.dev/managed: true`**, passwords are randomly
-generated, periodically rotated, and securely stored in the secret store.
-
-When a client tries to connect to ElastiCache and MemoryDB Redis servers, the
-database service automatically logins Teleport managed database users by
-sending `auth` command with the stored passwords to the Redis server. For
-database users not managed by Teleport, users can manually input `auth`
-command.
+generated, periodically rotated, and securely stored in the secret store (more
+on the secret store in a later section).
 
 In HA mode, if more than one database service tries to rotate the password for
 the same user at the same time, the secret store implementation guarantees only
-the first succeeds. And only the successor should call AWS APIs to update the
-database user's password.
+the first caller succeeds. And only the successor should call AWS APIs to
+update the database user's passwords.
+
+It has been found that it may take a few minutes for AWS to propagate user
+password changes to the Redis servers. To work around this, two versions of the
+passwords (`PREVIOUS` and `CURRENT`) are set to be effective AT THE SAME TIME
+for the database user, and `PREVIOUS` version can be used to guarantee success.
+For instance, a database user with passwords `v7` and `v8` is getting a
+password rotation to use `v8` and `v9`, after `v9` is created in the secret
+store. `v8` is a valid password while the password change is propagating or
+after. (From another point of view, `v8` is the current password and `v9` is
+the next.)
+
+When a client tries to connect to ElastiCache and MemoryDB Redis servers, the
+database service automatically logins Teleport managed database users by
+sending `auth` commands with the stored passwords to the Redis server. For
+database users not managed by Teleport, users can manually input `auth`.
 
 ### Secret store
 
@@ -110,13 +121,12 @@ type SecretValue struct {
     Value string
     // Version is the version of the secret value.
     Version string
-    // Created is the creation time of this version. Can be used to calculate
-    // if a secret value is expired.
+    // Created is the creation time of this version.
     Created time.Time
 }
 
-// CreateRequest defines the request to create a new secret.
-type CreateRequest struct {
+// PutValueRequest defines the request to create a new secret version.
+type PutValueRequest struct {
     // Key is the key path of the secret.
     Key string
     // Value is the value of the secret to set. A random value is generated if
@@ -124,34 +134,18 @@ type CreateRequest struct {
     Value string
     // RandomValueLength is the length of the random value to generate.
     RandomValueLength int
-}
-
-// PutValueRequest defines the request to create a new secret version.
-type PutValueRequest struct {
-    // CurrentValue is the current secret value. Key in CurrentValue is used to
-    // identify the secret. Other attributes can be used for test-and-set
-    // operations.
-    CurrentValue *SecretValue
-    // Value is the value of the secret to set. A random value is generated if
-    // empty.
-    Value string
-    // RandomValueLength is the length of the random value to generate.
-    RandomValueLength int
+    // CurrentVersion is the version of the current secret value. If set, it
+    // will be used for test-and-set to ensure only one caller succeeds for the
+    // same version.
+    CurrentVersion string
 }
 
 // Secrets defines an interface for managing secrets. A secret consists of a
 // key path and a list of versions that hold copies of current or past secret
 // values.
 type Secrets interface {
-    // Create creates a new secret.
-    Create(req CreateRequest) (*SecretValue, error)
-
-    // Delete deletes the secret for the provided path.
-    Delete(key string) error
-
-    // PutValue creates a new secret version for the secret. Implementations
-    // must guarantee that only the first of many calls to PutValue succeeds,
-    // when req.CurrentValue is the same.
+    // PutValue creates a new secret version for the secret. The secret is also
+    // created if it does not exist.
     PutValue(req PutValueRequest) (*SecretValue, error)
 
     // GetValue returns the secret value for provided version. Besides version
@@ -159,6 +153,9 @@ type Secrets interface {
     // "PREVIOUS" can also be used to retrieve the current and previous
     // versions respectively. If the version is empty, "CURRENT" is used.
     GetValue(key string, version string) (*SecretValue, error)
+
+    // Delete deletes the secret for the provided path.
+    Delete(key string) error
 }
 ```
 It is up to the caller to call `PutValue` periodically to rotate the secret.
@@ -206,10 +203,10 @@ the secrets:
   }
 }
 ```
-Here `key-prefix` can be used to prevent Teleport from accessing other secrets
-in the AWS Secrets Manager. To encrypt the secret with a KMS key other than the
-default `aws/secretsmanager`, `kms:GenerateDataKey` and `kms:Decrypt` to the
-key are also required.
+Here `key-prefix` prevents Teleport from accessing user's other secrets in the
+Secrets Manager. To manage a secret with a KMS key other than the default
+`aws/secretsmanager`, `kms:GenerateDataKey` and `kms:Decrypt` to the key are
+also required.
 
 For racing `PutSecretValue` calls,
 [`PutSecretValueInput.ClientRequestToken`](https://docs.aws.amazon.com/sdk-for-go/api/service/secretsmanager/#PutSecretValueInput)
@@ -221,16 +218,19 @@ value, and used for `ClientRequestToken`. When `PutSecretValue succeeds, the
 effectively makes version strings rolling MD5 UUIDs of their previous versions,
 and only the first call to create each version can succeed.
 
+Staging labels `AWSCURRENT` and `AWSPREVIOUS` can be used to retrieve the
+latest version and the previous version of the secret respectively.
+
 ## Security
 
 To reduce security risks by using passwords in backend services:
-- Only well-known and attested secrets management tools are used to store
-  secrets securely (e.g. AWS Secrets Manager).
-- Generate random passwords (using maximum length available).
+- Only well-known and attested secrets management tools like AWS Secrets
+  Manager is used to store secrets securely.
+- Generate random passwords using the maximum length available.
 - Rotate passwords frequently.
 
 Lastly, permissions to all AWS resources used by Teleport services are granted
-through AWS IAM by users.
+by users through AWS IAM.
 
 ## UX
 
