@@ -1,27 +1,39 @@
 <Tabs> 
 <TabItem scope={["oss","enterprise"]} label="Self-Hosted">
+Download the latest version of Teleport for your platform from our
+[downloads page](https://goteleport.com/teleport/download) and follow the
+installation [instructions](../../installation.mdx).
+
 Teleport requires a valid TLS certificate to operate and can fetch one
 automatically using Let's Encrypt's ACME protocol. Before Let's Encrypt can
 issue a TLS certificate for the Teleport Proxy host's domain, the ACME protocol
 must verify that an HTTPS server is reachable on port 443 of the host.  
 
-We will assume that you have configured DNS records for `teleport.example.com`
-and `*.teleport.example.com` to point to your Teleport Node.
+You can configure the Teleport Proxy service to complete the Let's Encrypt
+verification process when it starts up.
 
-<Admonition type="note" title="Web Proxy Port">
-To support the ACME protocol, Teleport Proxy must listen on port 443, rather
-than the default port 3080.
-</Admonition>
+Run the following `teleport configure` command, where `tele.example.com` is the
+domain name of your Teleport cluster and `user@example.com` is an email address
+used for notifications (you can use any domain):
 
-Download the latest version of Teleport for your platform from our
-[downloads page](https://goteleport.com/teleport/download) and follow the
-installation [instructions](../../installation.mdx).
+```code
+teleport configure --acme --acme-email=user@example.com --cluster-name=tele.example.com > /etc/teleport.yaml
+```
 
-Teleport requires a valid TLS certificate to operate and can fetch one automatically
-using Let's Encrypt. 
-We will assume that you have configured DNS records for `teleport.example.com` and `*.teleport.example.com` to point to the Teleport Node.
+The `--acme`, `--acme-email`, and `--cluster-name` flags will add the following
+settings to your Teleport configuration file:
 
-(!docs/pages/includes/acme.mdx!)
+```yaml
+proxy_service:
+  enabled: "yes"
+  web_listen_addr: :443
+  public_addr: tele.example.com:443
+  acme:
+    enabled: "yes"
+    email: user@example.com
+```
+
+Port 443 on your Teleport Proxy Service host must allow traffic from all sources.
 
 Next, start the Teleport Auth and Proxy Services:
 
@@ -30,13 +42,9 @@ $ sudo teleport start
 ```
 </TabItem> 
 <TabItem label="Teleport Cloud" scope={["cloud"]}> 
-If you do not have a Teleport Cloud account, use our [signup form](/signup) to
+If you do not have a Teleport Cloud account, use our [signup form](https://goteleport.com/signup/) to
 get started. Teleport Cloud manages instances of the Proxy Service and Auth
 Service, and automatically issues and renews the required TLS certificate.
-
-You will need to download the Enterprise version of Teleport from the
-[customer portal](https://dashboard.gravitational.com/web/login) to run `tctl`
-commands in Teleport Cloud.
 
 You must log into your cluster before you can run `tctl` commands.
 ```code

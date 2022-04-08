@@ -151,12 +151,8 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	if session != nil {
-		return session, nil
-	}
-	// DELETE IN 7.x:
-	// Return web sessions from a legacy path under /web/users/<user>/sessions/<id>
-	return getLegacyWebSession(ctx, r.backend, req.User, req.SessionID)
+
+	return session, trace.Wrap(err)
 }
 
 // List gets all regular web sessions.
@@ -325,33 +321,10 @@ type webTokens struct {
 	log     logrus.FieldLogger
 }
 
-// DELETE in 7.x.
-// getLegacySession returns the web session for the specified user/sessionID
-// under a legacy path /web/users/<user>/sessions/<id>
-func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, sessionID string) (types.WebSession, error) {
-	item, err := backend.Get(ctx, legacyWebSessionKey(user, sessionID))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := services.UnmarshalWebSession(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// this is for backwards compatibility to ensure we
-	// always have these values
-	session.SetUser(user)
-	session.SetName(sessionID)
-	return session, nil
-}
-
 func webSessionKey(sessionID string) (key []byte) {
 	return backend.Key(webPrefix, sessionsPrefix, sessionID)
 }
 
 func webTokenKey(token string) (key []byte) {
 	return backend.Key(webPrefix, tokensPrefix, token)
-}
-
-func legacyWebSessionKey(user, sessionID string) (key []byte) {
-	return backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sessionID)
 }

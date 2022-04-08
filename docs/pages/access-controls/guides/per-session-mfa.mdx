@@ -1,24 +1,27 @@
 ---
 title: Per-session MFA
-description: Require MFA checks for user SSH and Kubernetes sessions.
+description: Require MFA checks to initiate sessions.
 videoBanner: j8Ze7HhjFGw
 ---
 
 # Per-session MFA
 
-Teleport supports multi-factor authentication on every SSH and Kubernetes
-"connection" (a single `tsh ssh` or `kubectl` call). This is an advanced
-security feature that protects users against compromises of their on-disk
-Teleport certificates.
+Teleport supports requiring additional multi-factor authentication checks
+when starting new:
 
-<Admonition type="note">
+- SSH connections (a single `tsh` call)
+- Kubernetes sessions (a single `kubectl` call)
+- Desktop sessions
 
+This is an advanced security feature that protects users against compromises of
+their on-disk Teleport certificates.
+
+<Notice type="note">
   In addition to per-session MFA, enable login MFA in your SSO provider and/or
   for all [local Teleport
   users](../../setup/reference/authentication.mdx#local-no-authentication-connector)
   to improve security.
-
-</Admonition>
+</Notice>
 
 <Details
   title="Version warning"
@@ -32,6 +35,8 @@ Teleport certificates.
   only Auth and Proxy services are updated, these checks will *not* be properly
   enforced. Additionally, only v6.1 or newer `tsh` binaries implement
   per-session MFA checks.
+
+  Per-session MFA for Desktop Access was introduced in Teleport 9.
 </Details>
 
 
@@ -43,6 +48,20 @@ Teleport certificates.
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH from the Teleport Web UI)
+
+<Admonition type="note" title="Per-session MFA with FIPS">
+Teleport FIPS builds disable local users. To configure WebAuthn in order to use
+per-session MFA with FIPS builds, provide the following in your `teleport.yaml`:
+
+```yaml
+teleport:
+  auth_service:
+    local_auth: false
+    second_factor: optional
+    webauthn:
+      rp_id: teleport.example.com
+```
+</Admonition>
 
 ## Configuration
 
@@ -79,8 +98,8 @@ spec:
     ...
 ```
 
-Role-specific enforcement only applies when accessing SSH nodes or Kubernetes
-clusters matching that role's `allow` section.
+Role-specific enforcement only applies when accessing resources matching a
+role's `allow` section.
 
 #### Roles example
 
@@ -160,7 +179,6 @@ $ tsh ssh prod3.example.com
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA
 even when logging into `dev1.example.com`.
 
-
 ## Database access MFA
 
 Database access supports per-connection MFA. When Jerry connects to the database
@@ -199,3 +217,5 @@ Current limitations for this feature are:
   If you enable per-session MFA checks cluster-wide, you will not be able to
   use Application access. We're working on integrating per-session
   MFA checks for these clients.
+- For Desktop Access, only WebAuthn devices are supported. Teleport does not
+  support U2F devices for Desktop Access MFA.

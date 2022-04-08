@@ -61,10 +61,6 @@ var (
 	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
 )
 
-func tombstoneKey() []byte {
-	return backend.Key("cache", teleport.Version, "tombstone", "ok")
-}
-
 const cacheTargetAuth string = "auth"
 
 // ForAuth sets up watch configuration for the auth server
@@ -629,9 +625,6 @@ const (
 	WatcherStarted = "watcher_started"
 	// WatcherFailed is emitted when event watcher has failed
 	WatcherFailed = "watcher_failed"
-	// TombstoneWritten is emitted if cache is closed in a healthy
-	// state and successfully writes its tombstone.
-	TombstoneWritten = "tombstone_written"
 	// Reloading is emitted when an error occurred watching events
 	// and the cache is waiting to create a new watcher
 	Reloading = "reloading_cache"
@@ -700,28 +693,6 @@ func New(config Config) (*Cache, error) {
 	}
 	cs.collections = collections
 
-	// if the ok tombstone is present, set the initial read state of the cache
-	// to ok. this tombstone's presence indicates that we are dealing with an
-	// on-disk cache produced by the same teleport version which gracefully shutdown
-	// while in an ok state.  We delete the tombstone rather than check for its
-	// presence to ensure self-healing in the event that the tombstone wasn't actually
-	// valid.  Note that setting the cache's read state to ok does not cause us to skip
-	// our normal init logic, it just means that reads against the local cache will
-	// be allowed in the event the init step fails before it starts applying.
-	// Note also that we aren't setting our event fanout system to an initialized state
-	// or incrementing the generation counter; this cache isn't so much "healthy" as it is
-	// "slightly preferable to an unreachable auth server".
-	err = cs.wrapper.Delete(ctx, tombstoneKey())
-	switch {
-	case err == nil:
-		cs.setReadOK(true)
-	case trace.IsNotFound(err):
-		// do nothing
-	default:
-		cs.Close()
-		return nil, trace.Wrap(err)
-	}
-
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(cs.MaxRetryPeriod / 10),
 		Step:   cs.MaxRetryPeriod / 5,
@@ -775,10 +746,6 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		c.Debugf("Cache is closing, returning from update loop.")
 		// ensure that close operations have been run
 		c.Close()
-		// run tombstone operations in an orphaned context
-		tombCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-		c.writeTombstone(tombCtx)
 	}()
 	timer := time.NewTimer(c.Config.WatcherInitTimeout)
 	for {
@@ -808,24 +775,6 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		case <-c.ctx.Done():
 			return
 		}
-	}
-}
-
-// writeTombstone writes the cache tombstone.
-func (c *Cache) writeTombstone(ctx context.Context) {
-	if !c.getReadOK() || c.generation.Load() == 0 {
-		// state is unhealthy or was loaded from a previously
-		// entombed state; do nothing.
-		return
-	}
-	item := backend.Item{
-		Key:   tombstoneKey(),
-		Value: []byte("{}"),
-	}
-	if _, err := c.wrapper.Create(ctx, item); err != nil {
-		c.Warningf("Failed to set tombstone: %v", err)
-	} else {
-		c.notify(ctx, Event{Type: TombstoneWritten})
 	}
 }
 
@@ -1200,7 +1149,7 @@ var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1209,8 +1158,10 @@ func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts
 
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), getCertAuthorityCacheKey{id}, func() (interface{}, error) {
-			ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			ca, err := rg.trust.GetCertAuthority(c.ctx, id, loadSigningKeys, opts...)
 			ta(ca)
 			return ca, err
 		})
@@ -1222,13 +1173,13 @@ func (c *Cache) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts
 		return cachedCA.Clone(), nil
 	}
 
-	ca, err := rg.trust.GetCertAuthority(id, loadSigningKeys, opts...)
+	ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if ca, err := c.Config.Trust.GetCertAuthority(id, loadSigningKeys, opts...); err == nil {
+		if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...); err == nil {
 			return ca, nil
 		}
 	}
@@ -1243,7 +1194,7 @@ var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1251,8 +1202,10 @@ func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bo
 	defer rg.Release()
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		ta := func(_ []types.CertAuthority) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
-			cas, err := rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
+		ci, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func() (interface{}, error) {
+			// use cache's close context instead of request context in order to ensure
+			// that we don't cache a context cancellation error.
+			cas, err := rg.trust.GetCertAuthorities(c.ctx, caType, loadSigningKeys, opts...)
 			ta(cas)
 			return cas, trace.Wrap(err)
 		})
@@ -1267,7 +1220,7 @@ func (c *Cache) GetCertAuthorities(caType types.CertAuthType, loadSigningKeys bo
 		}
 		return cas, nil
 	}
-	return rg.trust.GetCertAuthorities(caType, loadSigningKeys, opts...)
+	return rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.

@@ -17,15 +17,19 @@ limitations under the License.
 package auth
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
 )
+
+var MinSupportedModeratedSessionsVersion = semver.New(utils.VersionBeforeAlpha("9.0.0"))
 
 // SessionAccessEvaluator takes a set of policies
 // and uses rules to evaluate them to determine when a session may start
@@ -36,17 +40,27 @@ import (
 // that is harder to debug in the case of misconfigured policies or other error and are harder to intuitively follow.
 // In the real world, the number of roles and session are small enough that this doesn't have a meaningful impact.
 type SessionAccessEvaluator struct {
-	kind       types.SessionKind
-	policySets []*types.SessionTrackerPolicySet
+	kind        types.SessionKind
+	policySets  []*types.SessionTrackerPolicySet
+	isModerated bool
 }
 
 // NewSessionAccessEvaluator creates a new session access evaluator for a given session kind
 // and a set of roles attached to the host user.
 func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind) SessionAccessEvaluator {
-	return SessionAccessEvaluator{
-		kind,
-		policySets,
+	e := SessionAccessEvaluator{
+		kind:       kind,
+		policySets: policySets,
 	}
+
+	for _, policySet := range policySets {
+		if len(e.extractApplicablePolicies(policySet)) != 0 {
+			e.isModerated = true
+			break
+		}
+	}
+
+	return e
 }
 
 func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPolicy {
@@ -59,7 +73,7 @@ func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPoli
 	return policies
 }
 
-func containsKind(s []string, e types.SessionKind) bool {
+func ContainsSessionKind(s []string, e types.SessionKind) bool {
 	for _, a := range s {
 		if types.SessionKind(a) == e {
 			return true
@@ -102,8 +116,13 @@ func (ctx *SessionAccessContext) GetResource() (types.Resource, error) {
 	return nil, trace.BadParameter("resource unsupported")
 }
 
+// IsModerated returns true if the session needs moderation.
+func (e *SessionAccessEvaluator) IsModerated() bool {
+	return e.isModerated
+}
+
 func (e *SessionAccessEvaluator) matchesPredicate(ctx *SessionAccessContext, require *types.SessionRequirePolicy, allow *types.SessionJoinPolicy) (bool, error) {
-	if !e.matchesKind(require.Kinds) || !e.matchesKind(allow.Kinds) {
+	if !e.matchesKind(allow.Kinds) {
 		return false, nil
 	}
 
@@ -146,7 +165,7 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 }
 
 func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
-	if containsKind(allow, e.kind) || containsKind(allow, "*") {
+	if ContainsSessionKind(allow, e.kind) || ContainsSessionKind(allow, "*") {
 		return true
 	}
 
@@ -209,6 +228,39 @@ func (e *SessionAccessEvaluator) hasPolicies() bool {
 	return false
 }
 
+// Generate a pretty-printed string of precise requirements for session start suitable for user display.
+func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
+	s := new(strings.Builder)
+	s.WriteString("require all:")
+
+	for _, policySet := range e.policySets {
+		policies := e.extractApplicablePolicies(policySet)
+		if len(policies) == 0 {
+			continue
+		}
+
+		fmt.Fprintf(s, "\r\n   one of (%v):", policySet.Name)
+		for _, require := range policies {
+			fmt.Fprintf(s, "\r\n    - %vx %v with mode %v", require.Count, require.Filter, strings.Join(require.Modes, " or "))
+		}
+	}
+
+	return s.String()
+}
+
+// extractApplicablePolicies extracts all policies that match the session kind.
+func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTrackerPolicySet) []*types.SessionRequirePolicy {
+	var policies []*types.SessionRequirePolicy
+
+	for _, require := range set.RequireSessionJoin {
+		if e.matchesKind(require.Kinds) {
+			policies = append(policies, require)
+		}
+	}
+
+	return policies
+}
+
 // FulfilledFor checks if a given session may run with a list of participants.
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
 	supported, err := e.supportsSessionAccessControls()
@@ -227,13 +279,14 @@ func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContex
 	// We need every policy set to match to allow the session.
 policySetLoop:
 	for _, policySet := range e.policySets {
-		if len(policySet.RequireSessionJoin) == 0 {
+		policies := e.extractApplicablePolicies(policySet)
+		if len(policies) == 0 {
 			continue
 		}
 
 		// Check every require policy to see if it's fulfilled.
 		// Only one needs to be checked to pass the policyset.
-		for _, requirePolicy := range policySet.RequireSessionJoin {
+		for _, requirePolicy := range policies {
 			// Count of how many additional participant matches we need to fulfill the policy.
 			left := requirePolicy.Count
 

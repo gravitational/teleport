@@ -209,10 +209,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.Backend = backend.NewSanitizer(b)
 
 	localLog, err := events.NewAuditLog(events.AuditLogConfig{
-		DataDir:        cfg.Dir,
-		RecordSessions: true,
-		ServerID:       cfg.ClusterName,
-		UploadHandler:  events.NewMemoryUploader(),
+		DataDir:       cfg.Dir,
+		ServerID:      cfg.ClusterName,
+		UploadHandler: events.NewMemoryUploader(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -303,26 +302,14 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// Setup certificate and signing authorities.
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.HostCA,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.UserCA,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-		Type:        types.JWTSigner,
-		ClusterName: srv.ClusterName,
-		Clock:       cfg.Clock,
-	})); err != nil {
-		return nil, trace.Wrap(err)
+	for _, caType := range types.CertAuthTypes {
+		if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+			Type:        caType,
+			ClusterName: srv.ClusterName,
+			Clock:       cfg.Clock,
+		})); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
@@ -486,8 +473,8 @@ func (a *TestAuthServer) Clock() clockwork.Clock {
 }
 
 // Trust adds other server host certificate authority as trusted
-func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap types.RoleMap) error {
-	remoteCA, err := remote.AuthServer.GetCertAuthority(types.CertAuthID{
+func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, roleMap types.RoleMap) error {
+	remoteCA, err := remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: remote.ClusterName,
 	}, false)
@@ -498,7 +485,18 @@ func (a *TestAuthServer) Trust(remote *TestAuthServer, roleMap types.RoleMap) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	remoteCA, err = remote.AuthServer.GetCertAuthority(types.CertAuthID{
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: remote.ClusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: remote.ClusterName,
 	}, false)

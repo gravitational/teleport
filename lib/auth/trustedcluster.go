@@ -98,7 +98,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			return nil, trace.Wrap(err)
 		}
 
-		remoteCAs, err := a.establishTrust(trustedCluster)
+		remoteCAs, err := a.establishTrust(ctx, trustedCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -122,7 +122,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			return nil, trace.Wrap(err)
 		}
 
-		remoteCAs, err := a.establishTrust(trustedCluster)
+		remoteCAs, err := a.establishTrust(ctx, trustedCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -193,15 +193,12 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		return trace.BadParameter("trusted cluster %q is the name of this root cluster and cannot be removed.", name)
 	}
 
-	if err := a.DeleteCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: name}); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	if err := a.DeleteCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: name}); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+	// Remove all CAs
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA} {
+		if err := a.DeleteCertAuthority(types.CertAuthID{Type: caType, DomainName: name}); err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -231,7 +228,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 	return nil
 }
 
-func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.CertAuthority, error) {
+func (a *Server) establishTrust(ctx context.Context, trustedCluster types.TrustedCluster) ([]types.CertAuthority, error) {
 	var localCertAuthorities []types.CertAuthority
 
 	domainName, err := a.GetDomainName()
@@ -240,7 +237,7 @@ func (a *Server) establishTrust(trustedCluster types.TrustedCluster) ([]types.Ce
 	}
 
 	// get a list of certificate authorities for this auth server
-	allLocalCAs, err := a.GetCertAuthorities(types.HostCA, false)
+	allLocalCAs, err := a.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -526,8 +523,9 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	validateResponse := ValidateTrustedClusterResponse{
 		CAs: []types.CertAuthority{},
 	}
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA} {
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA} {
 		certAuthority, err := a.GetCertAuthority(
+			ctx,
 			types.CertAuthID{Type: caType, DomainName: domainName},
 			false)
 		if err != nil {
