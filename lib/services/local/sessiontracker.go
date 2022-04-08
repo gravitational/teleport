@@ -32,11 +32,10 @@ import (
 )
 
 const (
-	sessionPrefix                      = "session_tracker"
-	retryDelay           time.Duration = time.Second
-	casRetryLimit        int           = 7
-	casErrorMessage      string        = "CompareAndSwap reached retry limit"
-	defaultSessionExpiry time.Duration = time.Hour * 24
+	sessionPrefix                 = "session_tracker"
+	retryDelay      time.Duration = time.Second
+	casRetryLimit   int           = 7
+	casErrorMessage string        = "CompareAndSwap reached retry limit"
 )
 
 type sessionTracker struct {
@@ -188,10 +187,6 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 		Expires:           req.Expires,
 		KubernetesCluster: req.KubernetesCluster,
 		HostUser:          req.HostUser,
-	}
-
-	if spec.Expires.IsZero() {
-		spec.Expires = now.Add(defaultSessionExpiry)
 	}
 
 	session, err := types.NewSessionTracker(spec)

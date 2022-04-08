@@ -48,6 +48,7 @@ func TestSessionTrackerStorage(t *testing.T) {
 			User: "eve",
 			Mode: string(types.SessionPeerMode),
 		},
+		Expires: time.Now().UTC().Add(24 * time.Hour),
 	})
 	require.NoError(t, err)
 
@@ -128,6 +129,7 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 			User: "eve",
 			Mode: string(types.SessionPeerMode),
 		},
+		Expires: time.Now().UTC().Add(24 * time.Hour),
 	})
 	require.NoError(t, err)
 
