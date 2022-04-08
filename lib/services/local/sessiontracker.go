@@ -130,6 +130,7 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 			return nil, trace.Wrap(err)
 		}
 
+		// NOTE: This is the session expiry timestamp, not the backend timestamp stored in `item.Expires`.
 		after := session.GetExpires().After(now)
 
 		switch {
