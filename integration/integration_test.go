@@ -3021,7 +3021,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 }
 
-// waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
+// waitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
 func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
 	var lastCount int
 	var lastErr error
@@ -3037,6 +3037,24 @@ func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 		30*time.Second,
 		time.Second,
 		"Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
+}
+
+// waitForMaxActiveTunnelConnections waits for remote cluster to report a maximum number of active connections
+func waitForMaxActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, maxCount int) {
+	var lastCount int
+	var lastErr error
+	require.Never(t, func() bool {
+		cluster, err := tunnel.GetSite(clusterName)
+		if err != nil {
+			lastErr = err
+			return false
+		}
+		lastCount = cluster.GetTunnelsCount()
+		return lastCount > maxCount
+	},
+		15*time.Second,
+		time.Second,
+		"Connections count on %v: %v, max %v, last error: %v", clusterName, lastCount, maxCount, lastErr)
 }
 
 // waitForProxyCount waits a set time for the proxy count in clusterName to
