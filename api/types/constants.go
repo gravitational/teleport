@@ -402,3 +402,6 @@ const (
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = "teleport.internal/bot-generation"
 )
+
+// ResourceKinds lists all Teleport resource kinds
+var ResourceKinds = []string{KindNode, KindDatabaseServer, KindAppServer, KindKubeService, KindWindowsDesktop}

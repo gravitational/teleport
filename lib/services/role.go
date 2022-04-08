@@ -727,6 +727,11 @@ type AccessChecker interface {
 
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
+
+	// GetSearchAsRoles returns the list of roles which the checker should be able to
+	// "assume" while searching for resources, and should be able to request with a
+	// search-based access request.
+	GetSearchAsRoles() []string
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -2220,6 +2225,17 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		return allowCond, nil
 	}
 	return &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: allowCond}}, nil
+}
+
+// GetSearchAsRoles returns the list of roles which the RoleSet should be able
+// to "assume" while searching for resources, and should be able to request with
+// a search-based access request.
+func (set RoleSet) GetSearchAsRoles() []string {
+	var searchAsRoles []string
+	for _, role := range set {
+		searchAsRoles = append(searchAsRoles, role.GetSearchAsRoles()...)
+	}
+	return apiutils.Deduplicate(searchAsRoles)
 }
 
 // AccessMFAParams contains MFA-related parameters for methods that check access.

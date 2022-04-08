@@ -862,6 +862,28 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string, opts .
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if req.UseSearchAsRoles {
+		// For search-based access requests, replace the current roles with all
+		// roles the user is allowed to search with.
+		if err := a.context.UseSearchAsRoles(services.RoleGetter(a.authServer)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
+			Metadata: apievents.Metadata{
+				Type: events.AccessRequestResourceSearch,
+				Code: events.AccessRequestResourceSearchCode,
+			},
+			UserMetadata:         ClientUserMetadata(ctx),
+			SearchAsRoles:        a.context.Checker.RoleNames(),
+			ResourceType:         req.ResourceType,
+			Namespace:            req.Namespace,
+			Labels:               req.Labels,
+			PredicateExpression:  req.PredicateExpression,
+			SearchKeywords:       req.SearchKeywords,
+			WindowsDesktopFilter: req.WindowsDesktopFilter,
+		})
+	}
+
 	// ListResources request coming through this auth layer gets request filters
 	// stripped off and saved to be applied later after items go through rbac checks.
 	// The list that gets returned from the backend comes back unfiltered and as

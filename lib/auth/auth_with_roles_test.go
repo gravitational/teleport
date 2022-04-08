@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -2073,6 +2074,85 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	require.Len(t, resp.Resources, 2)
 	require.NotEmpty(t, resp.NextKey)
 	require.Empty(t, resp.TotalCount)
+}
+
+func TestListResources_SearchAsRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	const numTestNodes = 2
+	for i := 0; i < numTestNodes; i++ {
+		name := fmt.Sprintf("node%d", i)
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, numTestNodes)
+
+	// create user and client
+	user, role, err := CreateUserAndRole(srv.Auth(), "user", []string{"user"})
+	require.NoError(t, err)
+
+	// only allow user to see first node
+	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
+
+	// create a new role which can see second node
+	searchAsRole := services.RoleForUser(user)
+	searchAsRole.SetName("test_search_role")
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"user"})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, searchAsRole))
+
+	role.SetSearchAsRoles([]string{searchAsRole.GetName()})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Regular ListResources returns first node, which user normally has
+	// permission for
+	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Limit:        2,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Equal(t, resp.Resources[0].GetName(), testNodes[0].GetName())
+
+	// ListResources with UseSearchAsRoles returns only the second node, which
+	// searchAsRole has permission for
+	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType:     types.KindNode,
+		Limit:            2,
+		UseSearchAsRoles: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Equal(t, resp.Resources[0].GetName(), testNodes[1].GetName())
+
+	// make sure an audit event is logged for the search
+	auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", nil, 10, 0, "")
+	require.NoError(t, err)
+	foundAuditEvent := false
+	for _, event := range auditEvents {
+		if searchEvent, ok := event.(*apievents.AccessRequestResourceSearch); ok {
+			foundAuditEvent = true
+			require.Equal(t, searchEvent.SearchAsRoles, []string{searchAsRole.GetName()})
+		}
+	}
+	require.True(t, foundAuditEvent)
 }
 
 func TestGetAndList_WindowsDesktops(t *testing.T) {

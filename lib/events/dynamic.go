@@ -77,6 +77,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessRequestCreate{}
 	case AccessRequestUpdateEvent:
 		e = &events.AccessRequestCreate{}
+	case AccessRequestResourceSearch:
+		e = &events.AccessRequestResourceSearch{}
 	case BillingCardCreateEvent:
 		e = &events.BillingCardCreate{}
 	case BillingCardUpdateEvent:

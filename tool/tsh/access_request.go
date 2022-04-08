@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -293,4 +294,61 @@ func showRequestTable(reqs []types.AccessRequest) error {
 	fmt.Fprintf(os.Stdout, "\nhint: use 'tsh request show <request-id>' for additional details\n")
 	fmt.Fprintf(os.Stdout, "      %v\n", requestLoginHint)
 	return trace.Wrap(err)
+}
+
+func onRequestSearch(cf *CLIConf) error {
+	tc, err := makeClient(cf, false /* useProfileLogin */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyClient, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	authClient, err := proxyClient.CurrentClusterAccessPoint(cf.Context, false /* quiet */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := proto.ListResourcesRequest{
+		ResourceType:        cf.ResourceKind,
+		Labels:              tc.Labels,
+		PredicateExpression: cf.PredicateExpression,
+		SearchKeywords:      tc.SearchKeywords,
+		Limit:               100,
+		UseSearchAsRoles:    true,
+	}
+	resp, err := authClient.ListResources(cf.Context, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	table := asciitable.MakeTable([]string{"Kind", "Hostname", "ID"})
+	var resourceIDs []string
+	for _, resource := range resp.Resources {
+		id := resource.GetKind() + ":" + resource.GetName()
+		resourceIDs = append(resourceIDs, id)
+
+		var hostName string
+		if r, ok := resource.(interface{ GetHostname() string }); ok {
+			hostName = r.GetHostname()
+		}
+
+		table.AddRow([]string{resource.GetKind(), hostName, id})
+	}
+	if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(resourceIDs) > 0 {
+		fmt.Fprintf(os.Stdout, "\nTo request access to these resources, run\n")
+		fmt.Fprintf(os.Stdout, "> tsh request create --id %s\n", strings.Join(resourceIDs, " --id "))
+		// TODO(nic): delete this line when tsh request create is implemented (#10887)
+		fmt.Fprintf(os.Stdout, "(tsh request create is not yet implemented)\n")
+	}
+
+	return nil
 }

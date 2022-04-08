@@ -157,6 +157,15 @@ type Role interface {
 	SetSessionJoinPolicies([]*SessionJoinPolicy)
 	// GetSessionPolicySet returns the RBAC policy set for a role.
 	GetSessionPolicySet() SessionTrackerPolicySet
+
+	// GetSearchAsRoles returns the list of roles which the user should be able
+	// to "assume" while searching for resources, and should be able to request
+	// with a search-based access request.
+	GetSearchAsRoles() []string
+	// SetSearchAsRoles sets the list of roles which the user should be able
+	// to "assume" while searching for resources, and should be able to request
+	// with a search-based access request.
+	SetSearchAsRoles([]string)
 }
 
 // NewRole constructs new standard V5 role.
@@ -1139,4 +1148,24 @@ func (r *RoleV5) GetSessionJoinPolicies() []*SessionJoinPolicy {
 // SetSessionJoinPolicies sets the RBAC join policies for a role.
 func (r *RoleV5) SetSessionJoinPolicies(policies []*SessionJoinPolicy) {
 	r.Spec.Allow.JoinSessions = policies
+}
+
+// GetSearchAsRoles returns the list of roles which the user should be able to
+// "assume" while searching for resources, and should be able to request with a
+// search-based access request.
+func (r *RoleV5) GetSearchAsRoles() []string {
+	if r.Spec.Allow.Request == nil {
+		return nil
+	}
+	return r.Spec.Allow.Request.SearchAsRoles
+}
+
+// SetSearchAsRoles sets the list of roles which the user should be able to
+// "assume" while searching for resources, and should be able to request with a
+// search-based access request.
+func (r *RoleV5) SetSearchAsRoles(roles []string) {
+	if r.Spec.Allow.Request == nil {
+		r.Spec.Allow.Request = &AccessRequestConditions{}
+	}
+	r.Spec.Allow.Request.SearchAsRoles = roles
 }

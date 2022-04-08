@@ -1501,6 +1501,9 @@ message ListResourcesRequest {
     // WindowsDesktopFilter specifies windows desktop specific filters.
     types.WindowsDesktopFilter WindowsDesktopFilter = 10
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "windows_desktop_filter,omitempty" ];
+    // UseSearchAsRoles indicates that the response should include all resources
+    // the caller is able to request access to using search_as_roles
+    bool UseSearchAsRoles = 11 [ (gogoproto.jsontag) = "use_search_as_roles,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.

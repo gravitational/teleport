@@ -146,6 +146,26 @@ Loop:
 	return lockTargets
 }
 
+// UseSearchAsRoles replaces the checker on the current Context with the set of
+// roles the user is allowed to search as.
+func (c *Context) UseSearchAsRoles(access services.RoleGetter) error {
+	searchAsRoleNames := c.Checker.GetSearchAsRoles()
+	newRoleSet, err := services.FetchRoles(searchAsRoleNames, access, c.User.GetTraits())
+	if err != nil {
+		trace.Wrap(err)
+	}
+	if _, ok := c.Checker.(LocalUserRoleSet); ok {
+		c.Checker = LocalUserRoleSet{newRoleSet}
+	} else if _, ok := c.Checker.(RemoteUserRoleSet); ok {
+		c.Checker = RemoteUserRoleSet{newRoleSet}
+	} else {
+		// builtin roles should not be searching
+		return trace.BadParameter("unexpected checker of type %T attempting UseSearchAsRoles", c.Checker)
+	}
+	c.User.SetRoles(searchAsRoleNames)
+	return nil
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {

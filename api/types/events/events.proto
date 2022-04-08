@@ -20,6 +20,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
+import "github.com/gravitational/teleport/api/types/types.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -1884,6 +1885,7 @@ message OneOf {
         events.MySQLStatementBulkExecute MySQLStatementBulkExecute = 78;
         events.RenewableCertificateGenerationMismatch RenewableCertificateGenerationMismatch = 79;
         events.Unknown Unknown = 80;
+        events.AccessRequestResourceSearch AccessRequestResourceSearch = 81;
     }
 }
 
@@ -2149,4 +2151,30 @@ message MySQLStatementBulkExecute {
     uint32 StatementID = 5 [ (gogoproto.jsontag) = "statement_id" ];
     // Parameters are the parameters used to execute the prepared statement.
     repeated string Parameters = 6 [ (gogoproto.jsontag) = "parameters" ];
+}
+
+// AccessReqeustResourceSearch is emitted when a user searches for resources as
+// part of a search-based access request
+message AccessRequestResourceSearch {
+    // Metadata is common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is common user metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SearchAsRoles is the list of roles the search was performed as.
+    repeated string SearchAsRoles = 3 [ (gogoproto.jsontag) = "search_as_roles" ];
+    // ResourceType is the type of resource being searched for.
+    string ResourceType = 4 [ (gogoproto.jsontag) = "resource_type,omitempty" ];
+    // Namespace is the namespace of resources.
+    string Namespace = 5 [ (gogoproto.jsontag) = "namespace,omitempty" ];
+    // Labels is the label-based matcher used for the search.
+    map<string, string> Labels = 6 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    // PredicateExpression is the list of boolean conditions that were used for the search.
+    string PredicateExpression = 7 [ (gogoproto.jsontag) = "predicate_expression,omitempty" ];
+    // SearchKeywords is the list of search keywords used to match against resource field values.
+    repeated string SearchKeywords = 8 [ (gogoproto.jsontag) = "search_keywords,omitempty" ];
+    // WindowsDesktopFilter is the list of windows desktop specific filters.
+    types.WindowsDesktopFilter WindowsDesktopFilter = 9
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "windows_desktop_filter,omitempty" ];
 }

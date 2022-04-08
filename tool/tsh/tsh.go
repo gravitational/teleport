@@ -103,6 +103,8 @@ type CLIConf struct {
 	MyRequests bool
 	// Approve/Deny indicates the desired review kind.
 	Approve, Deny bool
+	// ResourcKind is the resource kind to search for
+	ResourceKind string
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
 	// ExplicitUsername is true if Username was initially set by the end-user
@@ -625,6 +627,17 @@ func Run(args []string, opts ...cliOption) error {
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
 
+	// TODO(nic): unhide this command when the rest of search-based access
+	// requests is implemented (#10887)
+	reqSearch := req.Command("search", "Search for resources to request access to").Hidden()
+	reqSearch.Flag(
+		"kind",
+		fmt.Sprintf("Resource kind to search for (%s)", strings.Join(types.ResourceKinds, ", ")),
+	).Required().EnumVar(&cf.ResourceKind, types.ResourceKinds...)
+	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
+
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
 	// MFA subcommands.
@@ -790,6 +803,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestCreate(&cf)
 	case reqReview.FullCommand():
 		err = onRequestReview(&cf)
+	case reqSearch.FullCommand():
+		err = onRequestSearch(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
 	case configProxy.FullCommand():

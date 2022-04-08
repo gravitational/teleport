@@ -215,6 +215,8 @@ const (
 	AccessRequestReviewCode = "T5002I"
 	// AccessRequestDeleteCode is the access request deleted code.
 	AccessRequestDeleteCode = "T5003I"
+	// AccessRequestResourceSearchCode is the access request resource search code.
+	AccessRequestResourceSearchCode = "T5004I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
