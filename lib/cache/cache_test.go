@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -2261,13 +2262,13 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 
 func TestRelativeExpiryOverflow(t *testing.T) {
 	ctx := context.Background()
-	nodeCount := 90000
+	nodeCount := 60000
 	expireBlock := 4500
 	clock := clockwork.NewFakeClock()
 	p, err := newPack(
 		t.TempDir(),
 		func(c Config) Config {
-			c.RelativeExpiryCheckInterval = time.Minute
+			c.RelativeExpiryCheckInterval = 20 * time.Minute
 			c.Clock = clock
 			return ForAuth(c)
 		},
@@ -2313,25 +2314,23 @@ func TestRelativeExpiryOverflow(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, nodes, nodeCount)
 
-	clock.Advance(20 * time.Minute)
-	require.NoError(t, p.cache.performRelativeNodeExpiry(ctx))
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
-	expired := nodeCount - expireBlock
-	var processed int
 	for {
+		clock.Advance(20 * time.Minute)
 		select {
 		case <-watcher.Done():
-			require.NoError(t, watcher.Error())
-		case evt := <-watcher.Events():
-			require.NotNil(t, evt)
-
-			if processed++; processed > expireBlock/3 {
-				clock.Advance(20 * time.Minute)
-				require.NoError(t, p.cache.performRelativeNodeExpiry(ctx))
-				processed = 0
+			err := watcher.Error()
+			if err == nil || err.Error() == "watcher closed" || errors.Is(err, context.Canceled) {
+				return
 			}
-
-			if expired--; expired < 0 {
+			require.NoError(t, err)
+		case <-ticker.C:
+			nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.Less(t, len(nodes), nodeCount)
+			if len(nodes) <= expireBlock {
 				return
 			}
 		}

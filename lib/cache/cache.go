@@ -43,11 +43,13 @@ func tombstoneKey() []byte {
 	return backend.Key("cache", teleport.Version, "tombstone", "ok")
 }
 
-const cacheTargetAuth string = "auth"
+const (
+	relativeExpiryCap int = 1000
+)
 
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
-	cfg.target = cacheTargetAuth
+	cfg.target = "auth"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
@@ -946,12 +948,6 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 // cannot run concurrently with event processing. this function injects additional events into
 // the outbound event stream.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
-	if c.target != cacheTargetAuth {
-		// if we are not the auth cache, we are a downstream cache and can rely upon the
-		// upstream auth cache to perform relative expiry and propagate the changes.
-		return nil
-	}
-
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
 	gracePeriod := apidefaults.ServerAnnounceTTL
 
@@ -1001,20 +997,26 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 			continue
 		}
 
-		// event stream processing is paused while this function runs.  we perform the
-		// actual expiry by constructing a fake delete event for the resource which both
-		// updates this cache, and all downstream caches.
-		err = c.processEvent(ctx, types.Event{
-			Type: types.OpDelete,
-			Resource: &types.ResourceHeader{
-				Kind:     types.KindNode,
-				Metadata: node.GetMetadata(),
-			},
-		})
+		// event stream processing is paused while this function runs. we perform the
+		// actual expiry by constructing a fake delete event for the resource which *only*
+		// updates this cache. this is performed on all caches so eventually all downstream
+		// caches should become consistent.
+		err := c.presenceCache.DeleteNode(ctx, apidefaults.Namespace, node.GetMetadata().Name)
+		if err != nil {
+			// resource could be missing in the cache
+			// expired or not created, if the first consumed
+			// event is delete
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		removed++
+		if removed++; removed >= relativeExpiryCap {
+			break
+		}
 	}
 
 	if removed > 0 {

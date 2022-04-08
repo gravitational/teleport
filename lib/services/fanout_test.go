@@ -30,7 +30,7 @@ import (
 // removes it from the buffer
 func TestFanoutWatcherClose(t *testing.T) {
 	eventsCh := make(chan FanoutEvent, 1)
-	f := NewFanout(eventsCh)
+	f := NewFanout(EventsChannel(eventsCh))
 	w, err := f.NewWatcher(context.TODO(),
 		types.Watch{Name: "test", Kinds: []types.WatchKind{{Name: "test"}}})
 	require.NoError(t, err)

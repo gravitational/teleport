@@ -37,37 +37,37 @@ type fanoutEntry struct {
 	watcher *fanoutWatcher
 }
 
-type bufferConfig struct {
+type fanoutConfig struct {
 	gracePeriod time.Duration
-	capacity    int
+	events      chan FanoutEvent
 	clock       clockwork.Clock
 }
 
-type BufferOption func(*bufferConfig)
-
-// BufferCapacity sets the event capacity of the circular buffer.
-func BufferCapacity(c int) BufferOption {
-	return func(cfg *bufferConfig) {
-		if c > 0 {
-			cfg.capacity = c
-		}
-	}
-}
+type FanoutOption func(*fanoutConfig)
 
 // BacklogGracePeriod sets the amount of time a watcher with a backlog will be tolerated.
-func BacklogGracePeriod(d time.Duration) BufferOption {
-	return func(cfg *bufferConfig) {
+func BacklogGracePeriod(d time.Duration) FanoutOption {
+	return func(cfg *fanoutConfig) {
 		if d > 0 {
 			cfg.gracePeriod = d
 		}
 	}
 }
 
-// BufferClock sets a custom clock for the buffer (used in tests).
-func BufferClock(c clockwork.Clock) BufferOption {
-	return func(cfg *bufferConfig) {
+// FanoutClock sets a custom clock for the buffer (used in tests).
+func FanoutClock(c clockwork.Clock) FanoutOption {
+	return func(cfg *fanoutConfig) {
 		if c != nil {
 			cfg.clock = c
+		}
+	}
+}
+
+// EventsChannel sets a custom clock for the buffer (used in tests).
+func EventsChannel(c chan FanoutEvent) FanoutOption {
+	return func(cfg *fanoutConfig) {
+		if c != nil {
+			cfg.events = c
 		}
 	}
 }
@@ -80,25 +80,24 @@ type Fanout struct {
 	watchers     map[string][]fanoutEntry
 	// eventsCh is used in tests
 	eventsCh chan FanoutEvent
-	cfg      bufferConfig
+	cfg      fanoutConfig
 }
 
 // NewFanout creates a new Fanout instance in an uninitialized
 // state.  Until initialized, watchers will be queued but no
 // events will be sent.
-func NewFanout(eventsCh ...chan FanoutEvent) *Fanout {
-	cfg := bufferConfig{
+func NewFanout(opts ...FanoutOption) *Fanout {
+	cfg := fanoutConfig{
 		gracePeriod: backend.DefaultBacklogGracePeriod,
-		capacity:    backend.DefaultBufferCapacity,
 		clock:       clockwork.NewRealClock(),
+	}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
 	f := &Fanout{
 		watchers: make(map[string][]fanoutEntry),
 		cfg:      cfg,
-	}
-	if len(eventsCh) != 0 {
-		f.eventsCh = eventsCh[0]
 	}
 	return f
 }
@@ -379,7 +378,7 @@ func (w *fanoutWatcher) emit(event types.Event) error {
 		if w.fanout.cfg.clock.Now().After(w.backlogSince.Add(w.fanout.cfg.gracePeriod)) {
 			// backlog has existed for longer than grace period,
 			// this watcher needs to be removed.
-			return trace.BadParameter("buffer overflow")
+			return trace.BadParameter("buffer overflow of %v (backlog=%v).", len(w.eventC), len(w.backlog))
 		}
 		// backlog exists, but we are still within grace period.
 		w.backlog = append(w.backlog, event)
@@ -489,10 +488,10 @@ type FanoutSet struct {
 // NewFanoutSet creates a new FanoutSet instance in an uninitialized
 // state.  Until initialized, watchers will be queued but no
 // events will be sent.
-func NewFanoutSet() *FanoutSet {
+func NewFanoutSet(opts ...FanoutOption) *FanoutSet {
 	members := make([]*Fanout, 0, fanoutSetSize)
 	for i := 0; i < fanoutSetSize; i++ {
-		members = append(members, NewFanout())
+		members = append(members, NewFanout(opts...))
 	}
 	return &FanoutSet{
 		counter: atomic.NewUint64(0),
