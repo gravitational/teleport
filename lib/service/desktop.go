@@ -246,6 +246,10 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				"Windows desktop service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
+
+		// since srv.Serve is a blocking call, we emit this event right before
+		// the service has started
+		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 		err := srv.Serve(listener)
 		if err != nil {
 			if err == http.ErrServerClosed {
