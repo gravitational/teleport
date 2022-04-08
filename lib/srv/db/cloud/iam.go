@@ -18,7 +18,6 @@ package cloud
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -194,11 +193,14 @@ func (c *IAM) getPolicyName() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	policyName := fmt.Sprintf("teleport-database-access-%s", clusterName)
-	if len(policyName) > maxPolicyNameLength {
-		policyName = policyName[:maxPolicyNameLength]
+	prefix := clusterName.GetClusterName()
+
+	maxPrefixLength := maxPolicyNameLength - len(policyNameSuffix)
+	if len(prefix) > maxPrefixLength {
+		prefix = prefix[:maxPrefixLength]
 	}
-	return policyName, nil
+
+	return prefix + policyNameSuffix
 }
 
 // processTask runs an IAM task.
@@ -290,6 +292,9 @@ const (
 	// maxPolicyNameLength is the maximum number of characters for IAM policy
 	// name.
 	maxPolicyNameLength = 128
+
+	// policyNameSuffix is the suffix for inline policy names.
+	policyNameSuffix = "-teleport-database-access"
 
 	// defaultIAMTaskQueueSize is the default task queue size for IAM configurator.
 	defaultIAMTaskQueueSize = 10000
