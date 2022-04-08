@@ -59,6 +59,7 @@ type scriptSettings struct {
 	appInstallMode bool
 	appName        string
 	appURI         string
+	joinMethod     string
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -140,6 +141,7 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 	settings := scriptSettings{
 		token:          params.ByName("token"),
 		appInstallMode: false,
+		joinMethod:     r.URL.Query().Get("method"),
 	}
 
 	script, err := getJoinScript(settings, h.GetProxyClient())
@@ -278,6 +280,7 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 		"appInstallMode": strconv.FormatBool(settings.appInstallMode),
 		"appName":        settings.appName,
 		"appURI":         settings.appURI,
+		"joinMethod":     settings.joinMethod,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
