@@ -51,7 +51,7 @@ type Config struct {
 	// WebProxyAddr
 	WebProxyAddr string
 	// Log is a component logger
-	Log logrus.FieldLogger
+	Log *logrus.Entry
 }
 
 // CheckAndSetDefaults checks and sets the defaults

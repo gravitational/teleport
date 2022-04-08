@@ -18,8 +18,11 @@ package clusters
 
 import (
 	"context"
+	"os/exec"
 
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 )
@@ -60,5 +63,30 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
+	cliCommand, err := buildCliCommand(c, gw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gw.CliCommand = cliCommand.String()
+
 	return gw, nil
+}
+
+func buildCliCommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
+	routeToDb := tlsca.RouteToDatabase{
+		ServiceName: gw.TargetName,
+		Protocol:    gw.Protocol,
+		Username:    gw.TargetUser,
+	}
+
+	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb, c.URI.GetRootClusterName(),
+		dbcmd.WithLogger(gw.Log),
+		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
+		dbcmd.WithNoTLS()).GetConnectCommand()
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cmd, nil
 }
