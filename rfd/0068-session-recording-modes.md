@@ -3,7 +3,7 @@ authors: Gabriel Corado (gabriel.oliveira@goteleport.com)
 state: draft
 ---
 
-# RFD 64 - Session recording modes
+# RFD 68 - Session recording modes
 
 ## What
 
