@@ -589,14 +589,11 @@ type StreamUpload struct {
 	ID string
 	// SessionID is a session ID of the upload
 	SessionID session.ID
-	// Initiated contains the timestamp of when the upload
-	// was initiated, not always initialized
-	Initiated time.Time
 }
 
 // String returns user friendly representation of the upload
 func (u StreamUpload) String() string {
-	return fmt.Sprintf("Upload(session=%v, id=%v, initiated=%v)", u.SessionID, u.ID, u.Initiated)
+	return fmt.Sprintf("Upload(session=%v, id=%v)", u.SessionID, u.ID)
 }
 
 // CheckAndSetDefaults checks and sets default values
