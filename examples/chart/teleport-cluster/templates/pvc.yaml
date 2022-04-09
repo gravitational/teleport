@@ -1,5 +1,5 @@
-{{- if and (and (or (eq .Values.chartMode "standalone") (eq .Values.chartMode "custom")) (.Values.persistence.enabled)) (not .Values.persistence.existingClaimName) }}
-  {{- $persistence := (coalesce .Values.standalone .Values.persistence) -}}
+{{- $persistence := (coalesce .Values.standalone .Values.persistence) -}}
+{{- if and (and (or (eq .Values.chartMode "standalone") (eq .Values.chartMode "custom")) (.Values.persistence.enabled)) (not $persistence.existingClaimName) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
