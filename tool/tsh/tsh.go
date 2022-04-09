@@ -275,6 +275,8 @@ type CLIConf struct {
 	LocalProxyCertFile string
 	// LocalProxyKeyFile is the client key used by local proxy.
 	LocalProxyKeyFile string
+	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
+	LocalProxyTunnel bool
 
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
@@ -467,6 +469,7 @@ func Run(args []string, opts ...cliOption) error {
 	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
 	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
+	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1881,6 +1884,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.IdentityFileIn != "" {
 		// Ignore local authentication methods when identity file is provided
 		c.SkipLocalAuth = true
+		// Force the use of the certificate principals so Unix
+		// username does not get used when logging in
+		c.UseKeyPrincipals = hostLogin == ""
+
 		var (
 			key          *client.Key
 			identityAuth ssh.AuthMethod
