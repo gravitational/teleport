@@ -74,10 +74,12 @@ labels: {}
 #     kubectl -n ${TELEPORT_NAMESPACE?} create configmap ${HELM_RELEASE_NAME?} --from-file=teleport.yaml
 chartMode: standalone
 
-################################################################
-# Standalone-specific settings (only used in "standalone" mode)
-################################################################
-standalone:
+######################################################################
+# Persistence settings (only used in "standalone" and "custom" modes)
+######################################################################
+persistence:
+  ## Enable persistence using Persistent Volume Claims
+  enabled: true
   # Leave blank to automatically create a PersistentVolumeClaim for Teleport storage.
   # If you would like to use a pre-existing PersistentVolumeClaim, put its name here.
   existingClaimName: ""

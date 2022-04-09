@@ -491,10 +491,12 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should add PersistentVolumeClaim as volume when in standalone mode
+  - it: should add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is true
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
+      persistence:
+        enabled: true
     asserts:
       - contains:
           path: spec.template.spec.volumes
@@ -505,11 +507,104 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should add named PersistentVolumeClaim as volume when in standalone mode and standalone.existingClaimName is set
+  - it: should not add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is false
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add PersistentVolumeClaim as volume when in custom mode and persistence.enabled is true
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not add PersistentVolumeClaim as volume when in custom mode and persistence.enabled is false
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
     values:
       - ../.lint/standalone-existingpvc.yaml
     asserts:
       - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set but persistence.enabled is false
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add named PersistentVolumeClaim as volume when in custom mode and persistence.existingClaimName is set
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not add named PersistentVolumeClaim as volume when in custom mode, persistence.existingClaimName is set and persistence.enabled is false
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
           path: spec.template.spec.volumes
           content:
             name: data
@@ -533,19 +628,6 @@ tests:
   - it: should add emptyDir for data in GCP mode
     values:
       - ../.lint/gcp-ha.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            emptyDir: {}
-      - matchSnapshot:
-          path: spec.template.spec
-
-  - it: should add emptyDir for data in custom mode
-    set:
-      chartMode: custom
-      clusterName: helm-lint.example.com
     asserts:
       - contains:
           path: spec.template.spec.volumes

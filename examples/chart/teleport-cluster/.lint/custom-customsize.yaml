@@ -1,9 +1,9 @@
-clusterName: test-standalone-cluster
-chartMode: standalone
+clusterName: test-custom-cluster
+chartMode: custom
 persistence:
   enabled: true
   volumeSize: 50Gi
 acme: true
 acmeEmail: test@email.com
 labels:
-  env: standalone
+  env: custom

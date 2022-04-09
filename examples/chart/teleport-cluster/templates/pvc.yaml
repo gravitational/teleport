@@ -1,4 +1,5 @@
-{{- if and (eq .Values.chartMode "standalone") (not .Values.standalone.existingClaimName) }}
+{{- if and (and (or (eq .Values.chartMode "standalone") (eq .Values.chartMode "custom")) (.Values.persistence.enabled)) (not .Values.persistence.existingClaimName) }}
+  {{- $persistence := (coalesce .Values.standalone .Values.persistence) -}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -11,5 +12,5 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: {{ required "standalone.volumeSize is required in chart values" .Values.standalone.volumeSize }}
+      storage: {{ required "persistence.volumeSize is required in chart values" $persistence.volumeSize }}
 {{- end }}

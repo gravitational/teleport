@@ -153,6 +153,31 @@
                 }
             }
         },
+        "persistence": {
+            "$id": "#/properties/persistence",
+            "type": "object",
+            "required": [
+                "enabled",
+                "volumeSize"
+            ],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/persistence/properties/enabled",
+                    "type": "boolean",
+                    "default": "true"
+                },
+                "existingClaimName": {
+                    "$id": "#/properties/persistence/properties/existingClaimName",
+                    "type": "string",
+                    "default": ""
+                },
+                "volumeSize": {
+                    "$id": "#/properties/persistence/properties/volumeSize",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
         "aws": {
             "$id": "#/properties/aws",
             "type": "object",
