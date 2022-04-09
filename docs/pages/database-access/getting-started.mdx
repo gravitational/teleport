@@ -99,10 +99,14 @@ see the AWS [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGui
 
 (!docs/pages/includes/database-access/token.mdx!)
 
+Install Teleport on the node that will run the Teleport Database Service.
+
+(!docs/pages/includes/install-linux.mdx!)
+
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-On the node where you will run the Teleport Database Service, start Teleport and
+ On the node where you will run the Teleport Database Service, start Teleport and
 point it to your Aurora database instance. Make sure to update the database
 endpoint and region appropriately. The `--auth-server` flag must point to the
 address of your Teleport Proxy Service.
