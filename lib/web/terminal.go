@@ -240,7 +240,9 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 		select {
 		case <-tickerCh.C:
 			for {
-				deadline := time.Now().Add(t.params.KeepAliveInterval)
+				// A short deadline is used here to detect a broken connection quickly.
+				// If this is just a temporary issue, we will retry shortly anyway.
+				deadline := time.Now().Add(time.Second)
 				if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
 					if e, ok := err.(net.Error); ok && e.Temporary() {
 						t.log.Warnf("Temporary issue attempting to send ping frame to web client: %v.", err)

@@ -1063,6 +1063,15 @@ func (s *WebSuite) TestTerminalPing(c *C) {
 		return err
 	})
 
+	go func() {
+		for {
+			_, _, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
 	select {
 	case <-done:
 	case <-time.After(time.Minute):
