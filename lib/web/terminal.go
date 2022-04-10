@@ -737,6 +737,9 @@ func (w *terminalStream) Close() error {
 	return w.ws.Close()
 }
 
+// deadlineForInterval returns a suitable network read deadline for a given ping interval.
+// We chose to take the current time plus twice the interval to allow the timeframe of one interval
+// to wait for a returned pong message.
 func deadlineForInterval(interval time.Duration) time.Time {
 	return time.Now().Add(interval * 2)
 }
