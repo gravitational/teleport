@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -203,7 +204,9 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ws.SetReadDeadline(time.Now().Add(t.params.KeepAliveInterval))
+	// KeepAliveInterval is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value.
+	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
 	t.handler(ws, r)
 }
 
@@ -231,17 +234,35 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
 	defer tickerCh.Stop()
 
+	terminateMessage := func() { t.log.Debug("Terminating websocket ping loop.") }
+
 	for {
 		select {
 		case <-tickerCh.C:
-			deadline := time.Now().Add(t.params.KeepAliveInterval)
-			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
-				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
-				t.Close()
-				return
+			for {
+				deadline := time.Now().Add(t.params.KeepAliveInterval)
+				if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+					if e, ok := err.(net.Error); ok && e.Temporary() {
+						t.log.Warnf("Temporary issue attempting to send ping frame to web client: %v.", err)
+
+						select {
+						case <-time.After(time.Second):
+							continue
+						case <-t.terminalContext.Done():
+							terminateMessage()
+							return
+						}
+					}
+
+					t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+					t.Close()
+					return
+				}
+
+				break
 			}
 		case <-t.terminalContext.Done():
-			t.log.Debug("Terminating websocket ping loop.")
+			terminateMessage()
 			return
 		}
 	}
@@ -272,8 +293,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
-		deadline := time.Now().Add(t.params.KeepAliveInterval)
-		ws.SetReadDeadline(deadline)
+		ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
 		return nil
 	})
 
@@ -710,12 +730,11 @@ func (w *terminalStream) Read(out []byte) (n int, err error) {
 	return w.terminal.read(out, w.ws)
 }
 
-// SetReadDeadline sets the network read deadline on the underlying websocket.
-func (w *terminalStream) SetReadDeadline(t time.Time) error {
-	return w.ws.SetReadDeadline(t)
-}
-
 // Close the websocket.
 func (w *terminalStream) Close() error {
 	return w.ws.Close()
+}
+
+func deadlineForInterval(interval time.Duration) time.Time {
+	return time.Now().Add(interval * 2)
 }

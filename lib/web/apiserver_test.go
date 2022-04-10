@@ -162,7 +162,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.clock = clockwork.NewFakeClock()
 
 	networkingConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		KeepAliveInterval: types.Duration(time.Second * 10),
+		KeepAliveInterval: types.Duration(10 * time.Second),
 	})
 	c.Assert(err, IsNil)
 
@@ -1045,8 +1045,8 @@ func (s *WebSuite) TestTerminalPing(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 	defer ws.Close()
-	closed := false
 
+	closed := false
 	done := make(chan struct{})
 	ws.SetPingHandler(func(message string) error {
 		if closed == false {
@@ -1065,7 +1065,7 @@ func (s *WebSuite) TestTerminalPing(c *C) {
 
 	select {
 	case <-done:
-	case <-time.After(time.Minute * 5):
+	case <-time.After(time.Minute):
 		c.Fatal("timeout waiting for ping")
 	}
 }
