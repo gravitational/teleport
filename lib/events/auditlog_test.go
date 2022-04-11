@@ -168,7 +168,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 }
 
 func (a *AuditTestSuite) TestExternalLog(c *check.C) {
-	m := &MockAuditLog{
+	m := &mockAuditLog{
 		emitter: eventstest.MockEmitter{},
 	}
 
