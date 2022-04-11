@@ -121,7 +121,7 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 	sessions := make([]types.SessionTracker, 0, len(result.Items))
 
 	// We don't overallocate expired since cleaning up sessions here should be rare.
-	noExpiry := make([]backend.Item, 0)
+	var noExpiry []backend.Item
 	now := time.Now().UTC()
 	for _, item := range result.Items {
 		session, err := unmarshalSession(item.Value)
