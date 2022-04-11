@@ -128,6 +128,14 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 	require.Eventually(t, func() bool {
 		sessions, err := srv.GetActiveSessionTrackers(ctx)
 		require.NoError(t, err)
-		return len(sessions) == 1 && sessions[0].GetSessionID() == id2
+
+		// Verify that we only get one session and that it's `id2` since we expect that
+		// `id` is filtered out due to it's expiry.
+		if len(sessions) == 1 {
+			require.Equal(t, sessions[0].GetSessionID(), id2)
+			return true
+		}
+
+		return false
 	}, time.Minute, time.Second)
 }
