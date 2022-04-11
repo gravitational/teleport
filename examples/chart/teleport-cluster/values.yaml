@@ -78,7 +78,7 @@ chartMode: standalone
 # Persistence settings (only used in "standalone" and "custom" modes)
 ######################################################################
 persistence:
-  ## Enable persistence using Persistent Volume Claims
+  # Enable persistence using a PersistentVolumeClaim
   enabled: true
   # Leave blank to automatically create a PersistentVolumeClaim for Teleport storage.
   # If you would like to use a pre-existing PersistentVolumeClaim, put its name here.
