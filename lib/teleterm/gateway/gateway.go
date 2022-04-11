@@ -132,7 +132,7 @@ type Gateway struct {
 	Config
 	// Set by the cluster when running clusters.Cluster.CreateGateway.
 	// We can't set here inside New as dbcmd.NewCmdBuilder needs info from the cluster.
-	CliCommand string
+	CLICommand string
 
 	localProxy *alpn.LocalProxy
 	// closeContext and closeCancel are used to signal to any waiting goroutines

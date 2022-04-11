@@ -67,7 +67,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gw.CliCommand = cliCommand.String()
+	gw.CLICommand = cliCommand.String()
 
 	return gw, nil
 }

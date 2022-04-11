@@ -75,6 +75,6 @@ func newAPIGateway(gateway *gateway.Gateway) *api.Gateway {
 		Protocol:     gateway.Protocol,
 		LocalAddress: gateway.LocalAddress,
 		LocalPort:    gateway.LocalPort,
-		CliCommand:   gateway.CliCommand,
+		CliCommand:   gateway.CLICommand,
 	}
 }
