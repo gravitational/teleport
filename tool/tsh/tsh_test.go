@@ -1429,7 +1429,6 @@ func setHomePath(path string) cliOption {
 func testSerialization(t *testing.T, expected string, serializer func(string) (string, error)) {
 	out, err := serializer(teleport.JSON)
 	require.NoError(t, err)
-	fmt.Println(out)
 	require.JSONEq(t, expected, out)
 
 	out, err = serializer(teleport.YAML)
@@ -1742,7 +1741,7 @@ func TestSerializeProfiles(t *testing.T) {
   ]
 }
 	`
-	validUntil := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	p, err := url.Parse("example.com")
 	require.NoError(t, err)
 	activeProfile := &client.ProfileStatus{
@@ -1757,14 +1756,14 @@ func TestSerializeProfiles(t *testing.T) {
 		KubeUsers:      []string{"x"},
 		KubeGroups:     []string{"y"},
 		Databases:      []tlsca.RouteToDatabase{{ServiceName: "z"}},
-		ValidUntil:     validUntil,
+		ValidUntil:     aTime,
 		Extensions:     []string{"7", "8", "9"},
 	}
 	otherProfile := &client.ProfileStatus{
 		ProxyURL:   *p,
 		Username:   "test2",
 		Cluster:    "other",
-		ValidUntil: validUntil,
+		ValidUntil: aTime,
 	}
 
 	testSerialization(t, expected, func(f string) (string, error) {
@@ -1785,14 +1784,14 @@ func TestSerializeProfilesNoOthers(t *testing.T) {
 		"profiles": []
 	}
 	`
-	validUntil := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	p, err := url.Parse("example.com")
 	require.NoError(t, err)
 	profile := &client.ProfileStatus{
 		ProxyURL:   *p,
 		Username:   "test",
 		Cluster:    "main",
-		ValidUntil: validUntil,
+		ValidUntil: aTime,
 	}
 	testSerialization(t, expected, func(f string) (string, error) {
 		return serializeProfiles(profile, nil, f)
@@ -1825,5 +1824,179 @@ func TestSerializeEnvironment(t *testing.T) {
 	}
 	testSerialization(t, expected, func(f string) (string, error) {
 		return serializeEnvironment(profile, f)
+	})
+}
+
+func TestSerializeAccessRequests(t *testing.T) {
+	expected := `
+	{
+    "kind": "access_request",
+    "version": "v3",
+    "metadata": {
+      "name": "test"
+    },
+    "spec": {
+      "user": "user",
+      "roles": [
+        "a",
+        "b",
+        "c"
+      ],
+      "state": 1,
+      "created": "0001-01-01T00:00:00Z",
+      "expires": "0001-01-01T00:00:00Z"
+    }
+  }
+	`
+	req, err := types.NewAccessRequest("test", "user", "a", "b", "c")
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeAccessRequest(req, f)
+	})
+	expected2 := fmt.Sprintf("[%v]", expected)
+	testSerialization(t, expected2, func(f string) (string, error) {
+		return serializeAccessRequests([]types.AccessRequest{req}, f)
+	})
+}
+
+func TestSerializeKubeSessions(t *testing.T) {
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	expected := `
+	[
+  {
+    "kind": "session_tracker",
+    "version": "v1",
+    "metadata": {
+      "name": "id"
+    },
+    "spec": {
+      "session_id": "id",
+      "kind": "session-kind",
+      "state": 1,
+      "created": "1970-01-01T00:00:00Z",
+      "expires": "1970-01-01T00:00:00Z",
+      "attached": "arbitrary attached data",
+      "reason": "some reason",
+      "invited": [
+        "a",
+        "b",
+        "c"
+      ],
+      "target_hostname": "example.com",
+      "target_address": "https://example.com",
+      "cluster_name": "cluster",
+      "login": "login",
+      "participants": [
+        {
+          "id": "some-id",
+          "user": "test",
+          "mode": "mode",
+          "last_active": "1970-01-01T00:00:00Z"
+        }
+      ],
+      "kubernetes_cluster": "kc",
+      "host_user": "test",
+      "host_roles": [
+        {
+          "name": "policy",
+          "version": "v1",
+          "require_session_join": [
+            {
+              "name": "policy",
+              "filter": "filter",
+              "kinds": [
+                "x",
+                "y",
+                "z"
+              ],
+              "count": 1,
+              "modes": [
+                "mode",
+                "mode-1",
+                "mode-2"
+              ],
+              "on_leave": "do something"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+	`
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:    "id",
+		Kind:         "session-kind",
+		State:        types.SessionState_SessionStateRunning,
+		Created:      aTime,
+		Expires:      aTime,
+		AttachedData: "arbitrary attached data",
+		Reason:       "some reason",
+		Invited:      []string{"a", "b", "c"},
+		Hostname:     "example.com",
+		Address:      "https://example.com",
+		ClusterName:  "cluster",
+		Login:        "login",
+		Participants: []types.Participant{
+			{
+				ID:         "some-id",
+				User:       "test",
+				Mode:       "mode",
+				LastActive: aTime,
+			},
+		},
+		KubernetesCluster: "kc",
+		HostUser:          "test",
+		HostPolicies: []*types.SessionTrackerPolicySet{
+			{
+				Name:    "policy",
+				Version: "v1",
+				RequireSessionJoin: []*types.SessionRequirePolicy{
+					{
+						Name:    "policy",
+						Filter:  "filter",
+						Kinds:   []string{"x", "y", "z"},
+						Count:   1,
+						Modes:   []string{"mode", "mode-1", "mode-2"},
+						OnLeave: "do something",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeKubeSessions([]types.SessionTracker{tracker}, f)
+	})
+}
+
+func TestSerializeKubeClusters(t *testing.T) {
+	expected := `
+	[
+		{
+			"kube_cluster_name": "cluster1",
+			"selected": true
+		},
+		{
+			"kube_cluster_name": "cluster2",
+			"selected": false
+		}
+	]
+	`
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeKubeClusters([]string{"cluster1", "cluster2"}, "cluster1", f)
+	})
+}
+
+func TestSerializeMFADevices(t *testing.T) {
+	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	expected := `
+	[
+  {"metadata":{"Name":"my device"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z"}
+	]
+	`
+	dev := types.NewMFADevice("my device", "id", aTime)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeMFADevices([]*types.MFADevice{dev}, f)
 	})
 }

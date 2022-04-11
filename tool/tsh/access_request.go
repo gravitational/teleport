@@ -102,19 +102,14 @@ func onRequestList(cf *CLIConf) error {
 		reqs = filtered
 	}
 
-	switch strings.ToLower(cf.Format) {
+	format := strings.ToLower(cf.Format)
+	switch format {
 	case teleport.Text:
 		if err := showRequestTable(reqs); err != nil {
 			return trace.Wrap(err)
 		}
-	case teleport.JSON:
-		out, err := utils.FastMarshalIndent(reqs, "", "  ")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(string(out))
-	case teleport.YAML:
-		out, err := yaml.Marshal(reqs)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeAccessRequests(reqs, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -123,6 +118,17 @@ func onRequestList(cf *CLIConf) error {
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 	return nil
+}
+
+func serializeAccessRequests(reqs []types.AccessRequest, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(reqs, "", "  ")
+	} else {
+		out, err = yaml.Marshal(reqs)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func onRequestShow(cf *CLIConf) error {
@@ -144,20 +150,15 @@ func onRequestShow(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	switch strings.ToLower(cf.Format) {
+	format := strings.ToLower(cf.Format)
+	switch format {
 	case teleport.Text:
 		err = printRequest(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	case teleport.JSON:
-		out, err := utils.FastMarshalIndent(req, "", "  ")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(string(out))
-	case teleport.YAML:
-		out, err := yaml.Marshal(req)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeAccessRequest(req, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -166,6 +167,17 @@ func onRequestShow(cf *CLIConf) error {
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 	return nil
+}
+
+func serializeAccessRequest(req types.AccessRequest, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(req, "", "  ")
+	} else {
+		out, err = yaml.Marshal(req)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func printRequest(req types.AccessRequest) error {
