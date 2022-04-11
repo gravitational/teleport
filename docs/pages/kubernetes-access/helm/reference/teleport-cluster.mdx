@@ -407,39 +407,61 @@ Teleport's RBAC policies to define access rules for the cluster.
 | `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../guides/gcp.mdx) |
 | `custom` | [Running a Teleport cluster with a custom config](../guides/custom.mdx) |
 
-## `standalone`
+## `persistence`
 
-### `standalone.existingClaimName`
+### `[persistence].enabled`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `true` | ✅ |
+
+`[persistence].enabled` can be used to enable data persistence using either a new or pre-existing `PersistentVolumeClaim`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  persistence:
+    enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set [persistence].enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `[persistence].existingClaimName`
 
 | Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string` | `nil` | ✅ |
 
-`standalone.existingClaimName` can be used to provide the name of a pre-existing `PersistentVolumeClaim` to use if desired.
+`[persistence].existingClaimName` can be used to provide the name of a pre-existing `PersistentVolumeClaim` to use if desired.
 
-The default is left blank, which will automatically create a `PersistentVolumeClaim` to use for Teleport storage in `standalone` mode.
+The default is left blank, which will automatically create a `PersistentVolumeClaim` to use for Teleport storage in `standalone` or `custom` mode.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  standalone:
+  persistence:
     existingClaimName: my-existing-pvc-name
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set standalone.existingClaimName=my-existing-pvc-name
+  $ --set [persistence].existingClaimName=my-existing-pvc-name
   ```
   </TabItem>
 </Tabs>
 
-### `standalone.volumeSize`
+### `[persistence].volumeSize`
 
 | Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string`  | `10Gi` | ✅ |
 
-You can set `volumeSize` to request a different size of persistent volume when installing the Teleport chart in `standalone` mode.
+You can set `volumeSize` to request a different size of persistent volume when installing the Teleport chart in `standalone` or `custom` mode.
 
 <Admonition type="note">
   `volumeSize` will be ignored if `existingClaimName` is set.
@@ -448,13 +470,13 @@ You can set `volumeSize` to request a different size of persistent volume when i
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  standalone:
+  persistence:
     volumeSize: 50Gi
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  --set standalone.volumeSize=50Gi
+  --set [persistence].volumeSize=50Gi
   ```
   </TabItem>
 </Tabs>
