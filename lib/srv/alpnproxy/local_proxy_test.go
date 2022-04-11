@@ -104,7 +104,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 }
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
-	hs := httptest.NewTLSServer(httpHandlerReturnsCode(http.StatusOK))
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
 
 	lp, err := NewLocalProxy(LocalProxyConfig{
 		Listener:           mustCreateLocalListener(t),

@@ -196,7 +196,7 @@ func NewCertGenListener(config CertGenListenerConfig) (*CertGenListener, error) 
 // GetCertificate return TLS certificate based on SNI. Implements
 // tls.Config.GetCertificate.
 func (r *CertGenListener) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	// Requests to IPs have no server name.
+	// Requests to IPs have no server names. Default to CA.
 	if clientHello.ServerName == "" {
 		return &r.cfg.CA, nil
 	}
@@ -212,7 +212,7 @@ func (r *CertGenListener) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls
 	if err != nil {
 		log.WithError(err).Errorf("Failed to generate certificate for %q.", clientHello.ServerName)
 
-		// Serve CA.
+		// Default to CA.
 		return &r.cfg.CA, nil
 	}
 

@@ -137,7 +137,7 @@ func generateAWSCredentials() (*credentials.Credentials, error) {
 	return credentials.NewStaticCredentials(id, secret, ""), nil
 }
 
-func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials, ca tls.Certificate) (*alpnproxy.LocalProxy, error) {
+func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *credentials.Credentials, localCerts tls.Certificate) (*alpnproxy.LocalProxy, error) {
 	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -167,15 +167,15 @@ func createLocalAWSCLIProxy(cf *CLIConf, tc *client.TeleportClient, cred *creden
 	// Create listener for receiving AWS requests tunneled from forward proxy:
 	// client request -> forward proxy -> ALPN local proxy -> remote server
 	//
-	// The listener can also receive AWS calls directly if clients specifies
-	// the listener address as endpoint URLs:
+	// The listener can also receive AWS calls directly if clients specify the
+	// listener address as endpoint URLs:
 	// client request -> ALPN local proxy -> remote server
 	//
-	// In either case, AWS clients need to verify CA that can be provided by
-	// AWS_CA_BUNDLE.
-	listener, err := alpnproxy.NewHTTPSListenerWithCertGen(alpnproxy.HTTPSListenerWithCertGenConfig{
+	// In either case, AWS clients need to verify CA by providing the self
+	// signed CA file through AWS_CA_BUNDLE.
+	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
 		ListenAddr: listenAddr,
-		CA:         ca,
+		CA:         localCerts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -219,8 +219,7 @@ func createAWSForwardProxy(cf *CLIConf, lp *alpnproxy.LocalProxy) (*alpnproxy.Fo
 	// HTTPS so non-HTTPS requests are rejected.). The initial "CONNECT"
 	// request before tunneling is not encrypted but it contains minimal
 	// information like host and sometimes user agent. In addition, the forward
-	// proxy and its receiver are localhost only so the transport does not
-	// leave the local network.
+	// proxy and its receiver are localhost only.
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -238,7 +237,7 @@ func createAWSForwardProxy(cf *CLIConf, lp *alpnproxy.LocalProxy) (*alpnproxy.Fo
 				Host: lp.GetAddr(),
 			}),
 
-			// Forward non AWS requests to system proxy, if configured.
+			// Forward non AWS requests to user's system proxy, if configured.
 			alpnproxy.NewForwardToSystemProxyHandler(alpnproxy.ForwardToSystemProxyHandlerConfig{
 				InsecureSystemProxy: cf.InsecureSkipVerify,
 			}),

@@ -148,6 +148,16 @@ type ForwardToHostHandlerConfig struct {
 	Host string
 }
 
+// SetDefaults sets default config values.
+func (c *ForwardToHostHandlerConfig) SetDefaults() {
+	if c.MatchFunc == nil {
+		// Default to match all requets.
+		c.MatchFunc = func(req *http.Request) bool {
+			return true
+		}
+	}
+}
+
 // ForwardToHostHandler is a ConnectRequestHandler that forwards requests to
 // designated host.
 type ForwardToHostHandler struct {
@@ -156,6 +166,8 @@ type ForwardToHostHandler struct {
 
 // NewForwardToHostHandler creates a new ForwardToHostHandler.
 func NewForwardToHostHandler(cfg ForwardToHostHandlerConfig) *ForwardToHostHandler {
+	cfg.SetDefaults()
+
 	return &ForwardToHostHandler{
 		cfg: cfg,
 	}
@@ -192,11 +204,7 @@ func (h *ForwardToHostHandler) Handle(ctx context.Context, clientConn net.Conn, 
 // NewForwardToOriginalHostHandler creates a new CONNECT request handler that
 // forwards all requests to their original hosts.
 func NewForwardToOriginalHostHandler() *ForwardToHostHandler {
-	return NewForwardToHostHandler(ForwardToHostHandlerConfig{
-		MatchFunc: func(req *http.Request) bool {
-			return true
-		},
-	})
+	return NewForwardToHostHandler(ForwardToHostHandlerConfig{})
 }
 
 // ForwardToSystemProxyHandlerConfig is the config for

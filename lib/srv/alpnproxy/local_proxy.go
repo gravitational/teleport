@@ -297,7 +297,6 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 
 func (l *LocalProxy) Close() error {
 	l.cancel()
-
 	if l.cfg.Listener != nil {
 		if err := utils.CloseListener(l.cfg.Listener); err != nil {
 			return trace.Wrap(err)

@@ -103,7 +103,7 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 		IsCA:                  true,
 	}
 
-	// Sort out principals into DNS names and IP addresses
+	// Sort out principals into DNS names and IP addresses.
 	for i := range config.DNSNames {
 		if ip := net.ParseIP(config.DNSNames[i]); ip != nil {
 			template.IPAddresses = append(template.IPAddresses, ip)
