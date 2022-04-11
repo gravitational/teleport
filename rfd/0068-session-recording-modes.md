@@ -57,9 +57,15 @@ There are going to be two audit modes:
 The configuration is going to be done at the role level. The role option
 `record_session` will be extended to hold the audit mode values: `strict` and
 `best_effort`. It will have one entry per session kind (desktop, databases,
-applications, Kubernetes, and SSH) and a `default` entry for cases where users
-want the same behavior for all kinds. For this RFD, only the `default`, `k8s`
-and `ssh` options are going to be added.
+applications, Kubernetes, and SSH). want the same behavior for all kinds.
+
+In addition, there will be a `default` entry for setting a default value used
+when sessions kind doesn't have one set.  Currently, Teleport doesn't prevent
+sessions from happening if there is a failure on the recording. To keep this
+behavior after introducing the recording modes, the default value will be set
+to `best_effort`.
+
+For this RFD, only the `default`, `k8s` and `ssh` options are going to be added.
 
 **Note**: Currently, the option `record_session.desktop` uses a boolean value to
 enable/disable session recordings. When adding recording modes to desktop
@@ -83,9 +89,43 @@ spec:
       k8s: strict|best_effort
 ```
 
+#### Modes precedence
+
+The strict mode takes precedence to avoid giving undesired users the ability to
+start a session in the best-effort mode. For example, if the user has multiple
+roles attached to them, and at least one has the option set to `strict`, their
+session recording will be on strict mode. This rule also applies to the
+`default` values.
+
+When users have multiple roles assigned, the session recording mode will be set
+to the strictest. See the example below:
+
+Let's say a user has two roles assigned:
+
+```yaml
+# Role 1:
+options:
+  record_session:
+    default: strict
+	ssh: best_effort
+	k8s: strict
+
+# Role 2:
+options:
+  record_session:
+    default: best_effort
+```
+
+If the user:
+* starts an SSH session: mode will be set to `best_effort`.
+* starts a Kubernetes session: mode will be set to `strict` because role 1 is
+  stricter.
+* starts a desktop session: none of the roles define a direct value for desktop
+  so that the strictest default value will be used. In this case, from role 1.
+
 ### Examples
 
-### Strict mode
+#### Strict mode
 
 ```shell
 # Prevent users from starting new SSH sessions when it encounters an audit error.
@@ -112,7 +152,7 @@ Session terminating due to node error: no space left on device.
 Closing session...
 ```
 
-### Best effort mode
+#### Best effort mode
 
 ```shell
 # SSH Session starts with a "warning" message.
@@ -155,11 +195,7 @@ root@container:~$ exit
 
 Although this RFD doesn't cover session recording toggle, the best effort mode
 will purpose scenarios where it is ok not to have session recording. Users with
-this mode set to their role might use this to have unrecorded sessions. The
-strict mode takes precedence to avoid giving undesired users the ability to
-start a session in the best-effort mode. For example, if the user has multiple
-roles attached to them, and at least one has the option set to `strict`, their
-session will be on strict mode.
+this mode set to their role might use this to have unrecorded sessions.
 
 Another way to corrupt session recording is to fill the node disk during the
 session, in this case, Teleport won't be able to record the session and upload
