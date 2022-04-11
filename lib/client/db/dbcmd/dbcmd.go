@@ -87,7 +87,10 @@ func (s systemExecer) Command(name string, arg ...string) *exec.Cmd {
 	return exec.Command(name, arg...)
 }
 
-type cliCommandBuilder struct {
+// CliCommandBuilder holds data needed to build a CLI command from args passed to NewCmdBuilder.
+// Any calls to the exec package within CliCommandBuilder methods that need to be mocked should
+// use the exe field rather than calling the package directly.
+type CliCommandBuilder struct {
 	tc          *client.TeleportClient
 	rootCluster string
 	profile     *client.ProfileStatus
@@ -102,7 +105,7 @@ type cliCommandBuilder struct {
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	db *tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
-) *cliCommandBuilder {
+) *CliCommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -119,7 +122,7 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		options.log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
-	return &cliCommandBuilder{
+	return &CliCommandBuilder{
 		tc:          tc,
 		profile:     profile,
 		db:          db,
@@ -133,7 +136,7 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 }
 
-func (c *cliCommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
+func (c *CliCommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
 		return c.getPostgresCommand(), nil
@@ -157,7 +160,7 @@ func (c *cliCommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
 }
 
-func (c *cliCommandBuilder) GetRelativeConnectCommand() (*exec.Cmd, error) {
+func (c *CliCommandBuilder) GetRelativeConnectCommand() (*exec.Cmd, error) {
 	cmd, err := c.GetConnectCommand()
 
 	if err != nil {
@@ -171,11 +174,11 @@ func (c *cliCommandBuilder) GetRelativeConnectCommand() (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
+func (c *CliCommandBuilder) getPostgresCommand() *exec.Cmd {
 	return c.exe.Command(postgresBin, c.getPostgresConnString())
 }
 
-func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
+func (c *CliCommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
 	if _, err := c.exe.LookPath(cockroachBin); err != nil {
 		c.options.log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
@@ -186,7 +189,7 @@ func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 }
 
 // getPostgresConnString returns the connection string for postgres.
-func (c *cliCommandBuilder) getPostgresConnString() string {
+func (c *CliCommandBuilder) getPostgresConnString() string {
 	return postgres.GetConnString(
 		db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port),
 		c.options.noTLS,
@@ -196,7 +199,7 @@ func (c *cliCommandBuilder) getPostgresConnString() string {
 
 // getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.
 // Currently, the common options are: user, database, host, port and protocol.
-func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
+func (c *CliCommandBuilder) getMySQLCommonCmdOpts() []string {
 	args := make([]string, 0)
 	if c.db.Username != "" {
 		args = append(args, "--user", c.db.Username)
@@ -220,7 +223,7 @@ func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
 
 // getMariaDBArgs returns arguments unique for mysql cmd shipped by MariaDB and mariadb cmd. Common options for mysql
 // between Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
-func (c *cliCommandBuilder) getMariaDBArgs() []string {
+func (c *CliCommandBuilder) getMariaDBArgs() []string {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
@@ -244,7 +247,7 @@ func (c *cliCommandBuilder) getMariaDBArgs() []string {
 
 // getMySQLOracleCommand returns arguments unique for mysql cmd shipped by Oracle. Common options between
 // Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
-func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
+func (c *CliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
@@ -265,7 +268,7 @@ func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
 // mysql command is returned. Both mysql versions (MariaDB and Oracle) are supported.
-func (c *cliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
+func (c *CliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
 	if c.isMariaDBBinAvailable() {
 		args := c.getMariaDBArgs()
@@ -290,26 +293,26 @@ func (c *cliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 }
 
 // isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.
-func (c *cliCommandBuilder) isMariaDBBinAvailable() bool {
+func (c *CliCommandBuilder) isMariaDBBinAvailable() bool {
 	_, err := c.exe.LookPath(mariadbBin)
 	return err == nil
 }
 
 // isMySQLBinAvailable returns true if "mysql" binary is found in the system PATH.
-func (c *cliCommandBuilder) isMySQLBinAvailable() bool {
+func (c *CliCommandBuilder) isMySQLBinAvailable() bool {
 	_, err := c.exe.LookPath(mysqlBin)
 	return err == nil
 }
 
 // isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
-func (c *cliCommandBuilder) isMongoshBinAvailable() bool {
+func (c *CliCommandBuilder) isMongoshBinAvailable() bool {
 	_, err := c.exe.LookPath(mongoshBin)
 	return err == nil
 }
 
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
 // true is returned when binary comes from MariaDB, false when from Oracle.
-func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
+func (c *CliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	// Check if mysql comes from Oracle or MariaDB
 	mysqlVer, err := c.exe.RunCommand(mysqlBin, "--version")
 	if err != nil {
@@ -326,7 +329,7 @@ func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
 }
 
-func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
+func (c *CliCommandBuilder) getMongoCommand() *exec.Cmd {
 	// look for `mongosh`
 	hasMongosh := c.isMongoshBinAvailable()
 
@@ -385,7 +388,7 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 }
 
 // getRedisCommand returns redis-cli commands used by 'tsh db connect' when connecting to a Redis instance.
-func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
+func (c *CliCommandBuilder) getRedisCommand() *exec.Cmd {
 	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
 	args := []string{
 		"-h", c.host,
@@ -415,7 +418,7 @@ func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
 	return c.exe.Command(redisBin, args...)
 }
 
-func (c *cliCommandBuilder) getSQLServerCommand() *exec.Cmd {
+func (c *CliCommandBuilder) getSQLServerCommand() *exec.Cmd {
 	args := []string{
 		// Host and port must be comma-separated.
 		"-S", fmt.Sprintf("%v,%v", c.host, c.port),
