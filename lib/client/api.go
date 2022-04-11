@@ -373,6 +373,12 @@ type Config struct {
 	// Affects the TeleportClient.Login and, indirectly, RetryWithRelogin
 	// functions.
 	Passwordless bool
+
+	// UseStrongestAuth instructs TeleportClient to use the strongest
+	// authentication method supported by the cluster in Login attempts.
+	// Apart from the obvious benefits, UseStrongestAuth also avoids stdin
+	// hijacking issues from Login, as a single auth method is used.
+	UseStrongestAuth bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -541,6 +547,8 @@ func (p *ProfileStatus) AppNames() (result []string) {
 
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
+// RetryWithRelogin automatically enables tc.UseStrongestAuth for Login attempts
+// in order to avoid stdin hijack bugs.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
 	err := fn()
 	if err == nil {
@@ -557,10 +565,21 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 	log.Debugf("Activating relogin on %v.", err)
 
+	if !tc.UseStrongestAuth {
+		defer func() {
+			tc.UseStrongestAuth = false
+		}()
+		// Avoid stdin hijack on relogin attempts.
+		// Users can pick an alternative MFA method by explicitly calling Login (or
+		// running `tsh login`).
+		tc.UseStrongestAuth = true
+		log.Debug("Enabling strongest auth for login. Use `tsh login` for alternative authentication methods.")
+	}
+
 	key, err := tc.Login(ctx)
 	if err != nil {
 		if trace.IsTrustError(err) {
-			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.SSHProxyAddr)
+			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.SSHProxyAddr)
 		}
 		return trace.Wrap(err)
 	}
@@ -1330,7 +1349,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params,
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
+			return PromptMFAChallenge(ctx, c, proxyAddr, nil /* opts */)
 		})
 
 	return key, err
@@ -2507,6 +2526,11 @@ func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*webclient.WebConfi
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
 //
+// Login may hijack stdin in some scenarios; it's strongly recommended for
+// callers to rely exclusively on prompt.Stdin after calling this method.
+// Alternatively, if tc.UseStrongestAuth is set, then no stdin hijacking
+// happens.
+//
 // If tc.Passwordless is set, then the passwordless authentication flow is used.
 //
 // The returned Key should typically be passed to ActivateKey in order to
@@ -2698,7 +2722,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 		return nil, trace.Wrap(err)
 	}
 
-	// only ask for a second factor if it's enabled
+	// Only ask for a second factor if it's enabled.
 	var otpToken string
 	if secondFactorType == constants.SecondFactorOTP {
 		otpToken, err = tc.AskOTP()
@@ -2707,7 +2731,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 		}
 	}
 
-	// ask the CA (via proxy) to sign our public key:
+	// Ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
 		SSHLogin: SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
@@ -2719,7 +2743,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
 		},
-		User:     tc.Config.Username,
+		User:     tc.Username,
 		Password: password,
 		OTPToken: otpToken,
 	})
@@ -2745,8 +2769,9 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
 		},
-		User:     tc.Config.Username,
-		Password: password,
+		User:             tc.Username,
+		Password:         password,
+		UseStrongestAuth: tc.UseStrongestAuth,
 	})
 
 	return response, trace.Wrap(err)
