@@ -63,7 +63,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	cliCommand, err := buildCliCommand(c, gw)
+	cliCommand, err := buildCLICommand(c, gw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -72,7 +72,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	return gw, nil
 }
 
-func buildCliCommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
+func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
 	routeToDb := tlsca.RouteToDatabase{
 		ServiceName: gw.TargetName,
 		Protocol:    gw.Protocol,
