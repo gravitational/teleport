@@ -124,7 +124,7 @@ func TestChaosUpload(t *testing.T) {
 		Streamer:   faultyStreamer,
 		Clock:      clock,
 		AuditLog:   &events.DiscardAuditLog{},
-	})
+	}, &events.MockSessionTrackerService{})
 	require.NoError(t, err)
 	go uploader.Serve()
 	// wait until uploader blocks on the clock
