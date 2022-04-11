@@ -70,8 +70,6 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
-	// --join-method flag
-	JoinMethod string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
 	// --listen-ip flag
@@ -1776,11 +1774,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Proxy.Enabled = strings.Contains(clf.Roles, defaults.RoleProxy)
 		cfg.Apps.Enabled = strings.Contains(clf.Roles, defaults.RoleApp)
 		cfg.Databases.Enabled = strings.Contains(clf.Roles, defaults.RoleDatabase)
-	}
-
-	// apply --join-method flag:
-	if clf.JoinMethod != "" {
-		cfg.JoinMethod = types.JoinMethod(clf.JoinMethod)
 	}
 
 	// apply --auth-server flag:

@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -550,13 +549,6 @@ var DatabaseProtocols = []string{
 	ProtocolCockroachDB,
 	ProtocolRedis,
 	ProtocolSQLServer,
-}
-
-// JoinMethods is a list of all supported join methods
-var JoinMethods = []string{
-	string(types.JoinMethodToken),
-	string(types.JoinMethodIAM),
-	string(types.JoinMethodEC2),
 }
 
 const (
