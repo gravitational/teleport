@@ -2733,12 +2733,36 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 		},
 	}
 
+	roleAllowDenySame := &types.RoleV5{
+		Metadata: types.Metadata{Name: "allow_deny_same", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+
 	testCases := []struct {
 		name       string
 		roles      RoleSet
 		server     types.Database
 		enumResult EnumerationResult
 	}{
+		{
+			name:   "deny overrides allow",
+			roles:  RoleSet{roleAllowDenySame},
+			server: dbStage,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
 		{
 			name:   "developer allowed any username in stage database except superuser",
 			roles:  RoleSet{roleDevStage, roleDevProd},
