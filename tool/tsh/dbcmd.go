@@ -144,8 +144,7 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 }
 
 func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
-	return exec.Command(postgresBin,
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port), c.options.noTLS))
+	return exec.Command(postgresBin, c.getPostgresConnString())
 }
 
 func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
@@ -153,11 +152,18 @@ func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 	if _, err := c.exe.LookPath(cockroachBin); err != nil {
 		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
-		return exec.Command(postgresBin,
-			postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port), c.options.noTLS))
+		return c.getPostgresCommand()
 	}
-	return exec.Command(cockroachBin, "sql", "--url",
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port), c.options.noTLS))
+	return exec.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
+}
+
+// getPostgresConnString returns the connection string for postgres.
+func (c *cliCommandBuilder) getPostgresConnString() string {
+	return postgres.GetConnString(
+		db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port),
+		c.options.noTLS,
+		c.options.printFormat,
+	)
 }
 
 // getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.

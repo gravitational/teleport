@@ -374,6 +374,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 		execer       *fakeExec
 		cmd          []string
 		noTLS        bool
+		printFormat  bool
 		wantErr      bool
 	}{
 		{
@@ -393,6 +394,17 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			noTLS:        true,
 			cmd: []string{"psql",
 				"postgres://myUser@localhost:12345/mydb"},
+			wantErr: false,
+		},
+		{
+			name:         "postgres print format",
+			dbProtocol:   defaults.ProtocolPostgres,
+			databaseName: "mydb",
+			printFormat:  true,
+			cmd: []string{"psql",
+				"\"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full\""},
 			wantErr: false,
 		},
 		{
@@ -422,6 +434,22 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			},
 			cmd: []string{"cockroach", "sql", "--url",
 				"postgres://myUser@localhost:12345/mydb"},
+			wantErr: false,
+		},
+		{
+			name:         "cockroach print format",
+			dbProtocol:   defaults.ProtocolCockroachDB,
+			databaseName: "mydb",
+			printFormat:  true,
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"cockroach": []byte(""),
+				},
+			},
+			cmd: []string{"cockroach", "sql", "--url",
+				"\"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full\""},
 			wantErr: false,
 		},
 		{
@@ -666,6 +694,9 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 			}
 			if tt.noTLS {
 				opts = append(opts, WithNoTLS())
+			}
+			if tt.printFormat {
+				opts = append(opts, WithPrintFormat())
 			}
 
 			c := newCmdBuilder(tc, profile, database, "root", opts...)
