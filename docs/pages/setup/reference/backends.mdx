@@ -10,7 +10,7 @@ stored data (size, read/write ratio, mutability, etc.).
 
 | Data type | Description | Supported storage backends |
 | - | - | - |
-| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, AWS DynamoDB, GCP Firestore |
+| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, AWS DynamoDB, GCP Firestore, self-hosted PostgreSQL/CockroachDB (Preview) |
 | audit events | JSON-encoded events from the audit log (e.g. user logins, RBAC changes) | Local directory, AWS DynamoDB, GCP Firestore |
 | session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage |
 | teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory |
@@ -615,3 +615,65 @@ teleport:
   bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file  system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
+
+## PostgreSQL/CockroachDB (Preview)
+
+The PostgreSQL/CockroachDB backend supports storing Teleport cluster state
+in a self-hosted database instance.
+
+<Admonition
+  type="tip"
+  title="NOTE"
+>
+  The PostgreSQL/CockroachDB backend is currently in Preview mode.
+</Admonition>
+
+Connections require mutual TLS authentication. Be sure to configure your
+database instance to support certificate authentication before configuring
+the Teleport PostgreSQL/CockroachDB backend.
+See [PostgreSQL Certificate Authentication](https://www.postgresql.org/docs/current/auth-cert.html) to configure PostgreSQL
+or [Authenticating to CockroachDB Self-Hosted Clusters](https://www.cockroachlabs.com/docs/stable/authentication.html) to configure CockroachDB.
+
+Once your self-hosted database instance has been configured to support
+client authentication, configure all Teleport Auth servers to use the backend
+by setting the storage section in the Teleport configuration file.
+
+```yaml
+teleport:
+  storage:
+    # Type of backend: either "postgres" or "cockroachdb".
+    type: cockroachdb
+    # The host:port of the database instance.
+    addr: "cockroachdb.example.com:26257"
+    # Optional database name. Defaults to "teleport".
+    database: "teleport"
+    # Authentication settings.
+    tls:
+      # Path to the database user's certificate.
+      client_cert_file: "/path/to/certs/client.dbuser.crt"
+      # Path to the database user's private key.
+      client_key_file: "/path/to/certs/client.dbuser.key"
+      # Path to the trusted certificate authority
+      # used to generate the client certificates.
+      ca_file: "/path/to/cockroachdb.cas"
+```
+
+Teleport will attempt to create a new database if the configured database does
+not exit. Creating a database requires `CREATEDB` privileges for the Teleport
+user. See PostgreSQL's [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html)
+documentation for details.
+
+```shell
+$ psql -d postgres
+postgres=# CREATE ROLE dbuser CREATEDB;
+```
+
+If you do not wish to grant `CREATEDB` privileges to the Teleport user, be
+sure to create a database and grant all privileges on the database
+to the Teleport user before starting Teleport.
+
+```shell
+$ psql -d postgres
+postgres=# CREATE DATABASE teleport;
+postgres=# GRANT ALL PRIVILEGES ON DATABASE teleport TO dbuser;
+```
