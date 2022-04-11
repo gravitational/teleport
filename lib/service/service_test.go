@@ -18,6 +18,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -43,6 +44,16 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
+
+var ports utils.PortList
+
+func init() {
+	var err error
+	ports, err = utils.GetFreeTCPPorts(5, utils.PortStartingNumber)
+	if err != nil {
+		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
+	}
+}
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -80,21 +91,29 @@ func TestServiceSelfSignedHTTPS(t *testing.T) {
 	require.FileExists(t, cfg.Proxy.KeyPairs[0].PrivateKey)
 }
 
-func TestMonitor(t *testing.T) {
-	t.Parallel()
-	fakeClock := clockwork.NewFakeClock()
+type monitorTest struct {
+	desc         string
+	event        *Event
+	advanceClock time.Duration
+	wantStatus   int
+}
 
+func testMonitor(t *testing.T, sshEnabled bool, tests []monitorTest) {
+	fakeClock := clockwork.NewFakeClock()
 	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
 	cfg.DataDir = t.TempDir()
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Auth.Enabled = true
+	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	if sshEnabled {
+		cfg.SSH.Enabled = true
+		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	}
 	cfg.Proxy.Enabled = false
-	cfg.SSH.Enabled = false
 
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
@@ -111,65 +130,84 @@ func TestMonitor(t *testing.T) {
 	err = waitForStatus(endpoint, http.StatusOK)
 	require.NoError(t, err)
 
-	tests := []struct {
-		desc         string
-		event        Event
-		advanceClock time.Duration
-		wantStatus   []int
-	}{
-		{
-			desc:       "degraded event causes degraded state",
-			event:      Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentAuth},
-			wantStatus: []int{http.StatusServiceUnavailable, http.StatusBadRequest},
-		},
-		{
-			desc:       "ok event causes recovering state",
-			event:      Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
-			wantStatus: []int{http.StatusBadRequest},
-		},
-		{
-			desc:       "ok event remains in recovering state because not enough time passed",
-			event:      Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
-			wantStatus: []int{http.StatusBadRequest},
-		},
-		{
-			desc:         "ok event after enough time causes OK state",
-			event:        Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
-			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
-			wantStatus:   []int{http.StatusOK},
-		},
-		{
-			desc:       "degraded event in a new component causes degraded state",
-			event:      Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentNode},
-			wantStatus: []int{http.StatusServiceUnavailable, http.StatusBadRequest},
-		},
-		{
-			desc:         "ok event in one component keeps overall status degraded due to other component",
-			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
-			event:        Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
-			wantStatus:   []int{http.StatusServiceUnavailable, http.StatusBadRequest},
-		},
-		{
-			desc:         "ok event in new component causes overall recovering state",
-			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
-			event:        Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode},
-			wantStatus:   []int{http.StatusBadRequest},
-		},
-		{
-			desc:         "ok event in new component causes overall OK state",
-			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
-			event:        Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode},
-			wantStatus:   []int{http.StatusOK},
-		},
-	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			fakeClock.Advance(tt.advanceClock)
-			process.BroadcastEvent(tt.event)
-			err = waitForStatus(endpoint, tt.wantStatus...)
+			if tt.event != nil {
+				process.BroadcastEvent(*tt.event)
+			}
+			err := waitForStatus(endpoint, tt.wantStatus)
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestMonitorOneComponent(t *testing.T) {
+	t.Parallel()
+	sshEnabled := false
+	tests := []monitorTest{
+		{
+			desc:       "it starts with OK state",
+			event:      nil,
+			wantStatus: http.StatusOK,
+		},
+		{
+			desc:       "degraded event causes degraded state",
+			event:      &Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentAuth},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+		{
+			desc:       "ok event causes recovering state",
+			event:      &Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			desc:       "ok event remains in recovering state because not enough time passed",
+			event:      &Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			desc:         "ok event after enough time causes OK state",
+			event:        &Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
+			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
+			wantStatus:   http.StatusOK,
+		},
+	}
+	testMonitor(t, sshEnabled, tests)
+}
+
+func TestMonitorTwoComponents(t *testing.T) {
+	t.Parallel()
+	sshEnabled := true
+	tests := []monitorTest{
+		{
+			desc:       "it starts with OK state",
+			event:      nil,
+			wantStatus: http.StatusOK,
+		},
+		{
+			desc:       "degraded event in one component causes degraded state",
+			event:      &Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentNode},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+		{
+			desc:       "ok event in ok component keeps overall status degraded due to degraded component",
+			event:      &Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+		{
+			desc:       "ok event in degraded component causes overall recovering state",
+			event:      &Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			desc:         "ok event after enough time causes overall OK state",
+			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
+			event:        &Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode},
+			wantStatus:   http.StatusOK,
+		},
+	}
+	testMonitor(t, sshEnabled, tests)
 }
 
 // TestServiceCheckPrincipals checks certificates regeneration only requests
@@ -452,7 +490,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 	require.Error(t, err)
 }
 
-func waitForStatus(diagAddr string, statusCodes ...int) error {
+func waitForStatus(diagAddr string, statusCode int) error {
 	tickCh := time.Tick(100 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)
 	var lastStatus int
@@ -465,13 +503,11 @@ func waitForStatus(diagAddr string, statusCodes ...int) error {
 			}
 			resp.Body.Close()
 			lastStatus = resp.StatusCode
-			for _, statusCode := range statusCodes {
-				if resp.StatusCode == statusCode {
-					return nil
-				}
+			if resp.StatusCode == statusCode {
+				return nil
 			}
 		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCodes, lastStatus)
+			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCode, lastStatus)
 		}
 	}
 }

@@ -1,5 +1,8 @@
 <Admonition type="note" title="Certificate Rotation">
-  Teleport signs database certificates with the host authority. As such,
-  when performing [host certificates rotation](../../setup/operations/ca-rotation.mdx),
-  the database certificates must be updated as well.
+  Teleport 9.1 introduced new database certificate authority that is only used by Database Access.
+  Older Teleport versions uses host certificate to sign Database Access certificates.
+  After upgrading to Teleport 9.1 the host certificate authority will be still used by Database Access to maintain compatibility.
+  The first [certificate rotation](../../setup/operations/ca-rotation.mdx) will rotate host and database certificates.
+  New Teleport 9.1+ installations generate database certificate authority on the first start and they are not affected
+  by the rotation procedure described above.
 </Admonition>

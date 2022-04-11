@@ -254,7 +254,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	}
 	switch cf.Format {
 	case dbFormatCommand:
-		cmd, err := newCmdBuilder(tc, profile, database, rootCluster).getConnectCommand()
+		cmd, err := newCmdBuilder(tc, profile, database, rootCluster, WithPrintFormat()).getConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -577,6 +577,8 @@ type connectionCommandOpts struct {
 	localProxyPort int
 	localProxyHost string
 	caPath         string
+	noTLS          bool
+	printFormat    bool
 }
 
 type ConnectCommandFunc func(*connectionCommandOpts)
@@ -586,6 +588,25 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 		opts.localProxyPort = port
 		opts.localProxyHost = host
 		opts.caPath = caPath
+	}
+}
+
+// WithNoTLS is the connect command option that makes the command connect
+// without TLS.
+//
+// It is used when connecting through the local proxy that was started in
+// mutual TLS mode (i.e. with a client certificate).
+func WithNoTLS() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.noTLS = true
+	}
+}
+
+// WithPrintFormat is the connect command option that hints the command will be
+// printed instead of being executed.
+func WithPrintFormat() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.printFormat = true
 	}
 }
 
