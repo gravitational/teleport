@@ -153,11 +153,11 @@ func TestRemoveFromSlice(t *testing.T) {
 		target   string
 		expected []string
 	}{
-		{"remove from empty", []string{}, "a", []string{}},
-		{"remove only element", []string{"a"}, "a", []string{}},
-		{"remove a", []string{"a", "b"}, "a", []string{"b"}},
-		{"remove b", []string{"a", "b"}, "b", []string{"a"}},
-		{"remove duplicate elements", []string{"a", "a", "b"}, "a", []string{"b"}},
+		{name: "remove from empty", slice: []string{}, target: "a", expected: []string{}},
+		{name: "remove only element", slice: []string{"a"}, target: "a", expected: []string{}},
+		{name: "remove a", slice: []string{"a", "b"}, target: "a", expected: []string{"b"}},
+		{name: "remove b", slice: []string{"a", "b"}, target: "b", expected: []string{"a"}},
+		{name: "remove duplicate elements", slice: []string{"a", "a", "b"}, target: "a", expected: []string{"b"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -415,14 +415,7 @@ func TestReplaceRegexp(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, testCase.out, out)
 			} else {
-				switch {
-				case trace.IsNotFound(testCase.err):
-					fixtures.AssertNotFound(t, err)
-				case trace.IsBadParameter(testCase.err):
-					fixtures.AssertBadParameter(t, err)
-				default:
-					t.Fatalf("unexpected test case error: %v", testCase.err)
-				}
+				require.IsType(t, testCase.err, err)
 			}
 		})
 	}

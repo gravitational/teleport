@@ -475,11 +475,7 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	rawID, err := uuid.NewRandom()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	id = rawID.String()
+	id = uuid.NewString()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}

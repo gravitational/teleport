@@ -24,18 +24,18 @@ import (
 
 func TestSliceContainsStr(t *testing.T) {
 	tests := []struct {
-		name          string
-		slice         []string
-		target        string
-		shouldContain bool
+		name         string
+		slice        []string
+		target       string
+		wantContains bool
 	}{
-		{"does contain", []string{"two", "one"}, "one", true},
-		{"does not contain", []string{"two", "one"}, "five", false},
-		{"empty slice", nil, "one", false},
+		{name: "does contain", slice: []string{"two", "one"}, target: "one", wantContains: true},
+		{name: "does not contain", slice: []string{"two", "one"}, target: "five", wantContains: false},
+		{name: "empty slice", slice: nil, target: "one", wantContains: false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.shouldContain, SliceContainsStr(tc.slice, tc.target))
+			require.Equal(t, tc.wantContains, SliceContainsStr(tc.slice, tc.target))
 		})
 	}
 }
