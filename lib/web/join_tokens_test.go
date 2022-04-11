@@ -318,6 +318,17 @@ func TestGetNodeJoinScript(t *testing.T) {
 	require.Contains(t, script, "test-host")
 	require.Contains(t, script, "12345678")
 	require.Contains(t, script, "sha256:")
+	require.NotContains(t, script, "JOIN_METHOD=\"iam\"")
+
+	// Test iam method script
+	iamToken := scriptSettings{
+		token:      "token length doesnt matter in this case",
+		joinMethod: string(types.JoinMethodIAM),
+	}
+
+	script, err = getJoinScript(iamToken, m)
+	require.NoError(t, err)
+	require.Contains(t, script, "JOIN_METHOD=\"iam\"")
 }
 
 func TestGetAppJoinScript(t *testing.T) {
