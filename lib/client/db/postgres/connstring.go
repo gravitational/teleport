@@ -59,7 +59,7 @@ func GetConnString(c *profile.ConnectProfile, noTLS bool, printFormat bool) stri
 	// The printed connection string may get copy-pasted for execution. Add
 	// quotes to avoid "&" getting interpreted by terminals.
 	if printFormat {
-		connStr = fmt.Sprintf("%q", connStr)
+		connStr = fmt.Sprintf(`"%s"`, connStr)
 	}
 	return connStr
 }
