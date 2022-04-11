@@ -9,31 +9,69 @@ This guide explains how to add Teleport Nodes to your cluster.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
+- A Linux server that you will use to host your Teleport Node
+
 (!docs/pages/includes/tctl.mdx!)
 
-## Adding Nodes to the cluster
+## Step 1/3. Install Teleport on your Node
+
+On the Linux server that you will use for your Teleport Node, run the appropriate installation commands for your platform:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 2/3. Join your Node to the cluster
+
+In this section, we will join your Node to the Teleport cluster by:
+
+- Obtaining information stored on the Auth Service
+- Starting Teleport on your Node with the information we obtained
+
+### Obtain a CA pin
+
+In a zero-trust environment, you must assume that an attacker can hijack the IP
+address of the Auth Service.
+
+To prevent this from happening, you need to supply every new Node with
+information about the Auth Service. This technique is called **CA pinning**. It
+works by asking the Auth Service to produce a CA pin, a hash value of the SPKI
+header in a certificate. This way, an attacker cannot easily forge a matching
+private key.
+
+Retrieve the CA pin of the Auth Service <ScopedBlock scope="cloud"> by running the following
+command on your local machine</ScopedBlock>:
+
+```code
+$ export CA_PIN=$(tctl status | awk '/CA pin/{print $3}')
+
+# Cluster  staging.example.com
+# User CA  never updated
+# Host CA  never updated
+# CA pin   (=presets.ca_pin=)
+```
+
+### Generate a token
 
 Teleport only allows access to Nodes that have joined the cluster.
 
-Once a Node joins, it receives its own host certificate signed by the cluster's
+Once a Node joins, it receives a host certificate signed by the cluster's
 Auth Service. To receive a host certificate upon joining a cluster, a new
 Teleport host must present an **invite token**.
 
 An invite token also defines which role a new host can assume within a cluster:
 `auth`, `proxy`, `node`, `app`, `kube`, or `db`.
 
-### Generate a token
-
 Administrators can generate tokens as they are needed. A token can be used
 multiple times until its time to live (TTL) expires.
 
-Use the `tctl` tool to generate a new token. In the following example, a new
+Use the `tctl` tool <ScopedBlock scope="cloud">on your local
+machine</ScopedBlock> to generate a new token. In the following example, a new
 token is created with a TTL of five minutes:
 
 ```code
-# Generate a short-lived invitation token for a new node:
-$ tctl nodes add --ttl=5m --roles=node
-# The invite token: (=presets.tokens.first=)
+# Generate a short-lived invite token for a new node:
+$ export INVITE_TOKEN=$(tctl nodes add --ttl=5m --roles=node | grep "invite token:" | grep -Eo "[0-9a-z]{32}")
+$ echo ${INVITE_TOKEN}
+# (=presets.tokens.first=)
 
 # You can also list all generated non-expired tokens:
 $ tctl tokens ls
@@ -41,7 +79,7 @@ $ tctl tokens ls
 # ------------------------         -----------     ---------------
 # (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
 
-# ... or revoke an invitation token before it's used:
+# ... or revoke an invite token before it's used:
 $ tctl tokens rm (=presets.tokens.first=)
 ```
 
@@ -74,35 +112,52 @@ auth_service:
 ```
 </Details>
 
-### Using Node invitation tokens
+### Start your Node with the invite token and CA pin
+
+The CA pin at the needs to be passed to new Nodes when they're
+starting for the first time, i.e. when they join a cluster.
+
+If a CA pin is not provided, the Teleport Node will join a cluster but it will
+print a `WARN` message (warning).
+
+<Notice type="warning">
+
+The CA pin becomes invalid if a Teleport administrator performs the CA rotation
+by executing [`tctl auth rotate`](../reference/cli.mdx#tctl-auth-rotate).
+    
+</Notice>
+
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} scopeOnly={true} label="Self Hosted">
-Execute one of the following commands on a new Node to add it to a cluster:
+
+Execute one of the following commands on a new Node to add it to a cluster.
+Supply the invite token and CA pin you retrieved earlier:
 
 ```code
-# Adding an SSH Node to the cluster:
-$ sudo teleport start --roles=node --token=(=presets.tokens.first=) --auth-server=10.0.10.5
-
-# Adding a new regular SSH Node using Teleport Node Tunneling:
-$ sudo teleport start --roles=node --token=(=presets.tokens.first=) --auth-server=teleport-proxy.example.com:3080
-
-# Adding a new Proxy Service to the cluster:
-$ sudo teleport start --roles=proxy --token=(=presets.tokens.first=) --auth-server=10.0.10.5
+$ sudo teleport start \
+   --roles=node \
+   --token=(=presets.tokens.first=) \
+   --ca-pin=(=presets.ca_pin=) \
+   --auth-server=10.12.0.6:3025
 ```
 </TabItem>
 <TabItem scope={["cloud"]} scopeOnly={true} label="Teleport Cloud">
+
 Execute the following command on a new Node to add it to a cluster. Replace
 `mytenant.teleport.sh` with the domain name of your Teleport Cloud tenant.
+Supply the invite token and CA pin you retrieved earlier:
 
 ```code
-# Adding an SSH Node to the cluster:
-$ sudo teleport start --roles=node --token=(=presets.tokens.first=) --auth-server=mytenant.teleport.sh
+$ sudo teleport start \
+   --roles=node \
+   --token=(=presets.tokens.first=) \
+   --ca-pin=(=presets.ca_pin=) \
+   --auth-server=https://mytenant.teleport.sh:443
 ```
 
 </TabItem>
 </Tabs>
-
 
 As new Nodes come online, they start sending ping requests every few seconds to
 the Auth Service. This allows users to explore cluster membership and size:
@@ -120,7 +175,10 @@ dijkstra      c9s93fd9-3333-91d3-9999-c9s93fd98f43     10.1.0.6:3022      distro
 as a workaround until we have a way to control the visibility of subsections
 using the scope switcher */}
 
-<Details scope={["oss", "enterprise"]} scopeOnly={true} title="Node Tunneling" opened>
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+### Teleport Node Tunneling
+
 Teleport Node Tunneling lets you add a remote Node to an existing Teleport Cluster through a tunnel.
 This can be useful for IoT applications or for managing a couple of servers in a different network.
 
@@ -178,14 +236,36 @@ DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the s
   uses a round-robin or a similar balancing algorithm. Do not use sticky load balancing algorithms (a.k.a. "session affinity") with Teleport Proxy Service instances.
 </Admonition>
 
-</Details>
+</ScopedBlock>
 
-## Revoking invitations
+## Step 3/3. Revoke an invitation
 
 Tokens used for joining Nodes to a cluster can be revoked before they are used.
-To see a list of outstanding tokens, run this command:
+
+Run the following command to create a token for a new Proxy Service.
 
 ```code
+$ tctl nodes add --ttl=5m --roles=proxy 
+# The invite token: (=presets.tokens.first=).
+# This token will expire in 5 minutes.
+# 
+# Run this on the new node to join the cluster:
+# 
+# > teleport start \
+#    --roles=proxy \
+#    --token=(=presets.tokens.first=) \
+#    --ca-pin=(=presets.ca_pin=) \
+#    --auth-server=123.123.123.123:3025
+# 
+# Please note:
+# 
+#   - This invitation token will expire in 5 minutes
+#   - 123.123.123.123 must be reachable from the new node
+```
+
+Next, run the following command to see a list of outstanding tokens:
+
+```
 $ tctl tokens ls
 
 # Token                                Role       Expiry Time (UTC)
@@ -208,67 +288,10 @@ static token configured via a config file.
 The token with the `Node` role was generated to invite a new Node to this
 cluster. And the third token was generated to invite a new user to sign up.
 
-The latter two tokens can be deleted (revoked) via the `tctl tokens
-del` command:
+Tokens created via `tctl` can be deleted (revoked) via the `tctl tokens del`
+command. Run the following command to delete a token:
 
 ```code
 $ tctl tokens del (=presets.tokens.first=)
 # Token (=presets.tokens.first=) has been deleted
 ```
-
-## Untrusted Auth Servers
-
-Teleport Nodes use the HTTPS protocol to offer an invite token to the Auth Service.
-In a zero-trust environment, you must assume that an attacker can hijack the IP
-address of the Auth Service.
-
-To prevent this from happening, you need to supply every new Node with an
-additional bit of information about the Auth Service. This technique is called
-**CA pinning**. It works by asking the Auth Service to produce a CA pin, a hash
-value of the SPKI header in a certificate. This way, an attacker cannot easily
-forge a matching private key.
-
-Retrieve the CA pin of the Auth Service:
-
-```code
-$ tctl status
-
-# Cluster  staging.example.com
-# User CA  never updated
-# Host CA  never updated
-# CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
-```
-
-The CA pin at the bottom needs to be passed to new Nodes when they're
-starting for the first time, i.e. when they join a cluster. Here is an
-example of running `teleport start` on a Node with a CA pin:
-
-```code
-$ sudo teleport start \
-   --roles=node \
-   --token=(=presets.tokens.first=) \
-   --ca-pin=sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1 \
-   --auth-server=10.12.0.6:3025
-```
-
-You can also supply a CA pin by modifying `/etc/teleport.yaml` on a Node:
-
-```yaml
-teleport:
-  auth_token: "(=presets.tokens.first=)"
-  ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
-  auth_servers:
-    - "10.12.0.6:3025"
-```
-
-<Admonition
-  type="warning"
-  title="Warnings"
->
-  - If a CA pin is not provided, the Teleport Node will join a cluster but it will
-  print a `WARN` message (warning).
-  - The CA pin becomes invalid if a Teleport administrator
-  performs the CA rotation by executing
-  [`tctl auth rotate`](../reference/cli.mdx#tctl-auth-rotate) .
-</Admonition>
-
