@@ -51,7 +51,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		},
 	}
 
-	sessionTrackerService := &eventstest.MockSessionTrackerService{
+	sessionTrackerService := &MockSessionTrackerService{
 		Clock:        clock,
 		MockTrackers: []types.SessionTracker{sessionTracker},
 	}
@@ -103,7 +103,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 				Uploader:       mu,
 				AuditLog:       log,
 				Clock:          clock,
-				SessionTracker: &eventstest.MockSessionTrackerService{},
+				SessionTracker: &MockSessionTrackerService{},
 			})
 			require.NoError(t, err)
 
