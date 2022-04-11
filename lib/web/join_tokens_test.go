@@ -265,7 +265,8 @@ func TestSortRules(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, sortRules(tc.rules))
+			sortRules(tc.rules)
+			require.Equal(t, tc.expected, tc.rules)
 		})
 	}
 }

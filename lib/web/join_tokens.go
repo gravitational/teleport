@@ -297,7 +297,9 @@ func generateIamTokenName(rules []*types.TokenRule) (string, error) {
 	// sort the rules by (account ID, arn)
 	// to make sure a set of rules will produce the same hash,
 	// no matter the order they are in the slice
-	orderedRules := sortRules(rules)
+	orderedRules := make([]*types.TokenRule, len(rules))
+	copy(orderedRules, rules)
+	sortRules(orderedRules)
 
 	var sb strings.Builder
 	for _, r := range orderedRules {
@@ -315,7 +317,7 @@ func generateIamTokenName(rules []*types.TokenRule) (string, error) {
 }
 
 // sortRules sorts a slice of rules based on their AWS Account ID and ARN
-func sortRules(rules []*types.TokenRule) []*types.TokenRule {
+func sortRules(rules []*types.TokenRule) {
 	sort.Slice(rules, func(i, j int) bool {
 		accountID1, accountID2 := rules[i].AWSAccount, rules[j].AWSAccount
 		// if accountID is the same, sort based on arn
@@ -326,8 +328,6 @@ func sortRules(rules []*types.TokenRule) []*types.TokenRule {
 
 		return accountID1 < accountID2
 	})
-
-	return rules
 }
 
 type nodeAPIGetter interface {
