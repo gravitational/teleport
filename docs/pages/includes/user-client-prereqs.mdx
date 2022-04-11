@@ -1,0 +1,51 @@
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+- The `tsh` client tool version >= (=teleport.version=).
+
+  ```code
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  See [Installation](/docs/installation) for details.
+
+- A host where you will install the Teleport Auth Service and Proxy Service.
+
+- A registered domain name.
+
+</TabItem>
+<TabItem
+  scope={["enterprise"]} label="Enterprise">
+
+- The `tsh` client tool version >= (=teleport.version=), which you can download
+  by visiting the
+  [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+- A host where you will install the Teleport Auth Service and Proxy Service.
+
+- A registered domain name.
+
+</TabItem>
+<TabItem scope={["cloud"]}
+  label="Teleport Cloud">
+
+- The `tctl` and `tsh` client tools version >= (=teleport.version=).
+
+  You can download these from [Teleport Cloud Downloads](/docs/cloud/downloads).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+</Tabs>
