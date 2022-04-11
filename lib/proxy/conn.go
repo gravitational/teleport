@@ -100,20 +100,21 @@ func (c *streamConn) Write(b []byte) (int, error) {
 	defer c.wLock.Unlock()
 
 	var sent int
-	for sent < len(b) {
-		upperBound := len(b)
-		if upperBound-sent > maxChunkSize {
-			upperBound = maxChunkSize + sent
+	for len(b) > 0 {
+		chunk := b
+		if len(chunk) > maxChunkSize {
+			chunk = chunk[:maxChunkSize]
 		}
 
-		send := b[sent:upperBound]
 		err := c.stream.Send(&proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{
-			Bytes: send,
+			Bytes: chunk,
 		}}})
 		if err != nil {
 			return sent, trace.ConnectionProblem(err, "failed to send on stream")
 		}
-		sent += len(send)
+
+		sent += len(chunk)
+		b = b[len(chunk):]
 	}
 
 	return sent, nil
