@@ -133,7 +133,7 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	if cfg.ProxiedServiceUpdater == nil {
-		cfg.ProxiedServiceUpdater = NewProxiedServiceUpdater(cfg.Clock)
+		cfg.ProxiedServiceUpdater = NewProxiedServiceUpdater()
 	}
 	return nil
 }

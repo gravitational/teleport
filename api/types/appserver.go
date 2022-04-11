@@ -276,26 +276,6 @@ func (s *AppServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
-// GetNonceID gets the nonce id.
-func (s *AppServerV3) GetNonceID() uint64 {
-	return s.Spec.NonceID
-}
-
-// SetNonceID sets the nonce id.
-func (s *AppServerV3) SetNonceID(nonceID uint64) {
-	s.Spec.NonceID = nonceID
-}
-
-// GetNonce gets the nonce.
-func (s *AppServerV3) GetNonce() uint64 {
-	return s.Spec.Nonce
-}
-
-// SetNonce sets the nonce.
-func (s *AppServerV3) SetNonce(nonce uint64) {
-	s.Spec.Nonce = nonce
-}
-
 // GetAllLabels returns all resource's labels. Considering:
 // * Static labels from `Metadata.Labels` and `Spec.App`.
 // * Dynamic labels from `Spec.App.Spec`.

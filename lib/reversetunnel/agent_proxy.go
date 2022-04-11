@@ -17,35 +17,24 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"math/rand"
 	"sync"
 
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/jonboulle/clockwork"
 )
 
 // NewProxiedServiceUpdater creates a new ProxiedServiceUpdater instance.
-func NewProxiedServiceUpdater(clock clockwork.Clock) *ProxiedServiceUpdater {
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
-
-	rand := rand.New(rand.NewSource(clock.Now().UnixNano()))
+func NewProxiedServiceUpdater() *ProxiedServiceUpdater {
 	return &ProxiedServiceUpdater{
-		ids:     make([]string, 0),
-		nonceID: rand.Uint64(),
-		nonce:   1,
+		ids: make([]string, 0),
 	}
 }
 
 // ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
 type ProxiedServiceUpdater struct {
-	ids     []string
-	nonceID uint64
-	nonce   uint64
-	mu      sync.RWMutex
+	ids []string
+	mu  sync.RWMutex
 }
 
 // Update updates a given proxied service with proxy ids, nonce id, and nonce.
@@ -54,8 +43,6 @@ func (u *ProxiedServiceUpdater) Update(service types.ProxiedService) {
 	defer u.mu.RUnlock()
 
 	service.SetProxyIDs(u.ids)
-	service.SetNonceID(u.nonceID)
-	service.SetNonce(u.nonce)
 }
 
 // setProxies sets the proxy ids to set for a proxied service
@@ -69,5 +56,4 @@ func (u *ProxiedServiceUpdater) setProxiesIDs(ids []string) {
 
 	u.ids = make([]string, len(ids))
 	copy(u.ids, ids)
-	u.nonce++
 }

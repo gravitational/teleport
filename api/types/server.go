@@ -284,26 +284,6 @@ func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
-// GetNonceID gets the nonce id.
-func (s *ServerV2) GetNonceID() uint64 {
-	return s.Spec.NonceID
-}
-
-// SetNonceID sets the nonce id.
-func (s *ServerV2) SetNonceID(nonceID uint64) {
-	s.Spec.NonceID = nonceID
-}
-
-// GetNonce gets the nonce.
-func (s *ServerV2) GetNonce() uint64 {
-	return s.Spec.Nonce
-}
-
-// SetNonce sets the nonce.
-func (s *ServerV2) SetNonce(nonce uint64) {
-	s.Spec.Nonce = nonce
-}
-
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {

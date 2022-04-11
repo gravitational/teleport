@@ -202,26 +202,6 @@ func (s *DatabaseServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
-// GetNonceID gets the nonce id.
-func (s *DatabaseServerV3) GetNonceID() uint64 {
-	return s.Spec.NonceID
-}
-
-// SetNonceID sets the nonce id.
-func (s *DatabaseServerV3) SetNonceID(nonceID uint64) {
-	s.Spec.NonceID = nonceID
-}
-
-// GetNonce gets the nonce.
-func (s *DatabaseServerV3) GetNonce() uint64 {
-	return s.Spec.Nonce
-}
-
-// SetNonce sets the nonce.
-func (s *DatabaseServerV3) SetNonce(nonce uint64) {
-	s.Spec.Nonce = nonce
-}
-
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
 	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Database=%v)",

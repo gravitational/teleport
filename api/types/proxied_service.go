@@ -22,12 +22,4 @@ type ProxiedService interface {
 	GetProxyIDs() []string
 	// SetProxyIDs sets the proxy ids this service is connected to.
 	SetProxyIDs([]string)
-	// GetNonceID returns the nonce id.
-	GetNonceID() uint64
-	// SetNonceID sets the nonce id.
-	SetNonceID(uint64)
-	// GetNonce returns the nonce.
-	GetNonce() uint64
-	// SetNonce sets the nonce.
-	SetNonce(uint64)
 }
