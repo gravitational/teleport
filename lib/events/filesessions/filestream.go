@@ -194,8 +194,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	return parts, nil
 }
 
-// ListUploads lists uploads that have been initiated but not completed with
-// earlier uploads returned first
+// ListUploads lists uploads that have been initiated but not completed
 func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
 	var uploads []events.StreamUpload
 
@@ -236,20 +235,11 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			continue
 		}
 
-		info, err := dir.Info()
-		if err != nil {
-			h.WithError(err).Warningf("Skipping upload %v: cannot read file info", uploadID)
-			continue
-		}
 		uploads = append(uploads, events.StreamUpload{
 			SessionID: session.ID(filepath.Base(files[0].Name())),
 			ID:        uploadID,
-			Initiated: info.ModTime(),
 		})
 	}
-	sort.Slice(uploads, func(i, j int) bool {
-		return uploads[i].Initiated.Before(uploads[j].Initiated)
-	})
 	return uploads, nil
 }
 
