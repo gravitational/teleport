@@ -22,6 +22,7 @@ import (
 	"sort"
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
@@ -160,7 +161,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = time.Second * 5
+		cfg.DialTimeout = apidefaults.DefaultDialTimeout
 	}
 	return nil
 }
@@ -174,7 +175,7 @@ func (b *Backend) Clock() clockwork.Clock {
 // resources.
 func (b *Backend) Close() error {
 	b.buf.Close()
-	return b.clientConn.Close()
+	return trace.Wrap(b.clientConn.Close())
 }
 
 // CloseWatchers closes all the watchers without closing the backend.
