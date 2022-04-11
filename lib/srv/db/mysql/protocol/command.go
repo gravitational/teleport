@@ -93,7 +93,7 @@ func parseChangeUserPacket(packetBytes []byte) (Packet, error) {
 	// User is the first null-terminated string in the payload:
 	// https://dev.mysql.com/doc/internals/en/com-change-user.html#packet-COM_CHANGE_USER
 	idx := bytes.IndexByte(packetBytes[packetHeaderAndTypeSize:], 0x00)
-	if idx < -1 {
+	if idx == -1 {
 		return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %v", packetBytes)
 	}
 
