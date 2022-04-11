@@ -141,6 +141,8 @@ func (p *Proxy) makeServer(clientConn net.Conn) *server.Conn {
 			mysql.DEFAULT_COLLATION_ID,
 			mysql.AUTH_NATIVE_PASSWORD,
 			nil,
+			// TLS config can actually be nil if the client is connecting
+			// through local TLS proxy without TLS.
 			p.TLSConfig),
 		&credentialProvider{},
 		server.EmptyHandler{})
@@ -170,11 +172,18 @@ func (p *Proxy) performHandshake(conn *multiplexer.Conn, server *server.Conn) (*
 	// First part of the handshake completed and the connection has been
 	// upgraded to TLS so now we can look at the client certificate and
 	// see which database service to route the connection to.
-	tlsConn, ok := server.Conn.Conn.(*tls.Conn)
-	if !ok {
-		return nil, trace.BadParameter("expected TLS connection")
+	switch c := server.Conn.Conn.(type) {
+	case *tls.Conn:
+		return c, nil
+	case *multiplexer.Conn:
+		tlsConn, ok := c.Conn.(*tls.Conn)
+		if !ok {
+			return nil, trace.BadParameter("expected TLS connection, got: %T", c.Conn)
+		}
+		return tlsConn, nil
 	}
-	return tlsConn, nil
+	return nil, trace.BadParameter("expected *tls.Conn or *multiplexer.Conn, got: %T",
+		server.Conn.Conn)
 }
 
 // maybeReadProxyLine peeks into the connection to see if instead of regular
