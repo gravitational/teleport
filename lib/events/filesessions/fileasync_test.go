@@ -492,7 +492,7 @@ func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
 		Clock:      pack.clock,
 		EventsC:    pack.eventsC,
 		AuditLog:   &events.DiscardAuditLog{},
-	})
+	}, &events.MockSessionTrackerService{})
 	require.NoError(t, err)
 	pack.uploader = uploader
 	go pack.uploader.Serve()
@@ -531,7 +531,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		Streamer:   test.streamer,
 		Clock:      clock,
 		AuditLog:   &events.DiscardAuditLog{},
-	})
+	}, &events.MockSessionTrackerService{})
 	require.Nil(t, err)
 	go uploader.Serve()
 	// wait until uploader blocks on the clock
