@@ -284,10 +284,7 @@ func TestRootDatabaseAccessRedisRootCluster(t *testing.T) {
 		Address:    pack.root.redisAddr,
 	}
 
-	containerAddress := startRedis(t, serverConfig)
-
-	// use Redis container address
-	pack.root.redisAddr = containerAddress
+	_ = startRedis(t, serverConfig)
 
 	config := &common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -790,7 +787,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
 			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
 			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
-			redisAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			redisAddr:    net.JoinHostPort("redis-container", ports.Pop()),
 		},
 		leaf: databaseClusterPack{
 			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
@@ -1189,6 +1186,7 @@ func startRedis(t *testing.T, config common.TestServerConfig) string {
 		PortBindings: map[docker.Port][]docker.PortBinding{
 			"6379/tcp": {{HostPort: port}},
 		},
+		Hostname: "redis-container",
 	}, func(config *docker.HostConfig) {
 		// set AutoRemove to true so that stopped container goes away by itself
 		config.AutoRemove = true
