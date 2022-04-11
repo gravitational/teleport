@@ -116,7 +116,6 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// unset Expires should create a tracker with the default expire time of 24 hours
 	_, err = srv.CreateSessionTracker(ctx, &proto.CreateSessionTrackerRequest{
 		Namespace:   defaults.Namespace,
 		ID:          id2,
