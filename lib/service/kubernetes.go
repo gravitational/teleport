@@ -20,6 +20,9 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -30,8 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 func (process *TeleportProcess) initKubernetes() {
@@ -84,7 +85,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the Auth Server.
-	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
+	if err := process.initUploaderService(accessPoint, conn.Client, conn.Client); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -136,7 +137,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			reversetunnel.AgentPoolConfig{
 				Component:   teleport.ComponentKube,
 				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				ProxyAddr:   conn.TunnelProxy(),
+				Resolver:    conn.TunnelProxyResolver(),
 				Client:      conn.Client,
 				AccessPoint: accessPoint,
 				HostSigner:  conn.ServerIdentity.KeySigner,
@@ -248,13 +249,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,
 		LimiterConfig: cfg.Kube.Limiter,
-		OnHeartbeat: func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentKube})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentKube})
-			}
-		},
+		OnHeartbeat:   process.onHeartbeat(teleport.ComponentKube),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -276,6 +271,9 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 				"Kubernetes service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
+		// since kubeServer.Serve is a blocking call, we emit this event right before
+		// the service has started
+		process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
 		err := kubeServer.Serve(listener)
 		if err != nil {
 			if err == http.ErrServerClosed {

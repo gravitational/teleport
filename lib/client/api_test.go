@@ -17,12 +17,16 @@ limitations under the License.
 package client
 
 import (
+	"io"
 	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
@@ -34,8 +38,7 @@ func TestMain(m *testing.M) {
 }
 
 // register test suite
-type APITestSuite struct {
-}
+type APITestSuite struct{}
 
 // bootstrap check
 func TestClientAPI(t *testing.T) { check.TestingT(t) }
@@ -277,7 +280,6 @@ func (s *APITestSuite) TestPortsParsing(c *check.C) {
 }
 
 func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
-
 	tests := []struct {
 		spec    []string
 		isError bool
@@ -497,6 +499,111 @@ func TestApplyProxySettings(t *testing.T) {
 			err := tc.applyProxySettings(test.settingsIn)
 			require.NoError(t, err)
 			require.EqualValues(t, test.tcConfigOut, tc.Config)
+		})
+	}
+}
+
+type mockAgent struct {
+	// Agent is embedded to avoid redeclaring all interface methods.
+	// Only the Signers method is implemented by testAgent.
+	agent.Agent
+	ValidPrincipals []string
+}
+
+type mockSigner struct {
+	ValidPrincipals []string
+}
+
+func (s *mockSigner) PublicKey() ssh.PublicKey {
+	return &ssh.Certificate{
+		ValidPrincipals: s.ValidPrincipals,
+	}
+}
+
+func (s *mockSigner) Sign(rand io.Reader, b []byte) (*ssh.Signature, error) {
+	return nil, trace.Errorf("mockSigner does not implement Sign")
+}
+
+// Signers implements agent.Agent.Signers.
+func (m *mockAgent) Signers() ([]ssh.Signer, error) {
+	return []ssh.Signer{&mockSigner{ValidPrincipals: m.ValidPrincipals}}, nil
+}
+
+func TestNewClient_UseKeyPrincipals(t *testing.T) {
+	cfg := &Config{
+		Username:         "xyz",
+		HostLogin:        "xyz",
+		WebProxyAddr:     "localhost",
+		SkipLocalAuth:    true,
+		UseKeyPrincipals: true, // causes VALID to be returned, as key was used
+		Agent:            &mockAgent{ValidPrincipals: []string{"VALID"}},
+		AuthMethods:      []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+	}
+	client, err := NewClient(cfg)
+	require.NoError(t, err)
+	require.Equal(t, "VALID", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
+
+	cfg.UseKeyPrincipals = false // causes xyz to be returned as key was not used
+
+	client, err = NewClient(cfg)
+	require.NoError(t, err)
+	require.Equal(t, "xyz", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
+}
+
+func TestParseSearchKeywords(t *testing.T) {
+	t.Parallel()
+
+	expected := [][]string{
+		{},
+		{"foo"},
+		{"foo,bar", "some phrase's", "baz=qux's", "some other  phrase", "another one"},
+		{"服务器环境=测试,操作系统类别", "Linux", "机房=华北"},
+	}
+
+	testCases := []struct {
+		name      string
+		delimiter rune
+		specs     []string
+	}{
+		{
+			name:      "with comma delimiter",
+			delimiter: ',',
+			specs: []string{
+				"",
+				"foo",
+				`"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
+				`"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
+			},
+		},
+		{
+			name: "with 0 value delimiter (fallback to comma)",
+			specs: []string{
+				"",
+				"foo",
+				`"foo,bar","some phrase's",baz=qux's ,"some other  phrase"," another one  "`,
+				`"服务器环境=测试,操作系统类别", Linux , 机房=华北 `,
+			},
+		},
+		{
+			name:      "with space delimiter",
+			delimiter: ' ',
+			specs: []string{
+				"",
+				"foo",
+				`foo,bar "some phrase's" baz=qux's "some other  phrase" " another one  "`,
+				`服务器环境=测试,操作系统类别 Linux  机房=华北 `,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for i, spec := range tc.specs {
+				m := ParseSearchKeywords(spec, tc.delimiter)
+				require.Equal(t, expected[i], m)
+			}
 		})
 	}
 }

@@ -1,13 +1,12 @@
-<Admonition type="tip" title="Tip">
-  The examples below may include the use of the `sudo` keyword, token UUIDs, and users with elevated privileges to make following each step easier when creating resources from scratch. 
-  
-  Generally:
+<Details title="Before you begin: read security tips" opened={false}>
+  The examples below may include the use of the `sudo` keyword, token UUIDs, and users with
+  elevated privileges to make following each step easier. 
 
-  1. We discourage using `sudo` in production environments unless it's needed.
-  2. You can run Teleport's auth, proxy, application access, Kubernetes access, and database access services as a non-root user - only the SSH/node service requires root access. You will, however, also need root permissions (or the `CAP_NET_BIND_SERVICE` capability) to make Teleport listen on a port numbered < 1024 (e.g. 443)
-  3. We encourage creating new, non-root, users or new test instances for experimenting with Teleport.
-  4. We encourage adherence to the *Principle of Least Privilege* (PoLP) and *Zero Admin* best practices. Don't give users permissive roles when giving them more restrictive `access,editor` roles will do instead.
-  5. Saving tokens into a file rather than sharing tokens directly *as strings*.
+  We recommend you follow the best practices to avoid security incidents:
 
-  Learn more about [Teleport Role-Based Access Control](https://goteleport.com/docs/access-controls/introduction/) best practices.
-</Admonition>
+  1. Avoid using `sudo` in production environments unless it's necessary.
+  2. Create new, non-root, users and use test instances for experimenting with Teleport.
+  3. You can run many Teleport's services as a non root. For example, auth, proxy, application access, kubernetes access, and database access services can run as a non-root user. Only the SSH/node service requires root access. You will need root permissions (or the `CAP_NET_BIND_SERVICE` capability) to make Teleport listen on a port numbered < `1024` (e.g. `443`)
+  4. Follow the "Principle of Least Privilege" (PoLP) and "Zero Admin" best practices. Don't give users permissive roles when giving them more restrictive `access,editor` roles will do instead.
+  5. Save tokens into a file rather than sharing tokens directly as strings.
+</Details>

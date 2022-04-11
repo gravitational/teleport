@@ -38,8 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
@@ -55,11 +55,19 @@ var ( // failedConnectingToNode counts failed attempts to connect to a node
 	failedConnectingToNode = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: teleport.MetricFailedConnectToNodeAttempts,
-			Help: "Number of failed attempts to connect to a node",
+			Help: "Number of failed SSH connection attempts to a node. Use with `teleport_connect_to_node_attempts_total` to get the failure rate.",
 		},
 	)
 
-	prometheusCollectors = []prometheus.Collector{proxiedSessions, failedConnectingToNode}
+	connectingToNode = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricConnectToNodeAttempts,
+			Help:      "Number of SSH connection attempts to a node. Use with `failed_connect_to_node_attempts_total` to get the failure rate.",
+		},
+	)
+
+	prometheusCollectors = []prometheus.Collector{proxiedSessions, failedConnectingToNode, connectingToNode}
 )
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
@@ -405,6 +413,7 @@ func (t *proxySubsys) proxyToHost(
 		AddrNetwork: "tcp",
 		Addr:        serverAddr,
 	}
+	connectingToNode.Inc()
 	conn, err := site.Dial(reversetunnel.DialParams{
 		From:         remoteAddr,
 		To:           toAddr,
@@ -450,18 +459,19 @@ func (t *proxySubsys) proxyToHost(
 // the server that has heartbeated most recently will be returned instead of an error. If no matches are found then
 // both the types.Server and error returned will be nil.
 func (t *proxySubsys) getMatchingServer(servers []types.Server, strategy types.RoutingStrategy) (types.Server, error) {
-	// check if hostname is a valid uuid.  If it is, we will preferentially match
-	// by node ID over node hostname.
-	hostIsUUID := uuid.Parse(t.host) != nil
+	// check if hostname is a valid uuid or EC2 node ID.  If it is, we will
+	// preferentially match by node ID over node hostname.
+	_, err := uuid.Parse(t.host)
+	hostIsUniqueID := err == nil || utils.IsEC2NodeID(t.host)
 
 	ips, _ := net.LookupHost(t.host)
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var matches []types.Server
 	for _, server := range servers {
-		// If the host parameter is a UUID, and it matches the Node ID,
-		// treat this as an unambiguous match.
-		if hostIsUUID && server.GetName() == t.host {
+		// If the host parameter is a UUID or EC2 node ID, and it matches the
+		// Node ID, treat this as an unambiguous match.
+		if hostIsUniqueID && server.GetName() == t.host {
 			matches = []types.Server{server}
 			break
 		}
@@ -502,16 +512,20 @@ func (t *proxySubsys) getMatchingServer(servers []types.Server, strategy types.R
 		server = matches[0]
 	}
 
-	// If we matched zero nodes but hostname is a UUID then it isn't sane
-	// to fallback to dns based resolution.  This has the unfortunate
-	// consequence of preventing users from calling OpenSSH nodes which
-	// happen to use hostnames which are also valid UUIDs.  This restriction
-	// is necessary in order to protect users attempting to connect to a
-	// node by UUID from being re-routed to an unintended target if the node
-	// is offline.  This restriction can be lifted if we decide to move to
-	// explicit UUID based resolution in the future.
-	if hostIsUUID && server == nil {
-		return nil, trace.NotFound("unable to locate node matching uuid-like target %s", t.host)
+	// If we matched zero nodes but hostname is a UUID (or EC2 node ID) then it
+	// isn't sane to fallback to dns based resolution.  This has the unfortunate
+	// consequence of preventing users from calling OpenSSH nodes which happen
+	// to use hostnames which are also valid UUIDs.  This restriction is
+	// necessary in order to protect users attempting to connect to a node by
+	// UUID from being re-routed to an unintended target if the node is offline.
+	// This restriction can be lifted if we decide to move to explicit UUID
+	// based resolution in the future.
+	if hostIsUniqueID && server == nil {
+		idType := "UUID"
+		if utils.IsEC2NodeID(t.host) {
+			idType = "EC2"
+		}
+		return nil, trace.NotFound("unable to locate node matching %s-like target %s", idType, t.host)
 	}
 
 	return server, nil

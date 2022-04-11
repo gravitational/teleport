@@ -1,0 +1,14 @@
+teleport:
+  data_dir: /var/lib/teleport
+  log:
+    severity: DEBUG
+  storage:
+    type: dir
+  auth_servers: ["auth:3025"]
+  auth_token: "node-${NODE_TOKEN}"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: true

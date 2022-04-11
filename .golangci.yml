@@ -15,6 +15,7 @@ linters:
   enable:
     - bodyclose
     - deadcode
+    - depguard
     - goimports
     - gosimple
     - govet
@@ -28,11 +29,16 @@ linters:
     - unconvert
     - varcheck
 
+linters-settings:
+  depguard:
+    list-type: denylist
+    include-go-root: true # check against stdlib
+    packages-with-error-message:
+    - io/ioutil: 'use "io" or "os" packages instead'
+
 output:
   uniq-by-line: false
 
 run:
-  skip-dirs:
-    - vendor
   skip-dirs-use-default: false
   timeout: 5m

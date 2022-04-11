@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -49,6 +49,8 @@ func (c *LockCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.mainCmd.Flag("login", "Name of a local UNIX user to disable.").StringVar(&c.spec.Target.Login)
 	c.mainCmd.Flag("node", "UUID of a Teleport node to disable.").StringVar(&c.spec.Target.Node)
 	c.mainCmd.Flag("mfa-device", "UUID of a user MFA device to disable.").StringVar(&c.spec.Target.MFADevice)
+	c.mainCmd.Flag("windows-desktop", "Name of a Windows desktop to disable.").StringVar(&c.spec.Target.WindowsDesktop)
+	c.mainCmd.Flag("access-request", "UUID of an access request to disable.").StringVar(&c.spec.Target.AccessRequest)
 	c.mainCmd.Flag("message", "Message to display to locked-out users.").StringVar(&c.spec.Message)
 	c.mainCmd.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.expires)
 	c.mainCmd.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.ttl)
@@ -73,7 +75,7 @@ func (c *LockCommand) CreateLock(ctx context.Context, client auth.ClientI) error
 		return trace.Wrap(err)
 	}
 	c.spec.Expires = lockExpiry
-	lock, err := types.NewLock(uuid.New(), c.spec)
+	lock, err := types.NewLock(uuid.New().String(), c.spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}

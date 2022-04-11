@@ -8,25 +8,48 @@ description: How to configure graphical database clients for Teleport Database A
 This article describes how to configure popular graphical database clients to
 work with Teleport Database Access.
 
-## Obtain local certificate/key-pair
+## Get connection information
 
-Issue the following command after you login with `tsh`:
+<Tabs>
+<TabItem label="TLS routing">
+If you're using Teleport in [TLS routing](../../setup/operations/tls-routing.mdx)
+mode where each database protocol is multiplexed on the same web proxy port, use
+the following command to start a local TLS proxy your GUI database client will
+be connecting to:
+
+```code
+$ tsh proxy db <database-name>
+Started DB proxy on 127.0.0.1:61740
+
+Use following credentials to connect to the <database-name> proxy:
+  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
+  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
+  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
+```
+
+Use the displayed local proxy host/port and credentials paths when configuring
+your GUI client below. When entering the hostname, use `localhost` rather than
+`127.0.0.1`.
+</TabItem>
+<TabItem label="Separate ports">
+If you're not using TLS routing, run the following command to see the database
+connection information:
 
 ```code
 # View configuration for the database you're logged in to.
-tsh db config
+$ tsh db config
 # View configuration for the specific database when you're logged into multiple.
-tsh db config example
+$ tsh db config example
 ```
 
-It will display the path to your locally cached PEM files:
+It will display the path to your locally cached certificate and key files:
 
 ```
 Name:      example
 Host:      teleport.example.com
-Port:      3036
-User:      alice
-Database:
+Port:      3080
+User:      postgres
+Database:  postgres
 CA:        /Users/alice/.tsh/keys/teleport.example.com/certs.pem
 Cert:      /Users/alice/.tsh/keys/teleport.example.com/alice-db/root/example-x509.pem
 Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
@@ -35,6 +58,8 @@ Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 The displayed `CA`, `Cert`, and `Key` files are used to connect through pgAdmin
 4, MySQL Workbench, and other graphical database clients that support mutual
 TLS authentication.
+</TabItem>
+</Tabs>
 
 ## PostgreSQL pgAdmin 4
 
@@ -50,25 +75,18 @@ In the "General" tab of the new server dialog, enter the server connection name:
 
 ![pgAdmin General](../../../img/database-access/pgadmin-general@2x.png)
 
-In the "Connection" tab, enter the default database name (the *maintenance
-database*) and the connection service name (the same one that you specify when
-connecting through `psql`). Leave all the other fields blank:
+In the "Connection" tab, fill in the hostname, port, user and database name from
+the configuration above:
 
 ![pgAdmin Connection](../../../img/database-access/pgadmin-connection@2x.png)
 
-In the "SSL" tab, set "SSL Mode" to `Verify-Full`:
+In the "SSL" tab, set "SSL Mode" to `Verify-Full` and fill in paths for client
+certificate, key and root certificate from the configuration above:
 
 ![pgAdmin SSL](../../../img/database-access/pgadmin-ssl@2x.png)
 
-Click "Save", and pgAdmin should immediately connect.
-
-<Admonition type="note">
-  On a Windows client, use terminal to export a PG Service File env variable:
-
- `$ setx PGSERVICEFILE <path_to_.pg_service.conf_file>`
-
-  Restart the pgAdmin client.
-</Admonition>
+Click "Save", and pgAdmin should immediately connect. If pgAdmin prompts you
+for password, leave the password field empty and click OK.
 
 ## MySQL Workbench
 
@@ -92,34 +110,7 @@ Optionally, click "Test Connection" to verify connectivity:
 
 Save the connection, and connect to the database.
 
-## MongoDB Compass
-
-[Compass](https://www.mongodb.com/products/compass) is the official MongoDB
-graphical client.
-
-On the "New Connection" panel, click on "Fill in connection fields individually".
-
-![MongoDB Compass new connection](../../../img/database-access/compass-new-connection@2x.png)
-
-On the "Hostname" tab, enter your Teleport proxy's hostname and port shown
-by `tsh db config`. Leave "Authentication" as None.
-
-![MongoDB Compass hostname](../../../img/database-access/compass-hostname@2x.png)
-
-On the "More Options" tab set SSL to "Client and Server Validation" and set
-CA as well as client key and certificate. Note the CA path must be provided
-and be able to validate certificate presented by your Teleport proxy's web
-endpoint. Client key and certificate locations are shown by `tsh db config`.
-
-![MongoDB Compass more options](../../../img/database-access/compass-more-options@2x.png)
-
-Click on the "Connect" button.
-
-## DBeaver
-
-DBeaver is a SQL client software application and database administration tool.
-
-### MySQL 
+## MySQL DBeaver
 
 <Admonition type="note">
   Teleport's DBeaver MySQL integration only supports MySQL server (=mysql.dbeaver_min_ver=) or older.
@@ -155,3 +146,80 @@ Navigate to the "SSL" tab, check the "Use SSL" box, uncheck the "Verify Server C
 
 Click "Ok" to finish and DBeaver should connect to the remote MySQL server automatically.
 
+## MongoDB Compass
+
+[Compass](https://www.mongodb.com/products/compass) is the official MongoDB
+graphical client.
+
+On the "New Connection" panel, click on "Fill in connection fields individually".
+
+![MongoDB Compass new connection](../../../img/database-access/compass-new-connection@2x.png)
+
+On the "Hostname" tab, enter your Teleport proxy's hostname and port shown
+by `tsh db config`. Leave "Authentication" as None.
+
+![MongoDB Compass hostname](../../../img/database-access/compass-hostname@2x.png)
+
+On the "More Options" tab set SSL to "Client and Server Validation" and set
+CA as well as client key and certificate. Note the CA path must be provided
+and be able to validate certificate presented by your Teleport proxy's web
+endpoint. Client key and certificate locations are shown by `tsh db config`.
+
+![MongoDB Compass more options](../../../img/database-access/compass-more-options@2x.png)
+
+Click on the "Connect" button.
+
+## SQL Server DBeaver
+
+(!docs/pages/includes/database-access/sql-server-local-proxy.mdx!)
+
+In DBeaver connection configuration use the local proxy's endpoint (`localhost:4242`
+in the example above) as host/port. Use SQL Server Authentication option and keep
+the Password field empty:
+
+![DBeaver connection options](../../../img/database-access/guides/sqlserver/dbeaver-connection@2x.png)
+
+Click OK to connect.
+
+## SQL Server DataGrip
+
+(!docs/pages/includes/database-access/sql-server-local-proxy.mdx!)
+
+In DataGrip connection configuration use the local proxy's endpoint (`localhost:4242`
+in the example above) as host/port. Use Use & Password authentication option and
+keep the Password field empty:
+
+![DataGrip connection options](../../../img/database-access/guides/sqlserver/datagrip-connection@2x.png)
+
+Click OK to connect.
+
+## Redis Insight
+
+<Admonition type="note">
+  Teleport's Redis Insight integration only supports Redis standalone instances.
+</Admonition>
+
+After opening Redis Insight click `ADD REDIS DATABASE`.
+
+![Redis Insight Startup Screen](../../../img/database-access/guides/redis/redisinsight-startup.png)
+
+Log in to your Redis instance with a Redis user first by using:
+
+`tsh db login --db-user=alice redis-db-name`.
+
+Click `Add Database Manually`. Use `127.0.0.1` as the `Host` and port printed by `tsh proxy db` as described [here](#get-connection-information).
+
+Provide your Redis username as `Username` and password as `Password`.
+
+![Redis Insight Configuration](../../../img/database-access/guides/redis/redisinsight-add-config.png)
+
+Next, check the `Use TLS` and `Verify TLS Certificates` boxes and copy the CA certificate returned by `tsh proxy db`.
+Copy the private key and certificate to corresponding fields.
+
+Click `Add Redis Database`.
+
+![Redis Insight TLS Configuration](../../../img/database-access/guides/redis/redisinsight-tls-config.png)
+
+Congratulations! You have just connected to your Redis instance.
+
+![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)

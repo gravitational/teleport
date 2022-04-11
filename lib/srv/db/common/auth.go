@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -55,11 +57,13 @@ type Auth interface {
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
 	GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error)
+	// GetAzureAccessToken generates Azure database access token.
+	GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetTLSConfig builds the client TLS configuration for the session.
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-	// Closes releases all resources used by authenticator.
+	// Closer releases all resources used by authenticator.
 	io.Closer
 }
 
@@ -247,11 +251,8 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 }
 
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
-func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL *sqladmin.Service, user *sqladmin.User) error {
-	_, err := gcpCloudSQL.Users.Update(
-		sessionCtx.Database.GetGCP().ProjectID,
-		sessionCtx.Database.GetGCP().InstanceID,
-		user).Name(sessionCtx.DatabaseUser).Host("%").Context(ctx).Do()
+func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL GCPSQLAdminClient, user *sqladmin.User) error {
+	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx, user)
 	if err != nil {
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
 
@@ -264,33 +265,73 @@ Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role, or
 	return nil
 }
 
+// GetAzureAccessToken generates Azure database access token.
+func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error) {
+	a.cfg.Log.Debugf("Generating Azure access token for %s.", sessionCtx)
+	cred, err := a.cfg.Clients.GetAzureCredential()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{
+			// Access token scope for connecting to Postgres/MySQL database.
+			"https://ossrdbms-aad.database.windows.net/.default",
+		},
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token.Token, nil
+}
+
 // GetTLSConfig builds the client TLS configuration for the session.
 //
 // For RDS/Aurora, the config must contain RDS root certificate as a trusted
-// authority. For onprem we generate a client certificate signed by the host
+// authority. For on-prem we generate a client certificate signed by the host
 // CA used to authenticate.
 func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+	dbTLSConfig := sessionCtx.Database.GetTLS()
+
+	// Mode won't be set for older clients. We will default to VerifyFull then - the same as before.
+	switch dbTLSConfig.Mode {
+	case types.DatabaseTLSMode_INSECURE:
+		return a.getTLSConfigInsecure(ctx, sessionCtx)
+	case types.DatabaseTLSMode_VERIFY_CA:
+		return a.getTLSConfigVerifyCA(ctx, sessionCtx)
+	default:
+		return a.getTLSConfigVerifyFull(ctx, sessionCtx)
+	}
+}
+
+// getTLSConfigVerifyFull returns tls.Config with full verification enabled ('verify-full' mode).
+// Config also includes database specific adjustment.
+func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		RootCAs: x509.NewCertPool(),
 	}
-	// Don't set the ServerName when connecting to a MongoDB cluster - in case
-	// of replica set the driver may dial multiple servers and will set
-	// ServerName itself. For Postgres/MySQL we're always connecting to the
-	// server specified in URI so set ServerName ourselves.
-	if sessionCtx.Database.GetProtocol() != defaults.ProtocolMongoDB {
+
+	switch sessionCtx.Database.GetProtocol() {
+	case defaults.ProtocolMongoDB, defaults.ProtocolRedis:
+		// Mongo and Redis are using custom URI schema.
+	default:
+		// Don't set the ServerName when connecting to a MongoDB cluster - in case
+		// of replica set the driver may dial multiple servers and will set
+		// ServerName itself. For Postgres/MySQL we're always connecting to the
+		// server specified in URI so set ServerName ourselves.
 		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		tlsConfig.ServerName = addr.Host()
 	}
+
 	// Add CA certificate to the trusted pool if it's present, e.g. when
-	// connecting to RDS/Aurora which require AWS CA.
-	if len(sessionCtx.Database.GetCA()) != 0 {
-		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
-			return nil, trace.BadParameter("invalid server CA certificate")
-		}
+	// connecting to RDS/Aurora which require AWS CA or when was provided in config file.
+	tlsConfig, err := appendCAToRoot(tlsConfig, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	// You connect to Cloud SQL instances by IP and the certificate presented
 	// by the instance does not contain IP SANs so the default "full" certificate
 	// verification will always fail.
@@ -313,20 +354,69 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 		// Cloud SQL server presented certificates encode instance names as
 		// "<project-id>:<instance-id>" in CommonName. This is verified against
 		// the ServerName in a custom connection verification step (see below).
-		tlsConfig.ServerName = fmt.Sprintf("%v:%v", sessionCtx.Database.GetGCP().ProjectID, sessionCtx.Database.GetGCP().InstanceID)
+		tlsConfig.ServerName = GCPServerName(sessionCtx)
 		// This just disables default verification.
 		tlsConfig.InsecureSkipVerify = true
 		// This will verify CN and cert chain on each connection.
 		tlsConfig.VerifyConnection = getVerifyCloudSQLCertificate(tlsConfig.RootCAs)
 	}
+
+	dbTLSConfig := sessionCtx.Database.GetTLS()
+	// Use user provided server name if set. Override the current value if needed.
+	if dbTLSConfig.ServerName != "" {
+		tlsConfig.ServerName = dbTLSConfig.ServerName
+	}
+
 	// RDS/Aurora/Redshift and Cloud SQL auth is done with an auth token so
 	// don't generate a client certificate and exit here.
-	if sessionCtx.Database.IsRDS() || sessionCtx.Database.IsRedshift() || sessionCtx.Database.IsCloudSQL() {
+	if sessionCtx.Database.IsCloudHosted() {
 		return tlsConfig, nil
 	}
+
 	// Otherwise, when connecting to an onprem database, generate a client
 	// certificate. The database instance should be configured with
 	// Teleport's CA obtained with 'tctl auth sign --type=db'.
+	return a.appendClientCert(ctx, sessionCtx, tlsConfig)
+}
+
+// getTLSConfigInsecure generates tls.Config when TLS mode is equal to 'insecure'.
+// Generated configuration will accept any certificate provided by database.
+func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Accept any certificate provided by database.
+	tlsConfig.InsecureSkipVerify = true
+	// Remove certificate validation if set.
+	tlsConfig.VerifyConnection = nil
+
+	return tlsConfig, nil
+}
+
+// getTLSConfigVerifyCA generates tls.Config when TLS mode is equal to 'verify-ca'.
+// Generated configuration is the same as 'verify-full' except the server name
+// verification is disabled.
+func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Base on https://github.com/golang/go/blob/master/src/crypto/tls/example_test.go#L193-L208
+	// Set InsecureSkipVerify to skip the default validation we are
+	// replacing. This will not disable VerifyConnection.
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.VerifyConnection = verifyConnectionFunc(tlsConfig.RootCAs)
+	// ServerName is irrelevant in this case. Set it to default value to make it explicit.
+	tlsConfig.ServerName = ""
+
+	return tlsConfig, nil
+}
+
+// appendClientCert generates a client certificate and appends it to the provided tlsConfig.
+func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *Session, tlsConfig *tls.Config) (*tls.Config, error) {
 	cert, cas, err := a.getClientCert(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -337,7 +427,44 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 			return nil, trace.BadParameter("failed to append CA certificate to the pool")
 		}
 	}
+
 	return tlsConfig, nil
+}
+
+// appendCAToRoot appends CA certificate from session context to provided tlsConfig.
+func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *Session) (*tls.Config, error) {
+	if len(sessionCtx.Database.GetCA()) != 0 {
+		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
+			return nil, trace.BadParameter("invalid server CA certificate")
+		}
+	}
+	return tlsConfig, nil
+}
+
+// verifyConnectionFunc returns a certificate validation function. serverName if empty will skip the hostname validation.
+func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) error {
+	return func(cs tls.ConnectionState) error {
+		if len(cs.PeerCertificates) == 0 {
+			return trace.AccessDenied("database didn't present any certificate during initial handshake")
+		}
+
+		opts := x509.VerifyOptions{
+			Roots:         rootCAs,
+			DNSName:       "", // Skip server name validation
+			Intermediates: x509.NewCertPool(),
+		}
+		// From Go Docs:
+		// The first element (zero index) is the leaf certificate that the connection is verified against.
+		//
+		// In order to verify the whole chain we need to add all certificates on pos [1:] as intermediates
+		// and call Verify() on the [0] one. Root is provided as an input to this function.
+		for _, cert := range cs.PeerCertificates[1:] {
+			opts.Intermediates.AddCert(cert)
+		}
+
+		_, err := cs.PeerCertificates[0].Verify(opts)
+		return trace.Wrap(err)
+	}
 }
 
 // getClientCert signs an ephemeral client certificate used by this

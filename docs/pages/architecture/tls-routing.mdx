@@ -1,0 +1,153 @@
+---
+title: TLS Routing
+description: How Teleport implements a single-port setup with TLS routing
+---
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="8.0"
+>
+  TLS routing is available starting from Teleport `8.0`.
+</Details>
+
+In TLS routing mode [Teleport proxy](./proxy.mdx) multiplexes all client
+connections on a single TLS port.
+
+With TLS routing, cluster administrators can simplify network configurations
+since proxy only listens on one port. All connections are authenticated with
+mutual TLS and users are able to tunnel protocols that may be blocked on the
+network such as SSH.
+
+To implement TLS routing, Teleport uses SNI ([Server Name Indication](https://en.wikipedia.org/wiki/Server_Name_Indication))
+and ALPN ([Application-Level Protocol Negotiation](https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation))
+TLS extensions.
+
+## How it works
+
+Starting from version `8.0` Teleport proxy listens for all client connections
+on its `web_listen_addr` by default:
+
+```yaml
+proxy_service:
+  web_listen_addr: "0.0.0.0:443"
+```
+
+All Teleport clients including SSH, web browser, kubectl, database and reverse
+tunnel clients establish a TLS tunnel to the proxy's web port and indicate the
+protocol they're requesting using SNI and ALPN TLS extensions.
+
+Upon accepting a new connection, the proxy inspects the SNI/ALPN value in the
+TLS handshake and forwards the connection to appropriate backend service.
+
+### Local proxy
+
+Clients like `psql` or `mysql` implement TLS handshake as a part of their
+protocol-specific connection negotiation phase (aka [STARTTLS](https://en.wikipedia.org/wiki/Opportunistic_TLS)).
+
+To support these clients, as well as clients that do support TLS but don't allow
+setting custom ALPN values, Teleport's `tsh` client includes ability to start
+a local TLS routing aware proxy.
+
+Such clients connect to the local proxy instead of Teleport proxy directly. The
+local proxy establishes a TLS connection to the Teleport proxy with the proper
+SNI/ALPN values set and tunnels the client's connection over it.
+
+In most cases, clients handle TLS routing transparently when establishing
+connection. For example, `tsh` client starts local proxy and sets appropriate
+SNI/ALPN values automatically. For some clients, like native/GUI database
+clients instead of `tsh db connect`, the user needs to start the local proxy so
+these clients can connect to it.
+
+### Diagram
+
+<Figure align="left" bordered caption="TLS routing">
+  ![TLS routing](../../img/architecture/tls-routing.png)
+</Figure>
+
+Let's take a look at how each protocol Teleport supports implements TLS routing.
+
+## SSH
+
+Teleport client `tsh`, when connecting to an SSH node, first dials Teleport
+proxy over TLS and requests `teleport-ssh-proxy` ALPN protocol.
+
+No local proxy is started in this case as `tsh` uses this TLS connection as a
+transport to establish the SSH connection.
+
+### OpenSSH
+
+To support standard OpenSSH client, Teleport provides a `tsh proxy ssh` command
+which can be used as a `ProxyCommand`.
+
+Similarly to `tsh ssh`, `tsh proxy ssh` establishes a TLS tunnel to Teleport
+proxy with `teleport-ssh-proxy` ALPN protocol, which `ssh` then connects over.
+
+See [OpenSSH client](../server-access/guides/openssh.mdx#use-the-openssh-client-to-access-teleport-nodes)
+guide for details on how it's configured.
+
+## Reverse tunnels
+
+Reverse tunnel agents for Teleport node, application and database services, as
+well as for trusted clusters, open a TLS tunnel to the cluster's proxy with
+`teleport-reversetunnel` ALPN protocol and then dials SSH over it establishing
+the reverse tunnel connection.
+
+## Kubernetes
+
+Kubernetes client `kubectl` uses HTTPS API and TLS handshake to talk to the API
+server.
+
+As such, it is not possible to request a custom ALPN protocol using `kubectl`.
+Instead, Teleport leverages SNI and sets a `ServerName` prefixed with `kube.`
+when generating a kubeconfig file during `tsh kube login`:
+
+```yaml
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    certificate-authority-data: ...
+    server: https://proxy.example.com:443
+    tls-server-name: kube.proxy.example.com
+  name: example
+```
+
+## Databases
+
+The `tsh db connect` command executes an appropriate database client for the
+database you're connecting to.
+
+In TLS routing mode, `tsh` starts a local proxy which database client connection
+is tunneled through. The local proxy uses one of `teleport-postgres`,
+`teleport-mysql` or `teleport-mongodb` ALPN values depending on the database.
+The proxy is shut down when the database session ends.
+
+### Native and GUI clients
+
+For the native or graphical database clients to work with TLS routing, they
+must be connecting to the local proxy instead of Teleport proxy directly.
+
+Teleport provides a `tsh proxy db` command to launch a local database proxy:
+
+```code
+$ tsh proxy db example-db
+```
+
+See [GUI clients](../database-access/guides/gui-clients.mdx) guide for a usage
+example.
+
+## Web UI, apps and desktops
+
+Application access, desktop access and Teleport web UI are served by the
+Teleport proxy's web listener and don't require a local proxy or any special
+ALPN/SNI negotiation. These web connections use standard `http1.1` and `h2`
+protocols for ALPN.
+
+## Next steps
+
+- See [migration guide](../setup/operations/tls-routing.mdx) to learn how to
+  upgrade an existing cluster to use TLS routing.
+- Read through TLS routing design document [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md).

@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -30,7 +31,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -38,17 +38,22 @@ import (
 
 // MakeTestClient returns MongoDB client connection according to the provided
 // parameters.
-func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*mongo.Client, error) {
+func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ...*options.ClientOptions) (*mongo.Client, error) {
 	tlsConfig, err := common.MakeTestClientTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client, err := mongo.Connect(ctx, options.Client().
-		ApplyURI("mongodb://"+config.Address).
-		SetTLSConfig(tlsConfig).
-		// Mongo client connects in background so set a short server selection
-		// timeout so access errors are returned to the client quicker.
-		SetServerSelectionTimeout(5*time.Second))
+	client, err := mongo.Connect(ctx, append(
+		[]*options.ClientOptions{
+			options.Client().
+				ApplyURI("mongodb://" + config.Address).
+				SetTLSConfig(tlsConfig).
+				// Mongo client connects in background so set a short heartbeat
+				// interval and server selection timeout so access errors are
+				// returned to the client quicker.
+				SetHeartbeatInterval(500 * time.Millisecond).
+				SetServerSelectionTimeout(5 * time.Second),
+		}, opts...)...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -56,7 +61,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*mongo
 	// can connect successfully.
 	err = client.Ping(ctx, nil)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return client, trace.Wrap(err)
 	}
 	return client, nil
 }
@@ -67,10 +72,23 @@ type TestServer struct {
 	listener net.Listener
 	port     string
 	log      logrus.FieldLogger
+
+	wireVersion      int
+	activeConnection int32
+}
+
+// TestServerOption allows to set test server options.
+type TestServerOption func(*TestServer)
+
+// TestServerWireVersion sets the test MongoDB server wire protocol version.
+func TestServerWireVersion(wireVersion int) TestServerOption {
+	return func(ts *TestServer) {
+		ts.wireVersion = wireVersion
+	}
 }
 
 // NewTestServer returns a new instance of a test MongoDB server.
-func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	address := "localhost:0"
 	if config.Address != "" {
 		address = config.Address
@@ -91,13 +109,17 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 		trace.Component: defaults.ProtocolMongoDB,
 		"name":          config.Name,
 	})
-	return &TestServer{
+	server := &TestServer{
 		cfg: config,
 		// MongoDB uses regular TLS handshake so standard TLS listener will work.
 		listener: tls.NewListener(listener, tlsConfig),
 		port:     port,
 		log:      log,
-	}, nil
+	}
+	for _, o := range opts {
+		o(server)
+	}
+	return server, nil
 }
 
 // Serve starts serving client connections.
@@ -117,6 +139,8 @@ func (s *TestServer) Serve() error {
 		go func() {
 			defer s.log.Debug("Connection done.")
 			defer conn.Close()
+			atomic.AddInt32(&s.activeConnection, 1)
+			defer atomic.AddInt32(&s.activeConnection, -1)
 			if err := s.handleConnection(conn); err != nil {
 				if !utils.IsOKNetworkError(err) {
 					s.log.Errorf("Failed to handle connection: %v.",
@@ -150,40 +174,32 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 
 // handleMessage makes response for the provided command received from client.
 func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, error) {
-	switch m := message.(type) {
-	case *protocol.MessageOpQuery:
-		switch getCommandType(m.Query) {
-		case commandIsMaster: // isMaster command can come as both OP_QUERY and OP_MSG
-			return s.handleIsMaster(message)
-		case commandAuth:
-			return s.handleAuth(m)
-		}
-	case *protocol.MessageOpMsg:
-		document, err := m.GetDocument()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		switch getCommandType(document) {
-		case commandIsMaster: // isMaster command can come as both OP_QUERY and OP_MSG
-			return s.handleIsMaster(m)
-		case commandPing:
-			return s.handlePing(m)
-		case commandFind:
-			return s.handleFind(m)
-		}
+	command, err := message.GetCommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch command {
+	case commandIsMaster:
+		return s.handleIsMaster(message)
+	case commandAuth:
+		return s.handleAuth(message)
+	case commandPing:
+		return s.handlePing(message)
+	case commandFind:
+		return s.handleFind(message)
 	}
 	return nil, trace.NotImplemented("unsupported message: %v", message)
 }
 
 // handleAuth makes response to the client's "authenticate" command.
 func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, error) {
-	authCmd, ok := message.(*protocol.MessageOpQuery)
-	if !ok {
-		return nil, trace.BadParameter("expected OP_MSG message, got: %v", message)
+	command, err := message.GetCommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Authenticate: %v.", authCmd.Query.String())
-	if getCommandType(authCmd.Query) != commandAuth {
-		return nil, trace.BadParameter("expected authenticate command, got: %v", authCmd.Query)
+	s.log.Debugf("Authenticate: %s.", message)
+	if command != commandAuth {
+		return nil, trace.BadParameter("expected authenticate command, got: %s", message)
 	}
 	authReply, err := makeOKReply()
 	if err != nil {
@@ -197,7 +213,7 @@ func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, err
 // isMaster command is used as a handshake by the client to determine the
 // cluster topology.
 func (s *TestServer) handleIsMaster(message protocol.Message) (protocol.Message, error) {
-	isMasterReply, err := makeIsMasterReply()
+	isMasterReply, err := makeIsMasterReply(s.getWireVersion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -232,9 +248,22 @@ func (s *TestServer) handleFind(message protocol.Message) (protocol.Message, err
 	return protocol.MakeOpMsg(findReply), nil
 }
 
+// getWireVersion returns the server's wire protocol version.
+func (s *TestServer) getWireVersion() int {
+	if s.wireVersion != 0 {
+		return s.wireVersion
+	}
+	return 9 // Latest MongoDB server sends maxWireVersion=9.
+}
+
 // Port returns the port server is listening on.
 func (s *TestServer) Port() string {
 	return s.port
+}
+
+// GetActiveConnectionsCount returns the current value of activeConnection counter.
+func (s *TestServer) GetActiveConnectionsCount() int32 {
+	return atomic.LoadInt32(&s.activeConnection)
 }
 
 // Close closes the server listener.
@@ -243,32 +272,11 @@ func (s *TestServer) Close() error {
 }
 
 const (
-	commandAuth     = "auth"
+	commandAuth     = "authenticate"
 	commandIsMaster = "isMaster"
 	commandPing     = "ping"
 	commandFind     = "find"
 )
-
-// getCommandType determines which Mongo command this is.
-func getCommandType(document bsoncore.Document) string {
-	auth, ok := document.Lookup("authenticate").Int32OK()
-	if ok && auth == 1 {
-		return commandAuth
-	}
-	isMaster, ok := document.Lookup("isMaster").Int32OK()
-	if ok && isMaster == 1 {
-		return commandIsMaster
-	}
-	ping, ok := document.Lookup("ping").Int32OK()
-	if ok && ping == 1 {
-		return commandPing
-	}
-	find, ok := document.Lookup("find").StringValueOK()
-	if ok && find != "" {
-		return commandFind
-	}
-	return ""
-}
 
 // makeOKReply builds a generic document used to indicate success e.g.
 // for "ping" and "authenticate" command replies.
@@ -279,10 +287,11 @@ func makeOKReply() ([]byte, error) {
 }
 
 // makeIsMasterReply builds a document used as a "isMaster" command reply.
-func makeIsMasterReply() ([]byte, error) {
+func makeIsMasterReply(wireVersion int) ([]byte, error) {
 	return bson.Marshal(bson.M{
 		"ok":             1,
-		"maxWireVersion": 9, // Latest MongoDB server sends maxWireVersion=9.
+		"maxWireVersion": wireVersion,
+		"compression":    []string{"zlib"},
 	})
 }
 

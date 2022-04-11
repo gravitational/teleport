@@ -1,7 +1,7 @@
 ---
-title: FedRAMP compliance for SSH, Kubernetes and Applications
-description: How to configure SSH, Kubernetes and Application access to be FedRAMP compliant, including support for FIPS 140-2
-h1: FedRAMP for SSH and Kubernetes and Application Access
+title: FedRAMP compliance for Infrastructure access 
+description: How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2
+h1: FedRAMP for SSH, Kubernetes, Databases and Web Apps.
 ---
 
 Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
@@ -24,7 +24,7 @@ government agencies.
 | [IA-03 Device Identification and Authentication]((=fedramp.control_url=)IA-3) | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
 | [SC-12 Cryptographic Key Establish and Management]((=fedramp.control_url=)SC-12) | Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue x509 and SSH certificates. SSH and x509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA and rotated automatically (a manual force rotation can also be performed).<br/>Teleport Enterprise builds against a FIPS 140-2 compliant library (BoringCrypto) is available. <br/>In addition, when Teleport Enterprise is in FedRAMP/FIPS 140-2 mode, Teleport will only start and use FIPS 140-2 compliant cryptography. |
 | [AC-2 Account Management]((=fedramp.control_url=)AC-2) | Audit events are emitted in the auth server when a user is created, updated, deleted, locked or unlocked. |
-| [AC-2 (12) Account Management]((=fedramp.control_url=)AC-2) | At the close of a connection the total data transmitted and received is emitted to the Audit Log. |
+| [AC-12 Session Termination]((=fedramp.control_url=)AC-12) | Admins can terminate active sessions with [session locking](../access-controls/guides/locking.mdx). Teleport terminates sessions on expiry or inactivity.|
 
 Enterprise customers can download the custom FIPS package from the [Dashboard](https://dashboard.gravitational.com/web/login).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
 

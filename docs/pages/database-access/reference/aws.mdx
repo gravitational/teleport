@@ -3,14 +3,224 @@ title: Database Access AWS IAM Reference
 description: AWS IAM policies for Teleport database access.
 ---
 
-Teleport automatically discovers and configures IAM for RDS and Aurora access
-given proper IAM permissions as described in the [RDS guide](../guides/rds.mdx).
+## Auto-discovery
+With the appropriate IAM permissions, Teleport automatically discovers and
+configures IAM policies for Amazon RDS and Redshift.
 
-If you prefer to register RDS databases manually using [static configuration](./configuration.mdx)
-or [`tctl`](../guides/dynamic-registration.mdx) and manage IAM yourself, example
-IAM policies you'd need to create are shown below.
+Teleport also requires permission to update database configurations, for example, to
+enable IAM authentication on RDS databases.
 
-## RDS or Aurora policy
+You can generate and manage the permissions with the [`teleport db configure
+bootstrap`](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
+command. For example, the following command would generate and print the
+IAM policies:
+
+```code
+$ teleport db configure bootstrap --manual
+```
+
+Or if you prefer, you manage the IAM permissions yourself. Examples of policies
+for each discovery type are shown below.
+
+### Aurora/RDS
+
+<Tabs>
+  <TabItem label="RDS / IAM user">
+  Use this policy if you're connecting to RDS instances and your Teleport
+  database agent runs as an IAM user (for example, uses an AWS credentials file).
+
+  Replace `{account-id}` with your AWS Account ID.
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "rds:DescribeDBInstances",
+                  "rds:ModifyDBInstance"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
+              ],
+              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+  <TabItem label="RDS / IAM role">
+  Use this policy if you're connecting to RDS instances and your Teleport
+  database agent runs as an IAM role (for example, on an EC2 instance with
+  an attached IAM role).
+
+  Replace `{account-id}` with your AWS Account ID.
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "rds:DescribeDBInstances",
+                  "rds:ModifyDBInstance"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetRolePolicy",
+                  "iam:PutRolePolicy",
+                  "iam:DeleteRolePolicy"
+              ],
+              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+  <TabItem label="Aurora / IAM user">
+  Use this policy if you're connecting to Aurora clusters and your Teleport
+  database agent runs as an IAM user (for example, uses an AWS credentials file).
+
+  Replace `{account-id}` with your AWS Account ID.
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "rds:DescribeDBClusters",
+                  "rds:ModifyDBCluster"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
+              ],
+              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+  <TabItem label="Aurora / IAM role">
+  Use this policy if you're connecting to Aurora clusters and your Teleport
+  database agent runs as an IAM role (for example, on an EC2 instance with
+  an attached IAM role).
+
+  Replace `{account-id}` with your AWS Account ID.
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "rds:DescribeDBClusters",
+                  "rds:ModifyDBCluster"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetRolePolicy",
+                  "iam:PutRolePolicy",
+                  "iam:DeleteRolePolicy"
+              ],
+              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+</Tabs>
+
+### Redshift
+
+<Tabs>
+  <TabItem label="IAM user">
+  Use this permission boundary if your Teleport database agent runs as an IAM
+  user (for example, it uses an AWS credentials file).
+
+  Replace `{account-id}` with your AWS Account ID.
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "redshift:DescribeClusters",
+                  "redshift:GetClusterCredentials"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetUserPolicy",
+                  "iam:PutUserPolicy",
+                  "iam:DeleteUserPolicy"
+              ],
+              "Resource": "arn:aws:iam::{account-id}:user/sample-user"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+  <TabItem label="IAM role">
+  Use this permission boundary if your Teleport database agent runs as an IAM
+  role (for example, on an EC2 instance with an attached IAM role).
+
+  Replace `{account-id}` with your AWS Account ID.
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "redshift:DescribeClusters",
+                  "redshift:GetClusterCredentials",
+              ],
+              "Resource": "*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:GetRolePolicy",
+                  "iam:PutRolePolicy",
+                  "iam:DeleteRolePolicy"
+              ],
+              "Resource": "arn:aws:iam::{account-id}:role/sample-role"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+</Tabs>
+
+## Manual registration
+If you prefer to register RDS or Redshift databases manually using a [static
+configuration](./configuration.mdx) or
+[`tctl`](../guides/dynamic-registration.mdx) and manage IAM yourself, example
+IAM policies with the required permissions are shown below.
+
+### RDS or Aurora policy
 
 To connect to an RDS database, the database agent's IAM identity needs to have
 `rds-db:connect` permissions for it:
@@ -52,3 +262,49 @@ arn:aws:rds-db:<region>:<account-id>:dbuser:<resource-id>/<db-user>
 
 See [Creating and using an IAM policy for IAM database access](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html)
 for more information.
+
+### Redshift policy
+Teleport uses temporary credentials generated by AWS to authenticate with
+Redshift databases.
+
+In order to authorize Teleport to generate temporary IAM tokens, create an IAM
+role with the `GetClusterCredentials` permission:
+
+<Details title="Example IAM policy document" opened={false}>
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "redshift:GetClusterCredentials",
+            "Resource": [
+                "arn:aws:redshift:*:1234567890:dbuser:*/*",
+                "arn:aws:redshift:*:1234567890:dbname:*/*",
+                "arn:aws:redshift:*:1234567890:dbgroup:*/*"
+            ]
+        }
+    ]
+}
+```
+</Details>
+
+The resource ARN string has the following format:
+
+```
+arn:aws:redshift:<region>:<account-id>:<resource>:<cluster-id>/<name>
+```
+
+Parameters:
+| Parameter     | Description |
+| ------------- | ----------- |
+| `region`      | AWS region where your Redshift cluster is deployed, or a wildcard. |
+| `account-id`  | ID of the AWS account where the Redshift cluster is deployed. |
+| `resource`    | One of `dbuser`, `dbname` or `dbgroup` to restrict access to database accounts, names or groups respectively. |
+| `cluster-id`  | Redshift cluster identifier, or a wildcard. |
+| `name`        | Name of a particular database account, name or group (depending on the `resource`), or a wildcard. |
+
+See [Create an IAM role or user with permissions to call
+GetClusterCredentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-iam-credentials-role-permissions.html)
+for more information.
+

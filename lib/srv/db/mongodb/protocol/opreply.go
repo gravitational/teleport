@@ -82,8 +82,8 @@ func (m *MessageOpReply) GetDocumentsAsStrings() (documents []string) {
 
 // String returns the message string representation.
 func (m *MessageOpReply) String() string {
-	return fmt.Sprintf("OpReply(Flags=%v, CursorID=%v, StartingFrom=%v, NumberReturned=%v, Documents=%v)",
-		m.Flags.String(), m.CursorID, m.StartingFrom, m.NumberReturned, m.GetDocumentsAsStrings())
+	return fmt.Sprintf("OpReply(Documents=%v, StartingFrom=%v, NumberReturned=%v, CursorID=%v, Flags=%v)",
+		m.GetDocumentsAsStrings(), m.StartingFrom, m.NumberReturned, m.CursorID, m.Flags.String())
 }
 
 // MoreToCome is whether sender will send another message right after this one.
@@ -93,29 +93,39 @@ func (m *MessageOpReply) MoreToCome(msg Message) bool {
 	return ok && opQuery.Flags&wiremessage.Exhaust == wiremessage.Exhaust && m.CursorID != 0
 }
 
+// GetDatabase is a no-op for OpReply since this is a server message.
+func (m *MessageOpReply) GetDatabase() (string, error) {
+	return "", nil
+}
+
+// GetCommand is a no-op for OpReply since this is a server message.
+func (m *MessageOpReply) GetCommand() (string, error) {
+	return "", nil
+}
+
 // readOpReply converts OP_REPLY wire message bytes into a structured form.
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_reply
 func readOpReply(header MessageHeader, payload []byte) (*MessageOpReply, error) {
 	flags, rem, ok := wiremessage.ReadReplyFlags(payload)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_REPLY responseFlags %v", payload)
+		return nil, trace.BadParameter("malformed OP_REPLY: missing response flags %v", payload)
 	}
 	cursorID, rem, ok := wiremessage.ReadReplyCursorID(rem)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_REPLY cursorID %v", payload)
+		return nil, trace.BadParameter("malformed OP_REPLY: missing cursor ID %v", payload)
 	}
 	startingFrom, rem, ok := wiremessage.ReadReplyStartingFrom(rem)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_REPLY startingFrom %v", payload)
+		return nil, trace.BadParameter("malformed OP_REPLY: missing starting from %v", payload)
 	}
 	numberReturned, rem, ok := wiremessage.ReadReplyNumberReturned(rem)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_REPLY numberReturned %v", payload)
+		return nil, trace.BadParameter("malformed OP_REPLY: missing number returned %v", payload)
 	}
 	documents, _, ok := wiremessage.ReadReplyDocuments(rem)
 	if !ok {
-		return nil, trace.BadParameter("failed to read OP_REPLY documents %v", payload)
+		return nil, trace.BadParameter("malformed OP_REPLY: missing documents %v", payload)
 	}
 	return &MessageOpReply{
 		Header:         header,

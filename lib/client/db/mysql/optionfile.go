@@ -111,7 +111,7 @@ func (o *OptionFile) Env(name string) (map[string]string, error) {
 	// https://dev.mysql.com/doc/refman/8.0/en/environment-variables.html
 	//
 	// Due to this fact, we use the "option group suffix" which makes clients
-	// use speficic section from ~/.my.cnf file that has all these settings.
+	// use specific section from ~/.my.cnf file that has all these settings.
 	return map[string]string{
 		"MYSQL_GROUP_SUFFIX": suffix(name),
 	}, nil

@@ -16,7 +16,13 @@ limitations under the License.
 
 package events
 
-import "github.com/gravitational/trace"
+import (
+	"encoding/json"
+	"reflect"
+
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+)
 
 // MustToOneOf converts audit event to OneOf
 // or panics, used in tests
@@ -225,6 +231,26 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DatabaseSessionQuery{
 			DatabaseSessionQuery: e,
 		}
+	case *PostgresParse:
+		out.Event = &OneOf_PostgresParse{
+			PostgresParse: e,
+		}
+	case *PostgresBind:
+		out.Event = &OneOf_PostgresBind{
+			PostgresBind: e,
+		}
+	case *PostgresExecute:
+		out.Event = &OneOf_PostgresExecute{
+			PostgresExecute: e,
+		}
+	case *PostgresClose:
+		out.Event = &OneOf_PostgresClose{
+			PostgresClose: e,
+		}
+	case *PostgresFunctionCall:
+		out.Event = &OneOf_PostgresFunctionCall{
+			PostgresFunctionCall: e,
+		}
 	case *SessionUpload:
 		out.Event = &OneOf_SessionUpload{
 			SessionUpload: e,
@@ -273,138 +299,107 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WindowsDesktopSessionEnd{
 			WindowsDesktopSessionEnd: e,
 		}
+	case *SessionConnect:
+		out.Event = &OneOf_SessionConnect{
+			SessionConnect: e,
+		}
+	case *AccessRequestDelete:
+		out.Event = &OneOf_AccessRequestDelete{
+			AccessRequestDelete: e,
+		}
+	case *CertificateCreate:
+		out.Event = &OneOf_CertificateCreate{
+			CertificateCreate: e,
+		}
+	case *DesktopRecording:
+		out.Event = &OneOf_DesktopRecording{
+			DesktopRecording: e,
+		}
+	case *DesktopClipboardReceive:
+		out.Event = &OneOf_DesktopClipboardReceive{
+			DesktopClipboardReceive: e,
+		}
+	case *DesktopClipboardSend:
+		out.Event = &OneOf_DesktopClipboardSend{
+			DesktopClipboardSend: e,
+		}
+	case *MySQLStatementPrepare:
+		out.Event = &OneOf_MySQLStatementPrepare{
+			MySQLStatementPrepare: e,
+		}
+	case *MySQLStatementExecute:
+		out.Event = &OneOf_MySQLStatementExecute{
+			MySQLStatementExecute: e,
+		}
+	case *MySQLStatementSendLongData:
+		out.Event = &OneOf_MySQLStatementSendLongData{
+			MySQLStatementSendLongData: e,
+		}
+	case *MySQLStatementClose:
+		out.Event = &OneOf_MySQLStatementClose{
+			MySQLStatementClose: e,
+		}
+	case *MySQLStatementReset:
+		out.Event = &OneOf_MySQLStatementReset{
+			MySQLStatementReset: e,
+		}
+	case *MySQLStatementFetch:
+		out.Event = &OneOf_MySQLStatementFetch{
+			MySQLStatementFetch: e,
+		}
+	case *MySQLStatementBulkExecute:
+		out.Event = &OneOf_MySQLStatementBulkExecute{
+			MySQLStatementBulkExecute: e,
+		}
+	case *RenewableCertificateGenerationMismatch:
+		out.Event = &OneOf_RenewableCertificateGenerationMismatch{
+			RenewableCertificateGenerationMismatch: e,
+		}
+	case *Unknown:
+		out.Event = &OneOf_Unknown{
+			Unknown: e,
+		}
 	default:
-		return nil, trace.BadParameter("event type %T is not supported", in)
+		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
+		unknown := &Unknown{}
+		unknown.Type = UnknownEvent
+		unknown.Code = UnknownCode
+		unknown.Time = in.GetTime()
+		unknown.ClusterName = in.GetClusterName()
+		unknown.UnknownType = in.GetType()
+		unknown.UnknownCode = in.GetCode()
+		data, err := json.Marshal(in)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		unknown.Data = string(data)
+		out.Event = &OneOf_Unknown{
+			Unknown: unknown,
+		}
 	}
 	return &out, nil
 }
 
 // FromOneOf converts audit event from one of wrapper to interface
 func FromOneOf(in OneOf) (AuditEvent, error) {
-	if e := in.GetUserLogin(); e != nil {
-		return e, nil
-	} else if e := in.GetUserCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetUserDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetUserPasswordChange(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionStart(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionJoin(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionPrint(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionReject(); e != nil {
-		return e, nil
-	} else if e := in.GetResize(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionEnd(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionCommand(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionDisk(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionNetwork(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionData(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionLeave(); e != nil {
-		return e, nil
-	} else if e := in.GetPortForward(); e != nil {
-		return e, nil
-	} else if e := in.GetX11Forward(); e != nil {
-		return e, nil
-	} else if e := in.GetSCP(); e != nil {
-		return e, nil
-	} else if e := in.GetExec(); e != nil {
-		return e, nil
-	} else if e := in.GetSubsystem(); e != nil {
-		return e, nil
-	} else if e := in.GetClientDisconnect(); e != nil {
-		return e, nil
-	} else if e := in.GetAuthAttempt(); e != nil {
-		return e, nil
-	} else if e := in.GetAccessRequestCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetUserTokenCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetRoleCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetRoleDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetTrustedClusterCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetTrustedClusterDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetTrustedClusterTokenCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetGithubConnectorCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetGithubConnectorDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetOIDCConnectorCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetOIDCConnectorDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetSAMLConnectorCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetSAMLConnectorDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetKubeRequest(); e != nil {
-		return e, nil
-	} else if e := in.GetAppSessionStart(); e != nil {
-		return e, nil
-	} else if e := in.GetAppSessionChunk(); e != nil {
-		return e, nil
-	} else if e := in.GetAppSessionRequest(); e != nil {
-		return e, nil
-	} else if e := in.GetAppCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetAppUpdate(); e != nil {
-		return e, nil
-	} else if e := in.GetAppDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseUpdate(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseSessionStart(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseSessionEnd(); e != nil {
-		return e, nil
-	} else if e := in.GetDatabaseSessionQuery(); e != nil {
-		return e, nil
-	} else if e := in.GetSessionUpload(); e != nil {
-		return e, nil
-	} else if e := in.GetMFADeviceAdd(); e != nil {
-		return e, nil
-	} else if e := in.GetMFADeviceDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetBillingCardCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetBillingCardDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetLockCreate(); e != nil {
-		return e, nil
-	} else if e := in.GetLockDelete(); e != nil {
-		return e, nil
-	} else if e := in.GetBillingInformationUpdate(); e != nil {
-		return e, nil
-	} else if e := in.GetRecoveryCodeGenerate(); e != nil {
-		return e, nil
-	} else if e := in.GetRecoveryCodeUsed(); e != nil {
-		return e, nil
-	} else if e := in.GetWindowsDesktopSessionStart(); e != nil {
-		return e, nil
-	} else if e := in.GetWindowsDesktopSessionEnd(); e != nil {
-		return e, nil
-	} else {
-		if in.Event == nil {
-			return nil, trace.BadParameter("failed to parse event, session record is corrupted")
-		}
+	e := in.GetEvent()
+	if e == nil {
+		return nil, trace.BadParameter("failed to parse event, session record is corrupted")
+	}
+
+	// We go from e (isOneOf_Event) -> reflect.Value (*OneOf_SomeStruct) -> reflect.Value(OneOf_SomeStruct).
+	elem := reflect.ValueOf(in.GetEvent()).Elem()
+
+	// OneOfs only have one inner field, verify and then read it.
+	if elem.NumField() != 1 {
+		// This should never happen for proto one-ofs.
+		return nil, trace.BadParameter("unexpect number in value %v: %v != 1", elem.Kind(), elem.NumField())
+	}
+
+	auditEvent, ok := elem.Field(0).Interface().(AuditEvent)
+	if !ok || reflect.ValueOf(auditEvent).IsNil() {
 		return nil, trace.BadParameter("received unsupported event %T", in.Event)
 	}
+	return auditEvent, nil
 }

@@ -18,25 +18,26 @@ package services
 
 import (
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 )
 
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
@@ -53,6 +54,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
+	case types.DatabaseCA:
+		err = checkDatabaseCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
 	default:
@@ -84,6 +87,39 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	}
 	_, err := parseRoleMap(ca.GetRoleMap())
 	return trace.Wrap(err)
+}
+
+// checkDatabaseCA checks if provided certificate authority contains a valid TLS key pair.
+// This function is used to verify Database CA.
+func checkDatabaseCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	if len(ca.Spec.ActiveKeys.TLS) == 0 && len(ca.Spec.TLSKeyPairs) == 0 {
+		return trace.BadParameter("DB certificate authority missing TLS key pairs")
+	}
+
+	for _, pair := range ca.GetTrustedTLSKeyPairs() {
+		if len(pair.Key) > 0 && pair.KeyType == types.PrivateKeyType_RAW {
+			var err error
+			if len(pair.Cert) > 0 {
+				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
+			} else {
+				_, err = utils.ParsePrivateKey(pair.Key)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		_, err := tlsca.ParseCertificatePEM(pair.Cert)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 func checkJWTKeys(cai types.CertAuthority) error {
@@ -209,8 +245,6 @@ type ChangePasswordReq struct {
 	NewPassword []byte `json:"new_password"`
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
-	// U2FSignResponse is U2F sign response
-	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 	// WebauthnResponse is Webauthn sign response
 	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
 }
@@ -255,9 +289,18 @@ type UserCertParams struct {
 	MFAVerified string
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
+	// DisallowReissue flags that any attempt to request new certificates while
+	// authenticated with this cert should be denied.
+	DisallowReissue bool
+	// CertificateExtensions are user configured ssh key extensions
+	CertificateExtensions []*types.CertExtension
+	// Renewable indicates this certificate is renewable
+	Renewable bool
+	// Generation counts the number of times a certificate has been renewed.
+	Generation uint64
 }
 
-// Check checks the user certificate parameters
+// CheckAndSetDefaults checks the user certificate parameters
 func (c *UserCertParams) CheckAndSetDefaults() error {
 	if c.CASigner == nil || c.CASigningAlg == "" {
 		return trace.BadParameter("CASigner and CASigningAlg are required")
@@ -386,7 +429,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 	}
 }
 
-// CertAuthorityNeedsMigrations returns true if the given CertAuthority needs to be migrated
+// CertAuthorityNeedsMigration returns true if the given CertAuthority needs to be migrated
 func CertAuthorityNeedsMigration(cai types.CertAuthority) (bool, error) {
 	ca, ok := cai.(*types.CertAuthorityV2)
 	if !ok {

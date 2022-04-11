@@ -1,0 +1,202 @@
+---
+title: UI Reference
+description: Use this resource for guidance on using our custom Next.js components and syntax
+---
+Teleport uses Next.js to generate its static documentation site. Next.js uses Markdown with React, hence the `.mdx` filename suffix.
+
+This section briefly describes some of the features that are most relevant when writing documentation.
+
+## Variables, templating, and interpolation
+Many documentation teams struggle with maintaining the vast number of articles
+and resources that are eventually created and consumed. Links and images have to
+be rechecked for accuracy and relevance.
+
+To ease this burden, we can replace links and code examples with *variables* so we don't have to constantly update everything after each release.
+
+Variables are stored in the `docs/config.json` file under the key `variables`.
+
+To insert a variable into a page, use the `(\= path.to.variable \=)` syntax (remove backslashes in the actual Markdown).
+
+Variables will be linted when a PR is created as part of our CI/CD process. If a variable does not exist in the config, you will see an error that you must remedy in order to merge your PR.
+
+## Partials
+To prevent content duplication, it's useful to include code examples or Markdown
+content from a partial file into the current page. This allows our documentation
+to reduce maintenance overhead so we can focus on writing new articles.
+
+To include a partial, use the following syntax: `(\!path-to-file.mdx\!)` syntax (remove the backslashes in an actual page).
+
+Paths are resolved from the root of the repository.
+
+Partials will be linted when a PR is created as part of our CI/CD process. If a
+partial does not exist in the repository, our system will throw an error.
+Incorrect placement of include statements will also throw errors.
+
+Partials will only be included in these two cases:
+
+### Surrounded by newlines
+
+   ```md
+   Some text.
+
+   (\! include.mdx \!)
+
+   Some other text.
+   ```
+
+   If the partial is an `.mdx` file, it will be parsed and rendered as Markdown. In other cases
+   it will be included as-is.
+
+### Inside code blocks
+
+   ````md
+   ```code
+   # Code example below
+
+   (\!include.sh\!)
+
+   ```
+   ````
+
+These will be inserted as-is, even in the case of `.mdx` files.
+
+## Image pixel density markers
+Browsers can't distinguish between images that are suitable for Apple's Retina display and images that are not. Because of this, screenshots taken on Retina screens may look large on the page.
+
+To hint to browsers that an image is meant for a Retina display, we can add the
+suffix `@Nx` to the image's file name. For example, screenshots made on MacOS
+should have the suffix `filename@2x.png`. This will tell the browser to scale
+images down twice to show them in their actual size.
+
+## Scopes
+There are three versions of Teleport: `oss`, `enterprise`, and `cloud`. Readers can switch the scope of the documentation using a dropdown menu at the top of the page.
+
+Based on the selector's value, some `.mdx` components can hide or show different content sections. Check the components' descriptions below to see which component can be affected by this selector. These components will include the `scope` property.
+
+If `scope` is set, the component will be only shown if the scope is selected via
+the dropdown menu. `scope` can be either a single string or an array of strings.
+Possible values are `oss`, `enterprise`, and `cloud`. For an array of strings,
+use this syntax: `scope={["oss", "cloud"]}`.
+
+## Notices
+<Notice type="tip">Notice content.</Notice>
+
+If you want to add notice like the one above to the page, use this syntax:
+
+```
+<Notice type="tip">
+  Notice content.
+</Notice>
+```
+
+`type` can be one of the following values: `warning`, `tip`, `note`, `danger`. The default is `tip`.
+Different types will result in different background colors and icons.
+
+`scope` is an optional property that specifies the component's [scope](./reference.mdx#scopes).
+
+## Admonitions
+
+<Admonition
+  title="Admonition title"
+  type="tip"
+>
+  Admonition content.
+</Admonition>
+
+Admonitions are similar to notices, but are intended for longer content that looks better against a white background. Use this syntax:
+
+```jsx
+<Admonition title="Admontion title" type="tip">
+ Admontion content.
+</Admonition>
+```
+
+`type` can be one of the following values: `warning`, `tip`, `note`, `danger`.
+Different types will result in different colors for the header. Omitting the type
+or using some other value will result in resetting it to the `tip`.
+
+If `title` is omitted, `type` will be used instead as the title value.
+
+`scope` is an optional property that specifies the component's
+[scope](./reference.mdx#scopes). If the `scopeOnly` property is provided and the
+user-selected scope is not included in `scope`, the `Admonition` will be hidden.
+
+## Tabs
+
+<Tabs>
+  <TabItem label="First label">
+    First tab.
+  </TabItem>
+
+  <TabItem label="Second label">
+    Second tab.
+  </TabItem>
+</Tabs>
+
+To insert a tabs block like the one above, use this syntax:
+
+```jsx
+<Tabs>
+  <TabItem label="First label">
+    First tab.
+  </TabItem>
+  <TabItem label="Second label">
+    Second tab.
+  </TabItem>
+</Tabs>
+```
+
+`scope` is an optional property that specifies the component's [scope](./reference.mdx#scopes). Selecting a scope via the dropdown menu at the top of the page switches the `Tabs` component to the tab associated with that scope.
+
+
+## Details
+
+<Details title="Details title" min="7.0" opened>
+  Details content
+</Details>
+
+To insert a details block like the one above, use this syntax:
+
+```
+<Details title="Details title" min="7.0" opened>
+  Details content
+</Details>
+```
+
+`scope` is an optional property that specifies the component's [scope](./reference.mdx#scopes).
+
+If `scopeOnly` is asasigned to `{true}`, the component will only be visible
+in the provided scope and invisible in all other scopes.
+
+## Figures
+{/* TODO: Document all props */}
+
+The `Figure` component can help with using images, figures, and diagrams:
+
+<Figure
+  align="center"
+  bordered
+  caption="Example"
+>
+  ![Example](../../../img/overview.png)
+</Figure>
+
+```jsx
+<Figure
+  align="center"
+  bordered
+  caption="Example"
+>
+  ![Example](../../../img/overview.png)
+</Figure>
+```
+
+## Videos
+To embed a video in a docs page, use the `video` tag:
+```html
+<video autoPlay loop muted playsInline>
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
+Your browser does not support the video tag.
+</video>
+```

@@ -20,7 +20,9 @@ package proto
 import (
 	"time"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/trace"
 )
 
@@ -68,4 +70,23 @@ func (req *HostCertsRequest) CheckAndSetDefaults() error {
 	}
 
 	return req.Role.Check()
+}
+
+// CheckAndSetDefaults checks and sets default values.
+func (req *ListResourcesRequest) CheckAndSetDefaults() error {
+	if req.Namespace == "" {
+		req.Namespace = apidefaults.Namespace
+	}
+
+	if req.Limit <= 0 {
+		return trace.BadParameter("nonpositive parameter limit")
+	}
+
+	return nil
+}
+
+// RequiresFakePagination checks if we need to fallback to GetXXX calls
+// that retrieves entire resources upfront rather than working with subsets.
+func (req *ListResourcesRequest) RequiresFakePagination() bool {
+	return req.SortBy.Field != "" || req.NeedTotalCount || req.ResourceType == types.KindKubernetesCluster
 }

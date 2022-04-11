@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -42,6 +43,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -97,7 +99,7 @@ type AccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 }
 
 // Server is regular or forwarding SSH server.
@@ -200,6 +202,17 @@ type IdentityContext struct {
 
 	// ActiveRequests is active access request IDs
 	ActiveRequests []string
+
+	// DisallowReissue is a flag that, if set, instructs the auth server to
+	// deny any requests from this identity to generate new certificates.
+	DisallowReissue bool
+
+	// Renewable indicates this certificate is renewable.
+	Renewable bool
+
+	// Generation counts the number of times this identity's certificate has
+	// been renewed.
+	Generation uint64
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -315,6 +328,14 @@ type ServerContext struct {
 	// port to connect to in a "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	DstAddr string
+
+	// x11rdy{r,w} is used to signal from the child process to the
+	// parent process when X11 forwarding is set up.
+	x11rdyr *os.File
+	x11rdyw *os.File
+
+	// x11Config holds the xauth and XServer listener config for this session.
+	x11Config *X11Config
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -348,6 +369,18 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		cancel:                 cancel,
 	}
 
+	fields := log.Fields{
+		"local":        child.ServerConn.LocalAddr(),
+		"remote":       child.ServerConn.RemoteAddr(),
+		"login":        child.Identity.Login,
+		"teleportUser": child.Identity.TeleportUser,
+		"id":           child.id,
+	}
+	child.Entry = log.WithFields(log.Fields{
+		trace.Component:       child.srv.Component(),
+		trace.ComponentFields: fields,
+	})
+
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
 		childErr := child.Close()
@@ -358,13 +391,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
 
-	fields := log.Fields{
-		"local":        child.ServerConn.LocalAddr(),
-		"remote":       child.ServerConn.RemoteAddr(),
-		"login":        child.Identity.Login,
-		"teleportUser": child.Identity.TeleportUser,
-		"id":           child.id,
-	}
+	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
 		fields["cert"] = child.disconnectExpiredCert
 	}
@@ -422,6 +449,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
+
+	// Create pipe used to get X11 forwarding ready signal from the child process.
+	child.x11rdyr, child.x11rdyw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.x11rdyr)
+	child.AddCloser(child.x11rdyw)
 
 	return ctx, child, nil
 }
@@ -580,6 +616,139 @@ func (c *ServerContext) getSession() *session {
 	return c.session
 }
 
+// OpenXServerListener opens a new XServer unix listener.
+func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset, maxDisplays int) error {
+	l, display, err := x11.OpenNewXServerListener(displayOffset, maxDisplays, x11Req.ScreenNumber)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = c.setX11Config(&X11Config{
+		XServerUnixSocket: l.Addr().String(),
+		XAuthEntry: x11.XAuthEntry{
+			Display: display,
+			Proto:   x11Req.AuthProtocol,
+			Cookie:  x11Req.AuthCookie,
+		},
+	})
+	if err != nil {
+		l.Close()
+		return trace.Wrap(err)
+	}
+
+	c.AddCloser(l)
+
+	// Prepare X11 channel request payload
+	originHost, originPort, err := net.SplitHostPort(c.ServerConn.LocalAddr().String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	originPortI, err := strconv.Atoi(originPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	x11ChannelReqPayload := ssh.Marshal(x11.ChannelRequestPayload{
+		OriginatorAddress: originHost,
+		OriginatorPort:    uint32(originPortI),
+	})
+
+	go func() {
+		for {
+			xconn, err := l.Accept()
+			if err != nil {
+				// listener is closed
+				return
+			}
+
+			go func() {
+				defer xconn.Close()
+
+				// If the session has not signaled that X11 forwarding is
+				// fully set up yet, then ignore any incoming connections.
+				// The client's session hasn't been fully set up yet so this
+				// could potentially be a break-in attempt.
+				if ok, err := c.x11Ready(); err != nil {
+					log.WithError(err).Debug("Failed to get X11 ready status")
+					return
+				} else if !ok {
+					log.WithError(err).Debug("Rejecting X11 request, XServer Proxy is not ready")
+					return
+				}
+
+				xchan, sin, err := c.ServerConn.OpenChannel(sshutils.X11ChannelRequest, x11ChannelReqPayload)
+				if err != nil {
+					log.WithError(err).Debug("Failed to open a new X11 channel")
+					return
+				}
+				defer xchan.Close()
+
+				// Forward ssh requests on the X11 channels until X11 forwarding is complete
+				ctx, cancel := context.WithCancel(c.cancelContext)
+				defer cancel()
+
+				go func() {
+					err := sshutils.ForwardRequests(ctx, sin, c.RemoteSession)
+					if err != nil {
+						log.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
+					}
+				}()
+
+				if err := x11.Forward(ctx, xconn, xchan); err != nil {
+					log.WithError(err).Debug("Encountered error during X11 forwarding")
+				}
+			}()
+
+			if x11Req.SingleConnection {
+				l.Close()
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
+// getX11Config gets the x11 config for this server session.
+func (c *ServerContext) getX11Config() X11Config {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.x11Config != nil {
+		return *c.x11Config
+	}
+	return X11Config{}
+}
+
+// setX11Config sets X11 config for the session, or returns an error if already set.
+func (c *ServerContext) setX11Config(cfg *X11Config) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.x11Config != nil {
+		return trace.AlreadyExists("X11 forwarding is already set up for this session")
+	}
+
+	c.x11Config = cfg
+	return nil
+}
+
+// x11Ready returns whether the X11 unix listener is ready to accept connections.
+func (c *ServerContext) x11Ready() (bool, error) {
+	// Wait for child process to send signal (1 byte)
+	// or EOF if signal was already received.
+	_, err := io.ReadFull(c.x11rdyr, make([]byte, 1))
+	if err == io.EOF {
+		return true, nil
+	} else if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// signal received, close writer so future calls read EOF.
+	if err := c.x11rdyw.Close(); err != nil {
+		return false, trace.Wrap(err)
+	}
+	return true, nil
+}
+
 // takeClosers returns all resources that should be closed and sets the properties to null
 // we do this to avoid calling Close() under lock to avoid potential deadlocks
 func (c *ServerContext) takeClosers() []io.Closer {
@@ -632,11 +801,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			SessionID: string(c.SessionID()),
 			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         c.Identity.TeleportUser,
-			Login:        c.Identity.Login,
-			Impersonator: c.Identity.Impersonator,
-		},
+		UserMetadata: c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: c.ServerConn.RemoteAddr().String(),
 		},
@@ -833,7 +998,17 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
+		X11Config:             c.getX11Config(),
 	}, nil
+}
+
+func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
+	return apievents.UserMetadata{
+		Login:          id.Login,
+		User:           id.TeleportUser,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
+	}
 }
 
 // buildEnvironment constructs a list of environment variables from
@@ -931,12 +1106,19 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleTargets := services.RolesToLockTargets(apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...)))
-	return append([]types.LockTarget{
+	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: s.HostUUID()},
 		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
-	}, roleTargets...), nil
+	}
+	roles := apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...))
+	lockTargets = append(lockTargets,
+		services.RolesToLockTargets(roles)...,
+	)
+	lockTargets = append(lockTargets,
+		services.AccessRequestsToLockTargets(id.ActiveRequests)...,
+	)
+	return lockTargets, nil
 }

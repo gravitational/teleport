@@ -42,10 +42,10 @@ func (p *ProcessStorage) Close() error {
 }
 
 const (
-	// IdentityNameCurrent is a name for the identity credentials that are
+	// IdentityCurrent is a name for the identity credentials that are
 	// currently used by the process.
 	IdentityCurrent = "current"
-	// IdentityReplacement is a name for the identity crdentials that are
+	// IdentityReplacement is a name for the identity credentials that are
 	// replacing current identity credentials during CA rotation.
 	IdentityReplacement = "replacement"
 	// stateName is an internal resource object name

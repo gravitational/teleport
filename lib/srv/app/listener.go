@@ -18,10 +18,15 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net"
 
 	"github.com/gravitational/trace"
 )
+
+// errListenerConnServed is used as a signal between listener and Server.
+// See listener.Accept for details.
+var errListenerConnServed = errors.New("ok: listener conn served")
 
 // listener wraps a net.Conn in a net.Listener interface. This allows passing
 // a channel connection from the reverse tunnel subsystem to an HTTP server.
@@ -48,10 +53,20 @@ func newListener(ctx context.Context, conn net.Conn) *listener {
 	}
 }
 
-// Accept returns the connection.
+// Accept returns the connection. An error is returned when this listener
+// is closed, its parent context is closed, or the second time it is called.
+//
+// On the second call, this method returns errListenerConnServed. This will
+// trigger the calling http.Serve function to exit gracefully, close this
+// listener, and return control to the http.Serve caller. The caller should
+// ignore errListenerConnServed and handle all other errors.
 func (l *listener) Accept() (net.Conn, error) {
 	select {
-	case conn := <-l.connCh:
+	case conn, more := <-l.connCh:
+		if !more {
+			return nil, errListenerConnServed // normal operation signal
+		}
+		close(l.connCh)
 		return conn, nil
 	case <-l.closeContext.Done():
 		return nil, trace.BadParameter("closing context")

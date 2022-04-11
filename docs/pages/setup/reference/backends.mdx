@@ -207,14 +207,169 @@ teleport:
 The AWS authentication settings above can be omitted if the machine itself is
 running on an EC2 instance with an IAM role.
 
-These optional `GET` parameters control how Teleport interacts with an S3 endpoint, including S3-compatible endpoints.
+The optional `GET` parameters shown below control how Teleport interacts with an S3 endpoint, including S3-compatible endpoints.
 
-`s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false`
+`s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private`
 
 - `region=us-east-1` - set the Amazon region to use.
 - `endpoint=mys3.example.com` - connect to a custom S3 endpoint.
 - `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
 - `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
+- `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
+- `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
+
+### S3 Server Side Encryption
+
+Teleport supports using a custom AWS KMS Customer Managed Key for encrypting objects uploaded to S3.
+This allows you to restrict who can read objects like session recordings separately from those that have read
+access to a bucket by restricting key access.
+
+The `sse_kms_key` parameter above can be set to any valid KMS CMK ID corresponding to a symmetric standard spec KMS key.
+Example template KMS key policies are provided below for common usage cases. IAM users do not have access to any
+key by default. Permissions have to be explicitly granted in the policy.
+
+#### Encryption/Decryption
+
+This policy allows an IAM user to encrypt and decrypt objects.
+This allows a cluster auth to write and play back session recordings.
+
+Replace `[iam-key-admin-arn]` with the IAM ARN of the user(s) that should have
+administrative key access and `[auth-node-iam-arn]` with the IAM ARN
+of the user the Teleport auth nodes are using.
+
+```json
+{
+  "Id": "Teleport Encryption and Decryption",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Teleport CMK Admin",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[iam-key-admin-arn]"
+      },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "Teleport CMK Auth",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[auth-node-iam-arn]"
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### Encryption/Decryption with separate clusters
+
+This policy allows specifying separate IAM users for encryption and decryption.
+This can be used to set up a multi cluster configuration where the main cluster
+cannot play back session recordings but only write them.
+A separate cluster authenticating as a different IAM user with decryption access
+can be used for playing back the session recordings.
+
+Replace `[iam-key-admin-arn]` with the IAM ARN of the user(s) that should have
+administrative key access, `[iam-node-write-arn]` with the IAM ARN of the user the
+main write-only cluster auth nodes are using and `[iam-node-read-arn]` with the
+IAM ARN of the user used by the read-only cluster.
+
+For this to work the second cluster has to be connected to the same audit log as the main cluster.
+This is needed to detect session recordings.
+
+```json
+{
+  "Id": "Teleport Separate Encryption and Decryption",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Teleport CMK Admin",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[iam-key-admin-arn]"
+      },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "Teleport CMK Auth Encrypt",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[auth-node-write-arn]"
+      },
+      "Action": [
+        "kms:Encrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Teleport CMK Auth Decrypt",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "[auth-node-read-arn]"
+      },
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### ACL example: transferring object ownership
+
+If you are uploading from AWS account `A` to a bucket owned by AWS account `B` and want `A` to retain ownership of the objects, you can take one of two approaches.
+
+#### Without ACLs
+
+If ACLs are disabled, object ownership will be set to `Bucket owner enforced` and no action will be needed.
+
+#### With ACLs
+
+- Set object ownership to `Bucket owner preferred` (under Permissions in the management console).
+- Add `acl=bucket-owner-full-control` to `audit_sessions_uri`.
+
+To enforce the ownership transfer, set `B`'s bucket's policy to only allow uploads that include the `bucket-owner-full-control` canned ACL.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Id": "[id]",
+    "Statement": [
+        {
+            "Sid": "[sid]",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "[ARN of account A]"
+            },
+            "Action": "s3:PutObject",
+            "Resource": "arn:aws:s3:::BucketName/*",
+            "Condition": {
+                "StringEquals": {
+                    "s3:x-amz-acl": "bucket-owner-full-control"
+                }
+            }
+        }
+    ]
+}
+
+```
+
+For more information, see the [AWS Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html).
 
 ## DynamoDB
 
@@ -265,6 +420,10 @@ teleport:
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
+
+    # Teleport by default stores stores audit events with an AWS TTL of 1 year.
+    # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
+    audit_retention_period: 1y
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
@@ -277,8 +436,6 @@ teleport:
   bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
-- If DynamoDB is used for the audit log, the logged events will be stored with a
-  TTL of 1 year. Currently, this TTL is not configurable.
 
 <Admonition
   type="warning"

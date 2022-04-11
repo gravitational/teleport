@@ -18,14 +18,31 @@ kubeClusterName: ""
 # Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
 
-# Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc', 'saml', and 'false' for Enterprise.
+# Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc' and 'saml' for Enterprise.
 # 'false' is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
 authenticationType: local
 
+authenticationSecondFactor:
+  secondFactor: "otp"
+
+# Teleport supports TLS routing. In this mode, all client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
+# Default mode will not utilize TLS routing and operate in backwards-compatibility mode.
+# Possible values are 'multiplex'
+proxyListenerMode: ""
+
+# By default, Teleport will multiplex Postgres and MongoDB database connections on the same port as the proxy's web listener (443)
+# Setting either of these values to true will separate the listeners out onto a separate port (5432 for Postgres, 27017 for MongoDB)
+# This is useful when terminating TLS at a load balancer in front of Teleport (such as when using AWS ACM)
+# These settings will not apply if proxyListenerMode is set to "multiplex".
+separatePostgresListener: false
+separateMongoListener: false
+
 # ACME is a protocol for getting Web X.509 certificates
 # Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
+# For HA configurations, see either the "highAvailability.certManager" or "tls" values.
 # Setting acme to 'true' enables the ACME protocol and will attempt to get a free TLS certificate from Let's Encrypt.
 # Setting acme to 'false' (the default) will cause Teleport to generate and use self-signed certificates for its web UI.
+# This section is mutually exclusive with the "tls" value below.
 acme: false
 # acmeEmail is the email address to provide during certificate registration (this is a Let's Encrypt requirement)
 acmeEmail: ""
@@ -81,6 +98,8 @@ aws:
   # The container will need an appropriately-provisioned IAM role with permissions to create DynamoDB tables.
   # This MUST NOT be the same table name as used for 'backendTable' as the schemas are different.
   auditLogTable: ""
+  # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  auditLogMirrorOnStdout: false
   # The S3 bucket name to use for recorded session storage. Teleport will attempt to create this bucket automatically if it does not exist.
   # The container will need an appropriately-provisioned IAM role with permissions to create S3 buckets.
   sessionRecordingBucket: ""
@@ -105,6 +124,8 @@ gcp:
   # - The service account credentials provided via 'credentialSecretName' will need permissions to create Firestore collections.
   # This MUST NOT be the same collection name as used for 'backendTable' as the schemas are different.
   auditLogTable: ""
+  # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  auditLogMirrorOnStdout: false
   # The Google storage bucket name to use for recorded session storage. This bucket must already exist in the Google account being used.
   sessionRecordingBucket: ""
   # The name of the Kubernetes secret used to store the Google credentials.
@@ -130,7 +151,10 @@ highAvailability:
     enabled: false
     minAvailable: 1
   # Settings for cert-manager (can be used for provisioning TLS certs in HA mode)
+  # These settings are mutually exclusive with the "tls" value below.
   certManager:
+    # If set to true, a common name matching the cluster name will be set in the certificate signing request. This is mandatory for some CAs.
+    addCommonName: false
     # If set to true, use cert-manager to get certificates for Teleport to use for TLS termination
     enabled: false
     # Name of the Issuer/ClusterIssuer to use for certs
@@ -139,7 +163,23 @@ highAvailability:
     # Kind of Issuer that cert-manager should look for.
     # This defaults to 'Issuer' to keep everything contained within the teleport namespace.
     issuerKind: Issuer
+    # Group of Issuer that cert-manager should look for.
+    # This defaults to 'cert-manager.io' which is the default Issuer group.
+    issuerGroup: cert-manager.io
 
+# Settings for mounting your own TLS keypair to secure Teleport's web UI.
+# These settings are mutually exclusive with the "highAvailability.certManager" and "acme" values above.
+tls:
+  # Name of an existing secret to use which contains a TLS keypair. Will automatically set the https_keypairs section in teleport.yaml.
+  # Create the secret in the same namespace as Teleport using `kubectl create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file`
+  # See https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets for more information.
+  existingSecretName: ""
+  # (optional) Name of an existing secret to use which contains a CA or trust bundle in x509 PEM format.
+  # Useful for building trust when using intermediate certificate authorities.
+  # This will automatically set the SSL_CERT_FILE environment variable to trust the CA.
+  # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem
+  # The filename inside the secret is important - it _must_ be ca.pem
+  existingCASecretName: ""
 
 ##################################################
 # Values that you shouldn't need to change.
@@ -149,12 +189,23 @@ highAvailability:
 image: quay.io/gravitational/teleport
 # Enterprise version of the image
 enterpriseImage: quay.io/gravitational/teleport-ent
-# Log level for the Teleport process.
-# Available log levels are: DEBUG, INFO, WARNING, ERROR.
-# The default is INFO, which is recommended in production.
-# DEBUG is useful during first-time setup or to see more detailed logs for debugging.
-logLevel: INFO
-
+# Teleport logging configuration
+log:
+  # Log level for the Teleport process.
+  # Available log levels are: DEBUG, INFO, WARNING, ERROR.
+  # The default is INFO, which is recommended in production.
+  # DEBUG is useful during first-time setup or to see more detailed logs for debugging.
+  level: INFO
+  # Log output
+  # Use a file path to log to disk: e.g. '/var/lib/teleport/teleport.log'
+  # Other supported values: 'stdout', 'stderr' and 'syslog'
+  output: stderr
+  # Log format configuration
+  # Possible output values are 'json' and 'text' (default).
+  format: text
+  # Possible extra_fields values include: timestamp, component, caller, and level.
+  # All extra fields are included by default.
+  extraFields: ["timestamp", "level", "component", "caller"]
 
 ##################################
 # Extra Kubernetes configuration #
@@ -181,6 +232,13 @@ annotations:
   # Annotations for the certificate secret generated by cert-manager v1.5+ when
   # highAvailability.certManager.enabled is true
   certSecret: {}
+
+# Options for the Teleport service
+service:
+  type: LoadBalancer
+  # Additional entries here will be added to the service spec.
+  spec: {}
+    # loadBalancerIP: "1.2.3.4"
 
 # Extra arguments to pass to 'teleport start' for the main Teleport pod
 extraArgs: []
@@ -228,3 +286,7 @@ priorityClassName: ""
 # Tolerations for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 tolerations: []
+
+# Timeouts for the readiness and liveness probes
+# https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+probeTimeoutSeconds: 1

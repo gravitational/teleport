@@ -67,3 +67,15 @@ func (e *signalEmitter) clearSubscribers() {
 	}
 	e.subscribers = e.subscribers[:0]
 }
+
+// Clear clears the terminal, including scrollback.
+func (t *Terminal) Clear() error {
+	// \x1b[3J - clears scrollback (it is needed at least for the Mac terminal) -
+	// https://newbedev.com/how-do-i-reset-the-scrollback-in-the-terminal-via-a-shell-command
+	// \x1b\x63 - clears current screen - same as '\0033\0143' from https://superuser.com/a/123007
+	const resetPattern = "\x1b[3J\x1b\x63\n"
+	if _, err := t.Stdout().Write([]byte(resetPattern)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}

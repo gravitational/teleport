@@ -18,6 +18,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -75,6 +76,15 @@ func (p *proxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 	if !p.cfg.Proxy.MySQLAddr.IsEmpty() {
 		proxySettings.DB.MySQLListenAddr = p.cfg.Proxy.MySQLAddr.String()
 	}
+
+	if !p.cfg.Proxy.PostgresAddr.IsEmpty() {
+		proxySettings.DB.PostgresListenAddr = p.cfg.Proxy.PostgresAddr.String()
+	}
+
+	if !p.cfg.Proxy.MongoAddr.IsEmpty() {
+		proxySettings.DB.MongoListenAddr = p.cfg.Proxy.MongoAddr.String()
+	}
+
 	if p.cfg.Proxy.Kube.Enabled {
 		proxySettings.Kube.ListenAddr = p.cfg.Proxy.Kube.ListenAddr.String()
 	}
@@ -90,6 +100,7 @@ func (p *proxySettings) buildProxySettingsV2(proxyListenerMode types.ProxyListen
 		settings.SSH.TunnelListenAddr = multiplexAddr
 		settings.Kube.ListenAddr = multiplexAddr
 		settings.DB.MySQLListenAddr = multiplexAddr
+		settings.DB.PostgresListenAddr = multiplexAddr
 	}
 	return settings
 }
@@ -107,10 +118,36 @@ func (p *proxySettings) setProxyPublicAddressesSettings(settings *webclient.Prox
 	if len(p.cfg.Proxy.Kube.PublicAddrs) > 0 {
 		settings.Kube.PublicAddr = p.cfg.Proxy.Kube.PublicAddrs[0].String()
 	}
-	if len(p.cfg.Proxy.PostgresPublicAddrs) > 0 {
-		settings.DB.PostgresPublicAddr = p.cfg.Proxy.PostgresPublicAddrs[0].String()
-	}
 	if len(p.cfg.Proxy.MySQLPublicAddrs) > 0 {
 		settings.DB.MySQLPublicAddr = p.cfg.Proxy.MySQLPublicAddrs[0].String()
 	}
+	if len(p.cfg.Proxy.MongoPublicAddrs) > 0 {
+		settings.DB.MongoPublicAddr = p.cfg.Proxy.MongoPublicAddrs[0].String()
+	}
+	settings.DB.PostgresPublicAddr = p.getPostgresPublicAddr()
+}
+
+// getPostgresPublicAddr returns the proxy PostgresPublicAddrs based on whether the Postgres proxy service
+// was configured on separate listener. For backward compatibility if PostgresPublicAddrs was not provided.
+// Proxy will reuse the PostgresPublicAddrs field to propagate postgres service address to legacy tsh clients.
+func (p *proxySettings) getPostgresPublicAddr() string {
+	if len(p.cfg.Proxy.PostgresPublicAddrs) > 0 {
+		return p.cfg.Proxy.PostgresPublicAddrs[0].String()
+	}
+
+	if p.cfg.Proxy.PostgresAddr.IsEmpty() {
+		return ""
+	}
+
+	// DELETE IN 9.0.0
+	// If the PostgresPublicAddrs address was not set propagate separate postgres service listener address
+	// to legacy tsh clients reusing PostgresPublicAddrs field.
+	var host string
+	if len(p.cfg.Proxy.PublicAddrs) > 0 {
+		// Get proxy host address from public address.
+		host = p.cfg.Proxy.PublicAddrs[0].Host()
+	} else {
+		host = p.cfg.Proxy.WebAddr.Host()
+	}
+	return fmt.Sprintf("%s:%d", host, p.cfg.Proxy.PostgresAddr.Port(defaults.PostgresListenPort))
 }

@@ -17,6 +17,9 @@ limitations under the License.
 package cloud
 
 import (
+	"context"
+	"crypto/tls"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -27,7 +30,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
 // STSMock mocks AWS STS API.
@@ -222,7 +227,14 @@ func (m *RedshiftMock) DescribeClustersWithContext(ctx aws.Context, input *redsh
 	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.ClusterIdentifier))
 }
 
-// rdsMockUnath is a mock RDS client that returns access denied to each call.
+func (m *RedshiftMock) DescribeClustersPagesWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, fn func(*redshift.DescribeClustersOutput, bool) bool, options ...request.Option) error {
+	fn(&redshift.DescribeClustersOutput{
+		Clusters: m.Clusters,
+	}, true)
+	return nil
+}
+
+// RDSMockUnauth is a mock RDS client that returns access denied to each call.
 type RDSMockUnauth struct {
 	rdsiface.RDSAPI
 }
@@ -241,6 +253,41 @@ func (m *RDSMockUnauth) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.
 
 func (m *RDSMockUnauth) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
 	return nil, trace.AccessDenied("unauthorized")
+}
+
+func (m *RDSMockUnauth) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+
+func (m *RDSMockUnauth) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
+	return trace.AccessDenied("unauthorized")
+}
+
+// RDSMockByDBType is a mock RDS client that mocks API calls by DB type
+type RDSMockByDBType struct {
+	rdsiface.RDSAPI
+	DBInstances rdsiface.RDSAPI
+	DBClusters  rdsiface.RDSAPI
+}
+
+func (m *RDSMockByDBType) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
+	return m.DBInstances.DescribeDBInstancesWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.ModifyDBInstanceInput, options ...request.Option) (*rds.ModifyDBInstanceOutput, error) {
+	return m.DBInstances.ModifyDBInstanceWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
+	return m.DBInstances.DescribeDBInstancesPagesWithContext(ctx, input, fn, options...)
+}
+
+func (m *RDSMockByDBType) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
+	return m.DBClusters.DescribeDBClustersWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
+	return m.DBClusters.ModifyDBClusterWithContext(ctx, input, options...)
+}
+func (m *RDSMockByDBType) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
+	return m.DBClusters.DescribeDBClustersPagesWithContext(aws, input, fn, options...)
 }
 
 // RedshiftMockUnauth is a mock Redshift client that returns access denied to each call.
@@ -271,4 +318,24 @@ func (m *IAMMockUnauth) GetUserPolicyWithContext(ctx aws.Context, input *iam.Get
 
 func (m *IAMMockUnauth) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
 	return nil, trace.AccessDenied("unauthorized")
+}
+
+// GCPSQLAdminClientMock implements the common.GCPSQLAdminClient interface for tests.
+type GCPSQLAdminClientMock struct {
+	// DatabaseInstance is returned from GetDatabaseInstance.
+	DatabaseInstance *sqladmin.DatabaseInstance
+	// EphemeralCert is returned from GenerateEphemeralCert.
+	EphemeralCert *tls.Certificate
+}
+
+func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, sessionCtx *common.Session, user *sqladmin.User) error {
+	return nil
+}
+
+func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, sessionCtx *common.Session) (*sqladmin.DatabaseInstance, error) {
+	return g.DatabaseInstance, nil
+}
+
+func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, sessionCtx *common.Session) (*tls.Certificate, error) {
+	return g.EphemeralCert, nil
 }

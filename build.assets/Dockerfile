@@ -17,94 +17,92 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     DEBIAN_FRONTEND="noninteractive"
 
+# BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG BUILDARCH
+
 # Install packages.
-# We install curl first to allow setting up the Google SDK as part of the same layer.
+# Java JRE is required by gcloud firestore emulator.
+# NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
-    apt-get install -y --no-install-recommends apt-utils ca-certificates curl gnupg && \
-    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
-    apt-get -y update && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
+        build-essential \
+        ca-certificates \
         clang-10 \
         clang-format-10 \
+        cmake \
         curl \
-        gcc \
-        gcc-multilib \
+        default-jre \
+        `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
-        google-cloud-sdk \
-        google-cloud-sdk-firestore-emulator \
+        gnupg \
         gzip \
         libc6-dev \
         libelf-dev \
         libpam-dev \
         libsqlite3-0 \
+        libssl-dev \
+        libudev-dev \
         llvm-10 \
         locales \
-        make \
         mingw-w64 \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
         osslsigncode \
-        python-pip \
+        python3-pip \
+        python3-setuptools \
+        python3-wheel \
         pkg-config \
         shellcheck \
         softhsm2 \
-        tar \
         tree \
         unzip \
         zip \
         zlib1g-dev \
+        xauth \
         && \
-    pip --no-cache-dir install yamllint && \
+    pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install gcloud SDK and Firestore emulator.
+RUN curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts
+ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
+# beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
+RUN gcloud components install cloud-firestore-emulator beta
 
 ARG UID
 ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
-# Install Rust
-#
-# Rust installation based on official rust image Dockerfile here:
-#   https://github.com/rust-lang/docker-rust/blob/master/1.56.0/bullseye/Dockerfile
-#
-# The original Rust docker image uses a script to install `rustup`, and from
-# there rustc and associated tools.
-#
-# Rather than execute an arbitrary `rustup` installation script, we are cherry-
-# picking the appropriate files off the official docker image and then installing
-# the extra tooling/targets we need.
-
- ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=1.56.1
-
-COPY --from=rust:1.56.1 /usr/local/rustup /usr/local/rustup
-COPY --from=rust:1.56.1 /usr/local/cargo /usr/local/cargo
-RUN set -eux \
-    rustup --version; \
-    cargo --version; \
-    rustup component add --toolchain 1.56.1-x86_64-unknown-linux-gnu rustfmt clippy; \
-    chmod -R a+w $RUSTUP_HOME $CARGO_HOME; \
-    rustup target add i686-unknown-linux-gnu; \
-    rustup target add arm-unknown-linux-gnueabihf; \
-    rustup target add aarch64-unknown-linux-gnu; \
-    rustup target list | grep installed; \
-    rustc --version;
-
 # Install etcd.
-RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
+     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
+
+# Install libcbor.
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
+  cd libcbor && \
+  cmake -DCMAKE_BUILD_TYPE=Release -DCBOR_CUSTOM_ALLOC=ON . && \
+  make && \
+  make install
+
+# Install libfido2.
+# Depends on libcbor, libssl-dev, zlib and libudev-dev.
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
+  cd libfido2 && \
+  cmake -DCMAKE_BUILD_TYPE=Release . && \
+  make && \
+  make install && \
+  ldconfig
 
 # Install Go.
-ARG RUNTIME
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$RUNTIME.linux-amd64.tar.gz | tar xz && \
+ARG GOLANG_VERSION
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -124,15 +122,20 @@ ENV GOPATH="/go" \
 # Install addlicense
 RUN go install github.com/google/addlicense@v1.0.0
 
-# Install meta-linter.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.38.0/golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.38.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+# Install golangci-lint.
+RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.44.0/golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+     cp golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
      rm -r helm-tarball*)
+RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
+    mkdir -p /home/ci/.local/share/helm && \
+    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
+    chown -R ci /home/ci/.local/share/helm && \
+    HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install bats.
 RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
@@ -141,23 +144,20 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
-ARG PROTOC_PLATFORM
 ARG GOGO_PROTO_TAG
-
-ENV PROTOC_TARBALL protoc-${PROTOC_VER}-${PROTOC_PLATFORM}.zip
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
-RUN (curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
+     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
+     chmod -R a+r /usr/local/include/google/protobuf && \
      rm /tmp/${PROTOC_TARBALL})
-RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && go install golang.org/x/tools/cmd/goimports@latest && \
+RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
 
-# Note: protoc reads the proto files from /vendor/.../teleport/api/vX rather than
-# /api because protoc does not understand go modules, and reads vX as a directory.
-ENV PROTO_INCLUDE "/usr/local/include":"/go/src/github.com/gravitational/teleport/vendor":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
+ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
@@ -165,5 +165,29 @@ RUN make -C /opt/pam_teleport install
 
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
+# Install Rust
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
+# Cross-compilation targets are only installed on amd64, as
+# this image doesn't contain gcc-multilib.
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add rustfmt clippy && \
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi && \
+    cargo install cbindgen
+
+USER root
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

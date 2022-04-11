@@ -40,6 +40,8 @@ var (
 	listenerProxyWeb          = listenerType(teleport.Component(teleport.ComponentProxy, "web"))
 	listenerProxyTunnel       = listenerType(teleport.Component(teleport.ComponentProxy, "tunnel"))
 	listenerProxyMySQL        = listenerType(teleport.Component(teleport.ComponentProxy, "mysql"))
+	listenerProxyPostgres     = listenerType(teleport.Component(teleport.ComponentProxy, "postgres"))
+	listenerProxyMongo        = listenerType(teleport.Component(teleport.ComponentProxy, "mongo"))
 	listenerMetrics           = listenerType(teleport.ComponentMetrics)
 	listenerWindowsDesktop    = listenerType(teleport.ComponentWindowsDesktop)
 )

@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 const (
@@ -24,6 +25,8 @@ const (
 	// debPackage is the DEB package type
 	debPackage = "deb"
 )
+
+const releasesHost = "https://releases-staging.platform.teleport.sh"
 
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
 func tagCheckoutCommands(fips bool) []string {
@@ -42,7 +45,12 @@ func tagCheckoutCommands(fips bool) []string {
 		// create necessary directories
 		`mkdir -p /go/cache /go/artifacts`,
 		// set version
-		`if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`,
+		`VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+  echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+  exit 1
+fi
+echo "$$VERSION" > /go/.version.txt`,
 	}
 	return commands
 }
@@ -113,18 +121,19 @@ func tagCopyArtifactCommands(b buildType) []string {
 		)
 	}
 
-	// we need to specifically rename artifacts which are created for CentOS 6
+	// we need to specifically rename artifacts which are created for CentOS
 	// these is the only special case where renaming is not handled inside the Makefile
-	if b.centos6 {
+	if b.centos7 {
+		// for CentOS 7, we support OSS, Enterprise, and FIPS (Enterprise only)
 		commands = append(commands, `export VERSION=$(cat /go/.version.txt)`)
 		if !b.fips {
 			commands = append(commands,
-				`mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
-				`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz`,
+				`mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz`,
+				`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz`,
 			)
 		} else {
 			commands = append(commands,
-				`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-fips-bin.tar.gz`,
+				`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz`,
 			)
 		}
 	}
@@ -147,13 +156,13 @@ func uploadToS3Step(s s3Settings) step {
 		Name:  "Upload to S3",
 		Image: "plugins/s3",
 		Settings: map[string]value{
-			"bucket":       value{fromSecret: "AWS_S3_BUCKET"},
-			"access_key":   value{fromSecret: "AWS_ACCESS_KEY_ID"},
-			"secret_key":   value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
-			"region":       value{raw: s.region},
-			"source":       value{raw: s.source},
-			"target":       value{raw: s.target},
-			"strip_prefix": value{raw: s.stripPrefix},
+			"bucket":       {fromSecret: "AWS_S3_BUCKET"},
+			"access_key":   {fromSecret: "AWS_ACCESS_KEY_ID"},
+			"secret_key":   {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+			"region":       {raw: s.region},
+			"source":       {raw: s.source},
+			"target":       {raw: s.target},
+			"strip_prefix": {raw: s.stripPrefix},
 		},
 	}
 }
@@ -172,7 +181,11 @@ func tagPipelines() []pipeline {
 
 			// RPM/DEB package builds
 			for _, packageType := range []string{rpmPackage, debPackage} {
-				ps = append(ps, tagPackagePipeline(packageType, buildType{os: "linux", arch: arch, fips: fips}))
+				bt := buildType{os: "linux", arch: arch, fips: fips}
+				if packageType == "rpm" && arch == "amd64" {
+					bt.centos7 = true
+				}
+				ps = append(ps, tagPackagePipeline(packageType, bt))
 			}
 		}
 	}
@@ -180,9 +193,10 @@ func tagPipelines() []pipeline {
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 
-	// Also add the two CentOS 6 artifacts.
+	// Also add CentOS artifacts
 	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos6: true}))
+	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
+	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
 	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline())
 	return ps
@@ -198,16 +212,16 @@ func tagPipeline(b buildType) pipeline {
 	}
 
 	pipelineName := fmt.Sprintf("build-%s-%s", b.os, b.arch)
-	if b.centos6 {
-		pipelineName += "-centos6"
+	if b.centos7 {
+		pipelineName += "-centos7"
 	}
 	tagEnvironment := map[string]value{
-		"UID":     value{raw: "1000"},
-		"GID":     value{raw: "1000"},
-		"GOCACHE": value{raw: "/go/cache"},
-		"GOPATH":  value{raw: "/go"},
-		"OS":      value{raw: b.os},
-		"ARCH":    value{raw: b.arch},
+		"UID":     {raw: "1000"},
+		"GID":     {raw: "1000"},
+		"GOCACHE": {raw: "/go/cache"},
+		"GOPATH":  {raw: "/go"},
+		"OS":      {raw: b.os},
+		"ARCH":    {raw: b.arch},
 	}
 	if b.fips {
 		pipelineName += "-fips"
@@ -218,9 +232,15 @@ func tagPipeline(b buildType) pipeline {
 		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
 	}
 
+	var extraQualifications []string
+	if b.os == "windows" {
+		extraQualifications = []string{"tsh client only"}
+	}
+
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
-		"RUNTIME": goRuntime,
+		"BUILDBOX_VERSION": buildboxVersion,
+		"RUNTIME":          goRuntime,
 	}
 	p.Trigger = triggerTag
 	p.Workspace = workspace{Path: "/go"}
@@ -233,7 +253,7 @@ func tagPipeline(b buildType) pipeline {
 			Name:  "Check out code",
 			Image: "docker:git",
 			Environment: map[string]value{
-				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
+				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
@@ -256,6 +276,16 @@ func tagPipeline(b buildType) pipeline {
 			target:      "teleport/tag/${DRONE_TAG##v}",
 			stripPrefix: "/go/artifacts/",
 		}),
+		{
+			Name:     "Register artifacts",
+			Image:    "docker",
+			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
+			Failure:  "ignore",
+			Environment: map[string]value{
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+			},
+		},
 	}
 	return p
 }
@@ -268,6 +298,11 @@ func tagDownloadArtifactCommands(b buildType) []string {
 	}
 	artifactOSS := true
 	artifactType := fmt.Sprintf("%s-%s", b.os, b.arch)
+
+	if b.centos7 {
+		artifactType += "-centos7"
+	}
+
 	if b.fips {
 		artifactType += "-fips"
 		artifactOSS = false
@@ -296,6 +331,48 @@ func tagCopyPackageArtifactCommands(b buildType, packageType string) []string {
 	return commands
 }
 
+// createReleaseAssetCommands generates a set of commands to create release & asset in release management service
+func tagCreateReleaseAssetCommands(b buildType, packageType string, extraQualifications []string) []string {
+	commands := []string{
+		`WORKSPACE_DIR=$${WORKSPACE_DIR:-/}`,
+		`VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")`,
+		fmt.Sprintf(`RELEASES_HOST='%v'`, releasesHost),
+		`echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"`,
+		`echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"`,
+		`trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT`,
+		`CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"`,
+		`which curl || apk add --no-cache curl`,
+		fmt.Sprintf(`cd "$WORKSPACE_DIR/go/artifacts"
+for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+  # Skip files that are not results of this build
+  # (e.g. tarballs from which OS packages are made)
+  [ -f "$file.sha256" ] || continue
+
+  name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+  if [ "$name" = "tsh" ]; then
+    products="teleport teleport-ent";
+  else
+    products="$name"
+  fi
+  shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+  curl $CREDENTIALS --fail -o /dev/null -F description="%[1]s" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+  for product in $products; do
+    status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+    if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+      echo "curl HTTP status: $status_code"
+      cat $WORKSPACE_DIR/curl_out.txt
+      exit 1
+    fi
+    curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+  done
+done`,
+			b.Description(packageType, extraQualifications...), b.os, b.arch),
+	}
+	return commands
+}
+
 // tagPackagePipeline generates a tag package pipeline for a given combination of os/arch/FIPS
 func tagPackagePipeline(packageType string, b buildType) pipeline {
 	if packageType == "" {
@@ -309,14 +386,25 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	environment := map[string]value{
-		"ARCH":             value{raw: b.arch},
-		"TMPDIR":           value{raw: "/go"},
-		"ENT_TARBALL_PATH": value{raw: "/go/artifacts"},
+		"ARCH":             {raw: b.arch},
+		"TMPDIR":           {raw: "/go"},
+		"ENT_TARBALL_PATH": {raw: "/go/artifacts"},
 	}
 
 	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
+
+	if b.centos7 {
+		dependentPipeline += "-centos7"
+	}
+
+	apkPackages := []string{"bash", "curl", "gzip", "make", "tar"}
+	if packageType == rpmPackage {
+		// Required by `make rpm`
+		apkPackages = append(apkPackages, "go")
+	}
+
 	packageBuildCommands := []string{
-		`apk add --no-cache bash curl gzip make tar`,
+		fmt.Sprintf("apk add --no-cache %s", strings.Join(apkPackages, " ")),
 		`cd /go/src/github.com/gravitational/teleport`,
 		`export VERSION=$(cat /go/.version.txt)`,
 	}
@@ -373,7 +461,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Name:  "Check out code",
 			Image: "docker:git",
 			Environment: map[string]value{
-				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
+				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
 			Commands: tagCheckoutCommands(b.fips),
 		},
@@ -382,10 +470,10 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Name:  "Download artifacts from S3",
 			Image: "amazon/aws-cli",
 			Environment: map[string]value{
-				"AWS_REGION":            value{raw: "us-west-2"},
-				"AWS_S3_BUCKET":         value{fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     value{fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"AWS_REGION":            {raw: "us-west-2"},
+				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
+				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
+				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
 			},
 			Commands: tagDownloadArtifactCommands(b),
 		},
@@ -407,6 +495,16 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			target:      "teleport/tag/${DRONE_TAG##v}",
 			stripPrefix: "/go/artifacts/",
 		}),
+		{
+			Name:     "Register artifacts",
+			Image:    "docker",
+			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
+			Failure:  "ignore",
+			Environment: map[string]value{
+				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+			},
+		},
 	}
 	return p
 }

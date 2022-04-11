@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -59,10 +58,31 @@ const (
 	RoleDatabase SystemRole = "Db"
 	// RoleWindowsDesktop is a role for a Windows desktop service.
 	RoleWindowsDesktop SystemRole = "WindowsDesktop"
+	// RoleBot is a role for a bot.
+	RoleBot SystemRole = "Bot"
 )
 
-// LegacyClusterTokenType exists for backwards compatibility reasons, needed to upgrade to 2.3
-const LegacyClusterTokenType SystemRole = "Trustedcluster"
+// roleMappings maps a set of allowed lowercase system role names
+// to the proper system role
+var roleMappings = map[string]SystemRole{
+	"auth":            RoleAuth,
+	"node":            RoleNode,
+	"proxy":           RoleProxy,
+	"admin":           RoleAdmin,
+	"provisiontoken":  RoleProvisionToken,
+	"trusted_cluster": RoleTrustedCluster,
+	"trustedcluster":  RoleTrustedCluster,
+	"signup":          RoleSignup,
+	"nop":             RoleNop,
+	"remoteproxy":     RoleRemoteProxy,
+	"remote_proxy":    RoleRemoteProxy,
+	"kube":            RoleKube,
+	"app":             RoleApp,
+	"db":              RoleDatabase,
+	"windowsdesktop":  RoleWindowsDesktop,
+	"windows_desktop": RoleWindowsDesktop,
+	"bot":             RoleBot,
+}
 
 // NewTeleportRoles return a list of teleport roles from slice of strings
 func NewTeleportRoles(in []string) (SystemRoles, error) {
@@ -78,15 +98,17 @@ func NewTeleportRoles(in []string) (SystemRoles, error) {
 func ParseTeleportRoles(str string) (SystemRoles, error) {
 	var roles SystemRoles
 	for _, s := range strings.Split(str, ",") {
-		s = strings.TrimSpace(s)
-		if r := SystemRole(s); r.Check() == nil {
+		cleaned := strings.ToLower(strings.TrimSpace(s))
+		if r, ok := roleMappings[cleaned]; ok && r.Check() == nil {
 			roles = append(roles, r)
 			continue
 		}
-		// If role is not valid as-is, attempt to canonicalize the format.
-		r := SystemRole(strings.Title(strings.ToLower(s)))
-		roles = append(roles, r)
+		return nil, trace.BadParameter("invalid role %q", s)
 	}
+	if len(roles) == 0 {
+		return nil, trace.BadParameter("no valid roles in $%q", str)
+	}
+
 	return roles, roles.Check()
 }
 
@@ -178,22 +200,22 @@ func (r *SystemRole) String() string {
 	switch *r {
 	case RoleSignup:
 		return "Password"
-	case RoleTrustedCluster, LegacyClusterTokenType:
+	case RoleTrustedCluster:
 		return "trusted_cluster"
 	default:
-		return fmt.Sprintf("%v", string(*r))
+		return string(*r)
 	}
 }
 
 // Check checks if this a a valid teleport role value, returns nil
 // if it's ok, false otherwise
+// Check checks if this a a valid teleport role value, returns nil
+// if it's ok, false otherwise
 func (r *SystemRole) Check() error {
-	switch *r {
-	case RoleAuth, RoleNode, RoleApp, RoleDatabase,
-		RoleAdmin, RoleProvisionToken,
-		RoleTrustedCluster, LegacyClusterTokenType,
-		RoleSignup, RoleProxy, RoleNop, RoleKube, RoleWindowsDesktop:
+	sr, ok := roleMappings[strings.ToLower(string(*r))]
+	if ok && string(*r) == string(sr) {
 		return nil
 	}
+
 	return trace.BadParameter("role %v is not registered", *r)
 }

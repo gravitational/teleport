@@ -17,9 +17,9 @@ limitations under the License.
 package desktop
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
+	"strings"
+	"sync"
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
@@ -27,53 +27,52 @@ import (
 
 // Note: if you want to browse LDAP on the Windows machine, run ADSIEdit.msc.
 type ldapClient struct {
-	cfg    LDAPConfig
+	cfg LDAPConfig
+
+	mu     sync.Mutex
 	client ldap.Client
 }
 
-// newLDAPClient connects to an LDAP server, authenticates and returns the
-// client connection. Caller must close the client after using it.
-func newLDAPClient(cfg LDAPConfig) (*ldapClient, error) {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
+func (c *ldapClient) setClient(client ldap.Client) {
+	c.mu.Lock()
+	if c.client != nil {
+		c.client.Close()
 	}
-
-	if !cfg.InsecureSkipVerify {
-		// Get the SystemCertPool, continue with an empty pool on error
-		rootCAs, _ := x509.SystemCertPool()
-		if rootCAs == nil {
-			rootCAs = x509.NewCertPool()
-		}
-
-		if cfg.CA != nil {
-			// Append our cert to the pool.
-			rootCAs.AddCert(cfg.CA)
-		}
-
-		// Supply our cert pool to TLS config for verification.
-		tlsConfig.RootCAs = rootCAs
-	}
-
-	con, err := ldap.DialURL("ldaps://"+cfg.Addr, ldap.DialWithTLSConfig(tlsConfig))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO(zmb3): Active Directory, theoretically, supports cert-based
-	// authentication. Figure out the right certificate format and generate it
-	// with Teleport CA for authn here.
-	if err := con.Bind(cfg.Username, cfg.Password); err != nil {
-		con.Close()
-		return nil, trace.Wrap(err)
-	}
-	return &ldapClient{
-		cfg:    cfg,
-		client: con,
-	}, nil
+	c.client = client
+	c.mu.Unlock()
 }
 
 func (c *ldapClient) close() {
-	c.client.Close()
+	c.mu.Lock()
+	if c.client != nil {
+		c.client.Close()
+	}
+	c.mu.Unlock()
+}
+
+// readWithFilter searches the specified DN (and its children) using the specified LDAP filter.
+// See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
+func (c *ldapClient) readWithFilter(dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
+	req := ldap.NewSearchRequest(
+		dn,
+		ldap.ScopeWholeSubtree,
+		ldap.DerefAlways,
+		0,     // no SizeLimit
+		0,     // no TimeLimit
+		false, // TypesOnly == false, we want attribute values
+		filter,
+		attrs,
+		nil, // no Controls
+	)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	res, err := c.client.Search(req)
+	if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+		return nil, trace.ConnectionProblem(err, "fetching LDAP object %q", dn)
+	} else if err != nil {
+		return nil, trace.Wrap(err, "fetching LDAP object %q: %v", dn, err)
+	}
+	return res.Entries, nil
 }
 
 // read fetches an LDAP entry at path and its children, if any. Only
@@ -84,24 +83,8 @@ func (c *ldapClient) close() {
 // specific entry using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (c *ldapClient) read(path ldapPath, class string, attrs []string) ([]*ldap.Entry, error) {
-	dn := c.cfg.dn(path)
-	req := ldap.NewSearchRequest(
-		dn,
-		ldap.ScopeWholeSubtree,
-		ldap.DerefAlways,
-		0,     // no SizeLimit
-		0,     // no TimeLimit
-		false, // TypesOnly == false, we want attribute values
-		fmt.Sprintf("(objectClass=%s)", class),
-		attrs,
-		nil, // no Controls
-	)
-	res, err := c.client.Search(req)
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching LDAP object %q: %v", dn, err)
-	}
-	return res.Entries, nil
+func (c *ldapClient) read(dn string, class string, attrs []string) ([]*ldap.Entry, error) {
+	return c.readWithFilter(dn, fmt.Sprintf("(objectClass=%s)", class), attrs)
 }
 
 // create creates an LDAP entry at the given path, with the given class and
@@ -112,13 +95,15 @@ func (c *ldapClient) read(path ldapPath, class string, attrs []string) ([]*ldap.
 // attributes for similar entries using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (c *ldapClient) create(path ldapPath, class string, attrs map[string][]string) error {
-	dn := c.cfg.dn(path)
+func (c *ldapClient) create(dn string, class string, attrs map[string][]string) error {
 	req := ldap.NewAddRequest(dn, nil)
 	for k, v := range attrs {
 		req.Attribute(k, v)
 	}
 	req.Attribute("objectClass", []string{class})
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	if err := c.client.Add(req); err != nil {
 		if ldapErr, ok := err.(*ldap.Error); ok {
@@ -129,6 +114,8 @@ func (c *ldapClient) create(path ldapPath, class string, attrs map[string][]stri
 				return trace.BadParameter("object constraint violation on %q: %v", dn, err)
 			case ldap.LDAPResultInsufficientAccessRights:
 				return trace.AccessDenied("insufficient permissions to create %q: %v", dn, err)
+			case ldap.ErrorNetwork:
+				return trace.ConnectionProblem(err, "network error creating %q", dn)
 			}
 		}
 		return trace.Wrap(err, "error creating LDAP object %q: %v", dn, err)
@@ -136,12 +123,15 @@ func (c *ldapClient) create(path ldapPath, class string, attrs map[string][]stri
 	return nil
 }
 
-// createContainer creates an LDAP container entry at the given path.
-func (c *ldapClient) createContainer(path ldapPath) error {
-	err := c.create(path, "container", nil)
+// createContainer creates an LDAP container entry if
+// it doesn't already exist.
+func (c *ldapClient) createContainer(dn string) error {
+	err := c.create(dn, containerClass, nil)
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil
+	} else if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+		return trace.ConnectionProblem(err, "creating %v", dn)
 	}
 	return trace.Wrap(err)
 }
@@ -154,14 +144,23 @@ func (c *ldapClient) createContainer(path ldapPath) error {
 //
 // You can browse LDAP on the Windows host to find attributes of existing
 // entries using ADSIEdit.msc.
-func (c *ldapClient) update(path ldapPath, replaceAttrs map[string][]string) error {
-	dn := c.cfg.dn(path)
+func (c *ldapClient) update(dn string, replaceAttrs map[string][]string) error {
 	req := ldap.NewModifyRequest(dn, nil)
 	for k, v := range replaceAttrs {
 		req.Replace(k, v)
 	}
-	if err := c.client.Modify(req); err != nil {
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if err := c.client.Modify(req); ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+		return trace.ConnectionProblem(err, "updating %q", dn)
+	} else if err != nil {
 		return trace.Wrap(err, "updating %q: %v", dn, err)
 	}
 	return nil
+}
+
+func combineLDAPFilters(filters []string) string {
+	return "(&" + strings.Join(filters, "") + ")"
 }

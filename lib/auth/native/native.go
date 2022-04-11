@@ -285,6 +285,24 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.Impersonator != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionImpersonator] = c.Impersonator
 	}
+	if c.DisallowReissue {
+		cert.Permissions.Extensions[teleport.CertExtensionDisallowReissue] = ""
+	}
+	if c.Renewable {
+		cert.Permissions.Extensions[teleport.CertExtensionRenewable] = ""
+	}
+	if c.Generation > 0 {
+		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = fmt.Sprint(c.Generation)
+	}
+
+	for _, extension := range c.CertificateExtensions {
+		// TODO(lxea): update behavior when non ssh, non extensions are supported.
+		if extension.Mode != types.CertExtensionMode_EXTENSION ||
+			extension.Type != types.CertExtensionType_SSH {
+			continue
+		}
+		cert.Extensions[extension.Name] = extension.Value
+	}
 
 	// Add roles, traits, and route to cluster in the certificate extensions if
 	// the standard format was requested. Certificate extensions are not included

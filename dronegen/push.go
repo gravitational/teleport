@@ -89,12 +89,12 @@ func pushPipeline(b buildType) pipeline {
 
 	pipelineName := fmt.Sprintf("push-build-%s-%s", b.os, b.arch)
 	pushEnvironment := map[string]value{
-		"UID":     value{raw: "1000"},
-		"GID":     value{raw: "1000"},
-		"GOCACHE": value{raw: "/go/cache"},
-		"GOPATH":  value{raw: "/go"},
-		"OS":      value{raw: b.os},
-		"ARCH":    value{raw: b.arch},
+		"UID":     {raw: "1000"},
+		"GID":     {raw: "1000"},
+		"GOCACHE": {raw: "/go/cache"},
+		"GOPATH":  {raw: "/go"},
+		"OS":      {raw: b.os},
+		"ARCH":    {raw: b.arch},
 	}
 	if b.fips {
 		pipelineName += "-fips"
@@ -103,9 +103,10 @@ func pushPipeline(b buildType) pipeline {
 
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
-		"RUNTIME": goRuntime,
-		"UID":     value{raw: "1000"},
-		"GID":     value{raw: "1000"},
+		"BUILDBOX_VERSION": buildboxVersion,
+		"RUNTIME":          goRuntime,
+		"UID":              {raw: "1000"},
+		"GID":              {raw: "1000"},
 	}
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}
@@ -118,7 +119,7 @@ func pushPipeline(b buildType) pipeline {
 			Name:  "Check out code",
 			Image: "docker:git",
 			Environment: map[string]value{
-				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
+				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
 			Commands: pushCheckoutCommands(b.fips),
 		},
@@ -134,7 +135,7 @@ func pushPipeline(b buildType) pipeline {
 			Name:  "Send Slack notification",
 			Image: "plugins/slack",
 			Settings: map[string]value{
-				"webhook": value{fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
+				"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
 			},
 			Template: []string{
 				`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)

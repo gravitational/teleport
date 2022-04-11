@@ -54,6 +54,9 @@ type Values struct {
 	// If not set, static key/cert from Credentials are written to kubeconfig
 	// instead.
 	Exec *ExecValues
+	// ProxyAddr is the host:port address provided when running tsh kube login.
+	// This value is empty if a proxy was not specified.
+	ProxyAddr string
 
 	// TLSServerName is SNI host value passed to the server.
 	TLSServerName string
@@ -73,6 +76,8 @@ type ExecValues struct {
 	// exec plugin arguments. This is used when the proxy doesn't have a
 	// trusted TLS cert during login.
 	TshBinaryInsecure bool
+	// Env is a map of environment variables to forward.
+	Env map[string]string
 }
 
 // Update adds Teleport configuration to kubeconfig.
@@ -85,7 +90,12 @@ func Update(path string, v Values) error {
 		return trace.Wrap(err)
 	}
 
-	cas := bytes.Join(v.Credentials.TLSCAs(), []byte("\n"))
+	clusterCAs, err := v.Credentials.RootClusterCAs()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cas := bytes.Join(clusterCAs, []byte("\n"))
 	if len(cas) == 0 {
 		return trace.BadParameter("TLS trusted CAs missing in provided credentials")
 	}
@@ -98,21 +108,35 @@ func Update(path string, v Values) error {
 	if v.Exec != nil {
 		// Called from tsh, use the exec plugin model.
 		clusterName := v.TeleportClusterName
+		envVars := make([]clientcmdapi.ExecEnvVar, 0, len(v.Exec.Env))
+		if v.Exec.Env != nil {
+			for name, value := range v.Exec.Env {
+				envVars = append(envVars, clientcmdapi.ExecEnvVar{Name: name, Value: value})
+			}
+		}
+
 		for _, c := range v.Exec.KubeClusters {
 			contextName := ContextName(v.TeleportClusterName, c)
 			authName := contextName
+			execArgs := []string{"kube", "credentials",
+				fmt.Sprintf("--kube-cluster=%s", c),
+				fmt.Sprintf("--teleport-cluster=%s", v.TeleportClusterName),
+			}
+			if v.ProxyAddr != "" {
+				execArgs = append(execArgs, fmt.Sprintf("--proxy=%s", v.ProxyAddr))
+			}
 			authInfo := &clientcmdapi.AuthInfo{
 				Exec: &clientcmdapi.ExecConfig{
 					APIVersion: "client.authentication.k8s.io/v1beta1",
 					Command:    v.Exec.TshBinaryPath,
-					Args: []string{"kube", "credentials",
-						fmt.Sprintf("--kube-cluster=%s", c),
-						fmt.Sprintf("--teleport-cluster=%s", v.TeleportClusterName),
-					},
+					Args:       execArgs,
 				},
 			}
 			if v.Exec.TshBinaryInsecure {
 				authInfo.Exec.Args = append(authInfo.Exec.Args, "--insecure")
+			}
+			if len(envVars) > 0 {
+				authInfo.Exec.Env = envVars
 			}
 			config.AuthInfos[authName] = authInfo
 

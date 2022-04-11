@@ -17,7 +17,11 @@ limitations under the License.
 package utils
 
 import (
+	"runtime"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -36,4 +40,50 @@ func RegisterPrometheusCollectors(collectors ...prometheus.Collector) error {
 		}
 	}
 	return nil
+}
+
+// BuildCollector provides a Collector that contains build information gauge
+func BuildCollector() prometheus.Collector {
+	return prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBuildInfo,
+			Help:      "Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1.",
+			ConstLabels: prometheus.Labels{
+				teleport.TagVersion:   teleport.Version,
+				teleport.TagGitref:    teleport.Gitref,
+				teleport.TagGoVersion: runtime.Version(),
+			},
+		},
+		func() float64 { return 1 },
+	)
+}
+
+// CreateGRPCServerMetrics creates server grpc metrics configuration that is to be registered and used by the caller
+// in an openmetrics unary and/or stream interceptor
+func CreateGRPCServerMetrics(latencyEnabled bool, labels prometheus.Labels) *om.ServerMetrics {
+	serverOpts := []om.ServerMetricsOption{om.WithServerCounterOptions(om.WithConstLabels(labels))}
+	if latencyEnabled {
+		histOpts := grpcHistogramOpts(labels)
+		serverOpts = append(serverOpts, om.WithServerHandlingTimeHistogram(histOpts...))
+	}
+	return om.NewServerMetrics(serverOpts...)
+}
+
+// CreateGRPCClientMetrics creates client grpc metrics configuration that is to be registered and used by the caller
+// in an openmetrics unary and/or stream interceptor
+func CreateGRPCClientMetrics(latencyEnabled bool, labels prometheus.Labels) *om.ClientMetrics {
+	clientOpts := []om.ClientMetricsOption{om.WithClientCounterOptions(om.WithConstLabels(labels))}
+	if latencyEnabled {
+		histOpts := grpcHistogramOpts(labels)
+		clientOpts = append(clientOpts, om.WithClientHandlingTimeHistogram(histOpts...))
+	}
+	return om.NewClientMetrics(clientOpts...)
+}
+
+func grpcHistogramOpts(labels prometheus.Labels) []om.HistogramOption {
+	return []om.HistogramOption{
+		om.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 16)),
+		om.WithHistogramConstLabels(labels),
+	}
 }

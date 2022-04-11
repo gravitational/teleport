@@ -102,8 +102,9 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 		return nil, trace.Wrap(err)
 	}
 	switch h.Version {
-	case types.V2:
-		var c types.OIDCConnectorV2
+	// V2 and V3 have the same layout, the only change is in the behavior
+	case types.V2, types.V3:
+		var c types.OIDCConnectorV3
 		if err := utils.FastUnmarshal(bytes, &c); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -134,7 +135,7 @@ func MarshalOIDCConnector(oidcConnector types.OIDCConnector, opts ...MarshalOpti
 	}
 
 	switch oidcConnector := oidcConnector.(type) {
-	case *types.OIDCConnectorV2:
+	case *types.OIDCConnectorV3:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

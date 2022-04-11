@@ -93,7 +93,7 @@ func createUser(name string, roles []string, traits map[string][]string) (types.
 }
 
 func createRole(name string, allowLogins []string, denyLogins []string, allowLabels types.Labels, denyLabels types.Labels) (types.Role, error) {
-	role, err := types.NewRole(name, types.RoleSpecV4{
+	role, err := types.NewRoleV3(name, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     allowLogins,
 			NodeLabels: allowLabels,
@@ -360,6 +360,7 @@ func (s *AccessTestSuite) TestFiltering(c *check.C) {
 
 	access = NodeAccessRequest{Username: "julia", Login: "julia", Node: "secret.example.com"}
 	resp, err = QueryNodeAccess(ctx, s.client, access)
+	c.Assert(err, check.IsNil)
 	denyTestOutput := [][]string{
 		{"julia", "julia", types.Wildcard, "auditor"},
 	}

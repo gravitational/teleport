@@ -26,12 +26,17 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
 // authentication.
 func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	if !modules.GetModules().Features().Desktop {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster is not licensed for desktop access, please contact the cluster administrator")
+	}
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -40,7 +45,7 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userCA, err := s.GetCertAuthority(types.CertAuthID{
+	userCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)

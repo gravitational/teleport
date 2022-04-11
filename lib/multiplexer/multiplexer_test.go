@@ -23,9 +23,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -121,7 +121,7 @@ func TestMux(t *testing.T) {
 		re, err := client.Get(backend1.URL)
 		require.Nil(t, err)
 		defer re.Body.Close()
-		bytes, err := ioutil.ReadAll(re.Body)
+		bytes, err := io.ReadAll(re.Body)
 		require.Nil(t, err)
 		require.Equal(t, string(bytes), "backend 1")
 
@@ -187,6 +187,57 @@ func TestMux(t *testing.T) {
 		out, err := utils.RoundtripWithConn(tlsConn)
 		require.Nil(t, err)
 		require.Equal(t, out, remoteAddr.String())
+	})
+
+	// ProxyLineV2 tests proxy protocol v2
+	t.Run("ProxyLineV2", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: true,
+		})
+		require.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.TLS(),
+			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, r.RemoteAddr)
+			}),
+			},
+		}
+		backend1.StartTLS()
+		defer backend1.Close()
+
+		parsedURL, err := url.Parse(backend1.URL)
+		require.NoError(t, err)
+
+		conn, err := net.Dial("tcp", parsedURL.Host)
+		require.NoError(t, err)
+		defer conn.Close()
+		// send proxy header + addresses before establishing TLS connection
+		_, err = conn.Write([]byte{
+			0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A, //signature
+			0x21, 0x11, //version/command, family
+			0x00, 12, //address length
+			0x7F, 0x00, 0x00, 0x01, //source address: 127.0.0.1
+			0x7F, 0x00, 0x00, 0x01, //destination address: 127.0.0.1
+			0x1F, 0x40, 0x23, 0x28, //source port: 8000, destination port: 9000
+		})
+		require.NoError(t, err)
+
+		// upgrade connection to TLS
+		tlsConn := tls.Client(conn, clientConfig(backend1))
+		defer tlsConn.Close()
+
+		// make sure the TLS call succeeded and we got remote address
+		// correctly
+		out, err := utils.RoundtripWithConn(tlsConn)
+		require.NoError(t, err)
+		require.Equal(t, out, "127.0.0.1:8000")
 	})
 
 	// TestDisabledProxy makes sure the connection gets dropped
@@ -317,7 +368,6 @@ func TestMux(t *testing.T) {
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
-			DisableSSH:          true,
 		})
 		require.Nil(t, err)
 		go mux.Serve()
@@ -345,7 +395,7 @@ func TestMux(t *testing.T) {
 		re, err := client.Get(backend1.URL)
 		require.Nil(t, err)
 		defer re.Body.Close()
-		bytes, err := ioutil.ReadAll(re.Body)
+		bytes, err := io.ReadAll(re.Body)
 		require.Nil(t, err)
 		require.Equal(t, string(bytes), "backend 1")
 
@@ -370,14 +420,13 @@ func TestMux(t *testing.T) {
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
-			DisableTLS:          true,
 		})
 		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
 		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
+			Listener: &noopListener{addr: listener.Addr()},
 			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "backend 1")
 			}),
@@ -483,7 +532,7 @@ func TestMux(t *testing.T) {
 		re, err := client.Get(url)
 		require.Nil(t, err)
 		defer re.Body.Close()
-		bytes, err := ioutil.ReadAll(re.Body)
+		bytes, err := io.ReadAll(re.Body)
 		require.Nil(t, err)
 		require.Equal(t, string(bytes), "http backend")
 
@@ -536,6 +585,9 @@ func TestMux(t *testing.T) {
 		go mux.Serve()
 		defer mux.Close()
 
+		// register listener before establishing frontend connection
+		dblistener := mux.DB()
+
 		// Connect to the listener and send Postgres SSLRequest which is what
 		// psql or other Postgres client will do.
 		conn, err := net.Dial("tcp", listener.Addr().String())
@@ -547,7 +599,7 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 
 		// This should not hang indefinitely since we set timeout on the mux context above.
-		conn, err = mux.DB().Accept()
+		conn, err = dblistener.Accept()
 		require.NoError(t, err, "detected Postgres connection")
 		require.Equal(t, ProtoPostgres, conn.(*Conn).Protocol())
 	})
@@ -565,6 +617,9 @@ func TestMux(t *testing.T) {
 		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
+
+		// register listener before establishing frontend connection
+		tlslistener := mux.TLS()
 
 		// Generate self-signed CA.
 		caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "test-ca"}, nil, time.Hour)
@@ -608,7 +663,7 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 
 		webLis, err := NewWebListener(WebListenerConfig{
-			Listener: tls.NewListener(mux.TLS(), &tls.Config{
+			Listener: tls.NewListener(tlslistener, &tls.Config{
 				ClientCAs:    certPool,
 				ClientAuth:   tls.VerifyClientCertIfGiven,
 				Certificates: []tls.Certificate{serverCert},
@@ -655,6 +710,18 @@ func TestMux(t *testing.T) {
 	})
 }
 
+func TestProtocolString(t *testing.T) {
+	for i := -1; i < len(protocolStrings)+1; i++ {
+		got := Protocol(i).String()
+		switch i {
+		case -1, len(protocolStrings) + 1:
+			require.Equal(t, "", got)
+		default:
+			require.Equal(t, protocolStrings[Protocol(i)], got)
+		}
+	}
+}
+
 // server is used to implement test.PingerServer
 type server struct {
 }
@@ -695,4 +762,20 @@ func pass(need string) sshutils.PasswordFunc {
 		}
 		return nil, fmt.Errorf("passwords don't match")
 	}
+}
+
+type noopListener struct {
+	addr net.Addr
+}
+
+func (noopListener) Accept() (net.Conn, error) {
+	return nil, errors.New("noop")
+}
+
+func (noopListener) Close() error {
+	return nil
+}
+
+func (l noopListener) Addr() net.Addr {
+	return l.addr
 }

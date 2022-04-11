@@ -20,9 +20,10 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"net"
 	"net/url"
 	"os"
@@ -44,10 +45,11 @@ import (
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
@@ -91,7 +93,10 @@ type FileConfig struct {
 func ReadFromFile(filePath string) (*FileConfig, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
+		if errors.Is(err, fs.ErrPermission) {
+			return nil, trace.Wrap(err, "failed to open file for Teleport configuration: %v. Ensure that you are running as a user with appropriate permissions.", filePath)
+		}
+		return nil, trace.Wrap(err, "failed to open file for Teleport configuration at %v", filePath)
 	}
 	defer f.Close()
 	return ReadConfig(f)
@@ -110,7 +115,7 @@ func ReadFromString(configString string) (*FileConfig, error) {
 // ReadConfig reads Teleport configuration from reader in YAML format
 func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	// read & parse YAML config:
-	bytes, err := ioutil.ReadAll(reader)
+	bytes, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed reading Teleport configuration")
 	}
@@ -293,8 +298,8 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName string `yaml:"token_name"`
-	Method    string `yaml:"method"`
+	TokenName string           `yaml:"token_name"`
+	Method    types.JoinMethod `yaml:"method"`
 }
 
 // ConnectionRate configures rate limiter
@@ -436,7 +441,6 @@ func (c *CachePolicy) Enabled() bool {
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Type:    c.Type,
 		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
@@ -500,7 +504,8 @@ type Auth struct {
 	// type, second factor type, specific connector information, etc.
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
 
-	// SessionRecording determines where the session is recorded: node, proxy, or off.
+	// SessionRecording determines where the session is recorded:
+	// node, node-sync, proxy, proxy-sync, or off.
 	SessionRecording string `yaml:"session_recording,omitempty"`
 
 	// ProxyChecksHostKeys is used when the proxy is in recording mode and
@@ -743,7 +748,10 @@ type Webauthn struct {
 	RPID                  string   `yaml:"rp_id,omitempty"`
 	AttestationAllowedCAs []string `yaml:"attestation_allowed_cas,omitempty"`
 	AttestationDeniedCAs  []string `yaml:"attestation_denied_cas,omitempty"`
-	Disabled              bool     `yaml:"disabled,omitempty"`
+	// Disabled has no effect, it is kept solely to not break existing
+	// configurations.
+	// DELETE IN 11.0, time to sunset U2F (codingllama).
+	Disabled bool `yaml:"disabled,omitempty"`
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
@@ -755,13 +763,18 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
+	if w.Disabled {
+		log.Warnf(`` +
+			`The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
+			`Please update your configuration to use WebAuthn. ` +
+			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
+	}
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on
 		// types.Webauthn.CheckAndSetDefaults to correct it.
 		RPID:                  w.RPID,
 		AttestationAllowedCAs: allowedCAs,
 		AttestationDeniedCAs:  deniedCAs,
-		Disabled:              w.Disabled,
 	}, nil
 }
 
@@ -784,7 +797,7 @@ func getAttestationPEM(certOrPath string) (string, error) {
 	}
 
 	// Try reading as a file and parsing that.
-	data, err := ioutil.ReadFile(certOrPath)
+	data, err := os.ReadFile(certOrPath)
 	if err != nil {
 		// Don't use trace in order to keep a clean error message.
 		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
@@ -822,6 +835,9 @@ type SSH struct {
 	// Don't read this value directly: call the AllowTCPForwarding method
 	// instead.
 	MaybeAllowTCPForwarding *bool `yaml:"port_forwarding,omitempty"`
+
+	// X11 is used to configure X11 forwarding settings
+	X11 *X11 `yaml:"x11,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -830,6 +846,54 @@ func (ssh *SSH) AllowTCPForwarding() bool {
 		return true
 	}
 	return *ssh.MaybeAllowTCPForwarding
+}
+
+// X11ServerConfig returns the X11 forwarding server configuration.
+func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
+	// Start with default configuration
+	cfg := &x11.ServerConfig{Enabled: false}
+	if ssh.X11 == nil {
+		return cfg, nil
+	}
+
+	var err error
+	cfg.Enabled, err = apiutils.ParseBool(ssh.X11.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !cfg.Enabled {
+		return cfg, nil
+	}
+
+	cfg.DisplayOffset = x11.DefaultDisplayOffset
+	if ssh.X11.DisplayOffset != nil {
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+
+		if cfg.DisplayOffset > x11.MaxDisplayNumber {
+			cfg.DisplayOffset = x11.MaxDisplayNumber
+		}
+	}
+
+	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
+	if ssh.X11.MaxDisplays != nil && ssh.X11.MaxDisplay == nil {
+		ssh.X11.MaxDisplay = ssh.X11.MaxDisplays
+	}
+
+	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
+	if ssh.X11.MaxDisplay != nil {
+		cfg.MaxDisplay = int(*ssh.X11.MaxDisplay)
+
+		if cfg.MaxDisplay < cfg.DisplayOffset {
+			return nil, trace.BadParameter("x11.MaxDisplay cannot be smaller than x11.DisplayOffset")
+		}
+	}
+
+	if cfg.MaxDisplay > x11.MaxDisplayNumber {
+		cfg.MaxDisplay = x11.MaxDisplayNumber
+	}
+
+	return cfg, nil
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -924,6 +988,20 @@ func (r *RestrictedSession) Parse() (*restricted.Config, error) {
 	}, nil
 }
 
+// X11 is a configuration for X11 forwarding
+type X11 struct {
+	// Enabled controls whether X11 forwarding requests can be granted by the server.
+	Enabled string `yaml:"enabled"`
+	// DisplayOffset tells the server what X11 display number to start from when
+	// searching for an open X11 unix socket for XServer proxies.
+	DisplayOffset *uint `yaml:"display_offset,omitempty"`
+	// MaxDisplay tells the server what X11 display number to stop at when
+	// searching for an open X11 unix socket for XServer proxies.
+	MaxDisplay *uint `yaml:"max_display,omitempty"`
+	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
+	MaxDisplays *uint `yaml:"max_displays,omitempty"`
+}
+
 // Databases represents the database proxy service configuration.
 //
 // In the configuration file this section will be "db_service".
@@ -965,7 +1043,10 @@ type Database struct {
 	// URI is the database address to connect to.
 	URI string `yaml:"uri"`
 	// CACertFile is an optional path to the database CA certificate.
+	// Deprecated in favor of TLS.CACertFile.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// TLS keeps an optional TLS configuration options.
+	TLS DatabaseTLS `yaml:"tls"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
@@ -974,6 +1055,32 @@ type Database struct {
 	AWS DatabaseAWS `yaml:"aws"`
 	// GCP contains GCP specific settings for Cloud SQL databases.
 	GCP DatabaseGCP `yaml:"gcp"`
+	// AD contains Active Directory database configuration.
+	AD DatabaseAD `yaml:"ad"`
+}
+
+// DatabaseAD contains database Active Directory configuration.
+type DatabaseAD struct {
+	// KeytabFile is the path to the Kerberos keytab file.
+	KeytabFile string `yaml:"keytab_file"`
+	// Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
+	Krb5File string `yaml:"krb5_file,omitempty"`
+	// Domain is the Active Directory domain the database resides in.
+	Domain string `yaml:"domain"`
+	// SPN is the service principal name for the database.
+	SPN string `yaml:"spn"`
+}
+
+// DatabaseTLS keeps TLS settings used when connecting to database.
+type DatabaseTLS struct {
+	// Mode is a TLS verification mode. Available options are 'verify-full', 'verify-ca' or 'insecure',
+	// 'verify-full' is the default option.
+	Mode string `yaml:"mode"`
+	// ServerName allows providing custom server name.
+	// This name will override DNS name when validating certificate presented by the database.
+	ServerName string `yaml:"server_name,omitempty"`
+	// CACertFile is an optional path to the database CA certificate.
+	CACertFile string `yaml:"ca_cert_file,omitempty"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
@@ -1115,9 +1222,18 @@ type Proxy struct {
 	// MySQLPublicAddr is the hostport the proxy advertises for MySQL
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
+
+	// PostgresAddr is Postgres proxy listen address.
+	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
 	// client connections.
 	PostgresPublicAddr apiutils.Strings `yaml:"postgres_public_addr,omitempty"`
+
+	// MongoAddr is Mongo proxy listen address.
+	MongoAddr string `yaml:"mongo_listen_addr,omitempty"`
+	// MongoPublicAddr is the hostport the proxy advertises for Mongo
+	// client connections.
+	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -1285,7 +1401,7 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		})
 	}
 
-	v2, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV2{
+	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
@@ -1298,12 +1414,12 @@ func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	v2.SetACR(o.ACR)
-	v2.SetProvider(o.Provider)
-	if err := v2.CheckAndSetDefaults(); err != nil {
+	connector.SetACR(o.ACR)
+	connector.SetProvider(o.Provider)
+	if err := connector.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return v2, nil
+	return connector, nil
 }
 
 // Metrics is a `metrics_service` section of the config file:
@@ -1318,6 +1434,12 @@ type Metrics struct {
 	// CACerts is a list of prometheus CA certificates to validate clients against.
 	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
 	CACerts []string `yaml:"ca_certs,omitempty"`
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCServerLatency bool `yaml:"grpc_server_latency,omitempty"`
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCClientLatency bool `yaml:"grpc_client_latency,omitempty"`
 }
 
 // MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
@@ -1361,8 +1483,6 @@ type LDAPConfig struct {
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
-	// PasswordFile is a text file containing the password for LDAP authentication.
-	PasswordFile string `yaml:"password_file"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).

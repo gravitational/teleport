@@ -18,9 +18,9 @@ package utils
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -31,16 +31,20 @@ import (
 // NewCloserConn returns new connection wrapper that
 // when closed will also close passed closers
 func NewCloserConn(conn net.Conn, closers ...io.Closer) *CloserConn {
-	return &CloserConn{
+	c := &CloserConn{
 		Conn:    conn,
 		closers: closers,
 	}
+	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
+	return c
 }
 
 // CloserConn wraps connection and attaches additional closers to it
 type CloserConn struct {
 	net.Conn
-	closers []io.Closer
+	closers   []io.Closer
+	ctx       context.Context
+	ctxCancel context.CancelFunc
 }
 
 // AddCloser adds any closer in ctx that will be called
@@ -49,14 +53,25 @@ func (c *CloserConn) AddCloser(closer io.Closer) {
 	c.closers = append(c.closers, closer)
 }
 
-// Close closes connection and all closers
+// Close connection, all closers, and cancel context.
 func (c *CloserConn) Close() error {
 	var errors []error
 	for _, closer := range c.closers {
 		errors = append(errors, closer.Close())
 	}
 	errors = append(errors, c.Conn.Close())
+	c.ctxCancel()
 	return trace.NewAggregate(errors...)
+}
+
+// Context returns a context that is cancelled once the connection is closed.
+func (c *CloserConn) Context() context.Context {
+	return c.ctx
+}
+
+// Wait for connection to close.
+func (c *CloserConn) Wait() {
+	<-c.ctx.Done()
 }
 
 // Roundtrip is a single connection simplistic HTTP client
@@ -84,7 +99,7 @@ func RoundtripWithConn(conn net.Conn) (string, error) {
 		return "", err
 	}
 	defer re.Body.Close()
-	out, err := ioutil.ReadAll(re.Body)
+	out, err := io.ReadAll(re.Body)
 	if err != nil {
 		return "", err
 	}

@@ -1,0 +1,6 @@
+clusterName: test-log-cluster
+log:
+  format: json
+  level: DEBUG
+  output: /var/lib/teleport/test.log
+  extraFields: ["level", "timestamp", "component", "caller"]

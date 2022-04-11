@@ -27,8 +27,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // KeepAliveState represents state of the heartbeat
@@ -149,7 +152,7 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 		announceC:   make(chan struct{}, 1),
 		sendC:       make(chan struct{}, 1),
 	}
-	h.Debugf("Starting %v heartbeat with announce period: %v, keep-alive period %v, poll period: %v", cfg.Mode, cfg.KeepAlivePeriod, cfg.AnnouncePeriod, cfg.CheckPeriod)
+	h.Debugf("Starting %v heartbeat with announce period: %v, keep-alive period %v, poll period: %v", cfg.Mode, cfg.AnnouncePeriod, cfg.KeepAlivePeriod, cfg.CheckPeriod)
 	return h, nil
 }
 
@@ -440,15 +443,36 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			err := h.Announcer.UpsertKubeService(context.TODO(), kube)
+			keepAlive, err := h.Announcer.UpsertKubeServiceV2(h.cancelCtx, kube)
 			if err != nil {
-				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
-				h.setState(HeartbeatStateAnnounceWait)
+				// Check if the error is an Unimplemented grpc status code,
+				// if it is fall back to old keepalive method
+				// DELETE in 11.0
+				if e, ok := status.FromError(trail.ToGRPC(err)); ok && e.Code() == codes.Unimplemented {
+					err := h.Announcer.UpsertKubeService(h.cancelCtx, kube)
+					if err != nil {
+						h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+						h.setState(HeartbeatStateAnnounceWait)
+						return trace.Wrap(err)
+					}
+					h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
+					h.notifySend()
+					h.setState(HeartbeatStateAnnounceWait)
+					return nil
+				}
+				return trace.Wrap(err)
+			}
+			h.notifySend()
+			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
+			if err != nil {
+				h.reset(HeartbeatStateInit)
 				return trace.Wrap(err)
 			}
 			h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
-			h.notifySend()
-			h.setState(HeartbeatStateAnnounceWait)
+			h.nextKeepAlive = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+			h.keepAlive = keepAlive
+			h.keepAliver = keepAliver
+			h.setState(HeartbeatStateKeepAliveWait)
 			return nil
 		case HeartbeatModeApp:
 			var keepAlive *types.KeepAlive

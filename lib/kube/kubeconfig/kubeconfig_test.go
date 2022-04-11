@@ -16,7 +16,7 @@ package kubeconfig
 
 import (
 	"crypto/x509/pkix"
-	"io/ioutil"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -31,34 +31,28 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-func TestKubeconfig(t *testing.T) { check.TestingT(t) }
-
-type KubeconfigSuite struct {
-	kubeconfigPath string
-	initialConfig  clientcmdapi.Config
-}
-
-var _ = check.Suite(&KubeconfigSuite{})
-
-func (s *KubeconfigSuite) SetUpTest(c *check.C) {
-	f, err := ioutil.TempFile("", "kubeconfig")
+func setup(t *testing.T) (string, clientcmdapi.Config) {
+	f, err := os.CreateTemp("", "kubeconfig")
 	if err != nil {
-		c.Fatalf("failed to create temp kubeconfig file: %v", err)
+		t.Fatalf("failed to create temp kubeconfig file: %v", err)
 	}
 	defer f.Close()
 
 	// Note: LocationOfOrigin and Extensions would be automatically added on
 	// clientcmd.Write below. Set them explicitly so we can compare
-	// s.initialConfig against loaded config.
+	// initialConfig against loaded config.
 	//
 	// TODO: use a comparison library that can ignore individual fields.
-	s.initialConfig = clientcmdapi.Config{
+	kubeconfigPath := f.Name()
+	t.Cleanup(func() { os.Remove(kubeconfigPath) })
+
+	initialConfig := clientcmdapi.Config{
 		CurrentContext: "dev",
 		Clusters: map[string]*clientcmdapi.Cluster{
 			"cluster-1": {
@@ -116,40 +110,38 @@ func (s *KubeconfigSuite) SetUpTest(c *check.C) {
 		Extensions: map[string]runtime.Object{},
 	}
 
-	initialContent, err := clientcmd.Write(s.initialConfig)
-	c.Assert(err, check.IsNil)
+	initialContent, err := clientcmd.Write(initialConfig)
+	require.NoError(t, err)
 
 	if _, err := f.Write(initialContent); err != nil {
-		c.Fatalf("failed to write kubeconfig: %v", err)
+		t.Fatalf("failed to write kubeconfig: %v", err)
 	}
 
-	s.kubeconfigPath = f.Name()
+	return kubeconfigPath, initialConfig
 }
 
-func (s *KubeconfigSuite) TearDownTest(c *check.C) {
-	os.Remove(s.kubeconfigPath)
+func TestLoad(t *testing.T) {
+	kubeconfigPath, initialConfig := setup(t)
+	config, err := Load(kubeconfigPath)
+	require.NoError(t, err)
+	require.Equal(t, initialConfig, *config)
 }
 
-func (s *KubeconfigSuite) TestLoad(c *check.C) {
-	config, err := Load(s.kubeconfigPath)
-	c.Assert(err, check.IsNil)
-	c.Assert(*config, check.DeepEquals, s.initialConfig)
-}
-
-func (s *KubeconfigSuite) TestSave(c *check.C) {
+func TestSave(t *testing.T) {
+	kubeconfigPath, _ := setup(t)
 	cfg := clientcmdapi.Config{
 		CurrentContext: "a",
 		Clusters: map[string]*clientcmdapi.Cluster{
 			"cluster": {
 				CertificateAuthority: "fake-ca-file",
 				Server:               "https://1.2.3.4",
-				LocationOfOrigin:     s.kubeconfigPath,
+				LocationOfOrigin:     kubeconfigPath,
 				Extensions:           map[string]runtime.Object{},
 			},
 		},
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
 			"user": {
-				LocationOfOrigin: s.kubeconfigPath,
+				LocationOfOrigin: kubeconfigPath,
 				Extensions:       map[string]runtime.Object{},
 			},
 		},
@@ -157,7 +149,7 @@ func (s *KubeconfigSuite) TestSave(c *check.C) {
 			"a": {
 				Cluster:          "cluster",
 				AuthInfo:         "user",
-				LocationOfOrigin: s.kubeconfigPath,
+				LocationOfOrigin: kubeconfigPath,
 				Extensions:       map[string]runtime.Object{},
 			},
 		},
@@ -167,115 +159,239 @@ func (s *KubeconfigSuite) TestSave(c *check.C) {
 		Extensions: map[string]runtime.Object{},
 	}
 
-	err := Save(s.kubeconfigPath, cfg)
-	c.Assert(err, check.IsNil)
+	err := Save(kubeconfigPath, cfg)
+	require.NoError(t, err)
 
-	config, err := Load(s.kubeconfigPath)
-	c.Assert(err, check.IsNil)
-	c.Assert(*config, check.DeepEquals, cfg)
+	config, err := Load(kubeconfigPath)
+	require.NoError(t, err)
+	require.Equal(t, cfg, *config)
 }
 
-func (s *KubeconfigSuite) TestUpdate(c *check.C) {
+func TestUpdate(t *testing.T) {
 	const (
 		clusterName = "teleport-cluster"
 		clusterAddr = "https://1.2.3.6:3080"
 	)
-	creds, caCertPEM, err := s.genUserKey()
-	c.Assert(err, check.IsNil)
-	err = Update(s.kubeconfigPath, Values{
+	kubeconfigPath, initialConfig := setup(t)
+	creds, caCertPEM, err := genUserKey()
+	require.NoError(t, err)
+	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	wantConfig := s.initialConfig.DeepCopy()
+	wantConfig := initialConfig.DeepCopy()
 	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
 		CertificateAuthorityData: caCertPEM,
-		LocationOfOrigin:         s.kubeconfigPath,
+		LocationOfOrigin:         kubeconfigPath,
 		Extensions:               map[string]runtime.Object{},
 	}
 	wantConfig.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: creds.TLSCert,
 		ClientKeyData:         creds.Priv,
-		LocationOfOrigin:      s.kubeconfigPath,
+		LocationOfOrigin:      kubeconfigPath,
 		Extensions:            map[string]runtime.Object{},
 	}
 	wantConfig.Contexts[clusterName] = &clientcmdapi.Context{
 		Cluster:          clusterName,
 		AuthInfo:         clusterName,
-		LocationOfOrigin: s.kubeconfigPath,
+		LocationOfOrigin: kubeconfigPath,
 		Extensions:       map[string]runtime.Object{},
 	}
 	wantConfig.CurrentContext = clusterName
 
-	config, err := Load(s.kubeconfigPath)
-	c.Assert(err, check.IsNil)
-	c.Assert(config, check.DeepEquals, wantConfig)
+	config, err := Load(kubeconfigPath)
+	require.NoError(t, err)
+	require.Equal(t, wantConfig, config)
 }
 
-func (s *KubeconfigSuite) TestRemove(c *check.C) {
+func TestUpdateWithExec(t *testing.T) {
+	const (
+		clusterName = "teleport-cluster"
+		clusterAddr = "https://1.2.3.6:3080"
+		tshPath     = "/path/to/tsh"
+		kubeCluster = "my-cluster"
+		homeEnvVar  = "TELEPORT_HOME"
+		home        = "/alt/home"
+	)
+	kubeconfigPath, initialConfig := setup(t)
+	creds, caCertPEM, err := genUserKey()
+	require.NoError(t, err)
+	err = Update(kubeconfigPath, Values{
+		TeleportClusterName: clusterName,
+		ClusterAddr:         clusterAddr,
+		Credentials:         creds,
+		Exec: &ExecValues{
+			TshBinaryPath: tshPath,
+			KubeClusters:  []string{kubeCluster},
+			Env: map[string]string{
+				homeEnvVar: home,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	wantConfig := initialConfig.DeepCopy()
+	contextName := ContextName(clusterName, kubeCluster)
+	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
+		Server:                   clusterAddr,
+		CertificateAuthorityData: caCertPEM,
+		LocationOfOrigin:         kubeconfigPath,
+		Extensions:               map[string]runtime.Object{},
+	}
+	wantConfig.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
+		LocationOfOrigin: kubeconfigPath,
+		Extensions:       map[string]runtime.Object{},
+		Exec: &clientcmdapi.ExecConfig{
+			APIVersion: "client.authentication.k8s.io/v1beta1",
+			Command:    tshPath,
+			Args: []string{"kube", "credentials",
+				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
+				fmt.Sprintf("--teleport-cluster=%s", clusterName),
+			},
+			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
+		},
+	}
+	wantConfig.Contexts[contextName] = &clientcmdapi.Context{
+		Cluster:          clusterName,
+		AuthInfo:         contextName,
+		LocationOfOrigin: kubeconfigPath,
+		Extensions:       map[string]runtime.Object{},
+	}
+
+	config, err := Load(kubeconfigPath)
+	require.NoError(t, err)
+	require.Equal(t, wantConfig, config)
+}
+func TestUpdateWithExecAndProxy(t *testing.T) {
+	const (
+		clusterName = "teleport-cluster"
+		clusterAddr = "https://1.2.3.6:3080"
+		proxy       = "my-teleport-proxy:3080"
+		tshPath     = "/path/to/tsh"
+		kubeCluster = "my-cluster"
+		homeEnvVar  = "TELEPORT_HOME"
+		home        = "/alt/home"
+	)
+	kubeconfigPath, initialConfig := setup(t)
+	creds, caCertPEM, err := genUserKey()
+	require.NoError(t, err)
+	err = Update(kubeconfigPath, Values{
+		TeleportClusterName: clusterName,
+		ClusterAddr:         clusterAddr,
+		Credentials:         creds,
+		ProxyAddr:           proxy,
+		Exec: &ExecValues{
+			TshBinaryPath: tshPath,
+			KubeClusters:  []string{kubeCluster},
+			Env: map[string]string{
+				homeEnvVar: home,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	wantConfig := initialConfig.DeepCopy()
+	contextName := ContextName(clusterName, kubeCluster)
+	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
+		Server:                   clusterAddr,
+		CertificateAuthorityData: caCertPEM,
+		LocationOfOrigin:         kubeconfigPath,
+		Extensions:               map[string]runtime.Object{},
+	}
+	wantConfig.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
+		LocationOfOrigin: kubeconfigPath,
+		Extensions:       map[string]runtime.Object{},
+		Exec: &clientcmdapi.ExecConfig{
+			APIVersion: "client.authentication.k8s.io/v1beta1",
+			Command:    tshPath,
+			Args: []string{"kube", "credentials",
+				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
+				fmt.Sprintf("--teleport-cluster=%s", clusterName),
+				fmt.Sprintf("--proxy=%s", proxy),
+			},
+			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
+		},
+	}
+	wantConfig.Contexts[contextName] = &clientcmdapi.Context{
+		Cluster:          clusterName,
+		AuthInfo:         contextName,
+		LocationOfOrigin: kubeconfigPath,
+		Extensions:       map[string]runtime.Object{},
+	}
+
+	config, err := Load(kubeconfigPath)
+	require.NoError(t, err)
+	require.Equal(t, wantConfig, config)
+}
+
+func TestRemove(t *testing.T) {
 	const (
 		clusterName = "teleport-cluster"
 		clusterAddr = "https://1.2.3.6:3080"
 	)
-	creds, _, err := s.genUserKey()
-	c.Assert(err, check.IsNil)
+	kubeconfigPath, initialConfig := setup(t)
+	creds, _, err := genUserKey()
+	require.NoError(t, err)
 
 	// Add teleport-generated entries to kubeconfig.
-	err = Update(s.kubeconfigPath, Values{
+	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Remove those generated entries from kubeconfig.
-	err = Remove(s.kubeconfigPath, clusterName)
-	c.Assert(err, check.IsNil)
+	err = Remove(kubeconfigPath, clusterName)
+	require.NoError(t, err)
 
 	// Verify that kubeconfig changed back to the initial state.
-	wantConfig := s.initialConfig.DeepCopy()
-	config, err := Load(s.kubeconfigPath)
-	c.Assert(err, check.IsNil)
+	wantConfig := initialConfig.DeepCopy()
+	config, err := Load(kubeconfigPath)
+	require.NoError(t, err)
 	// CurrentContext can end up as either of the remaining contexts, as long
 	// as it's not the one we just removed.
-	c.Assert(config.CurrentContext, check.Not(check.Equals), clusterName)
+	require.NotEqual(t, clusterName, config.CurrentContext)
 	wantConfig.CurrentContext = config.CurrentContext
-	c.Assert(config, check.DeepEquals, wantConfig)
+	require.Equal(t, wantConfig, config)
 
 	// Add teleport-generated entries to kubeconfig again.
-	err = Update(s.kubeconfigPath, Values{
+	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
 		ClusterAddr:         clusterAddr,
 		Credentials:         creds,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// This time, explicitly switch CurrentContext to "prod".
 	// Remove should preserve this CurrentContext!
-	config, err = Load(s.kubeconfigPath)
-	c.Assert(err, check.IsNil)
+	config, err = Load(kubeconfigPath)
+	require.NoError(t, err)
 	config.CurrentContext = "prod"
-	err = Save(s.kubeconfigPath, *config)
-	c.Assert(err, check.IsNil)
+	err = Save(kubeconfigPath, *config)
+	require.NoError(t, err)
 
 	// Remove teleport-generated entries from kubeconfig.
-	err = Remove(s.kubeconfigPath, clusterName)
-	c.Assert(err, check.IsNil)
+	err = Remove(kubeconfigPath, clusterName)
+	require.NoError(t, err)
 
-	wantConfig = s.initialConfig.DeepCopy()
+	wantConfig = initialConfig.DeepCopy()
 	// CurrentContext should always end up as "prod" because we explicitly set
 	// it above and Remove shouldn't touch it unless it matches the cluster
 	// being removed.
 	wantConfig.CurrentContext = "prod"
-	config, err = Load(s.kubeconfigPath)
-	c.Assert(err, check.IsNil)
-	c.Assert(config, check.DeepEquals, wantConfig)
+	config, err = Load(kubeconfigPath)
+	require.NoError(t, err)
+	require.Equal(t, wantConfig, config)
 }
 
-func (s *KubeconfigSuite) genUserKey() (*client.Key, []byte, error) {
+func genUserKey() (*client.Key, []byte, error) {
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName:   "localhost",
 		Organization: []string{"localhost"},

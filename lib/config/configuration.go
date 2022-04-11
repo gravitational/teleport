@@ -22,10 +22,8 @@ package config
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/x509"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -34,6 +32,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	stdlog "log"
 
 	"golang.org/x/crypto/ssh"
 
@@ -47,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -140,6 +142,14 @@ type CommandLineFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
+	// DatabaseADKeytabFile is the path to Kerberos keytab file.
+	DatabaseADKeytabFile string
+	// DatabaseADKrb5File is the path to krb5.conf file.
+	DatabaseADKrb5File string
+	// DatabaseADDomain is the Active Directory domain for authentication.
+	DatabaseADDomain string
+	// DatabaseADSPN is the database Service Principal Name.
+	DatabaseADSPN string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -266,6 +276,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if fc.Storage.Type == lite.AlternativeName {
 			fc.Storage.Type = lite.GetName()
 		}
+		// If the alternative name "cockroachdb" is given, update it to "postgres".
+		if fc.Storage.Type == postgres.AlternativeName {
+			fc.Storage.Type = postgres.GetName()
+		}
+
+		// Fix yamlv2 issue with nested storage sections.
+		fc.Storage.Params.Cleanse()
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
@@ -282,21 +299,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply logger settings
-	logger := utils.NewLogger()
-	err = applyLogConfig(fc.Logger, logger)
+	err = applyLogConfig(fc.Logger, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.Log = logger
-
-	// Apply logging configuration for the global logger instance
-	// DELETE this when global logger instance is no longer in use.
-	//
-	// Logging configuration has already been validated above
-	_ = applyLogConfig(fc.Logger, log.StandardLogger())
 
 	if fc.CachePolicy.TTL != "" {
-		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+		log.Warn("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+	if fc.CachePolicy.Type == memory.GetName() {
+		log.Debugf("cache.type config option is explicitly set to %v.", memory.GetName())
+	} else if fc.CachePolicy.Type != "" {
+		log.Warn("cache.type config option is deprecated and will be ignored, caches are always in memory in this version.")
 	}
 
 	// apply cache policy for node and proxy
@@ -349,6 +363,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		&cfg.SSH.Limiter,
 		&cfg.Auth.Limiter,
 		&cfg.Proxy.Limiter,
+		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
 	}
@@ -419,14 +434,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
-func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
+func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
+	logger := log.StandardLogger()
+
 	switch loggerConfig.Output {
 	case "":
 		break // not set
 	case "stderr", "error", "2":
 		logger.SetOutput(os.Stderr)
+		cfg.Console = io.Discard // disable console printing
 	case "stdout", "out", "1":
 		logger.SetOutput(os.Stdout)
+		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
 		err := utils.SwitchLoggerToSyslog(logger)
 		if err != nil {
@@ -459,7 +478,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		formatter := &textFormatter{
+		formatter := &utils.TextFormatter{
 			ExtraFields:  loggerConfig.Format.ExtraFields,
 			EnableColors: trace.IsTerminal(os.Stderr),
 		}
@@ -470,8 +489,8 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 
 		logger.SetFormatter(formatter)
 	case "json":
-		formatter := &jsonFormatter{
-			extraFields: loggerConfig.Format.ExtraFields,
+		formatter := &utils.JSONFormatter{
+			ExtraFields: loggerConfig.Format.ExtraFields,
 		}
 
 		if err := formatter.CheckAndSetDefaults(); err != nil {
@@ -479,10 +498,13 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		}
 
 		logger.SetFormatter(formatter)
+		stdlog.SetOutput(io.Discard) // disable the standard logger used by external dependencies
+		stdlog.SetFlags(0)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
 
+	cfg.Log = logger
 	return nil
 }
 
@@ -539,6 +561,9 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if fc.Auth.MessageOfTheDay != "" {
 		cfg.Auth.Preference.SetMessageOfTheDay(fc.Auth.MessageOfTheDay)
 	}
 
@@ -637,32 +662,46 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	if fc.Proxy.ListenAddress != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.SSHAddr = *addr
 	}
 	if fc.Proxy.WebAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, int(defaults.HTTPListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.WebAddr, defaults.HTTPListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.WebAddr = *addr
 	}
 	if fc.Proxy.TunAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, int(defaults.SSHProxyTunnelListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.TunAddr, defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
 	if fc.Proxy.MySQLAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, int(defaults.MySQLListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MySQLAddr, defaults.MySQLListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MySQLAddr = *addr
+	}
+	if fc.Proxy.PostgresAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PostgresAddr, defaults.PostgresListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PostgresAddr = *addr
+	}
+	if fc.Proxy.MongoAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoAddr, defaults.MongoListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MongoAddr = *addr
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -788,22 +827,14 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.TunnelPublicAddrs = addrs
 	}
 	if len(fc.Proxy.PostgresPublicAddr) != 0 {
-		// Postgres proxy is multiplexed on the web proxy port. If the port is
-		// not specified here explicitly, prefer defaults in the following
-		// order, depending on what's set:
-		//   1. Web proxy public port
-		//   2. Web proxy listen port
-		//   3. Web proxy default listen port
-		defaultPort := cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
-		if len(cfg.Proxy.PublicAddrs) != 0 {
-			defaultPort = cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
-		}
+		defaultPort := getPostgresDefaultPort(cfg)
 		addrs, err := utils.AddrsFromStrings(fc.Proxy.PostgresPublicAddr, defaultPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PostgresPublicAddrs = addrs
 	}
+
 	if len(fc.Proxy.MySQLPublicAddr) != 0 {
 		if fc.Proxy.MySQLAddr == "" {
 			return trace.BadParameter("mysql_listen_addr must be set when mysql_public_addr is set")
@@ -816,6 +847,17 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.MySQLPublicAddrs = addrs
 	}
 
+	if len(fc.Proxy.MongoPublicAddr) != 0 {
+		if fc.Proxy.MongoAddr == "" {
+			return trace.BadParameter("mongo_listen_addr must be set when mongo_public_addr is set")
+		}
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.MongoPublicAddr, defaults.MongoListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MongoPublicAddrs = addrs
+	}
+
 	acme, err := fc.Proxy.ACME.Parse()
 	if err != nil {
 		return trace.Wrap(err)
@@ -825,6 +867,24 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	applyDefaultProxyListenerAddresses(cfg)
 
 	return nil
+}
+
+func getPostgresDefaultPort(cfg *service.Config) int {
+	if !cfg.Proxy.PostgresAddr.IsEmpty() {
+		// If the proxy.PostgresAddr flag was provided return port
+		// from PostgresAddr address or default PostgresListenPort.
+		return cfg.Proxy.PostgresAddr.Port(defaults.PostgresListenPort)
+	}
+	// Postgres proxy is multiplexed on the web proxy port. If the proxy is
+	// not specified here explicitly, prefer defaults in the following
+	// order, depending on what's set:
+	//   1. Web proxy public port
+	//   2. Web proxy listen port
+	//   3. Web proxy default listen port
+	if len(cfg.Proxy.PublicAddrs) != 0 {
+		return cfg.Proxy.PublicAddrs[0].Port(defaults.HTTPListenPort)
+	}
+	return cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort)
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {
@@ -921,6 +981,11 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
 
+	cfg.SSH.X11, err = fc.SSH.X11ServerConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -1004,14 +1069,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				}
 			}
 		}
-		var caBytes []byte
-		var err error
-		if database.CACertFile != "" {
-			caBytes, err = ioutil.ReadFile(database.CACertFile)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+
+		caBytes, err := readCACert(database)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+
 		db := service.Database{
 			Name:          database.Name,
 			Description:   database.Description,
@@ -1019,7 +1082,11 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			CACert:        caBytes,
+			TLS: service.DatabaseTLS{
+				CACert:     caBytes,
+				ServerName: database.TLS.ServerName,
+				Mode:       service.TLSMode(database.TLS.Mode),
+			},
 			AWS: service.DatabaseAWS{
 				Region: database.AWS.Region,
 				Redshift: service.DatabaseAWSRedshift{
@@ -1034,6 +1101,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
 			},
+			AD: service.DatabaseAD{
+				KeytabFile: database.AD.KeytabFile,
+				Krb5File:   database.AD.Krb5File,
+				Domain:     database.AD.Domain,
+				SPN:        database.AD.SPN,
+			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1041,6 +1114,41 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
 	}
 	return nil
+}
+
+// readCACert reads database CA certificate from the config file.
+// First 'tls.ca_cert_file` is being read, then deprecated 'ca_cert_file' if
+// the first one is not set.
+func readCACert(database *Database) ([]byte, error) {
+	var (
+		caBytes []byte
+		err     error
+	)
+	if database.TLS.CACertFile != "" {
+		caBytes, err = os.ReadFile(database.TLS.CACertFile)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
+
+	// ca_cert_file is deprecated, but we still support it.
+	// Print a warning if the old field is still being used.
+	if database.CACertFile != "" {
+		if database.TLS.CACertFile != "" {
+			// New and old fields are set. Ignore the old field.
+			log.Warnf("Ignoring deprecated ca_cert_file in %s configuration; using tls.ca_cert_file.", database.Name)
+		} else {
+			// Only old field is set, inform about deprecation.
+			log.Warnf("ca_cert_file is deprecated, please use tls.ca_cert_file instead for %s.", database.Name)
+
+			caBytes, err = os.ReadFile(database.CACertFile)
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			}
+		}
+	}
+
+	return caBytes, nil
 }
 
 // applyAppsConfig applies file configuration for the "app_service" section.
@@ -1120,6 +1228,9 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Metrics.ListenAddr = addr
 
+	cfg.Metrics.GRPCServerLatency = fc.Metrics.GRPCServerLatency
+	cfg.Metrics.GRPCClientLatency = fc.Metrics.GRPCClientLatency
+
 	if !fc.Metrics.MTLSEnabled() {
 		return nil
 	}
@@ -1192,7 +1303,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
-		if _, err := ldap.CompileFilter(ldap.EscapeFilter(filter)); err != nil {
+		if _, err := ldap.CompileFilter(filter); err != nil {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
@@ -1206,19 +1317,6 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	ldapPassword, err := os.ReadFile(fc.WindowsDesktop.LDAP.PasswordFile)
-	if err != nil {
-		return trace.WrapWithMessage(err, "loading the LDAP password from file %v",
-			fc.WindowsDesktop.LDAP.PasswordFile)
-	}
-
-	// If a CA file is provided but InsecureSkipVerify is also set to true, throw an
-	// error to make sure the user isn't making a critical security mistake (i.e. thinking
-	// that their LDAPS connection is being verified to be with the CA provided, but it isn't
-	// due to InsecureSkipVerify == true ).
-	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.InsecureSkipVerify {
-		return trace.BadParameter("a CA file was provided but insecure_skip_verify was also set to true; confirm that you really want CA verification to be skipped by deleting or commenting-out the der_ca_file configuration value")
 	}
 
 	var cert *x509.Certificate
@@ -1235,13 +1333,9 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
-		Addr:     fc.WindowsDesktop.LDAP.Addr,
-		Username: fc.WindowsDesktop.LDAP.Username,
-		Domain:   fc.WindowsDesktop.LDAP.Domain,
-
-		// trim whitespace to protect against things like
-		// a leading tab character or trailing newline
-		Password:           string(bytes.TrimSpace(ldapPassword)),
+		Addr:               fc.WindowsDesktop.LDAP.Addr,
+		Username:           fc.WindowsDesktop.LDAP.Username,
+		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		CA:                 cert,
 	}
@@ -1564,7 +1658,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 		var caBytes []byte
 		if clf.DatabaseCACertFile != "" {
-			caBytes, err = ioutil.ReadFile(clf.DatabaseCACertFile)
+			caBytes, err = os.ReadFile(clf.DatabaseCACertFile)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1576,7 +1670,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			URI:           clf.DatabaseURI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
-			CACert:        caBytes,
+			TLS: service.DatabaseTLS{
+				CACert: caBytes,
+			},
 			AWS: service.DatabaseAWS{
 				Region: clf.DatabaseAWSRegion,
 				Redshift: service.DatabaseAWSRedshift{
@@ -1590,6 +1686,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			GCP: service.DatabaseGCP{
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
+			},
+			AD: service.DatabaseAD{
+				KeytabFile: clf.DatabaseADKeytabFile,
+				Krb5File:   clf.DatabaseADKrb5File,
+				Domain:     clf.DatabaseADDomain,
+				SPN:        clf.DatabaseADSPN,
 			},
 		}
 		if err := db.CheckAndSetDefaults(); err != nil {
@@ -1658,7 +1760,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// apply --debug flag to config:
 	if clf.Debug {
-		cfg.Console = ioutil.Discard
+		cfg.Console = io.Discard
 		cfg.Debug = clf.Debug
 	}
 
@@ -1889,7 +1991,7 @@ func splitRoles(roles string) []string {
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
-		cfg.JoinMethod = service.JoinMethodToken
+		cfg.JoinMethod = types.JoinMethodToken
 		_, err := cfg.ApplyToken(fc.AuthToken)
 		return trace.Wrap(err)
 	}
@@ -1898,10 +2000,12 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 		cfg.Token = fc.JoinParams.TokenName
-		if fc.JoinParams.Method != "ec2" {
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected "ec2"`, fc.JoinParams.Method)
+		switch fc.JoinParams.Method {
+		case types.JoinMethodEC2, types.JoinMethodIAM:
+			cfg.JoinMethod = fc.JoinParams.Method
+		default:
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
 		}
-		cfg.JoinMethod = service.JoinMethodEC2
 	}
 	return nil
 }

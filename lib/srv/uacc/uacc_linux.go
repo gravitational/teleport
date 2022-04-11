@@ -51,8 +51,8 @@ const userMaxLen = 32
 //
 // `username`: Name of the user the interactive session is running under.
 // `hostname`: Name of the system the user is logged into.
-// `remoteAddrV6`: IPv6 address of the remote host.
-// `ttyName`: Name of the TTY including the `/dev/` prefix.
+// `remote`: IPv6 address of the remote host.
+// `tty`: Pointer to the tty stream
 func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32, tty *os.File) error {
 	ttyName, err := os.Readlink(tty.Name())
 	if err != nil {
@@ -101,8 +101,8 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
 
 	accountDb.Lock()
-	status := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction)
-	accountDb.Unlock()
+	defer accountDb.Unlock()
+	status, errno := C.uacc_add_utmp_entry(cUtmpPath, cWtmpPath, cUsername, cHostname, &cIP[0], cTtyName, cIDName, secondsElapsed, microsFraction)
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -110,18 +110,13 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	case C.UACC_UTMP_WRITE_ERROR:
 		return trace.AccessDenied("failed to add entry to utmp database")
 	case C.UACC_UTMP_FAILED_OPEN:
-		code := C.get_errno()
-		return trace.AccessDenied("failed to open user account database, code: %d", code)
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		if status != 0 {
-			return trace.Errorf("unknown error with code %d", status)
-		}
-
-		return nil
+		return decodeUnknownError(int(status))
 	}
 }
 
@@ -159,8 +154,8 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	microsFraction := (C.int32_t)((timestamp.UnixNano() % int64(time.Second)) / int64(time.Microsecond))
 
 	accountDb.Lock()
-	status := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction)
-	accountDb.Unlock()
+	defer accountDb.Unlock()
+	status, errno := C.uacc_mark_utmp_entry_dead(cUtmpPath, cWtmpPath, cTtyName, secondsElapsed, microsFraction)
 
 	switch status {
 	case C.UACC_UTMP_MISSING_PERMISSIONS:
@@ -170,18 +165,13 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	case C.UACC_UTMP_READ_ERROR:
 		return trace.AccessDenied("failed to read and search utmp database")
 	case C.UACC_UTMP_FAILED_OPEN:
-		code := C.get_errno()
-		return trace.AccessDenied("failed to open user account database, code: %d", code)
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
 		return trace.BadParameter("failed to select file")
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		if status != 0 {
-			return trace.Errorf("unknown error with code %d", status)
-		}
-
-		return nil
+		return decodeUnknownError(int(status))
 	}
 }
 
@@ -201,13 +191,12 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	defer C.free(unsafe.Pointer(cUsername))
 
 	accountDb.Lock()
-	status := C.uacc_has_entry_with_user(cUtmpPath, cUsername)
-	accountDb.Unlock()
+	defer accountDb.Unlock()
+	status, errno := C.uacc_has_entry_with_user(cUtmpPath, cUsername)
 
 	switch status {
 	case C.UACC_UTMP_FAILED_OPEN:
-		code := C.get_errno()
-		return trace.AccessDenied("failed to open user account database, code: %d", code)
+		return trace.AccessDenied("failed to open user account database, code: %d", errno)
 	case C.UACC_UTMP_ENTRY_DOES_NOT_EXIST:
 		return trace.NotFound("user not found")
 	case C.UACC_UTMP_FAILED_TO_SELECT_FILE:
@@ -215,10 +204,20 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		if status != 0 {
-			return trace.Errorf("unknown error with code %d", status)
-		}
+		return decodeUnknownError(int(status))
+	}
+}
 
+func decodeUnknownError(status int) error {
+	if status == 0 {
 		return nil
 	}
+
+	if C.UACC_PATH_ERR != nil {
+		data := C.GoString(C.UACC_PATH_ERR)
+		C.free(unsafe.Pointer(C.UACC_PATH_ERR))
+		return trace.Errorf("unknown error with code %d and data %v", status, data)
+	}
+
+	return trace.Errorf("unknown error with code %d", status)
 }

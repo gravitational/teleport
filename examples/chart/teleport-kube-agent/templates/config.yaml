@@ -1,7 +1,14 @@
+{{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
+{{- if .Values.teleportVersionOverride -}}
+  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride -}}
+{{- else -}}
+  {{- $_ := set . "teleportVersion" .Chart.Version -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
   {{- if .Values.annotations.config }}
   annotations:
     {{- toYaml .Values.annotations.config | nindent 4 }}
@@ -12,8 +19,11 @@ data:
       auth_token: "/etc/teleport-secrets/auth-token"
       auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
       log:
-        severity: {{ .Values.logLevel }}
-        output: stderr
+        severity: {{ $logLevel }}
+        output: {{ .Values.log.output }}
+        format:
+          output: {{ .Values.log.format }}
+          extra_fields: {{ .Values.log.extraFields | toJson }}
 
     kubernetes_service:
       {{- if or (contains "kube" (.Values.roles | toString)) (empty .Values.roles) }}
@@ -49,6 +59,25 @@ data:
     db_service:
       {{- if contains "db" (.Values.roles | toString) }}
       enabled: true
+      {{- if not (or (.Values.awsDatabases) (.Values.databases)) }}
+        {{- fail "'awsDatabases' and/or 'databases' is required in chart values when db role is enabled, see README" }}
+      {{- end }}
+      {{- if .Values.awsDatabases }}
+      aws:
+        {{- range $awsDb := .Values.awsDatabases }}
+          {{- if not (hasKey $awsDb "types") }}
+            {{- fail "'types' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $awsDb "regions") }}
+            {{- fail "'regions' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
+          {{- end }}
+          {{- if not (hasKey $awsDb "tags") }}
+            {{- fail "'tags' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
+          {{- end }}
+        {{- end }}
+        {{- toYaml .Values.awsDatabases | nindent 6 }}
+      {{- end }}
+      {{- if .Values.databases }}
       databases:
         {{- range $db := .Values.databases }}
           {{- if not (hasKey $db "name") }}
@@ -61,10 +90,11 @@ data:
             {{- fail "'protocol' is required for all 'databases' in chart values when db role is enabled, see README" }}
           {{- end }}
         {{- end }}
-        {{- required "'databases' map is required in chart values when db role is enabled, see README" .Values.databases | toYaml | nindent 8 }}
-      {{- else }}
-      enabled: false
+        {{- toYaml .Values.databases | nindent 6 }}
       {{- end }}
+    {{- else }}
+      enabled: false
+    {{- end }}
     {{- end }}
 
     auth_service:

@@ -1,4 +1,7 @@
 extends: relaxed
 rules:
+  commas:
+    max-spaces-before: 0
+    min-spaces-after: 0
   line-length:
     max: 120

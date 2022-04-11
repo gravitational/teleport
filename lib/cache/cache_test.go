@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -32,33 +33,26 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
-
-	"github.com/gravitational/trace"
 )
+
+const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
-
-type CacheSuite struct{}
-
-var _ = check.Suite(&CacheSuite{})
-
-// bootstrap check
-func TestState(t *testing.T) { check.TestingT(t) }
 
 // testPack contains pack of
 // services used for test run
@@ -100,40 +94,66 @@ func (t *testPack) Close() {
 	}
 }
 
-func (s *CacheSuite) newPackForAuth(c *check.C) *testPack {
-	return s.newPack(c, ForAuth)
+func newPackForAuth(t *testing.T) *testPack {
+	return newTestPack(t, ForAuth)
 }
 
-func (s *CacheSuite) newPackForProxy(c *check.C) *testPack {
-	return s.newPack(c, ForProxy)
+func newPackForProxy(t *testing.T) *testPack {
+	return newTestPack(t, ForProxy)
 }
 
-func (s *CacheSuite) newPackForNode(c *check.C) *testPack {
-	return s.newPack(c, ForNode)
+func newPackForNode(t *testing.T) *testPack {
+	return newTestPack(t, ForNode)
 }
 
-func (s *CacheSuite) newPack(c *check.C, setupConfig SetupConfigFn) *testPack {
-	pack, err := newPack(c.MkDir(), setupConfig)
-	c.Assert(err, check.IsNil)
+func newTestPack(t *testing.T, setupConfig SetupConfigFn) *testPack {
+	pack, err := newPack(t.TempDir(), setupConfig)
+	require.NoError(t, err)
 	return pack
 }
 
-func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) *testPack {
-	pack, err := newPackWithoutCache(c.MkDir(), setupConfig)
-	c.Assert(err, check.IsNil)
+func newTestPackWithoutCache(t *testing.T) *testPack {
+	pack, err := newPackWithoutCache(t.TempDir())
+	require.NoError(t, err)
 	return pack
+}
+
+type packCfg struct {
+	memoryBackend bool
+}
+
+type packOption func(cfg *packCfg)
+
+func memoryBackend(bool) packOption {
+	return func(cfg *packCfg) {
+		cfg.memoryBackend = true
+	}
 }
 
 // newPackWithoutCache returns a new test pack without creating cache
-func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, error) {
+func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
+	var cfg packCfg
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	p := &testPack{
 		dataDir: dir,
 	}
-	bk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:             p.dataDir,
-		PollStreamPeriod: 200 * time.Millisecond,
-	})
+	var bk backend.Backend
+	var err error
+	if cfg.memoryBackend {
+		bk, err = memory.New(memory.Config{
+			Context: ctx,
+			Mirror:  true,
+		})
+	} else {
+		bk, err = lite.NewWithConfig(ctx, lite.Config{
+			Path:             p.dataDir,
+			PollStreamPeriod: 200 * time.Millisecond,
+		})
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +168,7 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 		return nil, trace.Wrap(err)
 	}
 
-	p.eventsC = make(chan Event, 100)
+	p.eventsC = make(chan Event, eventBufferSize)
 
 	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
 	if err != nil {
@@ -175,9 +195,9 @@ func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, err
 }
 
 // newPack returns a new test pack or fails the test on error
-func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
+func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
 	ctx := context.Background()
-	p, err := newPackWithoutCache(dir, setupConfig)
+	p, err := newPackWithoutCache(dir, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -200,7 +220,7 @@ func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 	}))
 	if err != nil {
@@ -219,48 +239,53 @@ func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
 }
 
 // TestCA tests certificate authorities
-func (s *CacheSuite) TestCA(c *check.C) {
-	p := s.newPackForAuth(c)
-	defer p.Close()
+func TestCA(t *testing.T) {
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+	ctx := context.Background()
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), true)
-	c.Assert(err, check.IsNil)
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
 	ca.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, ca, out)
+	require.Empty(t, cmp.Diff(ca, out))
 
 	err = p.trustS.DeleteCertAuthority(ca.GetID())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetCertAuthority(ca.GetID(), false)
-	fixtures.ExpectNotFound(c, err)
+	_, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
+	require.True(t, trace.IsNotFound(err))
 }
 
 // TestWatchers tests watchers connected to the cache,
 // verifies that all watchers of the cache will be closed
 // if the underlying watcher to the target backend is closed
-func (s *CacheSuite) TestWatchers(c *check.C) {
+func TestWatchers(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForAuth(c)
-	defer p.Close()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
 
 	w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
 		{
 			Kind: types.KindCertAuthority,
+			Filter: types.CertAuthorityFilter{
+				types.HostCA: "example.com",
+				types.UserCA: types.Wildcard,
+			}.IntoMap(),
 		},
 		{
 			Kind: types.KindAccessRequest,
@@ -269,58 +294,60 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 			},
 		},
 	}})
-	c.Assert(err, check.IsNil)
-	defer w.Close()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, w.Close())
+	})
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, types.OpInit)
+		require.Equal(t, types.OpInit, e.Type)
 	case <-time.After(100 * time.Millisecond):
-		c.Fatalf("Timeout waiting for event.")
+		t.Fatalf("Timeout waiting for event.")
 	}
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, types.OpPut)
-		c.Assert(e.Resource.GetKind(), check.Equals, types.KindCertAuthority)
+		require.Equal(t, types.OpPut, e.Type)
+		require.Equal(t, types.KindCertAuthority, e.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("Timeout waiting for event.")
+		t.Fatalf("Timeout waiting for event.")
 	}
 
 	// create an access request that matches the supplied filter
 	req, err := services.NewAccessRequest("alice", "dictator")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	c.Assert(p.dynamicAccessS.CreateAccessRequest(ctx, req), check.IsNil)
+	require.NoError(t, p.dynamicAccessS.CreateAccessRequest(ctx, req))
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, types.OpPut)
-		c.Assert(e.Resource.GetKind(), check.Equals, types.KindAccessRequest)
+		require.Equal(t, types.OpPut, e.Type)
+		require.Equal(t, types.KindAccessRequest, e.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("Timeout waiting for event.")
+		t.Fatalf("Timeout waiting for event.")
 	}
 
-	c.Assert(p.dynamicAccessS.DeleteAccessRequest(ctx, req.GetName()), check.IsNil)
+	require.NoError(t, p.dynamicAccessS.DeleteAccessRequest(ctx, req.GetName()))
 
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, types.OpDelete)
-		c.Assert(e.Resource.GetKind(), check.Equals, types.KindAccessRequest)
+		require.Equal(t, types.OpDelete, e.Type)
+		require.Equal(t, types.KindAccessRequest, e.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("Timeout waiting for event.")
+		t.Fatalf("Timeout waiting for event.")
 	}
 
 	// create an access request that does not match the supplied filter
 	req2, err := services.NewAccessRequest("bob", "dictator")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// create and then delete the non-matching request.
-	c.Assert(p.dynamicAccessS.CreateAccessRequest(ctx, req2), check.IsNil)
-	c.Assert(p.dynamicAccessS.DeleteAccessRequest(ctx, req2.GetName()), check.IsNil)
+	require.NoError(t, p.dynamicAccessS.CreateAccessRequest(ctx, req2))
+	require.NoError(t, p.dynamicAccessS.DeleteAccessRequest(ctx, req2.GetName()))
 
 	// because our filter did not match the request, the create event should never
 	// have been created, meaning that the next event on the pipe is the delete
@@ -328,10 +355,24 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	// a delete event).
 	select {
 	case e := <-w.Events():
-		c.Assert(e.Type, check.Equals, types.OpDelete)
-		c.Assert(e.Resource.GetKind(), check.Equals, types.KindAccessRequest)
+		require.Equal(t, types.OpDelete, e.Type)
+		require.Equal(t, types.KindAccessRequest, e.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("Timeout waiting for event.")
+		t.Fatalf("Timeout waiting for event.")
+	}
+
+	// this ca will not be matched by our filter, so the same reasoning applies
+	// as we upsert it and delete it
+	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(filteredCa))
+	require.NoError(t, p.trustS.DeleteCertAuthority(filteredCa.GetID()))
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpDelete, e.Type)
+		require.Equal(t, types.KindCertAuthority, e.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("Timeout waiting for event.")
 	}
 
 	// event has arrived, now close the watchers
@@ -341,15 +382,134 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	select {
 	case <-w.Done():
 	case <-time.After(time.Second):
-		c.Fatalf("Timeout waiting for close event.")
+		t.Fatalf("Timeout waiting for close event.")
 	}
 }
 
-func waitForRestart(c *check.C, eventsC <-chan Event) {
-	waitForEvent(c, eventsC, WatcherStarted, WatcherFailed)
+func TestNodeCAFiltering(t *testing.T) {
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+	err = p.cache.clusterConfigCache.UpsertClusterName(clusterName)
+	require.NoError(t, err)
+
+	nodeCacheBackend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
+
+	// this mimics a cache for a node pulling events from the auth server via WatchEvents
+	nodeCache, err := New(ForNode(Config{
+		Events:          p.cache,
+		Trust:           p.cache.trustCache,
+		ClusterConfig:   p.cache.clusterConfigCache,
+		Provisioner:     p.cache.provisionerCache,
+		Users:           p.cache.usersCache,
+		Access:          p.cache.accessCache,
+		DynamicAccess:   p.cache.dynamicAccessCache,
+		Presence:        p.cache.presenceCache,
+		Restrictions:    p.cache.restrictionsCache,
+		Apps:            p.cache.appsCache,
+		Databases:       p.cache.databasesCache,
+		AppSession:      p.cache.appSessionCache,
+		WebSession:      p.cache.webSessionCache,
+		WebToken:        p.cache.webTokenCache,
+		WindowsDesktops: p.cache.windowsDesktopsCache,
+		Backend:         nodeCacheBackend,
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
+
+	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cacheWatcher.Close()) })
+
+	fetchEvent := func() types.Event {
+		var ev types.Event
+		select {
+		case ev = <-cacheWatcher.Events():
+		case <-time.After(time.Second * 5):
+			t.Fatal("watcher timeout")
+		}
+		return ev
+	}
+	require.Equal(t, types.OpInit, fetchEvent().Type)
+
+	// upsert and delete a local host CA, we expect to see a Put and a Delete event
+	localCA := suite.NewTestCA(types.HostCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(localCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(localCA.GetID()))
+
+	ev := fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
+	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(nonlocalCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(nonlocalCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	// whereas we expect to see the Put and Delete for a trusted *user* CA
+	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(trustedUserCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(trustedUserCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
 }
 
-func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
+func waitForRestart(t *testing.T, eventsC <-chan Event) {
+	expectEvent(t, eventsC, WatcherStarted)
+}
+
+func drainEvents(eventsC <-chan Event) {
+	for {
+		select {
+		case <-eventsC:
+		default:
+			return
+		}
+	}
+}
+
+func expectEvent(t *testing.T, eventsC <-chan Event, expectedEvent string) {
+	timeC := time.After(5 * time.Second)
+	for {
+		select {
+		case event := <-eventsC:
+			if event.Type == expectedEvent {
+				return
+			}
+		case <-timeC:
+			t.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
+		}
+	}
+}
+
+func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
 		// wait for watcher to restart
@@ -358,27 +518,27 @@ func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEv
 			if apiutils.SliceContainsStr(skipEvents, event.Type) {
 				continue
 			}
-			c.Assert(event.Type, check.Equals, expectedEvent)
+			require.Equal(t, expectedEvent, event.Type)
 			return
 		case <-timeC:
-			c.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
+			t.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
 		}
 	}
 }
 
 // TestCompletenessInit verifies that flaky backends don't cause
 // the cache to return partial results during init.
-func (s *CacheSuite) TestCompletenessInit(c *check.C) {
+func TestCompletenessInit(t *testing.T) {
 	ctx := context.Background()
 	const caCount = 100
 	const inits = 20
-	p := s.newPackWithoutCache(c, ForAuth)
-	defer p.Close()
+	p := newTestPackWithoutCache(t)
+	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
 	}
 
 	for i := 0; i < inits; i++ {
@@ -389,7 +549,7 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 				Context: ctx,
 				Mirror:  true,
 			})
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		// simulate bad connection to auth server
 		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
@@ -413,43 +573,43 @@ func (s *CacheSuite) TestCompletenessInit(c *check.C) {
 			Apps:            p.apps,
 			Databases:       p.databases,
 			WindowsDesktops: p.windowsDesktops,
-			RetryPeriod:     200 * time.Millisecond,
+			MaxRetryPeriod:  200 * time.Millisecond,
 			EventsC:         p.eventsC,
 		}))
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		p.backend.SetReadError(nil)
 
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
 		if err == nil {
-			c.Assert(len(cas), check.Equals, caCount)
+			require.Len(t, cas, caCount)
 		} else {
-			fixtures.ExpectConnectionProblem(c, err)
+			require.True(t, trace.IsConnectionProblem(err))
 		}
 
-		c.Assert(p.cache.Close(), check.IsNil)
+		require.NoError(t, p.cache.Close())
 		p.cache = nil
-		c.Assert(p.cacheBackend.Close(), check.IsNil)
+		require.NoError(t, p.cacheBackend.Close())
 		p.cacheBackend = nil
 	}
 }
 
 // TestCompletenessReset verifies that flaky backends don't cause
 // the cache to return partial results during reset.
-func (s *CacheSuite) TestCompletenessReset(c *check.C) {
+func TestCompletenessReset(t *testing.T) {
 	ctx := context.Background()
 	const caCount = 100
 	const resets = 20
-	p := s.newPackWithoutCache(c, ForAuth)
-	defer p.Close()
+	p := newTestPackWithoutCache(t)
+	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
 	}
 
 	var err error
@@ -471,15 +631,15 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 	}))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(cas), check.Equals, caCount)
+	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
+	require.NoError(t, err)
+	require.Len(t, cas, caCount)
 
 	for i := 0; i < resets; i++ {
 		// simulate bad connection to auth server
@@ -488,119 +648,137 @@ func (s *CacheSuite) TestCompletenessReset(c *check.C) {
 		p.backend.SetReadError(nil)
 
 		// load CAs while connection is bad
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
 		if err == nil {
-			c.Assert(len(cas), check.Equals, caCount)
+			require.Len(t, cas, caCount)
 		} else {
-			fixtures.ExpectConnectionProblem(c, err)
+			require.True(t, trace.IsConnectionProblem(err))
 		}
 	}
 }
 
-// TestTombstones verifies that healthy caches leave tombstones
-// on closure, giving new caches the ability to start from a known
-// good state if the origin state is unavailable.
-func (s *CacheSuite) TestTombstones(c *check.C) {
-	ctx := context.Background()
-	const caCount = 10
-	p := s.newPackWithoutCache(c, ForAuth)
-	defer p.Close()
-
-	// put lots of CAs in the backend
-	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
-	}
-
-	var err error
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	c.Assert(err, check.IsNil)
-
-	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(cas), check.Equals, caCount)
-
-	c.Assert(p.cache.Close(), check.IsNil)
-	// wait for TombstoneWritten, ignoring all other event types
-	waitForEvent(c, p.eventsC, TombstoneWritten, WatcherStarted, EventProcessed, WatcherFailed)
-	// simulate bad connection to auth server
-	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
-	p.eventsS.closeWatchers()
-
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	c.Assert(err, check.IsNil)
-
-	// verify that CAs are immediately available despite the fact
-	// that the origin state was never available.
-	cas, err = p.cache.GetCertAuthorities(types.UserCA, false)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(cas), check.Equals, caCount)
-}
-
 // TestInitStrategy verifies that cache uses expected init strategy
 // of serving backend state when init is taking too long.
-func (s *CacheSuite) TestInitStrategy(c *check.C) {
+func TestInitStrategy(t *testing.T) {
 	for i := 0; i < utils.GetIterations(); i++ {
-		s.initStrategy(c)
+		initStrategy(t)
 	}
 }
 
-// TestListNodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
+*/
+func BenchmarkGetMaxNodes(b *testing.B) {
+	benchGetNodes(b, backend.DefaultRangeLimit)
+}
+
+func benchGetNodes(b *testing.B, nodeCount int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < nodeCount; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(b, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(b, EventProcessed, event.Type)
+			case <-timeout.C:
+				b.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(b, err)
+		require.Len(b, nodes, nodeCount)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkListMaxNodes-16    	       1	1136071399 ns/op
+*/
+func BenchmarkListMaxNodes(b *testing.B) {
+	benchListNodes(b, backend.DefaultRangeLimit, apidefaults.DefaultChunkSize)
+}
+
+func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < nodeCount; i++ {
+		func() {
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			require.NoError(b, err)
+			timeout := time.NewTimer(time.Millisecond * 200)
+			defer timeout.Stop()
+			select {
+			case event := <-p.eventsC:
+				require.Equal(b, EventProcessed, event.Type)
+			case <-timeout.C:
+				b.Fatalf("timeout waiting for event, iteration=%d", i)
+			}
+		}()
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		var nodes []types.Server
+		req := proto.ListNodesRequest{
+			Namespace: apidefaults.Namespace,
+			Limit:     int32(pageSize),
+		}
+		for {
+			page, nextKey, err := p.cache.ListNodes(ctx, req)
+			require.NoError(b, err)
+			nodes = append(nodes, page...)
+			require.True(b, len(page) == pageSize || nextKey == "")
+			if nextKey == "" {
+				break
+			}
+			req.StartKey = nextKey
+		}
+		require.Len(b, nodes, nodeCount)
+	}
+}
+
+// TestListResources_NodesTTLVariant verifies that the custom ListNodes impl that we fallback to when
 // using ttl-based caching works as expected.
-func TestListNodesTTLVariant(t *testing.T) {
+func TestListResources_NodesTTLVariant(t *testing.T) {
 	const nodeCount = 100
 	const pageSize = 10
 	var err error
 
 	ctx := context.Background()
 
-	p, err := newPackWithoutCache(t.TempDir(), ForAuth)
+	p, err := newPackWithoutCache(t.TempDir())
 	require.NoError(t, err)
-	defer p.Close()
+	t.Cleanup(p.Close)
 
 	p.cache, err = New(ForAuth(Config{
 		Context:         ctx,
@@ -620,14 +798,14 @@ func TestListNodesTTLVariant(t *testing.T) {
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 		neverOK:         true, // ensure reads are never healthy
 	}))
 	require.NoError(t, err)
 
 	for i := 0; i < nodeCount; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -638,6 +816,8 @@ func TestListNodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, allNodes, nodeCount)
 
+	// DELETE IN 10.0.0 this block with ListNodes is replaced
+	// by the following block with ListResources test.
 	var nodes []types.Server
 	var startKey string
 	for {
@@ -660,14 +840,39 @@ func TestListNodesTTLVariant(t *testing.T) {
 			break
 		}
 	}
-
 	require.Len(t, nodes, nodeCount)
+
+	var resources []types.ResourceWithLabels
+	var listResourcesStartKey string
+	sortBy := types.SortBy{
+		Field:  types.ResourceMetadataName,
+		IsDesc: true,
+	}
+	require.Eventually(t, func() bool {
+		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:    apidefaults.Namespace,
+			ResourceType: types.KindNode,
+			StartKey:     listResourcesStartKey,
+			Limit:        int32(pageSize),
+			SortBy:       sortBy,
+		})
+		require.NoError(t, err)
+		resources = append(resources, resp.Resources...)
+		listResourcesStartKey = resp.NextKey
+		return len(resources) == nodeCount
+	}, 5*time.Second, 100*time.Millisecond)
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	require.NoError(t, err)
+	fieldVals, err := types.Servers(servers).GetFieldVals(sortBy.Field)
+	require.NoError(t, err)
+	require.IsDecreasing(t, fieldVals)
 }
 
-func (s *CacheSuite) initStrategy(c *check.C) {
+func initStrategy(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackWithoutCache(c, ForAuth)
-	defer p.Close()
+	p := newTestPackWithoutCache(t)
+	t.Cleanup(p.Close)
 
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
@@ -689,23 +894,23 @@ func (s *CacheSuite) initStrategy(c *check.C) {
 		Apps:            p.apps,
 		Databases:       p.databases,
 		WindowsDesktops: p.windowsDesktops,
-		RetryPeriod:     200 * time.Millisecond,
+		MaxRetryPeriod:  200 * time.Millisecond,
 		EventsC:         p.eventsC,
 	}))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	_, err = p.cache.GetCertAuthorities(types.UserCA, false)
-	fixtures.ExpectConnectionProblem(c, err)
+	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
+	require.True(t, trace.IsConnectionProblem(err))
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
-	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
 	p.backend.SetReadError(nil)
 
 	// wait for watcher to restart
-	waitForRestart(c, p.eventsC)
+	waitForRestart(t, p.eventsC)
 
 	normalizeCA := func(ca types.CertAuthority) types.CertAuthority {
 		ca = ca.Clone()
@@ -714,10 +919,11 @@ func (s *CacheSuite) initStrategy(c *check.C) {
 		types.RemoveCASecrets(ca)
 		return ca
 	}
+	_ = normalizeCA
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), false)
-	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, normalizeCA(ca), normalizeCA(out))
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 
 	// fail again, make sure last recent data is still served
 	// on errors
@@ -726,17 +932,17 @@ func (s *CacheSuite) initStrategy(c *check.C) {
 	// wait for the watcher to fail
 	// there could be optional event processed event,
 	// see NOTE 1 above
-	waitForEvent(c, p.eventsC, WatcherFailed, EventProcessed)
+	expectNextEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
 
 	// backend is out, but old value is available
-	out2, err := p.cache.GetCertAuthority(ca.GetID(), false)
-	c.Assert(err, check.IsNil)
-	c.Assert(out.GetResourceID(), check.Equals, out2.GetResourceID())
-	fixtures.DeepCompare(c, normalizeCA(ca), normalizeCA(out))
+	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
+	require.NoError(t, err)
+	require.Equal(t, out.GetResourceID(), out2.GetResourceID())
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
-	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
 
 	// now, recover the backend and make sure the
 	// service is back and the new value has propagated
@@ -744,66 +950,61 @@ func (s *CacheSuite) initStrategy(c *check.C) {
 
 	// wait for watcher to restart successfully; ignoring any failed
 	// attempts which occurred before backend became healthy again.
-	waitForEvent(c, p.eventsC, WatcherStarted, WatcherFailed)
+	expectEvent(t, p.eventsC, WatcherStarted)
 
 	// new value is available now
-	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
-	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, normalizeCA(ca), normalizeCA(out))
+	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 }
 
 // TestRecovery tests error recovery scenario
-func (s *CacheSuite) TestRecovery(c *check.C) {
-	p := s.newPackForAuth(c)
-	defer p.Close()
+func TestRecovery(t *testing.T) {
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	// event has arrived, now close the watchers
 	watchers := p.eventsS.getWatchers()
-	c.Assert(watchers, check.HasLen, 1)
+	require.Len(t, watchers, 1)
 	p.eventsS.closeWatchers()
 
 	// wait for watcher to restart
-	select {
-	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, WatcherStarted)
-	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
-	}
+	waitForRestart(t, p.eventsC)
 
 	// add modification and expect the resource to recover
 	ca2 := suite.NewTestCA(types.UserCA, "example2.com")
-	c.Assert(p.trustS.UpsertCertAuthority(ca2), check.IsNil)
+	require.NoError(t, p.trustS.UpsertCertAuthority(ca2))
 
 	// wait for watcher to receive an event
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca2.GetID(), false)
-	c.Assert(err, check.IsNil)
+	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
+	require.NoError(t, err)
 	ca2.SetResourceID(out.GetResourceID())
 	types.RemoveCASecrets(ca2)
-	fixtures.DeepCompare(c, ca2, out)
+	require.Empty(t, cmp.Diff(ca2, out))
 }
 
 // TestTokens tests static and dynamic tokens
-func (s *CacheSuite) TestTokens(c *check.C) {
+func TestTokens(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForAuth(c)
-	defer p.Close()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
 
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
@@ -814,320 +1015,320 @@ func (s *CacheSuite) TestTokens(c *check.C) {
 			},
 		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	err = p.clusterConfigS.SetStaticTokens(staticTokens)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err := p.cache.GetStaticTokens()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	staticTokens.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, staticTokens, out)
+	require.Empty(t, cmp.Diff(staticTokens, out))
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
 	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	err = p.provisionerS.UpsertToken(ctx, token)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	tout, err := p.cache.GetToken(ctx, token.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	token.SetResourceID(tout.GetResourceID())
-	fixtures.DeepCompare(c, token, tout)
+	require.Empty(t, cmp.Diff(token, tout))
 
 	err = p.provisionerS.DeleteToken(ctx, token.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	_, err = p.cache.GetToken(ctx, token.GetName())
-	fixtures.ExpectNotFound(c, err)
+	require.True(t, trace.IsNotFound(err))
 }
 
-func (s *CacheSuite) TestAuthPreference(c *check.C) {
+func TestAuthPreference(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForAuth(c)
-	defer p.Close()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
 
 	authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		AllowLocalAuth:  types.NewBoolOption(true),
 		MessageOfTheDay: "test MOTD",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.clusterConfigS.SetAuthPreference(ctx, authPref)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterAuthPreference)
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindClusterAuthPreference, event.Event.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	outAuthPref, err := p.cache.GetAuthPreference(ctx)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	authPref.SetResourceID(outAuthPref.GetResourceID())
-	fixtures.DeepCompare(c, outAuthPref, authPref)
+	require.Empty(t, cmp.Diff(outAuthPref, authPref))
 }
 
-func (s *CacheSuite) TestClusterNetworkingConfig(c *check.C) {
+func TestClusterNetworkingConfig(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForAuth(c)
-	defer p.Close()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
 
 	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
 		ClientIdleTimeout:        types.Duration(time.Minute),
 		ClientIdleTimeoutMessage: "test idle timeout message",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.clusterConfigS.SetClusterNetworkingConfig(ctx, netConfig)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterNetworkingConfig)
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindClusterNetworkingConfig, event.Event.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	outNetConfig, err := p.cache.GetClusterNetworkingConfig(ctx)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	netConfig.SetResourceID(outNetConfig.GetResourceID())
-	fixtures.DeepCompare(c, outNetConfig, netConfig)
+	require.Empty(t, cmp.Diff(outNetConfig, netConfig))
 }
 
-func (s *CacheSuite) TestSessionRecordingConfig(c *check.C) {
+func TestSessionRecordingConfig(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForAuth(c)
-	defer p.Close()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
 
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode:                types.RecordAtProxySync,
 		ProxyChecksHostKeys: types.NewBoolOption(true),
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.clusterConfigS.SetSessionRecordingConfig(ctx, recConfig)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindSessionRecordingConfig)
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindSessionRecordingConfig, event.Event.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	outRecConfig, err := p.cache.GetSessionRecordingConfig(ctx)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	recConfig.SetResourceID(outRecConfig.GetResourceID())
-	fixtures.DeepCompare(c, outRecConfig, recConfig)
+	require.Empty(t, cmp.Diff(outRecConfig, recConfig))
 }
 
-func (s *CacheSuite) TestClusterAuditConfig(c *check.C) {
+func TestClusterAuditConfig(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForAuth(c)
-	defer p.Close()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
 
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.clusterConfigS.SetClusterAuditConfig(ctx, auditConfig)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterAuditConfig)
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindClusterAuditConfig, event.Event.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	outAuditConfig, err := p.cache.GetClusterAuditConfig(ctx)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	auditConfig.SetResourceID(outAuditConfig.GetResourceID())
-	fixtures.DeepCompare(c, outAuditConfig, auditConfig)
+	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig))
 }
 
-func (s *CacheSuite) TestClusterName(c *check.C) {
-	p := s.newPackForAuth(c)
-	defer p.Close()
+func TestClusterName(t *testing.T) {
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.clusterConfigS.SetClusterName(clusterName)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
-		c.Assert(event.Event.Resource.GetKind(), check.Equals, types.KindClusterName)
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindClusterName, event.Event.Resource.GetKind())
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	outName, err := p.cache.GetClusterName()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	clusterName.SetResourceID(outName.GetResourceID())
-	fixtures.DeepCompare(c, outName, clusterName)
+	require.Empty(t, cmp.Diff(outName, clusterName))
 }
 
 // TestNamespaces tests caching of namespaces
-func (s *CacheSuite) TestNamespaces(c *check.C) {
-	p := s.newPackForProxy(c)
-	defer p.Close()
+func TestNamespaces(t *testing.T) {
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
 
 	v, err := types.NewNamespace("universe")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	ns := &v
 	err = p.presenceS.UpsertNamespace(*ns)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	ns, err = p.presenceS.GetNamespace(ns.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err := p.cache.GetNamespace(ns.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	ns.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, ns, out)
+	require.Empty(t, cmp.Diff(ns, out))
 
 	// update namespace metadata
 	ns.Metadata.Labels = map[string]string{"a": "b"}
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.presenceS.UpsertNamespace(*ns)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	ns, err = p.presenceS.GetNamespace(ns.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetNamespace(ns.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	ns.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, ns, out)
+	require.Empty(t, cmp.Diff(ns, out))
 
 	err = p.presenceS.DeleteNamespace(ns.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	_, err = p.cache.GetNamespace(ns.GetName())
-	fixtures.ExpectNotFound(c, err)
+	require.True(t, trace.IsNotFound(err))
 }
 
 // TestUsers tests caching of users
-func (s *CacheSuite) TestUsers(c *check.C) {
+func TestUsers(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForProxy(c)
-	defer p.Close()
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
 
 	user, err := types.NewUser("bob")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.usersS.UpsertUser(user)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	user, err = p.usersS.GetUser(user.GetName(), false)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err := p.cache.GetUser(user.GetName(), false)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	user.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, user, out)
+	require.Empty(t, cmp.Diff(user, out))
 
 	// update user's roles
 	user.SetRoles([]string{"access"})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.usersS.UpsertUser(user)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	user, err = p.usersS.GetUser(user.GetName(), false)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetUser(user.GetName(), false)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	user.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, user, out)
+	require.Empty(t, cmp.Diff(user, out))
 
 	err = p.usersS.DeleteUser(ctx, user.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	_, err = p.cache.GetUser(user.GetName(), false)
-	fixtures.ExpectNotFound(c, err)
+	require.True(t, trace.IsNotFound(err))
 }
 
 // TestRoles tests caching of roles
-func (s *CacheSuite) TestRoles(c *check.C) {
+func TestRoles(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForNode(c)
-	defer p.Close()
+	p := newPackForNode(t)
+	t.Cleanup(p.Close)
 
-	role, err := types.NewRole("role1", types.RoleSpecV4{
+	role, err := types.NewRoleV3("role1", types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},
@@ -1137,128 +1338,128 @@ func (s *CacheSuite) TestRoles(c *check.C) {
 		},
 		Deny: types.RoleConditions{},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.accessS.UpsertRole(ctx, role)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	role, err = p.accessS.GetRole(ctx, role.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err := p.cache.GetRole(ctx, role.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	role.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, role, out)
+	require.Empty(t, cmp.Diff(role, out))
 
 	// update role
 	role.SetLogins(types.Allow, []string{"admin"})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.accessS.UpsertRole(ctx, role)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	role, err = p.accessS.GetRole(ctx, role.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetRole(ctx, role.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	role.SetResourceID(out.GetResourceID())
-	fixtures.DeepCompare(c, role, out)
+	require.Empty(t, cmp.Diff(role, out))
 
 	err = p.accessS.DeleteRole(ctx, role.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	_, err = p.cache.GetRole(ctx, role.GetName())
-	fixtures.ExpectNotFound(c, err)
+	require.True(t, trace.IsNotFound(err))
 }
 
 // TestReverseTunnels tests reverse tunnels caching
-func (s *CacheSuite) TestReverseTunnels(c *check.C) {
-	p := s.newPackForProxy(c)
-	defer p.Close()
+func TestReverseTunnels(t *testing.T) {
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
 
 	tunnel, err := types.NewReverseTunnel("example.com", []string{"example.com:2023"})
-	c.Assert(err, check.IsNil)
-	c.Assert(p.presenceS.UpsertReverseTunnel(tunnel), check.IsNil)
+	require.NoError(t, err)
+	require.NoError(t, p.presenceS.UpsertReverseTunnel(tunnel))
 
 	tunnel, err = p.presenceS.GetReverseTunnel(tunnel.GetName())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err := p.cache.GetReverseTunnels()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	tunnel.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, tunnel, out[0])
+	require.Empty(t, cmp.Diff(tunnel, out[0]))
 
 	// update tunnel's parameters
 	tunnel.SetClusterName("new.example.com")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = p.presenceS.UpsertReverseTunnel(tunnel)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	out, err = p.presenceS.GetReverseTunnels()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	tunnel = out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetReverseTunnels()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	tunnel.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, tunnel, out[0])
+	require.Empty(t, cmp.Diff(tunnel, out[0]))
 
 	err = p.presenceS.DeleteAllReverseTunnels()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetReverseTunnels()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 0)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 // TestTunnelConnections tests tunnel connections caching
-func (s *CacheSuite) TestTunnelConnections(c *check.C) {
-	p := s.newPackForProxy(c)
-	defer p.Close()
+func TestTunnelConnections(t *testing.T) {
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
 
 	clusterName := "example.com"
 	hb := time.Now().UTC()
@@ -1267,322 +1468,322 @@ func (s *CacheSuite) TestTunnelConnections(c *check.C) {
 		ProxyName:     "p1",
 		LastHeartbeat: hb,
 	})
-	c.Assert(err, check.IsNil)
-	c.Assert(p.presenceS.UpsertTunnelConnection(conn), check.IsNil)
+	require.NoError(t, err)
+	require.NoError(t, p.presenceS.UpsertTunnelConnection(conn))
 
 	out, err := p.presenceS.GetTunnelConnections(clusterName)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	conn = out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetTunnelConnections(clusterName)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	conn.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, conn, out[0])
+	require.Empty(t, cmp.Diff(conn, out[0]))
 
 	// update conn's parameters
 	hb = hb.Add(time.Second)
 	conn.SetLastHeartbeat(hb)
 
 	err = p.presenceS.UpsertTunnelConnection(conn)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	out, err = p.presenceS.GetTunnelConnections(clusterName)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	conn = out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetTunnelConnections(clusterName)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	conn.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, conn, out[0])
+	require.Empty(t, cmp.Diff(conn, out[0]))
 
 	err = p.presenceS.DeleteTunnelConnections(clusterName)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetTunnelConnections(clusterName)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 0)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 // TestNodes tests nodes cache
-func (s *CacheSuite) TestNodes(c *check.C) {
+func TestNodes(t *testing.T) {
 	ctx := context.Background()
 
-	p := s.newPackForProxy(c)
-	defer p.Close()
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
 
 	server := suite.NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 	_, err := p.presenceS.UpsertNode(ctx, server)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	out, err := p.presenceS.GetNodes(ctx, apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	srv := out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	srv.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, srv, out[0])
+	require.Empty(t, cmp.Diff(srv, out[0]))
 
 	// update srv parameters
 	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
 	srv.SetAddr("127.0.0.2:2033")
 
 	lease, err := p.presenceS.UpsertNode(ctx, srv)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	out, err = p.presenceS.GetNodes(ctx, apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	srv = out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	srv.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, srv, out[0])
+	require.Empty(t, cmp.Diff(srv, out[0]))
 
 	// update keep alive on the node and make sure
 	// it propagates
 	lease.Expires = time.Now().UTC().Add(time.Hour)
 	err = p.presenceS.KeepAliveNode(ctx, *lease)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	srv.SetResourceID(out[0].GetResourceID())
 	srv.SetExpiry(lease.Expires)
-	fixtures.DeepCompare(c, srv, out[0])
+	require.Empty(t, cmp.Diff(srv, out[0]))
 
 	err = p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 0)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 // TestProxies tests proxies cache
-func (s *CacheSuite) TestProxies(c *check.C) {
-	p := s.newPackForProxy(c)
-	defer p.Close()
+func TestProxies(t *testing.T) {
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
 
 	server := suite.NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 	err := p.presenceS.UpsertProxy(server)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	out, err := p.presenceS.GetProxies()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	srv := out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetProxies()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	srv.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, srv, out[0])
+	require.Empty(t, cmp.Diff(srv, out[0]))
 
 	// update srv parameters
 	srv.SetAddr("127.0.0.2:2033")
 
 	err = p.presenceS.UpsertProxy(srv)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	out, err = p.presenceS.GetProxies()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	srv = out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetProxies()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	srv.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, srv, out[0])
+	require.Empty(t, cmp.Diff(srv, out[0]))
 
 	err = p.presenceS.DeleteAllProxies()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetProxies()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 0)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 // TestAuthServers tests auth servers cache
-func (s *CacheSuite) TestAuthServers(c *check.C) {
-	p := s.newPackForProxy(c)
-	defer p.Close()
+func TestAuthServers(t *testing.T) {
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
 
 	server := suite.NewServer(types.KindAuthServer, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 	err := p.presenceS.UpsertAuthServer(server)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	out, err := p.presenceS.GetAuthServers()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	srv := out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetAuthServers()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	srv.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, srv, out[0])
+	require.Empty(t, cmp.Diff(srv, out[0]))
 
 	// update srv parameters
 	srv.SetAddr("127.0.0.2:2033")
 
 	err = p.presenceS.UpsertAuthServer(srv)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	out, err = p.presenceS.GetAuthServers()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	srv = out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetAuthServers()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	srv.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, srv, out[0])
+	require.Empty(t, cmp.Diff(srv, out[0]))
 
 	err = p.presenceS.DeleteAllAuthServers()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetAuthServers()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 0)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 // TestRemoteClusters tests remote clusters caching
-func (s *CacheSuite) TestRemoteClusters(c *check.C) {
+func TestRemoteClusters(t *testing.T) {
 	ctx := context.Background()
-	p := s.newPackForProxy(c)
-	defer p.Close()
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
 
 	clusterName := "example.com"
 	rc, err := types.NewRemoteCluster(clusterName)
-	c.Assert(err, check.IsNil)
-	c.Assert(p.presenceS.CreateRemoteCluster(rc), check.IsNil)
+	require.NoError(t, err)
+	require.NoError(t, p.presenceS.CreateRemoteCluster(rc))
 
 	out, err := p.presenceS.GetRemoteClusters()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	rc = out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetRemoteClusters()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	rc.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, rc, out[0])
+	require.Empty(t, cmp.Diff(rc, out[0]))
 
 	// update conn's parameters
 	meta := rc.GetMetadata()
@@ -1590,125 +1791,125 @@ func (s *CacheSuite) TestRemoteClusters(c *check.C) {
 	rc.SetMetadata(meta)
 
 	err = p.presenceS.UpdateRemoteCluster(ctx, rc)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	out, err = p.presenceS.GetRemoteClusters()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
-	fixtures.DeepCompare(c, meta.Labels, out[0].GetMetadata().Labels)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(meta.Labels, out[0].GetMetadata().Labels))
 	rc = out[0]
 
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetRemoteClusters()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	rc.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, rc, out[0])
+	require.Empty(t, cmp.Diff(rc, out[0]))
 
 	err = p.presenceS.DeleteAllRemoteClusters()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	out, err = p.cache.GetRemoteClusters()
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 0)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 // TestAppServers tests that CRUD operations are replicated from the backend to
 // the cache.
-func (s *CacheSuite) TestAppServers(c *check.C) {
-	p := s.newPackForProxy(c)
-	defer p.Close()
+func TestAppServers(t *testing.T) {
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
 
 	// Upsert application into backend.
 	server := suite.NewAppServer("foo", "http://127.0.0.1:8080", "foo.example.com")
 	_, err := p.presenceS.UpsertAppServer(context.Background(), server)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Check that the application is now in the backend.
 	out, err := p.presenceS.GetAppServers(context.Background(), apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	srv := out[0]
 
 	// Wait until the information has been replicated to the cache.
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	// Make sure the cache has a single application in it.
 	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	// Check that the value in the cache, value in the backend, and original
 	// services.App all exactly match.
 	srv.SetResourceID(out[0].GetResourceID())
 	server.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, srv, out[0])
-	fixtures.DeepCompare(c, server, out[0])
+	require.Empty(t, cmp.Diff(srv, out[0]))
+	require.Empty(t, cmp.Diff(server, out[0]))
 
 	// Update the application and upsert it into the backend again.
 	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
 	_, err = p.presenceS.UpsertAppServer(context.Background(), srv)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Check that the application is in the backend and only one exists (so an
 	// update occurred).
 	out, err = p.presenceS.GetAppServers(context.Background(), apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 	srv = out[0]
 
 	// Check that information has been replicated to the cache.
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	// Make sure the cache has a single application in it.
 	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 1)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
 
 	// Check that the value in the cache, value in the backend, and original
 	// services.App all exactly match.
 	srv.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, srv, out[0])
+	require.Empty(t, cmp.Diff(srv, out[0]))
 
 	// Remove all applications from the backend.
 	err = p.presenceS.DeleteAllAppServers(context.Background(), apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.
 	select {
 	case event := <-p.eventsC:
-		c.Assert(event.Type, check.Equals, EventProcessed)
+		require.Equal(t, EventProcessed, event.Type)
 	case <-time.After(time.Second):
-		c.Fatalf("timeout waiting for event")
+		t.Fatalf("timeout waiting for event")
 	}
 
 	// Check that the cache is now empty.
 	out, err = p.cache.GetAppServers(context.Background(), apidefaults.Namespace)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.HasLen, 0)
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 // TestApplicationServers tests that CRUD operations on app servers are
@@ -1716,14 +1917,14 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 func TestApplicationServers(t *testing.T) {
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
-	defer p.Close()
+	t.Cleanup(p.Close)
 
 	ctx := context.Background()
 
 	// Upsert app server into backend.
 	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "localhost"})
 	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New())
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 	require.NoError(t, err)
 
 	_, err = p.presenceS.UpsertApplicationServer(ctx, server)
@@ -1798,7 +1999,7 @@ func TestApplicationServers(t *testing.T) {
 func TestApps(t *testing.T) {
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
-	defer p.Close()
+	t.Cleanup(p.Close)
 
 	ctx := context.Background()
 
@@ -1882,7 +2083,7 @@ func TestApps(t *testing.T) {
 func TestDatabaseServers(t *testing.T) {
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
-	defer p.Close()
+	t.Cleanup(p.Close)
 
 	ctx := context.Background()
 
@@ -1893,7 +2094,7 @@ func TestDatabaseServers(t *testing.T) {
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
 		Hostname: "localhost",
-		HostID:   uuid.New(),
+		HostID:   uuid.New().String(),
 	})
 	require.NoError(t, err)
 
@@ -1969,7 +2170,7 @@ func TestDatabaseServers(t *testing.T) {
 func TestDatabases(t *testing.T) {
 	p, err := newPack(t.TempDir(), ForProxy)
 	require.NoError(t, err)
-	defer p.Close()
+	t.Cleanup(p.Close)
 
 	ctx := context.Background()
 
@@ -2049,6 +2250,128 @@ func TestDatabases(t *testing.T) {
 	require.Equal(t, 0, len(out))
 }
 
+func TestRelativeExpiry(t *testing.T) {
+	const checkInterval = time.Second
+	const nodeCount = int64(100)
+
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.Clock = clock
+		return ForAuth(c)
+	})
+	t.Cleanup(p.Close)
+
+	// add servers that expire at a range of times
+	now := clock.Now()
+	for i := int64(0); i < nodeCount; i++ {
+		exp := now.Add(time.Minute * time.Duration(i))
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetExpiry(exp)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := int64(0); i < nodeCount; i++ {
+		expectEvent(t, p.eventsC, EventProcessed)
+	}
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, 100)
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 100 && len(nodes) > 75, "node_count=%d", len(nodes))
+
+	clock.Advance(time.Minute * 25)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that roughly expected proportion of nodes was removed.
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) < 75 && len(nodes) > 50, "node_count=%d", len(nodes))
+
+	// finally, we check the "sliding window" by verifying that we don't remove all nodes
+	// even if we advance well past the latest expiry time.
+	clock.Advance(time.Hour * 24)
+	// get rid of events that were emitted before clock advanced
+	drainEvents(p.eventsC)
+	// wait for next relative expiry check to run
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// verify that sliding window has preserved most recent nodes
+	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
+}
+
+func TestCache_Backoff(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	p := newTestPack(t, func(c Config) Config {
+		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
+		c.Clock = clock
+		return ForNode(c)
+	})
+	t.Cleanup(p.Close)
+
+	// close watchers to trigger a reload event
+	watchers := p.eventsS.getWatchers()
+	require.Len(t, watchers, 1)
+	p.eventsS.closeWatchers()
+	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
+
+	step := p.cache.Config.MaxRetryPeriod / 5.0
+	for i := 0; i < 5; i++ {
+		// wait for cache to reload
+		select {
+		case event := <-p.eventsC:
+			require.Equal(t, Reloading, event.Type)
+			duration, err := time.ParseDuration(event.Event.Resource.GetKind())
+			require.NoError(t, err)
+
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
+
+			// wait for cache to get to retry.After
+			clock.BlockUntil(1)
+
+			// add some extra to the duration to ensure the retry occurs
+			clock.Advance(p.cache.MaxRetryPeriod)
+		case <-time.After(time.Minute):
+			t.Fatalf("timeout waiting for event")
+		}
+
+		// wait for cache to fail again - backend will still produce a ConnectionProblem error
+		select {
+		case event := <-p.eventsC:
+			require.Equal(t, WatcherFailed, event.Type)
+		case <-time.After(30 * time.Second):
+			t.Fatalf("timeout waiting for event")
+		}
+	}
+}
+
 type proxyEvents struct {
 	sync.Mutex
 	watchers []types.Watcher
@@ -2081,4 +2404,78 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 	defer p.Unlock()
 	p.watchers = append(p.watchers, w)
 	return w, nil
+}
+
+// TestCacheWatchKindExistsInEvents ensures that the watch kinds for each cache component are in sync
+// with proto Events delivered via WatchEvents. If a watch kind is added to a cache component, but it
+// doesn't exist in the proto Events definition, an error will cause the WatchEvents stream to be closed.
+// This causes the cache to reinitialize every time that an unknown message is received and can lead to
+// a permanently unhealthy cache.
+//
+// While this test will ensure that there are no issues for the current release, it does not guarantee
+// that this issue won't arise across releases.
+func TestCacheWatchKindExistsInEvents(t *testing.T) {
+	cases := map[string]Config{
+		"ForAuth":           ForAuth(Config{}),
+		"ForProxy":          ForProxy(Config{}),
+		"ForRemoteProxy":    ForRemoteProxy(Config{}),
+		"ForOldRemoteProxy": ForOldRemoteProxy(Config{}),
+		"ForNode":           ForNode(Config{}),
+		"ForKubernetes":     ForKubernetes(Config{}),
+		"ForApps":           ForApps(Config{}),
+		"ForDatabases":      ForDatabases(Config{}),
+	}
+
+	events := map[string]types.Resource{
+		types.KindCertAuthority:           &types.CertAuthorityV2{},
+		types.KindClusterName:             &types.ClusterNameV2{},
+		types.KindClusterAuditConfig:      types.DefaultClusterAuditConfig(),
+		types.KindClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		types.KindClusterAuthPreference:   types.DefaultAuthPreference(),
+		types.KindSessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		types.KindStaticTokens:            &types.StaticTokensV2{},
+		types.KindToken:                   &types.ProvisionTokenV2{},
+		types.KindUser:                    &types.UserV2{},
+		types.KindRole:                    &types.RoleV5{Version: types.V4},
+		types.KindNamespace:               &types.Namespace{},
+		types.KindNode:                    &types.ServerV2{},
+		types.KindProxy:                   &types.ServerV2{},
+		types.KindAuthServer:              &types.ServerV2{},
+		types.KindReverseTunnel:           &types.ReverseTunnelV2{},
+		types.KindTunnelConnection:        &types.TunnelConnectionV2{},
+		types.KindAccessRequest:           &types.AccessRequestV3{},
+		types.KindAppServer:               &types.AppServerV3{},
+		types.KindApp:                     &types.AppV3{},
+		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
+		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
+		types.KindWebToken:                &types.WebTokenV3{},
+		types.KindRemoteCluster:           &types.RemoteClusterV3{},
+		types.KindKubeService:             &types.ServerV2{},
+		types.KindDatabaseServer:          &types.DatabaseServerV3{},
+		types.KindDatabase:                &types.DatabaseV3{},
+		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},
+		types.KindLock:                    &types.LockV2{},
+		types.KindWindowsDesktopService:   &types.WindowsDesktopServiceV3{},
+		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
+	}
+
+	for name, cfg := range cases {
+		t.Run(name, func(t *testing.T) {
+			for _, watch := range cfg.Watches {
+				resource, ok := events[watch.Kind]
+				require.True(t, ok, "missing event for kind %q", watch.Kind)
+
+				protoEvent, err := client.EventToGRPC(types.Event{
+					Type:     types.OpPut,
+					Resource: resource,
+				})
+				require.NoError(t, err)
+
+				event, err := client.EventFromGRPC(*protoEvent)
+				require.NoError(t, err)
+
+				require.Empty(t, cmp.Diff(resource, event.Resource))
+			}
+		})
+	}
 }

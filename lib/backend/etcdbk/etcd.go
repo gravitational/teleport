@@ -23,7 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"io/ioutil"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -41,9 +41,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
-	"go.etcd.io/etcd/mvcc/mvccpb"
+	"go.etcd.io/etcd/api/v3/mvccpb"
+	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -132,7 +132,6 @@ var (
 )
 
 type EtcdBackend struct {
-	backend.NoMigrations
 	nodes []string
 	*log.Entry
 	cfg       *Config
@@ -278,7 +277,7 @@ func (cfg *Config) Validate() error {
 		cfg.DialTimeout = apidefaults.DefaultDialTimeout
 	}
 	if cfg.PasswordFile != "" {
-		out, err := ioutil.ReadFile(cfg.PasswordFile)
+		out, err := os.ReadFile(cfg.PasswordFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -314,11 +313,11 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	tlsConfig := utils.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
-		clientCertPEM, err := ioutil.ReadFile(b.cfg.TLSCertFile)
+		clientCertPEM, err := os.ReadFile(b.cfg.TLSCertFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
-		clientKeyPEM, err := ioutil.ReadFile(b.cfg.TLSKeyFile)
+		clientKeyPEM, err := os.ReadFile(b.cfg.TLSKeyFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -330,7 +329,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	}
 
 	if b.cfg.TLSCAFile != "" {
-		caCertPEM, err := ioutil.ReadFile(b.cfg.TLSCAFile)
+		caCertPEM, err := os.ReadFile(b.cfg.TLSCAFile)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}

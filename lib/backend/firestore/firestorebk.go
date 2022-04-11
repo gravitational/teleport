@@ -27,6 +27,7 @@ import (
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
@@ -94,7 +95,6 @@ func (cfg *backendConfig) CheckAndSetDefaults() error {
 type Backend struct {
 	*log.Entry
 	backendConfig
-	backend.NoMigrations
 	// svc is the primary Firestore client
 	svc *firestore.Client
 	// clock is the
@@ -218,7 +218,7 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 	var args []option.ClientOption
 
 	if len(endPoint) != 0 {
-		args = append(args, option.WithoutAuthentication(), option.WithEndpoint(endPoint), option.WithGRPCDialOption(grpc.WithInsecure()))
+		args = append(args, option.WithoutAuthentication(), option.WithEndpoint(endPoint), option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
 	} else if len(credentialsFile) != 0 {
 		args = append(args, option.WithCredentialsFile(credentialsFile))
 	}
@@ -357,7 +357,7 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey []byte, endKey []by
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	if limit <= 0 {
-		limit = backend.DefaultLargeLimit
+		limit = backend.DefaultRangeLimit
 	}
 	docs, err := b.svc.Collection(b.CollectionName).
 		Where(keyDocProperty, ">=", startKey).
@@ -375,7 +375,12 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey []byte, endKey []by
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return append(docs, legacyDocs...), nil
+
+	allDocs := append(docs, legacyDocs...)
+	if len(allDocs) >= backend.DefaultRangeLimit {
+		b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+	}
+	return allDocs, nil
 }
 
 // GetRange returns range of elements
@@ -406,7 +411,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
-	docSnaps, err := b.getRangeDocs(ctx, startKey, endKey, backend.DefaultLargeLimit)
+	docSnaps, err := b.getRangeDocs(ctx, startKey, endKey, backend.DefaultRangeLimit)
 	if err != nil {
 		return trace.Wrap(err)
 	}

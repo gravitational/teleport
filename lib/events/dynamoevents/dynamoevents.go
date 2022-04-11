@@ -46,9 +46,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
 )
@@ -106,8 +106,8 @@ type Config struct {
 	ReadCapacityUnits int64 `json:"read_capacity_units"`
 	// WriteCapacityUnits is Dynamodb write capacity units
 	WriteCapacityUnits int64 `json:"write_capacity_units"`
-	// RetentionPeriod is a default retention period for events
-	RetentionPeriod time.Duration
+	// RetentionPeriod is a default retention period for events.
+	RetentionPeriod *types.Duration `json:"audit_retention_period"`
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
@@ -157,8 +157,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.WriteCapacityUnits == 0 {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
-	if cfg.RetentionPeriod == 0 {
-		cfg.RetentionPeriod = DefaultRetentionPeriod
+	if cfg.RetentionPeriod == nil {
+		duration := types.Duration(DefaultRetentionPeriod)
+		cfg.RetentionPeriod = &duration
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -233,8 +234,8 @@ const (
 	// DefaultWriteCapacityUnits specifies default value for write capacity units
 	DefaultWriteCapacityUnits = 10
 
-	// DefaultRetentionPeriod is a default data retention period in events table
-	// default is 1 year
+	// DefaultRetentionPeriod is a default data retention period in events table.
+	// The default is 1 year.
 	DefaultRetentionPeriod = 365 * 24 * time.Hour
 )
 
@@ -504,7 +505,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	} else {
 		// no session id - global event gets a random uuid to get a good partition
 		// key distribution
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 
 	fieldsMap, err := events.ToEventFields(in)
@@ -545,7 +546,7 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 	// no session id - global event gets a random uuid to get a good partition
 	// key distribution
 	if sessionID == "" {
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
 	if err != nil {
@@ -582,10 +583,11 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 }
 
 func (l *Log) setExpiry(e *event) {
-	if l.RetentionPeriod == 0 {
+	if l.RetentionPeriod.Value() == 0 {
 		return
 	}
-	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod).Unix())
+
+	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod.Value()).Unix())
 }
 
 // PostSessionSlice sends chunks of recorded session to the event log
@@ -1019,7 +1021,7 @@ func getSubPageCheckpoint(e *event) (string, error) {
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
 func (l *Log) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
-	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent}}
+	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
 	if cond != nil {
 		params := condFilterParams{attrValues: make(map[string]interface{}), attrNames: make(map[string]string)}
 		expr, err := fromWhereExpr(cond, &params)
@@ -1658,7 +1660,7 @@ func convertError(err error) error {
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)

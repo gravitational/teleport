@@ -19,6 +19,7 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -50,10 +51,10 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	req := fileTransferRequest{
 		cluster:        p.ByName("site"),
 		login:          p.ByName("login"),
-		namespace:      p.ByName("namespace"),
 		server:         p.ByName("server"),
 		remoteLocation: query.Get("location"),
 		filename:       query.Get("filename"),
+		namespace:      defaults.Namespace,
 	}
 
 	clt, err := ctx.GetUserClient(site)

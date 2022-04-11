@@ -34,18 +34,21 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,6 +63,9 @@ type proxySuiteOptions struct {
 
 	rootConfigModFunc []func(config *service.Config)
 	leafConfigModFunc []func(config *service.Config)
+
+	rootClusterNodeName string
+	leafClusterNodeName string
 
 	rootClusterPorts *InstancePorts
 	leafClusterPorts *InstancePorts
@@ -76,8 +82,10 @@ type proxySuiteOptions struct {
 
 func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
-		rootClusterPorts: singleProxyPortSetup(),
-		leafClusterPorts: singleProxyPortSetup(),
+		rootClusterNodeName: Host,
+		leafClusterNodeName: Host,
+		rootClusterPorts:    singleProxyPortSetup(),
+		leafClusterPorts:    singleProxyPortSetup(),
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -85,20 +93,20 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
-		HostID:      uuid.New(),
-		NodeName:    Host,
-		log:         testlog.FailureOnly(t),
+		HostID:      uuid.New().String(),
+		NodeName:    options.rootClusterNodeName,
+		log:         utils.NewLoggerForTests(),
 		Ports:       options.rootClusterPorts,
 	})
 
 	// Create leaf cluster.
 	lc := NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
-		HostID:      uuid.New(),
-		NodeName:    Host,
+		HostID:      uuid.New().String(),
+		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
-		log:         testlog.FailureOnly(t),
+		log:         utils.NewLoggerForTests(),
 		Ports:       options.leafClusterPorts,
 	})
 	suite := &ProxySuite{
@@ -160,15 +168,10 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 }
 
 func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
-	const (
-		deadline         = time.Second * 10
-		nextIterWaitTime = time.Second * 2
-	)
-
 	nodeConfig := func() *service.Config {
 		tconf := service.MakeDefaultConfig()
 		tconf.Console = nil
-		tconf.Log = testlog.FailureOnly(t)
+		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.Token = "token"
 		tconf.AuthServers = []utils.NetAddr{
@@ -185,13 +188,11 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	_, err := p.leaf.StartNode(nodeConfig())
 	require.NoError(t, err)
 
-	err = utils.RetryStaticFor(deadline, nextIterWaitTime, func() error {
-		if len(checkGetClusters(t, p.root.Tunnel)) < 2 && len(checkGetClusters(t, p.leaf.Tunnel)) < 2 {
-			return trace.NotFound("two clusters do not see each other: tunnels are not working")
-		}
-		return nil
-	})
-	require.NoError(t, err)
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, waitForClusters(p.root.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, waitForClusters(p.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
 	err = waitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)
@@ -204,7 +205,7 @@ func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config C
 		nextIterWaitTime = time.Millisecond * 100
 	)
 
-	tc, err := p.root.NewClient(t, config)
+	tc, err := p.root.NewClient(config)
 	require.NoError(t, err)
 
 	output := &bytes.Buffer{}
@@ -268,6 +269,18 @@ func withRootAndLeafTrustedClusterReset() proxySuiteOptionsFunc {
 	}
 }
 
+func withRootClusterNodeName(nodeName string) proxySuiteOptionsFunc {
+	return func(options *proxySuiteOptions) {
+		options.rootClusterNodeName = nodeName
+	}
+}
+
+func withLeafClusterNodeName(nodeName string) proxySuiteOptionsFunc {
+	return func(options *proxySuiteOptions) {
+		options.leafClusterNodeName = nodeName
+	}
+}
+
 func withRootClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
 		options.rootClusterPorts = ports
@@ -281,7 +294,7 @@ func withLeafClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
 }
 
 func newRole(t *testing.T, roleName string, username string) types.Role {
-	role, err := types.NewRole(roleName, types.RoleSpecV4{
+	role, err := types.NewRoleV3(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -342,7 +355,7 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 			rc := suite.root
 			lc := suite.leaf
 			role := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
-			ca, err := lc.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+			ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
 			}, false)
@@ -480,4 +493,49 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 		require.NoError(t, err)
 	}()
 	return lp
+}
+
+func makeNodeConfig(nodeName, authAddr string) *service.Config {
+	nodeConfig := service.MakeDefaultConfig()
+	nodeConfig.Hostname = nodeName
+	nodeConfig.Token = "token"
+	nodeConfig.AuthServers = []utils.NetAddr{
+		{
+			AddrNetwork: "tcp",
+			Addr:        authAddr,
+		},
+	}
+	nodeConfig.Auth.Enabled = false
+	nodeConfig.Proxy.Enabled = false
+	nodeConfig.SSH.Enabled = true
+	return nodeConfig
+}
+
+func mustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string) string {
+	key, err := libclient.NewKey()
+	require.NoError(t, err)
+	key.ClusterName = tc.Secrets.SiteName
+
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
+		key.Pub, username, time.Hour,
+		constants.CertificateFormatStandard,
+		tc.Secrets.SiteName,
+	)
+	require.NoError(t, err)
+
+	key.Cert = sshCert
+	key.TLSCert = tlsCert
+
+	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
+	require.NoError(t, err)
+	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
+
+	idPath := filepath.Join(t.TempDir(), "user_identity")
+	_, err = identityfile.Write(identityfile.WriteConfig{
+		OutputPath: idPath,
+		Key:        key,
+		Format:     identityfile.FormatFile,
+	})
+	require.NoError(t, err)
+	return idPath
 }

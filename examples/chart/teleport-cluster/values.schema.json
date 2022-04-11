@@ -9,9 +9,10 @@
         "labels",
         "chartMode",
         "highAvailability",
+        "tls",
         "image",
         "enterpriseImage",
-        "logLevel",
+        "log",
         "affinity",
         "annotations",
         "extraVolumes",
@@ -19,7 +20,8 @@
         "imagePullPolicy",
         "initContainers",
         "resources",
-        "tolerations"
+        "tolerations",
+        "probeTimeoutSeconds"
     ],
     "properties": {
         "clusterName": {
@@ -31,6 +33,51 @@
             "$id": "#/properties/authenticationType",
             "type": "string",
             "default": "local"
+        },
+        "authenticationSecondFactor": {
+            "$id": "#/properties/authenticationSecondFactor",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "secondFactor": {
+                    "$id": "#/properties/authenticationSecondFactor/properties/secondFactor",
+                    "type": "string",
+                    "enum": ["off", "on", "otp", "optional", "webauthn"],
+                    "default": "otp"
+                },
+                "webauthn": {
+                    "$id": "#/properties/authenticationSecondFactor/properties/webauthn",
+                    "type": "object",
+                    "required": [],
+                    "properties": {
+                        "attestationAllowedCas": {
+                            "$id": "#/properties/authenticationSecondFactor/properties/webauthn/properties/attestationAllowedCas",
+                            "type": "array",
+                            "default": []
+                        },
+                        "attestationDeniedCas": {
+                            "$id": "#/properties/authenticationSecondFactor/properties/webauthn/properties/attestationDeniedCas",
+                            "type": "array",
+                            "default": []
+                        }
+                    }
+                }
+            }
+        },
+        "proxyListenerMode": {
+            "$id": "#/properties/proxyListenerMode",
+            "type": "string",
+            "default": ""
+        },
+        "separatePostgresListener": {
+            "$id": "#/properties/separatePostgresListener",
+            "type": "boolean",
+            "default": false
+        },
+        "separateMongoListener": {
+            "$id": "#/properties/separateMongoListener",
+            "type": "boolean",
+            "default": false
         },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
@@ -79,7 +126,12 @@
         "chartMode": {
             "$id": "#/properties/chartMode",
             "type": "string",
-            "enum": ["standalone", "aws", "gcp", "custom"],
+            "enum": [
+                "standalone",
+                "aws",
+                "gcp",
+                "custom"
+            ],
             "default": "standalone"
         },
         "standalone": {
@@ -120,6 +172,11 @@
                     "type": "string",
                     "default": ""
                 },
+                "auditLogMirrorOnStdout": {
+                    "$id": "#/properties/aws/properties/auditLogMirrorOnStdout",
+                    "type": "boolean",
+                    "default": "false"
+                },
                 "sessionRecordingBucket": {
                     "$id": "#/properties/aws/properties/sessionRecordingBucket",
                     "type": "string",
@@ -153,6 +210,11 @@
                     "$id": "#/properties/gcp/properties/auditLogTable",
                     "type": "string",
                     "default": ""
+                },
+                "auditLogMirrorOnStdout": {
+                    "$id": "#/properties/aws/properties/auditLogMirrorOnStdout",
+                    "type": "boolean",
+                    "default": "false"
                 },
                 "sessionRecordingBucket": {
                     "$id": "#/properties/gcp/properties/sessionRecordingBucket",
@@ -192,9 +254,15 @@
                     "required": [
                         "enabled",
                         "issuerName",
-                        "issuerKind"
+                        "issuerKind",
+                        "issuerGroup"
                     ],
                     "properties": {
+                        "addCommonName": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
+                            "type": "boolean",
+                            "default": "false"
+                        },
                         "enabled": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
                             "type": "boolean",
@@ -209,6 +277,11 @@
                             "$id": "#/properties/highAvailability/properties/certManager/properties/issuerKind",
                             "type": "string",
                             "default": "Issuer"
+                        },
+                        "issuerGroup": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerGroup",
+                            "type": "string",
+                            "default": "cert-manager.io"
                         }
                     }
                 },
@@ -234,6 +307,26 @@
                 }
             }
         },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingSecretName",
+                "existingCASecretName"
+            ],
+            "properties": {
+                "existingSecretName": {
+                    "$id": "#/properties/tls/properties/existingSecretName",
+                    "type": "string",
+                    "default": ""
+                },
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
         "image": {
             "$id": "#/properties/image",
             "type": "string",
@@ -247,8 +340,46 @@
         "logLevel": {
             "$id": "#/properties/logLevel",
             "type": "string",
-            "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+            "enum": [
+                "DEBUG",
+                "INFO",
+                "WARN",
+                "WARNING",
+                "ERROR"
+            ],
             "default": "INFO"
+        },
+        "log": {
+            "$id": "#/properties/log",
+            "type": "object",
+            "required": [
+                "output",
+                "format",
+                "extraFields"
+            ],
+            "properties": {
+                "level": {
+                    "$id": "#/properties/log/properties/level",
+                    "type": "string",
+                    "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+                    "default": "INFO"
+                },
+                "deployment": {
+                    "$id": "#/properties/log/properties/output",
+                    "type": "string",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/log/properties/format",
+                    "type": "string",
+                    "default": {}
+                },
+                "service": {
+                    "$id": "#/properties/log/properties/extraFields",
+                    "type": "array",
+                    "default": {}
+                }
+            }
         },
         "affinity": {
             "$id": "#/properties/affinity",
@@ -299,6 +430,25 @@
                 }
             }
         },
+        "service": {
+            "$id": "#/properties/service",
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "type": {
+                    "$id": "#properties/service/type",
+                    "type": "string",
+                    "default": "LoadBalancer"
+                },
+                "spec": {
+                    "$id": "#/properties/service/spec",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
         "extraArgs": {
             "$id": "#/properties/extraArgs",
             "type": "array",
@@ -322,7 +472,11 @@
         "imagePullPolicy": {
             "$id": "#/properties/imagePullPolicy",
             "type": "string",
-            "enum": ["Never", "IfNotPresent", "Always"],
+            "enum": [
+                "Never",
+                "IfNotPresent",
+                "Always"
+            ],
             "default": "IfNotPresent"
         },
         "initContainers": {
@@ -363,6 +517,11 @@
             "$id": "#/properties/priorityClassName",
             "type": "string",
             "default": ""
+        },
+        "probeTimeoutSeconds": {
+            "$id": "#/properties/probeTimeoutSeconds",
+            "type": "integer",
+            "default": 1
         }
     }
 }

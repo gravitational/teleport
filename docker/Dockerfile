@@ -17,8 +17,8 @@ RUN apt-get install -y ansible ssh inetutils-syslogd
 RUN mkdir /run/sshd
 
 VOLUME ["/teleport", "/var/lib/teleport"]
-COPY ./sshd/bashrc /root/.bashrc
-COPY ./sshd/screenrc /root/.screenrc
+COPY ./sshd/.bashrc /root/.bashrc
+COPY ./sshd/.screenrc /root/.screenrc
 COPY ./sshd/scripts/start-sshd.sh /usr/bin/start-sshd.sh
 
 # expose only proxy ports (SSH and HTTPS)

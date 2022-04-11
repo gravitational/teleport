@@ -184,7 +184,7 @@ type MultipartUploader interface {
 	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
 	ListParts(ctx context.Context, upload StreamUpload) ([]StreamPart, error)
-	// ListUploads lists uploads that have been initated but not completed with
+	// ListUploads lists uploads that have been initiated but not completed with
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
 }

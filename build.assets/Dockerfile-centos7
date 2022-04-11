@@ -1,0 +1,60 @@
+FROM centos:7
+
+ENV LANGUAGE=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    LC_CTYPE=en_US.UTF-8
+
+ARG GOLANG_VERSION
+ARG RUST_VERSION
+
+ARG UID
+ARG GID
+RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
+     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+
+# Install dev tools (make, etc) and a Perl package needed to build OpenSSL.
+RUN yum groupinstall -y "Development Tools"
+RUN yum install -y pam-devel net-tools tree git zip libatomic perl-IPC-Cmd && \
+    yum clean all
+
+# Install etcd.
+RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
+     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+
+# Install Go.
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-amd64.tar.gz | tar xz && \
+    mkdir -p /go/src/github.com/gravitational/teleport && \
+    chmod a+w /go && \
+    chmod a+w /var/lib && \
+    /opt/go/bin/go version
+
+# Install PAM module and policies for testing.
+COPY pam/ /opt/pam_teleport/
+RUN make -C /opt/pam_teleport install
+
+# Install Rust.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+RUN chmod a-w /
+
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy && \
+    cargo install cbindgen
+
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+VOLUME ["/go/src/github.com/gravitational/teleport"]
+EXPOSE 6600 2379 2380

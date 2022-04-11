@@ -4,243 +4,129 @@ description: How to configure Teleport Database Access with AWS Redshift Postgre
 videoBanner: UFhT52d5bYg
 ---
 
-# AWS Redshift PostgreSQL
-
 ## Prerequisites
 
-Collect a few pieces of information about your Redshift cluster which you'll
-need to configure access.
+- AWS account with a Redshift cluster and permissions to create and attach IAM
+  policies.
+- A host, e.g., an EC2 instance, where you will run the Teleport Database
+  Service.
 
-**Get cluster identifier from the `General information` panel:**
+(!docs/pages/includes/user-client-prereqs.mdx!)
 
-<Figure align="center" bordered caption="Redshift cluster ID">
-![Redshift cluster ID](../../../img/database-access/guides/redshift/cluster-id@2x.png)
-</Figure>
+(!docs/pages/includes/tctl.mdx!)
 
-**Copy cluster endpoint from the `General information` panel:**
-
-<Figure align="center" bordered caption="Redshift cluster endpoint">
-![Redshift cluster endpoint](../../../img/database-access/guides/redshift/cluster-endpoint@2x.png)
-</Figure>
-
-You'll only need the `host:port` portion of the endpoint.
-
-**Take note of database user name and database name you will use to connect.**
-
-If you haven't created any database users, default database admin user name and
-maintenance database are displayed on the `Database configurations` panel of the
-`Properties` tab:
-
-<Figure align="center" bordered caption="Redshift cluster user/database">
-![Redshift cluster user/database](../../../img/database-access/guides/redshift/cluster-user-db@2x.png)
-</Figure>
-
-## Create IAM policy
-
-Teleport uses [IAM tokens](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html)
-to authenticate with Redshift databases. IAM authentication is enabled by default
-for all Redshift databases.
-
-In order to authorize Teleport to generate temporary IAM tokens, create an IAM
-role with the following permissions:
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "redshift:GetClusterCredentials",
-            "Resource": [
-                "arn:aws:redshift:*:1234567890:dbuser:*/*",
-                "arn:aws:redshift:*:1234567890:dbname:*/*",
-                "arn:aws:redshift:*:1234567890:dbgroup:*/*"
-            ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": "redshift:DescribeClusters",
-            "Resource": "*"
-        }
-    ]
-}
-```
-
-The `DescribeClusters` permission is required to allow Teleport to retrieve
-cluster ID, region and port.
-
-The `GetClusterCredentials` permission controls access to generating IAM tokens.
-The resource ARN string has the following format:
-
-```
-arn:aws:redshift:<region>:<account-id>:<resource>:<cluster-id>/<name>
-```
-
-Parameters:
-
-- `region`: AWS region where Redshift cluster is deployed, or a wildcard.
-- `account-id`: AWS account ID the Redshift cluster is deployed in.
-- `resource`: One of `dbuser`, `dbname` or `dbgroup` to restrict access to
-  database accounts, names or groups respectively.
-- `cluster-id`: Redshift cluster identifier, or a wildcard.
-- `name`: Name of a particular database account, name or group (depending
-  on the `resource`), or a wildcard.
-
-<Admonition type="note" title="Users auto-create">
-  Teleport does not currently use auto-create option when generating tokens so
-  users must exist in the database.
-</Admonition>
-
-See [AWS documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-iam-credentials-role-permissions.html)
-for more information about setting up an IAM role.
-
-## Setup Teleport Auth and Proxy services
-
-Teleport Database Access for Redshift is available starting from `6.2` release.
+## Step 1/6. Install Teleport
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
+## Step 2/6. Create a Teleport user
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 3/6. Create a Database Service configuration
+
 (!docs/pages/includes/database-access/token.mdx!)
 
-### Create user
+On the node that is running the Database Service, create a configuration file:
 
-Create a local Teleport user with the built-in `access` role:
-
-```code
-$ tctl users add --roles=access alice
-```
-
-The `access` role allows users to see all connected database servers, but
-database names and accounts are restricted to the user's `db_names` and
-`db_users` traits. Normally, these traits come from the identity provider. For
-the local user you've just created you can update them manually to allow it to
-connect to the `dev` database as a `awsuser` database user.
-
-First, export the user resource:
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-$ tctl get users/alice > alice.yaml
+$ teleport db configure create \
+   -o file \
+   --proxy=teleport.example.com:3080 \
+   --token=/tmp/token \
+   --redshift-discovery=us-west-1
 ```
 
-Update the resource to include the following traits:
-
-```yaml
-traits:
-  # Database account names the user will be allowed to use.
-  db_users:
-  - awsuser
-  # Database names the user will be allowed to connect to.
-  db_names:
-  - dev
-```
-
-Update the user:
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
 
 ```code
-$ tctl create alice.yaml -f
+$ teleport db configure create \
+   -o file \
+   --proxy=mytenant.teleport.sh:3080 \
+   --token=/tmp/token \
+   --redshift-discovery=us-west-1
 ```
 
-For more detailed information about database access controls see [RBAC](../rbac.mdx)
-documentation.
+</ScopedBlock>
 
-## Setup Teleport Database service
+The command will generate a Database Service configuration with Redshift
+database auto-discovery enabled on the `us-west-1` region and place it at the
+`/etc/teleport.yaml` location.
 
-Below is an example of a database service configuration file that proxies
-a single Redshift database:
+## Step 4/6. Create an IAM policy for Teleport
 
-```yaml
-teleport:
-  data_dir: /var/lib/teleport-db
-  nodename: test
-  # Proxy address to connect to. Note that it has to be the proxy address
-  # because database service always connects to the cluster over reverse
-  # tunnel.
-  auth_servers:
-  - teleport.example.com:3080
-db_service:
-  enabled: "yes"
-  # This section contains definitions of all databases proxied by this
-  # service, can contain multiple items.
-  databases:
-    # Name of the database proxy instance, used to reference in CLI.
-  - name: "redshift"
-    # Free-form description of the database proxy instance.
-    description: "AWS Redshift PostgreSQL"
-    # Database protocol.
-    protocol: "postgres"
-    # Database endpoint.
-    uri: "redshift-cluster-1.abcdefg.us-east-1.redshift.amazonaws.com:5439"
-    # AWS specific configuration.
-    aws:
-      # Region the database is deployed in.
-      region: "us-east-1"
-      # Redshift specific configuration.
-      redshift:
-        # Redshift cluster identifier.
-        cluster_id: "redshift-cluster-1"
-    # Labels to assign to the database, used in RBAC.
-    static_labels:
-      env: dev
-auth_service:
-  enabled: "no"
-ssh_service:
-  enabled: "no"
-proxy_service:
-  enabled: "no"
+Teleport needs AWS IAM permissions to be able to:
+
+- Discover and register Redshift databases.
+- Manage IAM user or IAM role policies.
+
+(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+
+## Step 5/6. Start the Database Service
+
+Run the following command on the Database Service node:
+
+```code
+$ teleport start --config=/etc/teleport.yaml
 ```
 
-<Admonition
-  type="tip"
-  title="Tip"
->
-  A single Teleport process can run multiple different services, for example
-  multiple database access proxies as well as running other services such an
-  SSH service or an application access proxy.
+The Database Service will discover all Redshift databases according to the configuration
+and register them in the cluster. The agent will also attempt to configure IAM
+access policies for the discovered databases. Keep in mind that AWS IAM changes
+may not propagate immediately and can take a few minutes to come into effect.
+
+<Admonition type="note" title="AWS credentials">
+
+  The Teleport Database Service uses the default credential provider chain to
+  find AWS credentials. See
+  [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
+  for more information.
+
 </Admonition>
 
-Start the database service:
+## Step 6/6. Connect
 
-```code
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
-```
+<ScopedBlock scope={["oss", "enterprise"]}>
 
-### AWS credentials
-
-Teleport Database Service must have an IAM role allowing it to generate IAM
-auth tokens which we created in the [Create IAM Policy](#create-iam-policy)
-section above.
-
-Teleport uses the default credential provider chain to find AWS credentials.
-See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
-for more information.
-
-## Connect
-
-Once the database service has joined the cluster, login to see the available
-databases:
+Once the Database Service has started and joined the cluster, log in to see the
+registered databases. Replace `--proxy` with the address of your Teleport Proxy
+Service.
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-# Name     Description             Labels
-# -------- ----------------------- --------
-# redshift AWS Redshift PostgreSQL env=dev
+# Name        Description                    Labels
+# ----------- ------------------------------ --------
+# my-redshift Redshift cluster in us-east-1  ...
 ```
 
-Note that you will only be able to see databases your role has access to. See
-[RBAC](../rbac.mdx) section for more details.
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
 
-To connect to a particular database server, first retrieve credentials from
-Teleport using `tsh db login` command:
+Once the Database Service has started and joined the cluster, log in to see the
+registered databases. Replace `--proxy` with the address of your Teleport Cloud
+tenant.
 
 ```code
-$ tsh db login redshift
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name        Description                    Labels
+# ----------- ------------------------------ --------
+# my-redshift Redshift cluster in us-east-1  ...
 ```
 
-<Admonition
-  type="tip"
-  title="Tip"
->
+</ScopedBlock>
+
+Log in to a particular database using the `tsh db login` command:
+
+```code
+$ tsh db login my-redshift
+```
+
+<Admonition type="tip" title="Tip">
   You can be logged into multiple databases simultaneously.
 </Admonition>
 
@@ -248,31 +134,35 @@ You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db login --db-user=awsuser --db-name=dev redshift
+$ tsh db login --db-user=awsuser --db-name=dev my-redshift
 ```
 
-Once logged in, connect to the database:
+<Admonition type="note" title="Database users must exist">
+  Teleport does not currently use the auto-create option when generating
+  tokens for Redshift databases. Users must exist in the database.
+</Admonition>
+
+Now connect to the database:
 
 ```code
-$ tsh db connect aurora
+$ tsh db connect my-redshift
 ```
 
 <Admonition type="note" title="Note">
-  The `psql` command-line client should be available in PATH in order to be
+  The `psql` command-line client should be available in `PATH` in order to be
   able to connect.
 </Admonition>
-
-If you would like to see the native `psql` shell connect command, run:
-
-```code
-$ tsh db config --format=cmd aurora
-```
 
 To log out of the database and remove credentials:
 
 ```code
-# Remove credentials for a particular database instance.
-$ tsh db logout redshift
-# Remove credentials for all database instances.
-$ tsh db logout
+$ tsh db logout my-redshift
 ```
+
+## Next steps
+
+- Learn more about [using IAM authentication to generate database user
+  credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for AWS Redshift.
+- Learn how to [restrict access](../rbac.mdx) to certain users and databases.
+- View the [High Availability (HA)](../guides/ha.mdx) guide.
+- Take a look at the YAML configuration [reference](../reference/configuration.mdx).

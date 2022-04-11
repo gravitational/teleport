@@ -18,10 +18,10 @@ package events
 
 import (
 	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"encoding/json"
 )
@@ -31,423 +31,215 @@ import (
 //
 // This is mainly used to convert from the backend format used by
 // our various event backends.
-func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
+func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	data, err := json.Marshal(fields)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	eventType := fields.GetString(EventType)
+	var e events.AuditEvent
 
 	switch eventType {
 	case SessionPrintEvent:
-		var e events.SessionPrint
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionPrint{}
 	case SessionStartEvent:
-		var e events.SessionStart
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionStart{}
 	case SessionEndEvent:
-		var e events.SessionEnd
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionEnd{}
 	case SessionUploadEvent:
-		var e events.SessionUpload
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionUpload{}
 	case SessionJoinEvent:
-		var e events.SessionJoin
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionJoin{}
 	case SessionLeaveEvent:
-		var e events.SessionLeave
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionLeave{}
 	case SessionDataEvent:
-		var e events.SessionData
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionData{}
 	case ClientDisconnectEvent:
-		var e events.ClientDisconnect
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.ClientDisconnect{}
 	case UserLoginEvent:
-		var e events.UserLogin
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.UserLogin{}
 	case UserDeleteEvent:
-		var e events.UserDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.UserDelete{}
 	case UserCreateEvent:
-		var e events.UserCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.UserCreate{}
 	case UserUpdatedEvent:
 		// note: user.update is a custom code applied on top of the same data as the user.create event
 		//       and they are thus functionally identical. There exists no direct gRPC version of user.update.
-		var e events.UserCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.UserCreate{}
 	case UserPasswordChangeEvent:
-		var e events.UserPasswordChange
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.UserPasswordChange{}
 	case AccessRequestCreateEvent:
-		var e events.AccessRequestCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AccessRequestCreate{}
 	case AccessRequestReviewEvent:
 		// note: access_request.review is a custom code applied on top of the same data as the access_request.create event
 		//       and they are thus functionally identical. There exists no direct gRPC version of access_request.review.
-		var e events.AccessRequestCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AccessRequestCreate{}
 	case AccessRequestUpdateEvent:
-		var e events.AccessRequestCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AccessRequestCreate{}
 	case BillingCardCreateEvent:
-		var e events.BillingCardCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.BillingCardCreate{}
 	case BillingCardUpdateEvent:
-		var e events.BillingCardCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.BillingCardCreate{}
 	case BillingCardDeleteEvent:
-		var e events.BillingCardDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.BillingCardDelete{}
 	case BillingInformationUpdateEvent:
-		var e events.BillingInformationUpdate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.BillingInformationUpdate{}
 	case ResetPasswordTokenCreateEvent:
-		var e events.UserTokenCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.UserTokenCreate{}
 	case ExecEvent:
-		var e events.Exec
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.Exec{}
 	case SubsystemEvent:
-		var e events.Subsystem
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.Subsystem{}
 	case X11ForwardEvent:
-		var e events.X11Forward
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.X11Forward{}
 	case PortForwardEvent:
-		var e events.PortForward
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.PortForward{}
 	case AuthAttemptEvent:
-		var e events.AuthAttempt
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AuthAttempt{}
 	case SCPEvent:
-		var e events.SCP
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SCP{}
 	case ResizeEvent:
-		var e events.Resize
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.Resize{}
 	case SessionCommandEvent:
-		var e events.SessionCommand
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionCommand{}
 	case SessionDiskEvent:
-		var e events.SessionDisk
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionDisk{}
 	case SessionNetworkEvent:
-		var e events.SessionNetwork
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionNetwork{}
 	case RoleCreatedEvent:
-		var e events.RoleCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.RoleCreate{}
 	case RoleDeletedEvent:
-		var e events.RoleDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.RoleDelete{}
 	case TrustedClusterCreateEvent:
-		var e events.TrustedClusterCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.TrustedClusterCreate{}
 	case TrustedClusterDeleteEvent:
-		var e events.TrustedClusterDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.TrustedClusterDelete{}
 	case TrustedClusterTokenCreateEvent:
-		var e events.TrustedClusterTokenCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.TrustedClusterTokenCreate{}
 	case GithubConnectorCreatedEvent:
-		var e events.GithubConnectorCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.GithubConnectorCreate{}
 	case GithubConnectorDeletedEvent:
-		var e events.GithubConnectorDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.GithubConnectorDelete{}
 	case OIDCConnectorCreatedEvent:
-		var e events.OIDCConnectorCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.OIDCConnectorCreate{}
 	case OIDCConnectorDeletedEvent:
-		var e events.OIDCConnectorDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.OIDCConnectorDelete{}
 	case SAMLConnectorCreatedEvent:
-		var e events.SAMLConnectorCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SAMLConnectorCreate{}
 	case SAMLConnectorDeletedEvent:
-		var e events.SAMLConnectorDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SAMLConnectorDelete{}
 	case SessionRejectedEvent:
-		var e events.SessionReject
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.SessionReject{}
 	case AppSessionStartEvent:
-		var e events.AppSessionStart
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AppSessionStart{}
 	case AppSessionChunkEvent:
-		var e events.AppSessionChunk
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
-		var e events.AppSessionRequest
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AppSessionRequest{}
 	case AppCreateEvent:
-		var e events.AppCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AppCreate{}
 	case AppUpdateEvent:
-		var e events.AppUpdate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AppUpdate{}
 	case AppDeleteEvent:
-		var e events.AppDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.AppDelete{}
 	case DatabaseCreateEvent:
-		var e events.DatabaseCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.DatabaseCreate{}
 	case DatabaseUpdateEvent:
-		var e events.DatabaseUpdate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.DatabaseUpdate{}
 	case DatabaseDeleteEvent:
-		var e events.DatabaseDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.DatabaseDelete{}
 	case DatabaseSessionStartEvent:
-		var e events.DatabaseSessionStart
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.DatabaseSessionStart{}
 	case DatabaseSessionEndEvent:
-		var e events.DatabaseSessionEnd
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
-		var e events.DatabaseSessionQuery
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.DatabaseSessionQuery{}
+	case DatabaseSessionPostgresParseEvent:
+		e = &events.PostgresParse{}
+	case DatabaseSessionPostgresBindEvent:
+		e = &events.PostgresBind{}
+	case DatabaseSessionPostgresExecuteEvent:
+		e = &events.PostgresExecute{}
+	case DatabaseSessionPostgresCloseEvent:
+		e = &events.PostgresClose{}
+	case DatabaseSessionPostgresFunctionEvent:
+		e = &events.PostgresFunctionCall{}
+	case DatabaseSessionMySQLStatementPrepareEvent:
+		e = &events.MySQLStatementPrepare{}
+	case DatabaseSessionMySQLStatementExecuteEvent:
+		e = &events.MySQLStatementExecute{}
+	case DatabaseSessionMySQLStatementSendLongDataEvent:
+		e = &events.MySQLStatementSendLongData{}
+	case DatabaseSessionMySQLStatementCloseEvent:
+		e = &events.MySQLStatementClose{}
+	case DatabaseSessionMySQLStatementResetEvent:
+		e = &events.MySQLStatementReset{}
+	case DatabaseSessionMySQLStatementFetchEvent:
+		e = &events.MySQLStatementFetch{}
+	case DatabaseSessionMySQLStatementBulkExecuteEvent:
+		e = &events.MySQLStatementBulkExecute{}
 	case KubeRequestEvent:
-		var e events.KubeRequest
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
-		var e events.MFADeviceAdd
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.MFADeviceAdd{}
 	case MFADeviceDeleteEvent:
-		var e events.MFADeviceDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.MFADeviceDelete{}
 	case LockCreatedEvent:
-		var e events.LockCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.LockCreate{}
 	case LockDeletedEvent:
-		var e events.LockDelete
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.LockDelete{}
 	case RecoveryCodeGeneratedEvent:
-		var e events.RecoveryCodeGenerate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.RecoveryCodeGenerate{}
 	case RecoveryCodeUsedEvent:
-		var e events.RecoveryCodeUsed
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.RecoveryCodeUsed{}
 	case RecoveryTokenCreateEvent:
-		var e events.UserTokenCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.UserTokenCreate{}
 	case PrivilegeTokenCreateEvent:
-		var e events.UserTokenCreate
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.UserTokenCreate{}
 	case WindowsDesktopSessionStartEvent:
-		var e events.WindowsDesktopSessionStart
-		if err := utils.FastUnmarshal(data, &e); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &e, nil
+		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
-		var e events.WindowsDesktopSessionEnd
-		if err := utils.FastUnmarshal(data, &e); err != nil {
+		e = &events.WindowsDesktopSessionEnd{}
+	case DesktopClipboardSendEvent:
+		e = &events.DesktopClipboardSend{}
+	case DesktopClipboardReceiveEvent:
+		e = &events.DesktopClipboardReceive{}
+	case SessionConnectEvent:
+		e = &events.SessionConnect{}
+	case AccessRequestDeleteEvent:
+		e = &events.AccessRequestDelete{}
+	case CertificateCreateEvent:
+		e = &events.CertificateCreate{}
+	case RenewableCertificateGenerationMismatchEvent:
+		e = &events.RenewableCertificateGenerationMismatch{}
+	case UnknownEvent:
+		e = &events.Unknown{}
+	default:
+		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
+		unknown := &events.Unknown{}
+		if err := utils.FastUnmarshal(data, unknown); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &e, nil
-	default:
-		return nil, trace.BadParameter("unknown event type: %q", eventType)
+
+		unknown.Type = UnknownEvent
+		unknown.Code = UnknownCode
+		unknown.UnknownType = eventType
+		unknown.UnknownCode = fields.GetString(EventCode)
+		unknown.Data = string(data)
+		return unknown, nil
 	}
+
+	if err := utils.FastUnmarshal(data, e); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return e, nil
 }
 
 // GetSessionID pulls the session ID from the events that have a
 // SessionMetadata. For other events an empty string is returned.
-func GetSessionID(event apievents.AuditEvent) string {
+func GetSessionID(event events.AuditEvent) string {
 	var sessionID string
 
 	if g, ok := event.(SessionMetadataGetter); ok {
@@ -460,7 +252,7 @@ func GetSessionID(event apievents.AuditEvent) string {
 // ToEventFields converts from the typed interface-style event representation
 // to the old dynamic map style representation in order to provide outer compatibility
 // with existing public API routes when the backend is updated with the typed events.
-func ToEventFields(event apievents.AuditEvent) (EventFields, error) {
+func ToEventFields(event events.AuditEvent) (EventFields, error) {
 	var fields EventFields
 	if err := apiutils.ObjectToStruct(event, &fields); err != nil {
 		return nil, trace.Wrap(err)

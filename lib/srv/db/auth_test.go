@@ -40,10 +40,14 @@ func TestAuthTokens(t *testing.T) {
 		withRedshiftPostgres("postgres-redshift-incorrect-token", "qwe123"),
 		withCloudSQLPostgres("postgres-cloudsql-correct-token", cloudSQLAuthToken),
 		withCloudSQLPostgres("postgres-cloudsql-incorrect-token", "qwe123"),
+		withAzurePostgres("postgres-azure-correct-token", azureAccessToken),
+		withAzurePostgres("postgres-azure-incorrect-token", "qwe123"),
 		withRDSMySQL("mysql-rds-correct-token", "root", rdsAuthToken),
 		withRDSMySQL("mysql-rds-incorrect-token", "root", "qwe123"),
 		withCloudSQLMySQL("mysql-cloudsql-correct-token", "root", cloudSQLPassword),
-		withCloudSQLMySQL("mysql-cloudsql-incorrect-token", "root", "qwe123"))
+		withCloudSQLMySQL("mysql-cloudsql-incorrect-token", "root", "qwe123"),
+		withAzureMySQL("mysql-azure-correct-token", "root", azureAccessToken),
+		withAzureMySQL("mysql-azure-incorrect-token", "root", "qwe123"))
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -170,6 +174,8 @@ const (
 	cloudSQLAuthToken = "cloudsql-auth-token"
 	// cloudSQLPassword is a mock Cloud SQL user password.
 	cloudSQLPassword = "cloudsql-password"
+	// azureAccessToken is a mock Azure access token.
+	azureAccessToken = "azure-access-token"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
@@ -194,4 +200,10 @@ func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.
 func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Cloud SQL user password %v.", sessionCtx)
 	return cloudSQLPassword, nil
+}
+
+// GetAzureAccessToken generates Azure access token.
+func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+	a.Infof("Generating Azure access token for %v.", sessionCtx)
+	return azureAccessToken, nil
 }

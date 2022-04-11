@@ -510,6 +510,8 @@ type NewWebSessionRequest struct {
 	SessionTTL time.Duration
 	// LoginTime is the time that this user recently logged in.
 	LoginTime time.Time
+	// AccessRequests contains the UUIDs of the access requests currently in use.
+	AccessRequests []string
 }
 
 // Check validates the request.

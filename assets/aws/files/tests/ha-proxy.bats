@@ -26,6 +26,12 @@ load fixtures/common
 }
 
 # in each test, we echo the block so that if the test fails, the block is outputted
+@test "[${TEST_SUITE?}] teleport.cache.type is set correctly" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${TELEPORT_BLOCK?}"
+    echo "${TELEPORT_BLOCK?}" | grep -E "^    type: in-memory"
+}
+
 @test "[${TEST_SUITE?}] proxy_service.public_addr is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
     echo "${PROXY_BLOCK?}"

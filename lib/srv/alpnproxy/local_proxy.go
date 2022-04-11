@@ -30,11 +30,12 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
@@ -51,7 +52,7 @@ type LocalProxyConfig struct {
 	RemoteProxyAddr string
 	// Protocol set for the upstream TLS connection.
 	Protocol common.Protocol
-	// Insecure turns off verification for x509 upstream ALPN proxy service certificate.
+	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
 	InsecureSkipVerify bool
 	// Listener is listener running on local machine.
 	Listener net.Listener
@@ -139,6 +140,15 @@ func (l *LocalProxy) SSHProxy(localAgent *client.LocalKeyAgent) error {
 		return trace.Wrap(err)
 	}
 	defer sess.Close()
+
+	err = agent.ForwardToAgent(client, localAgent)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = agent.RequestAgentForwarding(sess)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	if err = sess.RequestSubsystem(proxySubsystemName(l.cfg.SSHUserHost, l.cfg.SSHTrustedCluster)); err != nil {
 		return trace.Wrap(err)
@@ -313,7 +323,7 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 		Transport: tr,
 	}
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if err := appaws.VerifyAWSSignature(req, l.cfg.AWSCredentials); err != nil {
+		if err := aws.VerifyAWSSignature(req, l.cfg.AWSCredentials); err != nil {
 			log.WithError(err).Errorf("AWS signature verification failed.")
 			rw.WriteHeader(http.StatusForbidden)
 			return

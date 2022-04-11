@@ -156,11 +156,11 @@ func TestReconciler(t *testing.T) {
 				Matcher: func(rwl types.ResourceWithLabels) bool {
 					return MatchResourceLabels(test.selectors, rwl)
 				},
-				GetCurrentResources: func() types.ResourcesWithLabels {
-					return test.registeredResources
+				GetCurrentResources: func() types.ResourcesWithLabelsMap {
+					return test.registeredResources.ToMap()
 				},
-				GetNewResources: func() types.ResourcesWithLabels {
-					return test.newResources
+				GetNewResources: func() types.ResourcesWithLabelsMap {
+					return test.newResources.ToMap()
 				},
 				OnCreate: func(ctx context.Context, r types.ResourceWithLabels) error {
 					onCreateCalls = append(onCreateCalls, r)
@@ -221,6 +221,14 @@ type testResource struct {
 
 func (r *testResource) GetName() string {
 	return r.Metadata.Name
+}
+
+func (r *testResource) GetKind() string {
+	return "TestResource"
+}
+
+func (r *testResource) GetMetadata() types.Metadata {
+	return r.Metadata
 }
 
 func (r *testResource) Origin() string {

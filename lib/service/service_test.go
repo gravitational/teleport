@@ -18,9 +18,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,70 +37,83 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
+
+var ports utils.PortList
+
+func init() {
+	var err error
+	ports, err = utils.GetFreeTCPPorts(5, utils.PortStartingNumber)
+	if err != nil {
+		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
+	}
+}
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
-type ServiceTestSuite struct {
-}
+func TestServiceDebugModeEnv(t *testing.T) {
+	require.False(t, isDebugMode())
 
-var _ = check.Suite(&ServiceTestSuite{})
-
-func (s *ServiceTestSuite) TestDebugModeEnv(c *check.C) {
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "no")
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "0")
-	c.Assert(isDebugMode(), check.Equals, false)
-	os.Setenv(teleport.DebugEnvVar, "1")
-	c.Assert(isDebugMode(), check.Equals, true)
-	os.Setenv(teleport.DebugEnvVar, "true")
-	c.Assert(isDebugMode(), check.Equals, true)
-}
-
-func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
-	cfg := &Config{
-		DataDir:  c.MkDir(),
-		Hostname: "example.com",
-		Log:      utils.WrapLogger(logrus.New().WithField("test", c.TestName())),
+	for _, test := range []struct {
+		debugVal string
+		isDebug  bool
+	}{
+		{"no", false},
+		{"0", false},
+		{"1", true},
+		{"true", true},
+	} {
+		t.Run(fmt.Sprintf("%v=%v", teleport.DebugEnvVar, test.debugVal), func(t *testing.T) {
+			t.Setenv(teleport.DebugEnvVar, test.debugVal)
+			require.Equal(t, test.isDebug, isDebugMode())
+		})
 	}
-	err := initSelfSignedHTTPSCert(cfg)
-	c.Assert(err, check.IsNil)
-	c.Assert(cfg.Proxy.KeyPairs, check.HasLen, 1)
-	c.Assert(utils.FileExists(cfg.Proxy.KeyPairs[0].Certificate), check.Equals, true)
-	c.Assert(utils.FileExists(cfg.Proxy.KeyPairs[0].PrivateKey), check.Equals, true)
 }
 
-func TestMonitor(t *testing.T) {
-	t.Parallel()
-	fakeClock := clockwork.NewFakeClock()
+func TestServiceSelfSignedHTTPS(t *testing.T) {
+	cfg := &Config{
+		DataDir:  t.TempDir(),
+		Hostname: "example.com",
+		Log:      utils.WrapLogger(logrus.New().WithField("test", "TestServiceSelfSignedHTTPS")),
+	}
+	require.NoError(t, initSelfSignedHTTPSCert(cfg))
+	require.Len(t, cfg.Proxy.KeyPairs, 1)
+	require.FileExists(t, cfg.Proxy.KeyPairs[0].Certificate)
+	require.FileExists(t, cfg.Proxy.KeyPairs[0].PrivateKey)
+}
 
+type monitorTest struct {
+	desc         string
+	event        *Event
+	advanceClock time.Duration
+	wantStatus   int
+}
+
+func testMonitor(t *testing.T, sshEnabled bool, tests []monitorTest) {
+	fakeClock := clockwork.NewFakeClock()
 	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
-	cfg.DataDir, err = ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	defer os.RemoveAll(cfg.DataDir)
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.DataDir = t.TempDir()
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"], err = ioutil.TempDir("", "teleport")
-	require.NoError(t, err)
-	defer os.RemoveAll(cfg.DataDir)
-	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
+	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+	if sshEnabled {
+		cfg.SSH.Enabled = true
+		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	}
 	cfg.Proxy.Enabled = false
-	cfg.SSH.Enabled = false
 
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
@@ -115,83 +130,97 @@ func TestMonitor(t *testing.T) {
 	err = waitForStatus(endpoint, http.StatusOK)
 	require.NoError(t, err)
 
-	tests := []struct {
-		desc         string
-		event        Event
-		advanceClock time.Duration
-		wantStatus   []int
-	}{
-		{
-			desc:       "degraded event causes degraded state",
-			event:      Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentAuth},
-			wantStatus: []int{http.StatusServiceUnavailable, http.StatusBadRequest},
-		},
-		{
-			desc:       "ok event causes recovering state",
-			event:      Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
-			wantStatus: []int{http.StatusBadRequest},
-		},
-		{
-			desc:       "ok event remains in recovering state because not enough time passed",
-			event:      Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
-			wantStatus: []int{http.StatusBadRequest},
-		},
-		{
-			desc:         "ok event after enough time causes OK state",
-			event:        Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
-			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
-			wantStatus:   []int{http.StatusOK},
-		},
-		{
-			desc:       "degraded event in a new component causes degraded state",
-			event:      Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentNode},
-			wantStatus: []int{http.StatusServiceUnavailable, http.StatusBadRequest},
-		},
-		{
-			desc:         "ok event in one component keeps overall status degraded due to other component",
-			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
-			event:        Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
-			wantStatus:   []int{http.StatusServiceUnavailable, http.StatusBadRequest},
-		},
-		{
-			desc:         "ok event in new component causes overall recovering state",
-			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
-			event:        Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode},
-			wantStatus:   []int{http.StatusBadRequest},
-		},
-		{
-			desc:         "ok event in new component causes overall OK state",
-			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
-			event:        Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode},
-			wantStatus:   []int{http.StatusOK},
-		},
-	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			fakeClock.Advance(tt.advanceClock)
-			process.BroadcastEvent(tt.event)
-			err = waitForStatus(endpoint, tt.wantStatus...)
+			if tt.event != nil {
+				process.BroadcastEvent(*tt.event)
+			}
+			err := waitForStatus(endpoint, tt.wantStatus)
 			require.NoError(t, err)
 		})
 	}
 }
 
-// TestCheckPrincipals checks certificates regeneration only requests
+func TestMonitorOneComponent(t *testing.T) {
+	t.Parallel()
+	sshEnabled := false
+	tests := []monitorTest{
+		{
+			desc:       "it starts with OK state",
+			event:      nil,
+			wantStatus: http.StatusOK,
+		},
+		{
+			desc:       "degraded event causes degraded state",
+			event:      &Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentAuth},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+		{
+			desc:       "ok event causes recovering state",
+			event:      &Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			desc:       "ok event remains in recovering state because not enough time passed",
+			event:      &Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			desc:         "ok event after enough time causes OK state",
+			event:        &Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
+			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
+			wantStatus:   http.StatusOK,
+		},
+	}
+	testMonitor(t, sshEnabled, tests)
+}
+
+func TestMonitorTwoComponents(t *testing.T) {
+	t.Parallel()
+	sshEnabled := true
+	tests := []monitorTest{
+		{
+			desc:       "it starts with OK state",
+			event:      nil,
+			wantStatus: http.StatusOK,
+		},
+		{
+			desc:       "degraded event in one component causes degraded state",
+			event:      &Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentNode},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+		{
+			desc:       "ok event in ok component keeps overall status degraded due to degraded component",
+			event:      &Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+		{
+			desc:       "ok event in degraded component causes overall recovering state",
+			event:      &Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			desc:         "ok event after enough time causes overall OK state",
+			advanceClock: defaults.HeartbeatCheckPeriod*2 + 1,
+			event:        &Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode},
+			wantStatus:   http.StatusOK,
+		},
+	}
+	testMonitor(t, sshEnabled, tests)
+}
+
+// TestServiceCheckPrincipals checks certificates regeneration only requests
 // regeneration when the principals change.
-func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
-	dataDir := c.MkDir()
-
-	t := testlog.NewCheckTestWrapper(c)
-	defer t.Close()
-
+func TestServiceCheckPrincipals(t *testing.T) {
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
 	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		Dir: dataDir,
+		Dir: t.TempDir(),
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	tlsServer, err := testAuthServer.NewTestTLSServer()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	defer tlsServer.Close()
 
 	testConnector := &Connector{
@@ -235,20 +264,17 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 			outRegenerate: false,
 		},
 	}
-	for _, tt := range tests {
-		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS, t.Log)
-		c.Assert(ok, check.Equals, tt.outRegenerate)
+	for i, tt := range tests {
+		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS, logrus.New().WithField("test", "TestServiceCheckPrincipals"))
+		require.Equal(t, tt.outRegenerate, ok, "test %d", i)
 	}
 }
 
-// TestInitExternalLog verifies that external logging can be used both as a means of
+// TestServiceInitExternalLog verifies that external logging can be used both as a means of
 // overriding the local audit event target.  Ideally, this test would also verify
 // setup of true external loggers, but at the time of writing there isn't good
 // support for setting up fake external logging endpoints.
-func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
-	t := testlog.NewCheckTestWrapper(c)
-	defer t.Close()
-
+func TestServiceInitExternalLog(t *testing.T) {
 	tts := []struct {
 		events []string
 		isNil  bool
@@ -267,33 +293,33 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 	}
 
 	backend, err := memory.New(memory.Config{})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	for i, tt := range tts {
-		// isErr implies isNil.
-		if tt.isErr {
-			tt.isNil = true
-		}
+	for _, tt := range tts {
+		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
+			// isErr implies isNil.
+			if tt.isErr {
+				tt.isNil = true
+			}
 
-		cmt := check.Commentf("tt[%v]: %+v", i, tt)
+			auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+				AuditEventsURI: tt.events,
+			})
+			require.NoError(t, err)
 
-		auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-			AuditEventsURI: tt.events,
+			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
+			if tt.isErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.isNil {
+				require.Nil(t, loggers)
+			} else {
+				require.NotNil(t, loggers)
+			}
 		})
-		c.Assert(err, check.IsNil, cmt)
-		loggers, err := initExternalLog(context.Background(), auditConfig, t.Log, backend)
-
-		if tt.isErr {
-			c.Assert(err, check.NotNil, cmt)
-		} else {
-			c.Assert(err, check.IsNil, cmt)
-		}
-
-		if tt.isNil {
-			c.Assert(loggers, check.IsNil, cmt)
-		} else {
-			c.Assert(loggers, check.NotNil, cmt)
-		}
 	}
 }
 
@@ -354,6 +380,8 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"proxy-kube-public-2",
 			},
 			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
 				"*.proxy-public-1",
 				"*.proxy-public-2",
 				"*.proxy-kube-public-1",
@@ -367,7 +395,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"auth-public-1",
 				"auth-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleAdmin,
@@ -376,7 +407,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"auth-public-1",
 				"auth-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleNode,
@@ -400,7 +434,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"kube-public-1",
 				"kube-public-2",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.RoleApp,
@@ -408,7 +445,10 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"global-hostname",
 				"global-uuid",
 			},
-			wantDNS: []string{},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
 		},
 		{
 			role: types.SystemRole("unknown"),
@@ -450,7 +490,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 	require.Error(t, err)
 }
 
-func waitForStatus(diagAddr string, statusCodes ...int) error {
+func waitForStatus(diagAddr string, statusCode int) error {
 	tickCh := time.Tick(100 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)
 	var lastStatus int
@@ -463,13 +503,11 @@ func waitForStatus(diagAddr string, statusCodes ...int) error {
 			}
 			resp.Body.Close()
 			lastStatus = resp.StatusCode
-			for _, statusCode := range statusCodes {
-				if resp.StatusCode == statusCode {
-					return nil
-				}
+			if resp.StatusCode == statusCode {
+				return nil
 			}
 		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCodes, lastStatus)
+			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCode, lastStatus)
 		}
 	}
 }
@@ -498,6 +536,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
+				"teleport-redis",
+				"teleport-sqlserver",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -539,4 +579,56 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			require.Equal(t, tc.wantNextProtos, tls.NextProtos)
 		})
 	}
+}
+
+func TestTeleportProcess_reconnectToAuth(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	// Create and configure a default Teleport configuration.
+	cfg := MakeDefaultConfig()
+	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.Clock = clock
+	cfg.DataDir = t.TempDir()
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = true
+	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.ConnectFailureC = make(chan time.Duration, 5)
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c, err := process.reconnectToAuthService(types.RoleAdmin)
+		require.Equal(t, ErrTeleportExited, err)
+		require.Nil(t, c)
+	}()
+
+	step := cfg.MaxRetryPeriod / 5.0
+	for i := 0; i < 5; i++ {
+		// wait for connection to fail
+		select {
+		case duration := <-process.Config.ConnectFailureC:
+			stepMin := step * time.Duration(i) / 2
+			stepMax := step * time.Duration(i+1)
+
+			require.GreaterOrEqual(t, duration, stepMin)
+			require.LessOrEqual(t, duration, stepMax)
+
+			// wait for connection to get to retry.After
+			clock.BlockUntil(1)
+
+			// add some extra to the duration to ensure the retry occurs
+			clock.Advance(cfg.MaxRetryPeriod)
+		case <-time.After(time.Minute):
+			t.Fatalf("timeout waiting for failure")
+		}
+	}
+
+	supervisor, ok := process.Supervisor.(*LocalSupervisor)
+	require.True(t, ok)
+	supervisor.signalExit()
+	wg.Wait()
 }

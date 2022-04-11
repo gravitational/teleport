@@ -1,3 +1,4 @@
+{{- $backendProtocol := ternary "ssl" "tcp" (hasKey .Values.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -8,7 +9,7 @@ metadata:
   {{- if (or (.Values.annotations.service) (eq .Values.chartMode "aws")) }}
   annotations:
     {{- if eq .Values.chartMode "aws" }}
-    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: {{ $backendProtocol }}
     service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
     {{- end }}
@@ -17,12 +18,16 @@ metadata:
     {{- end }}
   {{- end }}
 spec:
-  type: LoadBalancer
+  type: {{ default "LoadBalancer" .Values.service.type }}
+  {{- with .Values.service.spec }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
   ports:
   - name: https
     port: 443
     targetPort: 3080
     protocol: TCP
+  {{- if not .Values.proxyListenerMode }}
   - name: sshproxy
     port: 3023
     targetPort: 3023
@@ -39,5 +44,18 @@ spec:
     port: 3036
     targetPort: 3036
     protocol: TCP
+  {{- if .Values.separatePostgresListener }}
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+    protocol: TCP
+  {{- end }}
+  {{- if .Values.separateMongoListener }}
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+    protocol: TCP
+  {{- end }}
+  {{- end }}
   selector:
     app: {{ .Release.Name }}

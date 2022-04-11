@@ -56,6 +56,7 @@ ParameterKey=NodeSubnetA,ParameterValue=PRIVATE_SUBNET_ID_3 \
 ParameterKey=NodeSubnetB,ParameterValue=PRIVATE_SUBNET_ID_4  \
 ParameterKey=KeyName,ParameterValue=SSH_PUBKEY \
 ParameterKey=DomainName,ParameterValue=DOMAIN_NAME \
+ParameterKey=DomainAdminEmail,ParameterValue=DOMAINEMAIL-REPLACE \
 ParameterKey=HostedZoneID,ParameterValue=HOSTZONEID" 
 make create-stack 
 ```

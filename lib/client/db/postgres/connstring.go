@@ -27,7 +27,7 @@ import (
 )
 
 // GetConnString returns formatted Postgres connection string for the profile.
-func GetConnString(c profile.ConnectProfile) string {
+func GetConnString(c *profile.ConnectProfile, noTLS bool) string {
 	connStr := "postgres://"
 	if c.User != "" {
 		// Username may contain special characters in which case it should
@@ -38,6 +38,9 @@ func GetConnString(c profile.ConnectProfile) string {
 	connStr += net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 	if c.Database != "" {
 		connStr += "/" + c.Database
+	}
+	if noTLS {
+		return connStr
 	}
 	params := []string{
 		fmt.Sprintf("sslrootcert=%v", c.CACertPath),

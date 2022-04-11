@@ -30,13 +30,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *events.MockEmitter, MonitorConfig) {
+func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.MockEmitter, MonitorConfig) {
 	conn := &mockTrackingConn{make(chan struct{})}
-	emitter := &events.MockEmitter{}
+	emitter := &eventstest.MockEmitter{}
 	cfg := MonitorConfig{
 		Context:     ctx,
 		Conn:        conn,
@@ -112,7 +112,7 @@ func TestMonitorStaleLocks(t *testing.T) {
 
 	select {
 	case <-asrv.LockWatcher.LoopC:
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher loop check.")
 	}
 	select {
@@ -120,15 +120,23 @@ func TestMonitorStaleLocks(t *testing.T) {
 	default:
 		t.Fatal("No staleness event should be scheduled yet. This is a bug in the test.")
 	}
-	go asrv.Backend.CloseWatchers()
+
+	// ensure ResetC is drained
 	select {
 	case <-asrv.LockWatcher.ResetC:
-	case <-time.After(2 * time.Second):
+	default:
+	}
+	go asrv.Backend.CloseWatchers()
+
+	// wait for reset
+	select {
+	case <-asrv.LockWatcher.ResetC:
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher reset.")
 	}
 	select {
 	case <-conn.closedC:
-	case <-time.After(2 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for connection close.")
 	}
 	require.Equal(t, services.StrictLockingModeAccessDenied.Error(), emitter.LastEvent().(*apievents.ClientDisconnect).Reason)

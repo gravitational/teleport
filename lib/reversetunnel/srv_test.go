@@ -17,6 +17,7 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"context"
 	"net"
 	"testing"
 	"time"
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -58,7 +58,7 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log: testlog.FailureOnly(t),
+		log: utils.NewLoggerForTests(),
 		localAccessPoint: mockAccessPoint{
 			ca: ca,
 		},
@@ -156,6 +156,6 @@ type mockAccessPoint struct {
 	ca types.CertAuthority
 }
 
-func (ap mockAccessPoint) GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	return ap.ca, nil
 }

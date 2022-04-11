@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -39,8 +39,6 @@ import (
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
-	"golang.org/x/oauth2/google"
-	"golang.org/x/oauth2/jwt"
 )
 
 func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
@@ -140,10 +138,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Type: events.OIDCConnectorCreatedEvent,
 			Code: events.OIDCConnectorCreatedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
@@ -164,10 +159,7 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 			Type: events.OIDCConnectorDeletedEvent,
 			Code: events.OIDCConnectorDeletedCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},
@@ -373,7 +365,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
@@ -397,7 +389,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 		re.auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(types.CertAuthID{
+		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)
@@ -601,8 +593,18 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, trace.AccessDenied("bad status code: %v", resp.StatusCode)
+	code := resp.StatusCode
+	if code < 200 || code > 299 {
+		// These are expected userinfo failures.
+		if code == http.StatusBadRequest || code == http.StatusUnauthorized ||
+			code == http.StatusForbidden || code == http.StatusMethodNotAllowed {
+			return nil, trace.AccessDenied("bad status code: %v", code)
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, trace.ReadError(code, body)
 	}
 
 	var claims jose.Claims
@@ -612,146 +614,6 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	}
 
 	return claims, nil
-}
-
-func (a *Server) claimsFromGSuite(config *jwt.Config, issuerURL string, userEmail string, domain string) (jose.Claims, error) {
-	client, err := a.newGsuiteClient(config, issuerURL, userEmail, domain)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return client.fetchGroups()
-}
-
-func (a *Server) newGsuiteClient(config *jwt.Config, issuerURL string, userEmail string, domain string) (*gsuiteClient, error) {
-	err := isHTTPS(issuerURL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	u, err := url.Parse(teleport.GSuiteGroupsEndpoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &gsuiteClient{
-		domain:    domain,
-		client:    config.Client(a.closeCtx),
-		url:       *u,
-		userEmail: userEmail,
-		config:    config,
-		emitter:   a.emitter,
-		ctx:       a.closeCtx,
-	}, nil
-}
-
-type gsuiteClient struct {
-	client    *http.Client
-	url       url.URL
-	userEmail string
-	domain    string
-	config    *jwt.Config
-	emitter   apievents.Emitter
-	ctx       context.Context
-}
-
-// fetchGroups fetches GSuite groups a user belongs to and returns
-// "groups" claim with
-func (g *gsuiteClient) fetchGroups() (jose.Claims, error) {
-	count := 0
-	var groups []string
-	var nextPageToken string
-collect:
-	for {
-		if count > MaxPages {
-			warningMessage := "Truncating list of teams used to populate claims: " +
-				"hit maximum number pages that can be fetched from Google Workspace."
-
-			// Print warning to Teleport logs as well as the Audit Log.
-			log.Warnf(warningMessage)
-			if err := g.emitter.EmitAuditEvent(g.ctx, &apievents.UserLogin{
-				Metadata: apievents.Metadata{
-					Type: events.UserLoginEvent,
-					Code: events.UserSSOLoginFailureCode,
-				},
-				Method: events.LoginMethodOIDC,
-				Status: apievents.Status{
-					Success: false,
-					Error:   warningMessage,
-				},
-			}); err != nil {
-				log.WithError(err).Warnf("Failed to emit OIDC login failure event.")
-			}
-			break collect
-		}
-		response, err := g.fetchGroupsPage(nextPageToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		groups = append(groups, response.groups()...)
-		if response.NextPageToken == "" {
-			break collect
-		}
-		count++
-		nextPageToken = response.NextPageToken
-	}
-	return jose.Claims{"groups": groups}, nil
-}
-
-func (g *gsuiteClient) fetchGroupsPage(pageToken string) (*gsuiteGroups, error) {
-	// copy URL to avoid modifying the same url
-	// with query parameters
-	u := g.url
-	q := u.Query()
-	q.Set("userKey", g.userEmail)
-	q.Set("domain", g.domain)
-	if pageToken != "" {
-		q.Set("pageToken", pageToken)
-	}
-	u.RawQuery = q.Encode()
-	endpoint := u.String()
-
-	log.Debugf("Fetching OIDC claims from Google Workspace groups endpoint: %q.", endpoint)
-
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := g.client.Do(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer resp.Body.Close()
-
-	bytes, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, trace.AccessDenied("bad status code: %v %v", resp.StatusCode, string(bytes))
-	}
-	var response gsuiteGroups
-	if err := json.Unmarshal(bytes, &response); err != nil {
-		return nil, trace.BadParameter("failed to parse response: %v", err)
-	}
-	return &response, nil
-}
-
-type gsuiteGroups struct {
-	NextPageToken string        `json:"nextPageToken"`
-	Groups        []gsuiteGroup `json:"groups"`
-}
-
-func (g gsuiteGroups) groups() []string {
-	groups := make([]string, len(g.Groups))
-	for i, group := range g.Groups {
-		groups[i] = group.Email
-	}
-	return groups
-}
-
-type gsuiteGroup struct {
-	Email string `json:"email"`
 }
 
 // mergeClaims merges b into a.
@@ -798,6 +660,11 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 			log.Debugf("OIDC provider doesn't offer valid UserInfo endpoint. Returning token claims: %v.", idTokenClaims)
 			return idTokenClaims, nil
 		}
+		// This captures 400, 401, 403, and 405.
+		if trace.IsAccessDenied(err) {
+			log.Debugf("UserInfo endpoint returned an error: %v. Returning token claims: %v.", err, idTokenClaims)
+			return idTokenClaims, nil
+		}
 		log.Debugf("Unable to fetch UserInfo claims: %v.", err)
 		return nil, trace.Wrap(err, "unable to fetch UserInfo claims")
 	}
@@ -828,75 +695,10 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 		return nil, trace.Wrap(err, "unable to merge OIDC claims")
 	}
 
-	// For Google Workspace users, fetch extra data from the proprietary Google groups API.
-	//
-	// If google_service_account_uri and google_service_account are not set, we
-	// assume that this is a non-GWorkspace OIDC provider using the same
-	// issuer URL as Google Workspace (e.g.
-	// https://developers.google.com/identity/protocols/oauth2/openid-connect).
-	if connector.GetIssuerURL() == teleport.GSuiteIssuerURL && (connector.GetGoogleServiceAccountURI() != "" || connector.GetGoogleServiceAccount() != "") {
-		email, _, err := claims.StringClaim("email")
+	if isGoogleWorkspaceConnector(connector) {
+		claims, err = addGoogleWorkspaceClaims(a.closeCtx, connector, claims)
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-		var jsonCredentials []byte
-		var credentialLoadingMethod string
-		if connector.GetGoogleServiceAccountURI() != "" {
-			// load the google service account from URI
-			credentialLoadingMethod = "google_service_account_uri"
-
-			uri, err := utils.ParseSessionsURI(connector.GetGoogleServiceAccountURI())
-			if err != nil {
-				return nil, trace.BadParameter("failed to parse google_service_account_uri: %v", err)
-			}
-			jsonCredentials, err = ioutil.ReadFile(uri.Path)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else if connector.GetGoogleServiceAccount() != "" {
-			// load the google service account from string
-			credentialLoadingMethod = "google_service_account"
-			jsonCredentials = []byte(connector.GetGoogleServiceAccount())
-		}
-
-		config, err := google.JWTConfigFromJSON(jsonCredentials, teleport.GSuiteGroupsScope)
-		if err != nil {
-			return nil, trace.BadParameter("unable to parse google service account from %v: %v", credentialLoadingMethod, err)
-		}
-
-		impersonateAdmin := connector.GetGoogleAdminEmail()
-		if impersonateAdmin == "" {
-			return nil, trace.NotFound(
-				"the google workspace connector requires google_admin_email user to impersonate, as service accounts can not be used directly https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority")
-		}
-
-		// User should impersonate admin user, otherwise it won't work:
-		//
-		// https://developers.google.com/admin-sdk/directory/v1/guides/delegation
-		//
-		// "Note: Only users with access to the Admin APIs can access the Admin SDK Directory API, therefore your service account needs to impersonate one of those users to access the Admin SDK Directory API. Additionally, the user must have logged in at least once and accepted the G Suite Terms of Service."
-		//
-		domain, exists, err := userInfoClaims.StringClaim(teleport.GSuiteDomainClaim)
-		if err != nil || !exists {
-			return nil, trace.BadParameter("hd is the required claim for Google Workspace")
-		}
-		config.Subject = impersonateAdmin
-
-		gsuiteClaims, err := a.claimsFromGSuite(config, connector.GetIssuerURL(), email, domain)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			log.Debugf("Found no Google Workspace claims.")
-		} else {
-			if gsuiteClaims != nil {
-				log.Debugf("Got gsuiteClaims claims from Google Workspace: %v.", gsuiteClaims)
-			}
-			claims, err = mergeClaims(claims, gsuiteClaims)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 		}
 	}
 

@@ -269,6 +269,11 @@ teleport:
   ca_pin: CA_PIN_HASH_PLACEHOLDER
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
+  cache:
+    type: in-memory
+  connection_limits:
+    max_connections: 65000
+    max_users: 10000
   log:
     output: stderr
     severity: INFO

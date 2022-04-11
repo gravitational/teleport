@@ -20,7 +20,7 @@ package profile
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
+	"io/fs"
 	"net"
 	"os"
 	"os/user"
@@ -65,6 +65,9 @@ type Profile struct {
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string `yaml:"mysql_proxy_addr,omitempty"`
 
+	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
+	MongoProxyAddr string `yaml:"mongo_proxy_addr,omitempty"`
+
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
 
@@ -106,14 +109,9 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.TLSCAsPath())
+	pool, err := certPoolFromProfile(p)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(caCerts) {
-		return nil, trace.BadParameter("invalid CA cert PEM")
 	}
 
 	return &tls.Config{
@@ -122,25 +120,76 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 	}, nil
 }
 
-// SSHClientConfig returns the profile's associated SSHClientConfig.
-func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
-	cert, err := ioutil.ReadFile(p.SSHCertPath())
-	if err != nil {
-		// Try reading SSHCert from old cert path, return original error otherwise
-		// DELETE IN 8.0.0
-		var err2 error
-		cert, err2 = ioutil.ReadFile(p.OldSSHCertPath())
-		if err2 != nil {
+func certPoolFromProfile(p *Profile) (*x509.CertPool, error) {
+	// Check if CAS dir exist if not try to load certs from legacy certs.pem file.
+	if _, err := os.Stat(p.TLSClusterCASDir()); err != nil {
+		if !os.IsNotExist(err) {
 			return nil, trace.Wrap(err)
 		}
+		pool, err := certPoolFromLegacyCAFile(p)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return pool, nil
 	}
 
-	key, err := ioutil.ReadFile(p.UserKeyPath())
+	// Load CertPool from CAS directory.
+	pool, err := certPoolFromCASDir(p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pool, nil
+}
+
+func certPoolFromCASDir(p *Profile) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	err := filepath.Walk(p.TLSClusterCASDir(), func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if info.IsDir() {
+			return nil
+		}
+		cert, err := os.ReadFile(path)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		if !pool.AppendCertsFromPEM(cert) {
+			return trace.BadParameter("invalid CA cert PEM %s", path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pool, nil
+}
+
+func certPoolFromLegacyCAFile(p *Profile) (*x509.CertPool, error) {
+	caCerts, err := os.ReadFile(p.TLSCAsPath())
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caCerts) {
+		return nil, trace.BadParameter("invalid CA cert PEM")
+	}
+	return pool, nil
+}
+
+// SSHClientConfig returns the profile's associated SSHClientConfig.
+func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
+	cert, err := os.ReadFile(p.SSHCertPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	caCerts, err := ioutil.ReadFile(p.KnownHostsPath())
+	key, err := os.ReadFile(p.UserKeyPath())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	caCerts, err := os.ReadFile(p.KnownHostsPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -159,9 +208,19 @@ func SetCurrentProfileName(dir string, name string) error {
 	}
 
 	path := filepath.Join(dir, currentProfileFilename)
-	if err := ioutil.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
+	if err := os.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// RemoveProfile removes cluster profile file
+func RemoveProfile(dir, name string) error {
+	profilePath := filepath.Join(dir, name+".yaml")
+	if err := os.Remove(profilePath); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
 	return nil
 }
 
@@ -171,7 +230,7 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 		return "", trace.BadParameter("cannot get current profile: missing dir")
 	}
 
-	data, err := ioutil.ReadFile(filepath.Join(dir, currentProfileFilename))
+	data, err := os.ReadFile(filepath.Join(dir, currentProfileFilename))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", trace.NotFound("current-profile is not set")
@@ -190,7 +249,7 @@ func ListProfileNames(dir string) ([]string, error) {
 	if dir == "" {
 		return nil, trace.BadParameter("cannot list profiles: missing dir")
 	}
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -200,7 +259,8 @@ func ListProfileNames(dir string) ([]string, error) {
 		if file.IsDir() {
 			continue
 		}
-		if file.Mode()&os.ModeSymlink != 0 {
+
+		if file.Type()&os.ModeSymlink != 0 {
 			continue
 		}
 		if !strings.HasSuffix(file.Name(), ".yaml") {
@@ -251,7 +311,7 @@ func FromDir(dir string, name string) (*Profile, error) {
 
 // profileFromFile loads the profile from a YAML file.
 func profileFromFile(filePath string) (*Profile, error) {
-	bytes, err := ioutil.ReadFile(filePath)
+	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -291,7 +351,7 @@ func (p *Profile) saveToFile(filepath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = ioutil.WriteFile(filepath, bytes, 0660); err != nil {
+	if err = os.WriteFile(filepath, bytes, 0660); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -317,7 +377,22 @@ func (p *Profile) TLSCertPath() string {
 	return keypaths.TLSCertPath(p.Dir, p.Name(), p.Username)
 }
 
-// TLSCAsPath returns the path to the profile's TLS certificate authorities.
+// TLSCAsLegacyPath returns the path to the profile's TLS certificate authorities.
+func (p *Profile) TLSCAsLegacyPath() string {
+	return keypaths.TLSCAsPath(p.Dir, p.Name())
+}
+
+// TLSCAPathCluster returns CA for particular cluster.
+func (p *Profile) TLSCAPathCluster(cluster string) string {
+	return keypaths.TLSCAsPathCluster(p.Dir, p.Name(), cluster)
+}
+
+// TLSClusterCASDir returns CAS directory where cluster CAs are stored.
+func (p *Profile) TLSClusterCASDir() string {
+	return keypaths.CAsDir(p.Dir, p.Name())
+}
+
+// TLSCAsPath returns the legacy path to the profile's TLS certificate authorities.
 func (p *Profile) TLSCAsPath() string {
 	return keypaths.TLSCAsPath(p.Dir, p.Name())
 }
@@ -332,13 +407,14 @@ func (p *Profile) SSHCertPath() string {
 	return keypaths.SSHCertPath(p.Dir, p.Name(), p.Username, p.SiteName)
 }
 
-// OldSSHCertPath returns the old (before v6.1) path to the profile's ssh certificate.
-// DELETE IN 8.0.0
-func (p *Profile) OldSSHCertPath() string {
-	return keypaths.OldSSHCertPath(p.Dir, p.Name(), p.Username)
-}
-
 // KnownHostsPath returns the path to the profile's ssh certificate authorities.
 func (p *Profile) KnownHostsPath() string {
 	return keypaths.KnownHostsPath(p.Dir)
+}
+
+// AppCertPath returns the path to the profile's certificate for a given
+// application. Note that this function merely constructs the path - there
+// is no guarantee that there is an actual certificate at that location.
+func (p *Profile) AppCertPath(appName string) string {
+	return keypaths.AppCertPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
 }

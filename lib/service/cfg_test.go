@@ -229,7 +229,9 @@ func TestCheckDatabase(t *testing.T) {
 				Name:     "example",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-				CACert:   []byte("cert"),
+				TLS: DatabaseTLS{
+					CACert: []byte("cert"),
+				},
 			},
 			outErr: true,
 		},
@@ -243,7 +245,9 @@ func TestCheckDatabase(t *testing.T) {
 					ProjectID:  "project-1",
 					InstanceID: "instance-1",
 				},
-				CACert: fixtures.LocalhostCert,
+				TLS: DatabaseTLS{
+					CACert: fixtures.LocalhostCert,
+				},
 			},
 			outErr: false,
 		},
@@ -256,7 +260,9 @@ func TestCheckDatabase(t *testing.T) {
 				GCP: DatabaseGCP{
 					ProjectID: "project-1",
 				},
-				CACert: fixtures.LocalhostCert,
+				TLS: DatabaseTLS{
+					CACert: fixtures.LocalhostCert,
+				},
 			},
 			outErr: true,
 		},
@@ -269,7 +275,9 @@ func TestCheckDatabase(t *testing.T) {
 				GCP: DatabaseGCP{
 					InstanceID: "instance-1",
 				},
-				CACert: fixtures.LocalhostCert,
+				TLS: DatabaseTLS{
+					CACert: fixtures.LocalhostCert,
+				},
 			},
 			outErr: true,
 		},
@@ -281,6 +289,59 @@ func TestCheckDatabase(t *testing.T) {
 				URI:      "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
 			},
 			outErr: false,
+		},
+		{
+			desc: "SQL Server correct configuration",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Domain:     "test-domain",
+					SPN:        "test-spn",
+				},
+			},
+			outErr: false,
+		},
+		{
+			desc: "SQL Server missing keytab",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain: "test-domain",
+					SPN:    "test-spn",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing AD domain",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					SPN:        "test-spn",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing SPN",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Domain:     "test-domain",
+				},
+			},
+			outErr: true,
 		},
 	}
 	for _, test := range tests {

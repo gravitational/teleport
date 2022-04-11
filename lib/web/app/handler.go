@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -140,23 +141,34 @@ func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session 
 	return nil
 }
 
+// handleForwardError when the forwarder has an error during the `ServeHTTP` it
+// will call this function. This handler will then renew the session in order
+// to get "fresh" app servers, and then will forwad the request to the newly
+// created session.
+func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, err error) {
+	// if it is not an agent connection problem, return without creating a new
+	// session.
+	if !trace.IsConnectionProblem(err) {
+		oxyutils.DefaultHandler.ServeHTTP(w, req, err)
+		return
+	}
+
+	session, err := h.renewSession(req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
+		return
+	}
+
+	session.fwd.ServeHTTP(w, req)
+}
+
 // authenticate will check if request carries a session cookie matching a
 // session in the backend.
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
-	sessionID, err := h.extractSessionID(r)
+	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.log.Warnf("Failed to extract session id: %v.", err)
-		return nil, trace.AccessDenied("invalid session")
-	}
-
-	// Check that the session exists in the backend cache. This allows the user
-	// to logout and invalidate their application session immediately. This
-	// lookup should also be fast because it's in the local cache.
-	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
-		SessionID: sessionID,
-	})
-	if err != nil {
-		h.log.Debugf("Failed to fetch application session: not found.")
+		h.log.Warnf("Failed to fetch application session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -169,6 +181,47 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	}
 
 	return session, nil
+}
+
+// renewSession based on the request removes the session from cache (if present)
+// and generates a new one using the `getSession` flow (same as in
+// `authenticate`).
+func (h *Handler) renewSession(r *http.Request) (*session, error) {
+	ws, err := h.getAppSession(r)
+	if err != nil {
+		h.log.Debugf("Failed to fetch application session: not found.")
+		return nil, trace.AccessDenied("invalid session")
+	}
+
+	// Remove the session from the cache, this will force a new session to be
+	// generated and cached.
+	h.cache.remove(ws.GetName())
+
+	// Fetches a new session using the same flow as `authenticate`.
+	session, err := h.getSession(r.Context(), ws)
+	if err != nil {
+		h.log.Warnf("Failed to get session: %v.", err)
+		return nil, trace.AccessDenied("invalid session")
+	}
+
+	return session, nil
+}
+
+// getAppSession retrieves the `types.WebSession` using the provided
+// `http.Request`.
+func (h *Handler) getAppSession(r *http.Request) (types.WebSession, error) {
+	sessionID, err := h.extractSessionID(r)
+	if err != nil {
+		h.log.Warnf("Failed to extract session id: %v.", err)
+		return nil, trace.AccessDenied("invalid session")
+	}
+
+	// Check that the session exists in the backend cache. This allows the user
+	// to logout and invalidate their application session immediately. This
+	// lookup should also be fast because it's in the local cache.
+	return h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
+		SessionID: sessionID,
+	})
 }
 
 // extractSessionID extracts application access session ID from either the

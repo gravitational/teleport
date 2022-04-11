@@ -26,6 +26,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 )
@@ -39,17 +40,10 @@ type Getter interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
-// Match will match an application with the passed in matcher function. Matcher
-// functions that can match on public address and name are available.
-//
-// Note that in the situation multiple applications match, a random selection
-// is returned. This is done on purpose to support HA to allow multiple
-// application proxy nodes to be run and if one is down, at least the
-// application can be accessible on the other.
-//
-// In the future this function should be updated to keep state on application
-// servers that are down and to not route requests to that server.
-func Match(ctx context.Context, authClient Getter, fn Matcher) (types.AppServer, error) {
+// Match will match a list of applications with the passed in matcher function. Matcher
+// functions that can match on public address and name are available. The
+// resulting list is shuffled before it is returned.
+func Match(ctx context.Context, authClient Getter, fn Matcher) ([]types.AppServer, error) {
 	servers, err := authClient.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -57,33 +51,55 @@ func Match(ctx context.Context, authClient Getter, fn Matcher) (types.AppServer,
 
 	var as []types.AppServer
 	for _, server := range servers {
-		if fn(server.GetApp()) {
+		if fn(server) {
 			as = append(as, server)
 		}
 	}
 
-	if len(as) == 0 {
-		return nil, trace.NotFound("failed to match application")
-	}
+	rand.Shuffle(len(as), func(i, j int) {
+		as[i], as[j] = as[j], as[i]
+	})
 
-	index := rand.Intn(len(as))
-	return as[index], nil
+	return as, nil
 }
 
 // Matcher allows matching on different properties of an application.
-type Matcher func(types.Application) bool
+type Matcher func(types.AppServer) bool
 
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
-	return func(app types.Application) bool {
-		return app.GetPublicAddr() == publicAddr
+	return func(appServer types.AppServer) bool {
+		return appServer.GetApp().GetPublicAddr() == publicAddr
 	}
 }
 
 // MatchName matches on the name of an application.
 func MatchName(name string) Matcher {
-	return func(app types.Application) bool {
-		return app.GetName() == name
+	return func(appServer types.AppServer) bool {
+		return appServer.GetApp().GetName() == name
+	}
+}
+
+// MatchHealthy tries to establish a connection with the server using the
+// `dialAppServer` function. The app server is matched if the function call
+// doesn't return any error.
+func MatchHealthy(proxyClient reversetunnel.Tunnel, identity *tlsca.Identity) Matcher {
+	return func(appServer types.AppServer) bool {
+		_, err := dialAppServer(proxyClient, identity, appServer)
+		return err == nil
+	}
+}
+
+// MatchAll matches if all the Matcher functions return true.
+func MatchAll(matchers ...Matcher) Matcher {
+	return func(appServer types.AppServer) bool {
+		for _, fn := range matchers {
+			if !fn(appServer) {
+				return false
+			}
+		}
+
+		return true
 	}
 }
 
@@ -97,13 +113,13 @@ func MatchName(name string) Matcher {
 // resolve an application.
 func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
 	// Try and match FQDN to public address of application within cluster.
-	server, err := Match(ctx, clt, MatchPublicAddr(fqdn))
-	if err == nil {
+	servers, err := Match(ctx, clt, MatchPublicAddr(fqdn))
+	if err == nil && len(servers) > 0 {
 		clusterName, err := clt.GetClusterName()
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		return server, clusterName.GetClusterName(), nil
+		return servers[0], clusterName.GetClusterName(), nil
 	}
 
 	// Extract the first subdomain from the FQDN and attempt to use this as the
@@ -130,9 +146,9 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, p
 			return nil, "", trace.Wrap(err)
 		}
 
-		server, err = Match(ctx, authClient, MatchName(appName))
-		if err == nil {
-			return server, clusterClient.GetName(), nil
+		servers, err = Match(ctx, authClient, MatchName(appName))
+		if err == nil && len(servers) > 0 {
+			return servers[0], clusterClient.GetName(), nil
 		}
 	}
 

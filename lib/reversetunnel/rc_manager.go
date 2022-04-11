@@ -45,7 +45,7 @@ type RemoteClusterTunnelManager struct {
 	pools   map[remoteClusterKey]*AgentPool
 	stopRun func()
 
-	newAgentPool func(ctx context.Context, cluster, addr string) (*AgentPool, error)
+	newAgentPool func(ctx context.Context, cfg RemoteClusterTunnelManagerConfig, cluster, addr string) (*AgentPool, error)
 }
 
 type remoteClusterKey struct {
@@ -76,6 +76,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	KubeDialAddr utils.NetAddr
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
+	// Log is the logger
+	Log logrus.FieldLogger
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -97,21 +99,24 @@ func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
+	if c.Log == nil {
+		c.Log = logrus.New()
+	}
 
 	return nil
 }
 
-// NewRemoteClusterTunnelManager creates a new unstarted tunnel manager with
+// NewRemoteClusterTunnelManager creates a new stopped tunnel manager with
 // the provided config. Call Run() to start the manager.
 func NewRemoteClusterTunnelManager(cfg RemoteClusterTunnelManagerConfig) (*RemoteClusterTunnelManager, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	w := &RemoteClusterTunnelManager{
-		cfg:   cfg,
-		pools: make(map[remoteClusterKey]*AgentPool),
+		cfg:          cfg,
+		pools:        make(map[remoteClusterKey]*AgentPool),
+		newAgentPool: realNewAgentPool,
 	}
-	w.newAgentPool = w.realNewAgentPool
 	return w, nil
 }
 
@@ -138,7 +143,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	w.mu.Unlock()
 
 	if err := w.Sync(ctx); err != nil {
-		logrus.Warningf("Failed to sync reverse tunnels: %v.", err)
+		w.cfg.Log.Warningf("Failed to sync reverse tunnels: %v.", err)
 	}
 
 	ticker := time.NewTicker(defaults.ResyncInterval)
@@ -147,11 +152,11 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logrus.Debugf("Closing.")
+			w.cfg.Log.Debugf("Closing.")
 			return
 		case <-ticker.C:
 			if err := w.Sync(ctx); err != nil {
-				logrus.Warningf("Failed to sync reverse tunnels: %v.", err)
+				w.cfg.Log.Warningf("Failed to sync reverse tunnels: %v.", err)
 				continue
 			}
 		}
@@ -193,7 +198,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 
-		pool, err := w.newAgentPool(ctx, k.cluster, k.addr)
+		pool, err := w.newAgentPool(ctx, w.cfg, k.cluster, k.addr)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
@@ -203,29 +208,32 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	return trace.NewAggregate(errs...)
 }
 
-func (w *RemoteClusterTunnelManager) realNewAgentPool(ctx context.Context, cluster, addr string) (*AgentPool, error) {
+func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig, cluster, addr string) (*AgentPool, error) {
 	pool, err := NewAgentPool(ctx, AgentPoolConfig{
 		// Configs for our cluster.
-		Client:              w.cfg.AuthClient,
-		AccessPoint:         w.cfg.AccessPoint,
-		HostSigner:          w.cfg.HostSigner,
-		HostUUID:            w.cfg.HostUUID,
-		LocalCluster:        w.cfg.LocalCluster,
-		Clock:               w.cfg.Clock,
-		KubeDialAddr:        w.cfg.KubeDialAddr,
-		ReverseTunnelServer: w.cfg.ReverseTunnelServer,
-		FIPS:                w.cfg.FIPS,
+		Client:              cfg.AuthClient,
+		AccessPoint:         cfg.AccessPoint,
+		HostSigner:          cfg.HostSigner,
+		HostUUID:            cfg.HostUUID,
+		LocalCluster:        cfg.LocalCluster,
+		Clock:               cfg.Clock,
+		KubeDialAddr:        cfg.KubeDialAddr,
+		ReverseTunnelServer: cfg.ReverseTunnelServer,
+		FIPS:                cfg.FIPS,
 		// RemoteClusterManager only runs on proxies.
 		Component: teleport.ComponentProxy,
 
 		// Configs for remote cluster.
-		Cluster:   cluster,
-		ProxyAddr: addr,
+		Cluster:  cluster,
+		Resolver: StaticResolver(addr),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)
 	}
-	go pool.Start()
+
+	if err := pool.Start(); err != nil {
+		cfg.Log.WithError(err).Error("Failed to start agent pool")
+	}
 
 	return pool, nil
 }

@@ -25,28 +25,70 @@ matching the lock's target.
 
 A lock can target the following objects or attributes:
 
-- a Teleport user by the user's name,
-- a Teleport [RBAC](../reference.mdx) role by the role's name,
-- an MFA device by the device's UUID,
-- an OS/UNIX login,
+- a Teleport user by the user's name
+- a Teleport [RBAC](../reference.mdx) role by the role's name
+- an MFA device by the device's UUID
+- an OS/UNIX login
 - a Teleport node by the node's UUID (effectively unregistering it from the
-  cluster).
+  cluster)
+- a Windows desktop by the desktop's name
+- an [access request](../../enterprise/workflow/index.mdx) by UUID
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) >= (=teleport.version=) or [Teleport Cloud](../../cloud/introduction.mdx).
-- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=).
+- Installed [Teleport](../getting-started.mdx) >= (=teleport.version=) or [Teleport Cloud](../../cloud/introduction.mdx)
+- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
 
 (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Create a lock
 
-To create a new lock, one can run the `tctl lock` command:
+You can create a new lock with `tctl lock` command. Specify the lock target
+with one of the following options:
 
-```code
-$ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h
-# Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
-```
+<Tabs>
+  <TabItem label="Username">
+  ```code
+  $ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Role">
+  All users with assigned roles matching the target role will be locked.
+  ```code
+  $ tctl lock --role=contractor --message="All contractor access is disabled for 10h." --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Multi-factor device">
+  All connections initated with per-session MFA matching the device ID will be locked.
+  ```code
+  $ tctl lock --mfa-device=d6c06a18-e147-4232-9dfe-6f83a28d5850 --message="All contractor access is disabled for 10h." --ttl=10h
+  # Created a lock with name "d6c06a18-e147-4232-9dfe-6f83a28d5850".
+  ```
+  </TabItem>
+  <TabItem label="Node">
+  All connections to the specified node will be locked.
+  ```code
+  $ tctl lock --node=363256df-f78a-4d99-803c-bae19da9ede4 --message="The node is under investigation." --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Windows Desktop">
+  All connections to the specified Windows Desktop will be locked.
+  ```code
+  $ tctl lock --windows-desktop=WIN-FMPFM5UF1SS-teleport-example-com --ttl=10h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Access request">
+  All connections using elevated privileges from the matching access request will be locked.
+  ```code
+  $ tctl lock --access-request=261e80c5-357b-4c43-9b67-40a6bc4c6e4d --ttl=24h
+  # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+</Tabs>
 
 <Details
   title="Troubleshooting: failed to create a lock?"
@@ -64,7 +106,7 @@ Create a role `locksmith`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: locksmith
 spec:
@@ -75,7 +117,7 @@ spec:
 ```
 
 ```code
-$ tctl create -f locksmith.yaml 
+$ tctl create -f locksmith.yaml
 # role 'locksmith' has been created
 ```
 
@@ -146,8 +188,8 @@ If a Teleport node or proxy cannot properly synchronize its local lock view
 with the backend, there is a decision to be made about whether to rely on the
 last known locks. This decision strategy is encoded as one of the two modes:
 - `strict` mode causes all interactions to be terminated when the locks are not
-  guaranteed to be up to date;
-- `best_effort` mode keeps relying on the most recent locks.
+  guaranteed to be up to date
+- `best_effort` mode keeps relying on the most recent locks
 
 The cluster-wide mode defaults to `best_effort`.
 You can set up default locking mode via API or CLI using resource `cluster_auth_preference`
@@ -156,7 +198,7 @@ or static configuration file:
 <Tabs>
   <TabItem label="API or CLI">
     Create a YAML file `cap.yaml` or get the existing file using `tctl get cap`
-    
+
     ```yaml
     kind: cluster_auth_preference
     metadata:
@@ -165,9 +207,9 @@ or static configuration file:
       locking_mode: best_effort
     version: v2
     ```
-    
+
     Create a resource:
-    
+
     ```code
     $ tctl create -f cap.yaml
     # cluster auth preference has been updated
@@ -190,7 +232,7 @@ It is also possible to configure the locking mode for a particular role:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
     name: example-role-with-strict-locking
 spec:
@@ -204,4 +246,3 @@ there is no user involved, the mode is taken from the cluster-wide setting.
 With multiple potentially conflicting locking modes (the cluster-wide default
 and the individual per-role settings) a single occurrence of `strict` suffices
 for the local lock view to become evaluated strictly.
-

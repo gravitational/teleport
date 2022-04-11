@@ -1,0 +1,24 @@
+---
+title: Desktop Access CLI Reference
+description: CLI reference for Teleport Desktop Access.
+---
+
+# Desktop Access CLI Reference
+
+Generate a join token for a Windows Desktop Service:
+
+```sh
+$ tctl nodes add --roles=WindowsDesktop
+```
+
+List registered Windows Desktop Services:
+
+```sh
+$ tctl get windows_desktop_service
+```
+
+List registered Windows desktops:
+
+```sh
+$ tctl get windows_desktop
+```

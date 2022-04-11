@@ -7,6 +7,13 @@ h1: Running Teleport Enterprise in High Availability mode on AWS
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
 and describe how to use and administrate the resulting Teleport deployment.
 
+<Details scope={["cloud"]} scopeOnly={true} opened={true} title="Teleport Cloud">
+Our reference Terraform code deploys self-hosted instances of the Teleport Auth Service and Proxy Service. Since Teleport Cloud manages these services for you, users interested in Terraform should consult the following guides instead of this one:
+
+- To get started with Teleport and Terraform: [Terraform Provider](../guides/terraform-provider.mdx)
+- For a full reference: [Terraform Provider Resources](../reference/terraform-provider.mdx)
+</Details>
+
 ## Prerequisites
 
 Our code requires Terraform 0.12+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
@@ -467,7 +474,7 @@ $ ssh -i ${TF_VAR_key_name}.pem -o ProxyCommand="ssh -i ${TF_VAR_key_name}.pem -
 
 ```code
 # From EC2 host
-$ sudo tctl users add teleport-admin --roles=admin
+$ sudo tctl users add teleport-admin --roles=editor,access --logins=root
 # Signup token has been created and is valid for 1 hours. Share this URL with the user:
 # https://teleport.example.com:443/web/newuser/6489ae886babf4232826076279bcb2fb
 
@@ -497,7 +504,7 @@ $ tsh login --proxy=${TF_VAR_route53_domain} --user=teleport-admin
 # > Profile URL:  https://teleport.example.com:443
 #  Logged in as: teleport-admin
 #  Cluster:      example-cluster
-#  Roles:        admin*
+#  Roles:        editor,access
 #  Logins:       root
 #  Valid until:  2020-03-06 22:07:11 -0400 AST [valid for 12h0m0s]
 #  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
@@ -714,7 +721,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 You can use this command to get the CA pin hash for your Teleport cluster:
 
 ```code
-$ aws ssm get-parameter --name "/teleport/${TF_VAR_cluster_name}/ca-pin-hash" --query "Parameter.Value" --output text
+$ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_cluster_name}/ca-pin-hash" --query "Parameter.Value" --output text
 # sha256:d021ef54aaf8633c4e15c5cc59479fb2f19b1bbc5432bb95213ee047000689dd
 ```
 
@@ -725,11 +732,9 @@ You should use this so that nodes can validate the auth server's identity when j
 You can use this command to get a join token for your Teleport cluster:
 
 ```code
-$ aws ssm get-parameter --name "/teleport/${TF_VAR_cluster_name}/tokens/node" --query "Parameter.Value" --output text
-# AQICAzgLq8feq4riNouuw8Wxs5EEPlS2qKIVE5Z/qEo1i6mqfwGX3dW56SdoS6PinTWbZL1RAAAAgzCBgAYJKoZIhvcNAQcGoHMwcQIBADBsBgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDNdu5TxaT8gyJx63eAIBEIA/JEpX2Vte90UmufIzZzvBQcQaKgWr95aN9xZYMEjWbAiNitxkvZgb98FgFn8d9GNwKQgDGfUYDbzsX8EqTtx7
+$ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_cluster_name}/tokens/node" --query "Parameter.Value" --with-decryption --output text
+# 992a9725-0a64-428d-8e5e-308e6877743d
 ```
-
-You should use this so that nodes can validate the auth server's identity when joining your cluster.
 
 You can also generate a node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../admin/adding-nodes.mdx#adding-nodes-to-the-cluster).
 
@@ -753,7 +758,7 @@ auth_servers:
 ### Joining nodes via Teleport IoT/node tunneling
 
 To join Teleport nodes from outside the same VPC, you will either need to investigate VPC peering/gateways (out of scope
-for this document) or join your nodes using [Teleport's node tunneling](../admin/adding-nodes.mdx#adding-a-node-located-behind-nat) functionality.
+for this document) or join your nodes using [Teleport's node tunneling](../admin/adding-nodes.mdx) functionality.
 
 With this method, you can join the nodes using the public facing proxy address - `teleport.example.com:443` for our
 example.

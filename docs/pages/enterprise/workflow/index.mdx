@@ -1,6 +1,6 @@
 ---
-title: Access Requests for SSH and Kubernetes Access
-description: How to customize SSH and Kubernetes access using Teleport.
+title: Access Requests for Infrastructure Access
+description: Teleport allows users to request new roles with elevated privileges from the CLI or UI. Requests can be escalated via ChatOps or anywhere else via our flexible Authorization Workflow API.
 h1: Teleport Access Requests
 ---
 
@@ -24,7 +24,7 @@ This role allows the contractor to request the role DBA.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: contractor
 spec:
@@ -43,7 +43,7 @@ This role allows the contractor to request the role DBA.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: dba
 spec:
@@ -62,7 +62,7 @@ This role allows the admin to approve the contractor's request.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: admin
 spec:
@@ -131,7 +131,7 @@ the permission of the `dba`.
 # Example role that explicitly denies a contractor from requesting the admin
 # role.
 kind: role
-version: v4
+version: v5
 metadata:
 name: contractor
 spec:
@@ -196,7 +196,7 @@ spec:
     # the `request_prompt` field can be used to tell the user what should
     # be supplied in the request reason field.
     request_prompt: Please provide your ticket ID
-version: v3
+version: v5
 ```
 
 <Admonition
