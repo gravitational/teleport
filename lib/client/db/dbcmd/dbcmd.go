@@ -160,7 +160,7 @@ func (c *CliCommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
 }
 
-func (c *CliCommandBuilder) GetRelativeConnectCommand() (*exec.Cmd, error) {
+func (c *CliCommandBuilder) GetConnectCommandNoAbsPath() (*exec.Cmd, error) {
 	cmd, err := c.GetConnectCommand()
 
 	if err != nil {

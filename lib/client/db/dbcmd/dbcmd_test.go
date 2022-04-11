@@ -448,7 +448,7 @@ func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
 	}
 }
 
-func TestGetRelativeConnectCommandConvertsAbsolutePathToRelative(t *testing.T) {
+func TestGetConnectCommandNoAbsPathConvertsAbsolutePathToRelative(t *testing.T) {
 	conf := &client.Config{
 		HomePath:     t.TempDir(),
 		Host:         "localhost",
@@ -481,12 +481,12 @@ func TestGetRelativeConnectCommandConvertsAbsolutePathToRelative(t *testing.T) {
 	c.uid = utils.NewFakeUID()
 	c.exe = &fakeExec{commandPathBehavior: forceAbsolutePath}
 
-	got, err := c.GetRelativeConnectCommand()
+	got, err := c.GetConnectCommandNoAbsPath()
 	require.NoError(t, err)
 	require.Equal(t, "psql postgres://myUser@localhost:12345/mydb", got.String())
 }
 
-func TestGetRelativeConnectCommandIsNoopWhenGivenRelativePath(t *testing.T) {
+func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
 	conf := &client.Config{
 		HomePath:     t.TempDir(),
 		Host:         "localhost",
@@ -519,7 +519,7 @@ func TestGetRelativeConnectCommandIsNoopWhenGivenRelativePath(t *testing.T) {
 	c.uid = utils.NewFakeUID()
 	c.exe = &fakeExec{commandPathBehavior: forceBasePath}
 
-	got, err := c.GetRelativeConnectCommand()
+	got, err := c.GetConnectCommandNoAbsPath()
 	require.NoError(t, err)
 	require.Equal(t, "psql postgres://myUser@localhost:12345/mydb", got.String())
 }
