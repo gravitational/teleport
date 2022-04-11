@@ -100,41 +100,34 @@ func TestSessionTrackerImplicitExpiry(t *testing.T) {
 	srv, err := NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
-	_, err = srv.CreateSessionTracker(ctx, &proto.CreateSessionTrackerRequest{
+	req1 := proto.CreateSessionTrackerRequest{
 		Namespace:   defaults.Namespace,
 		ID:          id,
 		Type:        types.KindSSHSession,
 		Hostname:    "hostname",
 		ClusterName: "cluster",
-		Login:       "root",
+		Login:       "foo",
 		Initiator: &types.Participant{
 			ID:   uuid.New().String(),
 			User: "eve",
 			Mode: string(types.SessionPeerMode),
 		},
 		Expires: time.Now().UTC().Add(time.Second),
-	})
+	}
+
+	req2 := req1
+	req2.ID = id2
+	req2.Expires = time.Now().UTC().Add(24 * time.Hour)
+
+	_, err = srv.CreateSessionTracker(ctx, &req1)
 	require.NoError(t, err)
 
-	_, err = srv.CreateSessionTracker(ctx, &proto.CreateSessionTrackerRequest{
-		Namespace:   defaults.Namespace,
-		ID:          id2,
-		Type:        types.KindSSHSession,
-		Hostname:    "hostname",
-		ClusterName: "cluster",
-		Login:       "root",
-		Initiator: &types.Participant{
-			ID:   uuid.New().String(),
-			User: "eve",
-			Mode: string(types.SessionPeerMode),
-		},
-		Expires: time.Now().UTC().Add(24 * time.Hour),
-	})
+	_, err = srv.CreateSessionTracker(ctx, &req2)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		sessions, err := srv.GetActiveSessionTrackers(ctx)
 		require.NoError(t, err)
-		return len(sessions) == 1
+		return len(sessions) == 1 && sessions[0].GetSessionID() == id2
 	}, time.Minute, time.Second)
 }

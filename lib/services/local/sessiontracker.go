@@ -145,15 +145,17 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 		}
 	}
 
-	go func() {
-		for _, item := range noExpiry {
-			if err := s.bk.Delete(ctx, item.Key); err != nil {
-				if !trace.IsNotFound(err) {
-					logrus.WithError(err).Error("Failed to remove stale session tracker")
+	if len(noExpiry) > 0 {
+		go func() {
+			for _, item := range noExpiry {
+				if err := s.bk.Delete(ctx, item.Key); err != nil {
+					if !trace.IsNotFound(err) {
+						logrus.WithError(err).Error("Failed to remove stale session tracker")
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 
 	return sessions, nil
 }
