@@ -705,7 +705,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 	err = sess.trackerCreate(ctx.Identity.TeleportUser, policySets)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
-			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with a v8 auth server but requires v9.")
+			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
 		}
 
 		return nil, trace.Wrap(err)
