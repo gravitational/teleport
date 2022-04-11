@@ -117,7 +117,7 @@ func darwinTagPipeline() pipeline {
 		},
 		{
 			Name:     "Register artifacts",
-			Commands: tagCreateReleaseAssetCommands(b),
+			Commands: tagCreateReleaseAssetCommands(b, "", nil),
 			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
