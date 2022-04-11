@@ -80,13 +80,17 @@ Teleport to manage the passwords for those database users.
 Database service discovers database users by listing users from the ElastiCache
 user group or MemoryDB ACL attached to the Redis database. For database users
 discovered with label **`teleport.dev/managed: true`**, passwords are randomly
-generated, periodically rotated, and securely stored in the secret store (more
-on the secret store in a later section).
+generated, periodically rotated (e.g. every 20 minutes plus jitter), and securely
+stored in the secret store (more on the secret store in a later section).
 
-In HA mode, if more than one database service tries to rotate the password for
-the same user at the same time, the secret store implementation guarantees only
-the first caller succeeds. And only the successor should call AWS APIs to
-update the database user's passwords.
+The creation time of the current version of the password should always be
+checked before applying a password rotation. If the current version is created
+fairly recently (e.g. less than 15 minutes), it is most likely that the
+password has been updated by another service in HA mode, so there is no action
+required. If the current version is indeed "expired", the database service will
+perform a rotation. In cases where more than one database service tries to
+rotate the same user at the same time, the secret store implementation
+guarantees only the first caller succeeds.
 
 It has been found that it may take a few minutes for AWS to propagate user
 password changes to the Redis servers. To work around this, two versions of the
@@ -145,7 +149,9 @@ type PutValueRequest struct {
 // values.
 type Secrets interface {
     // PutValue creates a new secret version for the secret. The secret is also
-    // created if it does not exist.
+    // created if it does not exist. CurrentVersion can be provided to perform
+    // a test-and-set operation, and an error will be returned if the test
+    // fails.
     PutValue(req PutValueRequest) (*SecretValue, error)
 
     // GetValue returns the secret value for provided version. Besides version
@@ -221,13 +227,23 @@ and only the first call to create each version can succeed.
 Staging labels `AWSCURRENT` and `AWSPREVIOUS` can be used to retrieve the
 latest version and the previous version of the secret respectively.
 
+Using AWS Secrets Manager does incur extra
+[costs](https://aws.amazon.com/secrets-manager/pricing/) for users. As an
+example, let's say that a Teleport cluster with three database agents is
+managing one ElastiCache Redis user. The montly cost to store one secret is
+$0.40. Assuming the secret is rotated 100 times per day, there will be about
+100 put calls plus 3 * 100 get calls per secret per day. This sums to 12000 API
+calls per month, which costs $0.06 ($0.05 for every 10000 calls). Therefore,
+the total monthly cost will be about $0.46 for managing one ElastiCache user
+with three database agents.
+
 ## Security
 
 To reduce security risks by using passwords in backend services:
 - Only well-known and attested secrets management tools like AWS Secrets
   Manager is used to store secrets securely.
 - Generate random passwords using the maximum length available.
-- Rotate passwords frequently.
+- Rotate passwords frequently (preferably in minutes to a few hours).
 
 Lastly, permissions to all AWS resources used by Teleport services are granted
 by users through AWS IAM.
