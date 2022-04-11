@@ -891,7 +891,7 @@ func (result *EnumerationResult) Denied() []string {
 // Allowed returns all known allowed users.
 func (result *EnumerationResult) Allowed() []string {
 	if result.WildcardDenied() {
-		return []string{}
+		return nil
 	}
 	return result.filtered(true)
 }
