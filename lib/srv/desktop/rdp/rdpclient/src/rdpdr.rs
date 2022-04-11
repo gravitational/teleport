@@ -654,19 +654,10 @@ impl ClientDeviceListAnnounceRequest {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
 #[derive(Debug)]
 struct DeviceAnnounceHeader {
-    /// A 32-bit unsigned integer that identifies the device type.
     device_type: DeviceType,
-    /// A 32-bit unsigned integer that specifies a unique ID that identifies the announced device. This ID MUST be reused if the device is removed by means of the Client Drive Device List Remove packet specified in section 2.2.3.2.
     device_id: u32,
-    /// A string of ASCII characters (with a maximum length of eight characters) that represents the name of the device as it appears on the client. This field MUST be null-terminated, so the maximum device name is 7 characters long. The following characters are considered invalid for the PreferredDosName field:
-    /// <, >, ", /, \, |
-    /// If any of these characters are present, the DR_CORE_DEVICE_ANNOUNC_RSP packet for this device (section 2.2.2.1) will be sent with STATUS_ACCESS_DENIED set in the ResultCode field.
-    /// If DeviceType is set to RDPDR_DTYP_SMARTCARD, the PreferredDosName MUST be set to "SCARD".
-    /// Note A column character, ":", is valid only when present at the end of the PreferredDosName field, otherwise it is also considered invalid.
     preferred_dos_name: String,
-    /// A 32-bit unsigned integer that specifies the number of bytes in the DeviceData field.
     device_data_length: u32,
-    /// A variable-length byte array whose size is specified by the DeviceDataLength field. The content depends on the DeviceType field. See [MS-RDPEPC] section 2.2.2.1 for the printer device type. See [MS-RDPESP] section 2.2.2.1 for the serial and parallel port device types. See section 2.2.3.1 of this protocol for the file system device type. For a smart card device, the DeviceDataLength field MUST be set to zero. See [MS-RDPESC] for details about the smart card device type.
     device_data: Vec<u8>,
 }
 
@@ -876,23 +867,15 @@ type ServerCreateDriveRequest = DeviceCreateRequest;
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/5f71f6d2-d9ff-40c2-bdb5-a739447d3c3e
 #[derive(Debug)]
 struct DeviceCreateRequest {
-    /// A DR_DEVICE_IOREQUEST header. The MajorFunction field in this header MUST be set to IRP_MJ_CREATE.
+    /// The MajorFunction field in this header MUST be set to IRP_MJ_CREATE.
     device_io_request: DeviceIoRequest,
-    /// A 32-bit unsigned integer that specifies the level of access. This field is specified in [MS-SMB2] section 2.2.13.
     desired_access: DesiredAccessFlags,
-    /// A 64-bit unsigned integer that specifies the initial allocation size for the file.
     allocation_size: u64,
-    /// A 32-bit unsigned integer that specifies the attributes for the file being created. This field is specified in [MS-SMB2] section 2.2.13.
     file_attributes: FileAttributesFlags,
-    /// A 32-bit unsigned integer that specifies the sharing mode for the file being opened. This field is specified in [MS-SMB2] section 2.2.13.
     shared_access: SharedAccessFlags,
-    /// A 32-bit unsigned integer that specifies the action for the client to take if the file already exists. This field is specified in [MS-SMB2] section 2.2.13. For ports and other devices, this field MUST be set to FILE_OPEN (0x00000001).
     create_disposition: CreateDispositionFlags,
-    /// A 32-bit unsigned integer that specifies the options for creating the file. This field is specified in [MS-SMB2] section 2.2.13.
     create_options: CreateOptionsFlags,
-    /// A 32-bit unsigned integer that specifies the number of bytes in the Path field, including the null-terminator.
     path_length: u32,
-    /// A variable-length array of Unicode characters, including the null-terminator, whose size is specified by the PathLength field. The protocol imposes no limitations on the characters used in this field.
     path: String,
 }
 
@@ -996,43 +979,24 @@ bitflags! {
     /// 2.6 File Attributes [MS-FSCC]
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca28ec38-f155-4768-81d6-4bfeb8586fc9
     struct FileAttributesFlags: u32 {
-        /// A file or directory that is read-only. For a file, applications can read the file but cannot write to it or delete it. For a directory, applications cannot delete it, but applications can create and delete files from that directory.
         const FILE_ATTRIBUTE_READONLY = 0x00000001;
-        /// A file or directory that is hidden. Files and directories marked with this attribute do not appear in an ordinary directory listing.
         const FILE_ATTRIBUTE_HIDDEN = 0x00000002;
-        /// A file or directory that the operating system uses a part of or uses exclusively.
         const FILE_ATTRIBUTE_SYSTEM = 0x00000004;
-        /// This item is a directory.
         const FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
-        /// A file or directory that requires to be archived. Applications use this attribute to mark files for backup or removal.
         const FILE_ATTRIBUTE_ARCHIVE = 0x00000020;
-        /// A file that does not have other attributes set. This flag is used to clear all other flags by specifying it with no other flags set. This flag MUST be ignored if other flags are set.<161>
         const FILE_ATTRIBUTE_NORMAL = 0x00000080;
-        /// A file that is being used for temporary storage. The operating system can choose to store this file's data in memory rather than on mass storage, writing the data to mass storage only if data remains in the file when the file is closed.
         const FILE_ATTRIBUTE_TEMPORARY = 0x00000100;
-        /// A file that is a sparse file.
         const FILE_ATTRIBUTE_SPARSE_FILE = 0x00000200;
-        /// A file or directory that has an associated reparse point.
         const FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400;
-        /// A file or directory that is compressed. For a file, all of the data in the file is compressed. For a directory, compression is the default for newly created files and subdirectories.
         const FILE_ATTRIBUTE_COMPRESSED = 0x00000800;
-        /// The data in this file is not available immediately. This attribute indicates that the file data is physically moved to offline storage. This attribute is used by Remote Storage, which is hierarchical storage management software.
         const FILE_ATTRIBUTE_OFFLINE = 0x00001000;
-        /// A file or directory that is not indexed by the content indexing service.
         const FILE_ATTRIBUTE_NOT_CONTENT_INDEXED = 0x00002000;
-        /// A file or directory that is encrypted. For a file, all data streams in the file are encrypted. For a directory, encryption is the default for newly created files and subdirectories.
         const FILE_ATTRIBUTE_ENCRYPTED = 0x00004000;
-        /// A file or directory that is configured with integrity support. For a file, all data streams in the file have integrity support. For a directory, integrity support is the default for newly created files and subdirectories, unless the caller specifies otherwise.<162>
         const FILE_ATTRIBUTE_INTEGRITY_STREAM = 0x00008000;
-        /// A file or directory that is configured to be excluded from the data integrity scan. For a directory configured with FILE_ATTRIBUTE_NO_SCRUB_DATA, the default for newly created files and subdirectories is to inherit the FILE_ATTRIBUTE_NO_SCRUB_DATA attribute.<163>
         const FILE_ATTRIBUTE_NO_SCRUB_DATA = 0x00020000;
-        /// This attribute appears only in directory enumeration classes (FILE_DIRECTORY_INFORMATION, FILE_BOTH_DIR_INFORMATION, etc.). When this attribute is set, it means that the file or directory has no physical representation on the local system; the item is virtual. Opening the item will be more expensive than usual because it will cause at least some of the file or directory content to be fetched from a remote store. This attribute can only be set by kernel-mode components. This attribute is for use with hierarchical storage management software.<164>
         const FILE_ATTRIBUTE_RECALL_ON_OPEN = 0x00040000;
-        /// This attribute indicates user intent that the file or directory should be kept fully present locally even when not being actively accessed. This attribute is for use with hierarchical storage management software.<165>
         const FILE_ATTRIBUTE_PINNED = 0x00080000;
-        /// This attribute indicates that the file or directory should not be kept fully present locally except when being actively accessed. This attribute is for use with hierarchical storage management software.<166>
         const FILE_ATTRIBUTE_UNPINNED = 0x00100000;
-        /// When this attribute is set, it means that the file or directory is not fully present locally. For a file this means that not all of its data is on local storage (for example, it may be sparse with some data still in remote storage). For a directory it means that some of the directory contents are being virtualized from another location. Reading the file or enumerating the directory will be more expensive than usual because it will cause at least some of the file or directory content to be fetched from a remote store. Only kernel-mode callers can set this attribute. This attribute is for use with hierarchical storage management software.<167>
         const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x00400000;
     }
 }
@@ -1041,11 +1005,8 @@ bitflags! {
     /// Specifies the sharing mode for the open. If ShareAccess values of FILE_SHARE_READ, FILE_SHARE_WRITE and FILE_SHARE_DELETE are set for a printer file or a named pipe, the server SHOULD<35> ignore these values. The field MUST be constructed using a combination of zero or more of the following bit values.
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
     struct SharedAccessFlags: u32 {
-        /// When set, indicates that other opens are allowed to read this file while this open is present. This bit MUST NOT be set for a named pipe or a printer file. Each open creates a new instance of a named pipe. Likewise, opening a printer file always creates a new file.
         const FILE_SHARE_READ = 0x00000001;
-        /// When set, indicates that other opens are allowed to write this file while this open is present. This bit MUST NOT be set for a named pipe or a printer file. Each open creates a new instance of a named pipe. Likewise, opening a printer file always creates a new file.
         const FILE_SHARE_WRITE = 0x00000002;
-        /// When set, indicates that other opens are allowed to delete or rename this file while this open is present. This bit MUST NOT be set for a named pipe or a printer file. Each open creates a new instance of a named pipe. Likewise, opening a printer file always creates a new file.
         const FILE_SHARE_DELETE = 0x00000004;
     }
 }
@@ -1054,17 +1015,11 @@ bitflags! {
     /// Defines the action the server MUST take if the file that is specified in the name field already exists. For opening named pipes, this field can be set to any value by the client and MUST be ignored by the server. For other files, this field MUST contain one of the following values.
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
     struct CreateDispositionFlags: u32 {
-        /// If the file already exists, supersede it. Otherwise, create the file. This value SHOULD NOT be used for a printer object.<36>
         const FILE_SUPERSEDE = 0x00000000;
-        /// If the file already exists, return success; otherwise, fail the operation. MUST NOT be used for a printer object.
         const FILE_OPEN = 0x00000001;
-        /// If the file already exists, fail the operation; otherwise, create the file.
         const FILE_CREATE = 0x00000002;
-        /// Open the file if it already exists; otherwise, create the file. This value SHOULD NOT be used for a printer object.<37>
         const FILE_OPEN_IF = 0x00000003;
-        /// Overwrite the file if it already exists; otherwise, fail the operation. MUST NOT be used for a printer object.
         const FILE_OVERWRITE = 0x00000004;
-        /// Overwrite the file if it already exists; otherwise, create the file. This value SHOULD NOT be used for a printer object.<38>
         const FILE_OVERWRITE_IF = 0x00000005;
     }
 }
@@ -1073,47 +1028,26 @@ bitflags! {
     /// Specifies the options to be applied when creating or opening the file. Combinations of the bit positions listed below are valid, unless otherwise noted. This field MUST be constructed using the following values.
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
     struct CreateOptionsFlags: u32 {
-        /// The file being created or opened is a directory file. With this flag, the CreateDisposition field MUST be set to FILE_CREATE, FILE_OPEN_IF, or FILE_OPEN. With this flag, only the following CreateOptions values are valid: FILE_WRITE_THROUGH, FILE_OPEN_FOR_BACKUP_INTENT, FILE_DELETE_ON_CLOSE, and FILE_OPEN_REPARSE_POINT. If the file being created or opened already exists and is not a directory file and FILE_CREATE is specified in the CreateDisposition field, then the server MUST fail the request with STATUS_OBJECT_NAME_COLLISION. If the file being created or opened already exists and is not a directory file and FILE_CREATE is not specified in the CreateDisposition field, then the server MUST fail the request with STATUS_NOT_A_DIRECTORY. The server MUST fail an invalid CreateDisposition field or an invalid combination of CreateOptions flags with STATUS_INVALID_PARAMETER.
         const FILE_DIRECTORY_FILE = 0x00000001;
-        /// The server performs file write-through; file data is written to the underlying storage before completing the write operation on this open.
         const FILE_WRITE_THROUGH = 0x00000002;
-        /// This indicates that the application intends to read or write at sequential offsets using this handle, so the server SHOULD optimize for sequential access. However, the server MUST accept any access pattern. This flag value is incompatible with the FILE_RANDOM_ACCESS value.
         const FILE_SEQUENTIAL_ONLY = 0x00000004;
-        /// File buffering is not performed on this open; file data is not retained in memory upon writing it to, or reading it from, the underlying storage.
         const FILE_NO_INTERMEDIATE_BUFFERING = 0x00000008;
-        /// This bit SHOULD be set to 0 and MUST be ignored by the server.<40>
         const FILE_SYNCHRONOUS_IO_ALERT = 0x00000010;
-        /// This bit SHOULD be set to 0 and MUST be ignored by the server.<41>
         const FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020;
-        /// If the name of the file being created or opened matches with an existing directory file, the server MUST fail the request with STATUS_FILE_IS_A_DIRECTORY. This flag MUST NOT be used with FILE_DIRECTORY_FILE or the server MUST fail the request with STATUS_INVALID_PARAMETER.
         const FILE_NON_DIRECTORY_FILE = 0x00000040;
-        /// This bit SHOULD be set to 0 and MUST be ignored by the server.<42>
         const FILE_COMPLETE_IF_OPLOCKED = 0x00000100;
-        /// The caller does not understand how to handle extended attributes. If the request includes an SMB2_CREATE_EA_BUFFER create context, then the server MUST fail this request with STATUS_ACCESS_DENIED. If extended attributes with the FILE_NEED_EA flag (see [MS-FSCC] section 2.4.15) set are associated with the file being opened, then the server MUST fail this request with STATUS_ACCESS_DENIED.
         const FILE_NO_EA_KNOWLEDGE = 0x00000200;
-        /// This indicates that the application intends to read or write at random offsets using this handle, so the server SHOULD optimize for random access. However, the server MUST accept any access pattern. This flag value is incompatible with the FILE_SEQUENTIAL_ONLY value. If both FILE_RANDOM_ACCESS and FILE_SEQUENTIAL_ONLY are set, then FILE_SEQUENTIAL_ONLY is ignored.
         const FILE_RANDOM_ACCESS = 0x00000800;
-        /// The file MUST be automatically deleted when the last open request on this file is closed. When this option is set, the DesiredAccess field MUST include the DELETE flag. This option is often used for temporary files.
         const FILE_DELETE_ON_CLOSE = 0x00001000;
-        /// This bit SHOULD be set to 0 and the server MUST fail the request with a STATUS_NOT_SUPPORTED error if this bit is set.<43>
         const FILE_OPEN_BY_FILE_ID = 0x00002000;
-        /// The file is being opened for backup intent. That is, it is being opened or created for the purposes of either a backup or a restore operation. The server can check to ensure that the caller is capable of overriding whatever security checks have been placed on the file to allow a backup or restore operation to occur. The server can check for access rights to the file before checking the DesiredAccess field.
         const FILE_OPEN_FOR_BACKUP_INTENT = 0x00004000;
-        /// The file cannot be compressed. This bit is ignored when FILE_DIRECTORY_FILE is set in CreateOptions.
         const FILE_NO_COMPRESSION = 0x00008000;
-        /// This bit SHOULD be set to 0 and MUST be ignored by the server.
         const FILE_OPEN_REMOTE_INSTANCE = 0x00000400;
-        /// This bit SHOULD be set to 0 and MUST be ignored by the server.
         const FILE_OPEN_REQUIRING_OPLOCK = 0x00010000;
-        /// This bit SHOULD be set to 0 and MUST be ignored by the server.
         const FILE_DISALLOW_EXCLUSIVE = 0x00020000;
-        /// This bit SHOULD be set to 0 and the server MUST fail the request with a STATUS_NOT_SUPPORTED error if this bit is set.<44>
         const FILE_RESERVE_OPFILTER = 0x00100000;
-        /// If the file or directory being opened is a reparse point, open the reparse point itself rather than the target that the reparse point references.
         const FILE_OPEN_REPARSE_POINT = 0x00200000;
-        /// In an HSM (Hierarchical Storage Management) environment, this flag means the file SHOULD NOT be recalled from tertiary storage such as tape. The recall can take several minutes. The caller can specify this flag to avoid those delays.
         const FILE_OPEN_NO_RECALL = 0x00400000;
-        /// Open file to query for free space. The client SHOULD set this to 0 and the server MUST ignore it.<45>
         const FILE_OPEN_FOR_FREE_SPACE_QUERY = 0x00800000;
     }
 }
@@ -1127,11 +1061,7 @@ type ClientDriveCreateResponse = DeviceCreateResponse;
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76
 #[derive(Debug)]
 struct DeviceCreateResponse {
-    /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4)
-    /// message that had the MajorFunction field set to IRP_MJ_CREATE.
     device_io_reply: DeviceIoResponse,
-    /// A 32-bit unsigned integer that specifies a unique ID for the created file object.
-    /// The ID MUST be reused after sending a Device Close Response (section 2.2.1.5.2).
     file_id: u32,
     /// The values of the CreateDisposition field in the Device Create Request (section 2.2.1.4.1) that determine the value
     /// of the Information field are associated as follows:
@@ -1341,18 +1271,12 @@ impl FsInformationClass {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/16023025-8a78-492f-8b96-c873b042ac50
 #[derive(Debug)]
 struct FileBasicInformation {
-    /// The time when the file was created; see section 2.1.1. A valid time for this field is an integer greater than or equal to 0. When setting file attributes, a value of 0 indicates to the server that it MUST NOT change this attribute. When setting file attributes, a value of -1 indicates to the server that it MUST NOT change this attribute for all subsequent operations on the same file handle. When setting file attributes, a value of -2 indicates to the server that it MUST change this attribute for all subsequent operations on the same file handle. This field MUST NOT be set to a value less than -2.
     creation_time: i64,
-    /// The last time the file was accessed; see section 2.1.1. A valid time for this field is an integer greater than or equal to 0. When setting file attributes, a value of 0 indicates to the server that it MUST NOT change this attribute. When setting file attributes, a value of -1 indicates to the server that it MUST NOT change this attribute for all subsequent operations on the same file handle. When setting file attributes, a value of -2 indicates to the server that it MUST change this attribute for all subsequent operations on the same file handle. This field MUST NOT be set to a value less than -2.
     last_access_time: i64,
-    /// The last time information was written to the file; see section 2.1.1. A valid time for this field is an integer greater than or equal to 0. When setting file attributes, a value of 0 indicates to the server that it MUST NOT change this attribute. When setting file attributes, a value of -1 indicates to the server that it MUST NOT change this attribute for all subsequent operations on the same file handle. When setting file attributes, a value of -2 indicates to the server that it MUST change this attribute for all subsequent operations on the same file handle. This field MUST NOT be set to a value less than -2.
     last_write_time: i64,
-    /// The last time the file was changed; see section 2.1.1. A valid time for this field is an integer greater than or equal to 0. When setting file attributes, a value of 0 indicates to the server that it MUST NOT change this attribute. When setting file attributes, a value of -1 indicates to the server that it MUST NOT change this attribute for all subsequent operations on the same file handle. When setting file attributes, a value of -2 indicates to the server that it MUST change this attribute for all subsequent operations on the same file handle. This field MUST NOT be set to a value less than -2.
     change_time: i64,
-    /// A 32-bit unsigned integer that contains the file attributes.
     file_attributes: FileAttributesFlags,
-    // A 32-bit field. This field is reserved. This field can be set to any value, and MUST be ignored.
-    // NOTE: This field MUST not be serialized and sent over RDP, or it will break the server implementation.
+    // NOTE: The `reserved` field in the spec MUST not be serialized and sent over RDP, or it will break the server implementation.
     // FreeRDP does the same: https://github.com/FreeRDP/FreeRDP/blob/1adb263813ca2e76a893ef729a04db8f94b5d757/channels/drive/client/drive_file.c#L508
     //reserved: u32,
 }
@@ -1394,15 +1318,15 @@ struct FileStandardInformation {
     /// the beginning of the file at which new bytes appended to the file will be written. The value of this field MUST
     /// be greater than or equal to 0.
     end_of_file: i64,
-    /// A 32-bit unsigned integer that contains the number of non-deleted links to this file.
+    /// A 32-bit unsigned integer that contains the number of non-deleted [hard] links to this file.
+    /// NOTE: this information is not available to us in the browser, so we will simply set this field to 0.
     number_of_links: u32,
-    /// A Boolean (section 2.1.8) value. Set to TRUE to indicate that a file deletion has been requested; set to FALSE
+    /// Set to TRUE to indicate that a file deletion has been requested; set to FALSE
     /// otherwise.
     delete_pending: Boolean,
-    /// A Boolean (section 2.1.8) value. Set to TRUE to indicate that the file is a directory; set to FALSE otherwise.
+    /// Set to TRUE to indicate that the file is a directory; set to FALSE otherwise.
     directory: Boolean,
-    // A 16-bit field. This field is reserved. This field can be set to any value, and MUST be ignored.
-    // NOTE: Field omitted, see NOTE in FileBasicInformation struct.
+    // NOTE: `reserved` field omitted, see NOTE in FileBasicInformation struct.
     // reserved: u16,
 }
 
@@ -1434,11 +1358,8 @@ enum Boolean {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4
 #[derive(Debug)]
 struct ClientDriveQueryInformationResponse {
-    /// A DR_DEVICE_IOCOMPLETION (section 2.2.1.5) header. The CompletionId field of the DR_DEVICE_IOCOMPLETION header MUST match a Device I/O Request (section 2.2.1.4) that has the MajorFunction field set to IRP_MJ_QUERY_INFORMATION.
     device_io_response: DeviceIoResponse,
-    /// A 32-bit unsigned integer that specifies the number of bytes in the Buffer field.
     length: u32,
-    /// A variable-length array of bytes, in which the number of bytes is specified in the Length field. The content of this field is based on the value of the FsInformationClass field in the Server Drive Query Information Request message, which determines the different structures that MUST be contained in the Buffer field. For a complete list of these structures, refer to [MS-FSCC] section 2.4. The "File information class" table defines all the possible values for the FsInformationClass field.
     buffer: FsInformationClass,
 }
 
@@ -1499,7 +1420,6 @@ impl ClientDriveQueryInformationResponse {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3ec6627f-9e0f-4941-a828-3fc6ed63d9e7
 #[derive(Debug)]
 struct DeviceCloseRequest {
-    /// A DR_DEVICE_IOREQUEST header. The MajorFunction field in this header MUST be set to IRP_MJ_CLOSE.
     device_io_request: DeviceIoRequest,
     // Padding (32 bytes):  An array of 32 bytes. Reserved. This field can be set to any value, and MUST be ignored.
 }
@@ -1514,9 +1434,9 @@ impl DeviceCloseRequest {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5
 #[derive(Debug)]
 struct DeviceCloseResponse {
-    /// A DR_DEVICE_IOCOMPLETION header. The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_CLOSE.
+    /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_CLOSE.
     device_io_response: DeviceIoResponse,
-    /// An array of 4 bytes. Reserved. This field can be set to any value and MUST be ignored.
+    /// This field can be set to any value and MUST be ignored.
     padding: u32,
 }
 
