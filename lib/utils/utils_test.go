@@ -107,7 +107,7 @@ func TestHostUUIDIgnoreWhitespace(t *testing.T) {
 	// newlines are getting ignored
 	t.Parallel()
 	dir := t.TempDir()
-	id := fmt.Sprintf("%s\n", uuid.New().String())
+	id := fmt.Sprintf("%s\n", uuid.NewString())
 	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
 	require.NoError(t, err)
 	out, err := ReadHostUUID(dir)
