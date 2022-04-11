@@ -45,9 +45,9 @@ func TestDeduplicate(t *testing.T) {
 		name         string
 		in, expected []string
 	}{
-		{"empty slice", []string{}, []string{}},
-		{"slice with unique elements", []string{"a", "b"}, []string{"a", "b"}},
-		{"slice with duplicate elements", []string{"a", "b", "b", "a", "c"}, []string{"a", "b", "c"}},
+		{name: "empty slice", in: []string{}, expected: []string{}},
+		{name: "slice with unique elements", in: []string{"a", "b"}, expected: []string{"a", "b"}},
+		{name: "slice with duplicate elements", in: []string{"a", "b", "b", "a", "c"}, expected: []string{"a", "b", "c"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
