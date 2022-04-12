@@ -873,14 +873,13 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				Type: events.AccessRequestResourceSearch,
 				Code: events.AccessRequestResourceSearchCode,
 			},
-			UserMetadata:         ClientUserMetadata(ctx),
-			SearchAsRoles:        a.context.Checker.RoleNames(),
-			ResourceType:         req.ResourceType,
-			Namespace:            req.Namespace,
-			Labels:               req.Labels,
-			PredicateExpression:  req.PredicateExpression,
-			SearchKeywords:       req.SearchKeywords,
-			WindowsDesktopFilter: req.WindowsDesktopFilter,
+			UserMetadata:        ClientUserMetadata(ctx),
+			SearchAsRoles:       a.context.Checker.RoleNames(),
+			ResourceType:        req.ResourceType,
+			Namespace:           req.Namespace,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
 		})
 	}
 

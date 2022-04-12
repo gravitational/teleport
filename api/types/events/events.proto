@@ -20,7 +20,6 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
-import "github.com/gravitational/teleport/api/types/types.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -2174,7 +2173,4 @@ message AccessRequestResourceSearch {
     string PredicateExpression = 7 [ (gogoproto.jsontag) = "predicate_expression,omitempty" ];
     // SearchKeywords is the list of search keywords used to match against resource field values.
     repeated string SearchKeywords = 8 [ (gogoproto.jsontag) = "search_keywords,omitempty" ];
-    // WindowsDesktopFilter is the list of windows desktop specific filters.
-    types.WindowsDesktopFilter WindowsDesktopFilter = 9
-        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "windows_desktop_filter,omitempty" ];
 }
