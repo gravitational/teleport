@@ -11,64 +11,17 @@ Teleport needs a `kubeconfig` file to authenticate against the Kubernetes API.
 
 ## Prerequisites
 
-<Tabs>
-<TabItem scope={["oss"]} label="Open Source">
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- A running Teleport cluster. For details on how to set this up, see one of our
-  [Getting Started](../../getting-started.mdx) guides.
-
-- **Optional:** the `tctl` admin tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](../../installation.mdx) for details.
-
-  (!docs/pages/includes/tctl.mdx!)
-
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on how to set this up, see one of our
-  [Getting Started](../../getting-started.mdx) guides.
-
-- **Optional:** the `tctl` admin tool version >= (=teleport.version=), which you can download
-  by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  (!docs/pages/includes/tctl.mdx!)
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
+- A Kubernetes cluster you would like to access.
 
 - A host deployed on your own infrastructure to run the Teleport Kubernetes
-  Service. See [Installing Teleport](../../installation.mdx) for more details.
+  Service. This can run outside of your Kubernetes cluster. 
+  
+  See [Installing Teleport](../../installation.mdx) for details on installing
+  the `teleport` binary.
 
-- **Optional:** The `tctl` admin tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](../../installation.mdx) for details.
-
-  (!docs/pages/includes/tctl.mdx!)
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Generate a kubeconfig
 
