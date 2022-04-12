@@ -100,4 +100,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getClipboardAccess() {
     return this.state.acl.clipboardSharingEnabled;
   }
+
+  getNodeAccess() {
+    return this.state.acl.nodes;
+  }
 }

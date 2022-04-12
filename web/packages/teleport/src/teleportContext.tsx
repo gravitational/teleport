@@ -76,6 +76,7 @@ class TeleportContext implements types.Context {
       billing: userContext.getBillingAccess().list,
       databases: userContext.getDatabaseAccess().list,
       desktops: userContext.getDesktopAccess().list,
+      nodes: userContext.getNodeAccess().list,
     };
   }
 }

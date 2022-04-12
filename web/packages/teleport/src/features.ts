@@ -183,6 +183,10 @@ export class FeatureNodes {
   };
 
   register(ctx: Ctx) {
+    if (!ctx.getFeatureFlags().nodes) {
+      return;
+    }
+
     ctx.storeNav.addSideItem({
       title: 'Servers',
       Icon: Icons.Server,

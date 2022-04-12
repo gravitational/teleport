@@ -44,6 +44,7 @@ export default function makeAcl(json): Acl {
     json.desktopSessionRecording !== undefined
       ? json.desktopSessionRecording
       : true;
+  const nodes = json.nodes || defaultAccess;
 
   return {
     sshLogins,
@@ -63,6 +64,7 @@ export default function makeAcl(json): Acl {
     desktops,
     clipboardSharingEnabled,
     desktopSessionRecordingEnabled,
+    nodes,
   };
 }
 

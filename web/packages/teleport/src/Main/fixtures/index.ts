@@ -41,6 +41,7 @@ export const fullAcl: Acl = {
   billing: fullAccess,
   dbServers: fullAccess,
   desktops: fullAccess,
+  nodes: fullAccess,
   clipboardSharingEnabled: true,
   desktopSessionRecordingEnabled: true,
 };

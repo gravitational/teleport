@@ -65,6 +65,13 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      nodes: {
+        create: false,
+        edit: false,
+        list: false,
+        read: false,
+        remove: false,
+      },
       roles: {
         list: false,
         read: false,

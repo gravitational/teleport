@@ -63,6 +63,7 @@ export interface Acl {
   billing: Access;
   dbServers: Access;
   desktops: Access;
+  nodes: Access;
 }
 
 export interface User {
