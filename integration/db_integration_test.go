@@ -1155,6 +1155,8 @@ func startRedis(t *testing.T, config common.TestServerConfig, tlsConfig *tls.Con
 	certDir, err := os.MkdirTemp("/workspace", "db-certs")
 	require.NoError(t, err)
 
+	t.Logf("created cert dir: %s", certDir)
+
 	// save server keys, so we can mount them in a container.
 	err = os.WriteFile(fmt.Sprintf("%s/server.key", certDir), privPem, 0600)
 	require.NoError(t, err)
@@ -1185,9 +1187,9 @@ func startRedis(t *testing.T, config common.TestServerConfig, tlsConfig *tls.Con
 		Cmd: []string{
 			"--port", "0",
 			"--tls-port", "6379",
-			"--tls-cert-file", "/certs/server.crt",
-			"--tls-key-file", "/certs/server.key",
-			"--tls-ca-cert-file", "/certs/server.cas",
+			"--tls-cert-file", certDir + "/server.crt",
+			"--tls-key-file", certDir + "/server.key",
+			"--tls-ca-cert-file", certDir + "/server.cas",
 		},
 		PortBindings: map[docker.Port][]docker.PortBinding{
 			"6379/tcp": {{HostPort: port}},
