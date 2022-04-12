@@ -33,13 +33,11 @@ type collection interface {
 	// will apply said resources to the cache.  fetch *must*
 	// not mutate cache state outside of the apply function.
 	fetch(ctx context.Context) (apply func(ctx context.Context) error, err error)
-	// process processes event
+	// processEvent processes event
 	processEvent(ctx context.Context, e types.Event) error
 	// watchKind returns a watch
 	// required for this collection
 	watchKind() types.WatchKind
-	// erase erases all data in the collection
-	erase(ctx context.Context) error
 }
 
 // setupCollections returns a mapping of collections
@@ -792,26 +790,6 @@ type certAuthority struct {
 	filter types.CertAuthorityFilter
 }
 
-// erase erases all data in the collection
-func (c *certAuthority) erase(ctx context.Context) error {
-	if err := c.trustCache.DeleteAllCertAuthorities(types.UserCA); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	if err := c.trustCache.DeleteAllCertAuthorities(types.HostCA); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	if err := c.trustCache.DeleteAllCertAuthorities(types.JWTSigner); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
 	applyHostCAs, err := c.fetchCertAuthorities(ctx, types.HostCA)
 	if err != nil {
@@ -819,6 +797,11 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 	}
 
 	applyUserCAs, err := c.fetchCertAuthorities(ctx, types.UserCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	applyDatabaseCAs, err := c.fetchCertAuthorities(ctx, types.DatabaseCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -833,6 +816,9 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 			return trace.Wrap(err)
 		}
 		if err := applyUserCAs(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := applyDatabaseCAs(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 		return trace.Wrap(applyJWTSigners(ctx))

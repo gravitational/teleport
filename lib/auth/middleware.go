@@ -278,7 +278,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	// certificate authorities.
 	// TODO(klizhentas) drop connections of the TLS cert authorities
 	// that are not trusted
-	pool, err := ClientCertPool(t.cfg.AccessPoint, clusterName)
+	pool, err := DefaultClientCertPool(t.cfg.AccessPoint, clusterName)
 	if err != nil {
 		var ourClusterName string
 		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
@@ -616,39 +616,35 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 	return requestWithContext, nil
 }
 
-// ClientCertPool returns trusted x509 cerificate authority pool
-func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
+// ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.
+func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, error) {
+	if len(caTypes) == 0 {
+		return nil, trace.BadParameter("at least one CA type is required")
+	}
+
 	ctx := context.TODO()
 	pool := x509.NewCertPool()
 	var authorities []types.CertAuthority
 	if clusterName == "" {
-		hostCAs, err := client.GetCertAuthorities(ctx, types.HostCA, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		for _, caType := range caTypes {
+			cas, err := client.GetCertAuthorities(ctx, caType, false)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			authorities = append(authorities, cas...)
 		}
-		userCAs, err := client.GetCertAuthorities(ctx, types.UserCA, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		authorities = append(authorities, hostCAs...)
-		authorities = append(authorities, userCAs...)
 	} else {
-		hostCA, err := client.GetCertAuthority(
-			ctx,
-			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
-			false)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		for _, caType := range caTypes {
+			ca, err := client.GetCertAuthority(
+				ctx,
+				types.CertAuthID{Type: caType, DomainName: clusterName},
+				false)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			authorities = append(authorities, ca)
 		}
-		userCA, err := client.GetCertAuthority(
-			ctx,
-			types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
-			false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		authorities = append(authorities, hostCA)
-		authorities = append(authorities, userCA)
 	}
 
 	for _, auth := range authorities {
@@ -662,4 +658,9 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 		}
 	}
 	return pool, nil
+}
+
+// DefaultClientCertPool returns default trusted x509 certificate authority pool.
+func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
+	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
 }
