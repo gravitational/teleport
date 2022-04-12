@@ -1179,7 +1179,7 @@ func startRedis(t *testing.T, config common.TestServerConfig, tlsConfig *tls.Con
 			fmt.Sprintf("%s/server.key:/certs/server.key:ro", certDir),
 			fmt.Sprintf("%s/server.cas:/certs/server.cas:ro", certDir),
 		},
-		// NetworkID: "cloudbuild",
+		NetworkID: "cloudbuild",
 		Cmd: []string{
 			"--port", "0",
 			"--tls-port", "6379",
