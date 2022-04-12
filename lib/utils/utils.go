@@ -484,7 +484,7 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	// isn't ready yet.
 	rawID, err := uuid.NewRandom()
 	if err != nil {
-		return "", trace.Errorf("" +
+		return "", trace.BadParameter("" +
 			"Teleport failed to generate host UUID. " +
 			"This may happen if randomness source is not fully initialized when the node is starting up. " +
 			"Please try restarting Teleport again.")
