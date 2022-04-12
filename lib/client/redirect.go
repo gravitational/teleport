@@ -75,14 +75,18 @@ type Redirector struct {
 	context context.Context
 	// cancel broadcasts cancel
 	cancel context.CancelFunc
-	// issueSSOLoginConsoleRequest if not nil will be used as custom implementation of IssueSSOLoginConsoleRequest function.
-	issueSSOLoginConsoleRequest IssueSSOLoginConsoleRequest
+	// RedirectorConfig allows customization of Redirector
+	RedirectorConfig
 }
 
-type IssueSSOLoginConsoleRequest func(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error)
+// RedirectorConfig allows customization of Redirector
+type RedirectorConfig struct {
+	// SSOLoginConsoleRequestFn allows customizing issuance of SSOLoginConsoleReq. Optional.
+	SSOLoginConsoleRequestFn func(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error)
+}
 
 // NewRedirector returns new local web server redirector
-func NewRedirector(ctx context.Context, login SSHLoginSSO, issueLogin IssueSSOLoginConsoleRequest) (*Redirector, error) {
+func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*Redirector, error) {
 	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,19 +99,26 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO, issueLogin IssueSSOLo
 		return nil, trace.Wrap(err)
 	}
 
-	context, cancel := context.WithCancel(ctx)
+	ctxCancel, cancel := context.WithCancel(ctx)
 	rd := &Redirector{
-		context:                     context,
-		cancel:                      cancel,
-		proxyClient:                 clt,
-		proxyURL:                    proxyURL,
-		SSHLoginSSO:                 login,
-		mux:                         http.NewServeMux(),
-		key:                         key,
-		shortPath:                   "/" + uuid.New().String(),
-		responseC:                   make(chan *auth.SSHLoginResponse, 1),
-		errorC:                      make(chan error, 1),
-		issueSSOLoginConsoleRequest: issueLogin,
+		context:     ctxCancel,
+		cancel:      cancel,
+		proxyClient: clt,
+		proxyURL:    proxyURL,
+		SSHLoginSSO: login,
+		mux:         http.NewServeMux(),
+		key:         key,
+		shortPath:   "/" + uuid.New().String(),
+		responseC:   make(chan *auth.SSHLoginResponse, 1),
+		errorC:      make(chan error, 1),
+	}
+
+	if config != nil {
+		rd.RedirectorConfig = *config
+	}
+
+	if rd.SSOLoginConsoleRequestFn == nil {
+		rd.SSOLoginConsoleRequestFn = rd.issueSSOLoginConsoleRequest
 	}
 
 	// callback is a callback URL communicated to the Teleport proxy,
@@ -160,7 +171,7 @@ func (rd *Redirector) Start() error {
 		KubernetesCluster: rd.KubernetesCluster,
 	}
 
-	response, err := rd.IssueSSOLoginConsoleRequest(req)
+	response, err := rd.SSOLoginConsoleRequestFn(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -173,11 +184,8 @@ func (rd *Redirector) Start() error {
 	return nil
 }
 
-func (rd *Redirector) IssueSSOLoginConsoleRequest(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error) {
-	if rd.issueSSOLoginConsoleRequest != nil {
-		return rd.issueSSOLoginConsoleRequest(req)
-	}
-
+// issueSSOLoginConsoleRequest is default implementation, but may be overridden via RedirectorConfig.IssueSSOLoginConsoleRequest.
+func (rd *Redirector) issueSSOLoginConsoleRequest(req SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error) {
 	out, err := rd.proxyClient.PostJSON(rd.context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)

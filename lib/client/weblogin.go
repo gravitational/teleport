@@ -262,8 +262,8 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, issueLogin IssueSSOLoginConsoleRequest) (*auth.SSHLoginResponse, error) {
-	rd, err := NewRedirector(ctx, login, issueLogin)
+func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*auth.SSHLoginResponse, error) {
+	rd, err := NewRedirector(ctx, login, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
