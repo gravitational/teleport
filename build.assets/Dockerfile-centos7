@@ -14,13 +14,74 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 # Install dev tools (make, etc) and a Perl package needed to build OpenSSL.
-RUN yum groupinstall -y "Development Tools"
-RUN yum install -y pam-devel net-tools tree git zip libatomic perl-IPC-Cmd && \
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y epel-release && \
+    yum update -y && \
+    yum install -y \
+        cmake3 \
+        git \
+        gperf \
+        libatomic \
+        libudev-devel \
+        net-tools \
+        pam-devel \
+        perl-IPC-Cmd \
+        tree \
+        zip \
+        zlib-devel && \
     yum clean all
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+
+# Install libeudev.
+# libeudev replaces systemd's libudev.
+RUN git clone --depth=1 https://github.com/eudev-project/eudev.git -b v3.2.11 && \
+    cd eudev && \
+# Don't build man pages. Saves a lot of hassle.
+    echo '' > ./man/make.sh && \
+    ./autogen.sh && \
+    ./configure --prefix /usr/local --with-pic && \
+    make && \
+    make install && \
+# Replace system libudev.
+    cd /usr/lib64 && \
+    ln -fs libudev.so.1 /usr/local/lib/libudev.so.1.6.3
+
+# Instal openssl.
+# Pulled from source because repository versions are too old.
+RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1n && \
+    cd openssl && \
+    ./config --release && \
+    make && \
+    make install && \
+# Link for `make build/tsh`.
+    mkdir -p /usr/lib/x86_64-linux-gnu && \
+    ln -s /usr/local/lib64/libcrypto.a /usr/lib/x86_64-linux-gnu/
+
+# Install libcbor.
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
+    cd libcbor && \
+    cmake3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCBOR_CUSTOM_ALLOC=ON . && \
+    make && \
+    make install && \
+# Link for `make build/tsh`.
+    ln -s /usr/local/lib64/libcbor.{a,so} /usr/local/lib/
+
+# Install libfido2.
+# Depends on libcbor, openssl, zlib-devel and libudev.
+# Linked so `make build/tsh` finds the library where it expects it.
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
+    cd libfido2 && \
+    cmake3 -DCMAKE_BUILD_TYPE=Release . && \
+    make && \
+    make install && \
+# Link for `make build/tsh`.
+    ln -s /usr/local/lib64/libfido2.{a,so} /usr/local/lib/ && \
+# Update ld.
+    echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
+    ldconfig
 
 # Install Go.
 RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-amd64.tar.gz | tar xz && \
