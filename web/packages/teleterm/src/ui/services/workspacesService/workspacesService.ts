@@ -1,8 +1,5 @@
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
-import {
-  Document,
-  DocumentsService,
-} from 'teleterm/ui/services/workspacesService/documentsService';
+import { Document, DocumentsService } from './documentsService';
 import { useStore } from 'shared/libs/stores';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -120,10 +117,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         if (clusterUri && !draftState.workspaces[clusterUri]) {
           const persistedWorkspace =
             this.statePersistenceService.getWorkspaces().workspaces[clusterUri];
+          const defaultDocument = this.getWorkspaceDocumentService(
+            clusterUri
+          ).createClusterDocument({ clusterUri });
+
           draftState.workspaces[clusterUri] = {
             localClusterUri: persistedWorkspace?.localClusterUri || clusterUri,
-            location: '',
-            documents: [],
+            location: defaultDocument.uri,
+            documents: [defaultDocument],
             previous: persistedWorkspace?.documents
               ? {
                   documents: persistedWorkspace.documents,
@@ -218,6 +219,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     return (
       workspace.previous &&
+      workspace.previous.documents?.length &&
       !isEqual(
         removeUri(workspace.previous.documents),
         removeUri(workspace.documents)
