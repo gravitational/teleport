@@ -93,7 +93,7 @@ compile these plugins from [source](https://github.com/gravitational/teleport-pl
 <Tabs>
 <TabItem label="Download">
   ```code
-  $ curl -L https://get.gravitational.com/teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  $ curl -L -O https://get.gravitational.com/teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   $ tar -xzf teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   $ cd teleport-access-slack
   $ ./install
@@ -112,7 +112,7 @@ Run `./install` from `teleport-slack` or place the executable in the appropriate
 </TabItem>
 <TabItem label="Docker">
   ```code
-  $ docker pull quay.io/gravitational/access-plugin-slack:(=teleport.plugin.version=)
+  $ docker pull quay.io/gravitational/teleport-plugin-slack:(=teleport.plugin.version=)
   ```
 </TabItem>
 </Tabs>
