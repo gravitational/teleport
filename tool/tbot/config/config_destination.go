@@ -21,6 +21,26 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// DatabaseConfig is the config for a database access request.
+type DatabaseConfig struct {
+	// Service is the service name of the
+	Service string `yaml:"service,omitempty"`
+
+	// Database is the name of the database to request access to.
+	Database string `yaml:"database,omitempty"`
+
+	// Username is the database username to request access as.
+	Username string `yaml:"username,omitempty"`
+}
+
+func (dc *DatabaseConfig) CheckAndSetDefaults() error {
+	if dc.Service == "" {
+		return trace.BadParameter("database `service` field must specify a database service name")
+	}
+
+	return nil
+}
+
 // DestinationConfig configures a user certificate destination.
 type DestinationConfig struct {
 	DestinationMixin `yaml:",inline"`
@@ -28,6 +48,8 @@ type DestinationConfig struct {
 	Roles   []string                `yaml:"roles,omitempty"`
 	Kinds   []identity.ArtifactKind `yaml:"kinds,omitempty"`
 	Configs []TemplateConfig        `yaml:"configs,omitempty"`
+
+	Database *DatabaseConfig `yaml:"database,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since
@@ -40,6 +62,12 @@ func destinationDefaults(dm *DestinationMixin) error {
 func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	if err := dc.DestinationMixin.CheckAndSetDefaults(destinationDefaults); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if dc.Database != nil {
+		if err := dc.Database.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Note: empty roles is allowed; interpreted to mean "all" at generation
