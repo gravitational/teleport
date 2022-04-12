@@ -2346,11 +2346,13 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*
 	return samlReq, nil
 }
 
+// ValidateSAMLResponse validates SAML auth response.
 func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
 	return a.authServer.ValidateSAMLResponse(ctx, re)
 }
 
+// GetSAMLAuthRequest returns SAML auth request if found.
 func (a *ServerWithRoles) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -2359,6 +2361,7 @@ func (a *ServerWithRoles) GetSAMLAuthRequest(ctx context.Context, id string) (*s
 	return a.authServer.GetSAMLAuthRequest(ctx, id)
 }
 
+// GetSSODiagnosticInfo returns SSO diagnostic info records.
 func (a *ServerWithRoles) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error) {
 	var resource string
 
