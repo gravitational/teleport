@@ -201,7 +201,9 @@ func (a *Server) calculateSAMLUser(ctx context.Context, connector types.SAMLConn
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
 	diagInfo := func(infoType types.SSOInfoType, value interface{}) {
-		a.createSSODiagInfo(ctx, types.KindSAML, request.ID, infoType, value)
+		if request.SSOTestFlow {
+			a.createSSODiagInfo(ctx, types.KindSAML, request.ID, infoType, value)
+		}
 	}
 
 	diagInfo(types.SSOInfoType_SAML_TRAITS_FROM_ASSERTIONS, p.traits)
@@ -394,6 +396,10 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	}
 
 	if err != nil {
+		if auxInfo.ssoTestFlow {
+			a.createSSODiagInfo(ctx, types.KindSAML, auxInfo.requestID, types.SSOInfoType_ERROR, trace.UserMessage(err))
+		}
+
 		event.Code = events.UserSSOLoginFailureCode
 		if auxInfo.ssoTestFlow {
 			event.Code = events.UserSSOTestFlowLoginFailureCode
@@ -427,6 +433,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 type validateSAMLAuxInfo struct {
 	attributeStatements map[string][]string
 	ssoTestFlow         bool
+	requestID           string
 }
 
 func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, auxInfo *validateSAMLAuxInfo) (*SAMLAuthResponse, error) {
@@ -434,54 +441,38 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	diagInfo := func(infoType types.SSOInfoType, value interface{}) {
-		a.createSSODiagInfo(ctx, types.KindSAML, requestID, infoType, value)
-	}
-
-	traceErr := func(msg string, errDetails error) {
-		type errInfo struct {
-			Message string `json:"message"`
-			Error   string `json:"error"`
-		}
-
-		diagInfo(types.SSOInfoType_ERROR, errInfo{Message: msg, Error: errDetails.Error()})
-	}
+	auxInfo.requestID = requestID
 
 	request, err := a.Identity.GetSAMLAuthRequest(ctx, requestID)
 	if err != nil {
-		traceErr("Failed to get SAML Auth Request", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err).AddUserMessage("Failed to get SAML Auth Request")
 	}
-
 	auxInfo.ssoTestFlow = request.SSOTestFlow
+
+	writeDiagInfo := func(infoType types.SSOInfoType, value interface{}) {
+		if request.SSOTestFlow {
+			a.createSSODiagInfo(ctx, types.KindSAML, requestID, infoType, value)
+		}
+	}
 
 	connector, provider, err := a.getConnectorAndProvider(ctx, *request)
 	if err != nil {
-		traceErr("Failed to get SAML connector and provider", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
 	}
 
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		err = trace.AccessDenied(
-			"received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err)
-		traceErr("Failed to retrieve assertion info. This may indicate IdP configuration error.", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.AccessDenied("received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err).AddUserMessage("Failed to retrieve assertion info. This may indicate IdP configuration error.")
 	}
 
-	diagInfo(types.SSOInfoType_SAML_ASSERTION_INFO, assertionInfo)
+	writeDiagInfo(types.SSOInfoType_SAML_ASSERTION_INFO, assertionInfo)
 
 	if assertionInfo.WarningInfo.InvalidTime {
-		err = trace.AccessDenied("invalid time in SAML assertion info")
-		traceErr("SAML assertion info contained warning: invalid time.", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.AccessDenied("invalid time in SAML assertion info").AddUserMessage("SAML assertion info contained warning: invalid time.")
 	}
 
 	if assertionInfo.WarningInfo.NotInAudience {
-		err = trace.AccessDenied("no audience in SAML assertion info")
-		traceErr("SAML: not in expected audience. Check auth connector audience field and IdP configuration for typos and other errors.", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.AccessDenied("no audience in SAML assertion info").AddUserMessage("SAML: not in expected audience. Check auth connector audience field and IdP configuration for typos and other errors.")
 	}
 
 	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
@@ -499,16 +490,14 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 
 	auxInfo.attributeStatements = attributeStatements
 
-	diagInfo(types.SSOInfoType_SAML_ATTRIBUTE_STATEMENTS, attributeStatements)
+	writeDiagInfo(types.SSOInfoType_SAML_ATTRIBUTE_STATEMENTS, attributeStatements)
 
 	log.Debugf("SAML assertion warnings: %+v.", assertionInfo.WarningInfo)
 
-	diagInfo(types.SSOInfoType_SAML_ATTRIBUTES_TO_ROLES, connector.GetAttributesToRoles())
+	writeDiagInfo(types.SSOInfoType_SAML_ATTRIBUTES_TO_ROLES, connector.GetAttributesToRoles())
 
 	if len(connector.GetAttributesToRoles()) == 0 {
-		err = trace.BadParameter("no attributes to roles mapping, check connector documentation")
-		traceErr("Attributes-to-roles mapping is empty, SSO user will never have any roles.", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("no attributes to roles mapping, check connector documentation").AddUserMessage("Attributes-to-roles mapping is empty, SSO user will never have any roles.")
 	}
 
 	log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
@@ -517,16 +506,14 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 	// create the user in the backend.
 	params, err := a.calculateSAMLUser(ctx, connector, *assertionInfo, request)
 	if err != nil {
-		traceErr("Failed to calculate user attributes.", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 
-	diagInfo(types.SSOInfoType_CREATE_USER_PARAMS, params)
+	writeDiagInfo(types.SSOInfoType_CREATE_USER_PARAMS, params)
 
 	user, err := a.createSAMLUser(params, request.SSOTestFlow)
 	if err != nil {
-		traceErr("Failed to create user from provided parameters.", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err).AddUserMessage("Failed to create user from provided parameters.")
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
@@ -541,7 +528,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 
 	// In test flow skip signing and creating web sessions.
 	if request.SSOTestFlow {
-		diagInfo(types.SSOInfoType_SUCCESS, "test flow")
+		writeDiagInfo(types.SSOInfoType_SUCCESS, "test flow")
 		return auth, nil
 	}
 
@@ -556,8 +543,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 		})
 
 		if err != nil {
-			traceErr("Failed to create web session.", err)
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err).AddUserMessage("Failed to create web session.")
 		}
 
 		auth.Session = session
@@ -567,13 +553,11 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 	if len(request.PublicKey) != 0 {
 		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster, request.KubernetesCluster)
 		if err != nil {
-			traceErr("Failed to create session certificate.", err)
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err).AddUserMessage("Failed to create session certificate.")
 		}
 		clusterName, err := a.GetClusterName()
 		if err != nil {
-			traceErr("Failed to obtain cluster name.", err)
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err).AddUserMessage("Failed to obtain cluster name.")
 		}
 		auth.Cert = sshCert
 		auth.TLSCert = tlsCert
@@ -584,12 +568,11 @@ func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string, 
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
-			traceErr("Failed to obtain cluster's host CA.", err)
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err).AddUserMessage("Failed to obtain cluster's host CA.")
 		}
 		auth.HostSigners = append(auth.HostSigners, authority)
 	}
 
-	diagInfo(types.SSOInfoType_SUCCESS, "full flow")
+	writeDiagInfo(types.SSOInfoType_SUCCESS, "full flow")
 	return auth, nil
 }
