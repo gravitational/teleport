@@ -113,7 +113,7 @@ func New(cfg Config) (*Memory, error) {
 
 // Memory is a memory B-Tree based backend
 type Memory struct {
-	//  nextID is a next record ID
+	// nextID is a next record ID
 	// intentionally placed first to ensure 64-bit alignment
 	nextID int64
 
