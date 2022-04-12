@@ -948,6 +948,10 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 // cannot run concurrently with event processing. this function injects additional events into
 // the outbound event stream.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
+	if c.target != "auth" {
+		return nil
+	}
+
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
 	gracePeriod := apidefaults.ServerAnnounceTTL
 
