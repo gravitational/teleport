@@ -75,7 +75,7 @@ func (f fakeExec) Command(name string, arg ...string) *exec.Cmd {
 	panic("Unknown commandPathBehavior")
 }
 
-func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
+func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	conf := &client.Config{
 		HomePath:     t.TempDir(),
 		Host:         "localhost",
