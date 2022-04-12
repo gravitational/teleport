@@ -13,14 +13,13 @@ Here are the most common scenarios:
 Let's set up Teleport's access requests to require approval of
 two team members for a privileged role `dbadmin`.
 
-<Admonition
+<Notice
   type="warning"
-  title="Version Warning"
 >
   This guide requires a commercial edition of Teleport. The open source
-  edition of Teleport only supports [Github](../../setup/admin/github-sso.mdx) as
+  edition of Teleport only supports [GitHub](../../setup/admin/github-sso.mdx) as
   an SSO provider.
-</Admonition>
+</Notice>
 
 <Admonition title="Note" type="tip">
   The steps below describe how to use Teleport with Mattermost. You can also [integrate with many other providers](../../enterprise/workflow/index.mdx).
@@ -28,8 +27,45 @@ two team members for a privileged role `dbadmin`.
 
 ## Prerequisites
 
-- Installed [Teleport Enterprise](../../enterprise/introduction.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= 7.0.0
-- [Tctl enterprise admin tool](https://goteleport.com/teleport/download) >= 7.0.0
+<Tabs>
+<TabItem
+  scope={["enterprise"]} label="Enterprise">
+
+- A running Teleport cluster. For details on how to set this up, see our Enterprise
+  [Getting Started](/docs/enterprise/getting-started) guide.
+
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
+  which you can download by visiting the
+  [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+<TabItem scope={["cloud"]}
+  label="Teleport Cloud">
+
+- A Teleport Cloud account. If you do not have one, visit the
+  [sign up page](https://goteleport.com/signup/) to begin your free trial.
+
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+  To download these tools, visit the [Downloads](/docs/cloud/downloads) page.
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+</Tabs>
 - Mattermost installed.
 
 <Admonition
