@@ -24,9 +24,9 @@ export function TopBar() {
 
 const Grid = styled.div`
   display: grid;
-  grid-template-columns: 1fr auto minmax(250px, 1fr);
+  grid-template-columns: 1fr 4fr 2fr;
   width: 100%;
-  padding: 8px 25px;
+  padding: 8px 24px;
   height: 56px;
   box-sizing: border-box;
   align-items: center;
@@ -34,9 +34,10 @@ const Grid = styled.div`
 
 const CentralContainer = styled.div`
   display: grid;
-  column-gap: 10px;
-  margin: auto 10px;
-  grid-template-columns: minmax(150px, 280px) minmax(200px, 600px);
+  column-gap: 12px;
+  margin: auto 12px;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr 2fr; // 1fr for a single child, 1fr 2fr for two children
   align-items: center;
   height: 100%;
 `;

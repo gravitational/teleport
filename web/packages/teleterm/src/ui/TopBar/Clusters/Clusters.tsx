@@ -31,6 +31,10 @@ export function Clusters() {
     clusters.selectItem(id);
   }
 
+  if (!clusters.hasLeaves) {
+    return null;
+  }
+
   return (
     <>
       <ClusterSelector
