@@ -242,4 +242,4 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ .Release.Name }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}

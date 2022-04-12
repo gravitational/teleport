@@ -233,6 +233,17 @@ annotations:
   # highAvailability.certManager.enabled is true
   certSecret: {}
 
+# Kubernetes service account to create/use.
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true 
+  # The name of the ServiceAccount to use.
+  # If not set and create is true, a name is generated using the release name.
+  # Is create is false name will be used to reference existing service account.
+  name: "helm-lint"
+  # Annotations for service account, annotations.serviceAccount will be used instead if it is specified.
+  annotations: {}
+
 # Options for the Teleport service
 service:
   type: LoadBalancer
