@@ -2310,8 +2310,8 @@ func TestDeleteMFA(t *testing.T) {
 	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
 		SecondFactorToken: totpCode,
 	})
-
 	require.NoError(t, err)
+
 	var privilegeToken string
 	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
 
