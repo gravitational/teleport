@@ -688,6 +688,30 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
 
+### tsh configuration file
+
+`tsh` has an optional configuration file that is stored in `$TELEPORT_HOME/config/config.yaml`.
+
+The `tsh` configuration file enables you to specify HTTP headers to be
+included in requests to Teleport Proxy Servers with addresses matching
+the `proxy` field.
+
+```yaml
+add_headers:
+  - proxy: "*.example.com" # matching proxies will have headers included
+    headers: # headers are pairs to include in the http headers
+      foo: bar # Key/Value to be included in the http request
+```
+
+Adding HTTP headers may be useful, if for example an intermediate HTTP
+proxy is in place that requires setting an authentication token:
+
+```yaml
+add_headers:
+  - proxy: "*.infra.corp.xyz"
+    headers:
+      "Authorization": "Bearer tokentokentoken"
+```
 
 ## tctl
 

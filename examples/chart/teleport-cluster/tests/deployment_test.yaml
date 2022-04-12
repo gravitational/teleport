@@ -309,6 +309,45 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should have Recreate strategy in standalone mode
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not have strategy in AWS mode
+    values:
+      - ../.lint/aws-ha.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.strategy
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not have strategy in GCP mode
+    values:
+      - ../.lint/gcp-ha.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.strategy
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not have strategy in custom mode
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+    asserts:
+      - isNull:
+          path: spec.template.spec.strategy
+      - matchSnapshot:
+          path: spec.template.spec
+
   - it: should mount extraVolumes and extraVolumeMounts
     values:
       - ../.lint/volumes.yaml
