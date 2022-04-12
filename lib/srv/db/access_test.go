@@ -802,6 +802,8 @@ func TestAccessMongoDB(t *testing.T) {
 					// Create user/role with the requested permissions.
 					testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
+					// Add extra time so the test won't time out when running in parallel.
+					clientOpt.opts.SetServerSelectionTimeout(10 * time.Second)
 					// Try to connect to the database as this user.
 					mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
 					t.Cleanup(func() {
