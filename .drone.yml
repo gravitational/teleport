@@ -1052,7 +1052,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:240
 ################################################
 
 kind: pipeline
@@ -1090,8 +1090,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1158,20 +1163,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -1194,7 +1209,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:240
 ################################################
 
 kind: pipeline
@@ -1232,8 +1247,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1299,20 +1319,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -1335,7 +1365,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:240
 ################################################
 
 kind: pipeline
@@ -1373,8 +1403,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1438,20 +1473,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -1474,7 +1519,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:240
 ################################################
 
 kind: pipeline
@@ -1512,8 +1557,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1577,20 +1627,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -1613,12 +1673,12 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: build-linux-amd64-rpm
+name: build-linux-amd64-centos7-rpm
 trigger:
   event:
     include:
@@ -1634,7 +1694,7 @@ workspace:
 clone:
   disable: true
 depends_on:
-- build-linux-amd64
+- build-linux-amd64-centos7
 steps:
 - name: Check out code
   image: docker:git
@@ -1650,8 +1710,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1668,9 +1733,9 @@ steps:
   - export VERSION=$(cat /go/.version.txt)
   - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -1683,7 +1748,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -1738,20 +1803,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -1779,12 +1854,12 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: build-linux-amd64-fips-rpm
+name: build-linux-amd64-centos7-fips-rpm
 trigger:
   event:
     include:
@@ -1800,7 +1875,7 @@ workspace:
 clone:
   disable: true
 depends_on:
-- build-linux-amd64-fips
+- build-linux-amd64-centos7-fips
 steps:
 - name: Check out code
   image: docker:git
@@ -1816,8 +1891,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1834,7 +1914,7 @@ steps:
   - export VERSION=$(cat /go/.version.txt)
   - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else
     export S3_PATH="tag/"; fi
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
     /go/artifacts/
   environment:
     AWS_ACCESS_KEY_ID:
@@ -1847,7 +1927,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -1901,20 +1981,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -1942,7 +2032,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
@@ -1979,8 +2069,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2058,20 +2153,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -2094,7 +2199,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
@@ -2131,8 +2236,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2207,20 +2317,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -2243,7 +2363,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:240
 ################################################
 
 kind: pipeline
@@ -2281,8 +2401,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2346,20 +2471,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -2382,7 +2517,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
@@ -2419,8 +2554,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2452,7 +2592,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -2507,20 +2647,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit RPM" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -2548,7 +2698,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
@@ -2585,8 +2735,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2664,20 +2819,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit DEB" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -2832,20 +2997,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -3021,20 +3196,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel .pkg installer" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -3192,20 +3377,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel .pkg installer (tsh client only)" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -3226,7 +3421,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:240
 ################################################
 
 kind: pipeline
@@ -3264,8 +3459,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3329,20 +3529,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit)" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -3365,7 +3575,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:240
 ################################################
 
 kind: pipeline
@@ -3403,8 +3613,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3468,20 +3683,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit)" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -3504,7 +3729,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
@@ -3541,8 +3766,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3620,20 +3850,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) DEB" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -3656,7 +3896,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
@@ -3693,8 +3933,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3772,20 +4017,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) DEB" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -3808,7 +4063,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
@@ -3845,8 +4100,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -3878,7 +4138,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -3933,20 +4193,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) RPM" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -3974,7 +4244,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:410
+# Generated at dronegen/tag.go:451
 ################################################
 
 kind: pipeline
@@ -4011,8 +4281,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -4044,7 +4319,7 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - mkdir -m0700 $GNUPG_DIR
@@ -4099,20 +4374,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) RPM" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -4140,7 +4425,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:225
+# Generated at dronegen/tag.go:240
 ################################################
 
 kind: pipeline
@@ -4178,8 +4463,13 @@ steps:
   - git submodule update --init --recursive webassets || true
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+  - |-
+    VERSION=$(egrep ^VERSION Makefile | cut -d= -f2)
+    if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
+      echo "Mismatch between Makefile version: $$VERSION and git tag: $DRONE_TAG"
+      exit 1
+    fi
+    echo "$$VERSION" > /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -4246,20 +4536,30 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256'); do
+    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
-      product="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-      status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-      if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-        echo "curl HTTP status: $status_code"
-        cat $WORKSPACE_DIR/curl_out.txt
-        exit 1
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent";
+      else
+        products="$name"
       fi
-      curl $CREDENTIALS --fail -o /dev/null -F description="TODO" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" -F "releaseId=$product@$VERSION" "$RELEASES_HOST/assets";
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="Windows 64-bit (tsh client only)" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+      done
     done
   environment:
     RELEASES_CERT:
@@ -5014,11 +5314,15 @@ steps:
       - |
         # write config files
         mkdir -p /go/reprepro/teleport/conf /go/reprepro/teleport/public
+        # we have to keep listing "arm" even though it's not a real debian arch
+        # because we have released packages for it that are currently in the
+        # repo bucket, and reprepro will error out if it's told to includedeb a
+        # package for an architecture that's not in its configuration
         cat << EOF > /go/reprepro/teleport/conf/distributions
         Origin: teleport
         Label: teleport
         Codename: stable
-        Architectures: i386 amd64 arm arm64
+        Architectures: i386 amd64 arm armhf arm64
         Components: main
         Description: apt repository for teleport
         SignWith: 6282C411
@@ -5084,6 +5388,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 8d0b79ebd4a3a0432402abf3b2773f45f8d787c0114d921dcdb5c909f2c338db
+hmac: b9ae19a816d40a43d4307cb8395ddbe141b8c2eddb1cc1c905eabc95ff8795a5
 
 ...

@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -1001,7 +1000,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 	if err != nil {
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
-		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
+		serverErrorMsg, _ := io.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
 			nodeName(strings.Split(address, "@")[0]), serverErrorMsg)
 	}
@@ -1152,7 +1151,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
-		serverErrorMsg, _ := ioutil.ReadAll(proxyErr)
+		serverErrorMsg, _ := io.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
 			nodeName(nodeAddress.Addr), serverErrorMsg)
 	}
@@ -1640,7 +1639,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			RouteToCluster: nodeAddr.Cluster,
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
+			return PromptMFAChallenge(ctx, c, proxyAddr, nil /* opts */)
 		},
 	)
 	if err != nil {

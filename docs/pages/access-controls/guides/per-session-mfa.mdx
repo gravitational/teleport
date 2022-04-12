@@ -42,12 +42,15 @@ their on-disk Teleport certificates.
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - [WebAuthn configured](webauthn.mdx) on this cluster
 - Second factor hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH from the Teleport Web UI)
+
+(!docs/pages/includes/tctl.mdx!)
 
 <Admonition type="note" title="Per-session MFA with FIPS">
 Teleport FIPS builds disable local users. To configure WebAuthn in order to use

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -195,12 +194,11 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	return parts, nil
 }
 
-// ListUploads lists uploads that have been initiated but not completed with
-// earlier uploads returned first
+// ListUploads lists uploads that have been initiated but not completed
 func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
 	var uploads []events.StreamUpload
 
-	dirs, err := ioutil.ReadDir(h.uploadsPath())
+	dirs, err := os.ReadDir(h.uploadsPath())
 	if err != nil {
 		err = trace.ConvertSystemError(err)
 		// The upload folder may not exist if there are no uploads yet.
@@ -219,7 +217,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			h.WithError(err).Warningf("Skipping upload %v with bad format.", uploadID)
 			continue
 		}
-		files, err := ioutil.ReadDir(filepath.Join(h.uploadsPath(), dir.Name()))
+		files, err := os.ReadDir(filepath.Join(h.uploadsPath(), dir.Name()))
 		if err != nil {
 			err = trace.ConvertSystemError(err)
 			if trace.IsNotFound(err) {
@@ -236,15 +234,12 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			h.Warningf("Skipping upload %v, not a directory.", uploadID)
 			continue
 		}
+
 		uploads = append(uploads, events.StreamUpload{
 			SessionID: session.ID(filepath.Base(files[0].Name())),
 			ID:        uploadID,
-			Initiated: dir.ModTime(),
 		})
 	}
-	sort.Slice(uploads, func(i, j int) bool {
-		return uploads[i].Initiated.Before(uploads[j].Initiated)
-	})
 	return uploads, nil
 }
 

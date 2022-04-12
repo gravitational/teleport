@@ -280,7 +280,9 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// Update TLS config to require client certificate.
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log,
+		// TODO: Remove UserCA in Teleport 11.
+		types.UserCA, types.DatabaseCA)
 
 	return server, nil
 }
@@ -571,6 +573,12 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// according to the server's selectors.
 	if err := s.startCloudWatcher(ctx); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// If the agent doesn’t have any static databases configured, send a
+	// heartbeat without error to make the component “ready”.
+	if len(s.cfg.Databases) == 0 && s.cfg.OnHeartbeat != nil {
+		s.cfg.OnHeartbeat(nil)
 	}
 
 	return nil

@@ -15,8 +15,7 @@ non-interactive CI/CD user Jenkins and a security scanner.
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
-- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
 
@@ -312,23 +311,15 @@ $ tsh login --proxy=teleport.example.com --user=alice --auth=local
 $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```
 
-Here is a summary of variables and functions we used in this guide:
+### Filter fields
 
-<table>
-<tr>
-  <th>Variable or Function</th>
-  <th>Description</th>
-</tr>
-<tr>
-  <td>`user.spec.traits`</td>
-  <td>Access traits of local or SSO user.</td>
-</tr>
-<tr>
-  <td>`contains(list, var)`</td>
-  <td>Checks whether list contains variable</td>
-</tr>
-<tr>
-  <td>`equals(var, var)`</td>
-  <td>Checks whether one variable is equal another</td>
-</tr>
-</table>
+Here is an explanation of the fields used in the `where` conditions within this guide.
+
+| Field                                             | Description                                                                                                            |
+|---------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `user.spec.traits["group"]`                       | The list of traits from a local or SSO user where the `group` trait typically comes from an external identity provider |
+| `impersonate_role.metadata.labels["<label key>"]` | The label value given the label `key` from a role to impersonate                                                       |
+| `impersonate_user.metadata.labels["<label key>"]` | The label value given the label `key` from a user to impersonate                                                       |
+
+Check out our [predicate language](../../setup/reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources) 
+guide for a more in depth explanation of the language.
