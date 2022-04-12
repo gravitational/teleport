@@ -285,8 +285,6 @@ func TestRootDatabaseAccessRedisRootCluster(t *testing.T) {
 		Address:    pack.root.redisAddr,
 	}
 
-	_ = startRedis(t, serverConfig)
-
 	config := &common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 		AuthServer: pack.root.cluster.Process.GetAuthServer(),
@@ -299,6 +297,11 @@ func TestRootDatabaseAccessRedisRootCluster(t *testing.T) {
 			Username:    "admin",
 		},
 	}
+
+	tlsConfig, err := common.MakeTestClientTLSConfig(*config)
+	require.NoError(t, err)
+
+	_ = startRedis(t, serverConfig, tlsConfig)
 
 	ctx := context.Background()
 
@@ -1142,7 +1145,7 @@ func makeTestServerTLSConfig(config common.TestServerConfig) ([]byte, []byte, []
 	return privateKey, certPem, cas, nil
 }
 
-func startRedis(t *testing.T, config common.TestServerConfig) string {
+func startRedis(t *testing.T, config common.TestServerConfig, tlsConfig *tls.Config) string {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "could not connect to docker")
 
@@ -1176,7 +1179,7 @@ func startRedis(t *testing.T, config common.TestServerConfig) string {
 			fmt.Sprintf("%s/server.key:/certs/server.key:ro", certDir),
 			fmt.Sprintf("%s/server.cas:/certs/server.cas:ro", certDir),
 		},
-		NetworkID: "cloudbuild",
+		// NetworkID: "cloudbuild",
 		Cmd: []string{
 			"--port", "0",
 			"--tls-port", "6379",
@@ -1204,12 +1207,25 @@ func startRedis(t *testing.T, config common.TestServerConfig) string {
 		}
 	})
 
+	pool.Client.Logs(docker.LogsOptions{
+		Stderr:       true,
+		Stdout:       true,
+		Timestamps:   true,
+		Container:    resource.Container.ID,
+		OutputStream: os.Stdout,
+		ErrorStream:  os.Stderr,
+	})
+
 	err = pool.Retry(func() error {
 		db := goredis.NewClient(&goredis.Options{
 			Addr: fmt.Sprintf("redis-container:%s", resource.GetPort("6379/tcp")),
+			// Addr:      fmt.Sprintf("localhost:%s", resource.GetPort("6379/tcp")),
+			TLSConfig: tlsConfig,
 		})
 
-		return db.Ping(context.TODO()).Err()
+		err := db.Ping(context.TODO()).Err()
+		t.Logf("redis ping err: %v", err)
+		return err
 	})
 	require.NoError(t, err, "failed to ping Redis instance")
 
