@@ -10,7 +10,7 @@ Here are the most common scenarios:
 - Improve the security of your system and prevent one successful phishing attack from compromising your system.
 - Satisfy FedRAMP AC-3 Dual authorization control that requires approval of two authorized individuals.
 
-Let's set up Teleport's Access Requests to require the approval of two team members
+Let's set up Teleport's access requests to require the approval of two team members
 for a privileged role `dbadmin`.
 
 <Notice
@@ -209,11 +209,11 @@ $ tctl users add alice@example.com --roles=reviewer
 $ tctl users add ivan@example.com --roles=reviewer
 ```
 
-### Create an Access Request
+### Create an access request
 
-Bob does not have a role `dbadmin` assigned to him, but can create an Access Aequest for it.
+Bob does not have a role `dbadmin` assigned to him, but can create an access request for it.
 
-Bob can create an Access Request for the `dbadmin` role in the Web UI or CLI:
+Bob can create an access request for the `dbadmin` role in the Web UI or CLI:
 
 <Tabs>
 <TabItem label="Web UI">
