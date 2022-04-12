@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -100,14 +101,13 @@ type Mux struct {
 	sync.RWMutex
 	*log.Entry
 	Config
-	listenerClosed bool
-	sshListener    *Listener
-	tlsListener    *Listener
-	dbListener     *Listener
-	context        context.Context
-	cancel         context.CancelFunc
-	waitContext    context.Context
-	waitCancel     context.CancelFunc
+	sshListener *Listener
+	tlsListener *Listener
+	dbListener  *Listener
+	context     context.Context
+	cancel      context.CancelFunc
+	waitContext context.Context
+	waitCancel  context.CancelFunc
 }
 
 // SSH returns listener that receives SSH connections
@@ -140,12 +140,6 @@ func (m *Mux) DB() net.Listener {
 	return m.dbListener
 }
 
-func (m *Mux) isClosed() bool {
-	m.RLock()
-	defer m.RUnlock()
-	return m.listenerClosed
-}
-
 func (m *Mux) closeListener() {
 	m.Lock()
 	defer m.Unlock()
@@ -154,10 +148,6 @@ func (m *Mux) closeListener() {
 	if m.Listener == nil {
 		return
 	}
-	if m.listenerClosed {
-		return
-	}
-	m.listenerClosed = true
 	m.Listener.Close()
 }
 
@@ -178,9 +168,6 @@ func (m *Mux) Wait() {
 // and accepts requests. Every request is served in a separate goroutine
 func (m *Mux) Serve() error {
 	defer m.waitCancel()
-	backoffTimer := time.NewTicker(5 * time.Second)
-	defer backoffTimer.Stop()
-
 	for {
 		conn, err := m.Listener.Accept()
 		if err == nil {
@@ -191,14 +178,15 @@ func (m *Mux) Serve() error {
 			go m.detectAndForward(conn)
 			continue
 		}
-		if m.isClosed() {
+		if utils.IsUseOfClosedNetworkError(err) {
+			<-m.context.Done()
 			return nil
 		}
 		select {
-		case <-backoffTimer.C:
-			m.Debugf("backoff on accept error: %v", trace.DebugReport(err))
 		case <-m.context.Done():
 			return nil
+		case <-time.After(5 * time.Second):
+			m.Debugf("backoff on accept error: %v", trace.DebugReport(err))
 		}
 	}
 }

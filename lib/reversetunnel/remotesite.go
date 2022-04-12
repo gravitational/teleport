@@ -18,7 +18,6 @@ package reversetunnel
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -322,7 +321,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 	defer func() {
 		s.Infof("Cluster connection closed.")
 
-		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			s.WithError(err).Warnf("Failed to close remote connection for remote site %s", s.domainName)
 		}
 

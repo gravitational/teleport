@@ -18,6 +18,7 @@ package utils
 
 import (
 	"errors"
+	"net"
 	"strings"
 	"syscall"
 
@@ -25,14 +26,26 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// IsUseOfClosedNetworkError returns true if the specified error
-// indicates the use of closed network connection
-// TODO(dmitri): replace in go1.16 with `errors.Is(err, net.ErrClosed)`
+// IsUseOfClosedNetworkError returns true if the specified error indicates the
+// use of a closed network connection. If the error is a trace.Aggregate, all
+// the errors must be a closed network error.
 func IsUseOfClosedNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection)
+
+	// trace.Aggregate contains at least one error and all the errors are
+	// non-nil
+	if a, ok := trace.Unwrap(err).(trace.Aggregate); ok {
+		for _, err := range a.Errors() {
+			if !IsUseOfClosedNetworkError(err) {
+				return false
+			}
+		}
+		return true
+	}
+
+	return errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection)
 }
 
 // IsFailedToSendCloseNotifyError returns true if the provided error is the
