@@ -8,11 +8,7 @@ This guide explains how to set up Github Single Sign On (SSO) for Teleport.
 
 ## Prerequisites
 
-<Tabs>
-<TabItem scope={["oss"]} label="Self-Hosted">
-- Install Teleport and the `tctl` admin tool version >= (=teleport.version=).
-
-  See [Installation](../../installation.mdx) for details.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - Create and register a GitHub OAuth App. To do so, follow the instructions in
   GitHub's documentation.
@@ -22,39 +18,6 @@ This guide explains how to set up Github Single Sign On (SSO) for Teleport.
   Ensure that your OAuth App's "Authentication callback URL" is
   `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the public
   address of the Teleport Proxy Service.
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-- Install Teleport and the `tctl` admin tool version >= (=teleport.version=).
-
-  To download Teleport Enterprise, visit the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-- Create and register a GitHub OAuth App. To do so, follow the instructions in
-  GitHub's documentation.
-
-  [Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
-
-  Ensure that your OAuth App's "Authentication callback URL" is
-  `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the public
-  address of the Teleport Proxy Service.
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Cloud">
-
-- Sign up for a Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- Create and register a GitHub OAuth App. To do so, follow the instructions in GitHub's documentation.
-
-  [Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
-
-  Ensure that your OAuth App's "Authentication callback URL" is
-  `https://PROXY_ADDRESS/v1/webapi/github/`, where `PROXY_ADDRESS` is the domain
-  name of your Teleport Cloud tenant (e.g., mytenant.teleport.sh).
-
-</TabItem>
-</Tabs>
 
 (!docs/pages/includes/tctl.mdx!)
 
