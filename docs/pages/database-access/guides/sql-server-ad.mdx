@@ -10,7 +10,7 @@ description: How to configure Teleport Database Access with Microsoft SQL Server
   scopeOnly={true}
   min="9.0"
 >
-  Database access for Microsoft SQL Server with Active Directory authentication
+  Database Access for Microsoft SQL Server with Active Directory authentication
   is available starting from Teleport `9.0`.
 </Details>
 
@@ -30,13 +30,16 @@ Directory authentication.
 
 ## Prerequisites
 
-- Teleport version >= `9.0`.
 - A SQL Server database with Active Directory authentication enabled.
 - A Windows machine joined to the same Active Directory domain as the database.
 - A Linux node joined to the same Active Directory domain as the database. This
   guide will walk you through the joining steps if you don't have one.
 
-## Step 1/7. Set up Teleport Auth and Proxy
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Step 1/7. Set up the Teleport Auth and Proxy
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
@@ -48,7 +51,7 @@ Directory authentication.
 
 <Admonition type="note">
   You can skip this step if you already have a Linux node joined to the same
-  Active Directory domain as your SQL Server.
+  Active Directory domain as your SQL Server instance.
 </Admonition>
 
 The Linux node where the Database Service will run must be joined to the same
@@ -153,7 +156,7 @@ domain:
   </TabItem>
 </Tabs>
 
-Log into your Active Directory using the `kinit` command:
+Log in to Active Directory using the `kinit` command:
 
 ```bash
 $ kinit admin@EXAMPLE.COM
@@ -205,7 +208,7 @@ KVNO Principal
   authentication failures.
 </Admonition>
 
-## Step 5/7. Set up Teleport Database Service
+## Step 5/7. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -214,7 +217,9 @@ KVNO Principal
   Active Directory domain as the SQL Server.
 </Admonition>
 
-Start Teleport Database Service. Make sure to update `--auth-server` to point to
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+Start the Teleport Database Service. Make sure to update `--auth-server` to point to
 your Teleport Proxy Service address and `--uri` to the SQL Server endpoint.
 
   ```bash
@@ -229,6 +234,28 @@ your Teleport Proxy Service address and `--uri` to the SQL Server endpoint.
     --ad-spn=MSSQLSvc/sqlserver.example.com:1433 \
     --labels=env=dev
   ```
+  
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Start the Teleport Database Service. Make sure to update `--auth-server` to
+point to your Teleport Cloud tenant address and `--uri` to the SQL Server
+endpoint.
+
+  ```bash
+  $ teleport db start \
+    --token=/tmp/token \
+    --auth-server=mytenant.teleport.sh \
+    --name=sqlserver \
+    --protocol=sqlserver \
+    --uri=sqlserver.example.com:1433 \
+    --ad-keytab-file=/path/to/teleport.keytab \
+    --ad-domain=EXAMPLE.COM \
+    --ad-spn=MSSQLSvc/sqlserver.example.com:1433 \
+    --labels=env=dev
+  ```
+
+</ScopedBlock>
 
 Provide Active Directory parameters:
 
@@ -239,8 +266,8 @@ Provide Active Directory parameters:
 | `--ad-spn` | Service Principal Name for SQL Server to fetch Kerberos tickets for. |
 
 <Admonition type="tip">
-  You can start Teleport Database Service using a configuration file instead of
-  CLI flags. See [YAML reference](../reference/configuration.mdx).
+  You can start the Teleport Database Service using a configuration file instead of
+  CLI flags. See the [YAML reference](../reference/configuration.mdx).
 </Admonition>
 
 ### Service Principal Name
@@ -289,8 +316,10 @@ master> CREATE LOGIN [EXAMPLE\alice] FROM WINDOWS WITH DEFAULT_DATABASE = [maste
 
 ## Step 7/7. Connect
 
-Log into your Teleport cluster. Your SQL Server database should appear in the
+Log in to your Teleport cluster. Your SQL Server database should appear in the
 list of available databases:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -300,6 +329,19 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name      Description         Labels
+# --------- ------------------- -------
+# sqlserver                     env=dev
+```
+
+</ScopedBlock>
+
 Fetch the short-lived client certificate for it using the `tsh db login` command:
 
 ```code
@@ -307,7 +349,7 @@ $ tsh db login --db-user=teleport sqlserver
 ```
 
 <Admonition type="tip">
-  You can be logged into multiple databases simultaneously.
+  You can be logged in to multiple databases simultaneously.
 </Admonition>
 
 Now connect to the database:
@@ -317,7 +359,7 @@ $ tsh db connect sqlserver
 ```
 
 <Admonition type="note">
-  The `mssql-cli` command-line client should be available in PATH of the machine
+  The `mssql-cli` command-line client should be available in `PATH` of the machine
   you're running `tsh db connect` from.
 </Admonition>
 
