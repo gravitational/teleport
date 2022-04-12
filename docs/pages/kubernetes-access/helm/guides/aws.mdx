@@ -151,7 +151,7 @@ There are two supported options when using AWS:
 You must choose only one of these options.
 
 
-### Step 4a/7. Install and configure cert-manager to handle TLS
+## Step 4a/7. Install and configure cert-manager to handle TLS
 
 In this example, we are using multiple pods to create a High Availability Teleport cluster. As such, we will be using
 `cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
@@ -191,7 +191,7 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
-#### Installing cert-manager
+### Installing cert-manager
 
 If you do not have `cert-manager` already configured in the Kubernetes cluster where you are installing Teleport,
 you should add the Jetstack Helm chart repository which hosts the `cert-manager` chart, and install the chart:
@@ -248,7 +248,7 @@ $ kubectl create namespace teleport
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
-### Step 4b/7. Configure Teleport to use ACM to handle TLS
+## Step 4b/7. Configure Teleport to use ACM to handle TLS
 
 <Admonition type="warning" title="Warning">
   Command-line Teleport Application Access does not work with ACM. Using ACM will prevent Teleport
@@ -531,4 +531,4 @@ Teleport cluster.
 
 See the [high availability section of our Helm chart reference](../reference/teleport-cluster.mdx#highavailability) for more details on high availability.
 
-Reference: [`cert-manager` docs](https://cert-manager.io/docs/).
+Read the [`cert-manager` documentation](https://cert-manager.io/docs/).
