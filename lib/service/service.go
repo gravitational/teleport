@@ -3736,7 +3736,7 @@ func warnOnErr(err error, log logrus.FieldLogger) {
 	if err != nil {
 		// don't warn on double close, happens sometimes when
 		// calling accept on a closed listener
-		if strings.Contains(err.Error(), constants.UseOfClosedNetworkConnection) {
+		if utils.IsUseOfClosedNetworkError(err) {
 			return
 		}
 		log.WithError(err).Warn("Got error while cleaning up.")
