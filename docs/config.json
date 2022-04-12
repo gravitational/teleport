@@ -858,7 +858,7 @@
     }
   ],
   "variables": {
-    "version": "10.0",
+    "version": "7.0",
     "terraform": {
       "version": "1.0.0"
     },
