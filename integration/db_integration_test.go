@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	goredis "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1202,6 +1203,15 @@ func startRedis(t *testing.T, config common.TestServerConfig) string {
 			t.Fatalf("Could not purge resource: %s", err)
 		}
 	})
+
+	err = pool.Retry(func() error {
+		db := goredis.NewClient(&goredis.Options{
+			Addr: fmt.Sprintf("redis-container:%s", resource.GetPort("6379/tcp")),
+		})
+
+		return db.Ping().Err()
+	})
+	require.NoError(t, err, "failed to ping Redis instance")
 
 	network := resource.Container.NetworkSettings.Networks["cloudbuild"]
 	return net.JoinHostPort(network.IPAddress, port)
