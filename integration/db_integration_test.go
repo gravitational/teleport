@@ -1212,13 +1212,15 @@ func startRedis(t *testing.T, config common.TestServerConfig, tlsConfig *tls.Con
 		}
 	})
 
+	lw := &logWritter{loggerFn: t.Logf}
+
 	pool.Client.Logs(docker.LogsOptions{
 		Stderr:       true,
 		Stdout:       true,
 		Timestamps:   true,
 		Container:    resource.Container.ID,
-		OutputStream: os.Stdout,
-		ErrorStream:  os.Stderr,
+		OutputStream: lw,
+		ErrorStream:  lw,
 	})
 
 	err = pool.Retry(func() error {
@@ -1236,4 +1238,14 @@ func startRedis(t *testing.T, config common.TestServerConfig, tlsConfig *tls.Con
 
 	network := resource.Container.NetworkSettings.Networks["cloudbuild"]
 	return net.JoinHostPort(network.IPAddress, port)
+}
+
+type logWritter struct {
+	loggerFn func(format string, args ...interface{})
+}
+
+func (l *logWritter) Write(p []byte) (n int, err error) {
+	l.loggerFn("container log: %s", string(p))
+
+	return len(p), nil
 }
