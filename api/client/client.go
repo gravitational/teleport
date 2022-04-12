@@ -2483,6 +2483,7 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 			Labels:              req.Labels,
 			SearchKeywords:      req.SearchKeywords,
 			PredicateExpression: req.PredicateExpression,
+			UseSearchAsRoles:    req.UseSearchAsRoles,
 		})
 		if err != nil {
 			if trace.IsLimitExceeded(err) {

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -318,17 +319,16 @@ func onRequestSearch(cf *CLIConf) error {
 		Labels:              tc.Labels,
 		PredicateExpression: cf.PredicateExpression,
 		SearchKeywords:      tc.SearchKeywords,
-		Limit:               100,
 		UseSearchAsRoles:    true,
 	}
-	resp, err := authClient.ListResources(cf.Context, req)
+	resources, err := client.GetResourcesWithFilters(cf.Context, authClient, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	table := asciitable.MakeTable([]string{"Kind", "Hostname", "ID"})
 	var resourceIDs []string
-	for _, resource := range resp.Resources {
+	for _, resource := range resources {
 		id := resource.GetKind() + ":" + resource.GetName()
 		resourceIDs = append(resourceIDs, id)
 
