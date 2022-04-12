@@ -143,6 +143,10 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 //
 // Underneath it uses exec.Command, so the resulting command will always be expanded to its absolute
 // path if exec.LookPath was able to find the given binary on user's system.
+//
+// If CLICommandBuilder's options.tolerateMissingCLIClient is set to true, GetConnectCommand
+// shouldn't return an error if it cannot locate a client binary. Check WithTolerateMissingCLIClient
+// docs for more details.
 func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
@@ -287,8 +291,13 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 		return c.exe.Command(mariadbBin, args...), nil
 	}
 
-	// Check for mysql binary. Return with error as mysql and mariadb are missing. There is nothing else we can do here.
+	// Check for mysql binary. In case the caller doesn't tolerate a missing CLI client, return with
+	// error as mysql and mariadb are missing. There is nothing else we can do here.
 	if !c.isMySQLBinAvailable() {
+		if c.options.tolerateMissingCLIClient {
+			return c.getMySQLOracleCommand(), nil
+		}
+
 		return nil, trace.NotFound("neither %q nor %q CLI clients were found, please make sure an appropriate CLI client is available in $PATH", mysqlBin, mariadbBin)
 	}
 
@@ -448,12 +457,13 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 }
 
 type connectionCommandOpts struct {
-	localProxyPort int
-	localProxyHost string
-	caPath         string
-	noTLS          bool
-	printFormat    bool
-	log            *logrus.Entry
+	localProxyPort           int
+	localProxyHost           string
+	caPath                   string
+	noTLS                    bool
+	printFormat              bool
+	tolerateMissingCLIClient bool
+	log                      *logrus.Entry
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -497,5 +507,21 @@ func WithPrintFormat() ConnectCommandFunc {
 func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.log = log
+	}
+}
+
+// WithTolerateMissingCLIClient is the connect command option that makes CLICommandBuilder not
+// return an error in case a specific binary couldn't be found in the system. Instead it should
+// return the command with just a base version of the binary name, without an absolute path.
+//
+// In general CLICommandBuilder doesn't return an error in that scenario as it uses exec.Command
+// underneath. However, there are some specific situations where we need to execute some of the
+// binaries before returning the final command.
+//
+// The flag is mostly for scenarios where the caller doesn't care that the final command might not
+// work.
+func WithTolerateMissingCLIClient() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.tolerateMissingCLIClient = true
 	}
 }

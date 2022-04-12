@@ -82,7 +82,9 @@ func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
 	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb, c.URI.GetRootClusterName(),
 		dbcmd.WithLogger(gw.Log),
 		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
-		dbcmd.WithNoTLS()).GetConnectCommandNoAbsPath()
+		dbcmd.WithNoTLS(),
+		dbcmd.WithTolerateMissingCLIClient(),
+	).GetConnectCommandNoAbsPath()
 
 	if err != nil {
 		return nil, trace.Wrap(err)

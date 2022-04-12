@@ -297,6 +297,22 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:         "no mysql nor mariadb with no TLS and tolerateMissingCLIClient",
+			dbProtocol:   defaults.ProtocolMySQL,
+			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithNoTLS(), WithTolerateMissingCLIClient()},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{},
+			},
+			cmd: []string{"mysql",
+				"--user", "myUser",
+				"--database", "mydb",
+				"--port", "12345",
+				"--host", "localhost",
+				"--protocol", "TCP"},
+			wantErr: false,
+		},
+		{
 			name:         "mongodb (legacy)",
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
