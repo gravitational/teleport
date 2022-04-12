@@ -127,7 +127,7 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 
 	// We don't overallocate expired since cleaning up sessions here should be rare.
 	var noExpiry []backend.Item
-	now := time.Now().UTC()
+	now := s.bk.Clock().Now()
 	for _, item := range result.Items {
 		session, err := unmarshalSession(item.Value)
 		if err != nil {
@@ -135,7 +135,12 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 		}
 
 		// NOTE: This is the session expiry timestamp, not the backend timestamp stored in `item.Expires`.
-		after := session.GetExpires().After(now)
+		exp := session.GetExpires()
+		if session.Expiry().After(exp) {
+			exp = session.Expiry()
+		}
+
+		after := exp.After(now)
 
 		switch {
 		case after:
