@@ -479,7 +479,18 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.NewString()
+	// Checking error instead of the usual uuid.New() in case uuid generation
+	// fails due to not enough randomness. It's been known to happen happen when
+	// Teleport starts very early in the node initialization cycle and /dev/urandom
+	// isn't ready yet.
+	rawID, err := uuid.NewRandom()
+	if err != nil {
+		return "", trace.BadParameter("" +
+			"Teleport failed to generate host UUID. " +
+			"This may happen if randomness source is not fully initialized when the node is starting up. " +
+			"Please try restarting Teleport again.")
+	}
+	id = rawID.String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}
