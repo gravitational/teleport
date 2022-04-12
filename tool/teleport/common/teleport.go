@@ -295,6 +295,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).ExistingDirVar(&dumpFlags.DataDir)
 	dump.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
+	dump.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)

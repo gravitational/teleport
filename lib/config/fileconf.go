@@ -155,6 +155,8 @@ type SampleFlags struct {
 	AuthToken string
 	// Roles is a list of comma-separrated roles to create a config file with
 	Roles string
+	// AuthServer is the address of the auth server
+	AuthServer string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -183,6 +185,9 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 
 	g.DataDir = flags.DataDir
 	g.AuthToken = flags.AuthToken
+	if flags.AuthServer != "" {
+		g.AuthServers = []string{flags.AuthServer}
+	}
 
 	roles := roleMapFromFlags(flags)
 
