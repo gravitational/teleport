@@ -146,11 +146,13 @@ Loop:
 	return lockTargets
 }
 
-// UseSearchAsRoles replaces the checker on the current Context with the set of
-// roles the user is allowed to search as.
+// UseSearchAsRoles extends the roles of the Checker on the current Context with
+// the set of roles the user is allowed to search as.
 func (c *Context) UseSearchAsRoles(access services.RoleGetter) error {
-	searchAsRoleNames := c.Checker.GetSearchAsRoles()
-	newRoleSet, err := services.FetchRoles(searchAsRoleNames, access, c.User.GetTraits())
+	var newRoleNames []string
+	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
+	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
+	newRoleSet, err := services.FetchRoles(newRoleNames, access, c.User.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -162,7 +164,7 @@ func (c *Context) UseSearchAsRoles(access services.RoleGetter) error {
 		// builtin roles should not be searching
 		return trace.AccessDenied("unexpected checker of type %T attempting UseSearchAsRoles", c.Checker)
 	}
-	c.User.SetRoles(searchAsRoleNames)
+	c.User.SetRoles(newRoleNames)
 	return nil
 }
 

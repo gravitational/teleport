@@ -2125,22 +2125,29 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 	// permission for
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindNode,
-		Limit:        2,
+		Limit:        int32(len(testNodes)),
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
 	require.Equal(t, resp.Resources[0].GetName(), testNodes[0].GetName())
 
-	// ListResources with UseSearchAsRoles returns only the second node, which
-	// searchAsRole has permission for
+	// ListResources with UseSearchAsRoles returns both nodes
 	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType:     types.KindNode,
-		Limit:            2,
+		Limit:            int32(len(testNodes)),
 		UseSearchAsRoles: true,
 	})
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Equal(t, resp.Resources[0].GetName(), testNodes[1].GetName())
+	require.Len(t, resp.Resources, len(testNodes))
+	var expectedNodes []string
+	for _, node := range testNodes {
+		expectedNodes = append(expectedNodes, node.GetName())
+	}
+	var gotNodes []string
+	for _, node := range resp.Resources {
+		gotNodes = append(gotNodes, node.GetName())
+	}
+	require.ElementsMatch(t, expectedNodes, gotNodes)
 
 	// make sure an audit event is logged for the search
 	auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", nil, 10, 0, "")
@@ -2149,7 +2156,9 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 	for _, event := range auditEvents {
 		if searchEvent, ok := event.(*apievents.AccessRequestResourceSearch); ok {
 			foundAuditEvent = true
-			require.Equal(t, searchEvent.SearchAsRoles, []string{searchAsRole.GetName()})
+			require.ElementsMatch(t,
+				[]string{role.GetName(), searchAsRole.GetName()},
+				searchEvent.SearchAsRoles)
 		}
 	}
 	require.True(t, foundAuditEvent)
