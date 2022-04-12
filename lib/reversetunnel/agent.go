@@ -466,6 +466,19 @@ func (a *agent) isDraining() bool {
 	}
 }
 
+// signalDraining will signal one time when the draining context is canceled.
+func (a *agent) signalDraining() <-chan struct{} {
+	c := make(chan struct{})
+	a.wg.Add(1)
+	go func() {
+		<-a.drainCtx.Done()
+		c <- struct{}{}
+		a.wg.Done()
+	}()
+
+	return c
+}
+
 // handleDrainChannels handles channels that should be stopped when the agent is draining.
 func (a *agent) handleDrainChannels() error {
 	ticker := time.NewTicker(a.keepAlive)
@@ -481,6 +494,7 @@ func (a *agent) handleDrainChannels() error {
 		})
 	}
 	defer drainWGDone()
+	drainSignal := a.signalDraining()
 
 	for {
 		if a.isDraining() {
@@ -490,6 +504,10 @@ func (a *agent) handleDrainChannels() error {
 		select {
 		case <-a.ctx.Done():
 			return trace.Wrap(a.ctx.Err())
+		// Signal once when the drain context is canceled to ensure we unblock
+		// to call drainWG.Done().
+		case <-drainSignal:
+			continue
 		// Handle closed heartbeat channel.
 		case req := <-a.hbRequests:
 			if req == nil {
