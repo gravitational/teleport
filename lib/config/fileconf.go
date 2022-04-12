@@ -157,6 +157,10 @@ type SampleFlags struct {
 	Roles string
 	// AuthServer is the address of the auth server
 	AuthServer string
+	// AppName is the name of the application to start
+	AppName string
+	// AppURI is the internal address of the application to proxy
+	AppURI string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -267,12 +271,27 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		p.EnabledFlag = "no"
 	}
 
+	// Apps config:
+	var apps Apps
+	if roles[defaults.RoleApp] {
+		apps.EnabledFlag = "yes"
+		apps.Apps = []*App{
+			{
+				Name: flags.AppName,
+				URI:  flags.AppURI,
+			},
+		}
+	} else {
+		apps.EnabledFlag = "no"
+	}
+
 	fc = &FileConfig{
 		Version: flags.Version,
 		Global:  g,
 		Proxy:   p,
 		SSH:     s,
 		Auth:    a,
+		Apps:    apps,
 	}
 	return fc, nil
 }
