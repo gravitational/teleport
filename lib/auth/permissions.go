@@ -152,7 +152,7 @@ func (c *Context) UseSearchAsRoles(access services.RoleGetter) error {
 	searchAsRoleNames := c.Checker.GetSearchAsRoles()
 	newRoleSet, err := services.FetchRoles(searchAsRoleNames, access, c.User.GetTraits())
 	if err != nil {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if _, ok := c.Checker.(LocalUserRoleSet); ok {
 		c.Checker = LocalUserRoleSet{newRoleSet}
@@ -160,7 +160,7 @@ func (c *Context) UseSearchAsRoles(access services.RoleGetter) error {
 		c.Checker = RemoteUserRoleSet{newRoleSet}
 	} else {
 		// builtin roles should not be searching
-		return trace.BadParameter("unexpected checker of type %T attempting UseSearchAsRoles", c.Checker)
+		return trace.AccessDenied("unexpected checker of type %T attempting UseSearchAsRoles", c.Checker)
 	}
 	c.User.SetRoles(searchAsRoleNames)
 	return nil

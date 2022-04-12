@@ -2153,7 +2153,7 @@ message MySQLStatementBulkExecute {
     repeated string Parameters = 6 [ (gogoproto.jsontag) = "parameters" ];
 }
 
-// AccessReqeustResourceSearch is emitted when a user searches for resources as
+// AccessRequestResourceSearch is emitted when a user searches for resources as
 // part of a search-based access request
 message AccessRequestResourceSearch {
     // Metadata is common event metadata.
