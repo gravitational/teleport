@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"strconv"
 
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -124,7 +125,7 @@ func (g *Gateway) LocalPortInt() int {
 	// Ignoring the error here as Teleterm doesn't allow the user to pick the value for the port, so
 	// it'll always be a random integer value, not a service name that needs actual lookup.
 	// For more details, see https://stackoverflow.com/questions/47992477/why-is-port-a-string-and-not-an-integer
-	port, _ := net.LookupPort("", g.LocalPort)
+	port, _ := strconv.Atoi(g.LocalPort)
 	return port
 }
 
