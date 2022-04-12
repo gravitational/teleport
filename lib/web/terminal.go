@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -239,29 +238,13 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 	for {
 		select {
 		case <-tickerCh.C:
-			for {
-				// A short deadline is used here to detect a broken connection quickly.
-				// If this is just a temporary issue, we will retry shortly anyway.
-				deadline := time.Now().Add(time.Second)
-				if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
-					if e, ok := err.(net.Error); ok && e.Temporary() {
-						t.log.Warnf("Temporary issue attempting to send ping frame to web client: %v.", err)
-
-						select {
-						case <-time.After(time.Second):
-							continue
-						case <-t.terminalContext.Done():
-							terminateMessage()
-							return
-						}
-					}
-
-					t.log.Errorf("Unable to send ping frame to web client: %v.", err)
-					t.Close()
-					return
-				}
-
-				break
+			// A short deadline is used here to detect a broken connection quickly.
+			// If this is just a temporary issue, we will retry shortly anyway.
+			deadline := time.Now().Add(time.Second)
+			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+				t.Close()
+				return
 			}
 		case <-t.terminalContext.Done():
 			terminateMessage()
