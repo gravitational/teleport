@@ -1526,6 +1526,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 			KubeUsers:  kubeUsers,
 		},
 	})
+	require.NoError(t, err)
 	joinRole, err := types.NewRoleV3("participant", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			JoinSessions: []*types.SessionJoinPolicy{{
