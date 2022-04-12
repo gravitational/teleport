@@ -100,8 +100,8 @@ type Config struct {
 	// OnReconcile is called after each database resource reconciliation.
 	OnReconcile func(types.Apps)
 
-	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
-	ProxiedServiceUpdater *reversetunnel.ProxiedServiceUpdater
+	// ConnectedProxyGetter gets the proxies teleport is connected to.
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -147,6 +147,9 @@ func (c *Config) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		c.Cloud = cloud
+	}
+	if c.ConnectedProxyGetter == nil {
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	return nil
@@ -414,14 +417,12 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 		HostID:   s.c.HostID,
 		Rotation: s.getRotationState(),
 		App:      copy,
+		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if s.c.ProxiedServiceUpdater != nil {
-		s.c.ProxiedServiceUpdater.Update(server)
-	}
 	return server, nil
 }
 

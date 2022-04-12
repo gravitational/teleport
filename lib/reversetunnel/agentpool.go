@@ -107,7 +107,7 @@ type AgentPoolConfig struct {
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
 	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
-	ProxiedServiceUpdater *ProxiedServiceUpdater
+	ConnectedProxyGetter *ConnectedProxyGetter
 	// IgnoreTunnelStrategy ignores the tunnel strategy and connects to all proxies.
 	IgnoreTunnelStrategy bool
 }
@@ -132,8 +132,8 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
-	if cfg.ProxiedServiceUpdater == nil {
-		cfg.ProxiedServiceUpdater = NewProxiedServiceUpdater()
+	if cfg.ConnectedProxyGetter == nil {
+		cfg.ConnectedProxyGetter = NewConnectedProxyGetter()
 	}
 	return nil
 }
@@ -195,18 +195,18 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	return pool, nil
 }
 
-// GetProxiedServiceUpdater returns the ProxiedServiceUpdater for this agent pool.
-func (p *AgentPool) GetProxiedServiceUpdater() *ProxiedServiceUpdater {
-	return p.ProxiedServiceUpdater
+// GetConnectedProxyGetter returns the ConnectedProxyGetter for this agent pool.
+func (p *AgentPool) GetConnectedProxyGetter() *ConnectedProxyGetter {
+	return p.ConnectedProxyGetter
 }
 
 func (p *AgentPool) updateConnectedProxies() {
 	if !p.runtimeConfig.reportConnectedProxies() {
-		p.ProxiedServiceUpdater.setProxiesIDs([]string{})
+		p.ConnectedProxyGetter.setProxiesIDs(nil)
 		return
 	}
 
-	p.AgentPoolConfig.ProxiedServiceUpdater.setProxiesIDs(p.active.proxyIDs())
+	p.AgentPoolConfig.ConnectedProxyGetter.setProxiesIDs(p.active.proxyIDs())
 }
 
 // Count is the number connected agents.

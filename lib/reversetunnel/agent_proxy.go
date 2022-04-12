@@ -19,41 +19,44 @@ package reversetunnel
 import (
 	"sync"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/google/go-cmp/cmp"
 )
 
 // NewProxiedServiceUpdater creates a new ProxiedServiceUpdater instance.
-func NewProxiedServiceUpdater() *ProxiedServiceUpdater {
-	return &ProxiedServiceUpdater{
-		ids: make([]string, 0),
-	}
+func NewConnectedProxyGetter() *ConnectedProxyGetter {
+	return &ConnectedProxyGetter{}
 }
 
-// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
-type ProxiedServiceUpdater struct {
+// ConnectedProxyGetter gets the proxy ids that the a reverse tunnel pool is
+// connected to. This is used to communicate the connected proxies between
+// reversetunnel.AgentPool and service implementations to include the
+// connected proxy ids in the service's heartbeats.
+type ConnectedProxyGetter struct {
 	ids []string
 	mu  sync.RWMutex
 }
 
 // Update updates a given proxied service with proxy ids, nonce id, and nonce.
-func (u *ProxiedServiceUpdater) Update(service types.ProxiedService) {
-	u.mu.RLock()
-	defer u.mu.RUnlock()
-
-	service.SetProxyIDs(u.ids)
+func (g *ConnectedProxyGetter) GetProxyIDs() []string {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.ids
 }
 
 // setProxies sets the proxy ids to set for a proxied service
-func (u *ProxiedServiceUpdater) setProxiesIDs(ids []string) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+func (g *ConnectedProxyGetter) setProxiesIDs(ids []string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
-	if cmp.Equal(u.ids, ids) {
+	if cmp.Equal(g.ids, ids) {
 		return
 	}
 
-	u.ids = make([]string, len(ids))
-	copy(u.ids, ids)
+	if ids == nil {
+		g.ids = nil
+		return
+	}
+
+	g.ids = make([]string, len(ids))
+	copy(g.ids, ids)
 }

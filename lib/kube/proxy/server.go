@@ -50,8 +50,8 @@ type TLSServerConfig struct {
 	AccessPoint auth.ReadKubernetesAccessPoint
 	// OnHeartbeat is a callback for kubernetes_service heartbeats.
 	OnHeartbeat func(error)
-	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
-	ProxiedServiceUpdater *reversetunnel.ProxiedServiceUpdater
+	// ConnectedProxyGetter gets the proxies teleport is connected to.
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// Log is the logger.
 	Log log.FieldLogger
 }
@@ -80,6 +80,10 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = log.New()
 	}
+	if c.ConnectedProxyGetter == nil {
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+
 	return nil
 }
 
@@ -245,13 +249,10 @@ func (t *TLSServer) GetServerInfo() (types.Resource, error) {
 			Addr:               addr,
 			Version:            teleport.Version,
 			KubernetesClusters: t.fwd.kubeClusters(),
+			ProxyIDs:           t.ConnectedProxyGetter.GetProxyIDs(),
 		},
 	}
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
-
-	if t.ProxiedServiceUpdater != nil {
-		t.ProxiedServiceUpdater.Update(srv)
-	}
 
 	return srv, nil
 }

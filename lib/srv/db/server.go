@@ -101,8 +101,8 @@ type Config struct {
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
 	CloudIAM *cloud.IAM
-	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
-	ProxiedServiceUpdater *reversetunnel.ProxiedServiceUpdater
+	// ConnectedProxyGetter gets the proxies teleport is connected to.
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -186,6 +186,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			return trace.Wrap(err)
 		}
 	}
+	if c.ConnectedProxyGetter == nil {
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+
 	return nil
 }
 
@@ -536,14 +540,12 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		HostID:   s.cfg.HostID,
 		Rotation: s.getRotationState(),
 		Database: copy,
+		ProxyIDs: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if s.cfg.ProxiedServiceUpdater != nil {
-		s.cfg.ProxiedServiceUpdater.Update(server)
-	}
 	return server, nil
 }
 

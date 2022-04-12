@@ -3,40 +3,28 @@ package reversetunnel
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProxiedServiceUpdater(t *testing.T) {
-	proxies := NewProxiedServiceUpdater()
+	proxies := NewConnectedProxyGetter()
 
-	server, err := types.NewServer("test", types.KindNode, types.ServerSpecV2{})
-	require.NoError(t, err)
+	var expectIDs []string
+	ids := proxies.GetProxyIDs()
+	require.Equal(t, expectIDs, ids)
 
-	tests := []struct {
-		proxies []string
-	}{
-		{
-			proxies: []string{},
-		},
-		{
-			proxies: []string{"test1"},
-		},
-		{
-			proxies: []string{"test2"},
-		},
-		{
-			proxies: []string{"test3"},
-		},
-		{
-			proxies: []string{"test3"},
-		},
-	}
+	expectIDs = []string{}
+	proxies.setProxiesIDs(expectIDs)
+	ids = proxies.GetProxyIDs()
+	require.Equal(t, expectIDs, ids)
 
-	for _, tc := range tests {
-		proxies.setProxiesIDs(tc.proxies)
-		proxies.Update(server)
+	expectIDs = []string{"test1", "test2"}
+	proxies.setProxiesIDs(expectIDs)
+	ids = proxies.GetProxyIDs()
+	require.Equal(t, expectIDs, ids)
 
-		require.Equal(t, tc.proxies, server.GetProxyIDs())
-	}
+	expectIDs = nil
+	proxies.setProxiesIDs(expectIDs)
+	ids = proxies.GetProxyIDs()
+	require.Equal(t, expectIDs, ids)
 }

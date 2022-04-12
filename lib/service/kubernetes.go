@@ -89,7 +89,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		return trace.Wrap(err)
 	}
 
-	updater := reversetunnel.NewProxiedServiceUpdater(process.Clock)
+	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	// This service can run in 2 modes:
 	// 1. Reachable (by the proxy) - registers with auth server directly and
@@ -137,15 +137,16 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:   teleport.ComponentKube,
-				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				Resolver:    conn.TunnelProxyResolver(),
-				Client:      conn.Client,
-				AccessPoint: accessPoint,
-				HostSigner:  conn.ServerIdentity.KeySigner,
-				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-				Server:      shtl,
-				FIPS:        process.Config.FIPS,
+				Component:            teleport.ComponentKube,
+				HostUUID:             conn.ServerIdentity.ID.HostUUID,
+				Resolver:             conn.TunnelProxyResolver(),
+				Client:               conn.Client,
+				AccessPoint:          accessPoint,
+				HostSigner:           conn.ServerIdentity.KeySigner,
+				Cluster:              conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				Server:               shtl,
+				FIPS:                 process.Config.FIPS,
+				ConnectedProxyGetter: proxyGetter,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -159,7 +160,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			}
 		}()
 		log.Info("Started reverse tunnel client.")
-		updater = agentPool.GetProxiedServiceUpdater()
 	}
 
 	var dynLabels *labels.Dynamic
@@ -249,11 +249,11 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
 		},
-		TLS:                   tlsConfig,
-		AccessPoint:           accessPoint,
-		LimiterConfig:         cfg.Kube.Limiter,
-		OnHeartbeat:           process.onHeartbeat(teleport.ComponentKube),
-		ProxiedServiceUpdater: updater,
+		TLS:                  tlsConfig,
+		AccessPoint:          accessPoint,
+		LimiterConfig:        cfg.Kube.Limiter,
+		OnHeartbeat:          process.onHeartbeat(teleport.ComponentKube),
+		ConnectedProxyGetter: proxyGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

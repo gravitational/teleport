@@ -166,8 +166,8 @@ type WindowsServiceConfig struct {
 	DiscoveryLDAPFilters []string
 	// Hostname of the windows desktop service
 	Hostname string
-	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
-	ProxiedServiceUpdater *reversetunnel.ProxiedServiceUpdater
+	// ConnectedProxyGetter gets the proxies teleport is connected to.
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -280,6 +280,9 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	}
 	if err := cfg.checkAndSetDiscoveryDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+	if cfg.ConnectedProxyGetter == nil {
+		cfg.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	return nil
@@ -947,14 +950,12 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 			Addr:            s.cfg.Heartbeat.PublicAddr,
 			TeleportVersion: teleport.Version,
 			Hostname:        s.cfg.Hostname,
+			ProxyIDs:        s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	srv.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
-	if s.cfg.ProxiedServiceUpdater != nil {
-		s.cfg.ProxiedServiceUpdater.Update(srv)
-	}
 	return srv, nil
 }
 
