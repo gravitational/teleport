@@ -78,7 +78,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 		offlineThreshold: srv.offlineThreshold,
 	}
 
-	// Start periodic functions for the the local cluster in the background.
+	// Start periodic functions for the local cluster in the background.
 	go s.periodicFunctions()
 
 	return s, nil
@@ -126,6 +126,10 @@ func (s *localSite) GetTunnelsCount() int {
 // CachingAccessPoint returns a auth.AccessPoint for this cluster.
 func (s *localSite) CachingAccessPoint() (auth.AccessPoint, error) {
 	return s.accessPoint, nil
+}
+
+func (s *localSite) GetNodeWatcher() (*services.NodeWatcher, error) {
+	return s.srv.NodeWatcher, nil
 }
 
 // GetClient returns a client to the full Auth Server API.
@@ -501,28 +505,28 @@ func (s *localSite) periodicFunctions() {
 
 // sshTunnelStats reports SSH tunnel statistics for the cluster.
 func (s *localSite) sshTunnelStats() error {
-	servers, err := s.accessPoint.GetNodes(s.srv.ctx, apidefaults.Namespace)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	servers := s.srv.Config.NodeWatcher.GetFiltered(func(server types.Server) bool {
+		// Skip over any servers that have a TTL larger than announce TTL (10
+		// minutes) and are non-IoT SSH servers (they won't have tunnels).
+		//
+		// Servers with a TTL larger than the AnnounceTTL skipped over to work around
+		// an issue with DynamoDB where objects can hang around for 48 hours after
+		// their TTL value.
+		if !server.GetUseTunnel() {
+			return false
+		}
+
+		ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
+		if server.Expiry().Before(ttl) {
+			return false
+		}
+
+		return true
+	})
 
 	var missing []string
 
 	for _, server := range servers {
-		// Skip over any servers that that have a TTL larger than announce TTL (10
-		// minutes) and are non-IoT SSH servers (they won't have tunnels).
-		//
-		// Servers with a TTL larger than the announce TTL skipped over to work around
-		// an issue with DynamoDB where objects can hang around for 48 hours after
-		// their TTL value.
-		ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
-		if server.Expiry().Before(ttl) {
-			continue
-		}
-		if !server.GetUseTunnel() {
-			continue
-		}
-
 		// Check if the tunnel actually exists.
 		_, err := s.getRemoteConn(&sshutils.DialReq{
 			ServerID: fmt.Sprintf("%v.%v", server.GetName(), s.domainName),

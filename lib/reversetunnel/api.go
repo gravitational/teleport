@@ -18,13 +18,13 @@ package reversetunnel
 
 import (
 	"context"
-
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
@@ -94,6 +94,8 @@ type RemoteSite interface {
 	// CachingAccessPoint returns access point that is lightweight
 	// but is resilient to auth server crashes
 	CachingAccessPoint() (auth.AccessPoint, error)
+	// GetNodeWatcher returns a watcher for the nodes of the remote site
+	GetNodeWatcher() (*services.NodeWatcher, error)
 	// GetTunnelsCount returns the amount of active inbound tunnels
 	// from the remote cluster
 	GetTunnelsCount() int

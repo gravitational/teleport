@@ -183,6 +183,9 @@ type Server struct {
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
+
+	// nodeWatcher is the server's node watcher.
+	nodeWatcher *services.NodeWatcher
 }
 
 // GetClock returns server clock implementation

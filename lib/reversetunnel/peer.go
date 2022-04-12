@@ -87,6 +87,14 @@ func (p *clusterPeers) CachingAccessPoint() (auth.AccessPoint, error) {
 	return peer.CachingAccessPoint()
 }
 
+func (p *clusterPeers) GetNodeWatcher() (*services.NodeWatcher, error) {
+	peer, err := p.pickPeer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return peer.GetNodeWatcher()
+}
+
 func (p *clusterPeers) GetClient() (auth.ClientI, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
@@ -186,6 +194,10 @@ func (s *clusterPeer) setConnInfo(ci types.TunnelConnection) {
 
 func (s *clusterPeer) CachingAccessPoint() (auth.AccessPoint, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
+}
+
+func (s *clusterPeer) GetNodeWatcher() (*services.NodeWatcher, error) {
+	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 
 func (s *clusterPeer) GetClient() (auth.ClientI, error) {

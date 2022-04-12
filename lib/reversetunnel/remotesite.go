@@ -75,6 +75,8 @@ type remoteSite struct {
 	// the remote cluster this site belongs to.
 	remoteAccessPoint auth.AccessPoint
 
+	nodeWatcher *services.NodeWatcher
+
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
 	// state has been changed, the tunnel will reconnect to re-create the client
@@ -136,6 +138,10 @@ func (s *remoteSite) CachingAccessPoint() (auth.AccessPoint, error) {
 	return s.remoteAccessPoint, nil
 }
 
+func (s *remoteSite) GetNodeWatcher() (*services.NodeWatcher, error) {
+	return s.nodeWatcher, nil
+}
+
 func (s *remoteSite) GetClient() (auth.ClientI, error) {
 	return s.remoteClient, nil
 }
@@ -162,7 +168,7 @@ func (s *remoteSite) hasValidConnections() bool {
 	return false
 }
 
-// Clos closes remote cluster connections
+// Close closes remote cluster connections
 func (s *remoteSite) Close() error {
 	s.Lock()
 	defer s.Unlock()

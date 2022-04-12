@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -433,7 +434,7 @@ func (p *proxyCollector) notifyStale() {}
 func serverMapValues(serverMap map[string]types.Server) []types.Server {
 	servers := make([]types.Server, 0, len(serverMap))
 	for _, server := range serverMap {
-		servers = append(servers, server)
+		servers = append(servers, server.DeepCopy())
 	}
 	return servers
 }
@@ -819,3 +820,129 @@ func casToSlice(host map[string]types.CertAuthority, user map[string]types.CertA
 	}
 	return slice
 }
+
+// NodeWatcherConfig is a ProxyWatcher configuration.
+type NodeWatcherConfig struct {
+	ResourceWatcherConfig
+	// NodeGetter is used to directly fetch the list of active proxies.
+	NodeGetter
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *NodeWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.NodeGetter == nil {
+		getter, ok := cfg.Client.(NodeGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter NodeGetter and Client not usable as NodeGetter")
+		}
+		cfg.NodeGetter = getter
+	}
+	return nil
+}
+
+// NewNodeWatcher returns a new instance of NodeWatcher.
+func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*NodeWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &nodeCollector{
+		NodeWatcherConfig: cfg,
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &NodeWatcher{watcher, collector}, nil
+}
+
+// NodeWatcher is built on top of resourceWatcher to monitor additions
+// and deletions to the set of proxies.
+type NodeWatcher struct {
+	*resourceWatcher
+	*nodeCollector
+}
+
+// proxyCollector accompanies resourceWatcher when monitoring proxies.
+type nodeCollector struct {
+	NodeWatcherConfig
+	// current holds a map of the currently known nodes (keyed by server name,
+	// RWMutex protected).
+	current map[string]types.Server
+	rw      sync.RWMutex
+}
+
+// GetCurrent returns the currently stored proxies.
+func (n *nodeCollector) GetCurrent() []types.Server {
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+	return serverMapValues(n.current)
+}
+
+func (n *nodeCollector) GetFiltered(filter func(server types.Server) bool) []types.Server {
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+
+	var servers []types.Server
+	for _, server := range n.current {
+		if filter(server) {
+			servers = append(servers, server.DeepCopy())
+		}
+	}
+	return servers
+}
+
+// resourceKind specifies the resource kind to watch.
+func (n *nodeCollector) resourceKind() string {
+	return types.KindNode
+}
+
+// getResourcesAndUpdateCurrent is called when the resources should be
+// (re-)fetched directly.
+func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	nodes, err := n.NodeGetter.GetNodes(ctx, apidefaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(nodes) == 0 {
+		// At least one proxy ought to exist.
+		return trace.NotFound("empty node list")
+	}
+	newCurrent := make(map[string]types.Server, len(nodes))
+	for _, node := range nodes {
+		newCurrent[node.GetName()] = node
+	}
+	n.rw.Lock()
+	defer n.rw.Unlock()
+	n.current = newCurrent
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (n *nodeCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindNode {
+		n.Log.Warningf("Unexpected event: %v.", event)
+		return
+	}
+
+	n.rw.Lock()
+	defer n.rw.Unlock()
+
+	switch event.Type {
+	case types.OpDelete:
+		delete(n.current, event.Resource.GetName())
+	case types.OpPut:
+		server, ok := event.Resource.(types.Server)
+		if !ok {
+			n.Log.Warningf("Unexpected type %T.", event.Resource)
+			return
+		}
+		n.current[server.GetName()] = server
+	default:
+		n.Log.Warningf("Skipping unsupported event type %s.", event.Type)
+	}
+}
+
+func (n *nodeCollector) notifyStale() {}
