@@ -233,7 +233,7 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SS
 
 	if r.URL.Query().Has("err") {
 		err := r.URL.Query().Get("err")
-		return nil, trace.Errorf("received error: %v", err)
+		return nil, trace.Errorf("identity provider callback failed with error: %v", err)
 	}
 
 	// Decrypt ciphertext to get login response.
