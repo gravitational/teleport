@@ -93,9 +93,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
@@ -668,7 +668,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		} else {
 			switch cfg.JoinMethod {
 			case types.JoinMethodToken, types.JoinMethodUnspecified, types.JoinMethodIAM:
-				cfg.HostUUID = uuid.New()
+				cfg.HostUUID = uuid.NewString()
 			case types.JoinMethodEC2:
 				cfg.HostUUID, err = utils.GetEC2NodeID()
 				if err != nil {
