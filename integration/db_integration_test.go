@@ -1209,7 +1209,7 @@ func startRedis(t *testing.T, config common.TestServerConfig) string {
 			Addr: fmt.Sprintf("redis-container:%s", resource.GetPort("6379/tcp")),
 		})
 
-		return db.Ping().Err()
+		return db.Ping(context.TODO()).Err()
 	})
 	require.NoError(t, err, "failed to ping Redis instance")
 
