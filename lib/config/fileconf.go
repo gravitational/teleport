@@ -153,7 +153,7 @@ type SampleFlags struct {
 	DataDir string
 	// AuthToken is a token to register with an auth server
 	AuthToken string
-	// Roles is a list of comma-separrated roles to create a config file with
+	// Roles is a list of comma-separated roles to create a config file with
 	Roles string
 	// AuthServer is the address of the auth server
 	AuthServer string
