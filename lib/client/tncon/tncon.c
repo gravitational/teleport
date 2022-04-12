@@ -99,7 +99,7 @@ ReadConsoleForTermEmul(HANDLE hInput, HANDLE hQuitEvent)
 
 			// NOTE: modified here to emit events directly
 			case WINDOW_BUFFER_SIZE_EVENT:
-				writeResizeEvent(inputRecord.Event.WindowBufferSizeEvent.dwSize);
+				notifyResizeEvent();
 				break;
 			case FOCUS_EVENT:
 				break;
