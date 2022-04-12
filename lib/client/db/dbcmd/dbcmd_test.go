@@ -94,12 +94,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		opts         []ConnectCommandFunc
 		dbProtocol   string
 		databaseName string
 		execer       *fakeExec
 		cmd          []string
-		noTLS        bool
-		printFormat  bool
 		wantErr      bool
 	}{
 		{
@@ -117,8 +116,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:         "postgres no TLS",
 			dbProtocol:   defaults.ProtocolPostgres,
 			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer:       &fakeExec{},
-			noTLS:        true,
 			cmd: []string{"psql",
 				"postgres://myUser@localhost:12345/mydb"},
 			wantErr: false,
@@ -127,8 +126,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:         "postgres print format",
 			dbProtocol:   defaults.ProtocolPostgres,
 			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithPrintFormat()},
 			execer:       &fakeExec{},
-			printFormat:  true,
 			cmd: []string{"psql",
 				"\"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
 					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
@@ -154,7 +153,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:         "cockroach no TLS",
 			dbProtocol:   defaults.ProtocolCockroachDB,
 			databaseName: "mydb",
-			noTLS:        true,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"cockroach": []byte(""),
@@ -168,7 +167,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:         "cockroach print format",
 			dbProtocol:   defaults.ProtocolCockroachDB,
 			databaseName: "mydb",
-			printFormat:  true,
+			opts:         []ConnectCommandFunc{WithPrintFormat()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"cockroach": []byte(""),
@@ -216,7 +215,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:         "mariadb no TLS",
 			dbProtocol:   defaults.ProtocolMySQL,
 			databaseName: "mydb",
-			noTLS:        true,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mariadb": []byte(""),
@@ -273,7 +272,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:         "mysql no TLS",
 			dbProtocol:   defaults.ProtocolMySQL,
 			databaseName: "mydb",
-			noTLS:        true,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mysql": []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
@@ -316,7 +315,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:         "mongodb no TLS",
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
-			noTLS:        true,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{},
 			},
@@ -347,7 +346,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:         "mongosh no TLS",
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
-			noTLS:        true,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mongosh": []byte("1.1.6"),
@@ -400,8 +399,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 		{
 			name:       "redis-cli no TLS",
 			dbProtocol: defaults.ProtocolRedis,
+			opts:       []ConnectCommandFunc{WithNoTLS()},
 			execer:     &fakeExec{},
-			noTLS:      true,
 			cmd: []string{"redis-cli",
 				"-h", "localhost",
 				"-p", "12345"},
@@ -421,15 +420,9 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				ServiceName: "mysql",
 			}
 
-			opts := []ConnectCommandFunc{
+			opts := append([]ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
-			}
-			if tt.noTLS {
-				opts = append(opts, WithNoTLS())
-			}
-			if tt.printFormat {
-				opts = append(opts, WithPrintFormat())
-			}
+			}, tt.opts...)
 
 			c := NewCmdBuilder(tc, profile, database, "root", opts...)
 			c.uid = utils.NewFakeUID()
