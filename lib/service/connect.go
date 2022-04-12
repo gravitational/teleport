@@ -933,6 +933,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		BreakerConfig: process.Config.BreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -977,6 +978,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		DialOpts: dialOpts,
 		// Deliberately ignore HTTP proxies for backwards compatibility.
 		IgnoreHTTPProxy: true,
+		BreakerConfig:   process.Config.BreakerConfig,
 	}, cltParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
