@@ -128,13 +128,13 @@ func (a *Server) getConnectorAndProvider(ctx context.Context, req services.SAMLA
 		// stateless test flow
 		connector, err := types.NewSAMLConnector(req.ConnectorID, *req.ConnectorSpec)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, trace.Wrap(err)
 		}
 
 		// validate, set defaults for connector
 		err = services.ValidateSAMLConnector(connector)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, trace.Wrap(err)
 		}
 
 		// we don't want to cache the provider. construct it directly instead of using a.getSAMLProvider()

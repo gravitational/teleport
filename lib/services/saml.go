@@ -96,7 +96,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector) error {
 	}
 
 	if len(sc.GetAttributesToRoles()) == 0 {
-		return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never give any roles.")
+		return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never give any roles")
 	}
 
 	log.Debugf("[SAML] SSO: %v", sc.GetSSO())

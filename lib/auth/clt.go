@@ -1780,7 +1780,7 @@ type IdentityService interface {
 	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
 
 	// GetSAMLAuthRequest returns SAML auth request if found
-	GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error)
+	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*services.SAMLAuthRequest, error)
 
 	// GetSSODiagnosticInfo returns SSO diagnostic info records.
 	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) ([]types.SSODiagnosticInfo, error)
