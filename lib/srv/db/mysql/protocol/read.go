@@ -16,7 +16,10 @@ limitations under the License.
 
 package protocol
 
-import "encoding/binary"
+import (
+	"bytes"
+	"encoding/binary"
+)
 
 // skipHeaderAndType skips packet header and command type, and returns rest of
 // the bytes.
@@ -54,4 +57,14 @@ func readUint16(input []byte) (unread []byte, read uint16, ok bool) {
 		return nil, 0, false
 	}
 	return input[2:], binary.LittleEndian.Uint16(input[:2]), true
+}
+
+// readNullTerminatedString reads a null terminated string and returns rest of
+// the bytes.
+func readNullTerminatedString(input []byte) (unread []byte, read string, ok bool) {
+	idx := bytes.IndexByte(input, 0x00)
+	if idx < 0 {
+		return nil, "", false
+	}
+	return input[idx+1:], string(input[:idx]), true
 }

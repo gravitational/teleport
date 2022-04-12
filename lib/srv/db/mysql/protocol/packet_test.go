@@ -96,6 +96,86 @@ var (
 		user: "bob",
 	}
 
+	sampleInitDBPacket = &InitDB{
+		schemaNamePacket: schemaNamePacket{
+			packet: packet{
+				bytes: []byte{
+					0x06, 0x00, 0x00, 0x00, // header
+					0x02,                         // type
+					0x74, 0x65, 0x73, 0x74, 0x00, // null terminated "test"
+				},
+			},
+			schemaName: "test",
+		},
+	}
+
+	sampleCreateDBPacket = &CreateDB{
+		schemaNamePacket: schemaNamePacket{
+			packet: packet{
+				bytes: []byte{
+					0x06, 0x00, 0x00, 0x00, // header
+					0x05,                         // type
+					0x74, 0x65, 0x73, 0x74, 0x00, // null terminated "test"
+				},
+			},
+			schemaName: "test",
+		},
+	}
+
+	sampleDropDBPacket = &DropDB{
+		schemaNamePacket: schemaNamePacket{
+			packet: packet{
+				bytes: []byte{
+					0x06, 0x00, 0x00, 0x00, // header
+					0x06,                         // type
+					0x74, 0x65, 0x73, 0x74, 0x00, // null terminated "test"
+				},
+			},
+			schemaName: "test",
+		},
+	}
+
+	sampleShutdownPacket = &Shutdown{
+		packet: packet{
+			bytes: []byte{
+				0x02, 0x00, 0x00, 0x00, // header
+				0x08, // type
+				0x00, // optional shutdown type
+			},
+		},
+	}
+
+	sampleProcessKillPacket = &ProcessKill{
+		packet: packet{
+			bytes: []byte{
+				0x05, 0x00, 0x00, 0x00, // header
+				0x0c,                   // type
+				0x15, 0x00, 0x00, 0x00, // connection ID
+			},
+		},
+		connectionID: 21,
+	}
+
+	sampleDebugPacket = &Debug{
+		packet: packet{
+			bytes: []byte{
+				0x01, 0x00, 0x00, 0x00, // header
+				0x0d, // type
+			},
+		},
+	}
+
+	sampleRefreshPacket = &Refresh{
+		packet: packet{
+			bytes: []byte{
+				0x02, 0x00, 0x00, 0x00, // header
+				0x07, // type
+				0x40, // subcommand
+			},
+		},
+		subcommand: "REFRESH_SLAVE",
+	}
+
 	sampleStatementPreparePacket = &StatementPreparePacket{
 		packet: packet{
 			bytes: []byte{
@@ -288,6 +368,41 @@ func TestParsePacket(t *testing.T) {
 			name:           "COM_CHANGE_USER",
 			input:          bytes.NewBuffer(sampleChangeUserPacket.Bytes()),
 			expectedPacket: sampleChangeUserPacket,
+		},
+		{
+			name:           "COM_INIT_DB",
+			input:          bytes.NewBuffer(sampleInitDBPacket.Bytes()),
+			expectedPacket: sampleInitDBPacket,
+		},
+		{
+			name:           "COM_CREATE_DB",
+			input:          bytes.NewBuffer(sampleCreateDBPacket.Bytes()),
+			expectedPacket: sampleCreateDBPacket,
+		},
+		{
+			name:           "COM_DROP_DB",
+			input:          bytes.NewBuffer(sampleDropDBPacket.Bytes()),
+			expectedPacket: sampleDropDBPacket,
+		},
+		{
+			name:           "COM_SHUTDOWN",
+			input:          bytes.NewBuffer(sampleShutdownPacket.Bytes()),
+			expectedPacket: sampleShutdownPacket,
+		},
+		{
+			name:           "COM_PROCESS_KILL",
+			input:          bytes.NewBuffer(sampleProcessKillPacket.Bytes()),
+			expectedPacket: sampleProcessKillPacket,
+		},
+		{
+			name:           "COM_DEBUG",
+			input:          bytes.NewBuffer(sampleDebugPacket.Bytes()),
+			expectedPacket: sampleDebugPacket,
+		},
+		{
+			name:           "COM_REFRESH",
+			input:          bytes.NewBuffer(sampleRefreshPacket.Bytes()),
+			expectedPacket: sampleRefreshPacket,
 		},
 		{
 			name:           "COM_STMT_PREPARE",
