@@ -18,6 +18,7 @@ package services
 
 import (
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"time"
@@ -53,6 +54,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
+	case types.DatabaseCA:
+		err = checkDatabaseCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
 	default:
@@ -84,6 +87,39 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	}
 	_, err := parseRoleMap(ca.GetRoleMap())
 	return trace.Wrap(err)
+}
+
+// checkDatabaseCA checks if provided certificate authority contains a valid TLS key pair.
+// This function is used to verify Database CA.
+func checkDatabaseCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	if len(ca.Spec.ActiveKeys.TLS) == 0 && len(ca.Spec.TLSKeyPairs) == 0 {
+		return trace.BadParameter("DB certificate authority missing TLS key pairs")
+	}
+
+	for _, pair := range ca.GetTrustedTLSKeyPairs() {
+		if len(pair.Key) > 0 && pair.KeyType == types.PrivateKeyType_RAW {
+			var err error
+			if len(pair.Cert) > 0 {
+				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
+			} else {
+				_, err = utils.ParsePrivateKey(pair.Key)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		_, err := tlsca.ParseCertificatePEM(pair.Cert)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 func checkJWTKeys(cai types.CertAuthority) error {

@@ -921,9 +921,9 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		publicKey: req.PublicKey,
 		checker:   checker,
 		ttl:       time.Hour,
-		traits: wrappers.Traits(map[string][]string{
+		traits: map[string][]string{
 			teleport.TraitLogins: {req.Username},
-		}),
+		},
 		routeToCluster: req.Cluster,
 		dbService:      req.RouteToDatabase.ServiceName,
 		dbProtocol:     req.RouteToDatabase.Protocol,
@@ -985,7 +985,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
 	// The only caller setting this parameter should be "tctl auth sign".
-	// Otherwise set the session TTL to the smallest of all roles and
+	// Otherwise, set the session TTL to the smallest of all roles and
 	// then only grant access to allowed logins based on that.
 	if req.overrideRoleTTL {
 		// Take whatever was passed in. Pass in 0 to CheckLoginDuration so all
@@ -1999,7 +1999,7 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 	return strings.TrimSuffix(hostName, suffix), nil
 }
 
-// HostFQDN consits of host UUID and cluster name joined via .
+// HostFQDN consists of host UUID and cluster name joined via .
 func HostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
@@ -2156,9 +2156,8 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	}
 
 	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
-	// The target DNS is not always known in advance so we add a default one to all certificates.
+	// The target DNS is not always known in advance, so we add a default one to all certificates.
 	certRequest.DNSNames = append(certRequest.DNSNames, DefaultDNSNamesForRole(req.Role)...)
-
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
 	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
@@ -3488,6 +3487,13 @@ func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySe
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.DatabaseCA:
+		// Database CA only contains TLS cert.
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
 	case types.JWTSigner:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair()
 		if err != nil {
@@ -3558,7 +3564,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	}
 
 	var usedKeys [][]byte
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
+	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
 		ca, err := a.Trust.GetCertAuthority(ctx, caID, true)
 		if err != nil {
@@ -3754,7 +3760,7 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 				}
 			}
 		}
-		pool, err := ClientCertPool(ap, clusterName)
+		pool, err := DefaultClientCertPool(ap, clusterName)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to retrieve client pool for %q.", clusterName)
 			// this falls back to the default config
@@ -3782,7 +3788,7 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 		if totalSubjectsLen >= int64(math.MaxUint16) {
 			log.Debugf("Number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate.", len(pool.Subjects()))
 
-			pool, err = ClientCertPool(ap, currentClusterName)
+			pool, err = DefaultClientCertPool(ap, currentClusterName)
 			if err != nil {
 				log.WithError(err).Errorf("Failed to retrieve client pool for %q.", currentClusterName)
 				// this falls back to the default config

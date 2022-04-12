@@ -831,7 +831,7 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 
-	// test create uesr, happy path
+	// test create user, happy path
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
@@ -1191,7 +1191,8 @@ func TestNewWebSession(t *testing.T) {
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	err = p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	require.NoError(t, err)
 
 	// Create a user.
 	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})

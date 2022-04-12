@@ -459,8 +459,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 			Clock:     s.clock,
 			Client:    s.localAccessPoint,
 		},
-		WatchUserCA: true,
-		WatchHostCA: true,
+		WatchCertTypes: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -474,7 +473,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 			Clock:     s.clock,
 			Client:    s.remoteAccessPoint,
 		},
-		WatchHostCA: true,
+		WatchCertTypes: []types.CertAuthType{types.HostCA},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -496,7 +495,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 			for _, localCA := range cas {
 				if localCA.GetClusterName() != s.srv.ClusterName ||
 					(localCA.GetType() != types.HostCA &&
-						localCA.GetType() != types.UserCA) {
+						localCA.GetType() != types.UserCA && localCA.GetType() != types.DatabaseCA) {
 					continue
 				}
 
