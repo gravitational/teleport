@@ -6,7 +6,60 @@
 # runtime requirement for the host to have newer glibc too. For example,
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
-FROM ubuntu:18.04
+
+# Build libfido2 in a separate step to isolate dependencies and give us some
+# flexibility with regards to the base image.
+FROM buildpack-deps:18.04 AS libfido2
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+# libeudev
+      docbook-xml \
+      docbook-xsl \
+      gnu-efi \
+      gobject-introspection \
+      gperf \
+      intltool \
+      libacl1-dev \
+      libblkid-dev \
+      libcap-dev \
+      libglib-object-introspection-perl \
+      libkmod-dev \
+      libselinux1-dev \
+      libtool \
+      m4 \
+      pkg-config \
+      xsltproc \
+# libcbor/libfido2
+      cmake \
+      && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install libeudev.
+# libeudev replaces systemd's libudev
+RUN git clone --depth=1 https://github.com/eudev-project/eudev.git -b v3.2.11 && \
+    cd eudev && \
+    ./autogen.sh && \
+    ./configure --prefix /usr/local --with-pic && \
+    make && \
+    make install
+
+# Install libcbor.
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
+    cd libcbor && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DCBOR_CUSTOM_ALLOC=ON . && \
+    make && \
+    make install
+
+# Install libfido2.
+# Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
+    cd libfido2 && \
+    cmake -DCMAKE_BUILD_TYPE=Release . && \
+    make && \
+    make install
+
+FROM ubuntu:18.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -32,7 +85,6 @@ RUN apt-get update -y --fix-missing && \
         ca-certificates \
         clang-10 \
         clang-format-10 \
-        cmake \
         curl \
         default-jre \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
@@ -83,22 +135,6 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
-
-# Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
-  cd libcbor && \
-  cmake -DCMAKE_BUILD_TYPE=Release -DCBOR_CUSTOM_ALLOC=ON . && \
-  make && \
-  make install
-
-# Install libfido2.
-# Depends on libcbor, libssl-dev, zlib and libudev-dev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
-  cd libfido2 && \
-  cmake -DCMAKE_BUILD_TYPE=Release . && \
-  make && \
-  make install && \
-  ldconfig
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -189,5 +225,17 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     cargo install cbindgen
 
 USER root
+COPY --from=libfido2 /usr/local/include/ /usr/local/include/
+COPY --from=libfido2 \
+    /usr/local/lib/libcbor.a \
+    /usr/local/lib/libfido2.a \
+    /usr/local/lib/libfido2.so.1.10.0 \
+    /usr/local/lib/libudev.a \
+    /usr/local/lib/
+RUN cd /usr/local/lib && \
+    ln -s libfido2.so.1.10.0 libfido2.so.1 && \
+    ln -s libfido2.so.1 libfido2.so && \
+    ldconfig
+
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
