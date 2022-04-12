@@ -200,14 +200,14 @@ func (a *Server) calculateSAMLUser(ctx context.Context, connector types.SAMLConn
 
 	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
 
-	diagInfo := func(infoType types.SSOInfoType, value interface{}) {
+	writeDiagInfo := func(infoType types.SSOInfoType, value interface{}) {
 		if request.SSOTestFlow {
 			a.createSSODiagInfo(ctx, types.KindSAML, request.ID, infoType, value)
 		}
 	}
 
-	diagInfo(types.SSOInfoType_SAML_TRAITS_FROM_ASSERTIONS, p.traits)
-	diagInfo(types.SSOInfoType_SAML_CONNECTOR_TRAIT_MAPPING, connector.GetTraitMappings())
+	writeDiagInfo(types.SSOInfoType_SAML_TRAITS_FROM_ASSERTIONS, p.traits)
+	writeDiagInfo(types.SSOInfoType_SAML_CONNECTOR_TRAIT_MAPPING, connector.GetTraitMappings())
 
 	var warnings []string
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
@@ -218,12 +218,12 @@ func (a *Server) calculateSAMLUser(ctx context.Context, connector types.SAMLConn
 		}
 
 		if len(warnings) != 0 {
-			diagInfo(types.SSOInfoType_SAML_ATTRIBUTES_TO_ROLES_WARNINGS, warn{
+			writeDiagInfo(types.SSOInfoType_SAML_ATTRIBUTES_TO_ROLES_WARNINGS, warn{
 				Message:  "No roles mapped for the user",
 				Warnings: warnings})
 			log.WithField("connector", connector).Warnf("Unable to map attibutes to roles: %q", warnings)
 		} else {
-			diagInfo(types.SSOInfoType_SAML_ATTRIBUTES_TO_ROLES_WARNINGS, warn{Message: "No roles mapped for the user. The mappings may contain typos."})
+			writeDiagInfo(types.SSOInfoType_SAML_ATTRIBUTES_TO_ROLES_WARNINGS, warn{Message: "No roles mapped for the user. The mappings may contain typos."})
 		}
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
