@@ -8,5 +8,5 @@ roleRef:
   name: {{ .Release.Name }}
 subjects:
 - kind: ServiceAccount
-  name: {{ template "teleport.serviceAccountName" . }} 
+  name: {{ template "teleport.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}

@@ -463,11 +463,6 @@
                     "$id": "#properties/service/create",
                     "type": "boolean",
                     "default": true 
-                },
-                "annotations": {
-                    "$id": "#/properties/serviceAccount/annotations",
-                    "type": "object",
-                    "default": {}
                 }
             }
         },
