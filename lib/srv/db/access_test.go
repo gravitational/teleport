@@ -778,11 +778,15 @@ func TestAccessMongoDB(t *testing.T) {
 	}{
 		{
 			name: "client without compression",
-			opts: options.Client(),
+			opts: options.Client().
+				// Add extra time so the test won't time out when running in parallel.
+				SetServerSelectionTimeout(10 * time.Second),
 		},
 		{
 			name: "client with compression",
-			opts: options.Client().SetCompressors([]string{"zlib"}),
+			opts: options.Client().
+				SetServerSelectionTimeout(10 * time.Second).
+				SetCompressors([]string{"zlib"}),
 		},
 	}
 
@@ -803,8 +807,6 @@ func TestAccessMongoDB(t *testing.T) {
 					// Create user/role with the requested permissions.
 					testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
-					// Add extra time so the test won't time out when running in parallel.
-					clientOpt.opts.SetServerSelectionTimeout(10 * time.Second)
 					// Try to connect to the database as this user.
 					mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
 					t.Cleanup(func() {
