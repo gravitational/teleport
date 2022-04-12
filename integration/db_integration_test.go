@@ -1186,7 +1186,7 @@ func startRedis(t *testing.T, config common.TestServerConfig) string {
 		PortBindings: map[docker.Port][]docker.PortBinding{
 			"6379/tcp": {{HostPort: port}},
 		},
-		Hostname: "redis-container",
+		Name: "redis-container",
 	}, func(config *docker.HostConfig) {
 		// set AutoRemove to true so that stopped container goes away by itself
 		config.AutoRemove = true
