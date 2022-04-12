@@ -233,8 +233,6 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
 	defer tickerCh.Stop()
 
-	terminateMessage := func() { t.log.Debug("Terminating websocket ping loop.") }
-
 	for {
 		select {
 		case <-tickerCh.C:
@@ -247,7 +245,7 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 				return
 			}
 		case <-t.terminalContext.Done():
-			terminateMessage()
+			t.log.Debug("Terminating websocket ping loop.")
 			return
 		}
 	}
