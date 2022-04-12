@@ -1152,7 +1152,8 @@ func startRedis(t *testing.T, config common.TestServerConfig, tlsConfig *tls.Con
 	privPem, cert, cas, err := makeTestServerTLSConfig(config)
 	require.NoError(t, err)
 
-	certDir := t.TempDir()
+	certDir, err := os.MkdirTemp("/workspace", "db-certs")
+	require.NoError(t, err)
 
 	// save server keys, so we can mount them in a container.
 	err = os.WriteFile(fmt.Sprintf("%s/server.key", certDir), privPem, 0600)
@@ -1175,9 +1176,10 @@ func startRedis(t *testing.T, config common.TestServerConfig, tlsConfig *tls.Con
 		// most likely refuse to load keys with different uid.
 		User: fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
 		Mounts: []string{
-			fmt.Sprintf("%s/server.crt:/certs/server.crt:ro", certDir),
-			fmt.Sprintf("%s/server.key:/certs/server.key:ro", certDir),
-			fmt.Sprintf("%s/server.cas:/certs/server.cas:ro", certDir),
+			// fmt.Sprintf("%s/server.crt:/certs/server.crt:ro", certDir),
+			// fmt.Sprintf("%s/server.key:/certs/server.key:ro", certDir),
+			// fmt.Sprintf("%s/server.cas:/certs/server.cas:ro", certDir),
+			"/workspace:/workspace",
 		},
 		NetworkID: "cloudbuild",
 		Cmd: []string{
