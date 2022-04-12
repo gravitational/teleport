@@ -136,6 +136,13 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 }
 
+// GetConnectCommand returns a command that can connect the user directly to the given database
+// using an appropriate CLI database client. It takes into account cluster configuration, binaries
+// available on the system and in some cases it even connects to the database to check which exact
+// version of the database the user is running.
+//
+// Underneath it uses exec.Command, so the resulting command will always be expanded to its absolute
+// path if exec.LookPath was able to find the given binary on user's system.
 func (c *CliCommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
@@ -160,6 +167,11 @@ func (c *CliCommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
 }
 
+// GetConnectCommandNoAbsPath works just like GetConnectCommand, with the only difference being that
+// it guarantees that the command will always be in its base form, never in an absolute path
+// resolved to the binary location. This is useful for situations where the resulting command is
+// meant to be copied and then pasted into an interactive shell, rather than being run directly
+// by a tool like tsh.
 func (c *CliCommandBuilder) GetConnectCommandNoAbsPath() (*exec.Cmd, error) {
 	cmd, err := c.GetConnectCommand()
 
@@ -444,8 +456,15 @@ type connectionCommandOpts struct {
 	log            *logrus.Entry
 }
 
+// ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
+// A function of type ConnectCommandFunc changes connectionCommandOpts of CliCommandBuilder based on
+// the arguments passed to a "With*" function.
 type ConnectCommandFunc func(*connectionCommandOpts)
 
+// WithLocalProxy makes CliCommandBuilder pass appropriate args to the CLI database clients that
+// will let them connect to a database through a local proxy.
+// In most cases it means using the passed host and port as the address, but some database clients
+// require additional flags in those scenarios.
 func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.localProxyPort = port

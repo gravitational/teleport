@@ -119,6 +119,7 @@ func (g *Gateway) Open() {
 	}()
 }
 
+// LocalPortInt returns the port of a gateway as an integer rather than a string.
 func (g *Gateway) LocalPortInt() int {
 	// Ignoring the error here as Teleterm doesn't allow the user to pick the value for the port, so
 	// it'll always be a random integer value, not a service name that needs actual lookup.
