@@ -33,7 +33,7 @@ for a privileged role `dbadmin`.
   scope={["enterprise"]} label="Enterprise">
 
 - A running Teleport cluster. For details on how to set this up, see our Enterprise
-  [Getting Started](../enterprise/getting-started.mdx) guide.
+  [Getting Started](../../enterprise/getting-started.mdx) guide.
 
 - The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
   which you can download by visiting the
@@ -55,7 +55,7 @@ for a privileged role `dbadmin`.
   [sign up page](https://goteleport.com/signup/) to begin your free trial.
 
 - The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](../cloud/downloads.mdx) page.
+  To download these tools, visit the [Downloads](../../cloud/downloads.mdx) page.
 
   ```code
   $ tctl version
@@ -201,7 +201,7 @@ spec:
       'type': 'db'
 ```
 
-The commands below create the local users Alice, Ivan and Bob.
+The commands below create the local users Bob, Alice, and Ivan.
 
 ```code
 $ tctl users add bob@example.com --roles=devops
