@@ -100,9 +100,9 @@ var (
 		schemaNamePacket: schemaNamePacket{
 			packet: packet{
 				bytes: []byte{
-					0x06, 0x00, 0x00, 0x00, // header
-					0x02,                         // type
-					0x74, 0x65, 0x73, 0x74, 0x00, // null terminated "test"
+					0x05, 0x00, 0x00, 0x00, // header
+					0x02,                   // type
+					0x74, 0x65, 0x73, 0x74, // schema "test"
 				},
 			},
 			schemaName: "test",
@@ -113,9 +113,9 @@ var (
 		schemaNamePacket: schemaNamePacket{
 			packet: packet{
 				bytes: []byte{
-					0x06, 0x00, 0x00, 0x00, // header
-					0x05,                         // type
-					0x74, 0x65, 0x73, 0x74, 0x00, // null terminated "test"
+					0x05, 0x00, 0x00, 0x00, // header
+					0x05,                   // type
+					0x74, 0x65, 0x73, 0x74, // schema "test"
 				},
 			},
 			schemaName: "test",
@@ -126,9 +126,9 @@ var (
 		schemaNamePacket: schemaNamePacket{
 			packet: packet{
 				bytes: []byte{
-					0x06, 0x00, 0x00, 0x00, // header
-					0x06,                         // type
-					0x74, 0x65, 0x73, 0x74, 0x00, // null terminated "test"
+					0x05, 0x00, 0x00, 0x00, // header
+					0x06,                   // type
+					0x74, 0x65, 0x73, 0x74, // schema "test"
 				},
 			},
 			schemaName: "test",
@@ -150,10 +150,10 @@ var (
 			bytes: []byte{
 				0x05, 0x00, 0x00, 0x00, // header
 				0x0c,                   // type
-				0x15, 0x00, 0x00, 0x00, // connection ID
+				0x15, 0x00, 0x00, 0x00, // process ID
 			},
 		},
-		connectionID: 21,
+		processID: 21,
 	}
 
 	sampleDebugPacket = &Debug{
