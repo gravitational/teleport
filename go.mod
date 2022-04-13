@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.16.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.7.0
 	github.com/beevik/etree v1.1.0
-	github.com/coreos/go-oidc v0.0.0-00010101000000-000000000000
+	github.com/coreos/go-oidc v0.0.0
 	github.com/coreos/go-semver v0.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/denisenkom/go-mssqldb v0.11.0
