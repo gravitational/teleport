@@ -66,6 +66,49 @@ impl Client {
 
         Ok(None)
     }
+
+    /// add_header_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
+    /// adds the appropriate (virtual) Channel PDU Header, and splits it into chunks if the payload exceeds
+    /// the maximum size. The caller may optionally provide any any non-chunk-related Channel PDU Header
+    /// flags that should be set. "Non-chunk-related" means any flags besides CHANNEL_FLAG_FIRST and CHANNEL_FLAG_LAST, which
+    /// are handled by this function automatically.
+    pub fn add_header_and_chunkify(
+        &self,
+        channel_flags: Option<ChannelPDUFlags>,
+        payload: Vec<u8>,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let mut inner = payload;
+        let total_len = inner.len() as u32;
+
+        let mut result = Vec::new();
+        let mut first = true;
+        while !inner.is_empty() {
+            let i = std::cmp::min(inner.len(), CHANNEL_CHUNK_LEGNTH);
+            let leftover = inner.split_off(i);
+
+            let mut channel_flags =
+                channel_flags.unwrap_or_else(|| ChannelPDUFlags::from_bits_truncate(0));
+
+            if first {
+                channel_flags.set(ChannelPDUFlags::CHANNEL_FLAG_FIRST, true);
+                first = false;
+            }
+            if leftover.is_empty() {
+                channel_flags.set(ChannelPDUFlags::CHANNEL_FLAG_LAST, true);
+            }
+
+            // the Channel PDU Header always specifies the *total length* of the PDU,
+            // even if it has to be split into multpile chunks:
+            // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a542bf19-1c86-4c80-ab3e-61449653abf6
+            let mut outer = ChannelPDUHeader::new(total_len, channel_flags).encode()?;
+            outer.extend(inner);
+            result.push(outer);
+
+            inner = leftover;
+        }
+
+        Ok(result)
+    }
 }
 
 /// The default maximum chunk size for virtual channel data.
