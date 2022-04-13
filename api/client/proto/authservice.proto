@@ -1650,9 +1650,6 @@ service AuthService {
     // CreateSessionTracker creates a new session tracker resource.
     rpc CreateSessionTracker(CreateSessionTrackerRequest) returns (types.SessionTrackerV1);
 
-    // UpsertSessionTracker upserts a session tracker resource.
-    rpc UpsertSessionTracker(types.SessionTrackerV1) returns (google.protobuf.Empty);
-
     // GetSessionTracker fetches a session tracker resource.
     rpc GetSessionTracker(GetSessionTrackerRequest) returns (types.SessionTrackerV1);
 

@@ -912,7 +912,7 @@
     },
     "teleport": {
       "version": "7.0.0",
-      "golang": "1.16",
+      "golang": "1.17",
       "plugin": {
         "version": "7.0.0"
       },
