@@ -576,13 +576,8 @@ func (s *session) Stop() {
 
 	// Remove session parties and close client connections.
 	for _, p := range s.parties {
-		if err := s.removeParty(p); err != nil {
-			s.log.WithError(err).Errorf("Failed to close party.")
-		}
+		p.closeUnderSessionLock()
 	}
-
-	// emit session end event
-	s.emitSessionEndEvent()
 
 	// Set session state to terminated
 	s.stateUpdate.L.Lock()
@@ -700,7 +695,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 
 // emitSessionJoinEvent emits a session join event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
-// Occurs under session lock.
+// Must be called under session Lock.
 func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 	sessionJoinEvent := &apievents.SessionJoin{
 		Metadata: apievents.Metadata{
@@ -752,7 +747,7 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 
 // emitSessionLeaveEvent emits a session leave event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
-// Occurs under session lock.
+// Must be called under session Lock.
 func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
@@ -796,7 +791,7 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 }
 
 // emitSessionEndEvent emits a session end event.
-// Occurs under session lock.
+// Must be called under session Lock.
 func (s *session) emitSessionEndEvent() {
 	ctx := s.scx
 	if s.endingContext != nil {
@@ -821,12 +816,21 @@ func (s *session) emitSessionEndEvent() {
 			SessionID: string(s.id),
 		},
 		UserMetadata:      ctx.Identity.GetUserMetadata(),
-		Participants:      s.exportParticipants(),
 		EnhancedRecording: s.hasEnhancedRecording,
 		Interactive:       s.term != nil,
 		StartTime:         start,
 		EndTime:           end,
 		SessionRecording:  ctx.SessionRecordingConfig.GetMode(),
+	}
+
+	for _, p := range s.participants {
+		sessionEndEvent.Participants = append(sessionEndEvent.Participants, p.user)
+	}
+
+	// If there are 0 participants, this is an exec session.
+	// Use the user from the session context.
+	if len(s.participants) == 0 {
+		sessionEndEvent.Participants = []string{s.scx.Identity.TeleportUser}
 	}
 
 	if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
@@ -942,6 +946,7 @@ func (s *session) launch(ctx *ServerContext) error {
 			}
 		}
 
+		s.emitSessionEndEvent()
 		s.Close()
 	}()
 
@@ -1128,6 +1133,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			ctx.Errorf("Failed to close enhanced recording (exec) session: %v: %v.", s.id, err)
 		}
 
+		s.emitSessionEndEvent()
 		s.Close()
 	}()
 
@@ -1175,24 +1181,20 @@ func (s *session) String() string {
 	return fmt.Sprintf("session(id=%v, parties=%v)", s.id, len(s.parties))
 }
 
-// removePartyMember removes participant from in-memory representation of
-// party members. Occurs under a lock.
-func (s *session) removePartyMember(party *party) {
-	delete(s.parties, party.id)
-}
-
 // removeParty removes the party from the in-memory map that holds all party members
 // and closes their underlying ssh channels. This may also trigger the session to end
 // if the party is the last in the session or has policies that dictate it to end.
-// Occurs under session lock.
+// Must be called under session Lock.
 func (s *session) removeParty(p *party) error {
-	p.ctx.Infof("Removing party %v from session %v", p, s.id)
+	s.log.Infof("Removing party %v from session %v", p, s.id)
 
-	// Close the party's ssh channel
-	p.Close()
+	// Remove participant from in-memory map of party members.
+	delete(s.parties, p.id)
 
-	// Removes participant from in-memory map of party members.
-	s.removePartyMember(p)
+	// Update session tracker
+	if err := s.trackerRemoveParticipant(p.user); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Remove party for the term writer
 	s.io.DeleteWriter(string(p.id))
@@ -1235,18 +1237,6 @@ func (s *session) removeParty(p *party) error {
 	return nil
 }
 
-func (s *session) GetLingerTTL() time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.lingerTTL
-}
-
-func (s *session) SetLingerTTL(ttl time.Duration) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.lingerTTL = ttl
-}
-
 func (s *session) isStopped() bool {
 	select {
 	case <-s.stopC:
@@ -1261,7 +1251,7 @@ func (s *session) isStopped() bool {
 func (s *session) lingerAndDie(party *party) {
 	s.log.Debugf("Session %v has no active party members.", s.id)
 
-	time.Sleep(s.GetLingerTTL())
+	s.scx.srv.GetClock().Sleep(s.lingerTTL)
 	if len(s.getParties()) != 0 {
 		s.log.Infof("Session %v has become active again.", s.id)
 		return
@@ -1286,7 +1276,7 @@ func (s *session) getHostname() string {
 }
 
 // exportPartyMembers exports participants in the in-memory map of party
-// members. Occurs under a lock.
+// members.
 func (s *session) exportPartyMembers() []rsession.Party {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1303,22 +1293,6 @@ func (s *session) exportPartyMembers() []rsession.Party {
 	}
 
 	return partyList
-}
-
-// exportParticipants returns a list of all members that joined the party.
-func (s *session) exportParticipants() []string {
-	// If there are 0 participants, this is an exec session.
-	// Use the user from the session context.
-	if len(s.participants) == 0 {
-		return []string{s.scx.Identity.TeleportUser}
-	}
-
-	var participants []string
-	for _, p := range s.participants {
-		participants = append(participants, p.user)
-	}
-
-	return participants
 }
 
 // heartbeat will loop as long as the session is not closed and mark it as
@@ -1384,9 +1358,7 @@ func (s *session) checkPresence() error {
 			s.log.Warnf("Participant %v is not active, kicking.", participant.ID)
 			party := s.parties[rsession.ID(participant.ID)]
 			if party != nil {
-				if err := s.removeParty(party); err != nil {
-					s.log.WithError(err).Warnf("Failed to kick participant %v for inactivity.", participant.ID)
-				}
+				party.closeUnderSessionLock()
 			}
 		}
 	}
@@ -1472,11 +1444,6 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 				s.log.Errorf("Party member %v left session %v due to an error: %v", p.id, s.id, err)
 			}
 			s.log.Infof("Party member %v left session %v.", p.id, s.id)
-
-			err = s.trackerRemoveParticipant(p.user)
-			if err != nil {
-				s.log.Errorf("Failed to remove participant %v from session tracker %v: %v", p.id, s.id, err)
-			}
 		}()
 	}
 
@@ -1578,6 +1545,7 @@ type party struct {
 	ctx        *ServerContext
 	lastActive time.Time
 	mode       types.SessionParticipantMode
+	closeOnce  sync.Once
 }
 
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
@@ -1623,9 +1591,25 @@ func (p *party) String() string {
 	return fmt.Sprintf("%v party(id=%v)", p.ctx, p.id)
 }
 
-func (p *party) Close() (err error) {
-	p.log.Infof("Closing party %v", p.id)
-	return trace.Wrap(p.ch.Close())
+// Close is called when the party's session ctx is closed.
+func (p *party) Close() error {
+	p.s.mu.Lock()
+	defer p.s.mu.Unlock()
+	p.closeUnderSessionLock()
+	return nil
+}
+
+// closeUnderSessionLock closes the party, and removes it from it's session.
+// Must be called under session Lock (party.s.mu)
+func (p *party) closeUnderSessionLock() {
+	p.closeOnce.Do(func() {
+		p.log.Infof("Closing party %v", p.id)
+		// Remove party from its session
+		if err := p.s.removeParty(p); err != nil {
+			p.ctx.Errorf("Failed to remove party %v: %v", p.id, err)
+		}
+		p.ch.Close()
+	})
 }
 
 func (s *session) trackerGet() (types.SessionTracker, error) {
@@ -1686,7 +1670,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 				if err := s.trackerUpdateExpiry(time.Add(defaults.SessionTrackerTTL)); err != nil {
 					s.log.WithError(err).Warningf("Failed to update session tracker expiration.")
 				}
-			case <-s.closeC:
+			case <-s.stopC:
 				return
 			}
 		}
