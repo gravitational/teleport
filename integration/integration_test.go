@@ -1563,7 +1563,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.NoError(t, werr)
 	ok := roots.AppendCertsFromPEM(buffer)
 	require.True(t, ok)
-	require.Len(t, roots.Subjects(), 2)
 
 	// wait for active tunnel connections to be established
 	waitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)

@@ -83,7 +83,7 @@ type TLSCredentials struct {
 	Cert       []byte
 }
 
-// macMaxTLSCertValidityPeriod is the maximum validitiy period
+// macMaxTLSCertValidityPeriod is the maximum validity period
 // for a TLS certificate enforced by macOS.
 // As of Go 1.18, certificates are validated via the system
 // verifier and not in Go.
