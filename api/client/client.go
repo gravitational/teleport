@@ -540,9 +540,9 @@ func IsHTTPResponseSuccessful(v interface{}, err error) bool {
 	switch t := v.(type) {
 	case *http.Response:
 		return t.StatusCode < http.StatusInternalServerError
+	default:
+		return true
 	}
-
-	return true
 }
 
 // CheckAndSetDefaults checks and sets default config values.

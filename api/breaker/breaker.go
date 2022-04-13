@@ -15,7 +15,6 @@
 package breaker
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -102,7 +101,7 @@ func (s State) String() string {
 var (
 	// ErrStateTripped will be returned from executions performed while the CircuitBreaker
 	// is in StateTripped
-	ErrStateTripped = errors.New("breaker is tripped")
+	ErrStateTripped = trace.ConnectionProblem(nil, "breaker is tripped")
 	// ErrRecoveryLimitExceeded will be returned from executions performed while the CircuitBreaker
 	// is in StateRecovering and the Config.RecoveryLimit is exceeded
 	ErrRecoveryLimitExceeded = trace.LimitExceeded("too many requests while breaker is recovering")
