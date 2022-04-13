@@ -3,7 +3,7 @@ authors: Krzysztof Skrzętnicki <krzysztof.skrzetnicki@goteleport.com>
 state: draft
 ---
 
-# RFD 61 - `tctl sso test` command
+# RFD XX - `tctl sso test` command
 
 ## What
 
