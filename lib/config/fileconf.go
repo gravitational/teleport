@@ -281,22 +281,35 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 				URI:  flags.AppURI,
 			},
 		}
-	} else {
-		apps.EnabledFlag = "no"
+	}
+
+	// DB config:
+	var dbs Databases
+	if roles[defaults.RoleDatabase] {
+		dbs.EnabledFlag = "yes"
+	}
+
+	// WindowsDesktop config:
+	var d WindowsDesktopService
+	if roles[defaults.RoleWindowsDesktop] {
+		d.EnabledFlag = "yes"
 	}
 
 	fc = &FileConfig{
-		Version: flags.Version,
-		Global:  g,
-		Proxy:   p,
-		SSH:     s,
-		Auth:    a,
-		Apps:    apps,
+		Version:        flags.Version,
+		Global:         g,
+		Proxy:          p,
+		SSH:            s,
+		Auth:           a,
+		Apps:           apps,
+		Databases:      dbs,
+		WindowsDesktop: d,
 	}
 	return fc, nil
 }
 
 func roleMapFromFlags(flags SampleFlags) map[string]bool {
+	// if no roles are provided via CLI, return the default roles
 	if flags.Roles == "" {
 		return map[string]bool{
 			defaults.RoleProxy:       true,
@@ -308,7 +321,6 @@ func roleMapFromFlags(flags SampleFlags) map[string]bool {
 	roles := splitRoles(flags.Roles)
 	m := make(map[string]bool)
 	for _, r := range roles {
-		fmt.Printf("roles: %s\n", r)
 		m[r] = true
 	}
 
