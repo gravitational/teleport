@@ -37,8 +37,6 @@ import (
 )
 
 func DefaultConfig(t *testing.T) *config.FileConfig {
-	t.Helper()
-
 	return &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),

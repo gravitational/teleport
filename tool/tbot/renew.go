@@ -98,8 +98,8 @@ func authenticatedUserClientFromIdentity(ctx context.Context, id *identity.Ident
 	return c, trace.Wrap(err)
 }
 
-// describeTLSIdentity writes an informational message about the given identity to
-// the log.
+// describeTLSIdentity generates an informational message about the given
+// TLS identity, appropriate for user-facing log messages.
 func describeTLSIdentity(ident *identity.Identity) (string, error) {
 	cert := ident.X509Cert
 	if cert == nil {
@@ -132,8 +132,8 @@ func describeTLSIdentity(ident *identity.Identity) (string, error) {
 	), nil
 }
 
-// describeSSHIdentity writes an informational message about the given SSH
-// identity to the log.
+// describeSSHIdentity generates an informational message about the given
+// SSH identity, appropriate for user-facing log messages.
 func describeSSHIdentity(ident *identity.Identity) (string, error) {
 	cert := ident.SSHCert
 	if cert == nil {

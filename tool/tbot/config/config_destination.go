@@ -23,7 +23,8 @@ import (
 
 // DatabaseConfig is the config for a database access request.
 type DatabaseConfig struct {
-	// Service is the service name of the
+	// Service is the service name of the Teleport database. Generally this is
+	// the name of the Teleport resource.
 	Service string `yaml:"service,omitempty"`
 
 	// Database is the name of the database to request access to.
