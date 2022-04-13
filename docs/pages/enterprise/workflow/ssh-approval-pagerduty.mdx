@@ -52,7 +52,7 @@ location as plugins have a low memory footprint, and will require both public in
 and Teleport Auth access. We currently only provide linux-amd64 binaries, you can also
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty).
 
-```bash
+```code
 $ wget https://get.gravitational.com/teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ tar -xzf teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
 $ cd teleport-access-pagerduty/
@@ -114,7 +114,7 @@ By default, `teleport-pagerduty` will assume its config is in `/etc/teleport-pag
 
 In production, we recommend starting the Teleport plugin daemon via an init system like systemd. Here's the recommended Teleport plugin service unit file for systemd:
 
-```bash
+```code
 (!examples/systemd/plugins/teleport-pagerduty.service!)
 ```
 
