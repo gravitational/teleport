@@ -63,7 +63,11 @@ RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1n && \
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
     cd libcbor && \
-    cmake3 -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCBOR_CUSTOM_ALLOC=ON . && \
+    cmake3 \
+        -DCBOR_CUSTOM_ALLOC=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DWITH_EXAMPLES=OFF . && \
     make && \
     make install && \
 # Link for `make build/tsh`.
@@ -74,7 +78,11 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Linked so `make build/tsh` finds the library where it expects it.
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
     cd libfido2 && \
-    cmake3 -DCMAKE_BUILD_TYPE=Release . && \
+    cmake3 \
+        -DBUILD_EXAMPLES=OFF \
+        -DBUILD_MANPAGES=OFF \
+        -DBUILD_TOOLS=OFf \
+        -DCMAKE_BUILD_TYPE=Release . && \
     make && \
     make install && \
 # Link for `make build/tsh`.

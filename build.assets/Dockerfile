@@ -47,7 +47,11 @@ RUN git clone --depth=1 https://github.com/eudev-project/eudev.git -b v3.2.11 &&
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
     cd libcbor && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DCBOR_CUSTOM_ALLOC=ON . && \
+    cmake \
+        -DCBOR_CUSTOM_ALLOC=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DWITH_EXAMPLES=OFF . && \
     make && \
     make install
 
@@ -55,7 +59,11 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
     cd libfido2 && \
-    cmake -DCMAKE_BUILD_TYPE=Release . && \
+    cmake \
+        -DBUILD_EXAMPLES=OFF \
+        -DBUILD_MANPAGES=OFF \
+        -DBUILD_TOOLS=OFf \
+        -DCMAKE_BUILD_TYPE=Release . && \
     make && \
     make install
 
