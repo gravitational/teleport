@@ -135,7 +135,7 @@ var (
 		},
 	}
 
-	sampleShutdownPacket = &Shutdown{
+	sampleShutDownPacket = &ShutDown{
 		packet: packet{
 			bytes: []byte{
 				0x02, 0x00, 0x00, 0x00, // header
@@ -370,6 +370,15 @@ func TestParsePacket(t *testing.T) {
 			expectedPacket: sampleChangeUserPacket,
 		},
 		{
+			name: "COM_CHANGE_USER invalid",
+			input: bytes.NewBuffer([]byte{
+				0x04, 0x00, 0x00, 0x00, // header
+				0x11,             // type
+				0x62, 0x6f, 0x62, // missing null at the end of the string
+			}),
+			expectErrorIs: trace.IsBadParameter,
+		},
+		{
 			name:           "COM_INIT_DB",
 			input:          bytes.NewBuffer(sampleInitDBPacket.Bytes()),
 			expectedPacket: sampleInitDBPacket,
@@ -386,8 +395,8 @@ func TestParsePacket(t *testing.T) {
 		},
 		{
 			name:           "COM_SHUTDOWN",
-			input:          bytes.NewBuffer(sampleShutdownPacket.Bytes()),
-			expectedPacket: sampleShutdownPacket,
+			input:          bytes.NewBuffer(sampleShutDownPacket.Bytes()),
+			expectedPacket: sampleShutDownPacket,
 		},
 		{
 			name:           "COM_PROCESS_KILL",

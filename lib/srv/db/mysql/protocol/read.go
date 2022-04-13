@@ -16,9 +16,7 @@ limitations under the License.
 
 package protocol
 
-import (
-	"encoding/binary"
-)
+import "encoding/binary"
 
 // skipHeaderAndType skips packet header and command type, and returns rest of
 // the bytes.

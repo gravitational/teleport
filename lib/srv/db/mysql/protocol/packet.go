@@ -135,7 +135,7 @@ var packetParsersByType = []func([]byte) (Packet, error){
 	mysql.COM_INIT_DB:      parseInitDBPacket,
 	mysql.COM_CREATE_DB:    parseCreateDBPacket,
 	mysql.COM_DROP_DB:      parseDropDBPacket,
-	mysql.COM_SHUTDOWN:     parseShutdownPacket,
+	mysql.COM_SHUTDOWN:     parseShutDownPacket,
 	mysql.COM_PROCESS_KILL: parseProcessKillPacket,
 	mysql.COM_DEBUG:        parseDebugPacket,
 	mysql.COM_REFRESH:      parseRefreshPacket,

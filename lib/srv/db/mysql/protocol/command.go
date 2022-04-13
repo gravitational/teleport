@@ -114,7 +114,7 @@ type DropDB struct {
 	schemaNamePacket
 }
 
-// Shutdown represents the COM_SHUTDOWN command.
+// ShutDown represents the COM_SHUTDOWN command.
 //
 // COM_SHUTDOWN is used to shut down the MySQL server. The SHUTDOWN privilege
 // is required for this operation.
@@ -123,7 +123,7 @@ type DropDB struct {
 // Deprecated as of MySQL 5.7.9. Support end of life is October, 2023.
 //
 // https://mariadb.com/kb/en/com_shutdown/
-type Shutdown struct {
+type ShutDown struct {
 	packet
 }
 
@@ -167,11 +167,11 @@ type Debug struct {
 type Refresh struct {
 	packet
 
-	// subcommand is the string representation of the subcomand.
+	// subcommand is the string representation of the subcommand.
 	subcommand string
 }
 
-// Subcommand returns the string representation of the subcomand.
+// Subcommand returns the string representation of the subcommand.
 func (p *Refresh) Subcommand() string {
 	return p.subcommand
 }
@@ -267,9 +267,9 @@ func parseDropDBPacket(packetBytes []byte) (Packet, error) {
 	}, nil
 }
 
-// parseShutdownPacket parses packet bytes and returns a Packet if successful.
-func parseShutdownPacket(packetBytes []byte) (Packet, error) {
-	return &Shutdown{
+// parseShutDownPacket parses packet bytes and returns a Packet if successful.
+func parseShutDownPacket(packetBytes []byte) (Packet, error) {
+	return &ShutDown{
 		packet: packet{bytes: packetBytes},
 	}, nil
 }
