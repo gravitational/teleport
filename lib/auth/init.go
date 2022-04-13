@@ -1082,7 +1082,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 		hostCA, err := asrv.GetCertAuthority(ctx, hostCaID, true)
 		if trace.IsNotFound(err) {
 			// DB CA and Host CA are missing. Looks like the first start. No migration needed.
-			return nil
+			continue
 		}
 		if err != nil {
 			return trace.Wrap(err)
