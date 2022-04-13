@@ -85,7 +85,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the Auth Server.
-	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
+	if err := process.initUploaderService(accessPoint, conn.Client, conn.Client); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -271,6 +271,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 				"Kubernetes service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
+		// since kubeServer.Serve is a blocking call, we emit this event right before
+		// the service has started
 		process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
 		err := kubeServer.Serve(listener)
 		if err != nil {

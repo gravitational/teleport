@@ -4,27 +4,32 @@ description: How to configure Teleport Database Access with AWS Redshift Postgre
 videoBanner: UFhT52d5bYg
 ---
 
-# AWS Redshift PostgreSQL
-
 ## Prerequisites
 
-- Teleport version `(=teleport.version=)`.
 - AWS account with a Redshift cluster and permissions to create and attach IAM
   policies.
+- A host, e.g., an EC2 instance, where you will run the Teleport Database
+  Service.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/6. Install Teleport
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-## Step 2/6. Create Teleport user
+## Step 2/6. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/6. Create database agent configuration
+## Step 3/6. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Create the Database Service configuration file:
+On the node that is running the Database Service, create a configuration file:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ teleport db configure create \
@@ -33,6 +38,19 @@ $ teleport db configure create \
    --token=/tmp/token \
    --redshift-discovery=us-west-1
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --proxy=mytenant.teleport.sh:3080 \
+   --token=/tmp/token \
+   --redshift-discovery=us-west-1
+```
+
+</ScopedBlock>
 
 The command will generate a Database Service configuration with Redshift
 database auto-discovery enabled on the `us-west-1` region and place it at the
@@ -47,28 +65,35 @@ Teleport needs AWS IAM permissions to be able to:
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-## Step 5/6. Start the database agent
+## Step 5/6. Start the Database Service
+
+Run the following command on the Database Service node:
 
 ```code
 $ teleport start --config=/etc/teleport.yaml
 ```
 
-The agent will discover all Redshift databases according to the configuration
+The Database Service will discover all Redshift databases according to the configuration
 and register them in the cluster. The agent will also attempt to configure IAM
 access policies for the discovered databases. Keep in mind that AWS IAM changes
 may not propagate immediately and can take a few minutes to come into effect.
 
 <Admonition type="note" title="AWS credentials">
-  Teleport database agent uses the default credential provider chain to find AWS
-  credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
+
+  The Teleport Database Service uses the default credential provider chain to
+  find AWS credentials. See
+  [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
   for more information.
+
 </Admonition>
 
 ## Step 6/6. Connect
 
-Once the database agent has started and joined the cluster, log in to see the
-registered databases. Replace `--proxy` with the address of your Teleport Proxy Service,
-e.g., `mytenant.teleport.sh` for Teleport Cloud users.
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+Once the Database Service has started and joined the cluster, log in to see the
+registered databases. Replace `--proxy` with the address of your Teleport Proxy
+Service.
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -78,7 +103,24 @@ $ tsh db ls
 # my-redshift Redshift cluster in us-east-1  ...
 ```
 
-Log into a particular database using the `tsh db login` command:
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Once the Database Service has started and joined the cluster, log in to see the
+registered databases. Replace `--proxy` with the address of your Teleport Cloud
+tenant.
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name        Description                    Labels
+# ----------- ------------------------------ --------
+# my-redshift Redshift cluster in us-east-1  ...
+```
+
+</ScopedBlock>
+
+Log in to a particular database using the `tsh db login` command:
 
 ```code
 $ tsh db login my-redshift

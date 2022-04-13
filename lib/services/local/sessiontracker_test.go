@@ -16,6 +16,7 @@ package local
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -47,6 +48,7 @@ func TestSessionTrackerStorage(t *testing.T) {
 			User: "eve",
 			Mode: string(types.SessionPeerMode),
 		},
+		Expires: time.Now().UTC().Add(24 * time.Hour),
 	})
 	require.NoError(t, err)
 
@@ -86,4 +88,54 @@ func TestSessionTrackerStorage(t *testing.T) {
 	session, err = srv.GetSessionTracker(ctx, session.GetSessionID())
 	require.Error(t, err)
 	require.Nil(t, session)
+}
+
+func TestSessionTrackerImplicitExpiry(t *testing.T) {
+	ctx := context.Background()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	id := uuid.New().String()
+	id2 := uuid.New().String()
+	srv, err := NewSessionTrackerService(bk)
+	require.NoError(t, err)
+
+	req1 := proto.CreateSessionTrackerRequest{
+		Namespace:   defaults.Namespace,
+		ID:          id,
+		Type:        types.KindSSHSession,
+		Hostname:    "hostname",
+		ClusterName: "cluster",
+		Login:       "foo",
+		Initiator: &types.Participant{
+			ID:   uuid.New().String(),
+			User: "eve",
+			Mode: string(types.SessionPeerMode),
+		},
+		Expires: time.Now().UTC().Add(time.Second),
+	}
+
+	req2 := req1
+	req2.ID = id2
+	req2.Expires = time.Now().UTC().Add(24 * time.Hour)
+
+	_, err = srv.CreateSessionTracker(ctx, &req1)
+	require.NoError(t, err)
+
+	_, err = srv.CreateSessionTracker(ctx, &req2)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		sessions, err := srv.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+
+		// Verify that we only get one session and that it's `id2` since we expect that
+		// `id` is filtered out due to it's expiry.
+		if len(sessions) == 1 {
+			require.Equal(t, sessions[0].GetSessionID(), id2)
+			return true
+		}
+
+		return false
+	}, time.Minute, time.Second)
 }

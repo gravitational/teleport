@@ -144,8 +144,7 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 }
 
 func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
-	return exec.Command(postgresBin,
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
+	return exec.Command(postgresBin, c.getPostgresConnString())
 }
 
 func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
@@ -153,11 +152,18 @@ func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
 	if _, err := c.exe.LookPath(cockroachBin); err != nil {
 		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
-		return exec.Command(postgresBin,
-			postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
+		return c.getPostgresCommand()
 	}
-	return exec.Command(cockroachBin, "sql", "--url",
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port)))
+	return exec.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
+}
+
+// getPostgresConnString returns the connection string for postgres.
+func (c *cliCommandBuilder) getPostgresConnString() string {
+	return postgres.GetConnString(
+		db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port),
+		c.options.noTLS,
+		c.options.printFormat,
+	)
 }
 
 // getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.
@@ -188,6 +194,11 @@ func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
 // between Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
 func (c *cliCommandBuilder) getMariaDBArgs() []string {
 	args := c.getMySQLCommonCmdOpts()
+
+	if c.options.noTLS {
+		return args
+	}
+
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
 	args = append(args, []string{"--ssl-key", c.profile.KeyPath()}...)
@@ -207,6 +218,10 @@ func (c *cliCommandBuilder) getMariaDBArgs() []string {
 // Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
 func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 	args := c.getMySQLCommonCmdOpts()
+
+	if c.options.noTLS {
+		return exec.Command(mysqlBin, args...)
+	}
 
 	// defaults-group-suffix must be first.
 	groupSuffix := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", c.tc.SiteName, c.db.ServiceName)}
@@ -287,33 +302,45 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 	// look for `mongosh`
 	hasMongosh := c.isMongoshBinAvailable()
 
-	// Starting with Mongo 4.2 there is an updated set of flags.
-	// We are using them with `mongosh` as otherwise warnings will get displayed.
-	type tlsFlags struct {
-		tls            string
-		tlsCertKeyFile string
-		tlsCAFile      string
-	}
-
-	var flags tlsFlags
-
-	if hasMongosh {
-		flags = tlsFlags{tls: "--tls", tlsCertKeyFile: "--tlsCertificateKeyFile", tlsCAFile: "--tlsCAFile"}
-	} else {
-		flags = tlsFlags{tls: "--ssl", tlsCertKeyFile: "--sslPEMKeyFile", tlsCAFile: "--sslCAFile"}
-	}
-
 	args := []string{
 		"--host", c.host,
 		"--port", strconv.Itoa(c.port),
-		flags.tls,
-		flags.tlsCertKeyFile, c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 	}
 
-	if c.options.caPath != "" {
-		// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
-		// and connection is terminated by proxy identity certificate.
-		args = append(args, []string{flags.tlsCAFile, c.options.caPath}...)
+	if !c.options.noTLS {
+		// Starting with Mongo 4.2 there is an updated set of flags.
+		// We are using them with `mongosh` as otherwise warnings will get displayed.
+		type tlsFlags struct {
+			tls            string
+			tlsCertKeyFile string
+			tlsCAFile      string
+		}
+
+		var flags tlsFlags
+
+		if hasMongosh {
+			flags = tlsFlags{tls: "--tls", tlsCertKeyFile: "--tlsCertificateKeyFile", tlsCAFile: "--tlsCAFile"}
+		} else {
+			flags = tlsFlags{tls: "--ssl", tlsCertKeyFile: "--sslPEMKeyFile", tlsCAFile: "--sslCAFile"}
+		}
+
+		args = append(args,
+			flags.tls,
+			flags.tlsCertKeyFile,
+			c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName))
+
+		// mongosh does not load system CAs by default which will cause issues if
+		// the proxy presents a certificate signed by a non-recognized authority
+		// which your system trusts (e.g. mkcert).
+		if hasMongosh {
+			args = append(args, "--tlsUseSystemCA")
+		}
+
+		if c.options.caPath != "" {
+			// caPath is set only if mongo connects to the Teleport Proxy via ALPN SNI Local Proxy
+			// and connection is terminated by proxy identity certificate.
+			args = append(args, []string{flags.tlsCAFile, c.options.caPath}...)
+		}
 	}
 
 	if c.db.Database != "" {
@@ -333,19 +360,23 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
 	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
 	args := []string{
-		"--tls",
 		"-h", c.host,
 		"-p", strconv.Itoa(c.port),
-		"--key", c.profile.KeyPath(),
-		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 	}
 
-	if c.tc.InsecureSkipVerify {
-		args = append(args, "--insecure")
-	}
+	if !c.options.noTLS {
+		args = append(args,
+			"--tls",
+			"--key", c.profile.KeyPath(),
+			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName))
 
-	if c.options.caPath != "" {
-		args = append(args, []string{"--cacert", c.options.caPath}...)
+		if c.tc.InsecureSkipVerify {
+			args = append(args, "--insecure")
+		}
+
+		if c.options.caPath != "" {
+			args = append(args, []string{"--cacert", c.options.caPath}...)
+		}
 	}
 
 	// append database number if provided
