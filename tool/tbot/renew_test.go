@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/tool/tbot/config"
 	"github.com/gravitational/teleport/tool/tbot/identity"
 	"github.com/gravitational/teleport/tool/tbot/testhelpers"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,6 +74,24 @@ func TestDatabaseRequest(t *testing.T) {
 	}
 	_ = testhelpers.MakeAndRunTestAuthServer(t, fc)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+
+	// Wait for the database to become available. Sometimes this takes a bit
+	// of time in CI.
+	for i := 0; i < 10; i++ {
+		_, err := getDatabase(context.Background(), rootClient, "foo")
+		if err == nil {
+			break
+		} else if !trace.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+
+		if i >= 9 {
+			t.Fatalf("database never became available")
+		}
+
+		t.Logf("Database not yet available, waiting...")
+		time.Sleep(time.Second * 1)
+	}
 
 	// Note: we don't actually need a role granting us database access to
 	// request it. Actual access is validated via RBAC at connection time.
