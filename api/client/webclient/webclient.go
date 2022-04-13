@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -30,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
@@ -76,16 +78,17 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:            cfg.Pool,
-				InsecureSkipVerify: cfg.Insecure,
-			},
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-			},
+	transport := http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: cfg.Insecure,
+			RootCAs:            cfg.Pool,
 		},
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		},
+	}
+	return &http.Client{
+		Transport: proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
 	}, nil
 }
 
@@ -185,8 +188,14 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusBadRequest {
+		per := &PingErrorResponse{}
+		if err := json.NewDecoder(resp.Body).Decode(per); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, errors.New(per.Error.Message)
+	}
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err)
@@ -261,6 +270,17 @@ type PingResponse struct {
 	ServerVersion string `json:"server_version"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
+}
+
+// PingErrorResponse contains the error message if the requested connector
+// does not match one that has been registered.
+type PingErrorResponse struct {
+	Error PingError `json:"error"`
+}
+
+// PingError contains the string message from the PingErrorResponse
+type PingError struct {
+	Message string `json:"message"`
 }
 
 // ProxySettings contains basic information about proxy settings

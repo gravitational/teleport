@@ -117,7 +117,11 @@ or using some other value will result in resetting it to the `tip`.
 
 If `title` is omitted, `type` will be used instead as the title value.
 
-### Tabs
+`scope` is an optional property that specifies the component's
+[scope](./reference.mdx#scopes). If the `scopeOnly` property is provided and the
+user-selected scope is not included in `scope`, the `Admonition` will be hidden.
+
+## Tabs
 
 <Tabs>
   <TabItem label="First label">

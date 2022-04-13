@@ -441,7 +441,6 @@ func (c *CachePolicy) Enabled() bool {
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Type:    c.Type,
 		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
@@ -1435,6 +1434,12 @@ type Metrics struct {
 	// CACerts is a list of prometheus CA certificates to validate clients against.
 	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
 	CACerts []string `yaml:"ca_certs,omitempty"`
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCServerLatency bool `yaml:"grpc_server_latency,omitempty"`
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCClientLatency bool `yaml:"grpc_client_latency,omitempty"`
 }
 
 // MTLSEnabled returns whether mtls is enabled or not in the metrics service config.

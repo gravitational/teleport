@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
 )
 
 var (
@@ -84,6 +85,81 @@ type buildType struct {
 	fips            bool
 	centos7         bool
 	windowsUnsigned bool
+}
+
+// Description provides a human-facing description of the artifact, e.g.:
+//   Windows 64-bit (tsh client only)
+//   Linux ARMv7 (32-bit)
+//   MacOS Intel .pkg installer
+func (b *buildType) Description(packageType string, extraQualifications ...string) string {
+	var result string
+
+	var os string
+	var arch string
+	var darwinArch string
+	var bitness int
+	var qualifications []string
+
+	switch b.os {
+	case "linux":
+		os = "Linux"
+	case "darwin":
+		os = "MacOS"
+	case "windows":
+		os = "Windows"
+	default:
+		panic(fmt.Sprintf("unhandled OS: %s", b.os))
+	}
+
+	switch b.arch {
+	case "arm64":
+		arch = "ARM64/ARMv8"
+		darwinArch = "Apple Silicon"
+		bitness = 64
+	case "amd64":
+		darwinArch = "Intel"
+		bitness = 64
+
+	case "arm":
+		arch = "ARMv7"
+		fallthrough
+	case "386":
+		bitness = 32
+
+	default:
+		panic(fmt.Sprintf("unhandled arch: %s", b.arch))
+	}
+
+	if b.centos7 {
+		qualifications = append(qualifications, "RHEL/CentOS 7.x compatible")
+	}
+	if b.fips {
+		qualifications = append(qualifications, "FedRAMP/FIPS")
+	}
+
+	qualifications = append(qualifications, extraQualifications...)
+
+	result = os
+
+	if b.os == "darwin" {
+		result += fmt.Sprintf(" %s", darwinArch)
+	} else {
+		// arch is implicit for Windows/Linux i386/amd64
+		if arch == "" {
+			result += fmt.Sprintf(" %d-bit", bitness)
+		} else {
+			result += fmt.Sprintf(" %s (%d-bit)", arch, bitness)
+		}
+	}
+
+	if packageType != "" {
+		result += fmt.Sprintf(" %s", packageType)
+	}
+
+	if len(qualifications) > 0 {
+		result += fmt.Sprintf(" (%s)", strings.Join(qualifications, ", "))
+	}
+	return result
 }
 
 // dockerService generates a docker:dind service
