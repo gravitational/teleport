@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -191,7 +191,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		nodeDir,
 		"",
 		utils.NetAddr{},
-		nil,
+		nodeClient,
 		serverOptions...)
 	require.NoError(t, err)
 	require.NoError(t, auth.CreateUploaderDir(nodeDir))
@@ -279,7 +279,7 @@ const hostID = "00000000-0000-0000-0000-000000000000"
 func startReadAll(r io.Reader) <-chan []byte {
 	ch := make(chan []byte)
 	go func() {
-		data, _ := ioutil.ReadAll(r)
+		data, _ := io.ReadAll(r)
 		ch <- data
 	}()
 	return ch
@@ -449,7 +449,7 @@ func TestDirectTCPIP(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Make sure the response is what was expected.
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, []byte("hello, world\n"), body)
 }
@@ -620,7 +620,7 @@ func TestAgentForward(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a temp file to collect the shell output into:
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "teleport-agent-forward-test")
+	tmpFile, err := os.CreateTemp(os.TempDir(), "teleport-agent-forward-test")
 	require.NoError(t, err)
 	tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
@@ -632,7 +632,7 @@ func TestAgentForward(t *testing.T) {
 	// wait for the output
 	var socketPath string
 	require.Eventually(t, func() bool {
-		output, err := ioutil.ReadFile(tmpFile.Name())
+		output, err := os.ReadFile(tmpFile.Name())
 		if err == nil && len(output) != 0 {
 			socketPath = strings.TrimSpace(string(output))
 			return true
@@ -1541,6 +1541,63 @@ func TestGlobalRequestRecordingProxy(t *testing.T) {
 	response, err = strconv.ParseBool(string(responseBytes))
 	require.NoError(t, err)
 	require.True(t, response)
+}
+
+// TestSessionTracker tests session tracker lifecycle
+func TestSessionTracker(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	f := newFixture(t)
+
+	se, err := f.ssh.clt.NewSession()
+	require.NoError(t, err)
+	t.Cleanup(func() { se.Close() })
+
+	// start interactive SSH session (new shell):
+	err = se.Shell()
+	require.NoError(t, err)
+
+	// session tracker should be created
+	var tracker types.SessionTracker
+	trackerFound := func() bool {
+		trackers, err := f.testSrv.Auth().GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+
+		if len(trackers) == 1 {
+			tracker = trackers[0]
+			return true
+		}
+		return false
+	}
+	require.Eventually(t, trackerFound, time.Second*5, time.Second)
+
+	// Advance the clock to trigger the session tracker expiration to be extended
+	f.clock.Advance(defaults.SessionTrackerExpirationUpdateInterval)
+
+	// The session's expiration should be updated
+	trackerUpdated := func() bool {
+		updatedTracker, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
+		require.NoError(t, err)
+		return updatedTracker.Expiry().Equal(tracker.Expiry().Add(defaults.SessionTrackerExpirationUpdateInterval))
+	}
+	require.Eventually(t, trackerUpdated, time.Second*5, time.Millisecond*1000)
+
+	// Close the session from the client side
+	err = se.Close()
+	require.NoError(t, err)
+
+	// Advance server clock to trigger the session to close (after lingering) and
+	// update the session tracker to expired. We don't know when the linger sleeper
+	// will start waiting for clock, so we give it a grace period of 5 seconds.
+	time.Sleep(time.Second * 5)
+	f.clock.Advance(defaults.SessionIdlePeriod)
+
+	// once the session is closed, the tracker should expire (not found)
+	trackerExpired := func() bool {
+		_, err := f.testSrv.Auth().GetSessionTracker(ctx, tracker.GetSessionID())
+		return trace.IsNotFound(err)
+	}
+	require.Eventually(t, trackerExpired, time.Second*5, time.Millisecond*100)
 }
 
 // rawNode is a basic non-teleport node which holds a

@@ -64,6 +64,9 @@ type proxySuiteOptions struct {
 	rootConfigModFunc []func(config *service.Config)
 	leafConfigModFunc []func(config *service.Config)
 
+	rootClusterNodeName string
+	leafClusterNodeName string
+
 	rootClusterPorts *InstancePorts
 	leafClusterPorts *InstancePorts
 
@@ -79,8 +82,10 @@ type proxySuiteOptions struct {
 
 func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
-		rootClusterPorts: singleProxyPortSetup(),
-		leafClusterPorts: singleProxyPortSetup(),
+		rootClusterNodeName: Host,
+		leafClusterNodeName: Host,
+		rootClusterPorts:    singleProxyPortSetup(),
+		leafClusterPorts:    singleProxyPortSetup(),
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -89,7 +94,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
-		NodeName:    Host,
+		NodeName:    options.rootClusterNodeName,
 		log:         utils.NewLoggerForTests(),
 		Ports:       options.rootClusterPorts,
 	})
@@ -98,7 +103,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	lc := NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
-		NodeName:    Host,
+		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
 		log:         utils.NewLoggerForTests(),
@@ -264,6 +269,18 @@ func withRootAndLeafTrustedClusterReset() proxySuiteOptionsFunc {
 	}
 }
 
+func withRootClusterNodeName(nodeName string) proxySuiteOptionsFunc {
+	return func(options *proxySuiteOptions) {
+		options.rootClusterNodeName = nodeName
+	}
+}
+
+func withLeafClusterNodeName(nodeName string) proxySuiteOptionsFunc {
+	return func(options *proxySuiteOptions) {
+		options.leafClusterNodeName = nodeName
+	}
+}
+
 func withRootClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
 		options.rootClusterPorts = ports
@@ -277,7 +294,7 @@ func withLeafClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
 }
 
 func newRole(t *testing.T, roleName string, username string) types.Role {
-	role, err := types.NewRole(roleName, types.RoleSpecV5{
+	role, err := types.NewRoleV3(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -338,7 +355,7 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 			rc := suite.root
 			lc := suite.leaf
 			role := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
-			ca, err := lc.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+			ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
 			}, false)
@@ -509,7 +526,7 @@ func mustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string)
 	key.Cert = sshCert
 	key.TLSCert = tlsCert
 
-	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(types.HostCA, false)
+	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 

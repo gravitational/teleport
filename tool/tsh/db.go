@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"sort"
@@ -43,7 +42,7 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	var databases []types.Database
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		databases, err = tc.ListDatabases(cf.Context)
+		databases, err = tc.ListDatabases(cf.Context, nil /* custom filter */)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -255,7 +254,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	}
 	switch cf.Format {
 	case dbFormatCommand:
-		cmd, err := newCmdBuilder(tc, profile, database, rootCluster).getConnectCommand()
+		cmd, err := newCmdBuilder(tc, profile, database, rootCluster, WithPrintFormat()).getConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -410,7 +409,12 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.Database, error) {
 	var databases []types.Database
 	err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		allDatabases, err := tc.ListDatabases(cf.Context)
+		allDatabases, err := tc.ListDatabases(cf.Context, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
+		})
+		// Kept for fallback in case an older auth does not apply filters.
+		// DELETE IN 11.0.0
 		for _, database := range allDatabases {
 			if database.GetName() == dbName {
 				databases = append(databases, database)
@@ -469,7 +473,7 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		return false, nil
 	}
 
-	buff, err := ioutil.ReadFile(certPath)
+	buff, err := os.ReadFile(certPath)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -573,6 +577,8 @@ type connectionCommandOpts struct {
 	localProxyPort int
 	localProxyHost string
 	caPath         string
+	noTLS          bool
+	printFormat    bool
 }
 
 type ConnectCommandFunc func(*connectionCommandOpts)
@@ -582,6 +588,25 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 		opts.localProxyPort = port
 		opts.localProxyHost = host
 		opts.caPath = caPath
+	}
+}
+
+// WithNoTLS is the connect command option that makes the command connect
+// without TLS.
+//
+// It is used when connecting through the local proxy that was started in
+// mutual TLS mode (i.e. with a client certificate).
+func WithNoTLS() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.noTLS = true
+	}
+}
+
+// WithPrintFormat is the connect command option that hints the command will be
+// printed instead of being executed.
+func WithPrintFormat() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.printFormat = true
 	}
 }
 

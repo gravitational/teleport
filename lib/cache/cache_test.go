@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -45,6 +46,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
+
+const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -165,7 +168,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.eventsC = make(chan Event, 100)
+	p.eventsC = make(chan Event, eventBufferSize)
 
 	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
 	if err != nil {
@@ -239,6 +242,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 func TestCA(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
+	ctx := context.Background()
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
@@ -249,7 +253,7 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), true)
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	ca.SetResourceID(out.GetResourceID())
 	require.Empty(t, cmp.Diff(ca, out))
@@ -263,7 +267,7 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	_, err = p.cache.GetCertAuthority(ca.GetID(), false)
+	_, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -576,7 +580,7 @@ func TestCompletenessInit(t *testing.T) {
 
 		p.backend.SetReadError(nil)
 
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -633,7 +637,7 @@ func TestCompletenessReset(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
@@ -644,7 +648,7 @@ func TestCompletenessReset(t *testing.T) {
 		p.backend.SetReadError(nil)
 
 		// load CAs while connection is bad
-		cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
+		cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 		// we don't actually care whether the cache ever fully constructed
 		// the CA list.  for the purposes of this test, we just care that it
 		// doesn't return the CA list *unless* it was successfully constructed.
@@ -654,87 +658,6 @@ func TestCompletenessReset(t *testing.T) {
 			require.True(t, trace.IsConnectionProblem(err))
 		}
 	}
-}
-
-// TestTombstones verifies that healthy caches leave tombstones
-// on closure, giving new caches the ability to start from a known
-// good state if the origin state is unavailable.
-func TestTombstones(t *testing.T) {
-	ctx := context.Background()
-	const caCount = 10
-	p := newTestPackWithoutCache(t)
-	t.Cleanup(p.Close)
-
-	// put lots of CAs in the backend
-	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
-	}
-
-	var err error
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
-
-	require.NoError(t, p.cache.Close())
-	// wait for TombstoneWritten, ignoring all other event types
-	expectEvent(t, p.eventsC, TombstoneWritten)
-	// simulate bad connection to auth server
-	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
-	p.eventsS.closeWatchers()
-
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available despite the fact
-	// that the origin state was never available.
-	cas, err = p.cache.GetCertAuthorities(types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
 }
 
 // TestInitStrategy verifies that cache uses expected init strategy
@@ -976,7 +899,7 @@ func initStrategy(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	_, err = p.cache.GetCertAuthorities(types.UserCA, false)
+	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
@@ -998,7 +921,7 @@ func initStrategy(t *testing.T) {
 	}
 	_ = normalizeCA
 
-	out, err := p.cache.GetCertAuthority(ca.GetID(), false)
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 
@@ -1012,7 +935,7 @@ func initStrategy(t *testing.T) {
 	expectNextEvent(t, p.eventsC, WatcherFailed, EventProcessed, Reloading)
 
 	// backend is out, but old value is available
-	out2, err := p.cache.GetCertAuthority(ca.GetID(), false)
+	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Equal(t, out.GetResourceID(), out2.GetResourceID())
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
@@ -1030,7 +953,7 @@ func initStrategy(t *testing.T) {
 	expectEvent(t, p.eventsC, WatcherStarted)
 
 	// new value is available now
-	out, err = p.cache.GetCertAuthority(ca.GetID(), false)
+	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out)))
 }
@@ -1070,7 +993,7 @@ func TestRecovery(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ca2.GetID(), false)
+	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
 	ca2.SetResourceID(out.GetResourceID())
 	types.RemoveCASecrets(ca2)
@@ -1405,7 +1328,7 @@ func TestRoles(t *testing.T) {
 	p := newPackForNode(t)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRole("role1", types.RoleSpecV5{
+	role, err := types.NewRoleV3("role1", types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.Duration(time.Hour),
 		},
@@ -2331,6 +2254,10 @@ func TestRelativeExpiry(t *testing.T) {
 	const checkInterval = time.Second
 	const nodeCount = int64(100)
 
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
+
 	ctx := context.Background()
 
 	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
@@ -2349,7 +2276,10 @@ func TestRelativeExpiry(t *testing.T) {
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
-		// Check that information has been replicated to the cache.
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := int64(0); i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -2474,4 +2404,78 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 	defer p.Unlock()
 	p.watchers = append(p.watchers, w)
 	return w, nil
+}
+
+// TestCacheWatchKindExistsInEvents ensures that the watch kinds for each cache component are in sync
+// with proto Events delivered via WatchEvents. If a watch kind is added to a cache component, but it
+// doesn't exist in the proto Events definition, an error will cause the WatchEvents stream to be closed.
+// This causes the cache to reinitialize every time that an unknown message is received and can lead to
+// a permanently unhealthy cache.
+//
+// While this test will ensure that there are no issues for the current release, it does not guarantee
+// that this issue won't arise across releases.
+func TestCacheWatchKindExistsInEvents(t *testing.T) {
+	cases := map[string]Config{
+		"ForAuth":           ForAuth(Config{}),
+		"ForProxy":          ForProxy(Config{}),
+		"ForRemoteProxy":    ForRemoteProxy(Config{}),
+		"ForOldRemoteProxy": ForOldRemoteProxy(Config{}),
+		"ForNode":           ForNode(Config{}),
+		"ForKubernetes":     ForKubernetes(Config{}),
+		"ForApps":           ForApps(Config{}),
+		"ForDatabases":      ForDatabases(Config{}),
+	}
+
+	events := map[string]types.Resource{
+		types.KindCertAuthority:           &types.CertAuthorityV2{},
+		types.KindClusterName:             &types.ClusterNameV2{},
+		types.KindClusterAuditConfig:      types.DefaultClusterAuditConfig(),
+		types.KindClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		types.KindClusterAuthPreference:   types.DefaultAuthPreference(),
+		types.KindSessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		types.KindStaticTokens:            &types.StaticTokensV2{},
+		types.KindToken:                   &types.ProvisionTokenV2{},
+		types.KindUser:                    &types.UserV2{},
+		types.KindRole:                    &types.RoleV5{Version: types.V4},
+		types.KindNamespace:               &types.Namespace{},
+		types.KindNode:                    &types.ServerV2{},
+		types.KindProxy:                   &types.ServerV2{},
+		types.KindAuthServer:              &types.ServerV2{},
+		types.KindReverseTunnel:           &types.ReverseTunnelV2{},
+		types.KindTunnelConnection:        &types.TunnelConnectionV2{},
+		types.KindAccessRequest:           &types.AccessRequestV3{},
+		types.KindAppServer:               &types.AppServerV3{},
+		types.KindApp:                     &types.AppV3{},
+		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
+		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
+		types.KindWebToken:                &types.WebTokenV3{},
+		types.KindRemoteCluster:           &types.RemoteClusterV3{},
+		types.KindKubeService:             &types.ServerV2{},
+		types.KindDatabaseServer:          &types.DatabaseServerV3{},
+		types.KindDatabase:                &types.DatabaseV3{},
+		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},
+		types.KindLock:                    &types.LockV2{},
+		types.KindWindowsDesktopService:   &types.WindowsDesktopServiceV3{},
+		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
+	}
+
+	for name, cfg := range cases {
+		t.Run(name, func(t *testing.T) {
+			for _, watch := range cfg.Watches {
+				resource, ok := events[watch.Kind]
+				require.True(t, ok, "missing event for kind %q", watch.Kind)
+
+				protoEvent, err := client.EventToGRPC(types.Event{
+					Type:     types.OpPut,
+					Resource: resource,
+				})
+				require.NoError(t, err)
+
+				event, err := client.EventFromGRPC(*protoEvent)
+				require.NoError(t, err)
+
+				require.Empty(t, cmp.Diff(resource, event.Resource))
+			}
+		})
+	}
 }

@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -162,11 +161,17 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.user = u.Username
 	s.clock = clockwork.NewFakeClock()
 
+	networkingConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		KeepAliveInterval: types.Duration(10 * time.Second),
+	})
+	c.Assert(err, IsNil)
+
 	s.server, err = auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
-			ClusterName: "localhost",
-			Dir:         c.MkDir(),
-			Clock:       s.clock,
+			ClusterName:             "localhost",
+			Dir:                     c.MkDir(),
+			Clock:                   s.clock,
+			ClusterNetworkingConfig: networkingConfig,
 		},
 	})
 	c.Assert(err, IsNil)
@@ -517,7 +522,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
-	role, err := types.NewRole(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
+	role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 		},
@@ -559,7 +564,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(u.Scheme+"://"+u.Host+u.Path, Equals, fixtures.SAMLOktaSSO)
 	data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
 	c.Assert(err, IsNil)
-	buf, err := ioutil.ReadAll(flate.NewReader(bytes.NewReader(data)))
+	buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(data)))
 	c.Assert(err, IsNil)
 	doc := etree.NewDocument()
 	err = doc.ReadFromBytes(buf)
@@ -1036,6 +1041,47 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	}
 }
 
+// TestTerminalPing tests that the server sends continuous ping control messages.
+func (s *WebSuite) TestTerminalPing(c *C) {
+	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	c.Assert(err, IsNil)
+	defer ws.Close()
+
+	closed := false
+	done := make(chan struct{})
+	ws.SetPingHandler(func(message string) error {
+		if closed == false {
+			close(done)
+			closed = true
+		}
+
+		err := ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
+		if err == websocket.ErrCloseSent {
+			return nil
+		} else if e, ok := err.(net.Error); ok && e.Temporary() {
+			return nil
+		}
+		return err
+	})
+
+	// We need to continuously read incoming messages in order to process ping messages.
+	// We only care about receiving a ping here so dropping them is fine.
+	go func() {
+		for {
+			_, _, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Minute):
+		c.Fatal("timeout waiting for ping")
+	}
+}
+
 func (s *WebSuite) TestTerminal(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
@@ -1163,7 +1209,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	require.NoError(t, err)
 
-	ca, err := authClient.GetCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()}, false)
+	ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()}, false)
 	require.NoError(t, err)
 
 	for _, kp := range services.GetTLSCerts(ca) {
@@ -1958,6 +2004,70 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	nodes, err := s.proxyClient.GetNodes(s.ctx, apidefaults.Namespace)
 	c.Assert(err, IsNil)
 	c.Assert(nodes, HasLen, cluster.NodeCount)
+}
+
+func TestTokenGeneration(t *testing.T) {
+	tt := []struct {
+		name      string
+		roles     types.SystemRoles
+		shouldErr bool
+	}{
+		{
+			name:      "single node role",
+			roles:     types.SystemRoles{types.RoleNode},
+			shouldErr: false,
+		},
+		{
+			name:      "single app role",
+			roles:     types.SystemRoles{types.RoleApp},
+			shouldErr: false,
+		},
+		{
+			name:      "single db role",
+			roles:     types.SystemRoles{types.RoleDatabase},
+			shouldErr: false,
+		},
+		{
+			name:      "multiple roles",
+			roles:     types.SystemRoles{types.RoleNode, types.RoleApp, types.RoleDatabase},
+			shouldErr: false,
+		},
+		{
+			name:      "return error if no role is requested",
+			roles:     types.SystemRoles{},
+			shouldErr: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newWebPack(t, 1)
+
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, "test-user@example.com")
+
+			endpoint := pack.clt.Endpoint("webapi", "token")
+			re, err := pack.clt.PostJSON(context.Background(), endpoint, createTokenRequest{
+				Roles: tc.roles,
+			})
+
+			if tc.shouldErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			var responseToken nodeJoinToken
+			err = json.Unmarshal(re.Bytes(), &responseToken)
+			require.NoError(t, err)
+
+			// generated token roles should match the requested ones
+			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.roles, generatedToken.GetRoles())
+		})
+	}
 }
 
 func TestClusterDatabasesGet(t *testing.T) {

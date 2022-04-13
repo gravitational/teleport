@@ -610,3 +610,11 @@ func (a *AuditWriter) setupEvent(event apievents.AuditEvent) error {
 	a.lastPrintEvent = printEvent
 	return nil
 }
+
+func diff(before, after time.Time) int64 {
+	d := int64(after.Sub(before) / time.Millisecond)
+	if d < 0 {
+		return 0
+	}
+	return d
+}

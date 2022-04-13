@@ -323,7 +323,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dummyUserRole, err := types.NewRole("dummy-user-role", types.RoleSpecV5{})
+	dummyUserRole, err := types.NewRoleV3("dummy-user-role", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	dummyUser, err := CreateUser(srv.Auth(), "dummy-user", dummyUserRole)
@@ -1893,7 +1893,7 @@ func TestKindClusterConfig(t *testing.T) {
 	})
 
 	t.Run("with KindClusterConfig privilege", func(t *testing.T) {
-		role, err := types.NewRole("test-role", types.RoleSpecV5{
+		role, err := types.NewRoleV3("test-role", types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindClusterConfig, []string{types.VerbRead}),
@@ -1907,94 +1907,6 @@ func TestKindClusterConfig(t *testing.T) {
 			require.NoError(t, err)
 		}
 	})
-}
-
-func TestNoElevatedAccessRequestDeletion(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { srv.Close() })
-
-	deleterRole, err := types.NewRole("deleter", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{{
-				Resources: []string{"access_request"},
-				Verbs:     []string{"delete"},
-			}},
-		},
-	})
-	require.NoError(t, err)
-	deleterUser, err := CreateUser(srv.AuthServer, "deletey", deleterRole)
-	require.NoError(t, err)
-
-	requesterRole, err := types.NewRole("requester", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Request: &types.AccessRequestConditions{
-				Roles: []string{deleterRole.GetName()},
-			},
-		},
-	})
-	require.NoError(t, err)
-	requesterUser, err := CreateUser(srv.AuthServer, "requesty", requesterRole)
-	require.NoError(t, err)
-
-	request, err := services.NewAccessRequest(requesterUser.GetName(), deleterRole.GetName())
-	require.NoError(t, err)
-	// the request must be for an allowed user/role combination or it will get rejected
-	err = srv.AuthServer.CreateAccessRequest(ctx, request)
-	require.NoError(t, err)
-
-	// requesty has used some other unspecified access request to get the
-	// deleter role in this identity
-	requesterAuthContext, err := srv.Authorizer.Authorize(context.WithValue(ctx,
-		ContextUser,
-		LocalUser{
-			Username: requesterUser.GetName(),
-			Identity: tlsca.Identity{
-				Username: requesterUser.GetName(),
-				Groups:   []string{requesterRole.GetName(), deleterRole.GetName()},
-				// a tlsca.Identity must have a nonempty Traits field or the
-				// roles will be reloaded from the backend during Authorize
-				Traits: map[string][]string{"nonempty": {}},
-			},
-		},
-	))
-	require.NoError(t, err)
-	requesterAuth := &ServerWithRoles{
-		authServer: srv.AuthServer,
-		sessions:   srv.SessionServer,
-		alog:       srv.AuditLog,
-		context:    *requesterAuthContext,
-	}
-
-	err = requesterAuth.DeleteAccessRequest(ctx, request.GetName())
-	require.True(t, trace.IsAccessDenied(err))
-	// matches the message in lib/auth/auth_with_roles.go:(*ServerWithRoles).DeleteAccessRequest()
-	require.Contains(t, err.Error(), "deletion through elevated roles")
-
-	deleterAuthContext, err := srv.Authorizer.Authorize(context.WithValue(ctx,
-		ContextUser,
-		LocalUser{
-			Username: deleterUser.GetName(),
-			Identity: tlsca.Identity{
-				Username: deleterUser.GetName(),
-				Groups:   []string{deleterRole.GetName()},
-				Traits:   map[string][]string{"nonempty": {}},
-			},
-		},
-	))
-	require.NoError(t, err)
-	deleterAuth := &ServerWithRoles{
-		authServer: srv.AuthServer,
-		sessions:   srv.SessionServer,
-		alog:       srv.AuditLog,
-		context:    *deleterAuthContext,
-	}
-
-	err = deleterAuth.DeleteAccessRequest(ctx, request.GetName())
-	require.NoError(t, err)
 }
 
 func TestGetAndList_KubeServices(t *testing.T) {

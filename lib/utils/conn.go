@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -100,7 +99,7 @@ func RoundtripWithConn(conn net.Conn) (string, error) {
 		return "", err
 	}
 	defer re.Body.Close()
-	out, err := ioutil.ReadAll(re.Body)
+	out, err := io.ReadAll(re.Body)
 	if err != nil {
 		return "", err
 	}
@@ -175,8 +174,8 @@ func (r *TrackingReader) Read(b []byte) (int, error) {
 // written.
 // It's thread-safe if the underlying io.Writer is thread-safe.
 type TrackingWriter struct {
+	count uint64 // intentionally placed first to ensure 64-bit alignment
 	w     io.Writer
-	count uint64
 }
 
 // NewTrackingWriter creates a TrackingWriter around w.

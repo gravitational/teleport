@@ -5,30 +5,24 @@ description: How to rotate Teleport's certificate authority
 
 ## Prerequisites
 
-- Installed [Teleport](../../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
-- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
-
-<Admonition type="note">
-  For Cloud, log in with a Teleport user with editor privileges:
-  ```code
-  # tsh logs you in and receives short-lived certificates
-  $ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
-  # try out the connection
-  $ tctl get nodes
-  ```
-</Admonition>
 
 ## Certificate Authority rotation
 
 This section will show you how to implement certificate rotation in practice.
 
-<Admonition type="warning" title="CA Pinning Warning">
-  If you are using [CA
-  Pinning](../admin/adding-nodes.mdx#untrusted-auth-servers) when adding new
-  nodes, the CA pin will change after the rotation. Make sure you use the *new*
-  CA pin when adding nodes after rotation.
+If you are using [CA Pinning](../admin/adding-nodes.mdx#untrusted-auth-servers)
+when adding new nodes, the CA pin will change after the rotation. Make sure you
+use the *new* CA pin when adding nodes after rotation.
+
+<Admonition type="warning" title="Desktop Access">
+Teleport signs Windows Desktop certificates with the user certificate authority.
+If the user CA is rotated, the new CA certificate will need to be exported and
+configured in group policy.
+
+[Read more about exporting the Teleport CA](../../desktop-access/getting-started.mdx#export-the-teleport-ca)
 </Admonition>
 
 ### Rotation phases

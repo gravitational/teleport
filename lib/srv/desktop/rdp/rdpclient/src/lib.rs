@@ -213,7 +213,7 @@ fn connect_rdp_inner(
     )?;
     // Generate a random 8-digit PIN for our smartcard.
     let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
-    let pin = format!("{:08}", rng.gen_range(0..99999999));
+    let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
     sec::connect(
         &mut mcs,
         &domain.to_string(),
@@ -223,6 +223,11 @@ fn connect_rdp_inner(
         // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
         // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
+        Some(
+            sec::ExtendedInfoFlag::PerfDisableCursorBlink as u32
+                | sec::ExtendedInfoFlag::PerfDisableFullWindowDrag as u32
+                | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32,
+        ),
     )?;
     // Client for the "global" channel - video output and user input.
     let global = global::Client::new(
@@ -277,9 +282,9 @@ impl<S: Read + Write> RdpClient<S> {
         // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            rdpdr::CHANNEL_NAME => self.rdpdr.read(message, &mut self.mcs),
+            rdpdr::CHANNEL_NAME => self.rdpdr.read_and_reply(message, &mut self.mcs),
             cliprdr::CHANNEL_NAME => match self.cliprdr {
-                Some(ref mut clip) => clip.read(message, &mut self.mcs),
+                Some(ref mut clip) => clip.read_and_reply(message, &mut self.mcs),
                 None => Ok(()),
             },
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
@@ -458,7 +463,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             .unwrap()
             .read(|rdp_event| match rdp_event {
                 RdpEvent::Bitmap(bitmap) => {
-                    let cbitmap = match CGOBitmap::try_from(bitmap) {
+                    let mut cbitmap = match CGOBitmap::try_from(bitmap) {
                         Ok(cb) => cb,
                         Err(e) => {
                             error!(
@@ -469,7 +474,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
                         }
                     };
                     unsafe {
-                        err = handle_bitmap(client_ref, cbitmap) as CGOError;
+                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOError;
                     };
                 }
                 // These should never really be sent by the server to us.
@@ -696,8 +701,7 @@ unsafe fn from_cgo_error(e: CGOError) -> String {
 // comments.
 extern "C" {
     fn free_go_string(s: *mut c_char);
-    fn handle_bitmap(client_ref: usize, b: CGOBitmap) -> CGOError;
-
+    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
 }
 

@@ -42,6 +42,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,6 +51,10 @@ import (
 
 const PresenceVerifyInterval = time.Second * 15
 const PresenceMaxDifference = time.Minute
+
+// SessionControlsInfoBroadcast is sent in tandem with session creation
+// to inform any joining users about the session controls.
+const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
 
 var serverSessions = prometheus.NewGauge(
 	prometheus.GaugeOpts{
@@ -93,6 +98,7 @@ func NewSessionRegistry(srv Server, auth auth.ClientI) (*SessionRegistry, error)
 		}),
 		srv:      srv,
 		sessions: make(map[rsession.ID]*session),
+		auth:     auth,
 	}, nil
 }
 
@@ -299,15 +305,15 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	for _, p := range party.s.getParties() {
 		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
 		if err != nil {
-			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			continue
 		}
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			continue
 		}
-		s.log.Debugf("Sent %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
+		s.log.Debugf("Sent %v to %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr())
 	}
 }
 
@@ -319,7 +325,7 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 	}
 
 	sess.terminated = true
-	sess.io.BroadcastMessage("Forcefully terminating session...")
+	sess.BroadcastMessage("Forcefully terminating session...")
 	sess.term.Kill()
 	sess.doneCh <- struct{}{}
 
@@ -345,20 +351,15 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 // leaveSession removes the given party from this session.
 func (s *SessionRegistry) leaveSession(party *party) error {
 	sess := party.s
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Emit session leave event to both the Audit Log as well as over the
-	// "x-teleport-event" channel in the SSH connection.
-	s.emitSessionLeaveEvent(party)
-
-	sess.mu.Lock()
-	defer sess.mu.Unlock()
 
 	// Remove member from in-members representation of party.
 	if err := sess.removeParty(party); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Emit session leave event to both the Audit Log as well as over the
+	// "x-teleport-event" channel in the SSH connection.
+	s.emitSessionLeaveEvent(party)
 
 	// this goroutine runs for a short amount of time only after a session
 	// becomes empty (no parties). It allows session to "linger" for a bit
@@ -366,11 +367,12 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 	lingerAndDie := func() {
 		lingerTTL := sess.GetLingerTTL()
 		if lingerTTL > 0 {
-			time.Sleep(lingerTTL)
+			sess.scx.srv.GetClock().Sleep(lingerTTL)
 		}
 		// not lingering anymore? someone reconnected? cool then... no need
 		// to die...
 		if !sess.isLingering() {
+			fmt.Println("Lingering")
 			s.log.Infof("Session %v has become active again.", sess.id)
 			return
 		}
@@ -601,6 +603,8 @@ type session struct {
 	bpfContext *bpf.SessionContext
 
 	cgroupID uint64
+
+	displayParticipantRequirements bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -669,27 +673,41 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.ComponentSession, r.srv.Component()),
 		}),
-		id:              id,
-		registry:        r,
-		parties:         make(map[rsession.ID]*party),
-		participants:    make(map[rsession.ID]*party),
-		login:           ctx.Identity.Login,
-		closeC:          make(chan bool),
-		lingerTTL:       defaults.SessionIdlePeriod,
-		startTime:       startTime,
-		serverCtx:       ctx.srv.Context(),
-		state:           types.SessionState_SessionStatePending,
-		access:          auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind),
-		scx:             ctx,
-		presenceEnabled: ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
-		io:              NewTermManager(),
-		stateUpdate:     sync.NewCond(&sync.Mutex{}),
-		doneCh:          make(chan struct{}, 2),
-		initiator:       ctx.Identity.TeleportUser,
+		id:                             id,
+		registry:                       r,
+		parties:                        make(map[rsession.ID]*party),
+		participants:                   make(map[rsession.ID]*party),
+		login:                          ctx.Identity.Login,
+		closeC:                         make(chan bool),
+		lingerTTL:                      defaults.SessionIdlePeriod,
+		startTime:                      startTime,
+		serverCtx:                      ctx.srv.Context(),
+		state:                          types.SessionState_SessionStatePending,
+		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind),
+		scx:                            ctx,
+		presenceEnabled:                ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
+		io:                             NewTermManager(),
+		stateUpdate:                    sync.NewCond(&sync.Mutex{}),
+		doneCh:                         make(chan struct{}, 2),
+		initiator:                      ctx.Identity.TeleportUser,
+		displayParticipantRequirements: utils.AsBool(ctx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
 	}
+
+	go func() {
+		if _, open := <-sess.io.TerminateNotifier(); open {
+			err := sess.registry.ForceTerminate(sess.scx)
+			if err != nil {
+				sess.log.Errorf("Failed to terminate session: %v.", err)
+			}
+		}
+	}()
 
 	err = sess.trackerCreate(ctx.Identity.TeleportUser, policySets)
 	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -710,7 +728,7 @@ func (s *session) PID() int {
 	return s.term.PID()
 }
 
-// Recorder returns a events.SessionRecorder which can be used to emit events
+// Recorder returns a StreamWriter which can be used to emit events
 // to a session as well as the audit log.
 func (s *session) Recorder() events.StreamWriter {
 	s.mu.RLock()
@@ -730,7 +748,7 @@ func (s *session) Close() error {
 			defer s.mu.Unlock()
 
 			close(s.closeC)
-			s.io.BroadcastMessage("Closing session...")
+			s.BroadcastMessage("Closing session...")
 			s.log.Infof("Closing session %v.", s.id)
 			if s.term != nil {
 				s.term.Close()
@@ -746,11 +764,13 @@ func (s *session) Close() error {
 			if s.recorder != nil {
 				s.recorder.Close(s.serverCtx)
 			}
-			s.state = types.SessionState_SessionStateTerminated
-			s.stateUpdate.Broadcast()
-			err := s.trackerUpdateState(types.SessionState_SessionStateRunning)
+
+			s.stateUpdate.L.Lock()
+			defer s.stateUpdate.L.Unlock()
+
+			err := s.trackerUpdateState(types.SessionState_SessionStateTerminated)
 			if err != nil {
-				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
+				s.log.Warnf("Failed to set tracker state to %v: %v", types.SessionState_SessionStateTerminated, err)
 			}
 		}()
 	})
@@ -768,10 +788,7 @@ func (s *session) isLingering() bool {
 
 func (s *session) waitOnAccess() error {
 	s.io.Off()
-	err := s.io.BroadcastMessage("Session paused, Waiting for required participants...")
-	if err != nil {
-		log.WithError(err).Errorf("Failed to broadcast message.")
-	}
+	s.BroadcastMessage("Session paused, Waiting for required participants...")
 
 	s.stateUpdate.L.Lock()
 	defer s.stateUpdate.L.Unlock()
@@ -789,27 +806,36 @@ outer:
 		s.stateUpdate.Wait()
 	}
 
-	s.io.BroadcastMessage("Resuming session...")
+	s.BroadcastMessage("Resuming session...")
 	s.io.On()
 	return nil
+}
+
+func (s *session) BroadcastMessage(format string, args ...interface{}) {
+	if s.access.IsModerated() && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
+		err := s.io.BroadcastMessage(fmt.Sprintf(format, args...))
+
+		if err != nil {
+			s.log.Debugf("Failed to broadcast message: %v", err)
+		}
+	}
 }
 
 func (s *session) launch(ctx *ServerContext) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.stateUpdate.L.Lock()
-	defer s.stateUpdate.L.Unlock()
 
 	s.log.Debugf("Launching session %v.", s.id)
-	s.io.BroadcastMessage("Launching session...")
-	s.state = types.SessionState_SessionStateRunning
+	s.BroadcastMessage("Connecting to %v over SSH", ctx.srv.GetInfo().GetHostname())
 
 	err := s.io.On()
 	if err != nil {
 		s.log.Warnf("Failed to turn enable IO: %v.", err)
 	}
 
-	s.stateUpdate.Broadcast()
+	s.stateUpdate.L.Lock()
+	defer s.stateUpdate.L.Unlock()
+
 	err = s.trackerUpdateState(types.SessionState_SessionStateRunning)
 	if err != nil {
 		s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
@@ -984,10 +1010,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	s.inWriter = inWriter
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder))
-	err = s.io.BroadcastMessage(fmt.Sprintf("Creating session with ID: %v...", s.id))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	s.BroadcastMessage("Creating session with ID: %v...", s.id)
+	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.term.Run(); err != nil {
 		ctx.Errorf("Unable to run shell command: %v.", err)
@@ -1254,6 +1278,9 @@ func sessionsStreamingUploadDir(ctx *ServerContext) string {
 }
 
 func (s *session) broadcastResult(r ExecResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for _, p := range s.parties {
 		p.ctx.SendExecResult(r)
 	}
@@ -1272,6 +1299,9 @@ func (s *session) removePartyMember(party *party) {
 // removeParty removes the party from the in-memory map that holds all party
 // members.
 func (s *session) removeParty(p *party) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	p.ctx.Infof("Removing party %v from session %v", p, s.id)
 
 	// Removes participant from in-memory map of party members.
@@ -1291,8 +1321,6 @@ func (s *session) removeParty(p *party) error {
 			return nil
 		}
 
-		s.state = types.SessionState_SessionStatePending
-		s.stateUpdate.Broadcast()
 		err := s.trackerUpdateState(types.SessionState_SessionStatePending)
 		if err != nil {
 			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStatePending)
@@ -1302,7 +1330,7 @@ func (s *session) removeParty(p *party) error {
 	}
 
 	s.io.DeleteWriter(string(p.id))
-	s.io.BroadcastMessage(fmt.Sprintf("User %v left the session.", p.user))
+	s.BroadcastMessage("User %v left the session.", p.user)
 	return nil
 }
 
@@ -1463,6 +1491,18 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(s.parties) == 0 {
+		canStart, _, err := s.checkIfStart()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !canStart && services.IsRecordAtProxy(p.ctx.SessionRecordingConfig.GetMode()) {
+			go s.Close()
+			return trace.AccessDenied("session requires additional moderation but is in proxy-record mode")
+		}
+	}
+
 	// Adds participant to in-memory map of party members.
 	s.parties[p.id] = p
 	s.participants[p.id] = p
@@ -1483,7 +1523,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
-	s.io.BroadcastMessage(fmt.Sprintf("User %v joined the session.", p.user))
+	s.BroadcastMessage("User %v joined the session.", p.user)
 	s.log.Infof("New party %v joined session: %v", p.String(), s.id)
 
 	if mode == types.SessionPeerMode {
@@ -1522,8 +1562,18 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 					}
 				}()
 			} else {
-				s.state = types.SessionState_SessionStateRunning
-				s.stateUpdate.Broadcast()
+				err := s.trackerUpdateState(types.SessionState_SessionStateRunning)
+				if err != nil {
+					s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
+				}
+			}
+		} else if !s.started {
+			base := "Waiting for required participants..."
+
+			if s.displayParticipantRequirements {
+				s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
+			} else {
+				s.BroadcastMessage(base)
 			}
 		}
 	}
@@ -1678,9 +1728,12 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 
 	reason := s.scx.env[teleport.EnvSSHSessionReason]
 	var invited []string
-	err := json.Unmarshal([]byte(s.scx.env[teleport.EnvSSHSessionInvited]), &invited)
-	if err != nil {
-		return trace.Wrap(err)
+
+	if s.scx.env[teleport.EnvSSHSessionInvited] != "" {
+		err := json.Unmarshal([]byte(s.scx.env[teleport.EnvSSHSessionInvited]), &invited)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	req := &proto.CreateSessionTrackerRequest{
@@ -1692,15 +1745,34 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 		ClusterName:  s.scx.ClusterName,
 		Login:        "root",
 		Initiator:    initator,
-		Expires:      time.Now().UTC().Add(time.Hour * 24),
 		HostUser:     initator.User,
 		Reason:       reason,
 		Invited:      invited,
 		HostPolicies: policySet,
 	}
 
-	_, err = s.registry.auth.CreateSessionTracker(s.serverCtx, req)
-	return trace.Wrap(err)
+	_, err := s.registry.auth.CreateSessionTracker(s.serverCtx, req)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	// Start go routine to push back session expiration while session is still active.
+	go func() {
+		ticker := s.scx.srv.GetClock().NewTicker(defaults.SessionTrackerExpirationUpdateInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case time := <-ticker.Chan():
+				if err := s.trackerUpdateExpiry(time.Add(defaults.SessionTrackerTTL)); err != nil {
+					s.log.WithError(err).Warningf("Failed to update session tracker expiration.")
+				}
+			case <-s.closeC:
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (s *session) trackerAddParticipant(participant *party) error {
@@ -1747,6 +1819,9 @@ func (s *session) trackerRemoveParticipant(participantID string) error {
 }
 
 func (s *session) trackerUpdateState(state types.SessionState) error {
+	s.state = state
+	s.stateUpdate.Broadcast()
+
 	if s.registry.auth == nil {
 		return nil
 	}
@@ -1756,6 +1831,24 @@ func (s *session) trackerUpdateState(state types.SessionState) error {
 		Update: &proto.UpdateSessionTrackerRequest_UpdateState{
 			UpdateState: &proto.SessionTrackerUpdateState{
 				State: state,
+			},
+		},
+	}
+
+	err := s.registry.auth.UpdateSessionTracker(s.serverCtx, req)
+	return trace.Wrap(err)
+}
+
+func (s *session) trackerUpdateExpiry(expires time.Time) error {
+	if s.registry.auth == nil {
+		return nil
+	}
+
+	req := &proto.UpdateSessionTrackerRequest{
+		SessionID: s.id.String(),
+		Update: &proto.UpdateSessionTrackerRequest_UpdateExpiry{
+			UpdateExpiry: &proto.SessionTrackerUpdateExpiry{
+				Expires: &expires,
 			},
 		},
 	}

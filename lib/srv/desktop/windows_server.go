@@ -113,7 +113,7 @@ type WindowsService struct {
 	// when desktop discovery is enabled.
 	// no synchronization is necessary because this is only read/written from
 	// the reconciler goroutine.
-	lastDiscoveryResults types.ResourcesWithLabels
+	lastDiscoveryResults types.ResourcesWithLabelsMap
 
 	// Windows hosts discovered via LDAP likely won't resolve with the
 	// default DNS resolver, so we need a custom resolver that will
@@ -163,6 +163,8 @@ type WindowsServiceConfig struct {
 	// Windows Desktops. If multiple filters are specified, they are ANDed
 	// together into a single search.
 	DiscoveryLDAPFilters []string
+	// Hostname of the windows desktop service
+	Hostname string
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -941,6 +943,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 		types.WindowsDesktopServiceSpecV3{
 			Addr:            s.cfg.Heartbeat.PublicAddr,
 			TeleportVersion: teleport.Version,
+			Hostname:        s.cfg.Hostname,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1028,7 +1031,7 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 	// have to do it here.
 	//
 	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
-	ca, err := s.cfg.AccessPoint.GetCertAuthority(types.CertAuthID{
+	ca, err := s.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: s.clusterName,
 	}, false)

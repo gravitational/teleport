@@ -90,14 +90,21 @@ type ResourceWithLabels interface {
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 
-// Find returns resource with the specified name or nil.
-func (r ResourcesWithLabels) Find(name string) ResourceWithLabels {
-	for _, resource := range r {
-		if resource.GetName() == name {
-			return resource
-		}
+// ResourcesWithLabelsMap is like ResourcesWithLabels, but a map from resource name to its value.
+type ResourcesWithLabelsMap map[string]ResourceWithLabels
+
+// ToMap returns these databases as a map keyed by database name.
+func (r ResourcesWithLabels) ToMap() ResourcesWithLabelsMap {
+	rm := make(ResourcesWithLabelsMap, len(r))
+
+	// there may be duplicate resources in the input list.
+	// by iterating from end to start, the first resource of given name wins.
+	for i := len(r) - 1; i >= 0; i-- {
+		resource := r[i]
+		rm[resource.GetName()] = resource
 	}
-	return nil
+
+	return rm
 }
 
 // Len returns the slice length.
@@ -341,7 +348,7 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 }
 
 // LabelPattern is a regexp that describes a valid label key
-const LabelPattern = `^[a-zA-Z/.0-9_*-]+$`
+const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
 
 var validLabelKey = regexp.MustCompile(LabelPattern)
 
