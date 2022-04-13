@@ -34,10 +34,10 @@ clusters.
 | [Auth](../../architecture/authentication.mdx) | `auth` | Authenticates hosts and users who want access to Teleport-managed resources or information about a cluster. |
 | [Proxy](../../architecture/proxy.mdx) | `proxy` | The gateway that clients use to connect to the Auth Service or resources managed by Teleport. |
 | [App](../../application-access/introduction.mdx) | `app` | Runs a daemon on a host that provides access to applications using an SSH reverse tunnel. |
-| [Kube](../../kubernetes-access/introduction.mdx) | `kube` | Runs the Teleport daemon as a Kubernetes Access server. |
-| [DB](../../database-access/reference.mdx) | `db` | Indicates that the Teleport daemon should be run as a Database Access server. |
+| [Kube](../../kubernetes-access/introduction.mdx) | `kube` | The Teleport daemon will run the Kubernetes Service. |
+| [DB](../../database-access/reference.mdx) | `db` | The Teleport daemon will run the Database Service. |
 | [Trusted Cluster](../../setup/admin/trustedclusters.mdx) | `trusted_cluster` | The Teleport daemon will support a leaf cluster used to connect to another Teleport cluster. |
-| [Windows Desktop](../../desktop-access/getting-started.mdx) | `windowsdesktop` | The Teleport daemon will run as a Windows Desktop Access server. |
+| [Windows Desktop](../../desktop-access/getting-started.mdx) | `windowsdesktop` | The Teleport daemon will run the Windows Desktop Service. |
 
 ### teleport start
 
