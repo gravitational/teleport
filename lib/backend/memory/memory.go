@@ -113,6 +113,10 @@ func New(cfg Config) (*Memory, error) {
 
 // Memory is a memory B-Tree based backend
 type Memory struct {
+	// nextID is a next record ID
+	// intentionally placed first to ensure 64-bit alignment
+	nextID int64
+
 	*sync.Mutex
 	*log.Entry
 	Config
@@ -126,8 +130,6 @@ type Memory struct {
 	// ctx is a context signalling close
 	ctx context.Context
 	buf *backend.CircularBuffer
-	//  nextID is a next record ID
-	nextID int64
 }
 
 // Close closes memory backend
