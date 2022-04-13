@@ -1041,7 +1041,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	}
 }
 
-// TestTerminalPing tests that the server sends continous ping control messages.
+// TestTerminalPing tests that the server sends continuous ping control messages.
 func (s *WebSuite) TestTerminalPing(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
@@ -1064,7 +1064,7 @@ func (s *WebSuite) TestTerminalPing(c *C) {
 		return err
 	})
 
-	// We need to continously read incoming messages in order to process ping messages.
+	// We need to continuously read incoming messages in order to process ping messages.
 	// We only care about receiving a ping here so dropping them is fine.
 	go func() {
 		for {
