@@ -34,20 +34,6 @@ const GlobalStyle = createGlobalStyle`
     font-family: ${props => props.theme.font};
   }
 
-  // custom scrollbars
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #757575;
-  }
-
-  ::-webkit-scrollbar-corner {
-    background: rgba(0,0,0,0.5);
-  }
-
   // remove dotted Firefox outline
   button, a {
     outline: 0;
