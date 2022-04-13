@@ -45,6 +45,10 @@ type connKey struct {
 
 // remoteConn holds a connection to a remote host, either node or proxy.
 type remoteConn struct {
+	// lastHeartbeat is the last time a heartbeat was received.
+	// intentionally placed first to ensure 64-bit alignment
+	lastHeartbeat int64
+
 	*connConfig
 	mu  sync.Mutex
 	log *logrus.Entry
@@ -68,9 +72,6 @@ type remoteConn struct {
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
-
-	// lastHeartbeat is the last time a heartbeat was received.
-	lastHeartbeat int64
 }
 
 // connConfig is the configuration for the remoteConn.
