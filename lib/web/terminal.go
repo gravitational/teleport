@@ -80,6 +80,8 @@ type TerminalRequest struct {
 	InteractiveCommand []string `json:"-"`
 
 	// KeepAliveInterval is the interval for sending ping frames to web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	KeepAliveInterval time.Duration
 }
 
@@ -206,6 +208,7 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
 	t.handler(ws, r)
 }
 
@@ -222,6 +225,33 @@ func (t *TerminalHandler) Close() error {
 		t.terminalCancel()
 	})
 	return nil
+}
+
+// startPingLoop starts a loop that will continuously send a ping frame through the websocket
+// to prevent the connection between web client and teleport proxy from becoming idle.
+// Interval is determined by the keep_alive_interval config set by user (or default).
+// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
+func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
+	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
+	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
+	defer tickerCh.Stop()
+
+	for {
+		select {
+		case <-tickerCh.C:
+			// A short deadline is used here to detect a broken connection quickly.
+			// If this is just a temporary issue, we will retry shortly anyway.
+			deadline := time.Now().Add(time.Second)
+			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+				t.Close()
+				return
+			}
+		case <-t.terminalContext.Done():
+			t.log.Debug("Terminating websocket ping loop.")
+			return
+		}
+	}
 }
 
 // handler is the main websocket loop. It creates a Teleport client and then
@@ -246,6 +276,15 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	}
 
 	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
+
+	// Update the read deadline upon receiving a pong message.
+	ws.SetPongHandler(func(_ string) error {
+		ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+		return nil
+	})
+
+	// Start sending ping frames through websocket to client.
+	go t.startPingLoop(ws)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
@@ -699,12 +738,14 @@ func (w *terminalStream) Read(out []byte) (n int, err error) {
 	return w.terminal.read(out, w.ws)
 }
 
-// SetReadDeadline sets the network read deadline on the underlying websocket.
-func (w *terminalStream) SetReadDeadline(t time.Time) error {
-	return w.ws.SetReadDeadline(t)
-}
-
 // Close the websocket.
 func (w *terminalStream) Close() error {
 	return w.ws.Close()
+}
+
+// deadlineForInterval returns a suitable network read deadline for a given ping interval.
+// We chose to take the current time plus twice the interval to allow the timeframe of one interval
+// to wait for a returned pong message.
+func deadlineForInterval(interval time.Duration) time.Time {
+	return time.Now().Add(interval * 2)
 }
