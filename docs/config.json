@@ -213,10 +213,6 @@
             {
               "title": "Networking",
               "slug": "/setup/reference/networking/"
-            },
-            {
-              "title": "Enterprise License File",
-              "slug": "/setup/reference/license/"
             }
           ]
         }
@@ -330,17 +326,17 @@
           "title": "Getting Started",
           "slug": "/kubernetes-access/getting-started/",
            "entries": [
-            { 
-              "title": "Local Demo Cluster", 
+            {
+              "title": "Local Demo Cluster",
               "slug": "/kubernetes-access/getting-started/local/"
             },
-            { 
-              "title": "Cluster", 
-              "slug": "/kubernetes-access/getting-started/cluster/" 
+            {
+              "title": "Cluster",
+              "slug": "/kubernetes-access/getting-started/cluster/"
             },
-            { 
-              "title": "Agent", 
-              "slug": "/kubernetes-access/getting-started/agent/" 
+            {
+              "title": "Agent",
+              "slug": "/kubernetes-access/getting-started/agent/"
             }
           ]
         },
@@ -717,7 +713,7 @@
           "slug": "/enterprise/getting-started/"
         },
         {
-          "title": "Single sign-on (SSO)",
+          "title": "Single Sign-On (SSO)",
           "slug": "/enterprise/sso/",
           "entries": [
             {
@@ -765,6 +761,10 @@
         {
           "title": "HSM",
           "slug": "/enterprise/hsm/"
+        },
+        {
+          "title": "Enterprise License File",
+          "slug": "/enterprise/license/"
         }
       ]
     },
@@ -859,9 +859,6 @@
   ],
   "variables": {
     "version": "7.0",
-    "helm": {
-      "version": "3.4.2"
-    },
     "terraform": {
       "version": "1.0.0"
     },
@@ -1130,6 +1127,11 @@
     {
       "source": "/setup/guides/joining-nodes-aws/",
       "destination": "/setup/guides/joining-nodes-aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/setup/reference/license/",
+      "destination": "/docs/enterprise/license/",
       "permanent": true
     }
   ]
