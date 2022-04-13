@@ -54,21 +54,21 @@ For `SAML` the commonly used flags will be:
 ```
 -p, --preset                   Preset. One of: [okta onelogin ad adfs]
 -n, --name                     Connector name. Required, unless implied from preset.
--e, --entity_descriptor        Set the Entity Descriptor. Valid values: file, URL, XML content. Supplies configuration parameters as single XML instead of individual elements.
--a, --attributes_to_roles      Sets attribute-to-role mapping in the form 'attr_name,attr_value,role1,role2,...'. Repeatable.
+-e, --entity-descriptor        Set the Entity Descriptor. Valid values: file, URL, XML content. Supplies configuration parameters as single XML instead of individual elements.
+-a, --attributes-to-roles      Sets attribute-to-role mapping in the form 'attr_name,attr_value,role1,role2,...'. Repeatable.
     --display                  Display controls how this connector is displayed.
 ```
 
-The `--attributes_to_roles/-a` flag is particularly important as it is used to provide a mapping between the
+The `--attributes-to-roles/-a` flag is particularly important as it is used to provide a mapping between the
 IdP-provided attributes and Teleport roles. It can be specified multiple times.
 
-Alternatives to `--entity_descriptor/-e` flag, allowing to specify these values explicitly:
+Alternatives to `--entity-descriptor/-e` flag, allowing to specify these values explicitly:
 
 ```
 --issuer                   Issuer is the identity provider issuer.
 --sso                      SSO is the URL of the identity provider's SSO service.
 --cert                     Cert is the identity provider certificate PEM. IDP signs <Response> responses using this certificate.
---cert_file                Like --cert, but read the cert from file.
+--cert-file                Like --cert, but read the cert from file.
 ```
 
 Rarely used flags; the tool fills that information automatically:
@@ -76,7 +76,7 @@ Rarely used flags; the tool fills that information automatically:
 ```
 --acs                      AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).
 --audience                 Audience uniquely identifies our service provider.
---service_provider_issuer  ServiceProviderIssuer is the issuer of the service provider (Teleport).
+--service-provider-issuer  ServiceProviderIssuer is the issuer of the service provider (Teleport).
 ```
 
 Advanced features:
@@ -86,18 +86,18 @@ Advanced features:
 - overrides for specific IdP providers
 
 ```
---signing_key_file         A file with request signing key. Must be used together with --signing_cert_file.
---signing_cert_file        A file with request certificate. Must be used together with --signing_key_file.
---assertion_key_file       A file with key used for securing SAML assertions. Must be used together with --assertion_cert_file.
---assertion_cert_file      A file with cert used for securing SAML assertions. Must be used together with --assertion_key_file.
+--signing-key-file         A file with request signing key. Must be used together with --signing-cert-file.
+--signing-cert-file        A file with request certificate. Must be used together with --signing-key-file.
+--assertion-key-file       A file with key used for securing SAML assertions. Must be used together with --assertion-cert-file.
+--assertion-cert-file      A file with cert used for securing SAML assertions. Must be used together with --assertion-key-file.
 --provider                 Sets the external identity provider type. Examples: ping, adfs.
 ```
 
 Flags for ignoring warnings:
 
 ```
---ignore_missing_roles     Ignore non-existing roles referenced in --attributes_to_roles.
---ignore_missing_certs     Ignore the lack of valid certificates from -e and --cert.
+--ignore-missing-roles     Ignore non-existing roles referenced in --attributes-to-roles.
+--ignore-missing-certs     Ignore the lack of valid certificates from -e and --cert.
 ```
 
 Available presets (`--preset/-p`):
