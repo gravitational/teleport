@@ -38,20 +38,11 @@ compatible.
 
 When running multiple binaries of Teleport within a cluster, the following rules apply:
 
-### After 5.0.0
-
 - **Patch and minor** versions are always compatible, for example, any 5.0.1 component will work with any 5.0.3 component and 6.1.0 component will work with any 6.7.0 component.
 - Major versions are always compatible with the **previous** major release. This means you must not attempt to upgrade from 5.x.x straight to 7.x.x. You must upgrade to 6.x.x first.
 - The above applies to both clients and servers. For example, a 6.x.x Proxy Service is
   compatible with 5.x.x Nodes and 5.x.x `tsh`. But we don't guarantee that a
   7.x.x `tsh` will work with a 5.x.x Proxy Service.
-
-### Before 5.0.0
-
-- **Only patch** versions are always compatible. For example, any 4.0.1 component will work with any 4.0.3 component.
-- Minor versions are always compatible with the **previous** minor release. This means you must not attempt to upgrade from 4.1.x straight to 4.3.x. You must upgrade to 4.2.x first.
-- Teleport clients ([`tsh`](../reference/cli.mdx#tsh) for users and [`tctl`](../reference/cli.mdx#tctl) for admins)
-  may not be compatible with different versions of the `teleport` service.
 
 ## Backup
 
