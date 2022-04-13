@@ -34,16 +34,9 @@ func TestReadWrite(t *testing.T) {
 
 	expectedData := []byte{1, 2, 3, 4}
 
-	tests := []struct {
-		mode SymlinksMode
-	}{
-		{SymlinksInsecure},
-		{SymlinksTrySecure},
-		{SymlinksSecure},
-	}
 
-	for _, test := range tests {
-		if test.mode == SymlinksSecure && !secureWriteExpected {
+	for _, mode := range []SymlinksMode{SymlinksInsecure, SymlinksTrySecure, SymlinksSecure}, {
+		if mode == SymlinksSecure && !secureWriteExpected {
 			t.Logf("skipping secure read/write test due to lack of platform support")
 			continue
 		}
