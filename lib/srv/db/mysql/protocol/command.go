@@ -90,51 +90,44 @@ type InitDB struct {
 
 // CreateDB represents the COM_CREATE_DB command.
 //
-// COM_CREATE_DB creates a schema.
-//
 // https://dev.mysql.com/doc/internals/en/com-create-db.html
-// Deprecated prior to MySQL 5.7.
-//
 // https://mariadb.com/kb/en/com_create_db/
-// Deprecated in MariaDB.
+//
+// COM_CREATE_DB creates a schema. COM_CREATE_DB is deprecated in both MySQL
+// and MariaDB.
 type CreateDB struct {
 	schemaNamePacket
 }
 
 // DropDB represents the COM_DROP_DB command.
 //
-// COM_DROP_DB drops a schema.
-//
 // https://dev.mysql.com/doc/internals/en/com-drop-db.html
-// Deprecated prior to MySQL 5.7.
-//
 // https://mariadb.com/kb/en/com_drop_db/
-// Deprecated in MariaDB.
+//
+// COM_DROP_DB drops a schema. COM_DROP_DB is deprecated in both MySQL and
+// MariaDB.
 type DropDB struct {
 	schemaNamePacket
 }
 
 // ShutDown represents the COM_SHUTDOWN command.
 //
-// COM_SHUTDOWN is used to shut down the MySQL server. The SHUTDOWN privilege
-// is required for this operation.
-//
 // https://dev.mysql.com/doc/internals/en/com-shutdown.html
-// Deprecated as of MySQL 5.7.9. Support end of life is October, 2023.
-//
 // https://mariadb.com/kb/en/com_shutdown/
+//
+// COM_SHUTDOWN is used to shut down the MySQL server. COM_SHUTDOWN requires
+// SHUTDOWN privileges. COM_SHUTDOWN is deprecated as of MySQL 5.7.9.
 type ShutDown struct {
 	packet
 }
 
 // ProcessKill represents the COM_PROCESS_KILL command.
 //
-// COM_PROCESS_KILL asks the server to terminate a connection
-//
 // https://dev.mysql.com/doc/internals/en/com-process-kill.html
-// Deprecated as of MySQL 5.7.11. Support end of life is October, 2023.
-//
 // https://mariadb.com/kb/en/com_process_kill/
+//
+// COM_PROCESS_KILL asks the server to terminate a connection. COM_PROCESS_KILL
+// is deprecated as of MySQL 5.7.11.
 type ProcessKill struct {
 	packet
 
@@ -149,21 +142,21 @@ func (p *ProcessKill) ProcessID() uint32 {
 
 // Debug represents the COM_DEBUG command.
 //
-// The COM_DEBUG command forces the server to dump debug information to stdout.
-// It requires SUPER privileges.
-//
 // https://dev.mysql.com/doc/internals/en/com-debug.html
 // https://mariadb.com/kb/en/com_debug/
+//
+// COM_DEBUG forces the server to dump debug information to stdout. COM_DEBUG
+// requires SUPER privileges.
 type Debug struct {
 	packet
 }
 
 // Refresh represents the COM_REFRESH command.
 //
-// COM_REFRESH calls REFRESH or FLUSH statements
-//
 // https://dev.mysql.com/doc/internals/en/com-refresh.html
-// Deprecated as of MySQL 5.7.11. Support end of life is October, 2023.
+//
+// COM_REFRESH calls REFRESH or FLUSH statements. COM_REFRESH is deprecated as
+// of MySQL 5.7.11.
 type Refresh struct {
 	packet
 
@@ -259,7 +252,7 @@ func parseCreateDBPacket(packetBytes []byte) (Packet, error) {
 func parseDropDBPacket(packetBytes []byte) (Packet, error) {
 	parent, ok := parseSchameNamePacket(packetBytes)
 	if !ok {
-		return nil, trace.BadParameter("failed to parse COM_CREATE_DB packet: %v", packetBytes)
+		return nil, trace.BadParameter("failed to parse COM_DROP_DB packet: %v", packetBytes)
 	}
 
 	return &DropDB{
