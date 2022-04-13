@@ -34,24 +34,23 @@ func TestReadWrite(t *testing.T) {
 
 	expectedData := []byte{1, 2, 3, 4}
 
-
-	for _, mode := range []SymlinksMode{SymlinksInsecure, SymlinksTrySecure, SymlinksSecure}, {
+	for _, mode := range []SymlinksMode{SymlinksInsecure, SymlinksTrySecure, SymlinksSecure} {
 		if mode == SymlinksSecure && !secureWriteExpected {
 			t.Logf("skipping secure read/write test due to lack of platform support")
 			continue
 		}
 
-		path := filepath.Join(dir, string(test.mode))
+		path := filepath.Join(dir, string(mode))
 
-		err := Create(path, false, test.mode)
+		err := Create(path, false, mode)
 		require.NoError(t, err)
 
-		err = Write(path, expectedData, test.mode)
+		err = Write(path, expectedData, mode)
 		require.NoError(t, err)
 
-		data, err := Read(path, test.mode)
+		data, err := Read(path, mode)
 		require.NoError(t, err)
 
-		require.Zero(t, bytes.Compare(data, expectedData), "read bytes must be equal to those written")
+		require.Equal(t, 0, bytes.Compare(data, expectedData), "read bytes must be equal to those written")
 	}
 }

@@ -79,7 +79,7 @@ const (
 
 	// OpenMode is the mode with which files should be opened for reading and
 	// writing.
-	OpenMode os.FileMode = os.O_CREATE | os.O_RDWR
+	OpenMode int = os.O_CREATE | os.O_RDWR
 )
 
 // ACLOptions contains parameters needed to configure ACLs
