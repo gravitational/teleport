@@ -688,6 +688,30 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
 
+### tsh configuration file
+
+`tsh` has an optional configuration file that is stored in `$TELEPORT_HOME/config/config.yaml`.
+
+The `tsh` configuration file enables you to specify HTTP headers to be
+included in requests to Teleport Proxy Servers with addresses matching
+the `proxy` field.
+
+```yaml
+add_headers:
+  - proxy: "*.example.com" # matching proxies will have headers included
+    headers: # headers are pairs to include in the http headers
+      foo: bar # Key/Value to be included in the http request
+```
+
+Adding HTTP headers may be useful, if for example an intermediate HTTP
+proxy is in place that requires setting an authentication token:
+
+```yaml
+add_headers:
+  - proxy: "*.infra.corp.xyz"
+    headers:
+      "Authorization": "Bearer tokentokentoken"
+```
 
 ## tctl
 
@@ -772,11 +796,10 @@ These flags are available for all commands `--debug, --config`. Run
 
 ```code
 # Adds teleport user "joe" with mappings to
-# OS users "joe" and "root"
-$ tctl users add joe joe,root
-# Adds teleport user "joe" with mappings to
-# OS users "joe" only
-$ tctl users add joe
+# OS users and {{ internal.logins }} to "joe" and "ubuntu"
+$ tctl users add joe --roles=access joe,ubuntu
+# Adds Teleport user "joe" with mappings to the editor role
+$ tctl users add joe --roles=editor
 ```
 
 ### tctl users update
@@ -1008,6 +1031,8 @@ $ tctl tokens add --type=trusted_cluster --labels=env=prod
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type=node
+# Generate a join token for both a Node and the Database Service
+$ tctl tokens add --type=node,db
 # Generate an invite token for a kubernetes_service
 $ tctl tokens add --type=kube
 # Generate an invite token for an app_service

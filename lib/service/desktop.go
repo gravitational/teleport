@@ -180,7 +180,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, err := auth.ClientCertPool(accessPoint, clusterName)
+		pool, err := auth.DefaultClientCertPool(accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -248,6 +248,10 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				"Windows desktop service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
+
+		// since srv.Serve is a blocking call, we emit this event right before
+		// the service has started
+		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 		err := srv.Serve(listener)
 		if err != nil {
 			if err == http.ErrServerClosed {

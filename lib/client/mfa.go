@@ -39,35 +39,45 @@ var promptWebauthn = wancli.Login
 // MFA, but the implementation exists in case we find some unusual
 // authenticators out there.
 type mfaPrompt struct {
-	ctx       context.Context
-	otpCancel context.CancelFunc
+	wancli.LoginPrompt
+	otpCancelAndWait func()
 }
 
 func (p *mfaPrompt) PromptPIN() (string, error) {
-	p.otpCancel()
-	return prompt.Password(p.ctx, os.Stderr, prompt.Stdin(), "Enter your security key PIN")
+	p.otpCancelAndWait()
+	return p.LoginPrompt.PromptPIN()
 }
 
-func (p *mfaPrompt) PromptAdditionalTouch() error {
-	fmt.Fprintln(os.Stderr, "Tap your security key again to complete login")
-	return nil
+// PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
+type PromptMFAChallengeOpts struct {
+	// PromptDevicePrefix is an optional prefix printed before "security key" or
+	// "device". It is used to emphasize between different kinds of devices, like
+	// registered vs new.
+	PromptDevicePrefix string
+	// Quiet suppresses users prompts.
+	Quiet bool
+	// UseStrongestAuth prompts the user to solve only the strongest challenge
+	// available.
+	// If set it also avoids stdin hijacking, as only one prompt is necessary.
+	UseStrongestAuth bool
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
-// If promptDevicePrefix is set, it will be printed in prompts before "security
-// key" or "device". This is used to emphasize between different kinds of
-// devices, like registered vs new.
 // PromptMFAChallenge makes an attempt to read OTPs from prompt.Stdin and
 // abandons the read if the user chooses WebAuthn instead. For this reason
 // callers must use prompt.Stdin exclusively after calling this function.
-func PromptMFAChallenge(
-	ctx context.Context,
-	proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+// Set opts.UseStrongestAuth to avoid stdin hijacking.
+func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
+	if opts == nil {
+		opts = &PromptMFAChallengeOpts{}
+	}
+	promptDevicePrefix := opts.PromptDevicePrefix
+	quiet := opts.Quiet
 
 	hasTOTP := c.TOTP != nil
 	hasWebauthn := c.WebauthnChallenge != nil
@@ -79,6 +89,11 @@ func PromptMFAChallenge(
 	case !wancli.HasPlatformSupport():
 		// Do not prompt for hardware devices, it won't work.
 		hasWebauthn = false
+	}
+
+	// Prompt only for the strongest auth method available?
+	if opts.UseStrongestAuth && hasWebauthn {
+		hasTOTP = false
 	}
 
 	var numGoroutines int
@@ -104,14 +119,17 @@ func PromptMFAChallenge(
 		wg.Wait()
 	}
 
-	// Use otpCtx and otpCancel to cancel an ongoing OTP read.
+	// Use variables below to cancel OTP reads and make sure the goroutine exited.
+	otpWait := &sync.WaitGroup{}
 	otpCtx, otpCancel := context.WithCancel(ctx)
 	defer otpCancel()
 
 	// Fire TOTP goroutine.
 	if hasTOTP {
+		otpWait.Add(1)
 		wg.Add(1)
 		go func() {
+			defer otpWait.Done()
 			defer wg.Done()
 			const kind = "TOTP"
 			var msg string
@@ -151,9 +169,19 @@ func PromptMFAChallenge(
 		go func() {
 			defer wg.Done()
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
+
+			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
+			prompt.FirstTouchMessage = "" // First prompt printed above.
+			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
+			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
+				otpCancel()
+				otpWait.Wait()
+			}}
+
 			const user = ""
-			prompt := &mfaPrompt{ctx: ctx, otpCancel: otpCancel}
-			resp, _, err := promptWebauthn(ctx, origin, user, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), prompt)
+			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
+				User: user,
+			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()
 	}

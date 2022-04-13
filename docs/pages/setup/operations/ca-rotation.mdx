@@ -5,67 +5,24 @@ description: How to rotate Teleport's certificate authority
 
 ## Prerequisites
 
-<Tabs>
-<TabItem scope={["oss"]} label="Self-Hosted">
-
-- A running Teleport cluster. For details on how to set this up, see [Getting
-  Started on a Linux Server](../../getting-started/linux-server.mdx).
-
-- The `tctl` admin tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](../../installation.mdx) for details.
-
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on setting this up, see our
-  [Enterprise getting started guide](../../enterprise/getting-started.mdx).
-
-- The `tctl` admin tool version >= (=teleport.version=), which you can download
-  by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- The Enterprise version of the `tctl` admin tool. To download this, visit
-the [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
-
 
 ## Certificate Authority rotation
 
 This section will show you how to implement certificate rotation in practice.
 
-<Admonition type="warning" title="CA Pinning Warning">
-  If you are using [CA
-  Pinning](../admin/adding-nodes.mdx#untrusted-auth-servers) when adding new
-  nodes, the CA pin will change after the rotation. Make sure you use the *new*
-  CA pin when adding nodes after rotation.
+If you are using [CA Pinning](../admin/adding-nodes.mdx#untrusted-auth-servers)
+when adding new nodes, the CA pin will change after the rotation. Make sure you
+use the *new* CA pin when adding nodes after rotation.
+
+<Admonition type="warning" title="Desktop Access">
+Teleport signs Windows Desktop certificates with the user certificate authority.
+If the user CA is rotated, the new CA certificate will need to be exported and
+configured in group policy.
+
+[Read more about exporting the Teleport CA](../../desktop-access/getting-started.mdx#export-the-teleport-ca)
 </Admonition>
 
 ### Rotation phases
