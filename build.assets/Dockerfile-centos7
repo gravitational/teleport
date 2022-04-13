@@ -20,7 +20,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum install -y \
         cmake3 \
         git \
-        gperf \
         libatomic \
         libudev-devel \
         net-tools \
@@ -35,19 +34,11 @@ RUN yum groupinstall -y 'Development Tools' && \
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
 
-# Install libeudev.
-# libeudev replaces systemd's libudev.
-RUN git clone --depth=1 https://github.com/eudev-project/eudev.git -b v3.2.11 && \
-    cd eudev && \
-# Don't build man pages. Saves a lot of hassle.
-    echo '' > ./man/make.sh && \
-    ./autogen.sh && \
-    ./configure --prefix /usr/local --with-pic && \
-    make && \
-    make install && \
-# Replace system libudev.
-    cd /usr/lib64 && \
-    ln -fs libudev.so.1 /usr/local/lib/libudev.so.1.6.3
+# Install libudev-zero.
+# libudev-zero replaces systemd's libudev
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
+    cd libudev-zero && \
+    make install-static
 
 # Instal openssl.
 # Pulled from source because repository versions are too old.

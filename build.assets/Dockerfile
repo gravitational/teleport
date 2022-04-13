@@ -12,37 +12,14 @@
 FROM buildpack-deps:18.04 AS libfido2
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-# libeudev
-      docbook-xml \
-      docbook-xsl \
-      gnu-efi \
-      gobject-introspection \
-      gperf \
-      intltool \
-      libacl1-dev \
-      libblkid-dev \
-      libcap-dev \
-      libglib-object-introspection-perl \
-      libkmod-dev \
-      libselinux1-dev \
-      libtool \
-      m4 \
-      pkg-config \
-      xsltproc \
-# libcbor/libfido2
-      cmake \
-      && \
+    apt-get install -y --no-install-recommends cmake && \
     rm -rf /var/lib/apt/lists/*
 
-# Install libeudev.
-# libeudev replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/eudev-project/eudev.git -b v3.2.11 && \
-    cd eudev && \
-    ./autogen.sh && \
-    ./configure --prefix /usr/local --with-pic && \
-    make && \
-    make install
+# Install libudev-zero.
+# libudev-zero replaces systemd's libudev
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
+    cd libudev-zero && \
+    make install-static
 
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
@@ -59,7 +36,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
     cd libfido2 && \
-    cmake \
+    CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
         -DBUILD_TOOLS=OFf \
