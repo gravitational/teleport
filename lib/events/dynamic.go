@@ -180,6 +180,20 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.MySQLStatementFetch{}
 	case DatabaseSessionMySQLStatementBulkExecuteEvent:
 		e = &events.MySQLStatementBulkExecute{}
+	case DatabaseSessionMySQLInitDBEvent:
+		e = &events.MySQLInitDB{}
+	case DatabaseSessionMySQLCreateDBEvent:
+		e = &events.MySQLCreateDB{}
+	case DatabaseSessionMySQLDropDBEvent:
+		e = &events.MySQLDropDB{}
+	case DatabaseSessionMySQLShutDownEvent:
+		e = &events.MySQLShutDown{}
+	case DatabaseSessionMySQLProcessKillEvent:
+		e = &events.MySQLProcessKill{}
+	case DatabaseSessionMySQLDebugEvent:
+		e = &events.MySQLDebug{}
+	case DatabaseSessionMySQLRefreshEvent:
+		e = &events.MySQLRefresh{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
