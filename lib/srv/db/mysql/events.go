@@ -125,3 +125,92 @@ func makeStatementBulkExecuteEvent(session *common.Session, packet *protocol.Sta
 		StatementID:      packet.StatementID(),
 	}
 }
+
+// makeInitDBEvent creates an audit event for MySQL init DB command.
+func makeInitDBEvent(session *common.Session, packet *protocol.InitDB) events.AuditEvent {
+	return &events.MySQLInitDB{
+		Metadata: common.MakeEventMetadata(session,
+			libevents.DatabaseSessionMySQLInitDBEvent,
+			libevents.MySQLInitDBCode),
+		UserMetadata:     common.MakeUserMetadata(session),
+		SessionMetadata:  common.MakeSessionMetadata(session),
+		DatabaseMetadata: common.MakeDatabaseMetadata(session),
+		SchemaName:       packet.SchemaName(),
+	}
+}
+
+// makeCreateDBEvent creates an audit event for MySQL create DB command.
+func makeCreateDBEvent(session *common.Session, packet *protocol.CreateDB) events.AuditEvent {
+	return &events.MySQLCreateDB{
+		Metadata: common.MakeEventMetadata(session,
+			libevents.DatabaseSessionMySQLCreateDBEvent,
+			libevents.MySQLCreateDBCode),
+		UserMetadata:     common.MakeUserMetadata(session),
+		SessionMetadata:  common.MakeSessionMetadata(session),
+		DatabaseMetadata: common.MakeDatabaseMetadata(session),
+		SchemaName:       packet.SchemaName(),
+	}
+}
+
+// makeDropDBEvent creates an audit event for MySQL drop DB command.
+func makeDropDBEvent(session *common.Session, packet *protocol.DropDB) events.AuditEvent {
+	return &events.MySQLDropDB{
+		Metadata: common.MakeEventMetadata(session,
+			libevents.DatabaseSessionMySQLDropDBEvent,
+			libevents.MySQLDropDBCode),
+		UserMetadata:     common.MakeUserMetadata(session),
+		SessionMetadata:  common.MakeSessionMetadata(session),
+		DatabaseMetadata: common.MakeDatabaseMetadata(session),
+		SchemaName:       packet.SchemaName(),
+	}
+}
+
+// makeShutDownEvent creates an audit event for MySQL shut down command.
+func makeShutDownEvent(session *common.Session, packet *protocol.ShutDown) events.AuditEvent {
+	return &events.MySQLShutDown{
+		Metadata: common.MakeEventMetadata(session,
+			libevents.DatabaseSessionMySQLShutDownEvent,
+			libevents.MySQLShutDownCode),
+		UserMetadata:     common.MakeUserMetadata(session),
+		SessionMetadata:  common.MakeSessionMetadata(session),
+		DatabaseMetadata: common.MakeDatabaseMetadata(session),
+	}
+}
+
+// makeProcessKillEvent creates an audit event for MySQL process kill command.
+func makeProcessKillEvent(session *common.Session, packet *protocol.ProcessKill) events.AuditEvent {
+	return &events.MySQLProcessKill{
+		Metadata: common.MakeEventMetadata(session,
+			libevents.DatabaseSessionMySQLProcessKillEvent,
+			libevents.MySQLProcessKillCode),
+		UserMetadata:     common.MakeUserMetadata(session),
+		SessionMetadata:  common.MakeSessionMetadata(session),
+		DatabaseMetadata: common.MakeDatabaseMetadata(session),
+		ProcessID:        packet.ProcessID(),
+	}
+}
+
+// makeDebugEvent creates an audit event for MySQL debug command.
+func makeDebugEvent(session *common.Session, packet *protocol.Debug) events.AuditEvent {
+	return &events.MySQLDebug{
+		Metadata: common.MakeEventMetadata(session,
+			libevents.DatabaseSessionMySQLDebugEvent,
+			libevents.MySQLDebugCode),
+		UserMetadata:     common.MakeUserMetadata(session),
+		SessionMetadata:  common.MakeSessionMetadata(session),
+		DatabaseMetadata: common.MakeDatabaseMetadata(session),
+	}
+}
+
+// makeRefreshEvent creates an audit event for MySQL refresh command.
+func makeRefreshEvent(session *common.Session, packet *protocol.Refresh) events.AuditEvent {
+	return &events.MySQLRefresh{
+		Metadata: common.MakeEventMetadata(session,
+			libevents.DatabaseSessionMySQLRefreshEvent,
+			libevents.MySQLRefreshCode),
+		UserMetadata:     common.MakeUserMetadata(session),
+		SessionMetadata:  common.MakeSessionMetadata(session),
+		DatabaseMetadata: common.MakeDatabaseMetadata(session),
+		Subcommand:       packet.Subcommand(),
+	}
+}
