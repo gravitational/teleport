@@ -3249,9 +3249,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	process.OnExit("proxy.shutdown", func(payload interface{}) {
 		listeners.Close()
 		rcWatcher.Close()
-		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close(), log)
-		}
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if tsrv != nil {
@@ -3296,6 +3293,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(alpnServer.Close(), log)
 			}
 		}
+		warnOnErr(asyncEmitter.Close(), log)
 		warnOnErr(conn.Close(), log)
 		log.Infof("Exited.")
 	})
