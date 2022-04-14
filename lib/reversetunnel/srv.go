@@ -638,7 +638,7 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// nodes it's a node dialing back.
 	val, ok := sconn.Permissions.Extensions[extCertRole]
 	if !ok {
-		log.Errorf("Failed to accept connection, missing %q extension", extCertRole)
+		s.log.Errorf("Failed to accept connection, missing %q extension", extCertRole)
 		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
 		return
 	}
@@ -662,7 +662,7 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		s.handleNewCluster(conn, sconn, nch)
 	// Unknown role.
 	default:
-		log.Errorf("Unsupported role attempting to connect: %v", val)
+		s.log.Errorf("Unsupported role attempting to connect: %v", val)
 		s.rejectRequest(nch, ssh.ConnectionFailed, fmt.Sprintf("unsupported role %v", val))
 	}
 }
@@ -670,14 +670,14 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 func (s *server) handleNewService(role types.SystemRole, conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel, connType types.TunnelType) {
 	cluster, rconn, err := s.upsertServiceConn(conn, sconn, connType)
 	if err != nil {
-		log.Errorf("Failed to upsert %s: %v.", role, err)
+		s.log.Errorf("Failed to upsert %s: %v.", role, err)
 		sconn.Close()
 		return
 	}
 
 	ch, req, err := nch.Accept()
 	if err != nil {
-		log.Errorf("Failed to accept on channel: %v.", err)
+		s.log.Errorf("Failed to accept on channel: %v.", err)
 		sconn.Close()
 		return
 	}
@@ -689,14 +689,14 @@ func (s *server) handleNewCluster(conn net.Conn, sshConn *ssh.ServerConn, nch ss
 	// add the incoming site (cluster) to the list of active connections:
 	site, remoteConn, err := s.upsertRemoteCluster(conn, sshConn)
 	if err != nil {
-		log.Error(trace.Wrap(err))
+		s.log.Error(trace.Wrap(err))
 		s.rejectRequest(nch, ssh.ConnectionFailed, "failed to accept incoming cluster connection")
 		return
 	}
 	// accept the request and start the heartbeat on it:
 	ch, req, err := nch.Accept()
 	if err != nil {
-		log.Error(trace.Wrap(err))
+		s.log.Error(trace.Wrap(err))
 		sshConn.Close()
 		return
 	}
@@ -784,7 +784,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		return nil, trace.BadParameter("unsupported cert type: %v.", cert.CertType)
 	}
 
-	if err := s.checkClientCert(logger, conn.User(), clusterName, cert, caType); err != nil {
+	if err := s.checkClientCert(conn.User(), clusterName, cert, caType); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &ssh.Permissions{
@@ -799,7 +799,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 
 // checkClientCert verifies that client certificate is signed by the recognized
 // certificate authority.
-func (s *server) checkClientCert(logger *log.Entry, user string, clusterName string, cert *ssh.Certificate, caType types.CertAuthType) error {
+func (s *server) checkClientCert(user string, clusterName string, cert *ssh.Certificate, caType types.CertAuthType) error {
 	// fetch keys of the certificate authority to check
 	// if there is a match
 	keys, err := s.getTrustedCAKeysByID(types.CertAuthID{
@@ -1059,6 +1059,14 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
+	authVersion := "unknown"
+	pong, err := clt.Ping(closeContext)
+	if err != nil {
+		srv.log.Warnf("Failed to ping remote cluster auth %v: %v", domainName, err)
+	} else {
+		authVersion = pong.ServerVersion
+	}
+
 	// DELETE IN: 8.0.0
 	//
 	// Check if the cluster that is connecting is a pre-v7 cluster. If it is,
@@ -1071,7 +1079,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		return nil, trace.Wrap(err)
 	}
 	if ok {
-		log.Debugf("Pre-v7 cluster connecting, loading old cache policy.")
+		srv.log.WithFields(log.Fields{"auth-version": authVersion}).Warnf("Pre-v7 cluster %q connecting, loading old cache policy.", domainName)
 		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
 	} else {
 		accessPointFunc = srv.newAccessPoint
