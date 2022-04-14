@@ -1,16 +1,24 @@
 ---
 title: Backup and Restore
-description: How to backup and restore Teleport cluster state.
+description: How to back up and restore your Teleport cluster state.
 ---
+This guide explains the components of your Teleport deployment that must be
+backed up and lays out our recommended approach for performing backups.
 
-When planning a backup of Teleport, it's important to know what is where and the
-importance of each component. Teleport's Proxies and Nodes are stateless, and thus
-only `teleport.yaml` should be backed up.
+## What you should back up
 
-The Auth server is Teleport's brains, and depending on the backend should be backed up
-regularly.
+### Teleport services
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
-For example, a customer running Teleport on AWS with DynamoDB have these key items of data:
+Teleport's Proxy Service and Nodes are stateless. For these components, only
+`teleport.yaml` should be backed up.
+
+The Auth Service is Teleport's brain, and depending on the backend should be
+backed up regularly.
+
+For example, a Teleport cluster running on AWS with DynamoDB must back up the
+following data:
 
 | What | Where ( Example AWS Customer ) |
 | - | - |
@@ -22,35 +30,68 @@ For example, a customer running Teleport on AWS with DynamoDB have these key ite
 | teleport.yaml | File System |
 | teleport.service | File System |
 | license.pem | File System |
-| TLS key/certificate | ( File System / Outside Scope ) |
+| TLS key/certificate | File System / AWS Certificate Manager |
 | Audit log | DynamoDB |
 | Session recordings | S3 |
 
 For this customer, we would recommend using [AWS best practices](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) for backing up DynamoDB. If DynamoDB is used for
-the audit log, logged events have a TTL of 1 year.
+Teleport audit logs, logged events have a TTL of 1 year.
 
 | Backend | Recommended backup strategy |
 | - | - |
-| dir ( local filesystem ) | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all --with-secrets`. |
-| DynamoDB | [Follow AWS Guidelines for Backup & Restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
-| etcd | [Follow etcD Guidleines for Disaster Recovery](https://etcd.io/docs/v2/admin_guide) |
-| Firestore | [Follow GCP Guidlines for Automated Backups](https://firebase.google.com/docs/database/backups) |
+| Local Filesystem ) | Back up the `/var/lib/teleport/storage` directory and the output of `tctl get all --with-secrets`. |
+| DynamoDB | [Follow AWS's guidelines for backup and restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
+| etcd | [Follow etcd's guidelines for disaster recovery](https://etcd.io/docs/v2/admin_guide) |
+| Firestore | [Follow GCP's guidelines for automated backups](https://firebase.google.com/docs/database/backups) |
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport Cloud manages all Auth Service and Proxy Service backups.
+
+While Teleport Nodes are stateless, you should ensure that you can restore their
+configuration files.
+
+</TabItem>
+</Tabs>
 
 ### Teleport resources
 
-Teleport uses YAML resources for roles, trusted clusters, local users, and auth connectors.
-These could be created via `tctl` or the UI.
+Teleport uses YAML resources for roles, Trusted Clusters, local users, and authentication connectors.
+These could be created via `tctl` or the Web UI. 
 
-## GitOps
+You should back up your dynamic resource configurations to ensure that you can restore them in case of an outage.
+
+## Our recommended backup practice
 
 If you're running Teleport at scale, your teams need to have an automated way to restore Teleport. At a high level, this is our recommended approach:
 
-- Persist and backup your backend
-- Share that backend among auth servers
-- Store your configs as discrete files in VCS
-- Have your CI run `tctl create -f *.yaml` from that git directory
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+
+- Persist and back up your backend.
+- Share that backend among Auth Service instances.
+- Store your dynamic resource configurations as discrete files in a git
+  repository.
+- Have your continuous integration system run `tctl create -f *.yaml` from the
+  git repository. The `-f` flag instructs `tctl create` not to return an error
+  if a resource already exists, so this command can be run regularly.
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+- Store your dynamic resource configurations as discrete files in a git
+  repository.
+- Have your continuous integration system run `tctl create -f *.yaml` from the
+  git repository. The `-f` flag instructs `tctl create` not to return an error
+  if a resource already exists, so this command can be run regularly.
+
+</TabItem>
+</Tabs>
 
 ## Migrating backends
+<Tabs>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 As of version v4.1, you can now quickly export a collection of resources from
 Teleport. This feature was designed to help customers migrate from local storage
@@ -63,13 +104,14 @@ Using `tctl get all --with-secrets` will retrieve the below items:
 - Trusted Clusters
 - Connectors:
   - Github
-  - SAML \[Teleport Enterprise]
-  - OIDC \[Teleport Enterprise]
-  - Roles \[Teleport Enterprise]
+  - SAML
+  - OIDC
+- Roles
 
-When migrating backends, you should back up your auth server's `data_dir/storage` directly.
+When migrating backends, you should back up your Auth Service's
+`data_dir/storage` directly.
 
-**Example of backing up and restoring a cluster.**
+### Example of backing up and restoring a cluster
 
 ```code
 # Export dynamic configuration state from old cluster
@@ -90,13 +132,160 @@ $ tctl --config fresh.yaml get all
 # <your state here>
 ```
 
-The `--bootstrap` flag has no effect, except during backend initialization (performed
-by auth server on first start), so it is safe for use in supervised/High Availability contexts.
+The `--bootstrap` flag has no effect, except when the Auth Service initializes
+its backend initialization on first startup, so it is safe for use in
+supervised/High Availability contexts.
 
-**Limitations**
+## Limitations
 
-- The `--bootstrap` flag doesn't re-trigger trusted cluster handshakes, so trusted cluster resources need to be recreated manually.
-- All the same limitations around modifying the config file of an existing cluster also apply to a new cluster being bootstrapped from the state of an old cluster. Of particular note:
-  - Changing cluster name will break your CAs (this will be caught and teleport will refuse to start).
-  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).
-- Any node whose invite token is defined statically (in the config file of the auth server) will be able to join automatically, but nodes that were added dynamically will need to be re-invited
+The `--bootstrap` flag doesn't re-trigger Trusted Cluster handshakes, so Trusted
+Cluster resources need to be recreated manually.
+
+All the same limitations around modifying the config file of an existing cluster
+also apply to a new cluster being bootstrapped from the state of an old cluster.
+
+Of particular note:
+  - Changing the cluster name will break your CAs. This will be caught and Teleport
+    will refuse to start.
+  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
+    public endpoint of the Web UI remains the same. This cannot be caught by
+    Teleport, so be careful!
+  - Any Node whose invite token is defined in the Auth Service's configuration
+    file will be able to join automatically, but Nodes that were added
+    dynamically will need to be re-invited.
+    
+</TabItem>
+<TabItem scope={["oss"]} label="Open Source">
+
+As of version v4.1, you can now quickly export a collection of resources from
+Teleport. This feature was designed to help customers migrate from local storage
+to etcd.
+
+Using `tctl get all --with-secrets` will retrieve the below items:
+
+- Users
+- Certificate Authorities
+- Trusted Clusters
+- GitHub Connectors
+- Roles
+
+When migrating backends, you should back up your Auth Service's
+`data_dir/storage` directly.
+
+### Example of backing up and restoring a cluster
+
+```code
+# Export dynamic configuration state from old cluster
+$ tctl get all --with-secrets > state.yaml
+
+# Prepare a new uninitialized backend (make sure to port
+# any non-default config values from the old config file)
+$ mkdir fresh && cat > fresh.yaml << EOF
+teleport:
+  data_dir: fresh
+EOF
+
+# bootstrap fresh server (kill the old one first!)
+$ sudo teleport start --config fresh.yaml --bootstrap state.yaml
+
+# from another terminal, verify state transferred correctly
+$ tctl --config fresh.yaml get all
+# <your state here>
+```
+
+The `--bootstrap` flag has no effect, except when the Auth Service initializes
+its backend initialization on first startup, so it is safe for use in
+supervised/High Availability contexts.
+
+## Limitations
+
+The `--bootstrap` flag doesn't re-trigger Trusted Cluster handshakes, so Trusted
+Cluster resources need to be recreated manually.
+
+All the same limitations around modifying the config file of an existing cluster
+also apply to a new cluster being bootstrapped from the state of an old cluster.
+
+Of particular note:
+  - Changing the cluster name will break your CAs. This will be caught and Teleport
+    will refuse to start.
+  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
+    public endpoint of the Web UI remains the same. This cannot be caught by
+    Teleport, so be careful!
+  - Any Node whose invite token is defined in the Auth Service's configuration
+    file will be able to join automatically, but Nodes that were added
+    dynamically will need to be re-invited.
+    
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+<Notice type="tip">
+
+In Teleport Cloud, backend data is managed for you automatically. Follow the
+instructions below if you wish to migrate your Teleport Cloud backend to a
+self-hosted one.
+
+</Notice>
+
+As of version v4.1, you can now quickly export a collection of resources from
+Teleport. This feature was designed to help customers migrate from local storage
+to etcd.
+
+Using `tctl get all --with-secrets` will retrieve the below items:
+
+- Users
+- Certificate Authorities
+- Trusted Clusters
+- Connectors:
+  - Github
+  - SAML
+  - OIDC
+- Roles
+
+When migrating backends, you should back up your Auth Service's
+`data_dir/storage` directly.
+
+### Example of backing up and restoring a cluster
+
+```code
+# Export dynamic configuration state from old cluster
+$ tctl get all --with-secrets > state.yaml
+
+# Prepare a new uninitialized backend (make sure to port
+# any non-default config values from the old config file)
+$ mkdir fresh && cat > fresh.yaml << EOF
+teleport:
+  data_dir: fresh
+EOF
+
+# bootstrap fresh server (kill the old one first!)
+$ sudo teleport start --config fresh.yaml --bootstrap state.yaml
+
+# from another terminal, verify state transferred correctly
+$ tctl --config fresh.yaml get all
+# <your state here>
+```
+
+The `--bootstrap` flag has no effect, except when the Auth Service initializes
+its backend initialization on first startup, so it is safe for use in
+supervised/High Availability contexts.
+
+## Limitations
+
+The `--bootstrap` flag doesn't re-trigger Trusted Cluster handshakes, so Trusted
+Cluster resources need to be recreated manually.
+
+All the same limitations around modifying the config file of an existing cluster
+also apply to a new cluster being bootstrapped from the state of an old cluster.
+
+Of particular note:
+  - Changing the cluster name will break your CAs. This will be caught and Teleport
+    will refuse to start.
+  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
+    public endpoint of the Web UI remains the same. This cannot be caught by
+    Teleport, so be careful!
+  - Any Node whose invite token is defined in the Auth Service's configuration
+    file will be able to join automatically, but Nodes that were added
+    dynamically will need to be re-invited.
+    
+</TabItem>
+</Tabs>
+
