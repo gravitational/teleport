@@ -485,7 +485,8 @@ func onConfigDump(flags dumpFlags) error {
 
 	entries, err := os.ReadDir(flags.DataDir)
 	if !os.IsNotExist(err) && len(entries) != 0 {
-		fmt.Printf(
+		fmt.Fprintf(
+			os.Stderr,
 			"The data directory %s has existing cluster state. Running this configuration is likely a mistake. To join a new cluster, specify an alternate --data-dir or clear the %s directory.\n",
 			flags.DataDir, flags.DataDir)
 	}
