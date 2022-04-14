@@ -1278,6 +1278,9 @@ func sessionsStreamingUploadDir(ctx *ServerContext) string {
 }
 
 func (s *session) broadcastResult(r ExecResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for _, p := range s.parties {
 		p.ctx.SendExecResult(r)
 	}
