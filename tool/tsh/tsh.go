@@ -103,6 +103,8 @@ type CLIConf struct {
 	MyRequests bool
 	// Approve/Deny indicates the desired review kind.
 	Approve, Deny bool
+	// ResourcKind is the resource kind to search for
+	ResourceKind string
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
 	// ExplicitUsername is true if Username was initially set by the end-user
@@ -628,6 +630,17 @@ func Run(args []string, opts ...cliOption) error {
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
 
+	// TODO(nic): unhide this command when the rest of search-based access
+	// requests is implemented (#10887)
+	reqSearch := req.Command("search", "Search for resources to request access to").Hidden()
+	reqSearch.Flag(
+		"kind",
+		fmt.Sprintf("Resource kind to search for (%s)", strings.Join(types.ResourceKinds, ", ")),
+	).Required().EnumVar(&cf.ResourceKind, types.ResourceKinds...)
+	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
+
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
 	// MFA subcommands.
@@ -793,6 +806,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestCreate(&cf)
 	case reqReview.FullCommand():
 		err = onRequestReview(&cf)
+	case reqSearch.FullCommand():
+		err = onRequestSearch(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
 	case configProxy.FullCommand():
@@ -1570,9 +1585,29 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool)
 	}
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
+func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+	dbUsers := roleSet.EnumerateDatabaseUsers(database)
+	allowed := dbUsers.Allowed()
+
+	if dbUsers.WildcardAllowed() {
+		// start the list with *
+		allowed = append([]string{types.Wildcard}, allowed...)
+	}
+
+	if len(allowed) == 0 {
+		return "(none)"
+	}
+
+	denied := dbUsers.Denied()
+	if len(denied) == 0 || !dbUsers.WildcardAllowed() {
+		return fmt.Sprintf("%v", allowed)
+	}
+	return fmt.Sprintf("%v, except: %v", allowed, denied)
+}
+
+func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	if verbose {
-		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
+		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
 			name := database.GetName()
 			var connect string
@@ -1582,12 +1617,14 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
+
 			t.AddRow([]string{
 				name,
 				database.GetDescription(),
 				database.GetProtocol(),
 				database.GetType(),
 				database.GetURI(),
+				getUsersForDb(database, roleSet),
 				database.LabelsString(),
 				connect,
 				database.Expiry().Format(constants.HumanDateFormatSeconds),
@@ -1608,11 +1645,12 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 			rows = append(rows, []string{
 				name,
 				database.GetDescription(),
+				getUsersForDb(database, roleSet),
 				formatDatabaseLabels(database),
 				connect,
 			})
 		}
-		t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
+		t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
 }

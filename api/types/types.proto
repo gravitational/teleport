@@ -1783,6 +1783,11 @@ message AccessRequestConditions {
     // that is not a requirement.
     repeated string SuggestedReviewers = 5
         [ (gogoproto.jsontag) = "suggested_reviewers,omitempty" ];
+
+    // SearchAsRoles is a list of roles which the user should be able to "assume"
+    // while searching for resources, and should be able to request with a
+    // search-based access request.
+    repeated string SearchAsRoles = 6 [ (gogoproto.jsontag) = "search_as_roles,omitempty" ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
