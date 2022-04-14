@@ -25,13 +25,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// proxyService impelements the grpc ProxyService.
+// proxyService implements the grpc ProxyService.
 type proxyService struct {
 	clusterDialer ClusterDialer
 	log           logrus.FieldLogger
 }
 
-// DialNode opens a bidrectional stream to the requested node.
+// DialNode opens a bidirectional stream to the requested node.
 func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error {
 	frame, err := stream.Recv()
 	if err != nil {

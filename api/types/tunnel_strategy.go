@@ -216,6 +216,7 @@ func (s *TunnelStrategyV1) unmarshal(ots objectToStructFunc, unmarshal func(*tun
 	return nil
 }
 
+// CheckAndSetDefaults validates and sets default values for a tunnel strategy.
 func (s *TunnelStrategyV1) CheckAndSetDefaults() error {
 	if s.Strategy == nil {
 		s.Strategy = DefaultTunnelStrategy()

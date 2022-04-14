@@ -40,7 +40,7 @@ type Stream interface {
 	Recv() (*proto.Frame, error)
 }
 
-// streamConn wraps a grpc stream with a net.streamConn interface.
+// streamConn wraps a grpc stream with a net.Conn interface.
 type streamConn struct {
 	stream Stream
 
@@ -61,7 +61,7 @@ func newStreamConn(stream Stream, src net.Addr, dst net.Addr) *streamConn {
 	}
 }
 
-// Read reads data reveived over the grpc stream.
+// Read reads data received over the grpc stream.
 func (c *streamConn) Read(b []byte) (n int, err error) {
 	c.rLock.Lock()
 	defer c.rLock.Unlock()
@@ -124,6 +124,8 @@ func (c *streamConn) Write(b []byte) (int, error) {
 func (c *streamConn) Close() error {
 	var err error
 	if cstream, ok := c.stream.(grpc.ClientStream); ok {
+		c.wLock.Lock()
+		defer c.wLock.Unlock()
 		err = cstream.CloseSend()
 	}
 
