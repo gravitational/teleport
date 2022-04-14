@@ -4,9 +4,18 @@ description: This guide explains how to setup a Slack plugin for Teleport for pr
 h1: Teleport Slack Plugin Setup
 ---
 
-This guide will talk through how to set up Teleport with Slack. Teleport's Slack integration notifies individuals and channels of Access Requests.
+This guide will talk through how to set up Teleport with Slack. Teleport's Slack integration notifies individuals and channels of access requests.
 
-#### Example Slack Request
+<Notice
+  type="danger"
+  scope="oss"
+>
+  This guide requires a commercial edition of Teleport. The open source
+  edition of Teleport only supports [GitHub](../../setup/admin/github-sso.mdx) as
+  an SSO provider.
+</Notice>
+
+Here is an example of sending an access request via Teleport's Slack plugin:
 
 <video controls>
   <source
@@ -22,22 +31,16 @@ This guide will talk through how to set up Teleport with Slack. Teleport's Slack
   Your browser does not support the video tag.
 </video>
 
-## Setup
+## Prerequisites
 
-### Prerequisites
-
-This guide assumes that you have:
-
-- A running Teleport Cluster
-- Admin privileges with access to `tctl`
 - Slack admin privileges to create an app and install it to your workspace
 
-Teleport Cloud requires that plugins connect through the Proxy Service (`mytenant.teleport.sh:443`). Open Source and Enterprise installations can connect to the Auth Service (`auth.example.com:3025`) directly.
+(!/docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-### Install the Teleport Slack Plugin
+## Step 1/7. Install the Teleport Slack plugin
 
-We currently only provide linux-amd64 binaries. You can also compile these plugins
-from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/slack).
+We currently only provide `linux-amd64` binaries. You can also compile these plugins
+from source.
 
 <Notice scope={["oss","enterprise"]} type="tip">
 We recommend installing Teleport plugins on the same host as the Teleport
@@ -69,11 +72,11 @@ and will require access to both the public internet and the Teleport Auth Servic
 </TabItem>
 </Tabs>
 
-### Create a user and role for the plugin
+## Step 2/7. Create a user and role for the plugin
 
 (!docs/pages/includes/plugins/rbac.mdx!)
 
-### Export the access plugin identity
+## Step 3/7. Export the access plugin identity
 
 (!docs/pages/includes/plugins/identity-export.mdx!)
 
@@ -85,15 +88,17 @@ $ sudo mkdir -p /var/lib/teleport/plugins/slack
 $ sudo mv auth.* /var/lib/teleport/plugins/slack
 ```
 
-### Create a Slack app
+## Step 4/7. Create a Slack app
 
 You'll need to:
 
-1. Create a new app, pick a name and select a workspace it belongs to.
+1. Create a new app, pick a name, and select a workspace it belongs to.
 2. Add an OAuth Scope, which is required by Slack for the app to be installed.
 3. Obtain an OAuth token.
 
-We'll create a new Slack app and set up auth tokens and callback URLs, so that Slack knows how to notify the Teleport plugin when Approve / Deny buttons are clicked.
+We'll create a new Slack app and set up auth tokens and callback URLs so that
+Slack knows how to notify the Teleport plugin when "Approve" or "Deny" buttons are
+clicked.
 
 Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new Slack App.
 
@@ -103,24 +108,26 @@ Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new S
 
 ![Create Slack App](../../../img/enterprise/plugins/slack/Create-a-Slack-App.png)
 
-#### Selecting OAuth scopes
+### Select OAuth scopes
 
 On the App screen, go to “OAuth and Permissions” under Features in the sidebar menu. Then scroll to Scopes, and add `chat:write, incoming-webhook, users:read, users:read.email` scopes so that our plugin can post messages to your Slack channels.
 
 ![API Scopes](../../../img/enterprise/plugins/slack/api-scopes.png)
 
-#### Obtain an OAuth token
+### Obtain an OAuth token
 
 ![OAuth Tokens](../../../img/enterprise/plugins/slack/OAuth.png)
 
-#### Add to workspace
+### Add to workspace
 
 ![OAuth Tokens](../../../img/enterprise/plugins/slack/Slackbot-Permissions.png)
 After adding to the workspace, you still need to invite the bot to the channel. Do this by using the @ command,
 and inviting them to the channel.
 ![Invite bot to channel](../../../img/enterprise/plugins/slack/invite-user-to-team.png)
 
-## Configure the Teleport Slack Plugin
+## Step 5/7. Configure the Teleport Slack Plugin
+
+### Generate a config file
 
 The Teleport Slack plugin uses a config file in TOML format. Generate a boilerplate config by
 running the following command and place it in the `/etc` directory where it can be
@@ -131,13 +138,13 @@ $ teleport-slack configure > teleport-slack.toml
 $ sudo mv teleport-slack.toml /etc
 ```
 
-This should result in a config file like this:
+This should result in a config file like the one below.
 
 ```toml
 (!examples/resources/plugins/teleport-slack.toml!)
 ```
 
-### Editing the config file
+### Edit the config file
 
 Edit the following fields in the configuration file you generated with values specific to your Teleport and Slack app instances.
 
@@ -181,9 +188,11 @@ identity = "/var/lib/teleport/plugins/slack/auth.pem"
 
 **`[role_to_recipients]`**
 
-Provide a mapping of Teleport roles to Slack recipients based on desired functionality.
+Provide a mapping of Teleport roles to Slack recipients based on your desired
+functionality.
 
 For example:
+
 ```toml
 [role_to_recipients]
 "*" = "admin-slack-channel"
@@ -196,7 +205,7 @@ and `admin-slack-channel`. If a user requests the `alex` role, the Slack user wi
 `alex@gmail.com`, if one exists, will recieve a DM. If any other role is requested, the plugin will
 follow the `*` entry and send a message to the `admin-slack-channel`.
 
-## Test run
+## Step 6/7. Test your Slack app
 
 Assuming that Teleport is running, you've created the Slack app, and the plugin is
 configured, you can now run the plugin and test the workflow!
@@ -213,11 +222,10 @@ INFO   Starting Teleport Access Slack Plugin 7.2.1: slack/app.go:80
 INFO   Plugin is ready slack/app.go:101
 ```
 
-### Testing the approval workflow
+Create an access request and check if the plugin works as expected with the
+following steps.
 
-Create an access request with and check if the plugin works as expected with the following steps.
-
-### Creating an access request
+### Create an access request
 
 <Tabs>
 <TabItem label="As admin">
@@ -258,10 +266,11 @@ The configured Slack recipients should receive a new message for the new pending
 </TabItem>
 </Tabs>
 
-Once the request is resolved, the Slack bot will make an emoji reaction of ✅ or ❌ on the Slack 
-message for the access request, depending on the new resolve state.
+Once the request is resolved, the Slack bot will make an emoji reaction of ✅ or
+❌ on the Slack message for the access request, depending on whether the request
+was approved or denied.
 
-### Set up systemd
+## Step 7/7. Set up systemd
 
 In production, we recommend starting the Teleport plugin daemon via an init system like systemd.
 Here's the recommended Teleport plugin service unit file for systemd:
@@ -279,4 +288,4 @@ important to review Teleport' audit log.
 
 ## Feedback
 
-If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).
+If you have any issues with this plugin, please create a GitHub issue in our [`gravitational/teleport-plugins`](https://github.com/gravitational/teleport-plugins/issues/new) repo.

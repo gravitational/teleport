@@ -28,46 +28,9 @@ for a privileged role `dbadmin`.
 
 ## Prerequisites
 
-<Tabs>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on how to set this up, see our Enterprise
-  [Getting Started](../../enterprise/getting-started.mdx) guide.
-
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](../../cloud/downloads.mdx) page.
-
-  ```code
-  $ tctl version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  
-  $ tsh version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-</Tabs>
 - Mattermost installed.
+
+(!/docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 <Admonition
   type="tip"
