@@ -129,9 +129,16 @@ var packetParsersByType = []func([]byte) (Packet, error){
 	mysql.ERR_HEADER: parseErrorPacket,
 
 	// Text protocol commands.
-	mysql.COM_QUERY:       parseQueryPacket,
-	mysql.COM_QUIT:        parseQuitPacket,
-	mysql.COM_CHANGE_USER: parseChangeUserPacket,
+	mysql.COM_QUERY:        parseQueryPacket,
+	mysql.COM_QUIT:         parseQuitPacket,
+	mysql.COM_CHANGE_USER:  parseChangeUserPacket,
+	mysql.COM_INIT_DB:      parseInitDBPacket,
+	mysql.COM_CREATE_DB:    parseCreateDBPacket,
+	mysql.COM_DROP_DB:      parseDropDBPacket,
+	mysql.COM_SHUTDOWN:     parseShutDownPacket,
+	mysql.COM_PROCESS_KILL: parseProcessKillPacket,
+	mysql.COM_DEBUG:        parseDebugPacket,
+	mysql.COM_REFRESH:      parseRefreshPacket,
 
 	// Prepared statement commands.
 	mysql.COM_STMT_PREPARE:         parseStatementPreparePacket,

@@ -908,10 +908,10 @@
       "dbeaver_min_ver": "8.0.3"
     },
     "teleport": {
-      "version": "7.0.0",
+      "version": "9.0.4",
       "golang": "1.17",
       "plugin": {
-        "version": "7.0.0"
+        "version": "9.0.4"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
       "latest_oss_docker_image": "quay.io/gravitational/teleport:7",

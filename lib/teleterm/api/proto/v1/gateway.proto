@@ -41,12 +41,11 @@ message Gateway {
     string local_port = 6;
     // protocol is the gateway protocol
     string protocol = 7;
-    // insecure is whether to skip certificate validation
-    bool insecure = 8;
-    // ca_cert_path
-    string ca_cert_path = 9;
-    // cert_path
-    string cert_path = 10;
-    // key_path
-    string key_path = 11;
+    // cli_command is a command that the user can execute to connect to the resource within a CLI,
+    // if the given resource has a CLI client.
+    //
+    // Instead of generating those commands in in the frontend code, the tsh daemon returns them.
+    // This means that the Database Access team can add support for a new protocol and Teleterm will
+    // support it right away without any changes to Teleterm's code.
+    string cli_command = 8;
 }
