@@ -2313,3 +2313,101 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.IsDecreasing(t, names)
 	})
 }
+
+func TestDeleteUserAppSessions(t *testing.T) {
+	ctx := context.Background()
+
+	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
+
+	// Generates a new user client.
+	userClient := func(username string) *Client {
+		user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+		require.NoError(t, err)
+		identity := TestUser(user.GetName())
+		clt, err := srv.NewClient(identity)
+		require.NoError(t, err)
+		return clt
+	}
+
+	// Register users.
+	aliceClt := userClient("alice")
+	bobClt := userClient("bob")
+
+	// Register multiple applications.
+	applications := []struct {
+		name       string
+		publicAddr string
+	}{
+		{name: "panel", publicAddr: "panel.example.com"},
+		{name: "admin", publicAddr: "admin.example.com"},
+		{name: "metrics", publicAddr: "metrics.example.com"},
+	}
+
+	// Register and create a session for each application.
+	for _, application := range applications {
+		// Register an application.
+		app, err := types.NewAppV3(types.Metadata{
+			Name: application.name,
+		}, types.AppSpecV3{
+			URI:        "localhost",
+			PublicAddr: application.publicAddr,
+		})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+
+		// Create a session for alice.
+		_, err = aliceClt.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			Username:    "alice",
+			PublicAddr:  application.publicAddr,
+			ClusterName: "localhost",
+		})
+		require.NoError(t, err)
+
+		// Create a session for bob.
+		_, err = bobClt.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			Username:    "bob",
+			PublicAddr:  application.publicAddr,
+			ClusterName: "localhost",
+		})
+		require.NoError(t, err)
+	}
+
+	// Ensure the correct number of sessions.
+	sessions, err := srv.Auth().GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 6)
+
+	// Try to delete other user app sessions.
+	err = aliceClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "bob"})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	err = bobClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "alice"})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Delete alice sessions.
+	err = aliceClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "alice"})
+	require.NoError(t, err)
+
+	// Check if only bob's sessions are left.
+	sessions, err = srv.Auth().GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 3)
+	for _, session := range sessions {
+		require.Equal(t, "bob", session.GetUser())
+	}
+
+	// Delete bob sessions.
+	err = bobClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "bob"})
+	require.NoError(t, err)
+
+	// No sessions left.
+	sessions, err = srv.Auth().GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 0)
+}
