@@ -1,6 +1,6 @@
 ---
 title: TLS Routing Migration
-description: How to upgrade exising Teleport cluster to a single-port TLS routing mode
+description: How to upgrade an existing Teleport cluster to single-port TLS routing mode
 ---
 
 <Details
@@ -12,6 +12,14 @@ description: How to upgrade exising Teleport cluster to a single-port TLS routin
 >
   TLS routing is available starting from Teleport `8.0`.
 </Details>
+
+<Notice scope={["cloud"]} type="tip">
+
+Teleport Cloud manages the Proxy Service's networking configuration for you. You
+can read this guide for a better understanding of how the Teleport Proxy Service
+works.
+
+</Notice>
 
 Starting from version `8.0` Teleport supports TLS routing. In this mode, all
 client connections are wrapped in TLS and multiplexed on one Teleport proxy
