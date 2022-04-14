@@ -188,6 +188,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.Logger.Format.Output = "text"
 
 	g.DataDir = flags.DataDir
+	if g.DataDir == "" {
+		g.DataDir = defaults.DataDir
+	}
+
 	g.AuthToken = flags.AuthToken
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
