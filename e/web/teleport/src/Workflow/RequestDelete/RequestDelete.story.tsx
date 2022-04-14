@@ -24,6 +24,8 @@ export const Failed = () => {
 
 const props = {
   requestId: '5ee98d44-de9d-5103-a7cd-072b1ff76253',
+  user: 'admin',
+  roles: ['dba'],
   onDelete: () => null,
   onClose: () => null,
 };

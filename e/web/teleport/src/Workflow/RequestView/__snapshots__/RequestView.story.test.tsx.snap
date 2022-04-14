@@ -221,7 +221,6 @@ exports[`loaded approved request state 1`] = `
   background-color: #111B48;
   color: rgba(255,255,255,0.87);
   margin-right: 4px;
-  margin-top: 4px;
 }
 
 .c4 {
@@ -927,7 +926,6 @@ exports[`loaded denied request state 1`] = `
   background-color: #111B48;
   color: rgba(255,255,255,0.87);
   margin-right: 4px;
-  margin-top: 4px;
 }
 
 .c4 {
@@ -1655,7 +1653,6 @@ exports[`loaded pending request state 1`] = `
   background-color: #111B48;
   color: rgba(255,255,255,0.87);
   margin-right: 4px;
-  margin-top: 4px;
 }
 
 .c29 {
