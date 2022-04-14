@@ -18,11 +18,19 @@ package db
 
 import (
 	"context"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"testing"
+	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -206,4 +214,92 @@ func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.S
 func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Azure access token for %v.", sessionCtx)
 	return azureAccessToken, nil
+}
+
+func TestDBCertSigning(t *testing.T) {
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Clock:       clockwork.NewFakeClockAt(time.Now()),
+		ClusterName: "local.me",
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
+	ctx := context.Background()
+
+	privateKey, _, err := testauthority.New().GenerateKeyPair("")
+	require.NoError(t, err)
+
+	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{
+		CommonName: "localhost",
+	}, privateKey)
+	require.NoError(t, err)
+
+	// Set rotation to init phase. New CA will be generated.
+	// DB service should still use old key to sign certificates.
+	// tctl should use new key to sign certificates.
+	err = authServer.AuthServer.RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.DatabaseCA,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	dbCAs, err := authServer.AuthServer.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1)
+	require.NotNil(t, dbCAs[0].GetActiveKeys().TLS)
+	require.NotNil(t, dbCAs[0].GetAdditionalTrustedKeys().TLS)
+
+	tests := []struct {
+		name      string
+		requester proto.DatabaseCertRequest_Sender
+		getCertFn func(dbCAs []types.CertAuthority) []byte
+	}{
+		{
+			name:      "sign from DB service",
+			requester: proto.DatabaseCertRequest_UNSPECIFIED, // default behaviour
+			getCertFn: func(dbCAs []types.CertAuthority) []byte {
+				return dbCAs[0].GetActiveKeys().TLS[0].Cert
+			},
+		},
+		{
+			name:      "sign from tctl",
+			requester: proto.DatabaseCertRequest_TCTL,
+			getCertFn: func(dbCAs []types.CertAuthority) []byte {
+				return dbCAs[0].GetAdditionalTrustedKeys().TLS[0].Cert
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			certResp, err := authServer.AuthServer.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
+				CSR:        csr,
+				ServerName: "localhost",
+				TTL:        proto.Duration(time.Hour),
+				Requester:  tt.requester,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, certResp.Cert)
+			require.Len(t, certResp.CACerts, 2)
+
+			cert1, err := tlsca.ParseCertificatePEM(certResp.Cert)
+			require.NoError(t, err)
+
+			certPool := x509.NewCertPool()
+			ok := certPool.AppendCertsFromPEM(tt.getCertFn(dbCAs))
+			require.True(t, ok)
+
+			opts := x509.VerifyOptions{
+				Roots: certPool,
+			}
+
+			// Verify if the generated certificate can be verified with the correct CA.
+			_, err = cert1.Verify(opts)
+			require.NoError(t, err)
+		})
+	}
 }
