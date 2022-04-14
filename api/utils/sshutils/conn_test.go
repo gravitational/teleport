@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -54,12 +55,12 @@ func (s *server) Run() {
 		}
 		s.mu.RUnlock()
 
-		require.NoError(s.t, err)
+		assert.NoError(s.t, err)
 
 		go func() {
 			defer conn.Close()
 			sconn, _, _, err := ssh.NewServerConn(conn, s.config)
-			require.NoError(s.t, err)
+			assert.NoError(s.t, err)
 			s.handler(sconn)
 		}()
 	}
@@ -136,19 +137,19 @@ func TestTransportError(t *testing.T) {
 	})
 
 	go server.Run()
-	defer server.Stop()
+	t.Cleanup(func() { require.NoError(t, server.Stop()) })
 
-	sconn, nc, _ := server.GetClient()
-	defer sconn.Close()
+	sconn1, nc, _ := server.GetClient()
+	t.Cleanup(func() { require.Error(t, sconn1.Close()) })
 	channel := <-nc
 	require.Equal(t, channel.ChannelType(), constants.ChanTransport)
 
-	sconn.Close()
+	sconn1.Close()
 	err := timeoutErrC(t, errC, time.Second*5)
 	require.Error(t, err)
 
-	sconn, nc, _ = server.GetClient()
-	defer sconn.Close()
+	sconn2, nc, _ := server.GetClient()
+	t.Cleanup(func() { require.NoError(t, sconn2.Close()) })
 	channel = <-nc
 	require.Equal(t, channel.ChannelType(), constants.ChanTransport)
 
