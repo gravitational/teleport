@@ -447,6 +447,28 @@ const (
 	// statement protocol.
 	DatabaseSessionMySQLStatementBulkExecuteEvent = "db.session.mysql.statements.bulk_execute"
 
+	// DatabaseSessionMySQLInitDBEvent is emitted when a MySQL client changes
+	// the default schema for the connection.
+	DatabaseSessionMySQLInitDBEvent = "db.session.mysql.init_db"
+	// DatabaseSessionMySQLCreateDBEvent is emitted when a MySQL client creates
+	// a schema.
+	DatabaseSessionMySQLCreateDBEvent = "db.session.mysql.create_db"
+	// DatabaseSessionMySQLDropDBEvent is emitted when a MySQL client drops a
+	// schema.
+	DatabaseSessionMySQLDropDBEvent = "db.session.mysql.drop_db"
+	// DatabaseSessionMySQLShutDownEvent is emitted when a MySQL client asks
+	// the server to shut down.
+	DatabaseSessionMySQLShutDownEvent = "db.session.mysql.shut_down"
+	// DatabaseSessionMySQLProcessKillEvent is emitted when a MySQL client asks
+	// the server to terminate a connection.
+	DatabaseSessionMySQLProcessKillEvent = "db.session.mysql.process_kill"
+	// DatabaseSessionMySQLDebugEvent is emitted when a MySQL client asks the
+	// server to dump internal debug info to stdout.
+	DatabaseSessionMySQLDebugEvent = "db.session.mysql.debug"
+	// DatabaseSessionMySQLRefreshEvent is emitted when a MySQL client sends
+	// refresh commands.
+	DatabaseSessionMySQLRefreshEvent = "db.session.mysql.refresh"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
