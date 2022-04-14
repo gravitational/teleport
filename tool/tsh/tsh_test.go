@@ -1460,3 +1460,103 @@ func setHomePath(path string) cliOption {
 		return nil
 	}
 }
+
+func Test_getUsersForDb(t *testing.T) {
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	roleDevStage := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		roles    services.RoleSet
+		database types.Database
+		result   string
+	}{
+		{
+			name:     "developer allowed any username in stage database except superuser",
+			roles:    services.RoleSet{roleDevStage, roleDevProd},
+			database: dbStage,
+			result:   "[* dev], except: [superuser]",
+		},
+		{
+			name:     "developer allowed only specific username/database in prod database",
+			roles:    services.RoleSet{roleDevStage, roleDevProd},
+			database: dbProd,
+			result:   "[dev]",
+		},
+
+		{
+			name:     "roleDevStage x dbStage",
+			roles:    services.RoleSet{roleDevStage},
+			database: dbStage,
+			result:   "[*], except: [superuser]",
+		},
+
+		{
+			name:     "roleDevStage x dbProd",
+			roles:    services.RoleSet{roleDevStage},
+			database: dbProd,
+			result:   "(none)",
+		},
+
+		{
+			name:     "roleDevProd x dbStage",
+			roles:    services.RoleSet{roleDevProd},
+			database: dbStage,
+			result:   "(none)",
+		},
+
+		{
+			name:     "roleDevProd x dbProd",
+			roles:    services.RoleSet{roleDevProd},
+			database: dbProd,
+			result:   "[dev]",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := getUsersForDb(tc.database, tc.roles)
+			require.Equal(t, tc.result, got)
+		})
+	}
+}
