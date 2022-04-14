@@ -840,7 +840,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}

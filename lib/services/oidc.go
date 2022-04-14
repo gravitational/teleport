@@ -35,10 +35,14 @@ func ValidateOIDCConnector(oc types.OIDCConnector) error {
 	if _, err := url.Parse(oc.GetIssuerURL()); err != nil {
 		return trace.BadParameter("IssuerURL: bad url: '%v'", oc.GetIssuerURL())
 	}
-	if _, err := url.Parse(oc.GetRedirectURL()); err != nil {
-		return trace.BadParameter("RedirectURL: bad url: '%v'", oc.GetRedirectURL())
+	if len(oc.GetRedirectURLs()) == 0 {
+		return trace.BadParameter("RedirectURL: missing redirect_url")
 	}
-
+	for _, redirectURL := range oc.GetRedirectURLs() {
+		if _, err := url.Parse(redirectURL); err != nil {
+			return trace.BadParameter("RedirectURL: bad url: '%v'", redirectURL)
+		}
+	}
 	if oc.GetGoogleServiceAccountURI() != "" && oc.GetGoogleServiceAccount() != "" {
 		return trace.BadParameter("one of either google_service_account_uri or google_service_account is supported, not both")
 	}
@@ -93,6 +97,45 @@ func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
 	}
 
 	return traits
+}
+
+// GetRedirectURL gets a redirect URL for the given connector. If the connector
+// has a redirect URL which matches the host of the given Proxy address, then
+// that one will be returned. Otherwise, the first URL in the list will be returned.
+func GetRedirectURL(conn types.OIDCConnector, proxyAddr string) (string, error) {
+	if len(conn.GetRedirectURLs()) == 0 {
+		return "", trace.BadParameter("No redirect URLs provided")
+	}
+
+	proxyNetAddr, err := utils.ParseAddr(proxyAddr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	var matchingHostname string
+	for _, r := range conn.GetRedirectURLs() {
+		redirectURL, err := url.ParseRequestURI(r)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// If we have a direct host:port match, return it.
+		if proxyNetAddr.String() == redirectURL.Host {
+			return r, nil
+		}
+
+		// If we have a matching host, but not port,
+		// save it as the best match for now.
+		if matchingHostname == "" && proxyNetAddr.Host() == redirectURL.Hostname() {
+			matchingHostname = r
+		}
+	}
+
+	if matchingHostname != "" {
+		return matchingHostname, nil
+	}
+
+	return conn.GetRedirectURLs()[0], nil
 }
 
 // UnmarshalOIDCConnector unmarshals the OIDCConnector resource from JSON.

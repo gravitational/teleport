@@ -34,7 +34,7 @@ func TestOIDCRoleMappingEmpty(t *testing.T) {
 		IssuerURL:    "https://www.exmaple.com",
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
 		Display:      "sign in with example.com",
 		Scope:        []string{"foo", "bar"},
 	})
@@ -61,7 +61,7 @@ func TestOIDCRoleMapping(t *testing.T) {
 		IssuerURL:    "https://www.exmaple.com",
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
 		Display:      "sign in with example.com",
 		Scope:        []string{"foo", "bar"},
 		ClaimsToRoles: []types.ClaimMapping{
@@ -105,7 +105,7 @@ func TestOIDCUnmarshal(t *testing.T) {
           "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
           "display": "whatever",
           "scope": ["roles"],
-          "claims_to_roles": [{
+		  "claims_to_roles": [{
             "claim": "roles",
             "value": "teleport-user",
             "roles": ["dictator"]
@@ -121,7 +121,7 @@ func TestOIDCUnmarshal(t *testing.T) {
 	require.Equal(t, "google", oc.GetName())
 	require.Equal(t, "https://accounts.google.com", oc.GetIssuerURL())
 	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
-	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
+	require.Equal(t, []string{"https://localhost:3080/v1/webapi/oidc/callback"}, oc.GetRedirectURLs())
 	require.Equal(t, "whatever", oc.GetDisplay())
 	require.Equal(t, "consent login", oc.GetPrompt())
 }
@@ -163,7 +163,7 @@ func TestOIDCUnmarshalOmitPrompt(t *testing.T) {
 	require.Equal(t, "google", oc.GetName())
 	require.Equal(t, "https://accounts.google.com", oc.GetIssuerURL())
 	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
-	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
+	require.Equal(t, []string{"https://localhost:3080/v1/webapi/oidc/callback"}, oc.GetRedirectURLs())
 	require.Equal(t, "whatever", oc.GetDisplay())
 	require.Equal(t, "", oc.GetPrompt())
 }
@@ -204,13 +204,14 @@ func TestOIDCUnmarshalPromptDefault(t *testing.T) {
 	require.Equal(t, "google", oc.GetName())
 	require.Equal(t, "https://accounts.google.com", oc.GetIssuerURL())
 	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
-	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
+	require.Equal(t, []string{"https://localhost:3080/v1/webapi/oidc/callback"}, oc.GetRedirectURLs())
 	require.Equal(t, "whatever", oc.GetDisplay())
 	require.Equal(t, teleport.OIDCPromptSelectAccount, oc.GetPrompt())
 }
 
 // TestOIDCUnmarshalInvalid unmarshals and fails validation of the connector
 func TestOIDCUnmarshalInvalid(t *testing.T) {
+	// Test missing roles in claims_to_roles
 	input := `
       {
         "kind": "oidc",
@@ -227,7 +228,7 @@ func TestOIDCUnmarshalInvalid(t *testing.T) {
           "scope": ["roles"],
           "claims_to_roles": [{
             "claim": "roles",
-            "value": "teleport-user",
+            "value": "teleport-user"
           }]
         }
       }
@@ -235,4 +236,41 @@ func TestOIDCUnmarshalInvalid(t *testing.T) {
 
 	_, err := UnmarshalOIDCConnector([]byte(input))
 	require.Error(t, err)
+}
+
+func TestOIDCGetRedirectURL(t *testing.T) {
+	conn, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
+		ClientID: "clientID",
+		RedirectURLs: []string{
+			"https://proxy.example.com/v1/webapi/oidc/callback",
+			"https://other.example.com/v1/webapi/oidc/callback",
+			"https://other.example.com:443/v1/webapi/oidc/callback",
+			"https://other.example.com:3080/v1/webapi/oidc/callback",
+			"https://eu.proxy.example.com/v1/webapi/oidc/callback",
+			"https://us.proxy.example.com:443/v1/webapi/oidc/callback",
+		},
+	})
+	require.NoError(t, err)
+
+	expectedMapping := map[string]string{
+		"proxy.example.com":         "https://proxy.example.com/v1/webapi/oidc/callback",
+		"proxy.example.com:443":     "https://proxy.example.com/v1/webapi/oidc/callback",
+		"other.example.com":         "https://other.example.com/v1/webapi/oidc/callback",
+		"other.example.com:80":      "https://other.example.com/v1/webapi/oidc/callback",
+		"other.example.com:443":     "https://other.example.com:443/v1/webapi/oidc/callback",
+		"other.example.com:3080":    "https://other.example.com:3080/v1/webapi/oidc/callback",
+		"eu.proxy.example.com":      "https://eu.proxy.example.com/v1/webapi/oidc/callback",
+		"eu.proxy.example.com:443":  "https://eu.proxy.example.com/v1/webapi/oidc/callback",
+		"eu.proxy.example.com:3080": "https://eu.proxy.example.com/v1/webapi/oidc/callback",
+		"us.proxy.example.com":      "https://us.proxy.example.com:443/v1/webapi/oidc/callback",
+		"notfound.example.com":      "https://proxy.example.com/v1/webapi/oidc/callback",
+	}
+
+	for proxyAddr, redirectURL := range expectedMapping {
+		t.Run(proxyAddr, func(t *testing.T) {
+			url, err := GetRedirectURL(conn, proxyAddr)
+			require.NoError(t, err)
+			require.Equal(t, redirectURL, url)
+		})
+	}
 }

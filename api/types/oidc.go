@@ -37,10 +37,8 @@ type OIDCConnector interface {
 	// ClientSecret is used to authenticate our client and should not
 	// be visible to end user
 	GetClientSecret() string
-	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successful authentication
-	// Should match the URL on Provider's side
-	GetRedirectURL() string
+	// GetRedirectURLs returns list of redirect URLs.
+	GetRedirectURLs() []string
 	// GetACR returns the Authentication Context Class Reference (ACR) value.
 	GetACR() string
 	// GetProvider returns the identity provider.
@@ -62,8 +60,6 @@ type OIDCConnector interface {
 	SetClientID(string)
 	// SetIssuerURL sets the endpoint of the provider
 	SetIssuerURL(string)
-	// SetRedirectURL sets RedirectURL
-	SetRedirectURL(string)
 	// SetPrompt sets OIDC prompt value
 	SetPrompt(string)
 	// GetPrompt returns OIDC prompt value,
@@ -226,11 +222,6 @@ func (o *OIDCConnectorV3) SetIssuerURL(issuerURL string) {
 	o.Spec.IssuerURL = issuerURL
 }
 
-// SetRedirectURL sets client secret to some value
-func (o *OIDCConnectorV3) SetRedirectURL(redirectURL string) {
-	o.Spec.RedirectURL = redirectURL
-}
-
 // SetACR sets the Authentication Context Class Reference (ACR) value.
 func (o *OIDCConnectorV3) SetACR(acrValue string) {
 	o.Spec.ACR = acrValue
@@ -277,11 +268,9 @@ func (o *OIDCConnectorV3) GetClientSecret() string {
 	return o.Spec.ClientSecret
 }
 
-// GetRedirectURL - Identity provider will use this URL to redirect
-// client's browser back to it after successful authentication
-// Should match the URL on Provider's side
-func (o *OIDCConnectorV3) GetRedirectURL() string {
-	return o.Spec.RedirectURL
+// GetRedirectURLs returns a list of the connector's redirect URLs.
+func (o *OIDCConnectorV3) GetRedirectURLs() []string {
+	return o.Spec.RedirectURLs
 }
 
 // GetACR returns the Authentication Context Class Reference (ACR) value.
@@ -359,6 +348,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	if name := o.Metadata.Name; utils.SliceContainsStr(constants.SystemConnectors, name) {
 		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", name)
 	}
+
 	if o.Spec.ClientID == "" {
 		return trace.BadParameter("ClientID: missing client id")
 	}
@@ -371,4 +361,28 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// CheckAndSetRedirectURL checks if RedirectURL is set, and sets it to
+// RedirectURLs[0] if it isn't. This is used when the connector
+// is sent in a request/response to an old server/client respectively.
+//
+// DELETE IN 11.0.0
+func (o *OIDCConnectorV3) CheckAndSetRedirectURL() {
+	if o.Spec.RedirectURL == "" && len(o.Spec.RedirectURLs) != 0 {
+		o.Spec.RedirectURL = o.Spec.RedirectURLs[0]
+	}
+}
+
+// CheckAndSetRedirectURLs checks if RedirectURLs is set, and sets its first
+// element to RedirectURL if it's empty. This is used when the connector
+// is received from a request/response of an old client/server respectively.
+//
+// DELETE IN 11.0.0
+func (o *OIDCConnectorV3) CheckAndSetRedirectURLs() {
+	if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
+		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
+	}
+	// unset deprectated field to prevent it from being unmarshalled in yaml
+	o.Spec.RedirectURL = ""
 }

@@ -646,10 +646,6 @@ type Auth struct {
 	// Deprecated: Remove in Teleport 2.4.1.
 	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
 
-	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
-	// Deprecated: Remove in Teleport 2.4.1.
-	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors,omitempty"`
-
 	// DynamicConfig determines when file configuration is pushed to the backend. Setting
 	// it here overrides defaults.
 	// Deprecated: Remove in Teleport 2.4.1.
@@ -1492,77 +1488,6 @@ type ClaimMapping struct {
 	Value string `yaml:"value"`
 	// Roles is a list of teleport roles to match
 	Roles []string `yaml:"roles,omitempty"`
-}
-
-// OIDCConnector specifies configuration fo Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
-type OIDCConnector struct {
-	// ID is a provider id, 'e.g.' google, used internally
-	ID string `yaml:"id"`
-	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
-	IssuerURL string `yaml:"issuer_url"`
-	// ClientID is id for authentication client (in our case it's our Auth server)
-	ClientID string `yaml:"client_id"`
-	// ClientSecret is used to authenticate our client and should not
-	// be visible to end user
-	ClientSecret string `yaml:"client_secret"`
-	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successful authentication
-	// Should match the URL on Provider's side
-	RedirectURL string `yaml:"redirect_url"`
-	// ACR is the acr_values parameter to be sent with an authorization request.
-	ACR string `yaml:"acr_values,omitempty"`
-	// Provider is the identity provider we connect to. This field is
-	// only required if using acr_values.
-	Provider string `yaml:"provider,omitempty"`
-	// Display controls how this connector is displayed
-	Display string `yaml:"display"`
-	// Scope is a list of additional scopes to request from OIDC
-	// note that oidc and email scopes are always requested
-	Scope []string `yaml:"scope"`
-	// ClaimsToRoles is a list of mappings of claims to roles
-	ClaimsToRoles []ClaimMapping `yaml:"claims_to_roles"`
-}
-
-// Parse parses config struct into services connector and checks if it's valid
-func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
-	if o.Display == "" {
-		o.Display = o.ID
-	}
-
-	var mappings []types.ClaimMapping
-	for _, c := range o.ClaimsToRoles {
-		var roles []string
-		if len(c.Roles) > 0 {
-			roles = append(roles, c.Roles...)
-		}
-
-		mappings = append(mappings, types.ClaimMapping{
-			Claim: c.Claim,
-			Value: c.Value,
-			Roles: roles,
-		})
-	}
-
-	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
-		IssuerURL:     o.IssuerURL,
-		ClientID:      o.ClientID,
-		ClientSecret:  o.ClientSecret,
-		RedirectURL:   o.RedirectURL,
-		Display:       o.Display,
-		Scope:         o.Scope,
-		ClaimsToRoles: mappings,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connector.SetACR(o.ACR)
-	connector.SetProvider(o.Provider)
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return connector, nil
 }
 
 // Metrics is a `metrics_service` section of the config file:

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
@@ -84,7 +85,7 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 
 // createInsecureOIDCClient creates an insecure client for testing.
 func createInsecureOIDCClient(t *testing.T, connector types.OIDCConnector) *oidc.Client {
-	conf := oidcConfig(connector)
+	conf := oidcConfig(connector, "")
 	conf.HTTPClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -141,6 +142,7 @@ func TestCreateOIDCUser(t *testing.T) {
 // all claim information is already within the token and additional claim
 // information does not need to be fetched.
 func TestUserInfoBlockHTTP(t *testing.T) {
+	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
@@ -152,11 +154,12 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(context.Background(), connector)
+
+	oidcClient, err := s.a.getCachedOIDCClient(ctx, connector, "")
 	require.NoError(t, err)
 
 	// Verify HTTP endpoints return trace.NotFound.
-	_, err = claimsFromUserInfo(oidcClient, idp.s.URL, "")
+	_, err = claimsFromUserInfo(oidcClient.client, idp.s.URL, "")
 	fixtures.AssertNotFound(t, err)
 }
 
@@ -321,6 +324,7 @@ func TestSSODiagnostic(t *testing.T) {
 // TestPingProvider confirms that the client_secret_post auth
 //method was set for a oauthclient.
 func TestPingProvider(t *testing.T) {
+	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
@@ -333,16 +337,113 @@ func TestPingProvider(t *testing.T) {
 		Provider:     teleport.Ping,
 	})
 	require.NoError(t, err)
-	oidcClient, err := s.a.getOrCreateOIDCClient(context.Background(), connector)
 
+	oidcClient, err := s.a.getCachedOIDCClient(ctx, connector, "")
 	require.NoError(t, err)
 
-	oac, err := getOAuthClient(oidcClient, connector)
+	oac, err := getOAuthClient(oidcClient.client, connector)
 
 	require.NoError(t, err)
 
 	// authMethod should be client secret post now
 	require.Equal(t, oauth2.AuthMethodClientSecretPost, oac.GetAuthMethod())
+}
+
+func TestOIDCClientProviderSync(t *testing.T) {
+	ctx := context.Background()
+	// Create configurable IdP to use in tests.
+	idp := newFakeIDP(t, false /* tls */)
+
+	// Create OIDC connector and client.
+	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
+		IssuerURL:    idp.s.URL,
+		ClientID:     "00000000000000000000000000000000",
+		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
+		Provider:     teleport.Ping,
+	})
+	require.NoError(t, err)
+
+	client, err := newOIDCClient(ctx, connector, "proxy.example.com")
+	require.NoError(t, err)
+
+	// first sync should complete succesfully
+	require.NoError(t, client.waitFirstSync(100*time.Millisecond))
+	require.NoError(t, client.syncCtx.Err())
+
+	// Create OIDC client with a canceled ctx
+	canceledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	client, err = newOIDCClient(canceledCtx, connector, "proxy.example.com")
+	require.NoError(t, err)
+
+	// provider sync goroutine should end and first sync should fail
+	require.Equal(t, context.Canceled, client.syncCtx.Err())
+	require.Error(t, client.waitFirstSync(time.Second))
+
+	// Create OIDC connector and client without an issuer URL for provider syncing
+	connectorNoIssuer, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
+		ClientID:     "00000000000000000000000000000000",
+		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
+		Provider:     teleport.Ping,
+	})
+	require.NoError(t, err)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	client, err = newOIDCClient(timeoutCtx, connectorNoIssuer, "proxy.example.com")
+	require.NoError(t, err)
+
+	// first sync should fail after the given timeout and cancel the sync goroutine.
+	err = client.waitFirstSync(100 * time.Millisecond)
+	require.Error(t, err)
+	require.True(t, trace.IsConnectionProblem(err))
+	require.Equal(t, context.Canceled, client.syncCtx.Err())
+}
+
+func TestOIDCClientCache(t *testing.T) {
+	ctx := context.Background()
+	s := setUpSuite(t)
+	// Create configurable IdP to use in tests.
+	idp := newFakeIDP(t, false /* tls */)
+	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
+		IssuerURL:    idp.s.URL,
+		ClientID:     "00000000000000000000000000000000",
+		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
+		Provider:     teleport.Ping,
+	})
+	require.NoError(t, err)
+
+	// Create and cache a new oidc client
+	client, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	require.NoError(t, err)
+
+	// The next call should return the same client
+	client2, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	require.NoError(t, err)
+	require.True(t, client == client2)
+
+	// Any change to the connector should cause the cached client to be replaced
+	connector, err = types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
+		IssuerURL:    idp.s.URL,
+		ClientID:     "11111111111111111111111111111111",
+		ClientSecret: "1111111111111111111111111111111111111111111111111111111111111111",
+		Provider:     teleport.Ping,
+	})
+	require.NoError(t, err)
+
+	newClient, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	require.NoError(t, err)
+	require.False(t, client == newClient)
+
+	// Canceling provider sync on a cached client should cause it to be replaced
+	cachedClient, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	require.NoError(t, err)
+	cachedClient.syncCancel()
+
+	newClient2, err := s.a.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	require.NoError(t, err)
+	require.False(t, newClient == newClient2)
 }
 
 // fakeIDP is a configurable OIDC IdP that can be used to mock responses in

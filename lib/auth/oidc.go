@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -42,28 +43,45 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// getOIDCConnectorAndClient returns the associated oidc connector
+// and client for the given oidc auth request.
 func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
+	// stateless test flow
 	if request.SSOTestFlow {
 		if request.ConnectorSpec == nil {
-			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil")
 		}
 
 		if request.ConnectorID == "" {
 			return nil, nil, trace.BadParameter("ConnectorID cannot be empty")
 		}
 
-		// stateless test flow
 		connector, err := types.NewOIDCConnector(request.ConnectorID, *request.ConnectorSpec)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		// we don't want to cache the client. construct it directly.
-		client, err := a.createOIDCClient(ctx, connector, false)
+		// we don't want to cache the client, construct it directly.
+		client, err := newOIDCClient(ctx, connector, request.ProxyAddress)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return connector, client, nil
+		if err := client.waitFirstSync(defaults.WebHeadersTimeout); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// close this request-scoped oidc client after 10 minutes
+		go func() {
+			ticker := a.GetClock().NewTicker(defaults.OIDCAuthRequestTTL)
+			defer ticker.Stop()
+			select {
+			case <-ticker.Chan():
+				client.syncCancel()
+			case <-client.syncCtx.Done():
+			}
+		}()
+
+		return connector, client.client, nil
 	}
 
 	// regular execution flow
@@ -71,101 +89,70 @@ func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	client, err := a.getOrCreateOIDCClient(ctx, connector)
+
+	client, err := a.getCachedOIDCClient(ctx, connector, request.ProxyAddress)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return connector, client, nil
+	// Wait for the client to successfully sync after getting it from the cache.
+	// We do this after caching the client to prevent locking the server during
+	// the initial sync period.
+	if err := client.waitFirstSync(defaults.WebHeadersTimeout); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return connector, client.client, nil
 }
 
-func (a *Server) getOrCreateOIDCClient(ctx context.Context, conn types.OIDCConnector) (*oidc.Client, error) {
-	client, err := a.getOIDCClient(conn)
-	if err == nil {
-		return client, nil
-	}
-	if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	return a.createOIDCClient(ctx, conn, true)
-}
-
-func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
+// getCachedOIDCClient gets a cached oidc client for
+// the given OIDC connector and redirectURL preference.
+func (a *Server) getCachedOIDCClient(ctx context.Context, conn types.OIDCConnector, proxyAddr string) (*oidcClient, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	clientPack, ok := a.oidcClients[conn.GetName()]
-	if !ok {
-		return nil, trace.NotFound("connector %v is not found", conn.GetName())
+	// Each connector and proxy combination has a distinct client,
+	// so we use a composite key to capture all combinations.
+	clientMapKey := conn.GetName() + "_" + proxyAddr
+
+	cachedClient, ok := a.oidcClients[clientMapKey]
+	if ok {
+		if cmp.Equal(cachedClient.connector, conn) && cachedClient.syncCtx.Err() == nil {
+			return cachedClient, nil
+		}
+		// Cached client is out of date or is no longer syncing.
+		delete(a.oidcClients, clientMapKey)
 	}
 
-	config := oidcConfig(conn)
-	if ok && oidcConfigsEqual(clientPack.config, config) {
-		return clientPack.client, nil
+	// Create a new oidc client and add it to the cache.
+	client, err := newOIDCClient(ctx, conn, proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	clientPack.cancel()
-	delete(a.oidcClients, conn.GetName())
-	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
-
+	a.oidcClients[clientMapKey] = client
+	return client, nil
 }
 
-func (a *Server) createOIDCClient(ctx context.Context, conn types.OIDCConnector, rememberClient bool) (*oidc.Client, error) {
-	config := oidcConfig(conn)
+func newOIDCClient(ctx context.Context, conn types.OIDCConnector, proxyAddr string) (*oidcClient, error) {
+	redirectURL, err := services.GetRedirectURL(conn, proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config := oidcConfig(conn, redirectURL)
 	client, err := oidc.NewClient(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// SyncProviderConfig doesn't take a context for cancellation, instead it
-	// returns a channel that has to be closed to stop the sync. To ensure that
-	// the sync is eventually stopped we create a child context of the server context, which
-	// is cancelled either on deletion of the connector or shutdown of the server.
-	// This will cause syncCtx.Done() to unblock, at which point we can close the stop channel.
-	firstSync := make(chan struct{})
-	syncCtx, syncCancel := context.WithCancel(a.closeCtx)
-	go func() {
-		stop := client.SyncProviderConfig(conn.GetIssuerURL())
-		close(firstSync)
-		<-syncCtx.Done()
-		close(stop)
-	}()
-
-	select {
-	case <-firstSync:
-	case <-time.After(defaults.WebHeadersTimeout):
-		syncCancel()
-		return nil, trace.ConnectionProblem(nil,
-			"timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
-			conn.GetName(), conn.GetIssuerURL())
-	case <-a.closeCtx.Done():
-		syncCancel()
-		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
-	}
-
-	if rememberClient {
-		a.lock.Lock()
-		defer a.lock.Unlock()
-
-		a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config, cancel: syncCancel}
-	} else {
-		// either wait for the parent context to finish, or wait up to 10 minutes.
-		go func() {
-			select {
-			case <-ctx.Done():
-			case <-time.After(defaults.OIDCAuthRequestTTL):
-			}
-			log.Infof("Removing OIDC test client for connector %q, URL %q", conn.GetName(), conn.GetIssuerURL())
-			syncCancel()
-		}()
-	}
-
-	return client, nil
+	oidcClient := &oidcClient{client: client, connector: conn, firstSync: make(chan struct{})}
+	oidcClient.startSync(ctx)
+	return oidcClient, nil
 }
 
-func oidcConfig(conn types.OIDCConnector) oidc.ClientConfig {
+func oidcConfig(conn types.OIDCConnector, redirectURL string) oidc.ClientConfig {
 	return oidc.ClientConfig{
-		RedirectURL: conn.GetRedirectURL(),
+		RedirectURL: redirectURL,
 		Credentials: oidc.ClientCredentials{
 			ID:     conn.GetClientID(),
 			Secret: conn.GetClientSecret(),
@@ -173,6 +160,46 @@ func oidcConfig(conn types.OIDCConnector) oidc.ClientConfig {
 		// open id notifies provider that we are using OIDC scopes
 		Scope: apiutils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
+}
+
+// startSync starts a goroutine to sync the client with its provider
+// config until the given ctx is closed or the sync is cancelled.
+func (c *oidcClient) startSync(ctx context.Context) {
+	// SyncProviderConfig doesn't take a context for cancellation, instead it
+	// returns a channel that has to be closed to stop the sync. To ensure that the
+	// sync is eventaully stopped, we "wrap" the stop channel with a cancel context.
+	c.syncCtx, c.syncCancel = context.WithCancel(ctx)
+	go func() {
+		stop := c.client.SyncProviderConfig(c.connector.GetIssuerURL())
+		close(c.firstSync)
+		<-c.syncCtx.Done()
+		close(stop)
+	}()
+}
+
+// waitFirstSync waits for the client to start syncing successfully, or
+// returns an error if syncing fails or fails to succeed within 10 seconds.
+// This prevents waiting on clients with faulty provider configurations.
+func (c *oidcClient) waitFirstSync(timeout time.Duration) error {
+	timeoutTimer := time.NewTimer(timeout)
+
+	select {
+	case <-c.firstSync:
+	case <-c.syncCtx.Done():
+	case <-timeoutTimer.C:
+		// cancel sync so that it gets removed from the cache
+		c.syncCancel()
+		return trace.ConnectionProblem(nil, "timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
+			c.connector.GetName(), c.connector.GetIssuerURL())
+	}
+
+	// stop and flush timer
+	if !timeoutTimer.Stop() {
+		<-timeoutTimer.C
+	}
+
+	// return the syncing error if there is one
+	return trace.Wrap(c.syncCtx.Err())
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
@@ -487,7 +514,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
+		session, err := a.createWebSession(a.closeCtx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
@@ -515,7 +542,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		auth.TLSCert = tlsCert
 
 		// Return the host CA for this cluster only.
-		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		authority, err := a.GetCertAuthority(a.closeCtx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, false)

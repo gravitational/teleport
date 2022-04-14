@@ -2556,7 +2556,9 @@ message OIDCConnectorSpecV3 {
     // RedirectURL is a URL that will redirect the client's browser
     // back to the identity provider after successful authentication.
     // This should match the URL on the Provider's side.
-    string RedirectURL = 4 [ (gogoproto.jsontag) = "redirect_url" ];
+    //
+    // DELETE IN 11.0.0 in favor of RedirectURLs
+    string RedirectURL = 4 [ (gogoproto.jsontag) = "redirect_url_deprecated,omitempty" ];
     // ACR is an Authentication Context Class Reference value. The meaning of the ACR
     // value is context-specific and varies for identity providers.
     string ACR = 5 [ (gogoproto.jsontag) = "acr_values,omitempty" ];
@@ -2579,6 +2581,16 @@ message OIDCConnectorSpecV3 {
     string GoogleServiceAccount = 12 [ (gogoproto.jsontag) = "google_service_account,omitempty" ];
     // GoogleAdminEmail is the email of a google admin to impersonate.
     string GoogleAdminEmail = 13 [ (gogoproto.jsontag) = "google_admin_email,omitempty" ];
+    // RedirectURLs is a list of callback URLs which the identity provider can use
+    // to redirect the client back to the Teleport Proxy to complete authentication.
+    // This list should match the URLs on the provider's side. The URL used for a
+    // given auth request will be chosen to match the requesting Proxy's public
+    // address. If there is no match, the first url in the list will be used.
+    wrappers.StringValues RedirectURLs = 14 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "redirect_url",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Strings"
+    ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
