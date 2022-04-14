@@ -5,7 +5,13 @@ import cfg from 'e-teleport/config';
 
 import { State as RequestViewState } from '../RequestView/useRequestView';
 
-export default function useRequestDelete({ requestId, onClose, ctx }: Props) {
+export default function useRequestDelete({
+  user,
+  roles,
+  requestId,
+  onClose,
+  ctx,
+}: Props) {
   const { attempt, setAttempt } = useAttempt();
 
   function onDelete() {
@@ -22,6 +28,8 @@ export default function useRequestDelete({ requestId, onClose, ctx }: Props) {
   return {
     attempt,
     requestId,
+    user,
+    roles,
     onClose,
     onDelete,
   };
@@ -29,6 +37,8 @@ export default function useRequestDelete({ requestId, onClose, ctx }: Props) {
 
 export type Props = {
   requestId: string;
+  user: string;
+  roles: string[];
   onClose: RequestViewState['toggleConfirmDelete'];
   ctx: TeleportContextE;
 };
