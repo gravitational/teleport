@@ -283,6 +283,12 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	}
+	fmt.Println("Requests deleted successfully.")
+	fmt.Println("If these requests had been approved, deleting the request will not remove this users access to the roles.")
+	fmt.Println("If you would also like to lock this users access you can run:")
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
+		fmt.Printf("tctl lock --access_request %s\n", reqID)
+	}
 	return nil
 }
 
