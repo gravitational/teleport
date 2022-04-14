@@ -7,8 +7,7 @@
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
 
-# Build libfido2 in a separate step to isolate dependencies and give us some
-# flexibility with regards to the base image.
+# Build libfido2 separately for isolation, speed and flexibility.
 FROM buildpack-deps:18.04 AS libfido2
 
 RUN apt-get update && \
@@ -128,6 +127,9 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLA
     chmod a+w /go && \
     chmod a+w /var/lib && \
     chmod a-w /
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install libbpf
 ARG LIBBPF_VERSION
@@ -135,10 +137,6 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
-
-ENV GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install addlicense
 RUN go install github.com/google/addlicense@v1.0.0
@@ -209,6 +207,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi && \
     cargo install cbindgen
 
+# Do a quick switch back to root and copy/setup libfido2 binaries.
+# Do this last to take better advantage of the multi-stage build.
 USER root
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
 COPY --from=libfido2 \
@@ -222,5 +222,6 @@ RUN cd /usr/local/lib && \
     ln -s libfido2.so.1 libfido2.so && \
     ldconfig
 
+USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
