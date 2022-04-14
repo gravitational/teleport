@@ -3,11 +3,11 @@ title: Getting Started With Access Controls
 description: Get started using Teleport Access Controls.
 ---
 
-In Teleport, any local, SSO, or robot user can be a member of one or several
-roles. Roles govern access to databases, SSH servers, Kubernetes clusters,
-Windows desktops, and web apps.
+In Teleport, any local, SSO, or robot user can assigned one or several roles.
+Roles govern access to databases, SSH servers, Kubernetes clusters, Windows
+desktops, and web apps.
 
-We will start with local users and preset roles, map SSO users to roles, and
+We will start with local users and preset roles, assign roles to SSO users, and
 wrap up with creating your own role.
 
 ## Prerequisites
@@ -20,10 +20,9 @@ wrap up with creating your own role.
 
 ## Step 1/3. Add local users with preset roles
 
-Teleport provides several preset roles: `editor`, `auditor` and `access`.
-Members of the `editor` role can modify cluster configuration, members of
-`auditor` role can view audit logs, and `access` members can access cluster
-resources.
+Teleport provides several preset roles: `editor`, `auditor` and `access`. The
+`editor` role authorizes users to modify cluster configuration, the `auditor`
+role to view audit logs, and `access` role to access cluster resources.
 
 Invite the local user Alice as cluster `editor`:
 
@@ -61,7 +60,7 @@ users within your SSO solution to Teleport roles.
 
     Save the file below as `github.yaml` and update the fields. You will need to
     set up a
-    [Github OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+    [GitHub OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
     app. Any member belonging to the GitHub organization `octocats` and on team
     `admin` will be able to assume the built-in role `access`.
 
@@ -72,18 +71,18 @@ users within your SSO solution to Teleport roles.
       # connector name that will be used with `tsh --auth=github login`
       name: github
     spec:
-      # client ID of Github OAuth app
+      # client ID of GitHub OAuth app
       client_id: client-id
-      # client secret of Github OAuth app
+      # client secret of GitHub OAuth app
       client_secret: client-secret
       # This name will be shown on UI login screen
-      display: Github
+      display: GitHub
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
       teams_to_logins:
-        - organization: octocats # Github organization name
-          team: admin            # Github team name within that organization
+        - organization: octocats # GitHub organization name
+          team: admin            # GitHub team name within that organization
           # map github admin team to Teleport's "access" role
           logins: ["access"]
     ```
@@ -172,7 +171,7 @@ spec:
   allow:
     # Logins configures SSH login principals
     logins: ['readonly']
-    # Assigns members of this role to the built-in Kubernetes group "view"
+    # Assigns users with this role to the built-in Kubernetes group "view"
     kubernetes_groups: ["view"]
     # Allow access to SSH nodes, Kubernetes clusters, apps or databases 
     # labeled with "staging" or "test"
