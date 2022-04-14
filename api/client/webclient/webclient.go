@@ -58,7 +58,7 @@ type Config struct {
 	// ExtraHeaders is a map of extra HTTP headers to be included in
 	// requests.
 	ExtraHeaders map[string]string
-	// IgnoreHTTPProxy disables support for HTTP proxying when enabled.
+	// IgnoreHTTPProxy disables support for HTTP proxying when true.
 	IgnoreHTTPProxy bool
 }
 
