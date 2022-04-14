@@ -308,16 +308,13 @@ func generateIamTokenName(rules []*types.TokenRule) (string, error) {
 	copy(orderedRules, rules)
 	sortRules(orderedRules)
 
-	var sb strings.Builder
-	for _, r := range orderedRules {
-		s := fmt.Sprintf("%s-%s", r.AWSAccount, r.AWSARN)
-		sb.WriteString(s)
-	}
-
 	h := fnv.New32a()
-	_, err := h.Write([]byte(sb.String()))
-	if err != nil {
-		return "", err
+	for _, r := range orderedRules {
+		s := fmt.Sprintf("%s%s", r.AWSAccount, r.AWSARN)
+		_, err := h.Write([]byte(s))
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return fmt.Sprintf("teleport-ui-iam-%d", h.Sum32()), nil

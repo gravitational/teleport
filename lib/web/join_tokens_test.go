@@ -52,13 +52,20 @@ func TestGenerateIamTokenName(t *testing.T) {
 		AWSARN:     "arn:aws:iam:1",
 	}
 
+	rule1Name := "teleport-ui-iam-2218897454"
+
+	// make sure the hash algorithm don't change accidentally
+	hash1, err := generateIamTokenName([]*types.TokenRule{&rule1})
+	require.NoError(t, err)
+	require.Equal(t, rule1Name, hash1)
+
 	rule2 := types.TokenRule{
 		AWSAccount: "200000000000",
 		AWSARN:     "arn:aws:iam:b",
 	}
 
 	// make sure the order doesn't matter
-	hash1, err := generateIamTokenName([]*types.TokenRule{&rule1, &rule2})
+	hash1, err = generateIamTokenName([]*types.TokenRule{&rule1, &rule2})
 	require.NoError(t, err)
 
 	hash2, err := generateIamTokenName([]*types.TokenRule{&rule2, &rule1})
@@ -74,7 +81,6 @@ func TestGenerateIamTokenName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEqual(t, hash1, hash2)
-
 }
 
 func TestSortRules(t *testing.T) {
