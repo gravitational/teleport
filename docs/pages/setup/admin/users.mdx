@@ -1,9 +1,9 @@
 ---
-title: Local users
+title: Local Users
 description: Adding and deleting local users
 ---
 
-This guide covers inviting and managing local user accounts.
+This guide explains how to invite users and manage local user accounts.
 
 ## Prerequisites
 
@@ -16,9 +16,6 @@ This guide covers inviting and managing local user accounts.
 
 Teleport's local user accounts are created and stored in Teleport's internal storage.
 
-Local user accounts can be used alongside external user accounts managed using Github for the open source edition
-and OIDC and SAML 2.0 for the enterprise.
-
 A user identity in Teleport exists in the scope of a cluster.
 A Teleport administrator creates Teleport user accounts and maps them to the roles they can use.
 
@@ -26,18 +23,18 @@ Let's look at this table:
 
 | Teleport User | Allowed OS Logins | Description |
 | - | - | - |
-| joe | joe, root | Teleport user 'joe' can log in into member nodes as OS user 'joe' or 'root' |
-| bob | bob | Teleport user 'bob' can log in into member nodes only as OS user 'bob' |
-| ross | | If no OS login is specified, it defaults to the same name as the Teleport user - 'ross'. |
+| `joe` | `joe`, `root` | Teleport user `joe` can log in into member Nodes as OS user `joe` or `root` |
+| `bob` | `bob` | Teleport user `bob` can log in into member Nodes only as OS user `bob` |
+| `ross` | | If no OS login is specified, it defaults to the same name as the Teleport user `ross`. |
 
-Let's add a new user to Teleport using the [`tctl`](../reference/cli.mdx#tctl) tool:
+Let's add a new user to Teleport using the `tctl` tool:
 
 ```code
 $ tctl users add joe --logins=joe,root --roles=access,editor
 ```
 
 Teleport generates an auto-expiring token (with a TTL of 1 hour) and prints the
-token URL which must be used before the TTL expires.
+token URL, which must be used before the TTL expires.
 
 ```code
 # Signup token has been created. Share this URL with the user:
@@ -46,8 +43,15 @@ token URL which must be used before the TTL expires.
 # NOTE: make sure the <proxy> host is accessible.
 ```
 
-The user completes registration by visiting this URL in their web browser, picking a password, and configuring the 2nd-factor authentication.
-If the credentials are correct, the auth server generates and signs a new certificate, and the client stores this key and will use it for subsequent logins. The key will automatically expire after 12 hours by default after which the user will need to log back in with her credentials. This TTL can be configured to a different value.
+The user completes registration by visiting this URL in their web browser,
+picking a password, and configuring second-factor authentication. If the
+credentials are correct, the Teleport Auth Server generates and signs a new
+certificate, and the client stores this key and will use it for subsequent
+logins. 
+
+The key will automatically expire after 12 hours by default, after which
+the user will need to log back in with their credentials. This TTL can be
+configured to a different value.
 
 Once authenticated, the account will become visible via `tctl`:
 
@@ -61,11 +65,25 @@ $ tctl users ls
 # joe            joe,root
 ```
 
-Joe would then use the `tsh` client tool to log in to member node "luna" via bastion "work" *as root*:
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+Joe can then use the `tsh` client tool to log in to the Teleport Node "luna" via
+bastion "work" as `root`:
 
 ```code
 $ tsh --proxy=work --user=joe root@luna
 ```
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Joe can then use the `tsh` client tool to log in to the Teleport Node "luna" via
+Teleport Cloud as `root`. Joe's Teleport Cloud tenant URL is `mytenant.teleport.sh`.
+
+```code
+$ tsh --proxy=mytenant.teleport.sh --user=joe root@luna
+```
+</TabItem>
+</Tabs>
 
 To delete this user:
 
@@ -83,7 +101,7 @@ For example, to see the full list of user records, an administrator can execute:
 $ tctl get users
 ```
 
-To edit the user "joe":
+To edit the user `joe`:
 
 ```code
 # Dump the user definition into a file:
@@ -93,3 +111,21 @@ $ tctl get user/joe > joe.yaml
 # Update the user record:
 $ tctl create -f joe.yaml
 ```
+
+## Further reading
+
+<Tabs>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
+You can configure Teleport so that users can log in using an SSO provider.
+For more information, see:
+
+- [Single Sign-On](../../enterprise/sso.mdx)
+- [GitHub SSO](./github-sso.mdx)
+</TabItem>
+<TabItem scope={["oss"]} label="Open Source">
+
+You can configure Teleport so that users can log in using GitHub. For more
+information, see [GitHub SSO](./github-sso.mdx).
+
+</TabItem>
+</Tabs>
