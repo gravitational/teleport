@@ -403,7 +403,7 @@ When `existingDataVolume` is set to the name of an existing volume, the `/var/li
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set existingDataVolume=my-volume
   ```
   </TabItem>
@@ -496,7 +496,7 @@ Enables the creation of a Kubernetes persistent volume to hold Teleport agent st
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set storage.enabled=true
   ```
   </TabItem>
@@ -521,7 +521,7 @@ name needs to exist on the Kubernetes cluster for Teleport to use.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set storage.storageClassName=teleport-storage-class
   ```
   </TabItem>
@@ -543,7 +543,7 @@ The size of persistent volume to create.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set storage.requests=128Mi
   ```
   </TabItem>
@@ -993,7 +993,7 @@ Kubernetes affinity to set for pod assignments.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```bash
+  ```code
   --set nodeSelector.role=node \
   --set nodeSelector.region=us-east
   ```

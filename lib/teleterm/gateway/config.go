@@ -25,7 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// CreateGatewayParams describes gateway parameters
+// Config describes gateway configuration
 type Config struct {
 	// URI is the gateway URI
 	URI uri.ResourceURI
@@ -42,8 +42,6 @@ type Config struct {
 	LocalAddress string
 	// Protocol is the gateway protocol
 	Protocol string
-	// CACertPath
-	CACertPath string
 	// CertPath
 	CertPath string
 	// KeyPath
@@ -53,7 +51,7 @@ type Config struct {
 	// WebProxyAddr
 	WebProxyAddr string
 	// Log is a component logger
-	Log logrus.FieldLogger
+	Log *logrus.Entry
 }
 
 // CheckAndSetDefaults checks and sets the defaults

@@ -3,33 +3,49 @@ title: Database Access Getting Started Guide
 description: Getting started with Teleport Database Access and AWS Aurora PostgreSQL.
 ---
 
-# Getting Started
-
 In this getting started guide we will use Teleport Database Access to connect
 to a PostgreSQL AWS Aurora database.
 
 Here's an overview of what we will do:
 
-1. Configure AWS Aurora database with IAM authentication.
-2. Download and install Teleport (=teleport.version=) and connect it to the Aurora database.
-3. Connect to the Aurora database via Teleport.
+1. Configure an AWS Aurora database with IAM authentication.
+2. Join the Aurora database to your Teleport cluster.
+3. Connect to the Aurora database via the Teleport Database Service.
+
+## Prerequisites
+
+<Admonition type="note" title="Supported versions">
+
+Teleport Database Access is available starting from the `6.0.0` Teleport
+release.
+
+</Admonition>
+
+- An AWS account with a PostgreSQL AWS Aurora database and permissions to create
+  and attach IAM policies.
+- A host, e.g., an EC2 instance, where you will run the Teleport Database
+  Service.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Set up Aurora
 
-In order to allow Teleport connections to an Aurora instance, it needs to support
-IAM authentication.
+In order to allow Teleport connections to an Aurora instance, the instance needs
+to support IAM authentication.
 
 If you don't have a database provisioned yet, create an instance of an Aurora
 PostgreSQL in the [RDS control panel](https://console.aws.amazon.com/rds/home).
-Make sure to choose "Standard create" database creation method and enable
+Make sure to choose the "Standard create" database creation method and enable
 "Password and IAM database authentication" in the Database Authentication dialog.
 
 For existing Aurora instances, the status of IAM authentication is displayed on
 the Configuration tab and can be enabled by modifying the database instance.
 
 Next, create the following IAM policy and attach it to the AWS user or service
-account. Teleport Database Service will need to use credentials of this AWS user
-or service account in order to use this policy.
+account. The Teleport Database Service will need to use the credentials of this
+AWS user or service account in order to use this policy.
 
 ```json
 {
@@ -55,10 +71,10 @@ with resource ID using IAM auth.
   type="note"
   title="Resource ID"
 >
-  Database resource ID is shown on the Configuration tab of a particular
-  database instance in RDS control panel, under "Resource id". For regular
+  The database resource ID is shown on the Configuration tab of a particular
+  database instance in the RDS control panel, under "Resource id". For regular
   RDS database it starts with `db-` prefix. For Aurora, use the database
-  cluster resource ID (`cluster-`), not individual instance ID.
+  cluster resource ID (`cluster-`), not the individual instance ID.
 </Admonition>
 
 Finally, connect to the database and create a database account with IAM auth
@@ -71,42 +87,55 @@ GRANT rds_iam TO alice;
 ```
 
 For more information about connecting to the PostgreSQL instance directly,
-see Amazon [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ConnectToPostgreSQLInstance.html).
+see the AWS [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ConnectToPostgreSQLInstance.html).
 
 ## Step 2/3. Set up Teleport
 
-Teleport Database Access is available starting from `6.0.0` release.
+### Start the Auth Service and Proxy Service
 
-Download the appropriate version of Teleport for your platform from
-our [downloads page](https://goteleport.com/teleport/download).
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+
+### Start the Teleport Database Service
+
+(!docs/pages/includes/database-access/token.mdx!)
 
 
-### Configure TLS
+<ScopedBlock scope={["oss", "enterprise"]}>
 
-Teleport requires a valid TLS certificate to operate and can fetch one automatically
-using Let's Encrypt.
-
-(!docs/pages/includes/acme.mdx!)
-
-We will assume that you have configured a DNS record for `teleport.example.com` to point to the node where you're launching Teleport.
-
-<Details title="Using Application Access?">
-(!docs/pages/includes/dns-app-access.mdx!)
-</Details>
-
-### Start Teleport
-
-Now start Teleport and point it to your Aurora database instance. Make sure to
-update the database endpoint and region appropriately.
+On the node where you will run the Teleport Database Service, start Teleport and
+point it to your Aurora database instance. Make sure to update the database
+endpoint and region appropriately. The `--auth-server` flag must point to the
+address of your Teleport Proxy Service.
 
 ```code
-$ sudo teleport start --config=/tmp/teleport.yaml \
-  --roles=proxy,auth,db \
+$ teleport db start \
+  --token=/tmp/token \
   --db-name=aurora \
+  --auth-server=teleport.example.com:3080 \
   --db-protocol=postgres \
   --db-uri=postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com:5432 \
   --db-aws-region=us-west-1
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+On the node where you will run the Teleport Database Service, start Teleport and
+point it to your Aurora database instance. Make sure to update the database
+endpoint and region appropriately. The `--auth-server` flag must point to the
+address of your Teleport Cloud tenant.
+
+```code
+$ teleport db start \
+  --token=/tmp/token \
+  --db-name=aurora \
+  --auth-server=mytenant.teleport.sh \
+  --db-protocol=postgres \
+  --db-uri=postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com:5432 \
+  --db-aws-region=us-west-1
+```
+
+</ScopedBlock>
 
 <Admonition
   type="note"
@@ -121,7 +150,7 @@ $ sudo teleport start --config=/tmp/teleport.yaml \
 Create the role that will allow a user to connect to any database using any
 database account:
 
-```bash
+```code
 $ tctl create <<EOF
 kind: role
 version: v3
@@ -146,15 +175,25 @@ $ tctl users add --roles=access,db alice
 
 ## Step 3/3. Connect
 
-Now that Aurora is configured with IAM authentication, Teleport is running and
+Now that Aurora is configured with IAM authentication, Teleport is running, and
 the local user is created, we're ready to connect to the database.
 
-Log into Teleport with the user we've just created. Make sure to use `tsh`
-version `6.0` or newer that includes Database Access support.
+Log in to Teleport with the user we've just created.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+```
+
+</ScopedBlock>
 
 Now we can inspect available databases and retrieve credentials for the
 configured Aurora instance:
@@ -164,8 +203,8 @@ $ tsh db ls
 $ tsh db login aurora
 ```
 
-Finally, connect to the database using `psql` command shown in the output of
-`tsh db login` command, which looks similar to this:
+Finally, connect to the database using the `psql` command shown in the output of
+the `tsh db login` command, which looks similar to this:
 
 ```code
 $ psql "service=<cluster>-aurora user=alice dbname=postgres"
