@@ -49,20 +49,17 @@ following use cases:
 ## HTTP CONNECT proxies
 
 Some networks funnel all connections through a proxy server where they can be
-audited and access control rules are applied. For these scenarios, Teleport supports HTTP CONNECT tunneling.
+audited and access control rules can be applied. For these scenarios, Teleport
+supports HTTP CONNECT tunneling.
 
-To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or `HTTP_PROXY` environment variables and when Teleport builds and establishes the reverse tunnel to the main cluster, it will funnel all traffic through the proxy. Specifically, if using the default configuration, Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
+To use HTTP CONNECT tunneling, set the `HTTPS_PROXY` and `HTTP_PROXY`
+environment variables when running Teleport. You can also optionally set the
+`NO_PROXY` environment variable to avoid use of the proxy when accessing
+specified hosts/netmasks.
 
-The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
-`scheme://host:port` where scheme is either `https` or `http` . If the value is
-`host:port` , Teleport will prepend `http` .
-
-It's important to note that for Teleport to use HTTP CONNECT
-tunneling, the `HTTP_PROXY` and `HTTPS_PROXY` environment variables must be set
-within Teleport's environment. You can also optionally set the `NO_PROXY`
-environment variable to avoid use of the proxy when accessing specified
-hosts/netmasks. When launching Teleport with `systemd`, this will probably involve
-adding some lines to your `systemd` unit file:
+For example, when launching Teleport with `systemd`, you can add
+the following lines to your `systemd` unit file, replacing `proxy.example.com` with
+the address of your proxy.
 
 ```
 [Service]
@@ -70,6 +67,12 @@ Environment="HTTP_PROXY=http://proxy.example.com:8080/"
 Environment="HTTPS_PROXY=http://proxy.example.com:8080/"
 Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8"
 ```
+
+When Teleport builds and establishes the reverse tunnel to the main cluster, it will funnel all traffic through the proxy. Specifically, if using the default configuration, Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
+
+The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
+`scheme://host:port` where scheme is either `https` or `http` . If the value is
+`host:port` , Teleport will prepend `http` .
 
 <Admonition
   type="warning"
