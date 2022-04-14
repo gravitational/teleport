@@ -286,7 +286,7 @@ func TestDBCertSigning(t *testing.T) {
 			require.NotNil(t, certResp.Cert)
 			require.Len(t, certResp.CACerts, 2)
 
-			cert1, err := tlsca.ParseCertificatePEM(certResp.Cert)
+			dbCert, err := tlsca.ParseCertificatePEM(certResp.Cert)
 			require.NoError(t, err)
 
 			certPool := x509.NewCertPool()
@@ -298,7 +298,7 @@ func TestDBCertSigning(t *testing.T) {
 			}
 
 			// Verify if the generated certificate can be verified with the correct CA.
-			_, err = cert1.Verify(opts)
+			_, err = dbCert.Verify(opts)
 			require.NoError(t, err)
 		})
 	}
