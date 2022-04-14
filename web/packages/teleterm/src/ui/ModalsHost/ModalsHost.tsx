@@ -16,7 +16,6 @@
 
 import React from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import GatewayCreate from 'teleterm/ui/GatewayCreate';
 import ClusterLogout from '../ClusterLogout/ClusterLogout';
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
@@ -35,7 +34,7 @@ export default function ModalsHost() {
           handleClose();
           dialog.onCancel?.();
         }}
-        onSuccess={(clusterUri) => {
+        onSuccess={clusterUri => {
           handleClose();
           dialog.onSuccess(clusterUri);
         }}
@@ -51,10 +50,6 @@ export default function ModalsHost() {
         onClose={handleClose}
       />
     );
-  }
-
-  if (dialog.kind === 'create-gateway') {
-    return <GatewayCreate {...dialog} onClose={handleClose} />;
   }
 
   if (dialog.kind === 'documents-reopen') {

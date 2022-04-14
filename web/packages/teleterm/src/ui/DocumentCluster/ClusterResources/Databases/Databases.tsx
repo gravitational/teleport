@@ -16,10 +16,11 @@ limitations under the License.
 
 import React from 'react';
 import { useDatabases, State } from './useDatabases';
-import { ButtonBorder } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { renderLabelCell } from '../renderLabelCell';
 import { Danger } from 'design/Alert';
+import { MenuLogin } from 'shared/components/MenuLogin';
+import { MenuLoginTheme } from '../MenuLoginTheme';
 
 export default function Container() {
   const state = useDatabases();
@@ -47,7 +48,8 @@ function DatabaseList(props: State) {
           },
           {
             altKey: 'connect-btn',
-            render: db => renderConnectButton(db.uri, props.connect),
+            render: db =>
+              renderConnectButton(user => props.connect(db.uri, user)),
           },
         ]}
         pagination={{ pageSize: 100, pagerPosition: 'bottom' }}
@@ -57,17 +59,24 @@ function DatabaseList(props: State) {
   );
 }
 
-function renderConnectButton(uri: string, connect: (uri: string) => void) {
+function renderConnectButton(onConnect: (user: string) => void) {
   return (
     <Cell align="right">
-      <ButtonBorder
-        size="small"
-        onClick={() => {
-          connect(uri);
-        }}
-      >
-        Connect
-      </ButtonBorder>
+      <MenuLoginTheme>
+        <MenuLogin
+          placeholder="Enter username…"
+          getLoginItems={() => []}
+          onSelect={(_, user) => onConnect(user)}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          anchorOrigin={{
+            vertical: 'center',
+            horizontal: 'right',
+          }}
+        />
+      </MenuLoginTheme>
     </Cell>
   );
 }

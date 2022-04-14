@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,5 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import GatewayCreate from './GatewayCreate';
-export default GatewayCreate;
+export type LoginItem = {
+  url: string;
+  login: string;
+};
+
+export type MenuLoginProps = {
+  getLoginItems: () => LoginItem[];
+  onSelect: (e: React.SyntheticEvent, login: string) => void;
+  anchorOrigin?: any;
+  transformOrigin?: any;
+  placeholder?: string;
+};

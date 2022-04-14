@@ -58,6 +58,7 @@ describe('document should be added', () => {
     kind: 'doc.gateway',
     gatewayUri: '',
     targetUri: '',
+    targetUser: 'foo',
   };
 
   test('at the specific position', () => {
@@ -128,6 +129,7 @@ test('only gateway documents should be returned', () => {
     title: 'gw',
     gatewayUri: '',
     targetUri: '',
+    targetUser: 'foo',
   };
 
   service.add(gatewayDocument);

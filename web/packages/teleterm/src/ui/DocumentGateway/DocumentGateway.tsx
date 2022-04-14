@@ -42,6 +42,9 @@ export function DocumentGateway(props: State) {
   const { gateway, connected, connectAttempt, disconnect, reconnect } = props;
 
   if (!connected) {
+    const statusDescription =
+      connectAttempt.status === 'processing' ? 'being set up' : 'offline';
+
     return (
       <Flex flexDirection="column" mx="auto" alignItems="center" mt={100}>
         <Text
@@ -49,7 +52,7 @@ export function DocumentGateway(props: State) {
           color="text.primary"
           style={{ position: 'relative' }}
         >
-          The database connection is currently offline
+          The database connection is {statusDescription}
           {connectAttempt.status === 'processing' && <LinearProgress />}
         </Text>
         {connectAttempt.status === 'error' && (

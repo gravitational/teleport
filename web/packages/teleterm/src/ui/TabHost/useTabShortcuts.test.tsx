@@ -37,6 +37,7 @@ function getMockDocuments(): Document[] {
       title: 'Test 4',
       gatewayUri: '',
       targetUri: '',
+      targetUser: 'foo',
     },
     {
       kind: 'doc.gateway',
@@ -44,6 +45,7 @@ function getMockDocuments(): Document[] {
       title: 'Test 5',
       gatewayUri: '',
       targetUri: '',
+      targetUser: 'bar',
     },
     {
       kind: 'doc.cluster',
@@ -109,8 +111,8 @@ function getTestSetup({ documents }: { documents: Document[] }) {
       return {
         localClusterUri: 'test_uri',
         documents: [],
-        location: ''
-      }
+        location: '',
+      };
     },
     useState: jest.fn(),
     state: {

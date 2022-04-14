@@ -84,41 +84,6 @@ const commands = {
       documentsService.setLocation(doc.uri);
     },
   },
-  'proxy-db': {
-    displayName: '',
-    description: '',
-    run(
-      ctx: IAppContext,
-      args: {
-        dbUri: string;
-        port?: string;
-        onSuccess?(gatewayUri: string): void;
-      }
-    ) {
-      const onSuccess = (gatewayUri: string) => {
-        const documentsService =
-          ctx.workspacesService.getActiveWorkspaceDocumentService();
-        const db = ctx.clustersService.findDb(args.dbUri);
-        const gateway = ctx.clustersService.findGateway(gatewayUri);
-        const doc = documentsService.createGatewayDocument({
-          title: db.name,
-          gatewayUri: gatewayUri,
-          targetUri: gateway.targetUri,
-          targetUser: gateway.targetUser,
-          port: gateway.localPort,
-        });
-
-        documentsService.add(doc);
-        documentsService.open(doc.uri);
-      };
-
-      ctx.modalsService.openProxyDbDialog({
-        dbUri: args.dbUri,
-        port: args.port,
-        onSuccess: args.onSuccess || onSuccess,
-      });
-    },
-  },
 
   'kube-connect': {
     displayName: '',
