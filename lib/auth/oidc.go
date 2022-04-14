@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -78,34 +79,20 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaults.WebHeadersTimeout)
-	defer cancel()
-
+	doneSyncing := make(chan struct{})
 	go func() {
-		defer cancel()
+		defer close(doneSyncing)
 		client.SyncProviderConfig(conn.GetIssuerURL())
 	}()
 
 	select {
-	case <-ctx.Done():
+	case <-doneSyncing:
+	case <-time.After(defaults.WebHeadersTimeout):
+		return nil, trace.ConnectionProblem(nil,
+			"timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
+			conn.GetName(), conn.GetIssuerURL())
 	case <-a.closeCtx.Done():
 		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
-	}
-
-	// Canceled is expected in case if sync provider config finishes faster
-	// than the deadline
-	if ctx.Err() != nil && ctx.Err() != context.Canceled {
-		var err error
-		if ctx.Err() == context.DeadlineExceeded {
-			err = trace.ConnectionProblem(err,
-				"failed to reach out to oidc connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
-				conn.GetName(), conn.GetIssuerURL())
-		} else {
-			err = trace.ConnectionProblem(err,
-				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
-				conn.GetName(), conn.GetIssuerURL())
-		}
-		return nil, err
 	}
 
 	a.lock.Lock()
@@ -707,19 +694,19 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 
 // getOAuthClient returns a Oauth2 client from the oidc.Client.  If the connector is set as a Ping provider sets the Client Secret Post auth method
 func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
-
 	oac, err := oidcClient.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	//If the default client secret basic is used the Ping OIDC
-	// will throw an error of multiple client credentials.  Even if you set in Ping
-	// to use Client Secret Post it will return to use client secret basic.
-	// Issue https://github.com/gravitational/teleport/issues/8374
-	if connector.GetProvider() == teleport.Ping {
+	// For OIDC, Ping and Okta will If the default client secret basic is used the Ping OIDC
+	// will throw an error when the default client secret basic method is used.
+	// See: https://github.com/gravitational/teleport/issues/8374
+	switch connector.GetProvider() {
+	case teleport.Ping, teleport.Okta:
 		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
 	}
+
 	return oac, err
 }
 

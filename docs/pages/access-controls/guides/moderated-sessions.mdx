@@ -4,16 +4,18 @@ description: Moderated Sessions
 h1: Moderated Sessions
 ---
 
+<Notice type="warning" scope="oss">
+
+  Moderated Sessions requires Teleport Enterprise or Teleport Cloud.
+
+</Notice>
+
 ## Introduction
 
 Moderated Sessions allows Teleport administrators to define requirements for
 other users to be present in a Server or Kubernetes Access session. Depending on
 the requirements, these users can observe the session in real time, participate
 in the session, and terminate the session at will.
-
-<Admonition type="warning" title="Version Warning">
-  This guide requires a commercial edition of Teleport.
-</Admonition>
 
 ### Use cases
 
@@ -75,6 +77,10 @@ spec:
         modes: ['moderator']
         count: 2
 ```
+
+#### Combining Policies
+
+The authorizer applies require policies within a role together with an OR operator and the policies from each role with an AND operator. In practice, this means that for every role with at least one require policy, one of its policies must be met before a session can be started.
 
 ### `join_sessions`
 
