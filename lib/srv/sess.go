@@ -42,6 +42,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -703,6 +704,10 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 
 	err = sess.trackerCreate(ctx.Identity.TeleportUser, policySets)
 	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -1748,7 +1753,7 @@ func (s *session) trackerCreate(teleportUser string, policySet []*types.SessionT
 
 	_, err := s.registry.auth.CreateSessionTracker(s.serverCtx, req)
 	if err != nil {
-		return trace.Wrap(err)
+		return trail.FromGRPC(err)
 	}
 
 	// Start go routine to push back session expiration while session is still active.

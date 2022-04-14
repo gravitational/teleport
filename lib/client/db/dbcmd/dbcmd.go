@@ -16,11 +16,12 @@
 
 */
 
-package main
+package dbcmd
 
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -33,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -62,6 +65,8 @@ type execer interface {
 	// LookPath returns a full path to a binary if this one is found in system PATH,
 	// error otherwise.
 	LookPath(file string) (string, error)
+	// Command returns the Cmd struct to execute the named program with the given arguments.
+	Command(name string, arg ...string) *exec.Cmd
 }
 
 // systemExecer implements execer interface by using Go exec module.
@@ -77,7 +82,15 @@ func (s systemExecer) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
 }
 
-type cliCommandBuilder struct {
+// Command is a wrapper for exec.Command(...)
+func (s systemExecer) Command(name string, arg ...string) *exec.Cmd {
+	return exec.Command(name, arg...)
+}
+
+// CLICommandBuilder holds data needed to build a CLI command from args passed to NewCmdBuilder.
+// Any calls to the exec package within CLICommandBuilder methods that need to be mocked should
+// use the exe field rather than calling the package directly.
+type CLICommandBuilder struct {
 	tc          *client.TeleportClient
 	rootCluster string
 	profile     *client.ProfileStatus
@@ -90,9 +103,9 @@ type cliCommandBuilder struct {
 	exe execer
 }
 
-func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
+func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	db *tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
-) *cliCommandBuilder {
+) *CLICommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -105,7 +118,11 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		port = options.localProxyPort
 	}
 
-	return &cliCommandBuilder{
+	if options.log == nil {
+		options.log = logrus.NewEntry(logrus.StandardLogger())
+	}
+
+	return &CLICommandBuilder{
 		tc:          tc,
 		profile:     profile,
 		db:          db,
@@ -119,7 +136,18 @@ func newCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 }
 
-func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
+// GetConnectCommand returns a command that can connect the user directly to the given database
+// using an appropriate CLI database client. It takes into account cluster configuration, binaries
+// available on the system and in some cases it even connects to the database to check which exact
+// version of the database the user is running.
+//
+// Underneath it uses exec.Command, so the resulting command will always be expanded to its absolute
+// path if exec.LookPath was able to find the given binary on user's system.
+//
+// If CLICommandBuilder's options.tolerateMissingCLIClient is set to true, GetConnectCommand
+// shouldn't return an error if it cannot locate a client binary. Check WithTolerateMissingCLIClient
+// docs for more details.
+func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
 		return c.getPostgresCommand(), nil
@@ -143,26 +171,51 @@ func (c *cliCommandBuilder) getConnectCommand() (*exec.Cmd, error) {
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
 }
 
-func (c *cliCommandBuilder) getPostgresCommand() *exec.Cmd {
-	return exec.Command(postgresBin,
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port), c.options.noTLS))
+// GetConnectCommandNoAbsPath works just like GetConnectCommand, with the only difference being that
+// it guarantees that the command will always be in its base form, never in an absolute path
+// resolved to the binary location. This is useful for situations where the resulting command is
+// meant to be copied and then pasted into an interactive shell, rather than being run directly
+// by a tool like tsh.
+func (c *CLICommandBuilder) GetConnectCommandNoAbsPath() (*exec.Cmd, error) {
+	cmd, err := c.GetConnectCommand()
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if filepath.IsAbs(cmd.Path) {
+		cmd.Path = filepath.Base(cmd.Path)
+	}
+
+	return cmd, nil
 }
 
-func (c *cliCommandBuilder) getCockroachCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
+	return c.exe.Command(postgresBin, c.getPostgresConnString())
+}
+
+func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
 	if _, err := c.exe.LookPath(cockroachBin); err != nil {
-		log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
+		c.options.log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
-		return exec.Command(postgresBin,
-			postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port), c.options.noTLS))
+		return c.getPostgresCommand()
 	}
-	return exec.Command(cockroachBin, "sql", "--url",
-		postgres.GetConnString(db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port), c.options.noTLS))
+	return c.exe.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
+}
+
+// getPostgresConnString returns the connection string for postgres.
+func (c *CLICommandBuilder) getPostgresConnString() string {
+	return postgres.GetConnString(
+		db.New(c.tc, *c.db, *c.profile, c.rootCluster, c.host, c.port),
+		c.options.noTLS,
+		c.options.printFormat,
+	)
 }
 
 // getMySQLCommonCmdOpts returns common command line arguments for mysql and mariadb.
 // Currently, the common options are: user, database, host, port and protocol.
-func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
+func (c *CLICommandBuilder) getMySQLCommonCmdOpts() []string {
 	args := make([]string, 0)
 	if c.db.Username != "" {
 		args = append(args, "--user", c.db.Username)
@@ -186,7 +239,7 @@ func (c *cliCommandBuilder) getMySQLCommonCmdOpts() []string {
 
 // getMariaDBArgs returns arguments unique for mysql cmd shipped by MariaDB and mariadb cmd. Common options for mysql
 // between Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
-func (c *cliCommandBuilder) getMariaDBArgs() []string {
+func (c *CLICommandBuilder) getMariaDBArgs() []string {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
@@ -210,11 +263,11 @@ func (c *cliCommandBuilder) getMariaDBArgs() []string {
 
 // getMySQLOracleCommand returns arguments unique for mysql cmd shipped by Oracle. Common options between
 // Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
-func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
-		return exec.Command(mysqlBin, args...)
+		return c.exe.Command(mysqlBin, args...)
 	}
 
 	// defaults-group-suffix must be first.
@@ -226,20 +279,25 @@ func (c *cliCommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
 	}
 
-	return exec.Command(mysqlBin, args...)
+	return c.exe.Command(mysqlBin, args...)
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
 // mysql command is returned. Both mysql versions (MariaDB and Oracle) are supported.
-func (c *cliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
+func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
 	if c.isMariaDBBinAvailable() {
 		args := c.getMariaDBArgs()
-		return exec.Command(mariadbBin, args...), nil
+		return c.exe.Command(mariadbBin, args...), nil
 	}
 
-	// Check for mysql binary. Return with error as mysql and mariadb are missing. There is nothing else we can do here.
+	// Check for mysql binary. In case the caller doesn't tolerate a missing CLI client, return with
+	// error as mysql and mariadb are missing. There is nothing else we can do here.
 	if !c.isMySQLBinAvailable() {
+		if c.options.tolerateMissingCLIClient {
+			return c.getMySQLOracleCommand(), nil
+		}
+
 		return nil, trace.NotFound("neither %q nor %q CLI clients were found, please make sure an appropriate CLI client is available in $PATH", mysqlBin, mariadbBin)
 	}
 
@@ -248,7 +306,7 @@ func (c *cliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	mySQLMariaDBFlavor, err := c.isMySQLBinMariaDBFlavor()
 	if mySQLMariaDBFlavor && err == nil {
 		args := c.getMariaDBArgs()
-		return exec.Command(mysqlBin, args...), nil
+		return c.exe.Command(mysqlBin, args...), nil
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql/Oracle command.
@@ -256,26 +314,26 @@ func (c *cliCommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 }
 
 // isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.
-func (c *cliCommandBuilder) isMariaDBBinAvailable() bool {
+func (c *CLICommandBuilder) isMariaDBBinAvailable() bool {
 	_, err := c.exe.LookPath(mariadbBin)
 	return err == nil
 }
 
 // isMySQLBinAvailable returns true if "mysql" binary is found in the system PATH.
-func (c *cliCommandBuilder) isMySQLBinAvailable() bool {
+func (c *CLICommandBuilder) isMySQLBinAvailable() bool {
 	_, err := c.exe.LookPath(mysqlBin)
 	return err == nil
 }
 
 // isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
-func (c *cliCommandBuilder) isMongoshBinAvailable() bool {
+func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 	_, err := c.exe.LookPath(mongoshBin)
 	return err == nil
 }
 
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
 // true is returned when binary comes from MariaDB, false when from Oracle.
-func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
+func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	// Check if mysql comes from Oracle or MariaDB
 	mysqlVer, err := c.exe.RunCommand(mysqlBin, "--version")
 	if err != nil {
@@ -292,7 +350,7 @@ func (c *cliCommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
 }
 
-func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 	// look for `mongosh`
 	hasMongosh := c.isMongoshBinAvailable()
 
@@ -343,15 +401,15 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// use `mongosh` if available
 	if hasMongosh {
-		return exec.Command(mongoshBin, args...)
+		return c.exe.Command(mongoshBin, args...)
 	}
 
 	// fall back to `mongo` if `mongosh` isn't found
-	return exec.Command(mongoBin, args...)
+	return c.exe.Command(mongoBin, args...)
 }
 
 // getRedisCommand returns redis-cli commands used by 'tsh db connect' when connecting to a Redis instance.
-func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
 	args := []string{
 		"-h", c.host,
@@ -378,10 +436,10 @@ func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
 		args = append(args, []string{"-n", c.db.Database}...)
 	}
 
-	return exec.Command(redisBin, args...)
+	return c.exe.Command(redisBin, args...)
 }
 
-func (c *cliCommandBuilder) getSQLServerCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	args := []string{
 		// Host and port must be comma-separated.
 		"-S", fmt.Sprintf("%v,%v", c.host, c.port),
@@ -395,5 +453,75 @@ func (c *cliCommandBuilder) getSQLServerCommand() *exec.Cmd {
 		args = append(args, "-d", c.db.Database)
 	}
 
-	return exec.Command(mssqlBin, args...)
+	return c.exe.Command(mssqlBin, args...)
+}
+
+type connectionCommandOpts struct {
+	localProxyPort           int
+	localProxyHost           string
+	caPath                   string
+	noTLS                    bool
+	printFormat              bool
+	tolerateMissingCLIClient bool
+	log                      *logrus.Entry
+}
+
+// ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
+// A function of type ConnectCommandFunc changes connectionCommandOpts of CLICommandBuilder based on
+// the arguments passed to a "With*" function.
+type ConnectCommandFunc func(*connectionCommandOpts)
+
+// WithLocalProxy makes CLICommandBuilder pass appropriate args to the CLI database clients that
+// will let them connect to a database through a local proxy.
+// In most cases it means using the passed host and port as the address, but some database clients
+// require additional flags in those scenarios.
+func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.localProxyPort = port
+		opts.localProxyHost = host
+		opts.caPath = caPath
+	}
+}
+
+// WithNoTLS is the connect command option that makes the command connect
+// without TLS.
+//
+// It is used when connecting through the local proxy that was started in
+// mutual TLS mode (i.e. with a client certificate).
+func WithNoTLS() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.noTLS = true
+	}
+}
+
+// WithPrintFormat is the connect command option that hints the command will be
+// printed instead of being executed.
+func WithPrintFormat() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.printFormat = true
+	}
+}
+
+// WithLogger is the connect command option that allows the caller to pass a logger that will be
+// used by CLICommandBuilder.
+func WithLogger(log *logrus.Entry) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.log = log
+	}
+}
+
+// WithTolerateMissingCLIClient is the connect command option that makes CLICommandBuilder not
+// return an error in case a specific binary couldn't be found in the system. Instead it should
+// return the command with just a base version of the binary name, without an absolute path.
+//
+// In general CLICommandBuilder doesn't return an error in that scenario as it uses exec.Command
+// underneath. However, there are some specific situations where we need to execute some of the
+// binaries before returning the final command.
+//
+// The flag is mostly for scenarios where the caller doesn't care that the final command might not
+// work.
+func WithTolerateMissingCLIClient() ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.tolerateMissingCLIClient = true
+	}
 }
