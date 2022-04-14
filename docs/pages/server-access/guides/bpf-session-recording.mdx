@@ -28,7 +28,7 @@ it up in your Teleport cluster.
 
 <Notice type="tip">
 
-  Our Standard Session Recording works with older Linux Kernels. View
+  Our Standard Session Recording works with older Linux kernels. View
   [Teleport Nodes](../../architecture/nodes.mdx#session-recording) for more
   details.
 
@@ -79,17 +79,48 @@ Teleport Enhanced Session Recording mitigates all three concerns by providing
 advanced security, greater logging capabilities, and better correlates a user
 with their activities.
 
-## Step 1/2. Install and configure a Teleport Node
+## Step 1/2. Configure a Teleport Node
 
-Set up your Teleport Node with the following content in `etc/teleport.yaml`. 
+### Install Teleport on your Node
+
+On the host where you will run your Teleport Node, follow the instructions for
+your environment to install Teleport.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Generate a token
+
+Use the `tctl` tool to generate an invite token that your Node will use to join
+the cluster. In the following example, a new token is created with a TTL of five
+minutes:
+
+```code
+# Generate a short-lived invitation token for a new node:
+$ tctl nodes add --ttl=5m --roles=node
+# The invite token: (=presets.tokens.first=)
+
+# You can also list all generated non-expired tokens:
+$ tctl tokens ls
+# Token                            Type            Expiry Time
+# ------------------------         -----------     ---------------
+# (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
+
+# ... or revoke an invitation token before it's used:
+$ tctl tokens rm (=presets.tokens.first=)
+```
+
+### Create a configuration file
+
+Set up your Teleport Node with the following content in `/etc/teleport.yaml`. 
 
 ```yaml
 # Example config to be saved as etc/teleport.yaml
 teleport:
   nodename: graviton-node
-  auth_token: exampletoken
+  # The token you created earlier
+  auth_token: (=presets.tokens.first=)
   auth_servers:
-  # Replace with the address of the Teleport Auth Server.
+  # Replace with the address of the Teleport Auth Service or Proxy Service.
   - 127.0.0.1:3025
   data_dir: /var/lib/teleport
 proxy_service:
@@ -114,6 +145,12 @@ ssh_service:
     # Optional: Controls where cgroupv2 hierarchy is mounted. Default value:
     # /cgroup2.
     cgroup_path: /cgroup2
+```
+
+### Start Teleport on your Node
+
+```code
+$ teleport start
 ```
 
 ## Step 2/2. Inspect the audit log
@@ -146,8 +183,20 @@ Sessions with Enhanced Session Recording will include the
 }
 ```
 
-If you would like to examine your audit log on the Teleport Auth Service host,
-you can examine the contents of `/var/lib/teleport/log` as shown below:
+If your Teleport cluster uses a file-based event log, you can examine your audit
+log on the Teleport Auth Service host.
+
+<Details title="Is my cluster using a file-based event log?" opened={false}>
+
+Teleport's session recordings backend is configured via the
+`teleport.storage.audit_sessions_uri` field. If a provided URI includes a scheme
+that belongs to a cloud-based service (e.g., `s3://` or `dynamodb://`), you will
+not be able to inspect session recordings in the filesystem of your Auth Service
+host.
+
+</Details>
+
+Examine the contents of `/var/lib/teleport/log` as shown below:
 
 ```code
 $ teleport-auth ~:  tree /var/lib/teleport/log
