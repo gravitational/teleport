@@ -187,6 +187,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	return nil
 }
 
+// Server is a database server. It accepts database client requests coming over
+// reverse tunnel from Teleport proxy and proxies them to databases.
 type Server struct {
 	// cfg is the database server configuration.
 	cfg Config

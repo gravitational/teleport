@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -37,6 +38,8 @@ import (
 
 // IAMConfig is the IAM configurator config.
 type IAMConfig struct {
+	// Clock used to control time.
+	Clock clockwork.Clock
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
 	// Clients is an interface for retrieving cloud clients.
@@ -49,7 +52,10 @@ type IAMConfig struct {
 }
 
 // Check validates the IAM configurator config.
-func (c *IAMConfig) Check() (err error) {
+func (c *IAMConfig) Check() error {
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
 	}
@@ -62,7 +68,8 @@ func (c *IAMConfig) Check() (err error) {
 	return nil
 }
 
-// iamTask defines an IAM task for the database.
+// iamTask defines a background task to either setup or teardown IAM policies
+// for cloud databases.
 type iamTask struct {
 	// isSetup indicates the task is a setup task if true, a teardown task if
 	// false.
@@ -100,7 +107,7 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 // Start starts the IAM configurator service.
 func (c *IAM) Start(ctx context.Context) error {
 	// DELETE IN 11.0.
-	c.migrateInlinePolicy(ctx)
+	c.deleteOldPolicy(ctx)
 
 	go func() {
 		c.log.Info("Started IAM configurator service.")
@@ -195,12 +202,14 @@ func (c *IAM) getPolicyName() (string, error) {
 
 	prefix := clusterName.GetClusterName()
 
+	// If the length of the policy name is over the limit, trim the cluster
+	// name from right and keep the policyNameSuffix intact.
 	maxPrefixLength := maxPolicyNameLength - len(policyNameSuffix)
 	if len(prefix) > maxPrefixLength {
 		prefix = prefix[:maxPrefixLength]
 	}
 
-	return prefix + policyNameSuffix
+	return prefix + policyNameSuffix, nil
 }
 
 // processTask runs an IAM task.
@@ -218,7 +227,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 			SemaphoreKind: configurator.cfg.policyName,
 			SemaphoreName: configurator.cfg.identity.GetName(),
 			MaxLeases:     1,
-			Expires:       time.Now().Add(time.Minute),
+			Expires:       c.cfg.Clock.Now().Add(time.Minute),
 		},
 		Retry: utils.LinearConfig{
 			Step:   10 * time.Second,
@@ -254,9 +263,9 @@ func (c *IAM) addTask(task iamTask) error {
 	}
 }
 
-// migrateInlinePolicy removes old inline policies "teleport-<host-id>" for
-// the caller identity. DELETE IN 11.0.
-func (c *IAM) migrateInlinePolicy(ctx context.Context) {
+// deleteOldPolicy removes old inline policies "teleport-<host-id>" for the
+// caller identity. DELETE IN 11.0.
+func (c *IAM) deleteOldPolicy(ctx context.Context) {
 	oldPolicyName := "teleport-" + c.cfg.HostID
 	identity, err := c.getAWSIdentity(ctx)
 	if err != nil {
