@@ -5,7 +5,7 @@ description: Teleport Daemon Configuration and Systemd Unit
 
 ## Teleport daemon
 
-The Teleport daemon is called [`teleport`](../reference/cli.mdx#teleport) and it supports
+The Teleport daemon is called `teleport` and it supports
 the following commands:
 
 | Command | Description |
@@ -16,18 +16,18 @@ the following commands:
 | status | Shows the status of a Teleport connection. This command is only available from inside of an active SSH session. |
 | help | Shows help options. |
 
-When experimenting, you can quickly start [`teleport`](../reference/cli.mdx#teleport) with verbose logging by typing [`teleport start -d`](../reference/cli.mdx#teleport-start).
+When experimenting, you can quickly start `teleport` with verbose logging by typing [`teleport start -d`](../reference/cli.mdx#teleport-start).
 
-<Admonition
+<Notice
   type="danger"
-  title="WARNING"
+  scope={["oss", "enterprise"]}
 >
-  Teleport stores data in `/var/lib/teleport` . Make sure that regular/non-admin users do not have access to this folder on the Auth server.
-</Admonition>
+  Teleport stores data in `/var/lib/teleport`. Make sure that regular/non-admin users do not have access to this folder on the Auth Service host.
+</Notice>
 
 ## Systemd unit file
 
-In production, we recommend starting teleport daemon via an init system like `systemd`. Here's the recommended Teleport service unit file for `systemd`:
+In production, we recommend starting the `teleport` daemon via an init system like `systemd`. Here's the recommended Teleport service unit file for `systemd`:
 
 ```systemd
 [Unit]
@@ -56,3 +56,6 @@ administrator must:
 2. Execute `systemctl reload teleport`
 
 This will perform a graceful restart, i.e. the Teleport daemon will fork a new process to handle new incoming requests, leaving the old daemon process running until existing clients disconnect.
+
+## Further reading
+- [Teleport CLI reference](../reference/cli.mdx#teleport)

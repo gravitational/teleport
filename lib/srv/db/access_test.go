@@ -1636,7 +1636,7 @@ func (c *testContext) makeTLSConfig(t *testing.T) *tls.Config {
 	conf := utils.TLSConfig(nil)
 	conf.Certificates = append(conf.Certificates, cert)
 	conf.ClientAuth = tls.VerifyClientCertIfGiven
-	conf.ClientCAs, err = auth.DefaultClientCertPool(c.authServer, c.clusterName)
+	conf.ClientCAs, _, err = auth.DefaultClientCertPool(c.authServer, c.clusterName)
 	require.NoError(t, err)
 	return conf
 }
