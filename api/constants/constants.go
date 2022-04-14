@@ -42,6 +42,13 @@ const (
 	// are captured.
 	EnhancedRecordingNetwork = "network"
 
+	// LocalConnector is the authenticator connector for local logins.
+	LocalConnector = "local"
+
+	// PasswordlessConnector is the authenticator connector for
+	// local/passwordless logins.
+	PasswordlessConnector = "passwordless"
+
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
