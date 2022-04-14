@@ -101,20 +101,16 @@ type SessionTracker interface {
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
-	meta := Metadata{
-		Name: spec.SessionID,
-	}
-
 	session := &SessionTrackerV1{
 		ResourceHeader: ResourceHeader{
-			Kind:     KindSessionTracker,
-			Version:  V1,
-			Metadata: meta,
+			Metadata: Metadata{
+				Name: spec.SessionID,
+			},
 		},
 		Spec: spec,
 	}
 
-	if err := session.Metadata.CheckAndSetDefaults(); err != nil {
+	if err := session.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -176,10 +172,15 @@ func (s *SessionTrackerV1) SetSubKind(sk string) {
 	s.SubKind = sk
 }
 
-// CheckAndSetDefaults sets defaults for the session resource.
-func (s *SessionTrackerV1) CheckAndSetDefaults() error {
+// setStaticFields sets static resource header and metadata fields.
+func (s *SessionTrackerV1) setStaticFields() {
 	s.Kind = KindSessionTracker
 	s.Version = V1
+}
+
+// CheckAndSetDefaults sets defaults for the session resource.
+func (s *SessionTrackerV1) CheckAndSetDefaults() error {
+	s.setStaticFields()
 
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
