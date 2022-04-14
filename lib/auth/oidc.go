@@ -67,6 +67,7 @@ func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 		return clientPack.client, nil
 	}
 
+	close(clientPack.stop)
 	delete(a.oidcClients, conn.GetName())
 	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
 
@@ -79,14 +80,16 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 		return nil, trace.Wrap(err)
 	}
 
-	doneSyncing := make(chan struct{})
+	doneSyncing := make(chan chan struct{})
 	go func() {
 		defer close(doneSyncing)
-		client.SyncProviderConfig(conn.GetIssuerURL())
+		doneSyncing <- client.SyncProviderConfig(conn.GetIssuerURL())
 	}()
 
+	oidcClient := &oidcClient{client: client, config: config}
 	select {
-	case <-doneSyncing:
+	case stop := <-doneSyncing:
+		oidcClient.stop = stop
 	case <-time.After(defaults.WebHeadersTimeout):
 		return nil, trace.ConnectionProblem(nil,
 			"timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
@@ -98,7 +101,7 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
+	a.oidcClients[conn.GetName()] = oidcClient
 
 	return client, nil
 }
