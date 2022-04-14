@@ -146,6 +146,20 @@ const (
 	MySQLStatementFetchCode = "TMY05I"
 	// MySQLStatementBulkExecuteCode is the db.session.mysql.statements.bulk_execute event code.
 	MySQLStatementBulkExecuteCode = "TMY06I"
+	// MySQLInitDBCode is the db.session.mysql.init_db event code.
+	MySQLInitDBCode = "TMY07I"
+	// MySQLCreateDBCode is the db.session.mysql.create_db event code.
+	MySQLCreateDBCode = "TMY08I"
+	// MySQLDropDBCode is the db.session.mysql.drop_db event code.
+	MySQLDropDBCode = "TMY09I"
+	// MySQLShutDownCode is the db.session.mysql.shut_down event code.
+	MySQLShutDownCode = "TMY10I"
+	// MySQLProcessKillCode is the db.session.mysql.process_kill event code.
+	MySQLProcessKillCode = "TMY11I"
+	// MySQLDebugCode is the db.session.mysql.debug event code.
+	MySQLDebugCode = "TMY12I"
+	// MySQLRefreshCode is the db.session.mysql.refresh event code.
+	MySQLRefreshCode = "TMY13I"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
