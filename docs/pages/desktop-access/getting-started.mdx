@@ -365,7 +365,7 @@ In order to enable Desktop Access in Teleport, add the following section in
 configuration fields, see the
 [configuration reference](./reference/configuration.mdx) page.
 
-<Details title="Desktop Service Configuration" min="7.0" scopeOnly={true} scope={["oss", "enterprise"]}>
+<Details title="Desktop Service Configuration" min="8.0" scopeOnly={true} scope={["oss", "enterprise"]}>
 ```yaml
 windows_desktop_service:
   enabled: yes
@@ -380,7 +380,7 @@ windows_desktop_service:
     base_dn: "*"
 ```
 </Details>
-<Details title="Desktop Service Configuration" min="7.0" scopeOnly={true} scope={"cloud"}>
+<Details title="Desktop Service Configuration" min="8.0" scopeOnly={true} scope={"cloud"}>
 For Teleport Cloud, Windows Desktop Service should establish a reverse tunnel to
 the hosted proxy. This requires setting `auth_servers` to your cloud tenant and
 providing a join token.

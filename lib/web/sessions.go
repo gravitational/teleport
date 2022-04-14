@@ -216,7 +216,7 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		certPool, err = services.CertPoolFromCertAuthorities(certAuthorities)
+		certPool, _, err = services.CertPoolFromCertAuthorities(certAuthorities)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -688,6 +688,9 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 		SessionID: ctx.session.GetName(),
 	})
 	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if err := clt.DeleteUserAppSessions(context.TODO(), &proto.DeleteUserAppSessionsRequest{Username: ctx.user}); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.releaseResources(ctx.GetUser(), ctx.session.GetName()); err != nil {
