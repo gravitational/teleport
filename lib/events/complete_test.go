@@ -22,11 +22,61 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
+
+// TestUploadCompleterCompletesAbandonedUploads verifies that the upload completer
+// completes uploads that don't have an associated session tracker.
+func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	mu := NewMemoryUploader()
+	mu.Clock = clock
+
+	log := &mockAuditLog{}
+
+	sessionID := session.NewID()
+	expires := clock.Now().Add(time.Hour * 1)
+	sessionTracker := &types.SessionTrackerV1{
+		Spec: types.SessionTrackerSpecV1{
+			SessionID: string(sessionID),
+		},
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Expires: &expires,
+			},
+		},
+	}
+
+	sessionTrackerService := &MockSessionTrackerService{
+		Clock:        clock,
+		MockTrackers: []types.SessionTracker{sessionTracker},
+	}
+
+	uc, err := NewUploadCompleter(UploadCompleterConfig{
+		Unstarted:      true,
+		Uploader:       mu,
+		AuditLog:       log,
+		SessionTracker: sessionTrackerService,
+	})
+	require.NoError(t, err)
+
+	upload, err := mu.CreateUpload(context.Background(), sessionID)
+	require.NoError(t, err)
+
+	err = uc.CheckUploads(context.Background())
+	require.NoError(t, err)
+	require.False(t, mu.uploads[upload.ID].completed)
+
+	clock.Advance(1 * time.Hour)
+
+	err = uc.CheckUploads(context.Background())
+	require.NoError(t, err)
+	require.True(t, mu.uploads[upload.ID].completed)
+}
 
 // TestUploadCompleterEmitsSessionEnd verifies that the upload completer
 // emits session.end or windows.desktop.session.end events for sessions
@@ -44,24 +94,21 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			mu := NewMemoryUploader()
 			mu.Clock = clock
 
-			log := &MockAuditLog{
+			log := &mockAuditLog{
 				sessionEvents: []apievents.AuditEvent{test.startEvent},
 			}
 
 			uc, err := NewUploadCompleter(UploadCompleterConfig{
-				Unstarted:   true,
-				Uploader:    mu,
-				AuditLog:    log,
-				GracePeriod: 2 * time.Hour,
-				Clock:       clock,
+				Unstarted:      true,
+				Uploader:       mu,
+				AuditLog:       log,
+				Clock:          clock,
+				SessionTracker: &MockSessionTrackerService{},
 			})
 			require.NoError(t, err)
 
 			upload, err := mu.CreateUpload(context.Background(), session.NewID())
 			require.NoError(t, err)
-
-			// advance the clock to force the grace period check to succeed
-			clock.Advance(3 * time.Hour)
 
 			// session end events are only emitted if there's at least one
 			// part to be uploaded, so create that here
@@ -86,42 +133,14 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 	}
 }
 
-// TestUploadCompleterCompletesEmptyUploads verifies that the upload completer
-// completes uploads that have no parts. This ensures that we don't leave empty
-// directories behind.
-func TestUploadCompleterCompletesEmptyUploads(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	mu := NewMemoryUploader()
-	mu.Clock = clock
-
-	log := &MockAuditLog{}
-
-	uc, err := NewUploadCompleter(UploadCompleterConfig{
-		Unstarted:   true,
-		Uploader:    mu,
-		AuditLog:    log,
-		GracePeriod: 2 * time.Hour,
-	})
-	require.NoError(t, err)
-
-	upload, err := mu.CreateUpload(context.Background(), session.NewID())
-	require.NoError(t, err)
-	clock.Advance(3 * time.Hour)
-
-	err = uc.CheckUploads(context.Background())
-	require.NoError(t, err)
-
-	require.True(t, mu.uploads[upload.ID].completed)
-}
-
-type MockAuditLog struct {
+type mockAuditLog struct {
 	DiscardAuditLog
 
 	emitter       MockEmitter
 	sessionEvents []apievents.AuditEvent
 }
 
-func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+func (m *mockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	errors := make(chan error, 1)
 	events := make(chan apievents.AuditEvent)
 
@@ -140,6 +159,6 @@ func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, 
 	return events, errors
 }
 
-func (m *MockAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (m *mockAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return m.emitter.EmitAuditEvent(ctx, event)
 }

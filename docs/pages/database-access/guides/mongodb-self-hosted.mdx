@@ -12,7 +12,6 @@ In this guide you will:
 
 ## Prerequisites
 
-- Teleport version `7.0` or newer.
 - MongoDB cluster (standalone or replica set) version `(=mongodb.min_version=)` or newer.
 
 <Admonition type="note">
@@ -22,17 +21,27 @@ In this guide you will:
   April 2021 so if you're still using an older version, consider upgrading.
 </Admonition>
 
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
 ## Step 1/3. Install and configure Teleport
 
 ### Set up the Teleport Auth and Proxy services
 
+You will need to install Teleport version `7.0` or newer to access self-hosted
+MongoDB instances.
+
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
-### Setup Teleport Database service
+### Set up the Teleport Database service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the address of your Teleport Proxy Service (for Teleport Cloud users, this will resemble `mytenant.teleport.sh`):
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+Start the Teleport Database Service, pointing the `--auth-server` flag to the
+address of your Teleport Proxy Service:
 
 ```code
 $ teleport db start \
@@ -45,10 +54,30 @@ $ teleport db start \
 ```
 
 <Admonition type="note">
-The `--auth-server` flag must point to the Teleport cluster's proxy endpoint
-because the Database Service always connects back to the cluster over a reverse
-tunnel.
+
+The `--auth-server` flag must point to the Teleport cluster's Proxy Service
+endpoint because the Database Service always connects back to the cluster over a
+reverse tunnel.
+
 </Admonition>
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Start the Teleport Database Service, pointing the `--auth-server` flag to the
+address of your Teleport Cloud tenant:
+
+```code
+$ teleport db start \
+  --token=/tmp/token \
+  --auth-server=mytenant.teleport.sh \
+  --name=example-mongo \
+  --protocol=mongodb \
+  --uri=mongo.example.com:27017 \
+  --labels=env=dev
+```
+
+</ScopedBlock>
 
 You can specify either a single connection address or a MongoDB
 [connection string](https://docs.mongodb.com/manual/reference/connection-string/)
@@ -68,16 +97,16 @@ $ --uri="mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet
 
 <Admonition type="tip">
   You can start the Database Service using a configuration file instead of CLI flags.
-  See [YAML reference](../reference/configuration.mdx).
+  See the [YAML reference](../reference/configuration.mdx) for details.
 </Admonition>
 
-### Create Teleport user
+### Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
 ## Step 2/3. Configure MongoDB
 
-### Create MongoDB user
+### Create a MongoDB user
 
 Teleport will use [X.509 authentication](https://docs.mongodb.com/manual/tutorial/configure-x509-client-authentication/)
 when connecting to a MongoDB instance. Users authenticating with client certificates
@@ -85,7 +114,7 @@ must be created in the `$external` MongoDB authentication database.
 
 MongoDB treats the entire `Subject` line of the client certificate as a username.
 When connecting to a MongoDB server, say as a user `alice`, Teleport will sign
-an ephemeral certificate with `CN=alice` subject.
+an ephemeral certificate with the `CN=alice` subject.
 
 To create this user in the database, connect to it using the `mongosh` or `mongo` shell and run
 the following command:
@@ -125,7 +154,7 @@ Create the secrets:
   (!docs/pages/includes/database-access/ttl-note.mdx!)
 
   The command will create two files: `mongo.cas` with Teleport's certificate
-  authority and `mongo.crt` with generated certificate and key pair. You will
+  authority and `mongo.crt` with the generated certificate and key pair. You will
   need these files to enable mutual TLS on your MongoDB server.
   </TabItem>
   <TabItem label="Replica set">
@@ -143,7 +172,7 @@ Create the secrets:
   (!docs/pages/includes/database-access/ttl-note.mdx!)
 
   Each command will create two files: `mongo1.cas`/`mongo2.cas` with Teleport's
-  certificate authority and `mongo1.crt`/`mongo2.crt` with generated certificate
+  certificate authority and `mongo1.crt`/`mongo2.crt` with the generated certificate
   and key pair. You will need these files to enable mutual TLS on your MongoDB
   servers.
   </TabItem>
@@ -179,16 +208,18 @@ When configuring a replica set, make sure to do it for each member and use
 secrets generated for the particular server.
 
 Once mutual TLS has been enabled, you will no longer be able to connect to
-the cluster without providing a valid client certificate. You can use
+the cluster without providing a valid client certificate. You can use the
 `net.tls.allowConnectionsWithoutCertificates` setting to allow connections
 from clients that do not present a certificate.
 
 See [Configure TLS/SSL](https://docs.mongodb.com/manual/tutorial/configure-ssl/)
-in MongoDB documentation for more details.
+in the MongoDB documentation for more details.
 
 ## Step 3/3. Connect
 
-Log into your Teleport cluster and see available databases:
+Log in to your Teleport cluster and see available databases:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -198,15 +229,28 @@ $ tsh db ls
 # example-mongo Example MongoDB env=dev
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name          Description     Labels
+# ------------- --------------- --------
+# example-mongo Example MongoDB env=dev
+```
+
+</ScopedBlock>
+
 To connect to a particular database instance, first retrieve its certificate
-using `tsh db login` command:
+using the `tsh db login` command:
 
 ```code
 $ tsh db login example-mongo
 ```
 
 <Admonition type="tip">
-  You can be logged into multiple databases simultaneously.
+  You can be logged in to multiple databases simultaneously.
 </Admonition>
 
 You can optionally specify the database name and the user to use by default
@@ -222,12 +266,10 @@ Once logged in, connect to the database:
 $ tsh db connect example-mongo
 ```
 
-<Admonition type="note" title="Note">
-  Either the `mongosh` or `mongo` command-line clients should be available in PATH in order to be
-  able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in PATH, runs `mongo`.
-</Admonition>
+<Admonition type="note" title="Supported MongoDB clients">
+  Either the `mongosh` or `mongo` command-line clients should be available in `PATH` in order to be
+  able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in `PATH`, runs `mongo`.
 
-<Admonition type="note" title="Note">
   Teleport 9.0 added support for `mongosh` and made it the default Mongo DB client.
 </Admonition>
 

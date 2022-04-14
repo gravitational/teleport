@@ -215,10 +215,15 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
+	// httpproxy won't proxy when target address is localhost, so use this instead.
+	addr, err := getLocalIP()
+	require.NoError(t, err)
 
 	suite := newProxySuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
+		withRootClusterNodeName(addr),
+		withLeafClusterNodeName(addr),
 		withRootClusterPorts(singleProxyPortSetup()),
 		withLeafClusterPorts(singleProxyPortSetup()),
 		withRootAndLeafClusterRoles(createTestRole(username)),
@@ -697,10 +702,13 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
+	addr, err := getLocalIP()
+	require.NoError(t, err)
+
 	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
-		NodeName:    Loopback,
+		NodeName:    addr,
 		log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
 	})
@@ -716,7 +724,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 
-	err := rc.CreateEx(t, nil, rcConf)
+	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
 
 	err = rc.Start()
@@ -732,9 +740,9 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Setenv("http_proxy", u.Host)
-	t.Setenv("no_proxy", "127.0.0.1")
+	t.Setenv("no_proxy", addr)
 
-	rcProxyAddr := net.JoinHostPort(Loopback, rc.GetPortWeb())
+	rcProxyAddr := net.JoinHostPort(addr, rc.GetPortWeb())
 
 	// Start the node, due to no_proxy=127.0.0.1 env variable the connection established
 	// to the proxy should not go through the http_proxy server.
