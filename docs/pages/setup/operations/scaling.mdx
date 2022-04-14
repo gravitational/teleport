@@ -6,27 +6,29 @@ description: How to configure Teleport for large-scale deployments
 This section covers recommended configurations for large-scale
 deployments of Teleport.
 
+<Notice type="warning" scope={["cloud"]}>
+For Teleport Cloud customers, the settings in this guide are configured automatically.
+</Notice>
+
 ## Prerequisites
 
 - Teleport v(=teleport.version=) Open Source or Enterprise.
 
-<Details scope={["cloud"]} scopeOnly={true} title="Teleport Cloud Compatibility" opened={true}>
-For Teleport Cloud customers, the settings in this guide are configured automatically.
-</Details>
 
 ## Hardware recommendations
 
 Set up Teleport with a [High Availability configuration](../reference/backends.mdx).
 
-| Scenario | Max Recommended Count | Proxy | Auth server | AWS Instance Types |
+| Scenario | Max Recommended Count | Proxy | Auth Server | AWS Instance Types |
 | - | - | - | - | - |
-| Teleport nodes connected to auth server. | 10,000 | 2x  4 vCPUs, 8GB RAM | 2x 8 vCPUs, 16GB RAM | m4.2xlarge |
-| Teleport nodes connected to proxy server through reverse tunnels. | 2,000\* | 2x 4 vCPUs, 8GB RAM | 2x 8 vCPUs, 16+GB RAM | m4.2xlarge |
+| Teleport Nodes connected to Auth Service | 10,000 | 2x  4 vCPUs, 8GB RAM | 2x 8 vCPUs, 16GB RAM | m4.2xlarge |
+| Teleport Nodes connected to Proxy Service through reverse tunnels | 2,000\* | 2x 4 vCPUs, 8GB RAM | 2x 8 vCPUs, 16+GB RAM | m4.2xlarge |
 
 ## Proxy Configuration
 
-Upgrade Teleport's connection limits from default connection limit from `15000` to `65000`
-and use in-memory cache instead of default SQLite persistent cache.
+Upgrade Teleport's connection limits from the default connection limit of
+`15000` to `65000` and use an in-memory cache instead of the default SQLite
+persistent cache.
 
 ```yaml
 teleport:
@@ -42,7 +44,8 @@ teleport:
 
 ## Auth Configuration
 
-Upgrade Teleport's connection limits from default connection limit from `15000` to `65000`.
+Upgrade Teleport's connection limits from default connection limit of `15000` to
+`65000`.
 
 ```yaml
 # Teleport Auth
@@ -54,7 +57,7 @@ teleport:
 
 ## Kernel parameters
 
-Tweak Teleport's systemd unit parameters to allow higher amount of open files:
+Tweak Teleport's systemd unit parameters to allow a higher amount of open files:
 
 ```txt
 [Service]

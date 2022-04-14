@@ -11,64 +11,12 @@ In this guide, we will explain how to:
 
 ## Prerequisites
 
-<Tabs>
-<TabItem scope={["oss"]} label="Self-Hosted">
-
-- A running Teleport cluster. For details on how to set this up, see [Getting
-  Started on a Linux Server](../../getting-started/linux-server.mdx).
-
-- The `tctl` admin tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](../../installation.mdx) for details.
-
-  (!docs/pages/includes/tctl.mdx!)
-
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on setting this up, see our
-  [Enterprise getting started guide](../../enterprise/getting-started.mdx).
-
-- The `tctl` admin tool version >= (=teleport.version=), which you can download
-  by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  (!docs/pages/includes/tctl.mdx!)
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- The `tctl` admin tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](../../installation.mdx) for details.
-
-  (!docs/pages/includes/tctl.mdx!)
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - Fluentd version v(=fluentd.version=).
 - Docker version v(=docker.version=).
+
+(!docs/pages/includes/tctl.mdx!)
 
 Create a folder called `fluentd` to hold configuration and plugin state:
 
@@ -85,15 +33,20 @@ from Teleport's events API, and forwards them to Fluentd.
 <Tabs>
   <TabItem label="Linux">
   ```code
-  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   ```
   </TabItem>
 
   <TabItem label="MacOS">
   ```code
-  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.version=)-darwin-amd64-bin.tar.gz
-  $ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
+  $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  ```
+  </TabItem>
+  <TabItem label="Docker">
+  ```code
+  $ docker pull quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=)
   ```
   </TabItem>
 </Tabs>
