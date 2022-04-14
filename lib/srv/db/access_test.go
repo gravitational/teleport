@@ -785,6 +785,7 @@ func TestAccessMongoDB(t *testing.T) {
 		{
 			name: "client with compression",
 			opts: options.Client().
+				// Add extra time so the test won't time out when running in parallel.
 				SetServerSelectionTimeout(10 * time.Second).
 				SetCompressors([]string{"zlib"}),
 		},
