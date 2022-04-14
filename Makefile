@@ -859,6 +859,12 @@ docker-binaries: clean
 enter:
 	make -C build.assets enter
 
+# Interactively enters a Docker container (which you can build and run Teleport inside of).
+# Similar to `enter`, but uses the centos7 container.
+.PHONY:enter/centos7
+enter/centos7:
+	make -C build.assets enter/centos7
+
 # grpc generates GRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
