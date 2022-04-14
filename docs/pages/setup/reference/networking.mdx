@@ -5,9 +5,13 @@ description: Teleport ports and networking requirements
 
 ## Public address
 
-All three Teleport services (proxy, auth, node) have an optional
-`public_addr` property. The public address can take an IP or a DNS name. It can
-also be a list of values:
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+All Teleport services (the Proxy Service, Auth Service, and Nodes) have an
+optional `public_addr` property that you can modify in each service's
+configuration file. The public address can take an IP or a DNS name. It can also
+be a list of values:
 
 ```yaml
 public_addr: ["proxy-one.example.com", "proxy-two.example.com"]
@@ -18,14 +22,41 @@ following use cases:
 
 - You have multiple identical services, like proxies, behind a load balancer.
 - You want Teleport to issue an SSH certificate for the service with the additional
-  principals, e.g.host names.
+  principals, e.g., host names.
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport Nodes have an optional `public_addr` property that you can modify in
+each service's configuration file. The public address can take an IP or a DNS
+name. It can also be a list of values:
+
+```yaml
+public_addr: ["proxy-one.example.com", "proxy-two.example.com"]
+```
+
+Specifying a public address for a Teleport Node may be useful in the
+following use cases:
+
+- You have multiple identical services, like proxies, behind a load balancer.
+- You want Teleport to issue an SSH certificate for the service with the additional
+  principals, e.g., host names.
+</TabItem>
+</Tabs>
+
 
 ## HTTP CONNECT proxies
 
 Some networks funnel all connections through a proxy server where they can be
-audited and access control rules are applied. For these scenarios, Teleport supports HTTP CONNECT tunneling.
+audited and access control rules can be applied. For these scenarios, Teleport
+supports HTTP CONNECT tunneling.
 
-To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or `HTTP_PROXY` environment variables and when Teleport builds and establishes the reverse tunnel to the main cluster, it will funnel all traffic through the proxy. Specifically, if using the default configuration, Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
+To use HTTP CONNECT tunneling, simply set either the `HTTPS_PROXY` or
+`HTTP_PROXY` variables of the `teleport` daemon's shell environment. When the
+daemon builds and establishes a reverse tunnel to the main cluster, it will
+funnel all traffic through the selected proxy. 
+
+If using the default configuration, Teleport will tunnel ports `3024` (SSH,
+reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
 
 The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 `scheme://host:port` where scheme is either `https` or `http` . If the value is
@@ -33,7 +64,9 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 
 It's important to note that for Teleport to use HTTP CONNECT
 tunneling, the `HTTP_PROXY` and `HTTPS_PROXY` environment variables must be set
-within Teleport's environment. You can also optionally set the `NO_PROXY`
+within Teleport's environment.
+
+You can also optionally set the `NO_PROXY`
 environment variable to avoid use of the proxy when accessing specified
 hosts/netmasks. When launching Teleport with `systemd`, this will probably involve
 adding some lines to your `systemd` unit file:
@@ -46,7 +79,7 @@ Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/
 ```
 
 <Admonition
-  type="tip"
+  type="warning"
   title="Note"
 >
   `localhost` and `127.0.0.1` are invalid values for the proxy host. If for some reason your proxy runs locally, you'll need to provide some other DNS name or a private IP address for it.
@@ -54,25 +87,71 @@ Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/
 
 ## Ports
 
-Teleport services listen on several ports. This table shows the default port numbers.  For Teleport Cloud use the below recommendation to get the ports
-that are assigned for your proxy.
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+Teleport services listen on several ports. This table shows the default port
+numbers for each service.
 
 <Admonition
   type="tip"
   title="Note"
 >
-  To get a listing of the assigned ports for a given proxy use `curl https://teleport.example.com:443/webapi/ping | jq`.  Note
-  that if `tls_routing_enabled` is set to `true` that means only a single port is used for multiple services through the proxy.
+
+  To get a listing of the assigned ports for an instance of the Teleport Proxy
+  Service, use the following command:
+
+  ```code
+  $ curl https://teleport.example.com:443/webapi/ping | jq 
+  ```
+
+  Note that if `auth_service.proxy_listener_mode` is set to `multiplex` in your
+  Teleport configuration, that means only a single port is used for
+  multiple services through the Proxy.
+
 </Admonition>
 
 | Port | Service | Description |
 | - | - | - |
 | 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
-| 3023 | Proxy | SSH port clients connect to. A proxy will forward this connection to port `#3022` on the destination node. |
+| 3023 | Proxy | SSH port clients connect to. The Proxy Service will forward this connection to port `#3022` on the destination Node. |
 | 3024 | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. |
-| 3025 | Auth | SSH port used by the Auth Service to serve its API to other nodes in a cluster. |
-| 3080 | Proxy | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI. |
+| 3025 | Auth | SSH port used by the Auth Service to serve its API to other Nodes in a cluster. |
+| 3080 | Proxy | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 | 3026 | Kubernetes | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
 | 3027 | Kubernetes | Kubernetes Service `kubernetes_service.listen_addr` |
 | 3028 | Desktop | Desktop Service `windows_desktop_service.listen_addr` |
 | 3036 | MySQL | MySQL port `proxy_service.mysql_addr` |
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport services listen on several ports. This table shows the default port
+numbers for each service. The Teleport Proxy Service is the host available at your
+Teleport Cloud tenant URL, e.g., `mytenant.teleport.sh`.
+
+<Admonition
+  type="tip"
+  title="Note"
+>
+
+  To get a listing of the assigned ports for your Teleport Cloud tenant host,
+  use the following command:
+
+  ```code
+  $ curl https://mytenant.teleport.sh/webapi/ping | jq 
+  ```
+
+</Admonition>
+
+| Port | Service | Description |
+| - | - | - |
+| 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
+| 3023 | Proxy | SSH port clients connect to. The Proxy Service will forward this connection to port `#3022` on the destination Node. |
+| 3024 | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. |
+| 3080 | Proxy | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| 3026 | Kubernetes | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
+| 3027 | Kubernetes | Kubernetes Service `kubernetes_service.listen_addr` |
+| 3028 | Desktop | Desktop Service `windows_desktop_service.listen_addr` |
+| 3036 | MySQL | MySQL port `proxy_service.mysql_addr` |
+</TabItem>
+</Tabs>
