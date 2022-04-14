@@ -38,7 +38,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
-        -DBUILD_TOOLS=OFf \
+        -DBUILD_TOOLS=OFF \
         -DCMAKE_BUILD_TYPE=Release . && \
     make && \
     make install
