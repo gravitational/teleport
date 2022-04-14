@@ -483,6 +483,13 @@ func onConfigDump(flags dumpFlags) error {
 		return trace.Wrap(err)
 	}
 
+	entries, err := os.ReadDir(flags.DataDir)
+	if !os.IsNotExist(err) && len(entries) != 0 {
+		fmt.Printf(
+			"The data directory %s has existing cluster state. Running this configuration is likely a mistake. To join a new cluster, specify an alternate --data-dir or clear the %s directory.\n",
+			flags.DataDir, flags.DataDir)
+	}
+
 	if configPath != "" {
 		if modules.GetModules().BuildType() == modules.BuildOSS {
 			fmt.Printf("Wrote config to file %q. Now you can start the server. Happy Teleporting!\n", configPath)
