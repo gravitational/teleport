@@ -201,6 +201,9 @@ const (
 	AccessRequestReviewEvent = "access_request.review"
 	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
 	AccessRequestDeleteEvent = "access_request.delete"
+	// AccessRequestResourceSearch is emitted when a user searches for
+	// resources as part of a search-based access request.
+	AccessRequestResourceSearch = "access_request.search"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
