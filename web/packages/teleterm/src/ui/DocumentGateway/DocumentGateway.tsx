@@ -16,7 +16,6 @@ limitations under the License.
 
 import React from 'react';
 import { Text, Flex, Box, ButtonPrimary, ButtonSecondary, Link } from 'design';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import Document from 'teleterm/ui/Document';
 import * as Alerts from 'design/Alert';
 import * as types from 'teleterm/ui/services/workspacesService';
@@ -39,7 +38,14 @@ export default function Container(props: Props) {
 }
 
 export function DocumentGateway(props: State) {
-  const { gateway, connected, connectAttempt, disconnect, reconnect } = props;
+  const {
+    gateway,
+    connected,
+    connectAttempt,
+    disconnect,
+    reconnect,
+    runCliCommand,
+  } = props;
 
   if (!connected) {
     const statusDescription =
@@ -81,12 +87,7 @@ export function DocumentGateway(props: State) {
         </ButtonSecondary>
       </Flex>
       <Text bold>Connect with CLI</Text>
-      <TextSelectCopy
-        bash={true}
-        bg={'primary.dark'}
-        mb={4}
-        text={gateway.cliCommand}
-      />
+      <CliCommand cliCommand={gateway.cliCommand} onClick={runCliCommand} />
       <Text bold>Connect with GUI</Text>
       <Text>
         To connect with a GUI database client, see our{' '}
@@ -99,5 +100,50 @@ export function DocumentGateway(props: State) {
         for instructions.
       </Text>
     </Box>
+  );
+}
+
+function CliCommand({
+  cliCommand,
+  onClick,
+}: {
+  cliCommand: string;
+  onClick(): void;
+}) {
+  return (
+    <Flex
+      p="2"
+      alignItems="center"
+      justifyContent="space-between"
+      borderRadius={2}
+      bg={'primary.dark'}
+      mb={4}
+    >
+      <Flex
+        mr="2"
+        css={`
+          overflow: auto;
+          white-space: pre;
+          word-break: break-all;
+          font-size: 12px;
+          font-family: ${props => props.theme.fonts.mono};
+        `}
+      >
+        <Box mr="1">{`$`}</Box>
+        <div>{cliCommand}</div>
+      </Flex>
+      <ButtonPrimary
+        onClick={onClick}
+        css={`
+          max-width: 48px;
+          width: 100%;
+          padding: 4px 8px;
+          min-height: 10px;
+          font-size: 10px;
+        `}
+      >
+        Run
+      </ButtonPrimary>
+    </Flex>
   );
 }

@@ -74,6 +74,10 @@ export default function useGateway(doc: types.DocumentGateway) {
     }
   };
 
+  const runCliCommand = () => {
+    workspaceDocumentsService.openNewTerminal(gateway.cliCommand);
+  };
+
   React.useEffect(() => {
     if (disconnectAttempt.status === 'success') {
       workspaceDocumentsService.close(doc.uri);
@@ -93,6 +97,7 @@ export default function useGateway(doc: types.DocumentGateway) {
     connected,
     reconnect,
     connectAttempt,
+    runCliCommand,
   };
 }
 
