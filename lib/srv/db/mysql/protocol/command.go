@@ -210,9 +210,9 @@ func parseChangeUserPacket(packetBytes []byte) (Packet, error) {
 	}, nil
 }
 
-// parseSchameNamePacket parses packet bytes and returns a schemaNamePacket if
+// parseSchemaNamePacket parses packet bytes and returns a schemaNamePacket if
 // successful.
-func parseSchameNamePacket(packetBytes []byte) (schemaNamePacket, bool) {
+func parseSchemaNamePacket(packetBytes []byte) (schemaNamePacket, bool) {
 	unread, ok := skipHeaderAndType(packetBytes)
 	if !ok {
 		return schemaNamePacket{}, false
@@ -226,7 +226,7 @@ func parseSchameNamePacket(packetBytes []byte) (schemaNamePacket, bool) {
 
 // parseInitDBPacket parses packet bytes and returns a Packet if successful.
 func parseInitDBPacket(packetBytes []byte) (Packet, error) {
-	parent, ok := parseSchameNamePacket(packetBytes)
+	parent, ok := parseSchemaNamePacket(packetBytes)
 	if !ok {
 		return nil, trace.BadParameter("failed to parse COM_INIT_DB packet: %v", packetBytes)
 	}
@@ -238,7 +238,7 @@ func parseInitDBPacket(packetBytes []byte) (Packet, error) {
 
 // parseCreateDBPacket parses packet bytes and returns a Packet if successful.
 func parseCreateDBPacket(packetBytes []byte) (Packet, error) {
-	parent, ok := parseSchameNamePacket(packetBytes)
+	parent, ok := parseSchemaNamePacket(packetBytes)
 	if !ok {
 		return nil, trace.BadParameter("failed to parse COM_CREATE_DB packet: %v", packetBytes)
 	}
@@ -250,7 +250,7 @@ func parseCreateDBPacket(packetBytes []byte) (Packet, error) {
 
 // parseDropDBPacket parses packet bytes and returns a Packet if successful.
 func parseDropDBPacket(packetBytes []byte) (Packet, error) {
-	parent, ok := parseSchameNamePacket(packetBytes)
+	parent, ok := parseSchemaNamePacket(packetBytes)
 	if !ok {
 		return nil, trace.BadParameter("failed to parse COM_DROP_DB packet: %v", packetBytes)
 	}
