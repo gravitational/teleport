@@ -130,6 +130,12 @@ const (
 	NoLoginPrefix = "-teleport-nologin-"
 )
 
+// SystemConnectors lists the names of the system-reserved connectors.
+var SystemConnectors = []string{
+	LocalConnector,
+	PasswordlessConnector,
+}
+
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
 
