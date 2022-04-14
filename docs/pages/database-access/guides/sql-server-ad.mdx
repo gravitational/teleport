@@ -66,13 +66,13 @@ Install necessary packages:
 
 <Tabs>
   <TabItem label="Ubuntu">
-    ```bash
+    ```code
     $ sudo apt-get update
     $ sudo apt-get -y install sssd realmd krb5-user samba-common packagekit adcli
     ```
   </TabItem>
   <TabItem label="RHEL / CentOS 7">
-    ```bash
+    ```code
     $ sudo yum -y update
     $ sudo yum -y install sssd realmd krb5-workstation samba-common-tools
     ```
@@ -97,7 +97,7 @@ rdns = false
 
 Join the realm:
 
-```bash
+```code
 $ sudo realm join -v -U admin@EXAMPLE.COM example.com
 ...
  * Successfully enrolled machine in realm
@@ -110,7 +110,7 @@ $ sudo realm join -v -U admin@EXAMPLE.COM example.com
 
 To confirm the node has joined the realm, use the `realm list` command:
 
-```bash
+```code
 $ sudo realm list
 example.com
   type: kerberos
@@ -133,7 +133,7 @@ domain:
 
 <Tabs>
   <TabItem label="Ubuntu 18.04">
-    ```bash
+    ```code
     $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
     $ sudo curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
     $ sudo apt-get update
@@ -141,7 +141,7 @@ domain:
     ```
   </TabItem>
   <TabItem label="Ubuntu 20.04">
-    ```bash
+    ```code
     $ sudo wget -qO /etc/apt/trusted.gpg.d/microsoft.asc https://packages.microsoft.com/keys/microsoft.asc
     $ sudo curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
     $ sudo apt-get update
@@ -149,7 +149,7 @@ domain:
     ```
   </TabItem>
   <TabItem label="RHEL / CentOS 7">
-    ```bash
+    ```code
     $ sudo curl -o /etc/yum.repos.d/msprod.repo https://packages.microsoft.com/config/rhel/8/prod.repo
     $ sudo ACCEPT_EULA=Y yum install -y adutil
     ```
@@ -158,14 +158,14 @@ domain:
 
 Log in to Active Directory using the `kinit` command:
 
-```bash
+```code
 $ kinit admin@EXAMPLE.COM
 ```
 
 Use the `adutil keytab create` command to generate keytab entries for each
 Active Directory user that will be connecting to the SQL Server database:
 
-```bash
+```code
 $ adutil keytab create teleport.keytab alice
 $ adutil keytab create teleport.keytab bob
 ```
@@ -194,7 +194,7 @@ be merged into the same `teleport.keytab` file.
 
 You can verify entries in the keytab file using `klist` command:
 
-```bash
+```code
 $ klist -ke teleport.keytab
 Keytab name: FILE:teleport.keytab
 KVNO Principal
@@ -222,7 +222,7 @@ KVNO Principal
 Start the Teleport Database Service. Make sure to update `--auth-server` to point to
 your Teleport Proxy Service address and `--uri` to the SQL Server endpoint.
 
-  ```bash
+  ```code
   $ teleport db start \
     --token=/tmp/token \
     --auth-server=teleport.example.com:3080 \
@@ -242,7 +242,7 @@ Start the Teleport Database Service. Make sure to update `--auth-server` to
 point to your Teleport Cloud tenant address and `--uri` to the SQL Server
 endpoint.
 
-  ```bash
+  ```code
   $ teleport db start \
     --token=/tmp/token \
     --auth-server=mytenant.teleport.sh \
@@ -278,7 +278,7 @@ Server. Typically, they take a form of `MSSQLSvc/<name>.<ad-domain>:<port>`.
 For example, an AWS RDS SQL Server named `sqlserver` and joined to an AWS managed
 Active Directory domain `EXAMPLE.COM` will have the following SPNs registered:
 
-```bash
+```code
 $ ldapsearch -x -h example.com -D admin -W -b DC=example,DC=com servicePrincipalName
 ...
 # EC2AMAZ-4KN05DU, RDS, AWS Reserved, example.com

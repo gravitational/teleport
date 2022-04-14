@@ -11003,7 +11003,7 @@ type AuthServiceClient interface {
 	MaintainSessionPresence(ctx context.Context, opts ...grpc.CallOption) (AuthService_MaintainSessionPresenceClient, error)
 	// CreateSessionTracker creates a new session tracker resource.
 	CreateSessionTracker(ctx context.Context, in *CreateSessionTrackerRequest, opts ...grpc.CallOption) (*types.SessionTrackerV1, error)
-	// GetSessionTrackerRequest fetches a session tracker resource.
+	// GetSessionTracker fetches a session tracker resource.
 	GetSessionTracker(ctx context.Context, in *GetSessionTrackerRequest, opts ...grpc.CallOption) (*types.SessionTrackerV1, error)
 	// GetActiveSessionTrackers returns a list of active sessions.
 	GetActiveSessionTrackers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error)
@@ -13179,7 +13179,7 @@ type AuthServiceServer interface {
 	MaintainSessionPresence(AuthService_MaintainSessionPresenceServer) error
 	// CreateSessionTracker creates a new session tracker resource.
 	CreateSessionTracker(context.Context, *CreateSessionTrackerRequest) (*types.SessionTrackerV1, error)
-	// GetSessionTrackerRequest fetches a session tracker resource.
+	// GetSessionTracker fetches a session tracker resource.
 	GetSessionTracker(context.Context, *GetSessionTrackerRequest) (*types.SessionTrackerV1, error)
 	// GetActiveSessionTrackers returns a list of active sessions.
 	GetActiveSessionTrackers(*empty.Empty, AuthService_GetActiveSessionTrackersServer) error
