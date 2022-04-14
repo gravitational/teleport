@@ -840,6 +840,110 @@ func NewRoleSet(roles ...types.Role) RoleSet {
 // RoleSet is a set of roles that implements access control functionality
 type RoleSet []types.Role
 
+// EnumerationResult is a result of enumerating a role set against some property, e.g. allowed names or logins.
+type EnumerationResult struct {
+	allowedDeniedMap map[string]bool
+	wildcardAllowed  bool
+	wildcardDenied   bool
+}
+
+func (result *EnumerationResult) filtered(value bool) []string {
+	var filtered []string
+
+	for entity, allow := range result.allowedDeniedMap {
+		if allow == value {
+			filtered = append(filtered, entity)
+		}
+	}
+
+	sort.Strings(filtered)
+
+	return filtered
+}
+
+// Denied returns all explicitly denied users.
+func (result *EnumerationResult) Denied() []string {
+	return result.filtered(false)
+}
+
+// Allowed returns all known allowed users.
+func (result *EnumerationResult) Allowed() []string {
+	if result.WildcardDenied() {
+		return nil
+	}
+	return result.filtered(true)
+}
+
+// WildcardAllowed is true if there * username allowed for given rule set.
+func (result *EnumerationResult) WildcardAllowed() bool {
+	return result.wildcardAllowed && !result.wildcardDenied
+}
+
+// WildcardDenied is true if there * username deny for given rule set.
+func (result *EnumerationResult) WildcardDenied() bool {
+	return result.wildcardDenied
+}
+
+// NewEnumerationResult returns new EnumerationResult.
+func NewEnumerationResult() EnumerationResult {
+	return EnumerationResult{
+		allowedDeniedMap: map[string]bool{},
+		wildcardAllowed:  false,
+		wildcardDenied:   false,
+	}
+}
+
+// EnumerateDatabaseUsers works on a given role set to return a minimal description of allowed set of usernames.
+// It is biased towards *allowed* usernames; It is meant to describe what the user can do, rather than cannot do.
+// For that reason if the user isn't allowed to pick *any* entities, the output will be empty.
+//
+// In cases where * is listed in set of allowed users, it may be hard for users to figure out the expected username.
+// For this reason the parameter extraUsers provides an extra set of users to be checked against RoleSet.
+// This extra set of users may be sourced e.g. from user connection history.
+func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
+	result := NewEnumerationResult()
+
+	// gather users for checking from the roles, check wildcards.
+	var users []string
+	for _, role := range set {
+		wildcardAllowed := false
+		wildcardDenied := false
+
+		for _, user := range role.GetDatabaseUsers(types.Allow) {
+			if user == types.Wildcard {
+				wildcardAllowed = true
+			} else {
+				users = append(users, user)
+			}
+		}
+
+		for _, user := range role.GetDatabaseUsers(types.Deny) {
+			if user == types.Wildcard {
+				wildcardDenied = true
+			} else {
+				users = append(users, user)
+			}
+		}
+
+		result.wildcardDenied = result.wildcardDenied || wildcardDenied
+
+		if err := NewRoleSet(role).CheckAccess(database, AccessMFAParams{Verified: true}); err == nil {
+			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
+		}
+
+	}
+
+	users = apiutils.Deduplicate(append(users, extraUsers...))
+
+	// check each individual user against the database.
+	for _, user := range users {
+		err := set.CheckAccess(database, AccessMFAParams{Verified: true}, &DatabaseUserMatcher{User: user})
+		result.allowedDeniedMap[user] = err == nil
+	}
+
+	return result
+}
+
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
 func MatchNamespace(selectors []string, namespace string) (bool, string) {

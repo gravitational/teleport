@@ -1538,9 +1538,29 @@ func makeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncat
 	return t
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
+func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+	dbUsers := roleSet.EnumerateDatabaseUsers(database)
+	allowed := dbUsers.Allowed()
+
+	if dbUsers.WildcardAllowed() {
+		// start the list with *
+		allowed = append([]string{types.Wildcard}, allowed...)
+	}
+
+	if len(allowed) == 0 {
+		return "(none)"
+	}
+
+	denied := dbUsers.Denied()
+	if len(denied) == 0 || !dbUsers.WildcardAllowed() {
+		return fmt.Sprintf("%v", allowed)
+	}
+	return fmt.Sprintf("%v, except: %v", allowed, denied)
+}
+
+func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	if verbose {
-		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
+		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
 			name := database.GetName()
 			var connect string
@@ -1550,12 +1570,14 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
+
 			t.AddRow([]string{
 				name,
 				database.GetDescription(),
 				database.GetProtocol(),
 				database.GetType(),
 				database.GetURI(),
+				getUsersForDb(database, roleSet),
 				database.LabelsString(),
 				connect,
 				database.Expiry().Format(constants.HumanDateFormatSeconds),
@@ -1576,11 +1598,12 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 			rows = append(rows, []string{
 				name,
 				database.GetDescription(),
+				getUsersForDb(database, roleSet),
 				formatDatabaseLabels(database),
 				connect,
 			})
 		}
-		t := makeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
+		t := makeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
 }
