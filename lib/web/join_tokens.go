@@ -20,10 +20,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"net/http"
 	"net/url"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -89,10 +91,15 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 			return nil, trace.Wrap(err)
 		}
 
-		// if a token with this name is found, return it
-		// otherwise, go ahead and create it
+		// if a token with this name is found and it has indeed the same rule set,
+		// return it. Otherwise, go ahead and create it
 		t, err := clt.GetToken(r.Context(), tokenName)
 		if err == nil {
+			// check if the token found has the right rules
+			if t.GetJoinMethod() != types.JoinMethodIAM || !isSameRuleSet(req.Allow, t.GetAllowRules()) {
+				return nil, errors.New("failed to create token")
+			}
+
 			return &nodeJoinToken{
 				ID:     t.GetName(),
 				Expiry: *t.GetMetadata().Expires,
@@ -328,6 +335,13 @@ func sortRules(rules []*types.TokenRule) {
 
 		return accountID1 < accountID2
 	})
+}
+
+// isSameRuleSet check if r1 and r2 are the same rules, ignoring the order
+func isSameRuleSet(r1 []*types.TokenRule, r2 []*types.TokenRule) bool {
+	sortRules(r1)
+	sortRules(r2)
+	return reflect.DeepEqual(r1, r2)
 }
 
 type nodeAPIGetter interface {

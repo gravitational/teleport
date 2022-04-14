@@ -508,6 +508,110 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 }
 
+func TestIsSameRuleSet(t *testing.T) {
+	tt := []struct {
+		name     string
+		r1       []*types.TokenRule
+		r2       []*types.TokenRule
+		expected bool
+	}{
+		{
+			name:     "empty slice",
+			expected: true,
+		},
+		{
+			name: "simple identical rules",
+			r1: []*types.TokenRule{
+				{
+					AWSAccount: "123123123123",
+				},
+			},
+			r2: []*types.TokenRule{
+				{
+					AWSAccount: "123123123123",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "different rules",
+			r1: []*types.TokenRule{
+				{
+					AWSAccount: "123123123123",
+				},
+			},
+			r2: []*types.TokenRule{
+				{
+					AWSAccount: "111111111111",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "same rules in different order",
+			r1: []*types.TokenRule{
+				{
+					AWSAccount: "123123123123",
+				},
+				{
+					AWSAccount: "222222222222",
+				},
+				{
+					AWSAccount: "111111111111",
+					AWSARN:     "arn:*",
+				},
+			},
+			r2: []*types.TokenRule{
+				{
+					AWSAccount: "222222222222",
+				},
+				{
+					AWSAccount: "111111111111",
+					AWSARN:     "arn:*",
+				},
+				{
+					AWSAccount: "123123123123",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "almost the same rules",
+			r1: []*types.TokenRule{
+				{
+					AWSAccount: "123123123123",
+				},
+				{
+					AWSAccount: "222222222222",
+				},
+				{
+					AWSAccount: "111111111111",
+					AWSARN:     "arn:*",
+				},
+			},
+			r2: []*types.TokenRule{
+				{
+					AWSAccount: "123123123123",
+				},
+				{
+					AWSAccount: "222222222222",
+				},
+				{
+					AWSAccount: "111111111111",
+					AWSARN:     "arn:",
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, isSameRuleSet(tc.r1, tc.r2))
+		})
+	}
+}
+
 type mockedNodeAPIGetter struct {
 	mockGenerateToken    func(ctx context.Context, req auth.GenerateTokenRequest) (string, error)
 	mockGetProxyServers  func() ([]types.Server, error)
