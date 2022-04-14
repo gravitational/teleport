@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -274,7 +275,10 @@ func onDatabaseConfig(cf *CLIConf) error {
 	}
 	switch cf.Format {
 	case dbFormatCommand:
-		cmd, err := newCmdBuilder(tc, profile, database, rootCluster, WithPrintFormat()).getConnectCommand()
+		cmd, err := dbcmd.NewCmdBuilder(tc, profile, database, rootCluster,
+			dbcmd.WithPrintFormat(),
+			dbcmd.WithLogger(log),
+		).GetConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -299,11 +303,11 @@ Key:       %v
 // maybeStartLocalProxy starts local TLS ALPN proxy if needed depending on the
 // connection scenario and returns a list of options to use in the connect
 // command.
-func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, cluster string) ([]ConnectCommandFunc, error) {
+func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, cluster string) ([]dbcmd.ConnectCommandFunc, error) {
 	// Local proxy is started if TLS routing is enabled, or if this is a SQL
 	// Server connection which always requires a local proxy.
 	if !tc.TLSRoutingEnabled && db.Protocol != defaults.ProtocolSQLServer {
-		return []ConnectCommandFunc{}, nil
+		return []dbcmd.ConnectCommandFunc{}, nil
 	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -346,8 +350,8 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	// certificate's DNS names. As such, connecting to 127.0.0.1 will fail
 	// validation, so connect to localhost.
 	host := "localhost"
-	return []ConnectCommandFunc{
-		WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(cluster)),
+	return []dbcmd.ConnectCommandFunc{
+		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(cluster)),
 	}, nil
 }
 
@@ -389,7 +393,8 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cmd, err := newCmdBuilder(tc, profile, database, rootClusterName, opts...).getConnectCommand()
+	opts = append(opts, dbcmd.WithLogger(log))
+	cmd, err := dbcmd.NewCmdBuilder(tc, profile, database, rootClusterName, opts...).GetConnectCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -591,43 +596,6 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 		}
 	}
 	return nil, trace.NotFound("Not logged into database %q", name)
-}
-
-type connectionCommandOpts struct {
-	localProxyPort int
-	localProxyHost string
-	caPath         string
-	noTLS          bool
-	printFormat    bool
-}
-
-type ConnectCommandFunc func(*connectionCommandOpts)
-
-func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
-	return func(opts *connectionCommandOpts) {
-		opts.localProxyPort = port
-		opts.localProxyHost = host
-		opts.caPath = caPath
-	}
-}
-
-// WithNoTLS is the connect command option that makes the command connect
-// without TLS.
-//
-// It is used when connecting through the local proxy that was started in
-// mutual TLS mode (i.e. with a client certificate).
-func WithNoTLS() ConnectCommandFunc {
-	return func(opts *connectionCommandOpts) {
-		opts.noTLS = true
-	}
-}
-
-// WithPrintFormat is the connect command option that hints the command will be
-// printed instead of being executed.
-func WithPrintFormat() ConnectCommandFunc {
-	return func(opts *connectionCommandOpts) {
-		opts.printFormat = true
-	}
 }
 
 func formatDatabaseListCommand(clusterFlag string) string {
