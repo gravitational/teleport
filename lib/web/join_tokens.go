@@ -86,7 +86,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	// to prevent generation of redundant IAM tokens
 	// we generate a deterministic name for them
 	if req.JoinMethod == types.JoinMethodIAM {
-		tokenName, err = generateIamTokenName(req.Allow)
+		tokenName, err = generateIAMTokenName(req.Allow)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -298,9 +298,9 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 	return buf.String(), nil
 }
 
-// generateIamTokenName makes a deterministic name for a iam join token
+// generateIAMTokenName makes a deterministic name for a iam join token
 // based on its rule set
-func generateIamTokenName(rules []*types.TokenRule) (string, error) {
+func generateIAMTokenName(rules []*types.TokenRule) (string, error) {
 	// sort the rules by (account ID, arn)
 	// to make sure a set of rules will produce the same hash,
 	// no matter the order they are in the slice
