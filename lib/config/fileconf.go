@@ -273,7 +273,8 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 
 	// Apps config:
 	var apps Apps
-	if roles[defaults.RoleApp] {
+	// assume users want app role if they added app name and/or uri but didn't add app role
+	if roles[defaults.RoleApp] || flags.AppURI != "" || flags.AppName != "" {
 		apps.EnabledFlag = "yes"
 		apps.Apps = []*App{
 			{
