@@ -18,16 +18,13 @@ const clusterMock: tsh.Cluster = {
 
 const gatewayMock: tsh.Gateway = {
   uri: 'gatewayTestUri',
-  caCertPath: '',
-  certPath: '',
-  keyPath: '',
   localAddress: 'localhost',
   localPort: '2000',
   protocol: 'https',
   targetName: 'Test',
   targetUser: '',
   targetUri: 'clusters/xxx/',
-  insecure: true,
+  cliCommand: 'psql postgres://postgres@localhost:5432/postgres',
 };
 
 const dbMock: tsh.Database = {
@@ -418,4 +415,3 @@ test.each([
 
   expect(foundServers).toStrictEqual([serverMock]);
 });
-

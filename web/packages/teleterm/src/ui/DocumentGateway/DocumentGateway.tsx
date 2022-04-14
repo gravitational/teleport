@@ -21,11 +21,7 @@ import Document from 'teleterm/ui/Document';
 import * as Alerts from 'design/Alert';
 import * as types from 'teleterm/ui/services/workspacesService';
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
-import { GatewayProtocol } from 'teleterm/ui/services/clusters/types';
 import useDocumentGateway, { State } from './useDocumentGateway';
-import { usePostgres } from './Postgres/usePostgres';
-import { useMongo } from './Mongo/useMongo';
-import { useMySql } from './MySql/useMySql';
 
 type Props = {
   visible: boolean;
@@ -71,32 +67,6 @@ export function DocumentGateway(props: State) {
     );
   }
 
-  let cliConnectionString: string;
-
-  switch (gateway.protocol as GatewayProtocol) {
-    case 'mongodb':
-      cliConnectionString = useMongo(gateway);
-      break;
-    case 'postgres':
-      cliConnectionString = usePostgres(gateway);
-      break;
-    case 'mysql':
-      cliConnectionString = useMySql(gateway);
-      break;
-  }
-
-  const cliSection = cliConnectionString ? (
-    <TextSelectCopy
-      bash={false}
-      bg={'primary.dark'}
-      mb={4}
-      text={cliConnectionString}
-    />
-  ) : (
-    // We're going to add support for other protocols before the preview release.
-    <Text mb={4}>{gateway.protocol} support is coming soon!</Text>
-  );
-
   return (
     <Box maxWidth="1024px" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4">
@@ -108,7 +78,12 @@ export function DocumentGateway(props: State) {
         </ButtonSecondary>
       </Flex>
       <Text bold>Connect with CLI</Text>
-      {cliSection}
+      <TextSelectCopy
+        bash={true}
+        bg={'primary.dark'}
+        mb={4}
+        text={gateway.cliCommand}
+      />
       <Text bold>Connect with GUI</Text>
       <Text>
         To connect with a GUI database client, see our{' '}
