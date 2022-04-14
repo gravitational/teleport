@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -635,6 +636,12 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "/path/to/data/dir", fc.DataDir)
+
+		fc, err = MakeSampleFileConfig(SampleFlags{
+			DataDir: "",
+		})
+		require.NoError(t, err)
+		require.Equal(t, defaults.DataDir, fc.DataDir)
 	})
 
 	t.Run("Token", func(t *testing.T) {
