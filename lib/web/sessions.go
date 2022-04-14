@@ -690,6 +690,9 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
+	if err := clt.DeleteUserAppSessions(context.TODO(), &proto.DeleteUserAppSessionsRequest{Username: ctx.user}); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := s.releaseResources(ctx.GetUser(), ctx.session.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
