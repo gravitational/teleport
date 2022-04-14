@@ -270,7 +270,7 @@ identity information.
   The `useradd` location can have a different path than the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
 </Admonition>
 
-```bash
+```code
 mkdir -p /etc/pam-exec.d
 cat > /etc/pam-exec.d/teleport_acct <<EOF
 #!/bin/sh

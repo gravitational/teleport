@@ -1299,13 +1299,13 @@ The `--query` flag allows you to perform more sophisticated searches using a [pr
 
 In both cases, you can further refine the results by appending a list of comma-separated labels to the command. For example:
 
-```bash
+```code
 $ tsh ls --search=foo,bar labelKey1=labelValue1,labelKey2=labelValue2
 ```
 
 ### Filter Examples
 
-```bash
+```code
 # List all nodes
 $ tsh ls
 
@@ -1326,7 +1326,7 @@ $ tsh ls --query='labels.env == "staging" && equals(labels.os, "mac")'
 
 Displays user accesses to SSH nodes
 
-```bash
+```code
 tctl access ls [--user <user> | --login <login> | --node <hostname>][<flags>]
 ```
 
@@ -1341,7 +1341,7 @@ tctl access ls [--user <user> | --login <login> | --node <hostname>][<flags>]
 
 #### Examples
 
-```bash
+```code
 # Get all user accesses over all nodes
 tctl access ls
 # Get accesses for user 'joe'
