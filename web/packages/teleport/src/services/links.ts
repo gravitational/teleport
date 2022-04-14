@@ -24,7 +24,7 @@ export default function getDownloadLink(
   let infix = 'linux-amd64';
   const enterprise = isEnterprise ? 'ent-' : '';
   if (type === 'mac') {
-    infix = 'darwin-amd64';
+    return `${DOWNLOAD_BASE_URL}teleport-${enterprise}${version}.pkg`;
   } else if (type === 'linux32') {
     infix = 'linux-386';
   }
