@@ -46,7 +46,7 @@ func TestCreateNodeJoinToken(t *testing.T) {
 	require.Equal(t, "some-token-id", token.ID)
 }
 
-func TestGenerateIamTokenName(t *testing.T) {
+func TestGenerateIAMTokenName(t *testing.T) {
 	rule1 := types.TokenRule{
 		AWSAccount: "100000000000",
 		AWSARN:     "arn:aws:iam:1",
@@ -55,7 +55,7 @@ func TestGenerateIamTokenName(t *testing.T) {
 	rule1Name := "teleport-ui-iam-2218897454"
 
 	// make sure the hash algorithm don't change accidentally
-	hash1, err := generateIamTokenName([]*types.TokenRule{&rule1})
+	hash1, err := generateIAMTokenName([]*types.TokenRule{&rule1})
 	require.NoError(t, err)
 	require.Equal(t, rule1Name, hash1)
 
@@ -65,19 +65,19 @@ func TestGenerateIamTokenName(t *testing.T) {
 	}
 
 	// make sure the order doesn't matter
-	hash1, err = generateIamTokenName([]*types.TokenRule{&rule1, &rule2})
+	hash1, err = generateIAMTokenName([]*types.TokenRule{&rule1, &rule2})
 	require.NoError(t, err)
 
-	hash2, err := generateIamTokenName([]*types.TokenRule{&rule2, &rule1})
+	hash2, err := generateIAMTokenName([]*types.TokenRule{&rule2, &rule1})
 	require.NoError(t, err)
 
 	require.Equal(t, hash1, hash2)
 
 	// generate different hashes for different rules
-	hash1, err = generateIamTokenName([]*types.TokenRule{&rule1})
+	hash1, err = generateIAMTokenName([]*types.TokenRule{&rule1})
 	require.NoError(t, err)
 
-	hash2, err = generateIamTokenName([]*types.TokenRule{&rule2})
+	hash2, err = generateIAMTokenName([]*types.TokenRule{&rule2})
 	require.NoError(t, err)
 
 	require.NotEqual(t, hash1, hash2)
