@@ -22,12 +22,10 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -36,40 +34,32 @@ type server struct {
 	listener net.Listener
 	config   *ssh.ServerConfig
 	handler  func(*ssh.ServerConn)
-	t        *testing.T
-	mu       sync.RWMutex
-	closed   bool
 
 	cSigner ssh.Signer
 	hSigner ssh.Signer
 }
 
-func (s *server) Run() {
+func (s *server) Run(errC chan error) {
 	for {
 		conn, err := s.listener.Accept()
-
-		s.mu.RLock()
-		if s.closed {
-			s.mu.RUnlock()
+		if err != nil {
+			errC <- err
 			return
 		}
-		s.mu.RUnlock()
-
-		assert.NoError(s.t, err)
 
 		go func() {
 			defer conn.Close()
 			sconn, _, _, err := ssh.NewServerConn(conn, s.config)
-			assert.NoError(s.t, err)
+			if err != nil {
+				errC <- err
+				return
+			}
 			s.handler(sconn)
 		}()
 	}
 }
 
 func (s *server) Stop() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.closed = true
 	return s.listener.Close()
 }
 
@@ -89,15 +79,15 @@ func generateSigner(t *testing.T) ssh.Signer {
 	return signer
 }
 
-func (s *server) GetClient() (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request) {
+func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request) {
 	conn, err := net.Dial("tcp", s.listener.Addr().String())
-	require.NoError(s.t, err)
+	require.NoError(t, err)
 
 	sconn, nc, r, err := ssh.NewClientConn(conn, "", &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cSigner)},
 		HostKeyCallback: ssh.FixedHostKey(s.hSigner.PublicKey()),
 	})
-	require.NoError(s.t, err)
+	require.NoError(t, err)
 
 	return sconn, nc, r
 }
@@ -118,7 +108,6 @@ func newServer(t *testing.T, handler func(*ssh.ServerConn)) *server {
 		listener: listener,
 		config:   config,
 		handler:  handler,
-		t:        t,
 		cSigner:  cSigner,
 		hSigner:  hSigner,
 	}
@@ -127,37 +116,46 @@ func newServer(t *testing.T, handler func(*ssh.ServerConn)) *server {
 // TestTransportError ensures ConnectProxyTransport does not block forever
 // when an error occurs while opening the transport channel.
 func TestTransportError(t *testing.T) {
-	errC := make(chan error)
+	handlerErrC := make(chan error, 1)
+	serverErrC := make(chan error, 1)
 
 	server := newServer(t, func(sconn *ssh.ServerConn) {
 		_, _, err := ConnectProxyTransport(sconn, &DialReq{
 			Address: "test", ServerID: "test",
 		}, false)
-		errC <- err
+		handlerErrC <- err
 	})
 
-	go server.Run()
+	go server.Run(serverErrC)
 	t.Cleanup(func() { require.NoError(t, server.Stop()) })
 
-	sconn1, nc, _ := server.GetClient()
+	sconn1, nc, _ := server.GetClient(t)
 	t.Cleanup(func() { require.Error(t, sconn1.Close()) })
+
 	channel := <-nc
 	require.Equal(t, channel.ChannelType(), constants.ChanTransport)
 
 	sconn1.Close()
-	err := timeoutErrC(t, errC, time.Second*5)
+	err := timeoutErrC(t, handlerErrC, time.Second*5)
 	require.Error(t, err)
 
-	sconn2, nc, _ := server.GetClient()
+	sconn2, nc, _ := server.GetClient(t)
 	t.Cleanup(func() { require.NoError(t, sconn2.Close()) })
+
 	channel = <-nc
 	require.Equal(t, channel.ChannelType(), constants.ChanTransport)
 
 	err = channel.Reject(ssh.ConnectionFailed, "test reject")
 	require.NoError(t, err)
 
-	err = timeoutErrC(t, errC, time.Second*5)
+	err = timeoutErrC(t, handlerErrC, time.Second*5)
 	require.Error(t, err)
+
+	select {
+	case err = <-serverErrC:
+		require.FailNow(t, err.Error())
+	default:
+	}
 }
 
 func timeoutErrC(t *testing.T, errC <-chan error, d time.Duration) error {
