@@ -8,6 +8,13 @@ default everything is stored in a local directory at the Auth server.
 Integration with other storage types is implemented based on the nature of the
 stored data (size, read/write ratio, mutability, etc.).
 
+<Notice scope={["cloud"]} type="tip">
+
+Teleport Cloud manages Auth Service and Proxy Service data for you, so there is
+no need to configure a backend.
+
+</Notice>
+
 | Data type | Description | Supported storage backends |
 | - | - | - |
 | core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, AWS DynamoDB, GCP Firestore |

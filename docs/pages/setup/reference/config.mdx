@@ -9,10 +9,57 @@ Teleport uses the YAML file format for configuration. A full configuration refer
 file is shown below, this provides comments and all available options for `teleport.yaml`
 By default, it is stored in `/etc/teleport.yaml`.
 
-(!docs/pages/includes/backup-warning.mdx!)
+<Admonition type="danger" title="Before using this reference">
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-This document aims to be a reference rather than a starting point for a real cluster. To
-get a good starting file, run `teleport configure -o teleport.yaml`.
+- **Do not use this example configuration in production.**
+
+  You must edit your configuration file to meet the needs of your environment.
+  Using a copy of the reference configuration will have unintended effects. To
+  create a configuration file that you can use as a starting point, run the
+  following command:
+
+  ```code
+  $ teleport configure -o file
+  ```
+
+- You should back up your configuration file before making changes. This will
+  enable you to roll back to the previous configuration if you need to.
+
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Teleport Cloud">
+
+- **Do not use this example configuration in production.**
+
+  You must edit your configuration file to meet the needs of your environment.
+  Using a copy of the reference configuration will have unintended effects. To
+  create a configuration file that you can use as a starting point, run the
+  following command:
+
+  ```code
+  $ teleport configure -o file
+  ```
+
+- You should back up your configuration file before making changes. This will
+  enable you to roll back to the previous configuration if you need to.
+
+- Teleport Cloud manages the Auth Service and Proxy Service for you. Your
+  Teleport Nodes should include the following configuration options to avoid
+  unintended effects:
+
+  ```yaml
+  auth_service:
+    enabled: no
+  
+  proxy_service:
+    enabled: no
+  ```
+
+</TabItem>
+</Tabs>
+</Admonition>
+
 
 ```yaml
 # By default, this file should be stored in /etc/teleport.yaml
