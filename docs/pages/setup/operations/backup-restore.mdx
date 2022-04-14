@@ -39,7 +39,7 @@ Teleport audit logs, logged events have a TTL of 1 year.
 
 | Backend | Recommended backup strategy |
 | - | - |
-| Local Filesystem ) | Back up the `/var/lib/teleport/storage` directory and the output of `tctl get all --with-secrets`. |
+| Local Filesystem | Back up the `/var/lib/teleport/storage` directory and the output of `tctl get all --with-secrets`. |
 | DynamoDB | [Follow AWS's guidelines for backup and restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
 | etcd | [Follow etcd's guidelines for disaster recovery](https://etcd.io/docs/v2/admin_guide) |
 | Firestore | [Follow GCP's guidelines for automated backups](https://firebase.google.com/docs/database/backups) |
