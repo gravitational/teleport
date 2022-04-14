@@ -794,45 +794,49 @@ func TestAccessMongoDB(t *testing.T) {
 	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
 		test := test
-		for _, serverOpt := range serverOpts {
-			serverOpt := serverOpt
-			for _, clientOpt := range clientOpts {
-				clientOpt := clientOpt
-				t.Run(fmt.Sprintf("%v/%v/%v", serverOpt.name, clientOpt.name, test.desc), func(t *testing.T) {
-					t.Parallel()
+		t.Run(fmt.Sprintf("%v", test.desc), func(t *testing.T) {
+			t.Parallel()
 
-					testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
-					go testCtx.startHandlingConnections()
+			for _, serverOpt := range serverOpts {
+				testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
+				go testCtx.startHandlingConnections()
 
-					// Create user/role with the requested permissions.
-					testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+				for _, clientOpt := range clientOpts {
+					clientOpt := clientOpt
 
-					// Try to connect to the database as this user.
-					mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
-					t.Cleanup(func() {
-						if mongoClient != nil {
-							require.NoError(t, mongoClient.Disconnect(ctx))
+					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
+						t.Parallel()
+
+						// Create user/role with the requested permissions.
+						testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+
+						// Try to connect to the database as this user.
+						mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
+						t.Cleanup(func() {
+							if mongoClient != nil {
+								require.NoError(t, mongoClient.Disconnect(ctx))
+							}
+						})
+						if test.connectErr != "" {
+							require.Error(t, err)
+							require.Contains(t, err.Error(), test.connectErr)
+							return
 						}
-					})
-					if test.connectErr != "" {
-						require.Error(t, err)
-						require.Contains(t, err.Error(), test.connectErr)
-						return
-					}
-					require.NoError(t, err)
+						require.NoError(t, err)
 
-					// Execute a "find" command. Collection name doesn't matter currently.
-					records, err := mongoClient.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
-					if test.queryErr != "" {
-						require.Error(t, err)
-						require.Contains(t, err.Error(), test.queryErr)
-						return
-					}
-					require.NoError(t, err)
-					require.NoError(t, records.Close(ctx))
-				})
+						// Execute a "find" command. Collection name doesn't matter currently.
+						records, err := mongoClient.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
+						if test.queryErr != "" {
+							require.Error(t, err)
+							require.Contains(t, err.Error(), test.queryErr)
+							return
+						}
+						require.NoError(t, err)
+						require.NoError(t, records.Close(ctx))
+					})
+				}
 			}
-		}
+		})
 	}
 }
 
