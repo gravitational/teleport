@@ -211,16 +211,18 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
 	}
 
-	// adfs specific settings
-	if sc.GetProvider() == teleport.ADFS {
+	// Provider specific settings for ADFS and JumpCloud. Specifically these
+	// providers do not support C14N11, which means a C14N10 canonicalizer has to
+	// be used.
+	switch sc.GetProvider() {
+	case teleport.ADFS, teleport.JumpCloud:
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentSAML,
-		}).Debug("Setting ADFS values.")
+		}).Debug("Setting ADFS/JumpCloud values.")
 		if sp.SignAuthnRequests {
-			// adfs does not support C14N11, we have to use the C14N10 canonicalizer
 			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
 
-			// at a minimum we require password protected transport
+			// At a minimum we require password protected transport.
 			sp.RequestedAuthnContext = &saml2.RequestedAuthnContext{
 				Comparison: "minimum",
 				Contexts:   []string{"urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport"},

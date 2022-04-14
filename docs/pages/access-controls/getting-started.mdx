@@ -13,8 +13,7 @@ with creating your own role.
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../cloud/introduction.mdx) >= (=teleport.version=)
-- [tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -90,7 +89,7 @@ We're now going to set up a GitHub connector for Teleport Open Source Edition an
     ```
   </TabItem>
 
-  <TabItem label="Enterprise" scope={["enterprise"]}>
+  <TabItem label="Enterprise, Cloud" scope={["enterprise","cloud"]}>
     Follow [SAML Okta Guide](../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
     Check out [OIDC guides](../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.

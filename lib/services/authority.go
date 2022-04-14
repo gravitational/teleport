@@ -314,10 +314,12 @@ func (c *UserCertParams) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CertPoolFromCertAuthorities returns certificate pools from TLS certificates
-// set up in the certificate authorities list
-func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, error) {
+// CertPoolFromCertAuthorities returns a certificate pool from the TLS certificates
+// set up in the certificate authorities list, as well as the number of certificates
+// that were added to the pool.
+func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, int, error) {
 	certPool := x509.NewCertPool()
+	count := 0
 	for _, ca := range cas {
 		keyPairs := ca.GetTrustedTLSKeyPairs()
 		if len(keyPairs) == 0 {
@@ -326,12 +328,13 @@ func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, err
 		for _, keyPair := range keyPairs {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, 0, trace.Wrap(err)
 			}
 			certPool.AddCert(cert)
+			count++
 		}
 	}
-	return certPool, nil
+	return certPool, count, nil
 }
 
 // CertPool returns certificate pools from TLS certificates

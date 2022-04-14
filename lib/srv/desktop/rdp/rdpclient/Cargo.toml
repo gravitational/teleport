@@ -23,5 +23,5 @@ num-traits = "0.2.14"
 openssl = { version = "0.10.38", features = ["vendored"] }
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
-rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "cb61119d2803f647b60e6c9b2ef05ab587cc1966" }
+rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "f51222e7edeaf2954e2c02db3506aa36e02304ca" }
 uuid = { version = "0.8.2", features = ["v4"] }
