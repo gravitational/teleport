@@ -553,3 +553,105 @@ func TestX11Config(t *testing.T) {
 		})
 	}
 }
+
+func TestMakeSampleFileConfig(t *testing.T) {
+	t.Run("Default roles", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles: "",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "yes", fc.SSH.EnabledFlag)
+		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
+		require.Equal(t, "yes", fc.Auth.EnabledFlag)
+	})
+
+	t.Run("Node role", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles: "node",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "yes", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+	})
+
+	t.Run("App role", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles: "app",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+	})
+
+	t.Run("Proxy role", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles: "proxy",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+	})
+
+	t.Run("App role included when flag AppName is added", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:   "proxy",
+			AppName: "my-app",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.Equal(t, "my-app", fc.Apps.Apps[0].Name)
+	})
+
+	t.Run("Multiple roles", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles: "proxy,app,db",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "yes", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.Equal(t, "yes", fc.Databases.EnabledFlag)
+	})
+
+	t.Run("Auth server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AuthServer: "auth-server",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "auth-server", fc.AuthServers[0])
+	})
+
+	t.Run("Data dir", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			DataDir: "/path/to/data/dir",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "/path/to/data/dir", fc.DataDir)
+	})
+
+	t.Run("Token", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AuthToken: "auth-token",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "auth-token", fc.AuthToken)
+	})
+
+	t.Run("App name and URI", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AppName: "app-name",
+			AppURI:  "https://localhost:8080",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "app-name", fc.Apps.Apps[0].Name)
+		require.Equal(t, "https://localhost:8080", fc.Apps.Apps[0].URI)
+	})
+}
