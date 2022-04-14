@@ -226,6 +226,7 @@ func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRol
 }
 
 func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
+	// Skip decoding validation for IAM tokens since they are generated with a different method
 	if settings.joinMethod != string(types.JoinMethodIAM) {
 		// This token does not need to be validated against the backend because it's not used to
 		// reveal any sensitive information. However, we still need to perform a simple input
