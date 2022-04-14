@@ -1103,25 +1103,14 @@ func (i *TeleInstance) Start() error {
 	// Build a list of expected events to wait for before unblocking based off
 	// the configuration passed in.
 	expectedEvents := []string{}
-	if i.Config.Auth.Enabled {
-		expectedEvents = append(expectedEvents, service.AuthTLSReady)
-	}
+	// Always wait for TeleportReadyEvent.
+	expectedEvents = append(expectedEvents, service.TeleportReadyEvent)
 	if i.Config.Proxy.Enabled {
 		expectedEvents = append(expectedEvents, service.ProxyReverseTunnelReady)
-		expectedEvents = append(expectedEvents, service.ProxySSHReady)
 		expectedEvents = append(expectedEvents, service.ProxyAgentPoolReady)
 		if !i.Config.Proxy.DisableWebService {
 			expectedEvents = append(expectedEvents, service.ProxyWebServerReady)
 		}
-	}
-	if i.Config.SSH.Enabled {
-		expectedEvents = append(expectedEvents, service.NodeSSHReady)
-	}
-	if i.Config.Apps.Enabled {
-		expectedEvents = append(expectedEvents, service.AppsReady)
-	}
-	if i.Config.Databases.Enabled {
-		expectedEvents = append(expectedEvents, service.DatabasesReady)
 	}
 
 	// Start the process and block until the expected events have arrived.
@@ -1755,4 +1744,27 @@ func genUserKey() (*client.Key, error) {
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, nil
+}
+
+// getLocalIP gets the non-loopback IP address of this host.
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		default:
+			continue
+		}
+		if !ip.IsLoopback() {
+			return ip.String(), nil
+		}
+	}
+	return "", trace.NotFound("No non-loopback local IP address found")
 }
