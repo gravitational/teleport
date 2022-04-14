@@ -198,6 +198,7 @@ const Input = styled.input(props => {
     },
     '&:focus': {
       borderColor: theme.colors.secondary.main,
+      backgroundColor: theme.colors.primary.darker,
       '::placeholder': {
         color: theme.colors.text.placeholder,
       },

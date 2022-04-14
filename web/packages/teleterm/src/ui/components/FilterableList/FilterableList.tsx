@@ -66,22 +66,22 @@ const DarkInput = styled(Input)`
   background: inherit;
   border: 1px ${props => props.theme.colors.action.disabledBackground} solid;
   border-radius: 51px;
-  color: ${props => props.theme.colors.light};
+  color: ${props => props.theme.colors.text.primary};
   margin-bottom: 10px;
   font-size: 14px;
-  opacity: 0.6;
   height: 34px;
+  transition : border 300ms ease-out;
 
   ::placeholder {
     opacity: 1;
+    color: ${props => props.theme.colors.text.secondary};
   }
 
-  & :hover {
-    border-color: ${props => props.theme.colors.action.active};
+  &:hover {
+    border-color: ${props => props.theme.colors.text.secondary};
   }
   
   &:focus {
     border-color: ${props => props.theme.colors.secondary.main};
-    opacity: 1;
   }
 `;

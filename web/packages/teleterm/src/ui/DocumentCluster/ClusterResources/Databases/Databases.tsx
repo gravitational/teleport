@@ -16,7 +16,8 @@ limitations under the License.
 
 import React from 'react';
 import { useDatabases, State } from './useDatabases';
-import Table, { Cell } from 'design/DataTable';
+import { Table } from 'teleterm/ui/components/Table';
+import { Cell } from 'design/DataTable';
 import { renderLabelCell } from '../renderLabelCell';
 import { Danger } from 'design/Alert';
 import { MenuLogin } from 'shared/components/MenuLogin';

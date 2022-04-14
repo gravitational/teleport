@@ -20,10 +20,10 @@ interface IdentityListProps {
 
 export function IdentityList(props: IdentityListProps) {
   return (
-    <Box minWidth="200px" pt="12px">
+    <Box minWidth="200px">
       {props.loggedInUser && (
         <>
-          <Flex px="24px" pb={2} justifyContent="space-between">
+          <Flex px={3} pt={2} pb={2} justifyContent="space-between">
             <Box>
               <Text bold>{props.loggedInUser.name}</Text>
               <Text typography="body2" color="text.secondary">
@@ -36,7 +36,7 @@ export function IdentityList(props: IdentityListProps) {
       )}
       <KeyboardArrowsNavigation>
         {focusGrabber}
-        <Box px={'12px'}>
+        <Box>
           {props.clusters.map((i, index) => (
             <IdentityListItem
               key={i.uri}
@@ -51,7 +51,7 @@ export function IdentityList(props: IdentityListProps) {
           ))}
         </Box>
         <Separator />
-        <Box px={'12px'}>
+        <Box>
           <AddNewClusterItem
             index={props.clusters.length + 1}
             onClick={props.onAddCluster}
@@ -79,6 +79,5 @@ const focusGrabber = (
 
 const Separator = styled.div`
   background: ${props => props.theme.colors.primary.lighter};
-  margin: 0 16px;
   height: 1px;
 `;

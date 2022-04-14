@@ -111,7 +111,7 @@ function getRenderedContent(
 
   if (typeof content === 'string') {
     return (
-      <Flex justifyContent="space-between">
+      <Flex justifyContent="space-between" width="100%">
         <Text
           typography="body1"
           fontSize={13}
@@ -133,7 +133,7 @@ function getRenderedContent(
           `}
         >
           <Text
-            fontSize={13}
+            fontSize={14}
             bold
             mr="30px"
             css={`
@@ -181,17 +181,12 @@ const shortTextCss = css`
 const Container = styled(Flex)`
   flex-direction: row;
   justify-content: space-between;
-  background: ${props => props.theme.colors.primary.darker};
+  background: ${props => props.theme.colors.primary.light};
   min-height: 40px;
   width: 320px;
   margin-bottom: 15px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   color: ${props => props.theme.colors.text.primary};
-  opacity: 0.95;
   border-radius: 4px;
-
-  &:hover {
-    opacity: 1;
-    cursor: pointer;
-  }
+  cursor: pointer;
 `;

@@ -17,7 +17,8 @@ limitations under the License.
 import React from 'react';
 import { useServers, State } from './useServers';
 import * as types from 'teleterm/ui/services/clusters/types';
-import Table, { Cell } from 'design/DataTable';
+import { Table } from 'teleterm/ui/components/Table';
+import { Cell } from 'design/DataTable';
 import { renderLabelCell } from '../renderLabelCell';
 import { MenuLogin } from 'shared/components/MenuLogin';
 import { MenuLoginTheme } from '../MenuLoginTheme';

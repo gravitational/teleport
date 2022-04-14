@@ -73,7 +73,7 @@ function getBackgroundColor(props) {
     return props.theme.colors.secondary.main;
   }
   if (props.isActive) {
-    return 'rgba(255, 255, 255, 0.05)';
+    return props.theme.colors.secondary.lighter;
   }
 }
 
@@ -82,6 +82,6 @@ function getHoverBackgroundColor(props) {
     return props.theme.colors.secondary.light;
   }
   if (props.isActive) {
-    return 'rgba(255, 255, 255, 0.05)';
+    return props.theme.colors.secondary.lighter;
   }
 }

@@ -32,6 +32,7 @@ export function IdentityListItem(props: IdentityListItemProps) {
 
   return (
     <ListItem
+      css={`border-radius: 0; height: 38px`}
       onClick={props.onSelect}
       isActive={isActive}
       ref={ref}

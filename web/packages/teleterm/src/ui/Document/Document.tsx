@@ -24,7 +24,7 @@ const Document: React.FC<{
 }> = ({ visible, children, onContextMenu, ...styles }) => (
   <Flex
     flex="1"
-    bg="bgTerminal"
+    bg="primary.darker"
     onContextMenu={onContextMenu}
     style={{
       overflow: 'auto',
