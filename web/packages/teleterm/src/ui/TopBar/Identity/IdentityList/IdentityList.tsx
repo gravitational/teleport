@@ -19,6 +19,8 @@ interface IdentityListProps {
 }
 
 export function IdentityList(props: IdentityListProps) {
+  const roles = props.loggedInUser.rolesList.join(', ');
+
   return (
     <Box minWidth="200px" pt="12px">
       {props.loggedInUser && (
@@ -27,7 +29,7 @@ export function IdentityList(props: IdentityListProps) {
             <Box>
               <Text bold>{props.loggedInUser.name}</Text>
               <Text typography="body2" color="text.secondary">
-                {props.loggedInUser.rolesList.join(', ')}
+                {roles}
               </Text>
             </Box>
           </Flex>

@@ -46,7 +46,9 @@ export function Identity() {
         open={isPopoverOpened}
         anchorEl={selectorRef.current}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         onClose={() => setIsPopoverOpened(false)}
+        popoverCss={() => `max-width: min(560px, 90%)`}
       >
         <Container>
           {rootClusters.length ? (
