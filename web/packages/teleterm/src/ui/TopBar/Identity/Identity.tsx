@@ -23,6 +23,15 @@ export function Identity() {
     setIsPopoverOpened(wasOpened => !wasOpened);
   }, [setIsPopoverOpened]);
 
+  function withClose<T extends (...args) => any>(
+    fn: T
+  ): (...args: Parameters<T>) => ReturnType<T> {
+    return (...args) => {
+      setIsPopoverOpened(false);
+      return fn(...args);
+    };
+  }
+
   useKeyboardShortcuts(
     useMemo(
       () => ({
@@ -55,12 +64,12 @@ export function Identity() {
             <IdentityList
               loggedInUser={loggedInUser}
               clusters={rootClusters}
-              onSelectCluster={changeRootCluster}
-              onLogout={logout}
-              onAddCluster={addCluster}
+              onSelectCluster={withClose(changeRootCluster)}
+              onLogout={withClose(logout)}
+              onAddCluster={withClose(addCluster)}
             />
           ) : (
-            <EmptyIdentityList />
+            <EmptyIdentityList onConnect={withClose(addCluster)} />
           )}
         </Container>
       </Popover>
