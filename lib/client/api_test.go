@@ -17,12 +17,16 @@ limitations under the License.
 package client
 
 import (
+	"io"
 	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
@@ -497,6 +501,53 @@ func TestApplyProxySettings(t *testing.T) {
 			require.EqualValues(t, test.tcConfigOut, tc.Config)
 		})
 	}
+}
+
+type mockAgent struct {
+	// Agent is embedded to avoid redeclaring all interface methods.
+	// Only the Signers method is implemented by testAgent.
+	agent.Agent
+	ValidPrincipals []string
+}
+
+type mockSigner struct {
+	ValidPrincipals []string
+}
+
+func (s *mockSigner) PublicKey() ssh.PublicKey {
+	return &ssh.Certificate{
+		ValidPrincipals: s.ValidPrincipals,
+	}
+}
+
+func (s *mockSigner) Sign(rand io.Reader, b []byte) (*ssh.Signature, error) {
+	return nil, trace.Errorf("mockSigner does not implement Sign")
+}
+
+// Signers implements agent.Agent.Signers.
+func (m *mockAgent) Signers() ([]ssh.Signer, error) {
+	return []ssh.Signer{&mockSigner{ValidPrincipals: m.ValidPrincipals}}, nil
+}
+
+func TestNewClient_UseKeyPrincipals(t *testing.T) {
+	cfg := &Config{
+		Username:         "xyz",
+		HostLogin:        "xyz",
+		WebProxyAddr:     "localhost",
+		SkipLocalAuth:    true,
+		UseKeyPrincipals: true, // causes VALID to be returned, as key was used
+		Agent:            &mockAgent{ValidPrincipals: []string{"VALID"}},
+		AuthMethods:      []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+	}
+	client, err := NewClient(cfg)
+	require.NoError(t, err)
+	require.Equal(t, "VALID", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
+
+	cfg.UseKeyPrincipals = false // causes xyz to be returned as key was not used
+
+	client, err = NewClient(cfg)
+	require.NoError(t, err)
+	require.Equal(t, "xyz", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
 }
 
 func TestParseSearchKeywords(t *testing.T) {

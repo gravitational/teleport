@@ -743,8 +743,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 			},
 		},
 		CertAuthorityC: make(chan []types.CertAuthority, 10),
-		WatchUserCA:    true,
-		WatchHostCA:    true,
+		WatchCertTypes: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)

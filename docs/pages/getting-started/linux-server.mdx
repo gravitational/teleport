@@ -228,30 +228,30 @@ Bootstrap a new Node:
     ```ini
     #cloud-config
 
-    package_upgrade: true
+    package_update: true
 
     write_files:
     - path: /etc/teleport.yaml
-        content: |
-            teleport:
-                auth_token: ""
-                auth_servers:
-                    - "https://teleport.example.com:443"
-            auth_service:
-                enabled: false
-            proxy_service:
-                enabled: false
-            ssh_service:
-                enabled: true
-                labels:
-                    env: demo
+      content: |
+        teleport:
+          auth_token: ""
+          auth_servers:
+          - "https://teleport.example.com:443"
+        auth_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: true
+          labels:
+            env: demo
 
     runcmd:
-    - 'mkdir -p /tmp/teleport'
-    - 'cd /tmp/teleport && curl -O https://get.gravitational.com/teleport_(=teleport.version=)_amd64.deb'
-    - 'dpkg -i /tmp/teleport/teleport_(=teleport.version=)_amd64.deb'
-    - 'systemctl enable teleport.service'
-    - 'systemctl start teleport.service'
+      - 'mkdir -p /tmp/teleport'
+      - 'cd /tmp/teleport && curl -O https://get.gravitational.com/teleport_(=teleport.version=)_amd64.deb'
+      - 'dpkg -i /tmp/teleport/teleport_(=teleport.version=)_amd64.deb'
+      - 'systemctl enable teleport.service'
+      - 'systemctl start teleport.service'
     ```
   </TabItem>
 </Tabs>
