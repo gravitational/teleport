@@ -67,7 +67,7 @@ func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 		return clientPack.client, nil
 	}
 
-	close(clientPack.stop)
+	clientPack.cancel()
 	delete(a.oidcClients, conn.GetName())
 	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
 
@@ -80,28 +80,37 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 		return nil, trace.Wrap(err)
 	}
 
-	doneSyncing := make(chan chan struct{})
+	// SyncProviderConfig doesn't take a context for cancellation, instead it
+	// returns a channel that has to be closed to stop the sync. So what we
+	// can do until it is changed to take a context, is to wait for the syncContext
+	// we create below to be done and then close the channel. This allows the sync
+	// to be stopped in the event that the oidcClient is removed, or if the Server
+	// is Closed.
+	firstSync := make(chan struct{})
+	syncCtx, syncCancel := context.WithCancel(a.closeCtx)
 	go func() {
-		defer close(doneSyncing)
-		doneSyncing <- client.SyncProviderConfig(conn.GetIssuerURL())
+		stop := client.SyncProviderConfig(conn.GetIssuerURL())
+		close(firstSync)
+		<-syncCtx.Done()
+		close(stop)
 	}()
 
-	oidcClient := &oidcClient{client: client, config: config}
 	select {
-	case stop := <-doneSyncing:
-		oidcClient.stop = stop
+	case <-firstSync:
 	case <-time.After(defaults.WebHeadersTimeout):
+		syncCancel()
 		return nil, trace.ConnectionProblem(nil,
 			"timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
 			conn.GetName(), conn.GetIssuerURL())
 	case <-a.closeCtx.Done():
+		syncCancel()
 		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
 	}
 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	a.oidcClients[conn.GetName()] = oidcClient
+	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config, cancel: syncCancel}
 
 	return client, nil
 }
