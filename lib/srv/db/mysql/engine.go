@@ -299,6 +299,21 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		case *protocol.Quit:
 			return
 
+		case *protocol.InitDB:
+			e.Audit.EmitEvent(e.Context, makeInitDBEvent(sessionCtx, pkt))
+		case *protocol.CreateDB:
+			e.Audit.EmitEvent(e.Context, makeCreateDBEvent(sessionCtx, pkt))
+		case *protocol.DropDB:
+			e.Audit.EmitEvent(e.Context, makeDropDBEvent(sessionCtx, pkt))
+		case *protocol.ShutDown:
+			e.Audit.EmitEvent(e.Context, makeShutDownEvent(sessionCtx, pkt))
+		case *protocol.ProcessKill:
+			e.Audit.EmitEvent(e.Context, makeProcessKillEvent(sessionCtx, pkt))
+		case *protocol.Debug:
+			e.Audit.EmitEvent(e.Context, makeDebugEvent(sessionCtx, pkt))
+		case *protocol.Refresh:
+			e.Audit.EmitEvent(e.Context, makeRefreshEvent(sessionCtx, pkt))
+
 		case *protocol.StatementPreparePacket:
 			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
 		case *protocol.StatementExecutePacket:

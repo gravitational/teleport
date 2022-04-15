@@ -717,6 +717,19 @@ func (proxy *ProxyClient) DeleteAppSession(ctx context.Context, sessionID string
 	return nil
 }
 
+// DeleteUserAppSessions removes user's all application web sessions.
+func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	authClient, err := proxy.ConnectToRootCluster(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = authClient.DeleteUserAppSessions(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // FindDatabaseServersByFilters returns registered database proxy servers that match the provided filter.
 func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
 	req.ResourceType = types.KindDatabaseServer
