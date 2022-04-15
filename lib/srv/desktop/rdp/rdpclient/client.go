@@ -312,7 +312,7 @@ func (c *Client) start() {
 				if button == C.PointerButtonRight {
 					// TODO(isaiah): hack for testing
 					if !requestSent {
-						driveName := C.CString("abcdefg")
+						driveName := C.CString("abcdefghijklmnop")
 						defer C.free(unsafe.Pointer(driveName))
 						if err := cgoError(C.announce_drive_rdp(c.rustClient, driveName)); err != nil {
 							c.cfg.Log.Errorf("Device announce failed: %v", err)

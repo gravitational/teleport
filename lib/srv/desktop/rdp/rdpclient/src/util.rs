@@ -24,10 +24,12 @@ use utf16string::{WString, LE};
 /// UTF-16LE encoded Vec<u8>, which is useful in cases where we want
 /// to handle some data in the code as a &str (or String), and later
 /// convert it to RDP's preferred format and send it over the wire.
-pub fn to_unicode(s: &str) -> Vec<u8> {
+pub fn to_unicode(s: &str, with_null_term: bool) -> Vec<u8> {
     let mut buf = WString::<LE>::from(s).as_bytes().to_vec();
-    let mut null_terminator: Vec<u8> = vec![0, 0];
-    buf.append(&mut null_terminator);
+    if with_null_term {
+        let mut null_terminator: Vec<u8> = vec![0, 0];
+        buf.append(&mut null_terminator);
+    }
     buf
 }
 
@@ -51,7 +53,7 @@ mod tests {
 
     #[test]
     fn to_and_from() {
-        let hello_vec = to_unicode("hello");
+        let hello_vec = to_unicode("hello", true);
         assert_eq!(
             hello_vec,
             vec![104, 0, 101, 0, 108, 0, 108, 0, 111, 0, 0, 0]

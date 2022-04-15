@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::errors::{invalid_data_error, not_implemented_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
-use crate::util::{from_unicode, to_utf8};
+use crate::util;
 use crate::Payload;
 use crate::{scard, vchan};
 use bitflags::bitflags;
@@ -35,6 +35,8 @@ pub const CHANNEL_NAME: &str = "rdpdr";
 pub struct Client {
     vchan: vchan::Client,
     scard: scard::Client,
+    dot_dot_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
+    fake_file_sent: bool, // TODO(isaiah): total hack for prototyping, to be deleted.
 }
 
 impl Client {
@@ -42,6 +44,8 @@ impl Client {
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
+            dot_dot_sent: false,
+            fake_file_sent: false,
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
@@ -149,21 +153,22 @@ impl Client {
 
     fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let device_io_request = DeviceIoRequest::decode(payload)?;
-        debug!("got DeviceIORequest: {:?}", device_io_request);
 
         match device_io_request.major_function {
             // Used for smartcard control
             MajorFunction::IRP_MJ_DEVICE_CONTROL => {
                 let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
-                debug!("DeviceIORequest was the header of a: {:?}", ioctl);
+                debug!("got: {:?}", ioctl);
 
                 let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
                 if code == SPECIAL_NO_RESPONSE {
                     return Ok(vec![]);
                 }
+                let resp = DeviceControlResponse::new(&ioctl, code, res);
+                debug!("replying with: {:?}", resp);
                 let resp = self.add_headers_and_chunkify(
                     PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-                    DeviceControlResponse::new(&ioctl, code, res).encode()?,
+                    resp.encode()?,
                 )?;
                 debug!("sending device IO response");
                 Ok(resp)
@@ -173,10 +178,7 @@ impl Client {
             MajorFunction::IRP_MJ_CREATE => {
                 let server_create_drive_request =
                     ServerCreateDriveRequest::decode(device_io_request, payload)?;
-                debug!(
-                    "DeviceIORequest was the header of a: {:?}",
-                    server_create_drive_request
-                );
+                debug!("got: {:?}", server_create_drive_request);
                 // TODO(isaiah) assumes we only receive this after the initial ClientDeviceListAnnounce::new_drive,
                 // which will always be a "success". Will need to have logic for creating files/dirs over TDP
                 // and responding based on failure/success.
@@ -184,7 +186,7 @@ impl Client {
                     &server_create_drive_request,
                     NTSTATUS::STATUS_SUCCESS,
                 );
-                debug!("sending DeviceCreateResponse: {:?}", resp);
+                debug!("replying with: {:?}", resp);
                 let resp = self.add_headers_and_chunkify(
                     PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
                     resp.encode()?,
@@ -193,12 +195,12 @@ impl Client {
             }
             MajorFunction::IRP_MJ_QUERY_INFORMATION => {
                 let req = ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
-                debug!("DeviceIORequest was the header of a: {:?}", req);
+                debug!("got: {:?}", req);
 
                 // TODO(isaiah): send back NTSTATUS::STATUS_NOT_IMPLEMENTED rather than propagating an error.
                 let resp =
                     ClientDriveQueryInformationResponse::new(&req, NTSTATUS::STATUS_SUCCESS)?;
-
+                debug!("replying with: {:?}", resp);
                 let resp = self.add_headers_and_chunkify(
                     PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
                     resp.encode()?,
@@ -207,10 +209,141 @@ impl Client {
             }
             MajorFunction::IRP_MJ_CLOSE => {
                 let req = DeviceCloseRequest::decode(device_io_request);
-                debug!("DeviceIORequest was the header of a: {:?}", req);
+                debug!("got: {:?}", req);
                 // TODO(isaiah) here is where you would tell the client to close the file.
                 let resp = DeviceCloseResponse::new(req, NTSTATUS::STATUS_SUCCESS);
-                debug!("sending DeviceCloseResponse: {:?}", resp);
+                debug!("replying with: {:?}", resp);
+                let resp = self.add_headers_and_chunkify(
+                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                    resp.encode()?,
+                )?;
+                Ok(resp)
+            }
+            MajorFunction::IRP_MJ_DIRECTORY_CONTROL => {
+                match device_io_request.minor_function {
+                    MinorFunction::IRP_MN_NOTIFY_CHANGE_DIRECTORY => {
+                        let req = ServerDriveNotifyChangeDirectoryRequest::decode(
+                            device_io_request,
+                            payload,
+                        )?;
+                        debug!("got: {:?}", req);
+                        debug!("replying with: nothing, we ignore IRP_MN_NOTIFY_CHANGE_DIRECTORY");
+                        // Ignored by FreeRDP at the time of writing, we will ignore this as well:
+                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L660
+                        // TODO(isaiah): perhaps we want to send back an empty Client Drive NotifyChange Directory Response
+                        // like they show in 4.33 Client Drive NotifyChange Directory Response (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/21b1036b-ebbb-49d9-bafd-cd5cd0c7ba06)
+                        // to at least free up the CompletionId.
+                        Ok(vec![])
+                    }
+                    MinorFunction::IRP_MN_QUERY_DIRECTORY => {
+                        let req =
+                            ServerDriveQueryDirectoryRequest::decode(device_io_request, payload)?;
+                        debug!("got: {:?}", req);
+                        let mut next_handle: Option<FileHandle> = None;
+                        if req.initial_query > 0 {
+                            // TODO(isaiah): RDP is asking for directory information of a directory specified by
+                            // req.device_io_request.device_id + req.device_io_request.file_id (device_id is irrelevant
+                            // to us so long as we only support sharing 1 directory). Here, we will ask the client for
+                            // the contents of the requested directory, and save it in a field on the client (some structure
+                            // mapped by file_id like {file_id: [file_struct, file_struct, ...]}), and send back the first item.
+                            // Here, we simulate sending back the "." directory. It's TBD whether the browser provides us with
+                            // ., .., or other hidden directories.
+                            //
+                            // The spec says:
+                            // "If the value [of initial_query] is non-zero and such a file does not exist, the client MUST complete
+                            // this request with STATUS_NO_SUCH_FILE in the IoStatus field of the Client Drive I/O Response".
+                            self.dot_dot_sent = false;
+                            self.fake_file_sent = false;
+                            next_handle = Some(FileHandle {
+                                name: String::from("."),
+                                last_modified: 1,
+                                size: 64, // size of an empty dir on MacOS, apparently according to print statements from FreeRDP
+                                is_dir: true,
+                            });
+                        } else if req.initial_query == 0 {
+                            // TODO(isaiah): The request is for the next file in the directory that was specified in a
+                            // previous Server Drive Query Directory Request. If such a file does not exist, the client
+                            // MUST complete this request with STATUS_NO_MORE_FILES in the IoStatus field of the
+                            // Client Drive I/O Response packet (section 2.2.3.4).
+                            if !self.dot_dot_sent {
+                                next_handle = Some(FileHandle {
+                                    name: String::from(".."),
+                                    last_modified: 1,
+                                    size: 64, // size of an empty dir on MacOS, apparently according to print statements from FreeRDP
+                                    is_dir: true,
+                                });
+                                self.dot_dot_sent = true;
+                            } else if !self.fake_file_sent {
+                                next_handle = Some(FileHandle {
+                                    name: String::from("ExtremelyFakeFile.txt"),
+                                    last_modified: 1,
+                                    size: 64000000, // size of an empty dir on MacOS, apparently according to print statements from FreeRDP
+                                    is_dir: false,
+                                });
+                                self.fake_file_sent = true;
+                            } else {
+                                next_handle = None;
+                            }
+                        }
+                        match next_handle {
+                            Some(file_handle) => {
+                                match req.fs_information_class_lvl {
+                            FsInformationClassLevel::FileBothDirectoryInformation => {
+                                let buffer = FsInformationClass::FileBothDirectoryInformation(FileBothDirectoryInformation::from(file_handle));
+                                let resp = ClientDriveQueryDirectoryResponse::new(
+                                    &req,
+                                    NTSTATUS::STATUS_SUCCESS,
+                                    Some(buffer),
+                                )?;
+                                debug!("replying with: {:?}", resp);
+                                let resp = self.add_headers_and_chunkify(
+                                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                                    resp.encode()?,
+                                )?;
+                                Ok(resp)
+                            }
+                            FsInformationClassLevel::FileDirectoryInformation
+                            | FsInformationClassLevel::FileFullDirectoryInformation
+                            | FsInformationClassLevel::FileNamesInformation => {
+                                Err(not_implemented_error(&format!("support for ServerDriveQueryDirectoryRequest with fs_information_class_lvl = {:?} is not implemented", req.fs_information_class_lvl)))
+                            }
+                            _ => {
+                                // This should never happen, as we check that fs_information_class_lvl is on of the supported types in ServerDriveQueryDirectoryRequest::decode
+                                Err(invalid_data_error(&format!("received invalid FsInformationClassLevel in ServerDriveQueryDirectoryRequest")))
+                            }
+                        }
+                            }
+                            None => {
+                                let resp = ClientDriveQueryDirectoryResponse::new(
+                                    &req,
+                                    NTSTATUS::STATUS_NO_MORE_FILES,
+                                    None,
+                                )?;
+                                debug!("replying with: {:?}", resp);
+                                let resp = self.add_headers_and_chunkify(
+                                    PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                                    resp.encode()?,
+                                )?;
+                                Ok(resp)
+                            }
+                        }
+                    }
+                    _ => {
+                        Err(invalid_data_error(&format!(
+                            // TODO(isaiah): send back a not implemented response(?)
+                            // see https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L663
+                            "got unsupported minor_function in DeviceIoRequest: {:?}",
+                            &device_io_request.minor_function
+                        )))
+                    }
+                }
+            }
+            MajorFunction::IRP_MJ_READ => {
+                let req = DeviceReadRequest::decode(device_io_request, payload)?;
+                debug!("got: {:?}", req);
+                // TODO(isaiah): this is where we would actually try to read the file from the client
+                let resp = DeviceReadResponse::new(&req, NTSTATUS::STATUS_SUCCESS, vec![]);
+                debug!("replying with: {:?}", resp);
                 let resp = self.add_headers_and_chunkify(
                     PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
                     resp.encode()?,
@@ -218,6 +351,7 @@ impl Client {
                 Ok(resp)
             }
             _ => Err(invalid_data_error(&format!(
+                // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
                 &device_io_request.major_function
             ))),
@@ -411,7 +545,7 @@ impl ServerCoreCapabilityRequest {
 
         Self {
             padding: 0,
-            num_capabilities: u16::try_from(capabilities.len()).ok().unwrap(),
+            num_capabilities: u16::try_from(capabilities.len()).unwrap(),
             capabilities,
         }
     }
@@ -626,7 +760,7 @@ impl ClientDeviceListAnnounceRequest {
         //
         // In the RDP spec, Unicode typically means null-terminated UTF-16LE, however empirically it
         // appears that this field expects null-terminated UTF-8.
-        let device_data = to_utf8(&drive_name);
+        let device_data = util::to_utf8(&drive_name);
 
         Self {
             device_count: 1,
@@ -702,6 +836,8 @@ impl ServerDeviceAnnounceResponse {
     }
 }
 
+/// 2.2.1.4 Device I/O Request (DR_DEVICE_IOREQUEST)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
 #[derive(Debug)]
 #[allow(dead_code)]
 struct DeviceIoRequest {
@@ -754,6 +890,7 @@ impl DeviceIoRequest {
     }
 }
 
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
 #[derive(Debug, FromPrimitive, ToPrimitive, PartialEq)]
 #[allow(non_camel_case_types)]
 enum MajorFunction {
@@ -850,7 +987,7 @@ impl DeviceControlResponse {
         }
     }
 
-    fn encode(&mut self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.extend_from_slice(&self.header.encode()?);
         w.write_u32::<LittleEndian>(self.output_buffer_length)?;
@@ -901,7 +1038,7 @@ impl DeviceCreateRequest {
         // for a u32 will never panic on the machines that run teleport.
         let mut path = vec![0u8; path_length.try_into().unwrap()];
         payload.read_exact(&mut path)?;
-        let path = from_unicode(path)?;
+        let path = util::from_unicode(path)?;
 
         Ok(Self {
             device_io_request,
@@ -1014,6 +1151,8 @@ bitflags! {
 bitflags! {
     /// Defines the action the server MUST take if the file that is specified in the name field already exists. For opening named pipes, this field can be set to any value by the client and MUST be ignored by the server. For other files, this field MUST contain one of the following values.
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
+    /// See https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
+    /// for information about how these should be interpreted.
     struct CreateDispositionFlags: u32 {
         const FILE_SUPERSEDE = 0x00000000;
         const FILE_OPEN = 0x00000001;
@@ -1147,6 +1286,7 @@ enum NTSTATUS {
     STATUS_SUCCESS = 0x00000000,
     STATUS_UNSUCCESSFUL = 0xC0000001,
     STATUS_NOT_IMPLEMENTED = 0xC0000002,
+    STATUS_NO_MORE_FILES = 0x80000006,
 }
 
 /// 2.2.3.3.8 Server Drive Query Information Request (DR_DRIVE_QUERY_INFORMATION_REQ)
@@ -1198,7 +1338,7 @@ impl ServerDriveQueryInformationRequest {
 
 /// 2.4 File Information Classes [MS-FSCC]
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
-#[derive(FromPrimitive, Debug)]
+#[derive(FromPrimitive, Debug, PartialEq)]
 #[repr(u32)]
 enum FsInformationClassLevel {
     FileAccessInformation = 8,
@@ -1256,6 +1396,7 @@ enum FsInformationClassLevel {
 enum FsInformationClass {
     FileBasicInformation(FileBasicInformation),
     FileStandardInformation(FileStandardInformation),
+    FileBothDirectoryInformation(FileBothDirectoryInformation),
 }
 
 impl FsInformationClass {
@@ -1263,6 +1404,7 @@ impl FsInformationClass {
         match self {
             Self::FileBasicInformation(file_basic_info) => file_basic_info.encode(),
             Self::FileStandardInformation(file_standard_info) => file_standard_info.encode(),
+            Self::FileBothDirectoryInformation(fil_both_dir_info) => fil_both_dir_info.encode(), // TODO(isaiah)
         }
     }
 }
@@ -1352,6 +1494,104 @@ const FILE_STANDARD_INFORMATION_SIZE: u32 = (2 * 8) + 4 + 2;
 enum Boolean {
     TRUE = 1,
     FALSE = 0,
+}
+
+/// 2.4.8 FileBothDirectoryInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/270df317-9ba5-4ccb-ba00-8d22be139bc5
+/// Fields are omitted based on those omitted by FreeRDP: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L871
+#[derive(Debug)]
+struct FileBothDirectoryInformation {
+    // next_entry_offset: u32,
+    // file_index: u32,
+    creation_time: i64,
+    last_access_time: i64,
+    last_write_time: i64,
+    change_time: i64,
+    end_of_file: i64,
+    allocation_size: i64,
+    file_attributes: FileAttributesFlags,
+    file_name_length: u32,
+    // ea_size: u32,
+    // short_name_length: i8,
+    // reserved: u8: MUST NOT be added,
+    // see https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L907
+    // short_name: String, // 24 bytes
+    file_name: String,
+}
+
+/// Base size of the FileBothDirectoryInformation, not accounting for variably sized file_name.
+/// Note that file_name's size should be calculated as if it were a Unicode string.
+/// 5 u32's (including FileAttributesFlags) + 6 i64's + 1 i8 + 24 bytes
+const FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE: u32 = (5 * 4) + (6 * 8) + 1 + 24; // 93
+
+impl From<FileHandle> for FileBothDirectoryInformation {
+    fn from(handle: FileHandle) -> Self {
+        let file_attributes = if handle.is_dir {
+            FileAttributesFlags::FILE_ATTRIBUTE_DIRECTORY
+        } else {
+            FileAttributesFlags::FILE_ATTRIBUTE_NORMAL
+        };
+        return FileBothDirectoryInformation::new(
+            handle.last_modified,
+            handle.last_modified,
+            handle.last_modified,
+            handle.last_modified,
+            handle.size,
+            file_attributes,
+            handle.name,
+        );
+    }
+}
+
+impl FileBothDirectoryInformation {
+    fn new(
+        creation_time: i64,
+        last_access_time: i64,
+        last_write_time: i64,
+        change_time: i64,
+        file_size: i64,
+        file_attributes: FileAttributesFlags,
+        file_name: String,
+    ) -> Self {
+        return Self {
+            creation_time,
+            last_access_time,
+            last_write_time,
+            change_time,
+            end_of_file: file_size,
+            allocation_size: file_size,
+            file_attributes,
+            file_name_length: u32::try_from(util::to_unicode(&file_name, false).len()).unwrap(),
+            file_name,
+        };
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        // next_entry_offset
+        w.write_u32::<LittleEndian>(0)?;
+        // file_index
+        w.write_u32::<LittleEndian>(0)?;
+        w.write_i64::<LittleEndian>(self.creation_time)?;
+        w.write_i64::<LittleEndian>(self.last_access_time)?;
+        w.write_i64::<LittleEndian>(self.last_write_time)?;
+        w.write_i64::<LittleEndian>(self.change_time)?;
+        w.write_i64::<LittleEndian>(self.end_of_file)?;
+        w.write_i64::<LittleEndian>(self.allocation_size)?;
+        w.write_u32::<LittleEndian>(self.file_attributes.bits())?;
+        w.write_u32::<LittleEndian>(self.file_name_length)?;
+        // ea_size
+        w.write_u32::<LittleEndian>(0)?;
+        // short_name_length
+        w.write_i8(0)?;
+        // reserved u8, MUST NOT be added!
+        // short_name
+        w.extend_from_slice(&[0; 24]);
+        // When working with this field, use file_name_length to determine the length of the file name rather
+        // than assuming the presence of a trailing null delimiter. Dot directory names are valid for this field.
+        w.extend_from_slice(&util::to_unicode(&self.file_name, false));
+        Ok(w)
+    }
 }
 
 /// 2.2.3.4.8 Client Drive Query Information Response (DR_DRIVE_QUERY_INFORMATION_RSP)
@@ -1457,4 +1697,285 @@ impl DeviceCloseResponse {
         w.write_u32::<LittleEndian>(self.padding)?;
         Ok(w)
     }
+}
+
+/// 2.2.3.3.11 Server Drive NotifyChange Directory Request (DR_DRIVE_NOTIFY_CHANGE_DIRECTORY_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/ed05e73d-e53e-4261-a1e1-365a70ba6512
+#[derive(Debug)]
+struct ServerDriveNotifyChangeDirectoryRequest {
+    /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_DIRECTORY_CONTROL,
+    /// and the MinorFunction field MUST be set to IRP_MN_NOTIFY_CHANGE_DIRECTORY.
+    device_io_request: DeviceIoRequest,
+    /// If nonzero, a change anywhere within the tree MUST trigger the notification response; otherwise, only a change in the root directory will do so.
+    watch_tree: u8,
+    completion_filter: CompletionFilterFlags,
+    // Padding (27 bytes):  An array of 27 bytes. This field is unused and MUST be ignored.
+}
+
+impl ServerDriveNotifyChangeDirectoryRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        let invalid_flags =
+            || invalid_data_error("invalid flags in Server Drive NotifyChange Directory Request");
+
+        let watch_tree = payload.read_u8()?;
+        let completion_filter =
+            CompletionFilterFlags::from_bits(payload.read_u32::<LittleEndian>()?)
+                .ok_or_else(invalid_flags)?;
+
+        Ok(Self {
+            device_io_request,
+            watch_tree,
+            completion_filter,
+        })
+    }
+}
+
+bitflags! {
+    /// Specifies the types of changes to monitor. It is valid to choose multiple trigger conditions.
+    /// In this case, if any condition is met, the client is notified of the change and the CHANGE_NOTIFY operation is completed.
+    /// See CompletionFilter at: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/598f395a-e7a2-4cc8-afb3-ccb30dd2df7c
+    struct CompletionFilterFlags: u32 {
+        /// The client is notified if a file-name changes.
+        const FILE_NOTIFY_CHANGE_FILE_NAME = 0x00000001;
+        /// The client is notified if a directory name changes.
+        const FILE_NOTIFY_CHANGE_DIR_NAME = 0x00000002;
+        /// The client is notified if a file's attributes change. Possible file attribute values are specified in [MS-FSCC] section 2.6.
+        const FILE_NOTIFY_CHANGE_ATTRIBUTES = 0x00000004;
+        /// The client is notified if a file's size changes.
+        const FILE_NOTIFY_CHANGE_SIZE = 0x00000008;
+        /// The client is notified if the last write time of a file changes.
+        const FILE_NOTIFY_CHANGE_LAST_WRITE = 0x00000010;
+        /// The client is notified if the last access time of a file changes.
+        const FILE_NOTIFY_CHANGE_LAST_ACCESS = 0x00000020;
+        /// The client is notified if the creation time of a file changes.
+        const FILE_NOTIFY_CHANGE_CREATION = 0x00000040;
+        /// The client is notified if a file's extended attributes (EAs) change.
+        const FILE_NOTIFY_CHANGE_EA = 0x00000080;
+        /// The client is notified of a file's access control list (ACL) settings change.
+        const FILE_NOTIFY_CHANGE_SECURITY = 0x00000100;
+        /// The client is notified if a named stream is added to a file.
+        const FILE_NOTIFY_CHANGE_STREAM_NAME = 0x00000200;
+        /// The client is notified if the size of a named stream is changed.
+        const FILE_NOTIFY_CHANGE_STREAM_SIZE = 0x00000400;
+        /// The client is notified if a named stream is modified.
+        const FILE_NOTIFY_CHANGE_STREAM_WRITE = 0x00000800;
+    }
+}
+
+/// 2.2.1.4.3 Device Read Request (DR_READ_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3192516d-36a6-47c5-987a-55c214aa0441
+#[derive(Debug)]
+struct DeviceReadRequest {
+    /// The MajorFunction field in this header MUST be set to IRP_MJ_READ.
+    device_io_request: DeviceIoRequest,
+    /// This field specifies the maximum number of bytes to be read from the device.
+    length: u32,
+    /// This field specifies the file offset where the read operation is performed.
+    offset: u64,
+    // Padding (20 bytes):  An array of 20 bytes. Reserved. This field can be set to any value and MUST be ignored.
+}
+
+impl DeviceReadRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        Ok(Self {
+            device_io_request,
+            length: payload.read_u32::<LittleEndian>()?,
+            offset: payload.read_u64::<LittleEndian>()?,
+        })
+    }
+}
+
+/// 2.2.1.5.3 Device Read Response (DR_READ_RSP)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9
+#[derive(Debug)]
+struct DeviceReadResponse {
+    /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_READ.
+    device_io_reply: DeviceIoResponse,
+    /// Specifies the number of bytes in the ReadData field.
+    length: u32,
+    /// A variable-length array of bytes that specifies the output data from the read request.
+    read_data: Vec<u8>,
+}
+
+impl DeviceReadResponse {
+    fn new(
+        device_read_request: &DeviceReadRequest,
+        io_status: NTSTATUS,
+        read_data: Vec<u8>,
+    ) -> Self {
+        let device_io_request = &device_read_request.device_io_request;
+
+        Self {
+            device_io_reply: DeviceIoResponse::new(
+                device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            length: u32::try_from(read_data.len()).unwrap(),
+            read_data,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_reply.encode()?);
+        w.write_u32::<LittleEndian>(self.length)?;
+        w.extend_from_slice(&self.read_data);
+        Ok(w)
+    }
+}
+
+/// 2.2.3.3.10 Server Drive Query Directory Request (DR_DRIVE_QUERY_DIRECTORY_REQ)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/458019d2-5d5a-4fd4-92ef-8c05f8d7acb1
+#[derive(Debug)]
+struct ServerDriveQueryDirectoryRequest {
+    /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_DIRECTORY_CONTROL,
+    /// and the MinorFunction field MUST be set to IRP_MN_QUERY_DIRECTORY.
+    device_io_request: DeviceIoRequest,
+    /// Must contain one of FileDirectoryInformation, FileFullDirectoryInformation, FileBothDirectoryInformation, FileNamesInformation
+    fs_information_class_lvl: FsInformationClassLevel,
+    /// If the value of this field is zero, the request is for the next file in the directory that was specified in a previous
+    /// Server Drive Query Directory Request. If such a file does not exist, the client MUST complete this request with STATUS_NO_MORE_FILES
+    /// in the IoStatus field of the Client Drive I/O Response packet (section 2.2.3.4).  If the value of this field is non-zero and such a
+    /// file does not exist, the client MUST complete this request with STATUS_NO_SUCH_FILE in the IoStatus field of the Client Drive I/O Response.
+    initial_query: u8,
+    /// Specifies the number of bytes in the Path field, including the null-terminator.
+    path_length: u32,
+    // Padding (23 bytes): An array of 23 bytes. This field is unused and MUST be ignored.
+    /// A variable-length array of Unicode characters (we will store this as a regular rust String) that specifies the directory
+    /// on which this operation will be performed. The Path field MUST be null-terminated. If the value of the InitialQuery field
+    /// is zero, then the contents of the Path field MUST be ignored, irrespective of the value specified in the PathLength field.
+    path: String,
+}
+
+impl ServerDriveQueryDirectoryRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        let fs_information_class_lvl =
+            FsInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
+                .ok_or_else(|| invalid_data_error("failed to read FsInformationClassLevel"))?;
+        if fs_information_class_lvl != FsInformationClassLevel::FileDirectoryInformation
+            && fs_information_class_lvl != FsInformationClassLevel::FileFullDirectoryInformation
+            && fs_information_class_lvl != FsInformationClassLevel::FileBothDirectoryInformation
+            && fs_information_class_lvl != FsInformationClassLevel::FileNamesInformation
+        {
+            return Err(invalid_data_error(&format!(
+                "read invalid FsInformationClassLevel: {:?}, expected one of {:?}",
+                fs_information_class_lvl,
+                vec![
+                    FsInformationClassLevel::FileDirectoryInformation,
+                    FsInformationClassLevel::FileFullDirectoryInformation,
+                    FsInformationClassLevel::FileBothDirectoryInformation,
+                    FsInformationClassLevel::FileNamesInformation
+                ]
+            )));
+        }
+        let initial_query = payload.read_u8()?;
+        let mut path_length: u32 = 0;
+        let mut path = String::from("");
+        if initial_query != 0 {
+            path_length = payload.read_u32::<LittleEndian>()?;
+
+            // TODO(isaiah): make a payload.skip(n)
+            let mut padding: [u8; 23] = [0; 23];
+            payload.read_exact(&mut padding)?;
+
+            // TODO(isaiah): make a from_unicode_exact
+            let mut path_as_vec = vec![0u8; path_length.try_into().unwrap()];
+            payload.read_exact(&mut path_as_vec)?;
+            path = util::from_unicode(path_as_vec)?;
+        }
+
+        Ok(Self {
+            device_io_request,
+            fs_information_class_lvl,
+            initial_query,
+            path_length,
+            path,
+        })
+    }
+}
+
+/// 2.2.3.4.10 Client Drive Query Directory Response (DR_DRIVE_QUERY_DIRECTORY_RSP)
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140
+#[derive(Debug)]
+struct ClientDriveQueryDirectoryResponse {
+    /// The CompletionId field of the DR_DEVICE_IOCOMPLETION header MUST match a Device I/O Request (section 2.2.1.4) that
+    /// has the MajorFunction field set to IRP_MJ_DIRECTORY_CONTROL and the MinorFunction field set to IRP_MN_QUERY_DIRECTORY.
+    device_io_reply: DeviceIoResponse,
+    /// Specifies the number of bytes in the Buffer field.
+    length: u32,
+    /// The content of this field is based on the value of the FsInformationClass field in the Server Drive Query Directory Request
+    /// message, which determines the different structures that MUST be contained in the Buffer field.
+    buffer: Option<FsInformationClass>,
+    // Padding (1 byte): This field is unused and MUST be ignored.
+}
+
+impl ClientDriveQueryDirectoryResponse {
+    fn new(
+        req: &ServerDriveQueryDirectoryRequest,
+        io_status: NTSTATUS,
+        buffer: Option<FsInformationClass>,
+    ) -> RdpResult<Self> {
+        let device_io_request = &req.device_io_request;
+        let length = match buffer {
+            Some(ref fs_information_class) => match fs_information_class {
+                FsInformationClass::FileBothDirectoryInformation(
+                    file_both_directory_information,
+                ) => {
+                    FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE
+                        + file_both_directory_information.file_name_length
+                }
+                _ => {
+                    return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {:?}", fs_information_class)));
+                }
+            },
+            None => 0 as u32,
+        };
+
+        Ok(Self {
+            device_io_reply: DeviceIoResponse::new(
+                device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            length,
+            buffer,
+        })
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_reply.encode()?);
+
+        if self.device_io_reply.io_status == NTSTATUS::to_u32(&NTSTATUS::STATUS_SUCCESS).unwrap() {
+            w.write_u32::<LittleEndian>(self.length)?;
+            w.extend_from_slice(
+                &self
+                    .buffer.as_ref()
+                    .ok_or_else(|| invalid_data_error(
+                        "ClientDriveQueryDirectoryResponse with NTSTATUS::STATUS_SUCCESS expects a FsInformationClass"
+                    ))?
+                    .encode()?,
+            );
+        } else if self.device_io_reply.io_status
+            == NTSTATUS::to_u32(&NTSTATUS::STATUS_NO_MORE_FILES).unwrap()
+        {
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L935-L937
+            w.write_u32::<LittleEndian>(0)?;
+            w.write_u8(0)?;
+        } else {
+            return Err(invalid_data_error(&format!(
+                "Found ClientDriveQueryDirectoryResponse with invalid or unhandled NTSTATUS: {:?}",
+                self.device_io_reply.io_status
+            )));
+        }
+
+        Ok(w)
+    }
+}
+
+/// Fields based on what will be available to us from the browser https://developer.mozilla.org/en-US/docs/Web/API/File.
+struct FileHandle {
+    name: String,
+    last_modified: i64,
+    size: i64,
+    is_dir: bool,
 }

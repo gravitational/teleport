@@ -625,7 +625,7 @@ impl FormatName for LongFormatName {
             // must be encoded as a single Unicode null character (two zero bytes)
             None => w.write_u16::<LittleEndian>(0)?,
             Some(name) => {
-                w.append(&mut util::to_unicode(name));
+                w.append(&mut util::to_unicode(name, true));
             }
         };
 
@@ -986,7 +986,7 @@ mod tests {
     #[test]
     fn responds_to_format_data_request_hasdata() {
         // a null-terminated utf-16 string, represented as a Vec<u8>
-        let test_data = util::to_unicode("test");
+        let test_data = util::to_unicode("test", true);
 
         let mut c: Client = Default::default();
         c.clipboard
