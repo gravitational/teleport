@@ -361,6 +361,16 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if cfg.ID != 0 {
 			ca.SetResourceID(cfg.ID)
 		}
+		// Correct problems with existing CAs that have been stored with the local
+		// timezone, which causes panics when doing a gogoproto Clone.
+		if ca.Spec.Rotation != nil {
+			apiutils.UTC(&ca.Spec.Rotation.Started)
+			apiutils.UTC(&ca.Spec.Rotation.LastRotated)
+			apiutils.UTC(&ca.Spec.Rotation.Schedule.UpdateClients)
+			apiutils.UTC(&ca.Spec.Rotation.Schedule.UpdateServers)
+			apiutils.UTC(&ca.Spec.Rotation.Schedule.Standby)
+		}
+
 		return &ca, nil
 	}
 
