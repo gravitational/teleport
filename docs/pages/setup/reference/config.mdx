@@ -116,17 +116,9 @@ teleport:
     auth_servers:
         - 10.1.0.5:3025
 
-    # For use on a Teleport Proxy.
-    # See the "Teleport Scalability Tweaks" of the admin manual
-    # (https://goteleport.com/docs/admin-guide/#teleport-scalability-tweaks)
     # cache:
-    #  # use an in-memory cache to speed up the connection of many teleport nodes
-    #  # back to proxy
-    #  type: in-memory
+    #  # The cache is enabled by default, it can be disabled with this flag
     #  enabled: true
-    #  # can be "never" or a duration such as 300m (300 minutes),
-    #  # 2.5h (2 and a half hours), etc. Default is 20h (twenty hours).
-    #  ttl: 20h
 
     # Teleport throttles all connections to avoid abuse. These settings allow
     # you to adjust the default limits
