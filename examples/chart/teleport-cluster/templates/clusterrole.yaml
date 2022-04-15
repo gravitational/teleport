@@ -23,3 +23,46 @@ rules:
   - selfsubjectaccessreviews
   verbs:
   - create
+
+{{ if .Values.operator }}
+- apiGroups:
+  - "resources.teleport.dev"
+  resources:
+  - roles
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+- apiGroups:
+  - "apiextensions.k8s.io"
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+
+- apiGroups:
+  - "coordination.k8s.io"
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - update
+
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+{{ end }}

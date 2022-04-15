@@ -5,6 +5,7 @@
         "clusterName",
         "authenticationType",
         "enterprise",
+        "operator",
         "podSecurityPolicy",
         "labels",
         "chartMode",
@@ -12,6 +13,7 @@
         "tls",
         "image",
         "enterpriseImage",
+        "operatorImage",
         "log",
         "affinity",
         "annotations",
@@ -101,6 +103,11 @@
         },
         "enterprise": {
             "$id": "#/properties/enterprise",
+            "type": "boolean",
+            "default": false
+        },
+        "operator": {
+            "$id": "#/properties/operator",
             "type": "boolean",
             "default": false
         },
@@ -361,6 +368,11 @@
             "$id": "#/properties/enterpriseImage",
             "type": "string",
             "default": "quay.io/gravitational/teleport-ent"
+        },
+        "operatorImage": {
+            "$id": "#/properties/operatorImage",
+            "type": "string",
+            "default": "quay.io/gravitational/teleport-operator"
         },
         "logLevel": {
             "$id": "#/properties/logLevel",
