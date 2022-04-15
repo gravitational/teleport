@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -320,6 +321,14 @@ func (c *CLIConf) Stderr() io.Writer {
 	return os.Stderr
 }
 
+type exitCodeError struct {
+	code int
+}
+
+func (e *exitCodeError) Error() string {
+	return fmt.Sprintf("exit code %d", e.code)
+}
+
 func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
@@ -335,6 +344,10 @@ func main() {
 		cmdLine = cmdLineOrig
 	}
 	if err := Run(cmdLine); err != nil {
+		var exitError *exitCodeError
+		if errors.As(err, &exitError) {
+			os.Exit(exitError.code)
+		}
 		utils.FatalError(err)
 	}
 }
@@ -1311,7 +1324,7 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				os.Exit(1)
+				return trace.Wrap(&exitCodeError{code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -1935,15 +1948,14 @@ func onSSH(cf *CLIConf) error {
 			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 			fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 			fmt.Fprintf(os.Stderr, "\n")
-			os.Exit(1)
+			return trace.Wrap(&exitCodeError{code: 1})
 		}
 		// exit with the same exit status as the failed command:
 		if tc.ExitStatus != 0 {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			os.Exit(tc.ExitStatus)
-		} else {
-			return trace.Wrap(err)
+			return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -1962,7 +1974,7 @@ func onBenchmark(cf *CLIConf) error {
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(255)
+		return trace.Wrap(&exitCodeError{code: 255})
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
@@ -2035,7 +2047,7 @@ func onSCP(cf *CLIConf) error {
 	// exit with the same exit status as the failed command:
 	if tc.ExitStatus != 0 {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(tc.ExitStatus)
+		return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
 	}
 	return trace.Wrap(err)
 }

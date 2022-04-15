@@ -29,6 +29,12 @@ type ProxyGetter interface {
 	GetProxies() ([]types.Server, error)
 }
 
+// NodeGetter is a service that gets nodes.
+type NodeGetter interface {
+	// GetNodes returns a list of registered servers.
+	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
@@ -43,12 +49,11 @@ type Presence interface {
 
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
-
-	// GetNodes returns a list of registered servers.
-	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
-
 	// ListNodes returns a paginated list of registered servers.
 	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+
+	// NodeGetter gets nodes
+	NodeGetter
 
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
