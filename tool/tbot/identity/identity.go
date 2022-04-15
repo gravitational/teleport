@@ -432,6 +432,14 @@ func LoadIdentity(d destination.Destination, kinds ...ArtifactKind) (*Identity, 
 			return nil, trace.WrapWithMessage(err, "could not read artifact %q from destination %s", artifact.Key, d)
 		}
 
+		// We generally expect artifacts to exist beforehand regardless of
+		// whether or not they've actually been written to (due to `tbot init`
+		// or our lightweight init during `tbot start`). If required artifacts
+		// are empty, this identity can't be loaded.
+		if !artifact.Optional && len(data) == 0 {
+			return nil, trace.NotFound("artifact %q is unexpectedly empty in destination %s", artifact.Key, d)
+		}
+
 		artifact.FromBytes(&certs, &params, data)
 	}
 
