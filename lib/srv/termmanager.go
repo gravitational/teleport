@@ -216,11 +216,12 @@ func (g *TermManager) TerminateNotifier() <-chan struct{} {
 }
 
 func (g *TermManager) Write(p []byte) (int, error) {
+	data := append([]byte{}, p...)
 	select {
 	case <-g.done:
 		return 0, io.EOF
-	case g.write <- p:
-		return len(p), nil
+	case g.write <- data:
+		return len(data), nil
 	}
 }
 
