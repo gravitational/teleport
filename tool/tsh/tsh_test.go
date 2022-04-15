@@ -704,9 +704,6 @@ func TestIdentityRead(t *testing.T) {
 	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
 	require.NoError(t, err)
 	require.NotNil(t, conf)
-
-	// ensure that at least root CA was successfully loaded
-	require.Greater(t, len(conf.RootCAs.Subjects()), 0)
 }
 
 func TestFormatConnectCommand(t *testing.T) {
