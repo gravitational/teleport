@@ -97,7 +97,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		if err == nil {
 			// check if the token found has the right rules
 			if t.GetJoinMethod() != types.JoinMethodIAM || !isSameRuleSet(req.Allow, t.GetAllowRules()) {
-				return nil, errors.New("failed to create token")
+				return nil, trace.BadParameter("failed to create token: token with name %q already exists and does not have the expected allow rules")
 			}
 
 			return &nodeJoinToken{
