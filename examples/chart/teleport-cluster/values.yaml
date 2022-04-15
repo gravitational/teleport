@@ -18,7 +18,7 @@ kubeClusterName: ""
 # Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
 
-# Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc', 'saml', and 'false' for Enterprise.
+# Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc' and 'saml' for Enterprise.
 # 'false' is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
 authenticationType: local
 
