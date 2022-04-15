@@ -29,10 +29,27 @@ that protects users against compromises of their on-disk Teleport certificates.
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - [U2F configured](u2f.mdx) on this cluster
 - U2F hardware device, such as Yubikey or Solokey
 - Web browser that [supports U2F](https://caniuse.com/u2f) (if using SSH from the Teleport Web UI)
+
+(!docs/pages/includes/tctl.mdx!)
+
+<Admonition type="note" title="Per-session MFA with FIPS" scope="enterprise" scopeOnly>
+Teleport FIPS builds disable local users. To configure WebAuthn in order to use
+per-session MFA with FIPS builds, provide the following in your `teleport.yaml`:
+
+```yaml
+teleport:
+  auth_service:
+    local_auth: false
+    second_factor: optional
+    webauthn:
+      rp_id: teleport.example.com
+```
+</Admonition>
 
 ## Configuration
 
