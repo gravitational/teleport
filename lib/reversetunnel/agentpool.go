@@ -53,7 +53,6 @@ type ServerHandler interface {
 
 // AgentPool manages a pool of reverse tunnel agents.
 type AgentPool struct {
-	timer *time.Ticker
 	AgentPoolConfig
 	active  *agentStore
 	tracker *track.Tracker
@@ -165,10 +164,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		return nil, trace.Wrap(err)
 	}
 
-	timer := time.NewTicker(time.Second * 30)
-
 	pool := &AgentPool{
-		timer:           timer,
 		AgentPoolConfig: config,
 		active:          newAgentStore(),
 		events:          make(chan Agent),
@@ -332,17 +328,6 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 			if p.isAgentRequired() {
 				return nil
 			}
-		case <-p.timer.C:
-			agent, ok := p.active.poplen(0)
-			if !ok {
-				continue
-			}
-			p.log.Debugf("stopping agent...")
-			go func() {
-				agent.Stop()
-				p.wg.Done()
-			}()
-			time.Sleep(time.Second * 15)
 		}
 	}
 }
