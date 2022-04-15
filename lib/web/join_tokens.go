@@ -314,7 +314,7 @@ func generateIAMTokenName(rules []*types.TokenRule) (string, error) {
 		s := fmt.Sprintf("%s%s", r.AWSAccount, r.AWSARN)
 		_, err := h.Write([]byte(s))
 		if err != nil {
-			return "", err
+			return "", trace.Wrap(err)
 		}
 	}
 
