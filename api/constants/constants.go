@@ -117,7 +117,7 @@ const (
 	AWSAccountIDLabel = "aws_account_id"
 
 	// RSAKeySize is the size of the RSA key.
-	RSAKeySize = 2048
+	RSAKeySize = 1024
 
 	// NoLoginPrefix is the prefix used for nologin certificate principals.
 	NoLoginPrefix = "-teleport-nologin-"
