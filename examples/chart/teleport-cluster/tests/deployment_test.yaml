@@ -63,11 +63,11 @@ tests:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-            - matchExpressions:
-              - key: gravitational.io/dedicated
-                operator: In
-                values:
-                - teleport
+              - matchExpressions:
+                  - key: gravitational.io/dedicated
+                    operator: In
+                    values:
+                      - teleport
     asserts:
       - isNotNull:
           path: spec.template.spec.affinity
@@ -112,6 +112,40 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 2Gi
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set securityContext when set in values
+    values:
+      - ../.lint/security-context.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.privileged
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 99
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not set securityContext when is empty object (default value)
+    values:
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].securityContext
       - matchSnapshot:
           path: spec.template.spec
 

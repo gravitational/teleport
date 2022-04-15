@@ -1871,6 +1871,51 @@ should not mount TLS secrets when when highAvailability.certManager.enabled is f
     - name: data
       persistentVolumeClaim:
         claimName: RELEASE-NAME
+should not set securityContext when is empty object (default value):
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
 should provision initContainer correctly when set in values:
   1: |
     containers:
@@ -2322,6 +2367,58 @@ should set resources when set in values:
         requests:
           cpu: 1
           memory: 2Gi
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - name: gcp-credentials
+      secret:
+        secretName: teleport-gcp-credentials
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: data
+      persistentVolumeClaim:
+        claimName: RELEASE-NAME
+should set securityContext when set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        privileged: false
+        readOnlyRootFilesystem: false
+        runAsGroup: 99
+        runAsNonRoot: true
+        runAsUser: 99
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
