@@ -408,7 +408,7 @@ docsbox:
 .PHONY:test-docs
 test-docs: docsbox
 	docker run --platform=linux/amd64 -i $(NOROOT) -v $$(pwd)/..:/src/content $(DOCSBOX) \
-		/bin/sh -c "yarn markdown-lint-external-links"
+		/bin/sh -c "yarn markdown-lint"
 
 #
 # Print the Go version used to build Teleport.
