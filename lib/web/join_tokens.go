@@ -74,22 +74,16 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	// create a new random dynamic token
-	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	expires := time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
-
-	// to prevent generation of redundant IAM tokens
-	// we generate a deterministic name for them
-	if req.JoinMethod == types.JoinMethodIAM {
+	var expires time.Time
+	var tokenName string
+	switch req.JoinMethod {
+	case types.JoinMethodIAM:
+		// to prevent generation of redundant IAM tokens
+		// we generate a deterministic name for them
 		tokenName, err = generateIAMTokenName(req.Allow)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		// if a token with this name is found and it has indeed the same rule set,
 		// return it. Otherwise, go ahead and create it
 		t, err := clt.GetToken(r.Context(), tokenName)
@@ -108,6 +102,12 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 		// IAM tokens should 'never' expire
 		expires = time.Now().UTC().AddDate(1000, 0, 0)
+	default:
+		tokenName, err = utils.CryptoRandomHex(auth.TokenLenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
