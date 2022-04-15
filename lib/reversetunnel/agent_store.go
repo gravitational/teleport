@@ -85,7 +85,7 @@ func (s *agentStore) poplen(l int) (Agent, bool) {
 	return agent, true
 }
 
-// ids returns a list of proxy ids that each agent is connected to.
+// proxyIDs returns a list of proxy ids that each agent is connected to.
 func (s *agentStore) proxyIDs() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

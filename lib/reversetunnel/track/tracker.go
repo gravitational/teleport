@@ -176,10 +176,10 @@ func (t *Tracker) getOrCreate() *proxySet {
 }
 
 // Claim attempts to claim a lease based on the given principals returning a
-// function to unclaim and if the claim was successful. unclaim is never nil.
+// function to unclaim and if the claim was successful.
 func (t *Tracker) Claim(principals ...string) (unclaim func(), ok bool) {
 	if ok := t.claim(principals...); !ok {
-		return func() {}, false
+		return nil, false
 	}
 	return func() { t.release(principals...) }, true
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProxiedServiceUpdater(t *testing.T) {
+func TestConnectedProxyGetter(t *testing.T) {
 	proxies := NewConnectedProxyGetter()
 
 	var expectIDs []string
@@ -14,17 +14,17 @@ func TestProxiedServiceUpdater(t *testing.T) {
 	require.Equal(t, expectIDs, ids)
 
 	expectIDs = []string{}
-	proxies.setProxiesIDs(expectIDs)
+	proxies.setProxyIDs(expectIDs)
 	ids = proxies.GetProxyIDs()
 	require.Equal(t, expectIDs, ids)
 
 	expectIDs = []string{"test1", "test2"}
-	proxies.setProxiesIDs(expectIDs)
+	proxies.setProxyIDs(expectIDs)
 	ids = proxies.GetProxyIDs()
 	require.Equal(t, expectIDs, ids)
 
 	expectIDs = nil
-	proxies.setProxiesIDs(expectIDs)
+	proxies.setProxyIDs(expectIDs)
 	ids = proxies.GetProxyIDs()
 	require.Equal(t, expectIDs, ids)
 }

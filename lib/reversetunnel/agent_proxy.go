@@ -22,7 +22,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// NewProxiedServiceUpdater creates a new ProxiedServiceUpdater instance.
+// NewConnectedProxyGetter creates a new ConnectedProxyGetter instance.
 func NewConnectedProxyGetter() *ConnectedProxyGetter {
 	return &ConnectedProxyGetter{}
 }
@@ -36,15 +36,15 @@ type ConnectedProxyGetter struct {
 	mu  sync.RWMutex
 }
 
-// Update updates a given proxied service with proxy ids, nonce id, and nonce.
+// GetProxyIDs gets the list of connected proxy ids.
 func (g *ConnectedProxyGetter) GetProxyIDs() []string {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	return g.ids
 }
 
-// setProxies sets the proxy ids to set for a proxied service
-func (g *ConnectedProxyGetter) setProxiesIDs(ids []string) {
+// setProxyIDs sets the list of connected proxy ids.
+func (g *ConnectedProxyGetter) setProxyIDs(ids []string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 

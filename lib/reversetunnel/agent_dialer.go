@@ -116,15 +116,6 @@ func (d *agentDialer) hostCheckerFunc(ctx context.Context) apisshutils.CheckersG
 	}
 }
 
-// SSHClient is a client for an ssh connection.
-type SSHClient interface {
-	ssh.Conn
-	Principals() []string
-	GlobalRequests() <-chan *ssh.Request
-	HandleChannelOpen(channelType string) <-chan ssh.NewChannel
-	Reply(*ssh.Request, bool, []byte) error
-}
-
 // sshClient implements the SSHClient interface.
 type sshClient struct {
 	*ssh.Client

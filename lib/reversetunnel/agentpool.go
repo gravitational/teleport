@@ -198,11 +198,11 @@ func (p *AgentPool) GetConnectedProxyGetter() *ConnectedProxyGetter {
 
 func (p *AgentPool) updateConnectedProxies() {
 	if !p.runtimeConfig.reportConnectedProxies() {
-		p.ConnectedProxyGetter.setProxiesIDs(nil)
+		p.ConnectedProxyGetter.setProxyIDs(nil)
 		return
 	}
 
-	p.AgentPoolConfig.ConnectedProxyGetter.setProxiesIDs(p.active.proxyIDs())
+	p.AgentPoolConfig.ConnectedProxyGetter.setProxyIDs(p.active.proxyIDs())
 }
 
 // Count is the number connected agents.
