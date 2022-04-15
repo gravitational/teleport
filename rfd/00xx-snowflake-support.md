@@ -75,9 +75,9 @@ sequenceDiagram
     participant client
     participant Teleport
     participant Snowflake
-    client->>Teleport: HTTP /session/v1/query???
+    client->>Teleport: HTTP /queries/v1/query-request
     Teleport->>Teleport: Replace Auth header
-    Teleport->>Snowflake: HTTP /session/v1/query??
+    Teleport->>Snowflake: HTTP /queries/v1/query-request
     Snowflake->>Teleport: Response
     Teleport->>client: Forward the response
 ```
@@ -86,6 +86,15 @@ With this approach the real session token never leaves the Teleport and any clie
 by extracting the session token.
 Snowflake session token needs to be refreshed every X minutes. For that purpose Teleport would have to internally refresh
 the token as client doesn't have access to the token.
+
+#### Query logging
+
+Queries can be extracted from requests sent to `/queries/v1/query-request` endpoint, field `data.sqltext`.
+
+#### User authentication
+
+Username can be extracted from `/session/v1/login-request` requests, field `data.LOGIN_NAME`. The extracted username
+can be then use to authenticate the user against the Teleport RBAC.
 
 ### CLI support 
 
@@ -140,7 +149,8 @@ the Application Access. For the initial implementation Web UI will be excluded f
 ## Security
 
 * Snowflake access token should not be forwarded to connected clients to minimize the changes of leaking it.
-* `tsh` exports private key in unencrypted form. What with FIPS?
+* If we decide to use unencrypted connection between a client and the `tsh` then the traffic can be potentially sniffed
+by a malicious actor.
 
 ### Notes
 
@@ -150,11 +160,3 @@ To make it work we can either add permission for Database Access to access JWT g
 some logic in Database Access.
 * Teleport could in the future automatically rotate Snowflake access keys when Database CA is rotated. Snowflake provides an API
 for that.
-
-docs
-https://docs.snowflake.com/en/developer-guide/sql-api/authenticating.html
-
-Add internal host to OCSP https://docs.snowflake.com/en/user-guide/snowcd.html `allowlist.json`
-
-MFA:
-https://docs.snowflake.com/en/user-guide/security-mfa.html
