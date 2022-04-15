@@ -828,15 +828,12 @@ func (s *session) launch(ctx *ServerContext) error {
 	s.log.Debugf("Launching session %v.", s.id)
 	s.BroadcastMessage("Connecting to %v over SSH", ctx.srv.GetInfo().GetHostname())
 
-	err := s.io.On()
-	if err != nil {
-		s.log.Warnf("Failed to turn enable IO: %v.", err)
-	}
+	s.io.On()
 
 	s.stateUpdate.L.Lock()
 	defer s.stateUpdate.L.Unlock()
 
-	err = s.trackerUpdateState(types.SessionState_SessionStateRunning)
+	err := s.trackerUpdateState(types.SessionState_SessionStateRunning)
 	if err != nil {
 		s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 	}

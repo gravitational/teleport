@@ -16,10 +16,8 @@ package srv
 
 import (
 	"io"
-	"sync"
 	"sync/atomic"
 
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,9 +38,8 @@ type TermManager struct {
 	countWritten uint64
 	countRead    uint64
 
-	mu           sync.Mutex
 	writers      map[string]io.Writer
-	readerState  map[string]bool
+	readers      map[string]chan struct{}
 	OnWriteError func(idString string, err error)
 	// buffer is used to buffer writes when turned off
 	buffer []byte
@@ -53,166 +50,239 @@ type TermManager struct {
 	incoming chan []byte
 	// remaining is a partially read chunk of stdin data
 	// we only support one concurrent reader so this isn't mutex protected
-	remaining         []byte
-	readStateUpdate   *sync.Cond
-	closed            bool
-	lastWasBroadcast  bool
-	terminateNotifier chan struct{}
+	remaining []byte
+
+	terminateNotifiers []chan struct{}
+	addNotifier        chan chan struct{}
+	addWriter          chan writer
+	delWriter          chan string
+	addReader          chan reader
+	delReader          chan string
+	write              chan []byte
+	read               chan read
+	broadcast          chan string
+	done               chan struct{}
+	onCh               chan bool
+	termination        chan struct{}
+	historyCh          chan chan []byte
+}
+
+type writer struct {
+	io.Writer
+	name string
+}
+
+type reader struct {
+	done chan struct{}
+	name string
+}
+
+type read struct {
+	data chan []byte
+	len  int
 }
 
 // NewTermManager creates a new TermManager.
 func NewTermManager() *TermManager {
-	return &TermManager{
-		writers:           make(map[string]io.Writer),
-		readerState:       make(map[string]bool),
-		closed:            false,
-		readStateUpdate:   sync.NewCond(&sync.Mutex{}),
-		incoming:          make(chan []byte, 100),
-		terminateNotifier: make(chan struct{}, 1),
+	g := &TermManager{
+		writers:     make(map[string]io.Writer),
+		readers:     make(map[string]chan struct{}),
+		incoming:    make(chan []byte),
+		addNotifier: make(chan chan struct{}),
+		addWriter:   make(chan writer),
+		delWriter:   make(chan string),
+		addReader:   make(chan reader),
+		delReader:   make(chan string),
+		write:       make(chan []byte),
+		read:        make(chan read),
+		broadcast:   make(chan string),
+		done:        make(chan struct{}),
+		onCh:        make(chan bool),
+		termination: make(chan struct{}),
+		historyCh:   make(chan chan []byte),
 	}
+
+	go func() {
+		var lastWasBroadcast bool
+		var pendingRead read
+
+		for {
+			select {
+			case <-g.done:
+				for _, ch := range g.terminateNotifiers {
+					close(ch)
+				}
+				return
+			case ch := <-g.addNotifier:
+				g.terminateNotifiers = append(g.terminateNotifiers, ch)
+			case w := <-g.addWriter:
+				g.writers[w.name] = w
+			case w := <-g.delWriter:
+				delete(g.writers, w)
+			case r := <-g.addReader:
+				g.readers[r.name] = r.done
+			case r := <-g.delReader:
+				if done, ok := g.readers[r]; ok {
+					close(done)
+					delete(g.readers, r)
+				}
+			case b := <-g.write:
+				if g.on {
+					g.writeToClients(b)
+				} else {
+					// Only keep the last maxPausedHistoryBytes of stdout/stderr while the session is paused.
+					// The alternative is flushing to disk but this should be a pretty rare occurrence and shouldn't
+					//be an issue in practice.
+					g.buffer = appendAndTruncateFront(g.buffer, b, maxPausedHistoryBytes)
+				}
+				lastWasBroadcast = false
+			case m := <-g.broadcast:
+				data := []byte("\r\nTeleport > " + m + "\r\n")
+				if !lastWasBroadcast {
+					data = data[2:]
+				}
+				g.writeToClients(data)
+				lastWasBroadcast = true
+			case on := <-g.onCh:
+				g.on = on
+			case <-g.termination:
+				if !g.on {
+					for _, ch := range g.terminateNotifiers {
+						ch <- struct{}{}
+					}
+				}
+			case r := <-g.read:
+				if len(g.remaining) == 0 {
+					pendingRead = r
+					continue
+				}
+				b := make([]byte, r.len)
+				n := copy(b, g.remaining)
+				g.remaining = g.remaining[n:]
+				r.data <- b
+			case incoming := <-g.incoming:
+				if pendingRead.data == nil {
+					g.remaining = append(g.remaining, incoming...)
+					continue
+				}
+				b := make([]byte, pendingRead.len)
+				n := copy(b, incoming)
+				g.remaining = append(g.remaining, incoming[n:]...)
+				pendingRead.data <- b
+				pendingRead.data = nil
+			case ch := <-g.historyCh:
+				ch <- g.history
+			}
+		}
+	}()
+
+	return g
 }
 
-func (g *TermManager) writeToClients(p []byte) int {
-	g.lastWasBroadcast = false
-	g.history = truncateFront(append(g.history, p...), maxHistoryBytes)
+func (g *TermManager) writeToClients(p []byte) {
+	g.history = appendAndTruncateFront(g.history, p, maxHistoryBytes)
 
 	atomic.AddUint64(&g.countWritten, uint64(len(p)))
 	for key, w := range g.writers {
 		_, err := w.Write(p)
-		if err != nil {
-			if err != io.EOF {
-				log.Warnf("Failed to write to remote terminal: %v", err)
-			}
-
-			if g.OnWriteError != nil {
-				g.OnWriteError(key, err)
-			}
-
-			delete(g.writers, key)
+		if err == nil {
+			continue
 		}
-	}
 
-	return len(p)
+		if err != io.EOF {
+			log.Warnf("Failed to write to remote terminal: %v", err)
+		}
+
+		if g.OnWriteError != nil {
+			g.OnWriteError(key, err)
+		}
+
+		delete(g.writers, key)
+	}
 }
 
 func (g *TermManager) TerminateNotifier() <-chan struct{} {
-	return g.terminateNotifier
+	ch := make(chan struct{})
+	select {
+	case <-g.done:
+		close(ch)
+	case g.addNotifier <- ch:
+	}
+	return ch
 }
 
 func (g *TermManager) Write(p []byte) (int, error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if g.on {
-		g.writeToClients(p)
-	} else {
-		// Only keep the last maxPausedHistoryBytes of stdout/stderr while the session is paused.
-		// The alternative is flushing to disk but this should be a pretty rare occurrence and shouldn't be an issue in practice.
-		g.buffer = truncateFront(append(g.buffer, p...), maxPausedHistoryBytes)
+	select {
+	case <-g.done:
+		return 0, io.EOF
+	case g.write <- p:
+		return len(p), nil
 	}
-
-	return len(p), nil
 }
 
 func (g *TermManager) Read(p []byte) (int, error) {
-	if len(g.remaining) > 0 {
-		n := copy(p, g.remaining)
-		g.remaining = g.remaining[n:]
+	data := make(chan []byte)
+	select {
+	case <-g.done:
+		return 0, io.EOF
+	case g.read <- read{data, len(p)}:
+	}
+	select {
+	case <-g.done:
+		return 0, io.EOF
+	case b := <-data:
+		n := copy(p, b)
+		atomic.AddUint64(&g.countRead, uint64(n))
 		return n, nil
 	}
-
-	q := make(chan struct{})
-	c := make(chan bool)
-	go func() {
-		g.readStateUpdate.L.Lock()
-		defer g.readStateUpdate.L.Unlock()
-
-		for {
-			g.mu.Lock()
-			on := g.on
-			g.mu.Unlock()
-
-			select {
-			case c <- on:
-			case <-q:
-				close(c)
-				return
-			}
-
-			g.readStateUpdate.Wait()
-		}
-	}()
-
-	on := <-c
-	for {
-		if !on {
-			on = <-c
-			continue
-		}
-
-		select {
-		case on = <-c:
-			continue
-		case g.remaining = <-g.incoming:
-			close(q)
-			n := copy(p, g.remaining)
-			g.remaining = g.remaining[n:]
-			return n, nil
-		}
-	}
-}
-
-// writeUnconditional allows unconditional writes to the underlying writers.
-func (g *TermManager) writeUnconditional(p []byte) (int, error) {
-	return g.writeToClients(p), nil
 }
 
 // BroadcastMessage injects a message into the stream.
 func (g *TermManager) BroadcastMessage(message string) error {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	data := []byte("Teleport > " + message + "\r\n")
-	if g.lastWasBroadcast {
-		data = append([]byte("\r\n"), data...)
-	} else {
-		g.lastWasBroadcast = true
+	select {
+	case <-g.done:
+	case g.broadcast <- message:
 	}
-	_, err := g.writeUnconditional(data)
-	return trace.Wrap(err)
+	return nil
 }
 
 // On allows data to flow through the manager.
-func (g *TermManager) On() error {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.on = true
-	g.readStateUpdate.Broadcast()
-	_, err := g.writeUnconditional(g.buffer)
-	return trace.Wrap(err)
+func (g *TermManager) On() {
+	select {
+	case <-g.done:
+	case g.onCh <- true:
+	}
 }
 
 // Off buffers incoming writes and reads until turned on again.
 func (g *TermManager) Off() {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.on = false
-	g.readStateUpdate.Broadcast()
+	select {
+	case <-g.done:
+	case g.onCh <- false:
+	}
 }
 
 func (g *TermManager) AddWriter(name string, w io.Writer) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.writers[name] = w
+	select {
+	case <-g.done:
+	case g.addWriter <- writer{w, name}:
+	}
 }
 
 func (g *TermManager) DeleteWriter(name string) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	delete(g.writers, name)
+	select {
+	case <-g.done:
+	case g.delWriter <- name:
+	}
 }
 
 func (g *TermManager) AddReader(name string, r io.Reader) {
-	g.readerState[name] = false
+	done := make(chan struct{})
+	select {
+	case <-g.done:
+		return
+	case g.addReader <- reader{done, name}:
+	}
 
 	go func() {
 		for {
@@ -227,33 +297,38 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 			for _, b := range buf[:n] {
 				// This is the ASCII control code for CTRL+C.
 				if b == 0x03 {
-					g.mu.Lock()
-					if !g.on && !g.closed {
-						select {
-						case g.terminateNotifier <- struct{}{}:
-						default:
-						}
+					select {
+					case <-g.done:
+					case g.termination <- struct{}{}:
 					}
-					g.mu.Unlock()
 					break
 				}
 			}
 
-			g.incoming <- buf[:n]
-			g.mu.Lock()
-			if g.closed || g.readerState[name] {
-				g.mu.Unlock()
+			select {
+			case <-g.done:
 				return
+			case <-done:
+				return
+			case g.incoming <- buf[:n]:
 			}
-			g.mu.Unlock()
 		}
 	}()
 }
 
 func (g *TermManager) DeleteReader(name string) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.readerState[name] = true
+	select {
+	case <-g.done:
+	case g.delReader <- name:
+	}
+}
+
+func (g *TermManager) Close() {
+	select {
+	case <-g.done:
+	default:
+		close(g.done)
+	}
 }
 
 func (g *TermManager) CountWritten() uint64 {
@@ -264,25 +339,22 @@ func (g *TermManager) CountRead() uint64 {
 	return atomic.LoadUint64(&g.countRead)
 }
 
-func (g *TermManager) Close() {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if !g.closed {
-		g.closed = true
-		close(g.terminateNotifier)
+func (g *TermManager) GetRecentHistory() []byte {
+	data := make(chan []byte)
+	select {
+	case <-g.done:
+	case g.historyCh <- data:
+	}
+	select {
+	case <-g.done:
+		return nil
+	case b := <-data:
+		return b
 	}
 }
 
-func (g *TermManager) GetRecentHistory() []byte {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	data := make([]byte, 0, len(g.history))
-	data = append(data, g.history...)
-	return data
-}
-
-func truncateFront(slice []byte, max int) []byte {
+func appendAndTruncateFront(s1, s2 []byte, max int) []byte {
+	slice := append(s1, s2...)
 	if len(slice) > max {
 		return slice[len(slice)-max:]
 	}

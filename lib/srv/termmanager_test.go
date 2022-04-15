@@ -45,7 +45,7 @@ func TestCTRLCCapture(t *testing.T) {
 
 	select {
 	case <-m.TerminateNotifier():
-	case <-time.After(time.Second * 10):
+	case <-time.After(time.Second * 1):
 		t.Fatal("terminateNotifier should've seen an event")
 	}
 }
