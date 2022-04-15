@@ -145,6 +145,10 @@ func NewTermManager() *TermManager {
 				lastWasBroadcast = true
 			case on := <-g.onCh:
 				g.on = on
+				if on {
+					g.writeToClients(g.buffer)
+					g.buffer = g.buffer[:0]
+				}
 			case <-g.termination:
 				if !g.on {
 					for _, ch := range g.terminateNotifiers {

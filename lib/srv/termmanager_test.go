@@ -84,5 +84,12 @@ func TestBufferedKept(t *testing.T) {
 	require.Equal(t, len(data), n)
 
 	kept := data[len(data)-maxPausedHistoryBytes:]
-	require.Equal(t, m.buffer, kept)
+
+	r, w := io.Pipe()
+	m.AddWriter("test", w)
+	m.On()
+	actual := make([]byte, 20000)
+	n, err = r.Read(actual)
+	require.NoError(t, err)
+	require.Equal(t, kept, actual[:n])
 }
