@@ -242,3 +242,9 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 
 	return nil
 }
+
+const adviseReconnectRequest = "advise-reconnect@goteleport.com"
+
+func (c *remoteConn) adviseReconnect() {
+	c.sconn.SendRequest(adviseReconnectRequest, false, nil)
+}

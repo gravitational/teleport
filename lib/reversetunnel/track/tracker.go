@@ -188,6 +188,10 @@ func (t *Tracker) WithProxy(work func(), principals ...string) (didWork bool) {
 }
 
 func (t *Tracker) claim(principals ...string) (ok bool) {
+	if len(principals) == 0 {
+		return
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.sets == nil {
@@ -197,6 +201,10 @@ func (t *Tracker) claim(principals ...string) (ok bool) {
 }
 
 func (t *Tracker) release(principals ...string) {
+	if len(principals) == 0 {
+		return
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.sets == nil {
@@ -204,6 +212,14 @@ func (t *Tracker) release(principals ...string) {
 	}
 
 	t.sets.release(principals...)
+}
+
+func (t *Tracker) UnsafeClaim(principals ...string) bool {
+	return t.claim(principals...)
+}
+
+func (t *Tracker) UnsafeRelease(principals ...string) {
+	t.release(principals...)
 }
 
 type entry struct {

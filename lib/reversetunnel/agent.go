@@ -239,9 +239,7 @@ func (a *Agent) setPrincipals(principals []string) {
 func (a *Agent) getPrincipalsList() []string {
 	a.RLock()
 	defer a.RUnlock()
-	out := make([]string, len(a.principals))
-	copy(out, a.principals)
-	return out
+	return a.principals
 }
 
 func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
@@ -359,6 +357,13 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
+			case adviseReconnectRequest:
+				if a.Tracker != nil {
+					a.Tracker.UnsafeRelease(a.getPrincipalsList()...)
+				}
+				a.setPrincipals(nil)
+				a.Lease.Release()
+				fallthrough
 			default:
 				// This handles keep-alive messages and matches the behaviour of OpenSSH.
 				err := r.Reply(false, nil)
@@ -437,8 +442,11 @@ func (a *Agent) run() {
 	// if Tracker was provided, then the agent shouldn't continue unless
 	// no other agents hold a claim.
 	if a.Tracker != nil {
-		if !a.Tracker.WithProxy(doWork, a.getPrincipalsList()...) {
+		if !a.Tracker.UnsafeClaim(a.getPrincipalsList()...) {
 			a.log.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
+		} else {
+			doWork()
+			a.Tracker.UnsafeRelease(a.getPrincipalsList()...)
 		}
 	} else {
 		doWork()

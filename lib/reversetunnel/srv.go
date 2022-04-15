@@ -566,6 +566,12 @@ func (s *server) Close() error {
 	return s.srv.Close()
 }
 
+func (s *server) AdviseReconnect() {
+	for _, s := range s.localSites {
+		s.adviseReconnect()
+	}
+}
+
 func (s *server) Shutdown(ctx context.Context) error {
 	err := s.srv.Shutdown(ctx)
 	s.proxyWatcher.Close()
