@@ -663,6 +663,10 @@ message CreateAppSessionResponse {
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
 
+// DeleteUserAppSessionsRequest contains the parameters used to remove the
+// user's application web sessions.
+message DeleteUserAppSessionsRequest { string Username = 1 [ (gogoproto.jsontag) = "username" ]; }
+
 // GetWebSessionResponse contains the requested web session.
 message GetWebSessionResponse {
     // Session is the web session.
@@ -1501,6 +1505,9 @@ message ListResourcesRequest {
     // WindowsDesktopFilter specifies windows desktop specific filters.
     types.WindowsDesktopFilter WindowsDesktopFilter = 10
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "windows_desktop_filter,omitempty" ];
+    // UseSearchAsRoles indicates that the response should include all resources
+    // the caller is able to request access to using search_as_roles
+    bool UseSearchAsRoles = 11 [ (gogoproto.jsontag) = "use_search_as_roles,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.
@@ -1809,6 +1816,8 @@ service AuthService {
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllAppSessions removes all application web sessions.
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+    // DeleteUserAppSessions deletes all user’s application sessions.
+    rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
 
     // GetWebSession gets a web session.
     rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
