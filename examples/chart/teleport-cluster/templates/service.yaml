@@ -57,5 +57,8 @@ spec:
     protocol: TCP
   {{- end }}
   {{- end }}
+  {{- with .Values.service.extraPorts }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
   selector:
     app: {{ .Release.Name }}

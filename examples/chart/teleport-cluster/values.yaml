@@ -239,6 +239,11 @@ service:
   # Additional entries here will be added to the service spec.
   spec: {}
     # loadBalancerIP: "1.2.3.4"
+  extraPorts: []
+  # - name: diag
+  #   port: 3000
+  #   targetPort: 3000
+  #   protocol: TCP
 
 # Extra arguments to pass to 'teleport start' for the main Teleport pod
 extraArgs: []
