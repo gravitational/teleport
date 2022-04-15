@@ -183,7 +183,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // generateIdentity uses an identity to retrieve another possibly impersonated
 // identity. The `configurator` function, if not nil, can be used to add
 // additional requests to the certificate request, for example to add
-// `RouteToDatabase`` and similar fields, however in that case it must be
+// `RouteToDatabase` and similar fields, however in that case it must be
 // called with an impersonated identity that already has the relevant
 // permissions, much like `tsh (app|db|kube) login` is already used to generate
 // an additional set of certs.
