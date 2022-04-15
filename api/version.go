@@ -3,7 +3,7 @@
 package api
 
 const (
-	Version = "9.0.4"
+	Version = "9.1.0"
 )
 
 // Gitref variable is automatically set to the output of git-describe
