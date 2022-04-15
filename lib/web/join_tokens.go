@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"net/http"
@@ -97,7 +96,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		if err == nil {
 			// check if the token found has the right rules
 			if t.GetJoinMethod() != types.JoinMethodIAM || !isSameRuleSet(req.Allow, t.GetAllowRules()) {
-				return nil, trace.BadParameter("failed to create token: token with name %q already exists and does not have the expected allow rules")
+				return nil, trace.BadParameter("failed to create token: token with name %q already exists and does not have the expected allow rules", tokenName)
 			}
 
 			return &nodeJoinToken{
@@ -324,14 +323,14 @@ func generateIAMTokenName(rules []*types.TokenRule) (string, error) {
 // sortRules sorts a slice of rules based on their AWS Account ID and ARN
 func sortRules(rules []*types.TokenRule) {
 	sort.Slice(rules, func(i, j int) bool {
-		accountID1, accountID2 := rules[i].AWSAccount, rules[j].AWSAccount
+		iAcct, jAcct := rules[i].AWSAccount, rules[j].AWSAccount
 		// if accountID is the same, sort based on arn
-		if accountID1 == accountID2 {
+		if iAcct == jAcct {
 			arn1, arn2 := rules[i].AWSARN, rules[j].AWSARN
 			return arn1 < arn2
 		}
 
-		return accountID1 < accountID2
+		return iAcct < jAcct
 	})
 }
 
