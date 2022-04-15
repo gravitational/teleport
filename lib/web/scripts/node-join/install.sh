@@ -452,7 +452,7 @@ EOF
 }
 # get the auth section of a node config
 get_node_auth_config() { 
-    if [ ${JOIN_METHOD} == "iam" ]; then 
+    if [[ ${JOIN_METHOD} == "iam" ]]; then 
         echo "join_params:
     token_name: ${JOIN_TOKEN}
     method: iam
