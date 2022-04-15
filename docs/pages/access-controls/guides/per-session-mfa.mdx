@@ -4,8 +4,6 @@ description: Require U2F checks for user SSH and Kubernetes sessions.
 videoBanner: j8Ze7HhjFGw
 ---
 
-# Per-session MFA
-
 Teleport supports U2F authentication on every SSH and Kubernetes "connection"
 (a single `tsh ssh` or `kubectl` call). This is an advanced security feature
 that protects users against compromises of their on-disk Teleport certificates.
@@ -29,19 +27,43 @@ that protects users against compromises of their on-disk Teleport certificates.
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - [U2F configured](u2f.mdx) on this cluster
 - U2F hardware device, such as Yubikey or Solokey
 - Web browser that [supports U2F](https://caniuse.com/u2f) (if using SSH from the Teleport Web UI)
 
-## Configuration
+(!docs/pages/includes/tctl.mdx!)
+
+<Admonition type="note" title="Per-session MFA with FIPS" scope="enterprise" scopeOnly>
+Teleport FIPS builds disable local users. To configure WebAuthn in order to use
+per-session MFA with FIPS builds, provide the following in your `teleport.yaml`:
+
+```yaml
+teleport:
+  auth_service:
+    local_auth: false
+    second_factor: optional
+    webauthn:
+      rp_id: teleport.example.com
+```
+</Admonition>
+
+## Configure per-session MFA
 
 Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 ### Cluster-wide
 
-To enforce U2F checks cluster-wide, update `teleport.yaml` on the Auth server
-to contain:
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+To enforce MFA checks for all roles, edit your cluster authentication
+configuration:
+
+<Tabs>
+<TabItem label="Static configuration">
+
+Update `teleport.yaml` on the Auth Server to contain:
 
 ```yaml
 auth_service:
@@ -49,6 +71,51 @@ auth_service:
     # require per-session MFA cluster-wide
     require_session_mfa: yes
 ```
+
+</TabItem>
+<TabItem label="Dynamic resources">
+
+Create a file called `cap.yaml` with the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  require_session_mfa: true
+version: v2
+```
+
+Create the resource:
+
+```code
+$ tctl create -f cap.yaml
+```
+
+</TabItem>
+</Tabs>
+
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+
+Create a file called `cap.yaml` with the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  require_session_mfa: true
+version: v2
+```
+
+Create the resource:
+
+```code
+$ tctl create -f cap.yaml
+```
+
+</ScopedBlock>
 
 ### Per role
 
@@ -71,7 +138,7 @@ spec:
 
 Role-specific enforcement only applies when accessing SSH nodes or Kubernetes clusters matching that role's `allow` section.
 
-#### Roles example
+### Roles example
 
 Let's walk though an example of setting up per-session MFA checks for roles.
 
