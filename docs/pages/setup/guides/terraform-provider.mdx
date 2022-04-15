@@ -11,22 +11,7 @@ This guide will explain how to:
 
 ## Prerequisites
 
-<Tabs>
-<TabItem scope={["oss"]} label="Self-Hosted">
-
-- A running Teleport cluster. For details on how to set this up, see [Getting
-  Started on a Linux Server](../../getting-started/linux-server.mdx).
-
-- The `tctl` admin tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](../../installation.mdx) for details.
-
-  (!docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
 
@@ -35,60 +20,9 @@ This guide will explain how to:
   # Terraform v(=terraform.version=)
   ```
 
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
+(!docs/pages/includes/tctl.mdx!)
 
-- A running Teleport cluster. For details on setting this up, see our
-  [Enterprise getting started guide](../../enterprise/getting-started.mdx).
-
-- The `tctl` admin tool version >= (=teleport.version=), which you can download
-  by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  (!docs/pages/includes/tctl.mdx!)
-
-- [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
-
-  ```code
-  $ terraform version
-  # Terraform v(=terraform.version=)
-  ```
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- The Enterprise version of the `tctl` admin tool. To download this, visit
-the [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  (!docs/pages/includes/tctl.mdx!)
-
-- [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
-
-  ```code
-  $ terraform version
-  # Terraform v(=terraform.version=)
-  ```
-
-</TabItem>
-</Tabs>
-
-
-Create a folder `teleport-terraform` to hold some temporary files:
+Create a folder called `teleport-terraform` to hold some temporary files:
 
 ```code
 $ mkdir -p teleport-terraform
