@@ -170,7 +170,7 @@ Then, edit the config as needed.
 ```conf
 # /etc/teleport-email.toml
 [teleport]
-auth_server = "example.com:3025"                               # Teleport Auth/Proxy/Tunnel Server Address
+addr = "example.com:3025"                               # Teleport Auth/Proxy/Tunnel Server Address
 
 # Identity file exported with tctl auth sign --format file
 identity = "/var/lib/teleport/plugins/email/auth_id"    # Identity file
