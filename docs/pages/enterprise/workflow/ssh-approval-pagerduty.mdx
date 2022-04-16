@@ -49,7 +49,7 @@ In your PagerDuty dashboard, go to **Configuration → API Access → Create New
 
 We recommend installing Teleport plugins alongside the Teleport Proxy. This is an ideal
 location as plugins have a low memory footprint, and will require both public internet access
-and Teleport Auth Service access. 
+and Teleport Auth Service access.
 
 <Tabs>
 <TabItem label="Download">
@@ -72,6 +72,9 @@ and Teleport Auth Service access.
 Run `./install` from `teleport-pagerduty` or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 </TabItem>
 <TabItem label="Docker">
+
+ Make a directory called `config` to store the access-plugin certificate and tls/https certs.
+
   ```code
   $ docker pull quay.io/gravitational/teleport-plugin-pagerduty:(=teleport.plugin.version=)
   ```
@@ -82,10 +85,22 @@ Run `./install` from `teleport-pagerduty` or place the executable in the appropr
 
 Teleport's PagerDuty plugin has its own configuration file in TOML format. Before starting the plugin for the first time, you'll need to generate and edit that config file.
 
+<Tabs>
+<TabItem label="Server">
 ```code
 $ teleport-pagerduty configure > teleport-pagerduty.toml
 $ sudo mv teleport-pagerduty.toml /etc
 ```
+</TabItem>
+<TabItem label="Docker">
+```code
+$ docker run -it quay.io/gravitational/teleport-plugin-pagerduty:(=teleport.plugin.version=) configure > teleport-pagerduty.toml
+$ mkdir config
+$ cp teleport-pagerduty.toml config
+```
+</TabItem>
+</Tabs>
+
 
 #### Editing the config file
 
@@ -110,6 +125,8 @@ With the config above, you should be able to run the plugin invoking
 `teleport-pagerduty start -d`. The will provide some debug information to make sure
 the bot can connect to PagerDuty.
 
+<Tabs>
+<TabItem label="Server">
 ```code
 $ teleport-pagerduty start -d
 # DEBU   DEBUG logging enabled logrus/exported.go:117
@@ -122,6 +139,25 @@ $ teleport-pagerduty start -d
 # DEBU   PagerDuty API health check finished ok pagerduty/main.go:176
 # DEBU   Setting up the webhook extensions pagerduty/main.go:178
 ```
+</TabItem>
+<TabItem label="Docker">
+```code
+$ docker run  -p 8081:8081  \
+-v ~/config:/var/lib/teleport/plugins/pagerduty \
+-v ~/teleport-pagerduty.toml:/etc/teleport-pagerduty.toml \
+ quay.io/gravitational/teleport-plugin-pagerduty:(=teleport.plugin.version=) start -d
+# DEBU   DEBUG logging enabled logrus/exported.go:117
+# INFO   Starting Teleport Access PagerDuty extension 0.1.0-dev.1: pagerduty/main.go:124
+# DEBU   Checking Teleport server version pagerduty/main.go:226
+# DEBU   Starting a request watcher... pagerduty/main.go:288
+# DEBU   Starting PagerDuty API health check... pagerduty/main.go:170
+# DEBU   Starting secure HTTPS server on :8081 utils/http.go:146
+# DEBU   Watcher connected pagerduty/main.go:252
+# DEBU   PagerDuty API health check finished ok pagerduty/main.go:176
+# DEBU   Setting up the webhook extensions pagerduty/main.go:178
+```
+</TabItem>
+</Tabs>
 
 By default, `teleport-pagerduty` will assume its config is in `/etc/teleport-pagerduty.toml`, but you can override it with `--config` option.
 
