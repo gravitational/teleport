@@ -95,7 +95,7 @@ Teleport Plugin use the `access-plugin` role and user to perform the approval. W
 <Tabs>
   <TabItem label="OpenSource, Enterprise" scope={["oss","enterprise"]}>
 ```code
-$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=2190h
+$ tctl auth sign --format=file --user=access-plugin --out=/var/lib/teleport/plugins/email/auth_id --ttl=2190h
 # ...
 ```
 
