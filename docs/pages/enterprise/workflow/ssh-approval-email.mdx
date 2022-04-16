@@ -90,7 +90,7 @@ $ tctl create -f access.yaml
 
 #### Export access-plugin Certificate
 
-Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity files, using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign). You have the option of connecting through the proxy or auth server.  Teleport Cloud must use the proxy server.
+Teleport Plugin use the `access-plugin` role and user to perform the approval. We export the identity file using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign). You have the option of connecting through the proxy or auth server.  Teleport Cloud users must use the proxy server.
 
 <Tabs>
   <TabItem label="OpenSource, Enterprise" scope={["oss","enterprise"]}>
