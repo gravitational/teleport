@@ -47,10 +47,6 @@ const maxPingBodySize = 16 * 1024
 // level. Note that it is still the caller's responsibility to close the body
 // stream.
 func logResponseBody(level logrus.Level, bodyStream io.Reader) {
-	if log.Logger.Level < level {
-		return
-	}
-
 	// NB: `ReadAll()` will time out (or be cancelled) according to the
 	//     context originally supplied to the request that initiated this
 	//     response, so no need to have an independent reading timeout
