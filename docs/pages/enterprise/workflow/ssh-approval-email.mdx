@@ -99,19 +99,7 @@ $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=2190h
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-teleport-email).
-</TabItem>
-  <TabItem label="Cloud" scope={["cloud"]}>
-```code
-$ tctl auth sign --user=access-plugin --out=auth.pem --ttl=2190h
-# ...
-```
-
-The above sequence should result in one PEM encoded file being generated: auth.pem.  We'll reference the auth.pem file later when [configuring the plugins](#configuring-teleport-email).
-
-  </TabItem>
-
-</Tabs>
+The above sequence should result in an identity file `./plugin-access-identity` with signed SSH and TLS certs for authenticating auth requests. We'll reference `./plugin-access-identity` later when [configuring the plugins](#configuring-teleport-email).
 
 
 
