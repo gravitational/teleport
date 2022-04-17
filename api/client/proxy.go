@@ -19,24 +19,26 @@ package client
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"encoding/base64"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
 // DialProxy creates a connection to a server via an HTTP Proxy.
-func DialProxy(ctx context.Context, proxyAddr, addr string) (net.Conn, error) {
+func DialProxy(ctx context.Context, proxyAddr *url.URL, addr string) (net.Conn, error) {
 	return DialProxyWithDialer(ctx, proxyAddr, addr, &net.Dialer{})
 }
 
 // DialProxyWithDialer creates a connection to a server via an HTTP Proxy using a specified dialer.
-func DialProxyWithDialer(ctx context.Context, proxyAddr, addr string, dialer ContextDialer) (net.Conn, error) {
-	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
+func DialProxyWithDialer(ctx context.Context, proxyAddr *url.URL, addr string, dialer ContextDialer) (net.Conn, error) {
+	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr.Host)
 	if err != nil {
-		log.Warnf("Unable to dial to proxy: %v: %v.", proxyAddr, err)
+		log.Warnf("Unable to dial to proxy: %v: %v.", proxyAddr.Host, err)
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -45,6 +47,10 @@ func DialProxyWithDialer(ctx context.Context, proxyAddr, addr string, dialer Con
 		URL:    &url.URL{Opaque: addr},
 		Host:   addr,
 		Header: make(http.Header),
+	}
+	if proxyAddr.User != nil {
+		basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%v", proxyAddr.User)))
+		connectReq.Header.Add("Proxy-Authorization", basicAuth)
 	}
 
 	if err := connectReq.Write(conn); err != nil {

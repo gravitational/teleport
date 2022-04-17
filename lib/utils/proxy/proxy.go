@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -142,7 +143,7 @@ func (d directDial) DialTimeout(network, address string, timeout time.Duration) 
 
 type proxyDial struct {
 	// proxyHost is the HTTPS proxy address.
-	proxyHost string
+	proxyHost *url.URL
 	// insecure is whether to skip certificate validation.
 	insecure bool
 	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
@@ -275,7 +276,7 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyAddr)
 	return proxyDial{
-		proxyHost:         proxyAddr.Host,
+		proxyHost:         proxyAddr,
 		insecure:          options.insecureSkipTLSVerify,
 		tlsRoutingEnabled: options.tlsRoutingEnabled,
 		tlsConfig:         options.tlsConfig,
