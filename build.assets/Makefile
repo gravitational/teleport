@@ -17,7 +17,7 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 BUILDBOX_VERSION ?= teleport10
-GOLANG_VERSION ?= go1.17.7
+GOLANG_VERSION ?= go1.17.9
 RUST_VERSION ?= 1.58.1
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.3.1
@@ -408,7 +408,7 @@ docsbox:
 .PHONY:test-docs
 test-docs: docsbox
 	docker run --platform=linux/amd64 -i $(NOROOT) -v $$(pwd)/..:/src/content $(DOCSBOX) \
-		/bin/sh -c "yarn markdown-lint-external-links"
+		/bin/sh -c "yarn markdown-lint"
 
 #
 # Print the Go version used to build Teleport.

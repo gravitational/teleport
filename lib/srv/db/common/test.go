@@ -46,7 +46,7 @@ type TestServerConfig struct {
 	AuthUser string
 	// AuthToken is used in tests simulating IAM token authentication.
 	AuthToken string
-	// CN allows to set specific CommonName in the database server certificate.
+	// CN allows setting specific CommonName in the database server certificate.
 	//
 	// Used when simulating test Cloud SQL database which should contains
 	// <project-id>:<instance-id> in its certificate.
@@ -54,6 +54,9 @@ type TestServerConfig struct {
 	// ListenTLS creates a TLS listener when true instead of using a net listener.
 	// This is used to simulate MySQL connections through the GCP Cloud SQL Proxy.
 	ListenTLS bool
+	// ClientAuth sets tls.ClientAuth in server's tls.Config. It can be used to force client
+	// certificate validation in tests.
+	ClientAuth tls.ClientAuthType
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test
@@ -94,6 +97,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	}
 	return &tls.Config{
 		ClientCAs:    pool,
+		ClientAuth:   config.ClientAuth,
 		Certificates: []tls.Certificate{cert},
 	}, nil
 }
@@ -146,7 +150,7 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 	ca, err := config.AuthClient.GetCertAuthority(context.Background(), types.CertAuthID{
-		Type:       types.HostCA,
+		Type:       types.DatabaseCA,
 		DomainName: config.Cluster,
 	}, false)
 	if err != nil {

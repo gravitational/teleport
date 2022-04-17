@@ -174,8 +174,8 @@ func (r *TrackingReader) Read(b []byte) (int, error) {
 // written.
 // It's thread-safe if the underlying io.Writer is thread-safe.
 type TrackingWriter struct {
+	count uint64 // intentionally placed first to ensure 64-bit alignment
 	w     io.Writer
-	count uint64
 }
 
 // NewTrackingWriter creates a TrackingWriter around w.

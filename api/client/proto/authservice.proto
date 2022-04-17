@@ -663,6 +663,10 @@ message CreateAppSessionResponse {
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
 
+// DeleteUserAppSessionsRequest contains the parameters used to remove the
+// user's application web sessions.
+message DeleteUserAppSessionsRequest { string Username = 1 [ (gogoproto.jsontag) = "username" ]; }
+
 // GetWebSessionResponse contains the requested web session.
 message GetWebSessionResponse {
     // Session is the web session.
@@ -757,6 +761,11 @@ message DatabaseCSRRequest {
     bytes CSR = 1 [ (gogoproto.jsontag) = "csr" ];
     // ClusterName is the name of the cluster the request is for.
     string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
+    // SignWithDatabaseCA if set to true will use Database CA to sign the created certificate.
+    // This flag was created to enable Database CA for new proxies and don't break old one that
+    // are still using UserCA.
+    // DELETE IN 11.0.
+    bool SignWithDatabaseCA = 3 [ (gogoproto.jsontag) = "sign_with_database_ca" ];
 }
 
 // DatabaseCSRResponse contains the signed database certificate.
@@ -1496,6 +1505,9 @@ message ListResourcesRequest {
     // WindowsDesktopFilter specifies windows desktop specific filters.
     types.WindowsDesktopFilter WindowsDesktopFilter = 10
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "windows_desktop_filter,omitempty" ];
+    // UseSearchAsRoles indicates that the response should include all resources
+    // the caller is able to request access to using search_as_roles
+    bool UseSearchAsRoles = 11 [ (gogoproto.jsontag) = "use_search_as_roles,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.
@@ -1593,6 +1605,13 @@ message SessionTrackerRemoveParticipant {
     string ParticipantID = 2 [ (gogoproto.jsontag) = "participant_id,omitempty" ];
 }
 
+// SessionTrackerUpdateExpiry is used to update the session tracker expiration time.
+message SessionTrackerUpdateExpiry {
+    // Expires is when the session tracker will expire.
+    google.protobuf.Timestamp Expires = 1
+        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "expires" ];
+}
+
 // UpdateSessionTrackerRequest is a request to update some state of a session.
 message UpdateSessionTrackerRequest {
     // SessionID is unique identifier of this session.
@@ -1605,6 +1624,8 @@ message UpdateSessionTrackerRequest {
             [ (gogoproto.jsontag) = "add_participant,omitempty" ];
         SessionTrackerRemoveParticipant RemoveParticipant = 4
             [ (gogoproto.jsontag) = "remove_participant,omitempty" ];
+        SessionTrackerUpdateExpiry UpdateExpiry = 5
+            [ (gogoproto.jsontag) = "update_expiry,omitempty" ];
     }
 }
 
@@ -1632,7 +1653,7 @@ service AuthService {
     // CreateSessionTracker creates a new session tracker resource.
     rpc CreateSessionTracker(CreateSessionTrackerRequest) returns (types.SessionTrackerV1);
 
-    // GetSessionTrackerRequest fetches a session tracker resource.
+    // GetSessionTracker fetches a session tracker resource.
     rpc GetSessionTracker(GetSessionTrackerRequest) returns (types.SessionTrackerV1);
 
     // GetActiveSessionTrackers returns a list of active sessions.
@@ -1795,6 +1816,8 @@ service AuthService {
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllAppSessions removes all application web sessions.
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+    // DeleteUserAppSessions deletes all user’s application sessions.
+    rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
 
     // GetWebSession gets a web session.
     rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);

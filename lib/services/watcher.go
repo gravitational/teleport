@@ -920,10 +920,8 @@ type CertAuthorityWatcherConfig struct {
 	AuthorityGetter
 	// CertAuthorityC receives up-to-date list of all cert authority resources.
 	CertAuthorityC chan []types.CertAuthority
-	// WatchHostCA indicates that the watcher should monitor types.HostCA
-	WatchHostCA bool
-	// WatchUserCA indicates that the watcher should monitor types.UserCA
-	WatchUserCA bool
+	// WatchCertTypes stores all certificate types that should be monitored.
+	WatchCertTypes []types.CertAuthType
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -971,9 +969,26 @@ type CertAuthorityWatcher struct {
 // caCollector accompanies resourceWatcher when monitoring cert authority resources.
 type caCollector struct {
 	CertAuthorityWatcherConfig
-	host map[string]types.CertAuthority
-	user map[string]types.CertAuthority
-	lock sync.RWMutex
+
+	collectedCAs CertAuthorityTypeMap
+	lock         sync.RWMutex
+}
+
+// CertAuthorityMap maps clusterName -> types.CertAuthority
+type CertAuthorityMap map[string]types.CertAuthority
+
+// CertAuthorityTypeMap maps types.CertAuthType -> map(clusterName -> types.CertAuthority)
+type CertAuthorityTypeMap map[types.CertAuthType]CertAuthorityMap
+
+// ToSlice converts CertAuthorityTypeMap to a slice.
+func (cat *CertAuthorityTypeMap) ToSlice() []types.CertAuthority {
+	slice := make([]types.CertAuthority, 0)
+	for _, cert := range *cat {
+		for _, ca := range cert {
+			slice = append(slice, ca)
+		}
+	}
+	return slice
 }
 
 // resourceKind specifies the resource kind to watch.
@@ -983,42 +998,28 @@ func (c *caCollector) resourceKind() string {
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	var (
-		newHost map[string]types.CertAuthority
-		newUser map[string]types.CertAuthority
-	)
+	updatedCerts := make(CertAuthorityTypeMap)
 
-	if c.WatchHostCA {
-		host, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.HostCA, false)
+	for _, caType := range c.WatchCertTypes {
+		cas, err := c.AuthorityGetter.GetCertAuthorities(ctx, caType, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		newHost = make(map[string]types.CertAuthority, len(host))
-		for _, ca := range host {
-			newHost[ca.GetName()] = ca
-		}
-	}
 
-	if c.WatchUserCA {
-		user, err := c.AuthorityGetter.GetCertAuthorities(ctx, types.UserCA, false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		newUser = make(map[string]types.CertAuthority, len(user))
-		for _, ca := range user {
-			newUser[ca.GetName()] = ca
+		updatedCerts[caType] = make(CertAuthorityMap, len(cas))
+		for _, ca := range cas {
+			updatedCerts[caType][ca.GetName()] = ca
 		}
 	}
 
 	c.lock.Lock()
-	c.host = newHost
-	c.user = newUser
+	c.collectedCAs = updatedCerts
 	c.lock.Unlock()
 
 	select {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
-	case c.CertAuthorityC <- casToSlice(newHost, newUser):
+	case c.CertAuthorityC <- c.collectedCAs.ToSlice():
 	}
 	return nil
 }
@@ -1033,16 +1034,17 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 	defer c.lock.Unlock()
 	switch event.Type {
 	case types.OpDelete:
-		if c.WatchHostCA && event.Resource.GetSubKind() == string(types.HostCA) {
-			delete(c.host, event.Resource.GetName())
-		}
-		if c.WatchUserCA && event.Resource.GetSubKind() == string(types.UserCA) {
-			delete(c.user, event.Resource.GetName())
+		caType := types.CertAuthType(event.Resource.GetSubKind())
+
+		// Check if the certificate should be processed.
+		_, found := c.collectedCAs[caType]
+		if found {
+			delete(c.collectedCAs[caType], event.Resource.GetName())
 		}
 
 		select {
 		case <-ctx.Done():
-		case c.CertAuthorityC <- casToSlice(c.host, c.user):
+		case c.CertAuthorityC <- c.collectedCAs.ToSlice():
 		}
 	case types.OpPut:
 		ca, ok := event.Resource.(types.CertAuthority)
@@ -1051,16 +1053,16 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			return
 		}
 
-		if c.WatchHostCA && ca.GetType() == types.HostCA {
-			c.host[ca.GetName()] = ca
-		}
-		if c.WatchUserCA && ca.GetType() == types.UserCA {
-			c.user[ca.GetName()] = ca
+		caType := ca.GetType()
+		_, found := c.collectedCAs[caType]
+		// Check if the certificate should be processed.
+		if found {
+			c.collectedCAs[caType][ca.GetName()] = ca
 		}
 
 		select {
 		case <-ctx.Done():
-		case c.CertAuthorityC <- casToSlice(c.host, c.user):
+		case c.CertAuthorityC <- c.collectedCAs.ToSlice():
 		}
 	default:
 		c.Log.Warnf("Unsupported event type %s.", event.Type)
@@ -1072,18 +1074,7 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 func (c *caCollector) GetCurrent() []types.CertAuthority {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return casToSlice(c.host, c.user)
+	return c.collectedCAs.ToSlice()
 }
 
 func (c *caCollector) notifyStale() {}
-
-func casToSlice(host map[string]types.CertAuthority, user map[string]types.CertAuthority) []types.CertAuthority {
-	slice := make([]types.CertAuthority, 0, len(host)+len(user))
-	for _, ca := range host {
-		slice = append(slice, ca)
-	}
-	for _, ca := range user {
-		slice = append(slice, ca)
-	}
-	return slice
-}

@@ -10,7 +10,8 @@ domain name of your Teleport cluster and `user@example.com` is an email address
 used for notifications (you can use any domain):
 
 ```code
-teleport configure --acme --acme-email=user@example.com --cluster-name=tele.example.com > /etc/teleport.yaml
+teleport configure --acme --acme-email=user@example.com --cluster-name=tele.example.com | \
+ sudo tee /etc/teleport.yaml > /dev/null
 ```
 
 The `--acme`, `--acme-email`, and `--cluster-name` flags will add the following

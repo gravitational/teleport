@@ -150,6 +150,7 @@ values to match your identity provider:
   the [OIDC guide](./sso/oidc.mdx#optional-acr-values) for details.
 - `ping` (SAML and OIDC): Required for compatibility with Ping Identity (including
   PingOne and PingFederate).
+- `okta` (OIDC): Required when using Okta as an OIDC provider.
 
 At this time, the `spec.provider` field should not be set for any other identity providers.
 
@@ -185,7 +186,7 @@ can define and create multiple connector resources using `tctl create` as shown 
 
 To see all configured connectors, execute this on the auth server:
 
-```bash
+```code
 $ tctl get connectors
 ```
 

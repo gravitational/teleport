@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -76,7 +77,9 @@ var fidoNewDevice = func(path string) (FIDODevice, error) {
 
 // IsFIDO2Available returns true if libfido2 is available in the current build.
 func IsFIDO2Available() bool {
-	return true
+	val, ok := os.LookupEnv("TSH_FIDO2")
+	// Default to enabled, otherwise obey the env variable.
+	return !ok || val == "1"
 }
 
 // fido2Login implements FIDO2Login.
@@ -526,16 +529,29 @@ func runOnFIDO2Devices(
 	prompt runPrompt, passwordless bool,
 	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc) error {
-	devices, err := findSuitableDevicesOrTimeout(ctx, filter)
+	// Do we have readily available devices?
+	knownPaths := make(map[string]struct{}) // filled by findSuitableDevices*
+	prompted := false
+	devices, err := findSuitableDevices(filter, knownPaths)
+	if err != nil {
+		// No readily available devices means we need to prompt, otherwise the
+		// user gets no feedback whatsoever.
+		prompt.PromptTouch()
+		prompted = true
+
+		devices, err = findSuitableDevicesOrTimeout(ctx, filter, knownPaths)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var dev deviceWithInfo
-	if shouldDoEagerPINPrompt(passwordless, devices) {
+	if !prompted && shouldDoEagerPINPrompt(passwordless, devices) {
 		dev = devices[0] // single device guaranteed in this case
 	} else {
-		prompt.PromptTouch() // about to select
+		if !prompted {
+			prompt.PromptTouch() // about to select
+		}
 
 		d, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, deviceCallback)
 		switch {
@@ -583,11 +599,11 @@ func shouldDoEagerPINPrompt(passwordless bool, devices []deviceWithInfo) bool {
 	return info.clientPinSet && !info.bioEnroll
 }
 
-func findSuitableDevicesOrTimeout(ctx context.Context, filter deviceFilterFunc) ([]deviceWithInfo, error) {
+func findSuitableDevicesOrTimeout(
+	ctx context.Context, filter deviceFilterFunc, knownPaths map[string]struct{}) ([]deviceWithInfo, error) {
 	ticker := time.NewTicker(FIDO2PollInterval)
 	defer ticker.Stop()
 
-	knownPaths := make(map[string]struct{})
 	for {
 		devices, err := findSuitableDevices(filter, knownPaths)
 		if err == nil {
