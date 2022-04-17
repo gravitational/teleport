@@ -51,6 +51,8 @@ awsDatabases: []
 #  - name: aurora
 #    uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
 #    protocol: "postgres"
+#    static_labels:
+#      env: "prod"
 databases: []
 
 ################################################################
@@ -65,6 +67,7 @@ insecureSkipProxyTLSVerify: false
 
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
+# If anything is set under the "storage" key, this will be ignored.
 existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources
@@ -176,6 +179,12 @@ annotations:
   # Annotations for the ServiceAccount object
   serviceAccount: {}
 
+# Extra arguments to pass to 'teleport start' for the main Teleport pod
+extraArgs: []
+
+# Extra environment to be configured on the Teleport pod
+extraEnv: []
+
 # Extra volumes to mount into the Teleport pods
 # https://kubernetes.io/docs/concepts/storage/volumes/
 extraVolumes: []
@@ -208,3 +217,7 @@ resources: {}
 # Tolerations for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 tolerations: []
+
+# Timeouts for the readiness and liveness probes
+# https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+probeTimeoutSeconds: 1

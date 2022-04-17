@@ -201,6 +201,9 @@ const (
 	AccessRequestReviewEvent = "access_request.review"
 	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
 	AccessRequestDeleteEvent = "access_request.delete"
+	// AccessRequestResourceSearch is emitted when a user searches for
+	// resources as part of a search-based access request.
+	AccessRequestResourceSearch = "access_request.search"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -227,6 +230,8 @@ const (
 	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
+	// BotTokenCreateEvent is emitted when a new bot join user token is created
+	BotTokenCreateEvent = "bot_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
 	// PrivilegeTokenCreateEvent is emitted when a new user privilege token is created.
@@ -445,6 +450,28 @@ const (
 	// statement protocol.
 	DatabaseSessionMySQLStatementBulkExecuteEvent = "db.session.mysql.statements.bulk_execute"
 
+	// DatabaseSessionMySQLInitDBEvent is emitted when a MySQL client changes
+	// the default schema for the connection.
+	DatabaseSessionMySQLInitDBEvent = "db.session.mysql.init_db"
+	// DatabaseSessionMySQLCreateDBEvent is emitted when a MySQL client creates
+	// a schema.
+	DatabaseSessionMySQLCreateDBEvent = "db.session.mysql.create_db"
+	// DatabaseSessionMySQLDropDBEvent is emitted when a MySQL client drops a
+	// schema.
+	DatabaseSessionMySQLDropDBEvent = "db.session.mysql.drop_db"
+	// DatabaseSessionMySQLShutDownEvent is emitted when a MySQL client asks
+	// the server to shut down.
+	DatabaseSessionMySQLShutDownEvent = "db.session.mysql.shut_down"
+	// DatabaseSessionMySQLProcessKillEvent is emitted when a MySQL client asks
+	// the server to terminate a connection.
+	DatabaseSessionMySQLProcessKillEvent = "db.session.mysql.process_kill"
+	// DatabaseSessionMySQLDebugEvent is emitted when a MySQL client asks the
+	// server to dump internal debug info to stdout.
+	DatabaseSessionMySQLDebugEvent = "db.session.mysql.debug"
+	// DatabaseSessionMySQLRefreshEvent is emitted when a MySQL client sends
+	// refresh commands.
+	DatabaseSessionMySQLRefreshEvent = "db.session.mysql.refresh"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
@@ -485,6 +512,10 @@ const (
 	// CertificateCreateEvent is emitted when a certificate is issued.
 	CertificateCreateEvent = "cert.create"
 
+	// RenewableCertificateGenerationMismatchEvent is emitted when a renewable
+	// certificate's generation counter is invalid.
+	RenewableCertificateGenerationMismatchEvent = "cert.generation_mismatch"
+
 	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
 	CertificateTypeUser = "user"
 
@@ -496,6 +527,9 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
+
+	// UnknownEvent is any event received that isn't recognized as any other event type.
+	UnknownEvent = apievents.UnknownEvent
 )
 
 const (
@@ -557,12 +591,6 @@ type SessionMetadataSetter interface {
 	SetClusterName(string)
 }
 
-// SetCode is a shortcut that sets code for the audit event
-func SetCode(event apievents.AuditEvent, code string) apievents.AuditEvent {
-	event.SetCode(code)
-	return event
-}
-
 // Streamer creates and resumes event streams for session IDs
 type Streamer interface {
 	// CreateAuditStream creates event stream
@@ -586,14 +614,11 @@ type StreamUpload struct {
 	ID string
 	// SessionID is a session ID of the upload
 	SessionID session.ID
-	// Initiated contains the timestamp of when the upload
-	// was initiated, not always initialized
-	Initiated time.Time
 }
 
 // String returns user friendly representation of the upload
 func (u StreamUpload) String() string {
-	return fmt.Sprintf("Upload(session=%v, id=%v, initiated=%v)", u.SessionID, u.ID, u.Initiated)
+	return fmt.Sprintf("Upload(session=%v, id=%v)", u.SessionID, u.ID)
 }
 
 // CheckAndSetDefaults checks and sets default values

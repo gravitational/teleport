@@ -22,12 +22,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"github.com/tstranex/u2f"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -53,7 +53,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
 				require.Empty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -65,23 +64,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
-				require.Empty(t, challenge.GetWebauthnChallenge())
-			},
-		},
-		{
-			name: "OK second_factor:u2f",
-			spec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorU2F,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
-				},
-			},
-			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
-				require.Empty(t, challenge.GetTOTP())
-				require.NotEmpty(t, challenge.GetU2F())
 				require.Empty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -97,7 +79,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -112,7 +93,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -134,7 +114,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetU2F())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 				require.Equal(t, "myexplicitid", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
 			},
@@ -144,34 +123,13 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOptional,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
-				},
-			},
-			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
-				require.NotNil(t, challenge.GetTOTP())
-				require.NotEmpty(t, challenge.GetU2F())
-				require.NotEmpty(t, challenge.GetWebauthnChallenge())
-			},
-		},
-		{
-			name: "OK second_factor:optional with global Webauthn disable",
-			spec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
-				},
 				Webauthn: &types.Webauthn{
-					Disabled: true,
+					RPID: "localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, challenge.GetTOTP())
-				require.NotEmpty(t, challenge.GetU2F())
-				require.Empty(t, challenge.GetWebauthnChallenge())
+				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
 		{
@@ -179,14 +137,12 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOn,
-				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, challenge.GetTOTP())
-				require.NotEmpty(t, challenge.GetU2F())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
 			},
 		},
@@ -198,102 +154,16 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
 
 			challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-					Username: username,
-					Password: []byte(password),
-				}},
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+					UserCredentials: &proto.UserCredentials{
+						Username: username,
+						Password: []byte(password),
+					},
+				},
 			})
 			require.NoError(t, err)
 			test.assertChallenge(challenge)
 		})
-	}
-}
-
-// sshPubKey is a randomly-generated public key used for login tests.
-//
-// The corresponding private key is:
-// -----BEGIN PRIVATE KEY-----
-// MHcCAQEEIAKuZeB4WL4KAl5cnCrMYBy3kAX9qHt/g6OAbGGd7f3VoAoGCCqGSM49
-// AwEHoUQDQgAEa/6A3YLbc/TyJ4lED2BT8iThuw6HcrDX3dRixwkPDjWYBOP4qrJ/
-// jlGaPwXyuzeLuZgpFde7UiM1EHM2ClfGpw==
-// -----END PRIVATE KEY-----
-const sshPubKey = `ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGv+gN2C23P08ieJRA9gU/Ik4bsOh3Kw193UYscJDw41mATj+Kqyf45Rmj8F8rs3i7mYKRXXu1IjNRBzNgpXxqc=`
-
-func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
-	t.Parallel()
-
-	svr := newTestTLSServer(t)
-	authServer := svr.Auth()
-	mfa := configureForMFA(t, svr)
-	username := mfa.User
-	password := mfa.Password
-
-	tests := []struct {
-		name           string
-		solveChallenge func(*proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-	}{
-		{name: "OK TOTP device", solveChallenge: mfa.TOTPDev.SolveAuthn},
-		{name: "OK U2F device", solveChallenge: mfa.U2FDev.SolveAuthn},
-		{name: "OK Webauthn device", solveChallenge: mfa.WebDev.SolveAuthn},
-	}
-	for _, test := range tests {
-		test := test
-		// makeRun is used to test both SSH and Web login by switching the
-		// authenticate function.
-		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
-			return func(t *testing.T) {
-				// 1st step: acquire challenge
-				challenge, err := authServer.CreateAuthenticateChallenge(context.Background(), &proto.CreateAuthenticateChallengeRequest{
-					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-						Username: username,
-						Password: []byte(password),
-					}},
-				})
-				require.NoError(t, err)
-
-				// Solve challenge (client-side)
-				resp, err := test.solveChallenge(challenge)
-				authReq := AuthenticateUserRequest{
-					Username: username,
-				}
-				require.NoError(t, err)
-
-				switch {
-				case resp.GetWebauthn() != nil:
-					authReq.Webauthn = wanlib.CredentialAssertionResponseFromProto(resp.GetWebauthn())
-				case resp.GetU2F() != nil:
-					authReq.U2F = &U2FSignResponseCreds{
-						SignResponse: u2f.SignResponse{
-							KeyHandle:     resp.GetU2F().KeyHandle,
-							SignatureData: resp.GetU2F().Signature,
-							ClientData:    resp.GetU2F().ClientData,
-						},
-					}
-				case resp.GetTOTP() != nil:
-					authReq.OTP = &OTPCreds{
-						Password: []byte(password),
-						Token:    resp.GetTOTP().Code,
-					}
-				default:
-					t.Fatalf("Unexpected solved challenge type: %T", resp.Response)
-				}
-
-				// 2nd step: finish login - either SSH or Web
-				require.NoError(t, authenticate(authServer, authReq))
-			}
-		}
-		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
-			_, err := s.AuthenticateSSHUser(AuthenticateSSHRequest{
-				AuthenticateUserRequest: req,
-				PublicKey:               []byte(sshPubKey),
-				TTL:                     24 * time.Hour,
-			})
-			return err
-		}))
-		t.Run(test.name+"/web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
-			_, err := s.AuthenticateWebUser(req)
-			return err
-		}))
 	}
 }
 
@@ -315,7 +185,7 @@ func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 	// TODO(codingllama): Use a public endpoint to verify?
 	mfaResp, err := u.webDev.SolveAuthn(res)
 	require.NoError(t, err)
-	_, err = srv.Auth().validateMFAAuthResponse(ctx, u.username, mfaResp, nil /* u2fStorage */)
+	_, _, err = srv.Auth().validateMFAAuthResponse(ctx, mfaResp, u.username, false /* passwordless */)
 	require.NoError(t, err)
 }
 
@@ -371,7 +241,6 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 			default:
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
-				require.NotEmpty(t, res.GetU2F())
 				require.NotEmpty(t, res.GetWebauthnChallenge())
 			}
 		})
@@ -463,7 +332,6 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 			default:
 				require.NoError(t, err)
 				require.NotNil(t, res.GetTOTP())
-				require.NotEmpty(t, res.GetU2F())
 				require.NotEmpty(t, res.GetWebauthnChallenge())
 			}
 		})
@@ -503,10 +371,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 		deviceType proto.DeviceType
 	}{
 		{
-			name:       "u2f challenge",
-			deviceType: proto.DeviceType_DEVICE_TYPE_U2F,
-		},
-		{
 			name:       "totp challenge",
 			deviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 		},
@@ -529,10 +393,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			switch tc.deviceType {
 			case proto.DeviceType_DEVICE_TYPE_TOTP:
 				require.NotNil(t, res.GetTOTP().GetQRCode())
-
-			case proto.DeviceType_DEVICE_TYPE_U2F:
-				require.NotNil(t, res.GetU2F())
-
 			case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 				require.NotNil(t, res.GetWebauthn())
 			}
@@ -540,18 +400,321 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	}
 }
 
+// sshPubKey is a randomly-generated public key used for login tests.
+//
+// The corresponding private key is:
+// -----BEGIN PRIVATE KEY-----
+// MHcCAQEEIAKuZeB4WL4KAl5cnCrMYBy3kAX9qHt/g6OAbGGd7f3VoAoGCCqGSM49
+// AwEHoUQDQgAEa/6A3YLbc/TyJ4lED2BT8iThuw6HcrDX3dRixwkPDjWYBOP4qrJ/
+// jlGaPwXyuzeLuZgpFde7UiM1EHM2ClfGpw==
+// -----END PRIVATE KEY-----
+const sshPubKey = `ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGv+gN2C23P08ieJRA9gU/Ik4bsOh3Kw193UYscJDw41mATj+Kqyf45Rmj8F8rs3i7mYKRXXu1IjNRBzNgpXxqc=`
+
+func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
+	t.Parallel()
+
+	svr := newTestTLSServer(t)
+	authServer := svr.Auth()
+	mfa := configureForMFA(t, svr)
+	username := mfa.User
+	password := mfa.Password
+
+	tests := []struct {
+		name           string
+		solveChallenge func(*proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	}{
+		{name: "OK TOTP device", solveChallenge: mfa.TOTPDev.SolveAuthn},
+		{name: "OK Webauthn device", solveChallenge: mfa.WebDev.SolveAuthn},
+	}
+	for _, test := range tests {
+		test := test
+		// makeRun is used to test both SSH and Web login by switching the
+		// authenticate function.
+		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
+			return func(t *testing.T) {
+				// 1st step: acquire challenge
+				challenge, err := authServer.CreateAuthenticateChallenge(context.Background(), &proto.CreateAuthenticateChallengeRequest{
+					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+						Username: username,
+						Password: []byte(password),
+					}},
+				})
+				require.NoError(t, err)
+
+				// Solve challenge (client-side)
+				resp, err := test.solveChallenge(challenge)
+				authReq := AuthenticateUserRequest{
+					Username: username,
+				}
+				require.NoError(t, err)
+
+				switch {
+				case resp.GetWebauthn() != nil:
+					authReq.Webauthn = wanlib.CredentialAssertionResponseFromProto(resp.GetWebauthn())
+				case resp.GetTOTP() != nil:
+					authReq.OTP = &OTPCreds{
+						Password: []byte(password),
+						Token:    resp.GetTOTP().Code,
+					}
+				default:
+					t.Fatalf("Unexpected solved challenge type: %T", resp.Response)
+				}
+
+				// 2nd step: finish login - either SSH or Web
+				require.NoError(t, authenticate(authServer, authReq))
+			}
+		}
+		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+			_, err := s.AuthenticateSSHUser(AuthenticateSSHRequest{
+				AuthenticateUserRequest: req,
+				PublicKey:               []byte(sshPubKey),
+				TTL:                     24 * time.Hour,
+			})
+			return err
+		}))
+		t.Run(test.name+"/web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
+			_, err := s.AuthenticateWebUser(req)
+			return err
+		}))
+	}
+}
+
+func TestServer_Authenticate_passwordless(t *testing.T) {
+	t.Parallel()
+	svr := newTestTLSServer(t)
+	authServer := svr.Auth()
+
+	// Configure Auth separately, we want a passwordless-capable device
+	// registered too.
+	ctx := context.Background()
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
+
+	// Create user and initial WebAuthn device (MFA).
+	const user = "llama"
+	const password = "p@ssw0rd"
+	_, _, err = CreateUserAndRole(authServer, user, []string{"llama", "root"})
+	require.NoError(t, err)
+	require.NoError(t, authServer.UpsertPassword(user, []byte(password)))
+	userClient, err := svr.NewClient(TestUser(user))
+	require.NoError(t, err)
+	webDev, err := RegisterTestDevice(
+		ctx, userClient, "web", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+	require.NoError(t, err)
+
+	// Acquire a privilege token so we can register a passwordless device
+	// synchronously.
+	mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{}, // already authenticated
+		},
+	})
+	require.NoError(t, err)
+	mfaResp, err := webDev.SolveAuthn(mfaChallenge)
+	require.NoError(t, err)
+	token, err := userClient.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+		ExistingMFAResponse: mfaResp,
+	})
+	require.NoError(t, err)
+
+	// Register passwordless device.
+	registerChallenge, err := userClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:     token.GetName(),
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
+	require.NoError(t, err, "Failed to create passwordless registration challenge")
+	pwdKey, err := mocku2f.Create()
+	require.NoError(t, err)
+	pwdKey.SetPasswordless()
+	const origin = "https://localhost"
+	ccr, err := pwdKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(registerChallenge.GetWebauthn()))
+	require.NoError(t, err)
+	_, err = userClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
+		TokenID:       token.GetName(),
+		NewDeviceName: "pwdless1",
+		NewMFAResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+			},
+		},
+	})
+	require.NoError(t, err, "Failed to register passwordless device")
+
+	// userWebID is what identifies the user for usernameless/passwordless.
+	userWebID := registerChallenge.GetWebauthn().PublicKey.User.Id
+
+	// Use a proxy client for now on; the user's identity isn't established yet.
+	proxyClient, err := svr.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		authenticate func(t *testing.T, resp *wanlib.CredentialAssertionResponse)
+	}{
+		{
+			name: "ssh",
+			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+				loginResp, err := proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+					AuthenticateUserRequest: AuthenticateUserRequest{
+						Webauthn: resp,
+					},
+					PublicKey: []byte(sshPubKey),
+					TTL:       24 * time.Hour,
+				})
+				require.NoError(t, err, "Failed to perform passwordless authentication")
+				require.NotNil(t, loginResp, "SSH response nil")
+				require.NotEmpty(t, loginResp.Cert, "SSH certificate empty")
+				require.Equal(t, user, loginResp.Username, "Unexpected username")
+			},
+		},
+		{
+			name: "web",
+			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+				session, err := proxyClient.AuthenticateWebUser(AuthenticateUserRequest{
+					Webauthn: resp,
+				})
+				require.NoError(t, err, "Failed to perform passwordless authentication")
+				require.Equal(t, user, session.GetUser(), "Unexpected username")
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Fail a login attempt so have a non-empty list of attempts.
+			_, err := proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+				AuthenticateUserRequest: AuthenticateUserRequest{
+					Username: user,
+					Webauthn: &wanlib.CredentialAssertionResponse{}, // bad response
+				},
+				PublicKey: []byte(sshPubKey),
+				TTL:       24 * time.Hour,
+			})
+			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied")
+			attempts, err := authServer.GetUserLoginAttempts(user)
+			require.NoError(t, err)
+			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
+
+			// Create a passwordless challenge.
+			mfaChallenge, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_Passwordless{
+					Passwordless: &proto.Passwordless{},
+				},
+			})
+			require.NoError(t, err, "Failed to create passwordless challenge")
+
+			// Sign challenge (mocks user interaction).
+			assertionResp, err := pwdKey.SignAssertion(origin, wanlib.CredentialAssertionFromProto(mfaChallenge.GetWebauthnChallenge()))
+			require.NoError(t, err)
+			assertionResp.AssertionResponse.UserHandle = userWebID // identify user, a real device would set this
+
+			// Complete login procedure (SSH or Web).
+			test.authenticate(t, assertionResp)
+
+			// Verify zeroed login attempts. This is a proxy for various other user
+			// checks (locked, etc).
+			attempts, err = authServer.GetUserLoginAttempts(user)
+			require.NoError(t, err)
+			require.Empty(t, attempts, "Login attempts not reset")
+		})
+	}
+}
+
+func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
+	t.Parallel()
+	svr := newTestTLSServer(t)
+
+	// We don't mind about the specifics of the configuration, as long as we have
+	// a user and TOTP/WebAuthn devices.
+	mfa := configureForMFA(t, svr)
+	username := mfa.User
+	password := mfa.Password
+
+	userClient, err := svr.NewClient(TestUser(username))
+	require.NoError(t, err)
+	proxyClient, err := svr.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	tests := []struct {
+		name    string
+		dev     *TestDevice
+		wantErr string
+	}{
+		{
+			name:    "OTP",
+			dev:     mfa.TOTPDev,
+			wantErr: "username", // Error contains "username"
+		},
+		{
+			name:    "WebAuthn",
+			dev:     mfa.WebDev,
+			wantErr: "invalid Webauthn response", // generic error as it _could_ be a passwordless attempt
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
+				},
+			})
+			require.NoError(t, err)
+
+			mfaResp, err := test.dev.SolveAuthn(mfaChallenge)
+			require.NoError(t, err)
+
+			var req AuthenticateUserRequest
+			switch {
+			case mfaResp.GetWebauthn() != nil:
+				req.Webauthn = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
+			case mfaResp.GetTOTP() != nil:
+				req.OTP = &OTPCreds{
+					Password: []byte(password),
+					Token:    mfaResp.GetTOTP().Code,
+				}
+			}
+
+			// SSH.
+			_, err = proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+				AuthenticateUserRequest: req,
+				PublicKey:               []byte(sshPubKey),
+				TTL:                     24 * time.Hour,
+			})
+			require.Error(t, err, "SSH authentication expected fail (missing username)")
+			require.Contains(t, err.Error(), test.wantErr)
+
+			// Web.
+			_, err = proxyClient.AuthenticateWebUser(req)
+			require.Error(t, err, "Web authentication expected fail (missing username)")
+			require.Contains(t, err.Error(), test.wantErr)
+
+			// Get one right so we don't lock the user between tests.
+			req.Username = username
+			_, err = proxyClient.AuthenticateWebUser(req)
+			require.NoError(t, err, "Web authentication expected to succeed")
+		})
+	}
+}
+
 type configureMFAResp struct {
-	User, Password          string
-	TOTPDev, U2FDev, WebDev *TestDevice
+	User, Password  string
+	TOTPDev, WebDev *TestDevice
 }
 
 func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 		// Use default Webauthn config.
 	})
@@ -574,9 +737,6 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	totpDev, err := RegisterTestDevice(ctx, clt, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
-	u2fDev, err := RegisterTestDevice(ctx, clt, "u2f-1", proto.DeviceType_DEVICE_TYPE_U2F, totpDev)
-	require.NoError(t, err)
-
 	webDev, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
 	require.NoError(t, err)
 
@@ -584,7 +744,6 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 		User:     username,
 		Password: password,
 		TOTPDev:  totpDev,
-		U2FDev:   u2fDev,
 		WebDev:   webDev,
 	}
 }

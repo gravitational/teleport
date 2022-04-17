@@ -155,7 +155,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
 	require.NoError(t, err)
 
-	rootCA, err := s.tlsServer.Auth().GetCertAuthority(types.CertAuthID{
+	rootCA, err := s.tlsServer.Auth().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: "root.example.com",
 	}, false)
@@ -293,6 +293,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		s.appServer.Close()
+
+		// wait for the server to close before allowing other cleanup
+		// actions to proceed
+		s.appServer.Wait()
 	})
 
 	return s

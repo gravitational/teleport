@@ -197,7 +197,9 @@ func TestProxyClientDisconnectDueToLockInForce(t *testing.T) {
 		Target: types.LockTarget{User: "alice"},
 	})
 	require.NoError(t, err)
-	testCtx.authServer.UpsertLock(ctx, lock)
+
+	err = testCtx.authServer.UpsertLock(ctx, lock)
+	require.NoError(t, err)
 
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
 	err = mysql.Ping()

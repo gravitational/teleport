@@ -23,7 +23,6 @@ package filesessions
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,6 +35,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -65,7 +65,7 @@ func TestChaosUpload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scanDir, err := ioutil.TempDir("", "teleport-streams")
+	scanDir, err := os.MkdirTemp("", "teleport-streams")
 	require.NoError(t, err)
 	defer os.RemoveAll(scanDir)
 
@@ -95,7 +95,7 @@ func TestChaosUpload(t *testing.T) {
 				return nil, trace.ConnectionProblem(nil, "failed to resume stream")
 			} else if resumed >= 5 && resumed < 8 {
 				// for the next several resumes, lose checkpoint file for the stream
-				files, err := ioutil.ReadDir(scanDir)
+				files, err := os.ReadDir(scanDir)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -124,7 +124,7 @@ func TestChaosUpload(t *testing.T) {
 		Streamer:   faultyStreamer,
 		Clock:      clock,
 		AuditLog:   &events.DiscardAuditLog{},
-	})
+	}, &eventstest.MockSessionTrackerService{})
 	require.NoError(t, err)
 	go uploader.Serve()
 	// wait until uploader blocks on the clock

@@ -19,6 +19,7 @@ package mysql
 import (
 	"crypto/tls"
 	"net"
+	"sync"
 	"sync/atomic"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -62,6 +63,11 @@ type TestServer struct {
 	tlsConfig *tls.Config
 	log       logrus.FieldLogger
 	handler   *testHandler
+
+	// serverConnsMtx is a mutex that guards serverConns.
+	serverConnsMtx sync.Mutex
+	// serverConns holds all connections created by the server.
+	serverConns []*server.Conn
 }
 
 // NewTestServer returns a new instance of a test MySQL server.
@@ -152,6 +158,11 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	s.serverConnsMtx.Lock()
+	s.serverConns = append(s.serverConns, serverConn)
+	s.serverConnsMtx.Unlock()
+
 	for {
 		if serverConn.Closed() {
 			return nil
@@ -194,6 +205,20 @@ func (s *TestServer) QueryCount() uint32 {
 // Close closes the server listener.
 func (s *TestServer) Close() error {
 	return s.listener.Close()
+}
+
+// ConnsClosed returns true if all connections has been correctly closed (message COM_QUIT), false otherwise.
+func (s *TestServer) ConnsClosed() bool {
+	s.serverConnsMtx.Lock()
+	defer s.serverConnsMtx.Unlock()
+
+	for _, conn := range s.serverConns {
+		if !conn.Closed() {
+			return false
+		}
+	}
+
+	return true
 }
 
 type testHandler struct {

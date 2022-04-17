@@ -41,13 +41,12 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -67,7 +66,7 @@ type testPack struct {
 	bk          backend.Backend
 	clusterName types.ClusterName
 	a           *Server
-	mockEmitter *events.MockEmitter
+	mockEmitter *eventstest.MockEmitter
 }
 
 func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
@@ -88,7 +87,7 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
-		Authority:              authority.New(),
+		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}
 	p.a, err = NewServer(authConfig)
@@ -157,7 +156,7 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		return p, trace.Wrap(err)
 	}
 
-	p.mockEmitter = &events.MockEmitter{}
+	p.mockEmitter = &eventstest.MockEmitter{}
 	p.a.emitter = p.mockEmitter
 	return p, nil
 }
@@ -562,27 +561,29 @@ func TestTokensCRUD(t *testing.T) {
 	require.Empty(t, btokens, 0)
 
 	// generate persistent token
-	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
+	tokenName, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
 	require.NoError(t, err)
-	require.Len(t, tok, 2*TokenLenBytes)
+	require.Len(t, tokenName, 2*TokenLenBytes)
 	tokens, err := s.a.GetTokens(ctx)
 	require.NoError(t, err)
 	require.Len(t, tokens, 1)
-	require.Equal(t, tokens[0].GetName(), tok)
+	require.Equal(t, tokens[0].GetName(), tokenName)
 
-	roles, _, err := s.a.ValidateToken(ctx, tok)
+	tokenResource, err := s.a.ValidateToken(ctx, tokenName)
 	require.NoError(t, err)
+	roles := tokenResource.GetRoles()
 	require.True(t, roles.Include(types.RoleNode))
 	require.False(t, roles.Include(types.RoleProxy))
 
 	// generate predefined token
 	customToken := "custom-token"
-	tok, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
+	tokenName, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
 	require.NoError(t, err)
-	require.Equal(t, tok, customToken)
+	require.Equal(t, tokenName, customToken)
 
-	roles, _, err = s.a.ValidateToken(ctx, tok)
+	tokenResource, err = s.a.ValidateToken(ctx, tokenName)
 	require.NoError(t, err)
+	roles = tokenResource.GetRoles()
 	require.True(t, roles.Include(types.RoleNode))
 	require.False(t, roles.Include(types.RoleProxy))
 
@@ -603,9 +604,10 @@ func TestTokensCRUD(t *testing.T) {
 	err = s.a.SetStaticTokens(st)
 	require.NoError(t, err)
 
-	r, _, err := s.a.ValidateToken(ctx, "static-token-value")
+	tokenResource, err = s.a.ValidateToken(ctx, "static-token-value")
 	require.NoError(t, err)
-	require.Equal(t, r, roles)
+	fetchesRoles := tokenResource.GetRoles()
+	require.Equal(t, fetchesRoles, roles)
 
 	// List tokens (should see 2: one static, one regular)
 	tokens, err = s.a.GetTokens(ctx)
@@ -619,11 +621,11 @@ func TestBadTokens(t *testing.T) {
 
 	ctx := context.Background()
 	// empty
-	_, _, err := s.a.ValidateToken(ctx, "")
+	_, err := s.a.ValidateToken(ctx, "")
 	require.Error(t, err)
 
 	// garbage
-	_, _, err = s.a.ValidateToken(ctx, "bla bla")
+	_, err = s.a.ValidateToken(ctx, "bla bla")
 	require.Error(t, err)
 
 	// tampered
@@ -631,7 +633,7 @@ func TestBadTokens(t *testing.T) {
 	require.NoError(t, err)
 
 	tampered := string(tok[0]+1) + tok[1:]
-	_, _, err = s.a.ValidateToken(ctx, tampered)
+	_, err = s.a.ValidateToken(ctx, tampered)
 	require.Error(t, err)
 }
 
@@ -778,7 +780,7 @@ func TestUpdateConfig(t *testing.T) {
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
-		Authority:              authority.New(),
+		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}
 	authServer, err := NewServer(authConfig)
@@ -829,7 +831,7 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 
-	// test create uesr, happy path
+	// test create user, happy path
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
@@ -1009,51 +1011,8 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorDeletedEvent)
 }
 
-func TestU2FSignChallengeCompat(t *testing.T) {
-	// Test that the new U2F challenge encoding format is backwards-compatible
-	// with older clients and servers.
-	//
-	// New format is U2FAuthenticateChallenge as JSON.
-	// Old format was u2f.AuthenticateChallenge as JSON.
-	t.Run("old client, new server", func(t *testing.T) {
-		t.Parallel()
-		newChallenge := &MFAAuthenticateChallenge{
-			AuthenticateChallenge: &u2f.AuthenticateChallenge{
-				Challenge: "c1",
-			},
-			U2FChallenges: []u2f.AuthenticateChallenge{
-				{Challenge: "c1"},
-				{Challenge: "c2"},
-				{Challenge: "c3"},
-			},
-		}
-		wire, err := json.Marshal(newChallenge)
-		require.NoError(t, err)
-
-		var oldChallenge u2f.AuthenticateChallenge
-		err = json.Unmarshal(wire, &oldChallenge)
-		require.NoError(t, err)
-
-		require.Empty(t, cmp.Diff(oldChallenge, *newChallenge.AuthenticateChallenge))
-	})
-	t.Run("new client, old server", func(t *testing.T) {
-		t.Parallel()
-		oldChallenge := &u2f.AuthenticateChallenge{
-			Challenge: "c1",
-		}
-		wire, err := json.Marshal(oldChallenge)
-		require.NoError(t, err)
-
-		var newChallenge MFAAuthenticateChallenge
-		err = json.Unmarshal(wire, &newChallenge)
-		require.NoError(t, err)
-
-		require.Empty(t, cmp.Diff(newChallenge, MFAAuthenticateChallenge{AuthenticateChallenge: oldChallenge}))
-	})
-}
-
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
-	mockE := &events.MockEmitter{}
+	mockE := &eventstest.MockEmitter{}
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"))
 
@@ -1069,6 +1028,44 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 			UserMessage: "some error",
 		},
 	})
+}
+
+func TestGenerateUserCertWithCertExtension(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
+	require.NoError(t, err)
+
+	extension := types.CertExtension{
+		Name:  "abc",
+		Value: "cde",
+		Type:  types.CertExtensionType_SSH,
+		Mode:  types.CertExtensionMode_EXTENSION,
+	}
+	options := role.GetOptions()
+	options.CertExtensions = []*types.CertExtension{&extension}
+	role.SetOptions(options)
+
+	keygen := testauthority.New()
+	_, pub, err := keygen.GetNewKeyPairFromPool()
+	require.NoError(t, err)
+	certReq := certRequest{
+		user:      user,
+		checker:   services.NewRoleSet(role),
+		publicKey: pub,
+	}
+	certs, err := p.a.generateUserCert(certReq)
+	require.NoError(t, err)
+
+	key, err := sshutils.ParseCertificate(certs.SSH)
+	require.NoError(t, err)
+
+	val, ok := key.Extensions[extension.Name]
+	require.True(t, ok)
+	require.Equal(t, extension.Value, val)
 }
 
 func TestGenerateUserCertWithLocks(t *testing.T) {
@@ -1172,7 +1169,8 @@ func TestNewWebSession(t *testing.T) {
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	err = p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	require.NoError(t, err)
 
 	// Create a user.
 	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})
@@ -1205,7 +1203,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	username := "llama@goteleport.com"
@@ -1215,9 +1213,8 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1281,7 +1278,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	// Check it's been deleted.
 	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
 	require.NoError(t, err)
-	compareDevices(t, devs, webDev2.MFA, totpDev2.MFA)
+	compareDevices(t, false /* ignoreUpdateAndCounter */, devs, webDev2.MFA, totpDev2.MFA)
 
 	// Test last events emitted.
 	event := mockEmitter.LastEvent()
@@ -1302,9 +1299,8 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1374,16 +1370,15 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	}
 }
 
-// TestDeleteMFADeviceSync_LastDevice tests for preventing deletion of last device
-// when second factor is required.
-func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
+// TestDeleteMFADeviceSync_lastDevice tests for preventing deletion of last
+// device when second factor is required.
+func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
-	u2fAuthSetting := &types.U2F{
-		AppID:  "https://localhost",
-		Facets: []string{"https://localhost"},
+	webConfig := &types.Webauthn{
+		RPID: "localhost",
 	}
 
 	newTOTPForUser := func(user string) *types.MFADevice {
@@ -1406,7 +1401,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOptional,
-					U2F:          u2fAuthSetting,
+					Webauthn:     webConfig,
 				})
 				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
@@ -1435,9 +1430,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorWebauthn,
-					Webauthn: &types.Webauthn{
-						RPID: "localhost",
-					},
+					Webauthn:     webConfig,
 				})
 				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
@@ -1458,7 +1451,7 @@ func TestDeleteMFADeviceSync_LastDevice(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOn,
-					U2F:          u2fAuthSetting,
+					Webauthn:     webConfig,
 				})
 				require.NoError(t, err)
 				err = srv.Auth().SetAuthPreference(ctx, authPreference)
@@ -1516,15 +1509,14 @@ func TestAddMFADeviceSync(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &events.MockEmitter{}
+	mockEmitter := &eventstest.MockEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOn,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1589,27 +1581,6 @@ func TestAddMFADeviceSync(t *testing.T) {
 			},
 		},
 		{
-			name:       "U2F device with privilege exception token",
-			deviceName: "new-u2f",
-			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
-				// Obtain a privilege exception token.
-				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
-				require.NoError(t, err)
-
-				// Create register challenge and sign.
-				u2fRegRes, _, err := getLegacyMockedU2FAndRegisterRes(srv.Auth(), privExToken.GetName())
-				require.NoError(t, err)
-
-				return &proto.AddMFADeviceSyncRequest{
-					TokenID:       privExToken.GetName(),
-					NewDeviceName: deviceName,
-					NewMFAResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_U2F{
-						U2F: u2fRegRes,
-					}},
-				}
-			},
-		},
-		{
 			name:       "Webauthn device with privilege exception token",
 			deviceName: "new-webauthn",
 			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
@@ -1669,9 +1640,8 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1716,7 +1686,6 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -1741,7 +1710,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err))
 			default:
 				require.NoError(t, err)
-				compareDevices(t, res.GetDevices(), webDev.MFA, totpDev.MFA)
+				compareDevices(t, true /* ignoreUpdateAndCounter */, res.GetDevices(), webDev.MFA, totpDev.MFA)
 			}
 		})
 	}
@@ -1755,9 +1724,8 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		U2F: &types.U2F{
-			AppID:  "https://localhost",
-			Facets: []string{"https://localhost"},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
@@ -1777,7 +1745,7 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 
 	res, err := clt.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
-	compareDevices(t, res.GetDevices(), webDev.MFA, totpDev.MFA)
+	compareDevices(t, true /* ignoreUpdateAndCounter */, res.GetDevices(), webDev.MFA, totpDev.MFA)
 }
 
 func newTestServices(t *testing.T) Services {
@@ -1800,7 +1768,7 @@ func newTestServices(t *testing.T) Services {
 	}
 }
 
-func compareDevices(t *testing.T, got []*types.MFADevice, want ...*types.MFADevice) {
+func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFADevice, want ...*types.MFADevice) {
 	sort.Slice(got, func(i, j int) bool { return got[i].GetName() < got[j].GetName() })
 	sort.Slice(want, func(i, j int) bool { return want[i].GetName() < want[j].GetName() })
 
@@ -1821,7 +1789,16 @@ func compareDevices(t *testing.T, got []*types.MFADevice, want ...*types.MFADevi
 		totp.Key = ""
 	}
 
-	if diff := cmp.Diff(want, got); diff != "" {
+	// Ignore LastUsed and SignatureCounter?
+	var opts []cmp.Option
+	if ignoreUpdateAndCounter {
+		opts = append(opts, cmp.FilterPath(func(path cmp.Path) bool {
+			p := path.String()
+			return p == "LastUsed" || p == "Device.Webauthn.SignatureCounter"
+		}, cmp.Ignore()))
+	}
+
+	if diff := cmp.Diff(want, got, opts...); diff != "" {
 		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
 	}
 }

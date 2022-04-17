@@ -20,7 +20,6 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -37,8 +36,6 @@ type changePasswordReq struct {
 	NewPassword []byte `json:"new_password"`
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
-	// U2FSignResponse is U2F response
-	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 	// WebauthnAssertionResponse is a Webauthn response
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
@@ -60,7 +57,6 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		OldPassword:       req.OldPassword,
 		NewPassword:       req.NewPassword,
 		SecondFactorToken: req.SecondFactorToken,
-		U2FSignResponse:   req.U2FSignResponse,
 		WebauthnResponse:  req.WebauthnAssertionResponse,
 	}
 

@@ -1,0 +1,90 @@
+---
+title: Machine ID CLI Reference
+description: CLI reference for Teleport Machine ID.
+---
+
+## `tbot start`
+
+Starts the Machine ID client `tbot`, fetching and writing certificates to disk
+at a set interval.
+
+<Details scope={["cloud"]} scopeOnly={true}>
+```code
+$ tbot start \
+   --data-dir=/var/lib/teleport/bot \
+   --destination-dir=/opt/machine-id \
+   --token=00000000000000000000000000000000 \
+   --join-method=token \
+   --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+   --auth-server=example.teleport.sh:443
+```
+</Details>
+<Details scope={["oss","enterprise"]} scopeOnly={true}>
+```code
+$ tbot start \
+   --data-dir=/var/lib/teleport/bot \
+   --destination-dir=/opt/machine-id \
+   --token=00000000000000000000000000000000 \
+   --join-method=token \
+   --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+   --auth-server=auth.example.com:3025
+```
+</Details>
+
+| Flag                 | Description                                                                                    |
+|----------------------|------------------------------------------------------------------------------------------------|
+| `-d/--debug`         | Enable verbose logging to stderr.                                                              |
+| `-c/--config`        | Path to a configuration file. Defaults to `/etc/tbot.yaml` if unspecified.                     |
+| `-a/--auth-server`   | Address of the Teleport Auth Server (On-Prem installs) or Teleport Cloud tenant.       |
+| `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect.                   |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
+| `--data-dir`         | Directory to store internal bot data. Access to this directory should be limited.              | 
+| `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
+| `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
+| `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
+| `--join-method`      | Method to use to join the cluster. Can be `token` or `iam`.                                    |
+| `--one-shot`         | If set, quit after the first renewal.                                                          |
+
+## `tbot init`
+
+If you want to write certificates to disk as a different user than the Machine
+ID client, you can use `tbot init` to configure either file or POSIX ACLs
+permissions. This allows you to lock down access to Machine ID's short-lived
+certificates from other users or applications on the system.
+
+| Flag                | Description                                                                                                        |
+|---------------------|--------------------------------------------------------------------------------------------------------------------|
+| `-d/--debug`        | Enable verbose logging to stderr.                                                                                  |
+| `-c/--config`       | Path to a configuration file. Defaults to `/etc/tbot.yaml` if unspecified.                                         |
+| `--destination-dir` | Directory to write short-lived machine certificates to.                                                            |
+| `--owner`           | Defines the Linux `user:group` owner of `--destination-dir`. Defaults to the Linux user running `tbot` if unspecified. |
+| `--bot-user`        | Enables POSIX ACLs and defines the Linux user that can read/write short-lived certificates to `--destination-dir`.     |
+| `--reader-user`     | Enables POSIX ACLs and defines the Linux user that will read short-lived certificates from `--destination-dir`.        |
+| `--init-dir`        | If using a config file and multiple destinations are configured, controls which destination dir to configure.      |
+| `--clean`           | If set, remove unexpected files and directories from the destination.                                              |
+
+### `tbot init` with file permissions
+
+If running `tbot` as the Linux user `root`, use the following invocation of
+`tbot init` to initialize the short-lived certificate directory
+`/opt/machine-id` with owner `jenkins:jenkins`.
+
+```code
+$ tbot init \
+    --destination-dir=/opt/machine-id \
+    --owner=jenkins:jenkins
+```
+
+### `tbot init` with POSIX ACLs
+
+If running `tbot` as the Linux user `teleport`, use the following invocation of
+`tbot init` to initialize the short-lived certificate directory
+`/opt/machine-id` with owner `teleport:teleport` but allow `jenkins` to read
+from `/opt/machine-id`.
+
+```code
+$ tbot init \
+    --destination-dir=/opt/machine-id \
+    --bot-user=teleport \
+    --reader-user=jenkins
+```

@@ -80,16 +80,11 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err, "error authorizing database access")
 	}
 	// Establish connection to the MongoDB server.
-	serverConn, err := e.connect(ctx, sessionCtx)
+	serverConn, closeFn, err := e.connect(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "error connecting to the database")
 	}
-	defer func() {
-		err := serverConn.Close()
-		if err != nil {
-			e.Log.WithError(err).Error("Failed to close server connection.")
-		}
-	}()
+	defer closeFn()
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 	// Start reading client messages and sending them to server.

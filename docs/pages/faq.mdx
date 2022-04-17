@@ -35,7 +35,7 @@ section of the Admin Manual.
 
 This was a popular customer [request](https://github.com/gravitational/teleport/issues/803) that was added in Teleport version 4.0.
 Once you've upgraded your Teleport Cluster, change the node config option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr`
-in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](./setup/admin/adding-nodes.mdx#adding-a-node-located-behind-nat)
+in file configuration). For more information, see [Adding Nodes to the Cluster](./setup/admin/adding-nodes.mdx).
 
 ### Can nodes use a single port for reverse tunnels?
 
@@ -129,8 +129,7 @@ Teleport provides security-critical support for the current and two previous rel
 | 4.4 | Yes | October 20th, 2020 | 3.0.0 |
 | 4.3 (EOL) | Yes | July 8th, 2020 | 3.0.0 |
 | 4.2 (EOL) | Yes | December 19th, 2019 | 3.0.0 |
-| 4.1 (EOL) | Yes | October 1st, 2019 | 3.0.0 |
-| 4.0 (EOL) | Yes | June 18th, 2019 | 3.0.0 |
+
 
 **How should I upgrade my cluster?**
 
@@ -155,7 +154,7 @@ Please refer to the [Ports](./setup/reference/networking.mdx) section of the Adm
 
 ### Does Teleport support authentication via OAuth, SAML, or Active Directory?
 
-Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/introduction.mdx).
+Teleport offers this feature for the [Enterprise versions of Teleport](enterprise/introduction.mdx).
 
 ### Does Teleport send any data back to the cloud?
 

@@ -240,5 +240,5 @@ type Presence interface {
 	DeleteAllWindowsDesktopServices(context.Context) error
 
 	// ListResoures returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }

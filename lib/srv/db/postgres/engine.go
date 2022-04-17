@@ -227,19 +227,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	// messages b/w server and client e.g. to get client's password.
 	conn, err := pgconn.ConnectConfig(ctx, connectConfig)
 	if err != nil {
-		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
-			return nil, nil, trace.AccessDenied(`Could not connect to database:
-
-  %v
-
-Make sure that Postgres user %q has "rds_iam" role and Teleport database
-agent's IAM policy has "rds-connect" permissions (note that IAM changes may
-take a few minutes to propagate):
-
-%v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
-		}
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, common.ConvertConnectError(err, sessionCtx)
 	}
 	// Hijacked connection exposes some internal connection data, such as
 	// parameters we'll need to relay back to the client (e.g. database

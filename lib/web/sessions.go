@@ -209,18 +209,19 @@ func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 // ClientTLSConfig returns client TLS authentication associated
 // with the web session context
 func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, error) {
+	ctx := context.TODO()
 	var certPool *x509.CertPool
 	if len(clusterName) == 0 {
-		certAuthorities, err := c.parent.proxyClient.GetCertAuthorities(types.HostCA, false)
+		certAuthorities, err := c.parent.proxyClient.GetCertAuthorities(ctx, types.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		certPool, err = services.CertPoolFromCertAuthorities(certAuthorities)
+		certPool, _, err = services.CertPoolFromCertAuthorities(certAuthorities)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		certAuthority, err := c.parent.proxyClient.GetCertAuthority(types.CertAuthID{
+		certAuthority, err := c.parent.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName[0],
 		}, false)
@@ -305,7 +306,8 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 }
 
 func (c *SessionContext) getCheckers() ([]ssh.PublicKey, error) {
-	cas, err := c.unsafeCachedAuthClient.GetCertAuthorities(types.HostCA, false)
+	ctx := context.TODO()
+	cas, err := c.unsafeCachedAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -583,11 +585,6 @@ func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserReques
 	authReq := auth.AuthenticateUserRequest{
 		Username: req.User,
 	}
-	if req.U2FSignResponse != nil {
-		authReq.U2F = &auth.U2FSignResponseCreds{
-			SignResponse: *req.U2FSignResponse,
-		}
-	}
 	if req.WebauthnAssertionResponse != nil {
 		authReq.Webauthn = req.WebauthnAssertionResponse
 	}
@@ -636,11 +633,6 @@ func (s *sessionCache) AuthenticateSSHUser(c client.AuthenticateSSHUserRequest) 
 	}
 	if c.Password != "" {
 		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
-	}
-	if c.U2FSignResponse != nil {
-		authReq.U2F = &auth.U2FSignResponseCreds{
-			SignResponse: *c.U2FSignResponse,
-		}
 	}
 	if c.WebauthnChallengeResponse != nil {
 		authReq.Webauthn = c.WebauthnChallengeResponse
@@ -696,6 +688,9 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 		SessionID: ctx.session.GetName(),
 	})
 	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if err := clt.DeleteUserAppSessions(context.TODO(), &proto.DeleteUserAppSessionsRequest{Username: ctx.user}); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.releaseResources(ctx.GetUser(), ctx.session.GetName()); err != nil {
@@ -836,7 +831,8 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 }
 
 func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
-	ca, err := s.proxyClient.GetCertAuthority(types.CertAuthID{
+	ctx := context.TODO()
+	ca, err := s.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: s.clusterName,
 	}, false)

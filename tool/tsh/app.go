@@ -114,11 +114,17 @@ tsh aws {{.awsCmd}}
 
 // getRegisteredApp returns the registered application with the specified name.
 func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Application, err error) {
+	var apps []types.Application
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allApps, err := tc.ListApps(cf.Context)
+		allApps, err := tc.ListApps(cf.Context, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
+		})
+		// Kept for fallback in case older auth does not apply filters.
+		// DELETE IN 11.0.0
 		for _, a := range allApps {
 			if a.GetName() == cf.AppName {
-				app = a
+				apps = append(apps, a)
 				return nil
 			}
 		}
@@ -127,10 +133,10 @@ func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Applica
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if app == nil {
+	if len(apps) == 0 {
 		return nil, trace.NotFound("app %q not found, use `tsh app ls` to see registered apps", cf.AppName)
 	}
-	return app, nil
+	return apps[0], nil
 }
 
 // onAppLogout implements "tsh app logout" command.

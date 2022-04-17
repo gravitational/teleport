@@ -194,3 +194,7 @@ If the service for a given role doesn't show up, look into the agent logs with:
 ```sh
 $ kubectl logs -n teleport deployment/teleport-kube-agent
 ```
+
+## Contributing to the chart
+
+Please read [CONTRIBUTING.md](../CONTRIBUTING.md) before raising a pull request to this chart.

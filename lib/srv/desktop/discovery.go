@@ -69,7 +69,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		// pre-filtered by nature of using an LDAP search with filters.
 		Matcher: func(r types.ResourceWithLabels) bool { return true },
 
-		GetCurrentResources: func() types.ResourcesWithLabels { return s.lastDiscoveryResults },
+		GetCurrentResources: func() types.ResourcesWithLabelsMap { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.upsertDesktop,
@@ -117,7 +117,7 @@ func (s *WindowsService) ldapSearchFilter() string {
 }
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
-func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
+func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabelsMap {
 	if !s.ldapReady() {
 		s.cfg.Log.Warn("skipping desktop discovery: LDAP not yet initialized")
 		return nil
@@ -144,14 +144,14 @@ func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabels {
 
 	s.cfg.Log.Debugf("discovered %d Windows Desktops", len(entries))
 
-	var result types.ResourcesWithLabels
+	result := make(types.ResourcesWithLabelsMap)
 	for _, entry := range entries {
 		desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn)
 		if err != nil {
 			s.cfg.Log.Warnf("could not create Windows Desktop from LDAP entry: %v", err)
 			continue
 		}
-		result = append(result, desktop)
+		result[desktop.GetName()] = desktop
 	}
 
 	// capture the result, which will be used on the next reconcile loop
@@ -177,14 +177,14 @@ func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWith
 }
 
 func applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
-	labels["teleport.dev/dns_host_name"] = entry.GetAttributeValue(attrDNSHostName)
-	labels["teleport.dev/computer_name"] = entry.GetAttributeValue(attrName)
-	labels["teleport.dev/os"] = entry.GetAttributeValue(attrOS)
-	labels["teleport.dev/os_version"] = entry.GetAttributeValue(attrOSVersion)
+	labels[types.TeleportNamespace+"/dns_host_name"] = entry.GetAttributeValue(attrDNSHostName)
+	labels[types.TeleportNamespace+"/computer_name"] = entry.GetAttributeValue(attrName)
+	labels[types.TeleportNamespace+"/os"] = entry.GetAttributeValue(attrOS)
+	labels[types.TeleportNamespace+"/os_version"] = entry.GetAttributeValue(attrOSVersion)
 	labels[types.OriginLabel] = types.OriginDynamic
 	switch entry.GetAttributeValue(attrPrimaryGroupID) {
 	case writableDomainControllerGroupID, readOnlyDomainControllerGroupID:
-		labels["teleport.dev/is_domain_controller"] = "true"
+		labels[types.TeleportNamespace+"/is_domain_controller"] = "true"
 	}
 }
 
@@ -193,7 +193,7 @@ func applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
 func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
 	hostname := entry.GetAttributeValue(attrDNSHostName)
 	labels := getHostLabels(hostname)
-	labels["teleport.dev/windows_domain"] = s.cfg.Domain
+	labels[types.TeleportNamespace+"/windows_domain"] = s.cfg.Domain
 	applyLabelsFromLDAP(entry, labels)
 
 	addrs, err := s.dnsResolver.LookupHost(ctx, hostname)

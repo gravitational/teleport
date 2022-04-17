@@ -18,12 +18,37 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
+
+// KubeCluster represents a kubernetes cluster.
+type KubeCluster interface {
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
+	// GetNamespace returns the kube cluster namespace.
+	GetNamespace() string
+	// GetStaticLabels returns the kube cluster static labels.
+	GetStaticLabels() map[string]string
+	// SetStaticLabels sets the kube cluster static labels.
+	SetStaticLabels(map[string]string)
+	// GetDynamicLabels returns the kube cluster dynamic labels.
+	GetDynamicLabels() map[string]CommandLabel
+	// SetDynamicLabels sets the kube cluster dynamic labels.
+	SetDynamicLabels(map[string]CommandLabel)
+	// LabelsString returns all labels as a string.
+	LabelsString() string
+	// String returns string representation of the kube cluster.
+	String() string
+	// GetDescription returns the kube cluster description.
+	GetDescription() string
+	// Copy returns a copy of this kube cluster resource.
+	Copy() *KubernetesClusterV3
+}
 
 // NewKubernetesClusterV3FromLegacyCluster creates a new Kubernetes cluster resource
 // from the legacy type.
@@ -191,4 +216,77 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// KubeClusters represents a list of kube clusters.
+type KubeClusters []KubeCluster
+
+// Len returns the slice length.
+func (s KubeClusters) Len() int { return len(s) }
+
+// Less compares kube clusters by name.
+func (s KubeClusters) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
+// Swap swaps two kube clusters.
+func (s KubeClusters) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s KubeClusters) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindKubernetesCluster)
+	}
+
+	return nil
+}
+
+// AsResources returns as type resources with labels.
+func (s KubeClusters) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, cluster := range s {
+		resources = append(resources, ResourceWithLabels(cluster))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s KubeClusters) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetName())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindKubernetesCluster)
+	}
+
+	return vals, nil
+}
+
+// DeduplicateKubeClusters deduplicates kube clusters by name.
+func DeduplicateKubeClusters(kubeclusters []KubeCluster) []KubeCluster {
+	seen := make(map[string]struct{})
+	result := make([]KubeCluster, 0, len(kubeclusters))
+
+	for _, cluster := range kubeclusters {
+		if _, ok := seen[cluster.GetName()]; ok {
+			continue
+		}
+		seen[cluster.GetName()] = struct{}{}
+		result = append(result, cluster)
+	}
+
+	return result
 }

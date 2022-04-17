@@ -65,7 +65,7 @@ func TestStreamsDesktopEvents(t *testing.T) {
 	b := make([]byte, 4096)
 	n, err := ws.Read(b)
 	require.NoError(t, err)
-	require.Equal(t, []byte(`{"message":"end"}`), b[:n])
+	require.JSONEq(t, `{"message":"end"}`, string(b[:n]))
 }
 
 func newServer(t *testing.T, streamInterval time.Duration, events []apievents.AuditEvent) *httptest.Server {

@@ -1506,7 +1506,7 @@ func TestCheckRuleAccess(t *testing.T) {
 
 func TestGuessIfAccessIsPossible(t *testing.T) {
 	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
-	ownSessions, err := types.NewRole("own-sessions", types.RoleSpecV5{
+	ownSessions, err := types.NewRoleV3("own-sessions", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1518,7 +1518,7 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	ownSSHSessions, err := types.NewRole("own-ssh-sessions", types.RoleSpecV5{
+	ownSSHSessions, err := types.NewRoleV3("own-ssh-sessions", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1540,7 +1540,7 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 	require.NoError(t, err)
 
 	// Simple, all-or-nothing roles.
-	readAllSessions, err := types.NewRole("all-sessions", types.RoleSpecV5{
+	readAllSessions, err := types.NewRoleV3("all-sessions", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1551,7 +1551,7 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	allowSSHSessions, err := types.NewRole("all-ssh-sessions", types.RoleSpecV5{
+	allowSSHSessions, err := types.NewRoleV3("all-ssh-sessions", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -1562,7 +1562,7 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	denySSHSessions, err := types.NewRole("deny-ssh-sessions", types.RoleSpecV5{
+	denySSHSessions, err := types.NewRoleV3("deny-ssh-sessions", types.RoleSpecV5{
 		Deny: types.RoleConditions{
 			Rules: []types.Rule{
 				{
@@ -2680,6 +2680,128 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	}
 }
 
+func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	roleDevStage := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+
+	roleNoDBAccess := &types.RoleV5{
+		Metadata: types.Metadata{Name: "no_db_access", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"*"},
+				DatabaseNames: []string{"*"},
+			},
+		},
+	}
+
+	roleAllowDenySame := &types.RoleV5{
+		Metadata: types.Metadata{Name: "allow_deny_same", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name       string
+		roles      RoleSet
+		server     types.Database
+		enumResult EnumerationResult
+	}{
+		{
+			name:   "deny overrides allow",
+			roles:  RoleSet{roleAllowDenySame},
+			server: dbStage,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "developer allowed any username in stage database except superuser",
+			roles:  RoleSet{roleDevStage, roleDevProd},
+			server: dbStage,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				wildcardAllowed:  true,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "developer allowed only specific username/database in prod database",
+			roles:  RoleSet{roleDevStage, roleDevProd},
+			server: dbProd,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "there may be users disallowed from all users",
+			roles:  RoleSet{roleDevStage, roleDevProd, roleNoDBAccess},
+			server: dbProd,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": false, "superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   true,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			enumResult := tc.roles.EnumerateDatabaseUsers(tc.server)
+			require.Equal(t, tc.enumResult, enumResult)
+		})
+	}
+}
+
 func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	roleEmpty := &types.RoleV5{
 		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
@@ -3536,7 +3658,7 @@ func TestRoleSetLockingMode(t *testing.T) {
 
 	missingMode := constants.LockingMode("")
 	newRoleWithLockingMode := func(t *testing.T, mode constants.LockingMode) types.Role {
-		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV5{Options: types.RoleOptions{Lock: mode}})
+		role, err := types.NewRoleV3(uuid.New().String(), types.RoleSpecV5{Options: types.RoleOptions{Lock: mode}})
 		require.NoError(t, err)
 		return role
 	}
@@ -3575,14 +3697,14 @@ func TestExtractConditionForIdentifier(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	allowWhere := func(where string) types.Role {
-		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV5{Allow: types.RoleConditions{
+		role, err := types.NewRoleV3(uuid.New().String(), types.RoleSpecV5{Allow: types.RoleConditions{
 			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
 		}})
 		require.NoError(t, err)
 		return role
 	}
 	denyWhere := func(where string) types.Role {
-		role, err := types.NewRole(uuid.New().String(), types.RoleSpecV5{Deny: types.RoleConditions{
+		role, err := types.NewRoleV3(uuid.New().String(), types.RoleSpecV5{Deny: types.RoleConditions{
 			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
 		}})
 		require.NoError(t, err)

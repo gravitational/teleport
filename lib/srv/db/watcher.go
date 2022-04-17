@@ -134,11 +134,8 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 }
 
 // getResources returns proxied databases as resources.
-func (s *Server) getResources() (resources types.ResourcesWithLabels) {
-	for _, database := range s.getProxiedDatabases() {
-		resources = append(resources, database)
-	}
-	return resources
+func (s *Server) getResources() types.ResourcesWithLabelsMap {
+	return s.getProxiedDatabases().AsResources().ToMap()
 }
 
 // onCreate is called by reconciler when a new database is created.

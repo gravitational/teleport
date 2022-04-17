@@ -19,7 +19,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -56,10 +55,17 @@ func TestTSHSSH(t *testing.T) {
 		os.RemoveAll(profile.FullProfilePath(""))
 	})
 
-	s := newTestSuite(t, withLeafCluster(), withRootConfigFunc(func(cfg *service.Config) {
-		cfg.Version = defaults.TeleportConfigVersionV2
-		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-	}))
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+		}),
+	)
 
 	tests := []struct {
 		name string
@@ -67,6 +73,7 @@ func TestTSHSSH(t *testing.T) {
 	}{
 		{"ssh root cluster access", testRootClusterSSHAccess},
 		{"ssh leaf cluster access", testLeafClusterSSHAccess},
+		{"ssh jump host access", testJumpHostSSHAccess},
 	}
 
 	for _, tc := range tests {
@@ -167,6 +174,56 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 }
 
+func testJumpHostSSHAccess(t *testing.T, s *suite) {
+	err := Run([]string{
+		"login",
+		"--insecure",
+		"--auth", s.connector.GetName(),
+		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		s.root.Config.Auth.ClusterName.GetClusterName(),
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		s.leaf.Config.Auth.ClusterName.GetClusterName(),
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Connect to leaf node though jump host set to leaf proxy SSH port.
+	err = Run([]string{
+		"ssh",
+		"--insecure",
+		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
+		s.leaf.Config.Hostname,
+		"echo", "hello",
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
+	err = Run([]string{
+		"ssh",
+		"--insecure",
+		"-J", s.leaf.Config.Proxy.WebAddr.Addr,
+		s.leaf.Config.Hostname,
+		"echo", "hello",
+	}, func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 // TestProxySSHDial verifies "tsh proxy ssh" command.
 func TestProxySSHDial(t *testing.T) {
 	createAgent(t)
@@ -174,7 +231,7 @@ func TestProxySSHDial(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
-	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{"alice"},
 		},
@@ -320,7 +377,7 @@ func createAgent(t *testing.T) string {
 	// Create own tmp dir instead of using t.TmpDir
 	// because  net.Listen("unix", path) has dir path length limitation and
 	// the t.TmpDir calls creates tmp dir with test name.
-	sockDir, err := ioutil.TempDir("", "test")
+	sockDir, err := os.MkdirTemp("", "test")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.RemoveAll(sockDir)
@@ -375,7 +432,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "ssh_config")
-	err = ioutil.WriteFile(configPath, buff.Bytes(), 0600)
+	err = os.WriteFile(configPath, buff.Bytes(), 0600)
 	require.NoError(t, err)
 
 	return configPath

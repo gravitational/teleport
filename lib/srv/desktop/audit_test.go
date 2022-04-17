@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -33,8 +34,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setup() (*WindowsService, *tlsca.Identity, *libevents.MockEmitter) {
-	emitter := &libevents.MockEmitter{}
+func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockEmitter) {
+	emitter := &eventstest.MockEmitter{}
 	log := logrus.New()
 	log.SetOutput(io.Discard)
 
@@ -99,6 +100,7 @@ func TestSessionStartEvent(t *testing.T) {
 			Success: true,
 		},
 		WindowsDesktopService: s.cfg.Heartbeat.HostUUID,
+		DesktopName:           "test-desktop",
 		DesktopAddr:           desktop.GetAddr(),
 		Domain:                desktop.GetDomain(),
 		WindowsUser:           "Administrator",
@@ -131,6 +133,7 @@ func TestSessionStartEvent(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			s.onSessionStart(
 				context.Background(),
+				s.cfg.Emitter,
 				id,
 				s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				"Administrator",
@@ -173,6 +176,7 @@ func TestSessionEndEvent(t *testing.T) {
 
 	s.onSessionEnd(
 		context.Background(),
+		s.cfg.Emitter,
 		id,
 		startTime,
 		true,

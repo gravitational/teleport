@@ -242,19 +242,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		dialer,
 		connectOpt)
 	if err != nil {
-		if trace.IsAccessDenied(common.ConvertError(err)) && sessionCtx.Database.IsRDS() {
-			return nil, trace.AccessDenied(`Could not connect to database:
-
-  %v
-
-Make sure that IAM auth is enabled for MySQL user %q and Teleport database
-agent's IAM policy has "rds-connect" permissions (note that IAM changes may
-take a few minutes to propagate):
-
-%v
-`, common.ConvertError(err), sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
-		}
-		return nil, trace.Wrap(err)
+		return nil, common.ConvertConnectError(err, sessionCtx)
 	}
 	return conn, nil
 }
@@ -298,6 +286,21 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			return
 		case *protocol.Quit:
 			return
+
+		case *protocol.InitDB:
+			e.Audit.EmitEvent(e.Context, makeInitDBEvent(sessionCtx, pkt))
+		case *protocol.CreateDB:
+			e.Audit.EmitEvent(e.Context, makeCreateDBEvent(sessionCtx, pkt))
+		case *protocol.DropDB:
+			e.Audit.EmitEvent(e.Context, makeDropDBEvent(sessionCtx, pkt))
+		case *protocol.ShutDown:
+			e.Audit.EmitEvent(e.Context, makeShutDownEvent(sessionCtx, pkt))
+		case *protocol.ProcessKill:
+			e.Audit.EmitEvent(e.Context, makeProcessKillEvent(sessionCtx, pkt))
+		case *protocol.Debug:
+			e.Audit.EmitEvent(e.Context, makeDebugEvent(sessionCtx, pkt))
+		case *protocol.Refresh:
+			e.Audit.EmitEvent(e.Context, makeRefreshEvent(sessionCtx, pkt))
 
 		case *protocol.StatementPreparePacket:
 			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))

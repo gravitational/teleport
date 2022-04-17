@@ -168,6 +168,16 @@ const (
 	// ChangePasswordTokenTTL is a default password change token expiry time
 	ChangePasswordTokenTTL = 8 * time.Hour
 
+	// DefaultRenewableCertTTL is the default TTL for a renewable user certificate.
+	DefaultRenewableCertTTL = 1 * time.Hour
+
+	// MaxRenewableCertTTL is the maximum TTL that a certificate renewal bot
+	// can request for a renewable user certificate.
+	MaxRenewableCertTTL = 24 * time.Hour
+
+	// DefaultBotJoinTTL is the default TTL for bot join tokens.
+	DefaultBotJoinTTL = 1 * time.Hour
+
 	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
 	RecoveryStartTokenTTL = 3 * time.Hour
 
@@ -295,10 +305,6 @@ const (
 	// per stream
 	ConcurrentUploadsPerStream = 1
 
-	// UploadGracePeriod is a period after which non-completed
-	// upload is considered abandoned and will be completed by the reconciler
-	UploadGracePeriod = 24 * time.Hour
-
 	// InactivityFlushPeriod is a period of inactivity
 	// that triggers upload of the data - flush.
 	InactivityFlushPeriod = 5 * time.Minute
@@ -313,6 +319,17 @@ const (
 	// DefaultRedisUsername is a default username used by Redis when
 	// no name is provided at connection time.
 	DefaultRedisUsername = "default"
+
+	// SessionTrackerTTL defines the default base ttl of a session tracker.
+	SessionTrackerTTL = time.Hour
+
+	// SessionTrackerExpirationUpdateInterval is the default interval on which an active
+	// session's expiration will be extended.
+	SessionTrackerExpirationUpdateInterval = SessionTrackerTTL / 6
+
+	// AbandonedUploadPollingRate defines how often to check for
+	// abandoned uploads which need to be completed.
+	AbandonedUploadPollingRate = SessionTrackerTTL / 6
 )
 
 var (
@@ -378,12 +395,6 @@ var (
 
 	// TopRequestsCapacity sets up default top requests capacity
 	TopRequestsCapacity = 128
-
-	// CachePollPeriod is a period for cache internal events polling,
-	// used in cases when cache is being used to subscribe for events
-	// and this parameter controls how often cache checks for new events
-	// to arrive
-	CachePollPeriod = 500 * time.Millisecond
 
 	// AuthQueueSize is auth service queue size
 	AuthQueueSize = 8192
@@ -456,6 +467,17 @@ const (
 	// LimiterMaxConcurrentSignatures limits maximum number of concurrently
 	// generated signatures by the auth server
 	LimiterMaxConcurrentSignatures = 10
+)
+
+// Default rate limits for unauthenticated passwordless endpoints.
+const (
+	// LimiterPasswordlessPeriod is the default period for passwordless limiters.
+	LimiterPasswordlessPeriod = 1 * time.Minute
+	// LimiterPasswordlessAverage is the default average for passwordless
+	// limiters.
+	LimiterPasswordlessAverage = 10
+	// LimiterPasswordlessBurst is the default burst for passwordless limiters.
+	LimiterPasswordlessBurst = 20
 )
 
 const (
@@ -589,8 +611,6 @@ const (
 )
 
 const (
-	// U2FChallengeTimeout is hardcoded in the U2F library
-	U2FChallengeTimeout = 5 * time.Minute
 	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
 	// or registration challenges.
 	WebauthnChallengeTimeout = 5 * time.Minute
@@ -693,9 +713,6 @@ const (
 
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
-
-	// WebsocketU2FChallenge is sending a U2F challenge.
-	WebsocketU2FChallenge = "u"
 
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"

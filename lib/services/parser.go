@@ -176,9 +176,9 @@ type Context struct {
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource types.Resource
-	// Session is an optional session.end event. These events hold information
-	// about session recordings.
-	Session *events.SessionEnd
+	// Session is an optional session.end or windows.desktop.session.end event.
+	// These events hold information about session recordings.
+	Session events.AuditEvent
 	// SSHSession is an optional (active) SSH session.
 	SSHSession *session.Session
 }
@@ -236,8 +236,9 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		}
 		return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 	case SessionIdentifier:
-		session := &events.SessionEnd{}
-		if ctx.Session != nil {
+		var session events.AuditEvent = &events.SessionEnd{}
+		switch ctx.Session.(type) {
+		case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
 			session = ctx.Session
 		}
 		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])

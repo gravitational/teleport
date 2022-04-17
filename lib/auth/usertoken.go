@@ -358,6 +358,7 @@ func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 	token.SetUser(req.Name)
 	token.SetCreated(s.clock.Now().UTC())
 	token.SetURL(url)
+
 	return token, nil
 }
 
@@ -498,7 +499,7 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	switch {
 	case req.GetExistingMFAResponse() == nil:
 		// Allows users with no devices to bypass second factor re-auth.
-		devices, err := s.Identity.GetMFADevices(ctx, username, false)
+		devices, err := s.Identity.GetMFADevices(ctx, username, false /* withSecrets */)
 		switch {
 		case err != nil:
 			return nil, trace.Wrap(err)
@@ -510,7 +511,8 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 
 	default:
 		if err := s.WithUserLock(username, func() error {
-			_, err := s.validateMFAAuthResponse(ctx, username, req.GetExistingMFAResponse(), s.Identity)
+			_, _, err := s.validateMFAAuthResponse(
+				ctx, req.GetExistingMFAResponse(), username, false /* passwordless */)
 			return err
 		}); err != nil {
 			return nil, trace.Wrap(err)

@@ -63,13 +63,15 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		apps = append(apps, server.GetApp())
 	}
 
-	return makeResponse(ui.MakeApps(ui.MakeAppsConfig{
-		LocalClusterName:  h.auth.clusterName,
-		LocalProxyDNSName: h.proxyDNSName(),
-		AppClusterName:    appClusterName,
-		Identity:          identity,
-		Apps:              types.DeduplicateApps(apps),
-	}))
+	return listResourcesGetResponse{
+		Items: ui.MakeApps(ui.MakeAppsConfig{
+			LocalClusterName:  h.auth.clusterName,
+			LocalProxyDNSName: h.proxyDNSName(),
+			AppClusterName:    appClusterName,
+			Identity:          identity,
+			Apps:              types.DeduplicateApps(apps),
+		}),
+	}, nil
 }
 
 type GetAppFQDNRequest resolveAppParams

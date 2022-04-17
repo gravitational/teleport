@@ -153,7 +153,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 }
 
 // ErrTeleportReloading is returned when signal waiter exits
-// because the teleport process has initiaded shutdown
+// because the teleport process has initiated shutdown
 var ErrTeleportReloading = &trace.CompareFailedError{Message: "teleport process is reloading"}
 
 // ErrTeleportExited means that teleport has exited

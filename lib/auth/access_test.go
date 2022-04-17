@@ -35,7 +35,7 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 
 	// test create new role
-	role, err := types.NewRole("test-role", types.RoleSpecV5{
+	role, err := types.NewRoleV3("test-role", types.RoleSpecV5{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
 	})

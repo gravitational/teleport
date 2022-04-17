@@ -18,7 +18,6 @@ package web
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -38,7 +37,7 @@ func (s *StaticSuite) TestLocalFS(c *check.C) {
 
 	f, err := fs.Open("/index.html")
 	c.Assert(err, check.IsNil)
-	bytes, err := ioutil.ReadAll(f)
+	bytes, err := io.ReadAll(f)
 	c.Assert(err, check.IsNil)
 
 	html := string(bytes[:])
@@ -55,7 +54,7 @@ func (s *StaticSuite) TestZipFS(c *check.C) {
 	// test simple full read:
 	f, err := fs.Open("/index.html")
 	c.Assert(err, check.IsNil)
-	bytes, err := ioutil.ReadAll(f)
+	bytes, err := io.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(bytes), check.Equals, 813)
 	c.Assert(f.Close(), check.IsNil)
@@ -69,14 +68,14 @@ func (s *StaticSuite) TestZipFS(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, int64(10))
 
-	bytes, err = ioutil.ReadAll(f)
+	bytes, err = io.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(bytes), check.Equals, 803)
 
 	n, err = f.Seek(-50, io.SeekEnd)
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, int64(763))
-	bytes, err = ioutil.ReadAll(f)
+	bytes, err = io.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(bytes), check.Equals, 50)
 
@@ -85,7 +84,7 @@ func (s *StaticSuite) TestZipFS(c *check.C) {
 	n, err = f.Seek(-50, io.SeekCurrent)
 	c.Assert(err, check.IsNil)
 	c.Assert(n, check.Equals, int64(713))
-	bytes, err = ioutil.ReadAll(f)
+	bytes, err = io.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(bytes), check.Equals, 100)
 }

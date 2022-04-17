@@ -1573,6 +1573,8 @@ message WindowsDesktopSessionStart {
     string WindowsUser = 9 [ (gogoproto.jsontag) = "windows_user" ];
     // DesktopLabels are the labels on the desktop resource.
     map<string, string> DesktopLabels = 10 [ (gogoproto.jsontag) = "desktop_labels" ];
+    // DesktopName is the name of the desktop resource.
+    string DesktopName = 11 [ (gogoproto.jsontag) = "desktop_name" ];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.
@@ -1769,6 +1771,35 @@ message CertificateCreate {
     Identity Identity = 3 [ (gogoproto.jsontag) = "identity" ];
 }
 
+// RenewableCertificateGenerationMismatch is emitted when a renewable
+// certificiate's generation counter fails to validate, possibly indicating a
+// stolen certificate and an invalid renewal attempt.
+message RenewableCertificateGenerationMismatch {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // UserMetadata is a common user event metadata.
+    UserMetadata UserMetadata = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// Unknown is a fallback event used when we don't recognize an event from the backend.
+message Unknown {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // UnknownType is the event type extracted from the unknown event.
+    string UnknownType = 2 [ (gogoproto.jsontag) = "unknown_event" ];
+
+    // UnknownCode is the event code extracted from the unknown event.
+    string UnknownCode = 3 [ (gogoproto.jsontag) = "unknown_code,omitempty" ];
+
+    // Data is the serialized JSON data of the unknown event.
+    string Data = 4 [ (gogoproto.jsontag) = "data" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1851,6 +1882,16 @@ message OneOf {
         events.MySQLStatementReset MySQLStatementReset = 76;
         events.MySQLStatementFetch MySQLStatementFetch = 77;
         events.MySQLStatementBulkExecute MySQLStatementBulkExecute = 78;
+        events.RenewableCertificateGenerationMismatch RenewableCertificateGenerationMismatch = 79;
+        events.Unknown Unknown = 80;
+        events.MySQLInitDB MySQLInitDB = 81;
+        events.MySQLCreateDB MySQLCreateDB = 82;
+        events.MySQLDropDB MySQLDropDB = 83;
+        events.MySQLShutDown MySQLShutDown = 84;
+        events.MySQLProcessKill MySQLProcessKill = 85;
+        events.MySQLDebug MySQLDebug = 86;
+        events.MySQLRefresh MySQLRefresh = 87;
+        events.AccessRequestResourceSearch AccessRequestResourceSearch = 88;
     }
 }
 
@@ -1973,6 +2014,29 @@ message RouteToDatabase {
     string Username = 3 [ (gogoproto.jsontag) = "username,omitempty" ];
     // Database is an optional database name to embed.
     string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
+}
+
+// AccessRequestResourceSearch is emitted when a user searches for resources as
+// part of a search-based access request
+message AccessRequestResourceSearch {
+    // Metadata is common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is common user metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SearchAsRoles is the list of roles the search was performed as.
+    repeated string SearchAsRoles = 3 [ (gogoproto.jsontag) = "search_as_roles" ];
+    // ResourceType is the type of resource being searched for.
+    string ResourceType = 4 [ (gogoproto.jsontag) = "resource_type,omitempty" ];
+    // Namespace is the namespace of resources.
+    string Namespace = 5 [ (gogoproto.jsontag) = "namespace,omitempty" ];
+    // Labels is the label-based matcher used for the search.
+    map<string, string> Labels = 6 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    // PredicateExpression is the list of boolean conditions that were used for the search.
+    string PredicateExpression = 7 [ (gogoproto.jsontag) = "predicate_expression,omitempty" ];
+    // SearchKeywords is the list of search keywords used to match against resource field values.
+    repeated string SearchKeywords = 8 [ (gogoproto.jsontag) = "search_keywords,omitempty" ];
 }
 
 // MySQLStatementPrepare is emitted when a MySQL client creates a prepared
@@ -2116,4 +2180,129 @@ message MySQLStatementBulkExecute {
     uint32 StatementID = 5 [ (gogoproto.jsontag) = "statement_id" ];
     // Parameters are the parameters used to execute the prepared statement.
     repeated string Parameters = 6 [ (gogoproto.jsontag) = "parameters" ];
+}
+
+// MySQLInitDB is emitted when a MySQL client changes the default schema for
+// the connection.
+message MySQLInitDB {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SchemaName is the name of the schema to use.
+    string SchemaName = 5 [ (gogoproto.jsontag) = "schema_name" ];
+}
+
+// MySQLCreateDB is emitted when a MySQL client creates a schema.
+message MySQLCreateDB {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SchemaName is the name of the schema to create.
+    string SchemaName = 5 [ (gogoproto.jsontag) = "schema_name" ];
+}
+
+// MySQLDropDB is emitted when a MySQL client drops a schema.
+message MySQLDropDB {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SchemaName is the name of the schema to drop.
+    string SchemaName = 5 [ (gogoproto.jsontag) = "schema_name" ];
+}
+
+// MySQLShutDown is emitted when a MySQL client asks the server to shut down.
+message MySQLShutDown {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// MySQLProcessKill is emitted when a MySQL client asks the server to terminate
+// a connection.
+message MySQLProcessKill {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // ProcessID is the process ID of a connection.
+    uint32 ProcessID = 5 [ (gogoproto.jsontag) = "process_id" ];
+}
+
+// MySQLDebug is emitted when a MySQL client asks the server to dump internal
+// debug info to stdout.
+message MySQLDebug {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// MySQLRefresh is emitted when a MySQL client sends refresh commands.
+message MySQLRefresh {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Subcommand is the string representation of the subcommand.
+    string Subcommand = 5 [ (gogoproto.jsontag) = "subcommand" ];
 }

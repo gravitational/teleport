@@ -33,6 +33,10 @@ const (
 	// True holds "true" string value
 	True = "true"
 
+	// HomeEnvVar specifies the home location for tsh configuration
+	// and data
+	HomeEnvVar = "TELEPORT_HOME"
+
 	// KindNamespace is a namespace
 	KindNamespace = "namespace"
 
@@ -297,9 +301,13 @@ const (
 )
 
 const (
+	// TeleportNamespace is used as the namespace prefix for any
+	// labels defined by teleport
+	TeleportNamespace = "teleport.dev"
+
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
-	OriginLabel = "teleport.dev/origin"
+	OriginLabel = TeleportNamespace + "/origin"
 
 	// OriginConfigFile is an origin value indicating that the resource was
 	// constructed as a default value.
@@ -386,3 +394,14 @@ const (
 	// ResourceSpecType refers to a resource field named "type".
 	ResourceSpecType = "type"
 )
+
+const (
+	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
+	BotLabel = "teleport.internal/bot"
+
+	// BotGenerationLabel is a label used to record the certificate generation counter.
+	BotGenerationLabel = "teleport.internal/bot-generation"
+)
+
+// ResourceKinds lists all Teleport resource kinds users can request access to.
+var ResourceKinds = []string{KindNode, KindDatabaseServer, KindAppServer, KindKubeService, KindWindowsDesktop}

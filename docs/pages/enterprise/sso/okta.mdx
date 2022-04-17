@@ -22,17 +22,7 @@ like:
   This guide requires a commercial edition of Teleport.
 </Admonition>
 
-## Enable SAML Authentication
-
-First, configure Teleport auth server to use SAML authentication instead of the local
-user database. Update `/etc/teleport.yaml` as shown below and restart the
-teleport daemon.
-
-```yaml
-auth_service:
-    authentication:
-        type: saml
-```
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
 ## Configure Okta
 
@@ -116,11 +106,11 @@ $ tctl create okta-connector.yaml
 
 ## Create a Developer Teleport Role
 
-We are going to create a new role that'll pull in external information from Okta. Notice 
-`{{external.username}}` login. It configures Teleport to look at *"username"* Okta claim 
-and use that field as an allowed login for each user.  This example uses email as the 
-username format.  The `email.local(external.trait)` function will remove the `@domain` 
-and just have the username prefix.  
+We are going to create a new role that'll pull in external information from Okta. Notice
+`{{external.username}}` login. It configures Teleport to look at *"username"* Okta claim
+and use that field as an allowed login for each user.  This example uses email as the
+username format.  The `email.local(external.trait)` function will remove the `@domain`
+and just have the username prefix.
 
 ```yaml
 kind: role
@@ -178,16 +168,4 @@ automatically in a browser).
 
 ## Troubleshooting
 
-If you get "access denied errors" the number one place to check is the audit
-log on the Teleport auth server. It is located in `/var/lib/teleport/log` by
-default and it will contain the detailed reason why a user's login was denied.
-
-Some errors (like filesystem permissions or misconfigured network) can be
-diagnosed using Teleport's `stderr` log, which is usually available via:
-
-```bsh
-$ sudo journalctl -fu teleport
-```
-
-If you wish to increase the verbosity of Teleport's syslog, you can pass
-`--debug` flag to `teleport start` command.
+(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)

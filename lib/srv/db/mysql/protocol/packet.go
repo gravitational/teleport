@@ -17,7 +17,6 @@ limitations under the License.
 package protocol
 
 import (
-	"bytes"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -46,60 +45,6 @@ type Generic struct {
 	packet
 }
 
-// OK represents the OK packet.
-//
-// https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
-type OK struct {
-	packet
-}
-
-// Error represents the ERR packet.
-//
-// https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
-type Error struct {
-	packet
-	// message is the error message
-	message string
-}
-
-// Error returns the error message.
-func (p *Error) Error() string {
-	return p.message
-}
-
-// Query represents the COM_QUERY command.
-//
-// https://dev.mysql.com/doc/internals/en/com-query.html
-type Query struct {
-	packet
-	// query is the query text.
-	query string
-}
-
-// Query returns the query text.
-func (p *Query) Query() string {
-	return p.query
-}
-
-// Quit represents the COM_QUIT command.
-//
-// https://dev.mysql.com/doc/internals/en/com-quit.html
-type Quit struct {
-	packet
-}
-
-// ChangeUser represents the COM_CHANGE_USER command.
-type ChangeUser struct {
-	packet
-	// user is the requested user.
-	user string
-}
-
-// User returns the requested user.
-func (p *ChangeUser) User() string {
-	return p.user
-}
-
 // ParsePacket reads a protocol packet from the connection and returns it
 // in a parsed form. See ReadPacket below for the packet structure.
 func ParsePacket(conn io.Reader) (Packet, error) {
@@ -108,103 +53,18 @@ func ParsePacket(conn io.Reader) (Packet, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	packet := packet{packetBytes}
-
-	switch packetType {
-	case mysql.OK_HEADER:
-		return &OK{packet: packet}, nil
-
-	case mysql.ERR_HEADER:
-		// Figure out where in the packet the error message is.
-		//
-		// Depending on the protocol version, the packet may include additional
-		// fields. In protocol version 4.1 it includes '#' marker:
-		//
-		// https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
-		minLen := packetHeaderSize + packetTypeSize + 2 // 4-byte header + 1-byte type + 2-byte error code
-		if len(packetBytes) > minLen && packetBytes[minLen] == '#' {
-			minLen += 6 // 1-byte marker '#' + 5-byte state
+	if int(packetType) < len(packetParsersByType) && packetParsersByType[packetType] != nil {
+		packet, err := packetParsersByType[packetType](packetBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		// Be a bit paranoid and make sure the packet is not truncated.
-		if len(packetBytes) < minLen {
-			return nil, trace.BadParameter("failed to parse ERR packet: %v", packetBytes)
-		}
-		return &Error{packet: packet, message: string(packetBytes[minLen:])}, nil
 
-	case mysql.COM_QUERY:
-		// Be a bit paranoid and make sure the packet is not truncated.
-		if len(packetBytes) < packetHeaderAndTypeSize {
-			return nil, trace.BadParameter("failed to parse COM_QUERY packet: %v", packetBytes)
-		}
-		// 4-byte packet header + 1-byte payload header, then query text.
-		return &Query{packet: packet, query: string(packetBytes[packetHeaderAndTypeSize:])}, nil
-
-	case mysql.COM_QUIT:
-		return &Quit{packet: packet}, nil
-
-	case mysql.COM_CHANGE_USER:
-		if len(packetBytes) < packetHeaderAndTypeSize {
-			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %v", packetBytes)
-		}
-		// User is the first null-terminated string in the payload:
-		// https://dev.mysql.com/doc/internals/en/com-change-user.html#packet-COM_CHANGE_USER
-		idx := bytes.IndexByte(packetBytes[packetHeaderAndTypeSize:], 0x00)
-		if idx < 0 {
-			return nil, trace.BadParameter("failed to parse COM_CHANGE_USER packet: %v", packetBytes)
-		}
-		return &ChangeUser{packet: packet, user: string(packetBytes[packetHeaderAndTypeSize : packetHeaderAndTypeSize+idx])}, nil
-
-	case mysql.COM_STMT_PREPARE:
-		packet, ok := parseStatementPreparePacket(packet)
-		if !ok {
-			return nil, trace.BadParameter("failed to parse COM_STMT_PREPARE packet: %v", packetBytes)
-		}
-		return packet, nil
-
-	case mysql.COM_STMT_SEND_LONG_DATA:
-		packet, ok := parseStatementSendLongDataPacket(packet)
-		if !ok {
-			return nil, trace.BadParameter("failed to parse COM_STMT_SEND_LONG_DATA packet: %v", packetBytes)
-		}
-		return packet, nil
-
-	case mysql.COM_STMT_EXECUTE:
-		packet, ok := parseStatementExecutePacket(packet)
-		if !ok {
-			return nil, trace.BadParameter("failed to parse COM_STMT_EXECUTE packet: %v", packetBytes)
-		}
-		return packet, nil
-
-	case mysql.COM_STMT_CLOSE:
-		packet, ok := parseStatementClosePacket(packet)
-		if !ok {
-			return nil, trace.BadParameter("failed to parse COM_STMT_CLOSE packet: %v", packetBytes)
-		}
-		return packet, nil
-
-	case mysql.COM_STMT_RESET:
-		packet, ok := parseStatementResetPacket(packet)
-		if !ok {
-			return nil, trace.BadParameter("failed to parse COM_STMT_RESET packet: %v", packetBytes)
-		}
-		return packet, nil
-
-	case mysql.COM_STMT_FETCH:
-		packet, ok := parseStatementFetchPacket(packet)
-		if !ok {
-			return nil, trace.BadParameter("failed to parse COM_STMT_FETCH packet: %v", packetBytes)
-		}
-		return packet, nil
-
-	case packetTypeStatementBulkExecute:
-		packet, ok := parseStatementBulkExecutePacket(packet)
-		if !ok {
-			return nil, trace.BadParameter("failed to parse COM_STMT_BULK_EXECUTE packet: %v", packetBytes)
-		}
 		return packet, nil
 	}
 
-	return &Generic{packet: packet}, nil
+	return &Generic{
+		packet: packet{bytes: packetBytes},
+	}, nil
 }
 
 // ReadPacket reads a protocol packet from the connection.
@@ -260,6 +120,34 @@ func WritePacket(pkt []byte, conn io.Writer) (int, error) {
 		return 0, trace.ConvertSystemError(err)
 	}
 	return n, nil
+}
+
+// packetParsersByType is a slice of packet parser functions by packet type.
+var packetParsersByType = []func([]byte) (Packet, error){
+	// Server responses.
+	mysql.OK_HEADER:  parseOKPacket,
+	mysql.ERR_HEADER: parseErrorPacket,
+
+	// Text protocol commands.
+	mysql.COM_QUERY:        parseQueryPacket,
+	mysql.COM_QUIT:         parseQuitPacket,
+	mysql.COM_CHANGE_USER:  parseChangeUserPacket,
+	mysql.COM_INIT_DB:      parseInitDBPacket,
+	mysql.COM_CREATE_DB:    parseCreateDBPacket,
+	mysql.COM_DROP_DB:      parseDropDBPacket,
+	mysql.COM_SHUTDOWN:     parseShutDownPacket,
+	mysql.COM_PROCESS_KILL: parseProcessKillPacket,
+	mysql.COM_DEBUG:        parseDebugPacket,
+	mysql.COM_REFRESH:      parseRefreshPacket,
+
+	// Prepared statement commands.
+	mysql.COM_STMT_PREPARE:         parseStatementPreparePacket,
+	mysql.COM_STMT_SEND_LONG_DATA:  parseStatementSendLongDataPacket,
+	mysql.COM_STMT_EXECUTE:         parseStatementExecutePacket,
+	mysql.COM_STMT_CLOSE:           parseStatementClosePacket,
+	mysql.COM_STMT_RESET:           parseStatementResetPacket,
+	mysql.COM_STMT_FETCH:           parseStatementFetchPacket,
+	packetTypeStatementBulkExecute: parseStatementBulkExecutePacket,
 }
 
 const (

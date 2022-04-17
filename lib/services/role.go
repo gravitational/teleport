@@ -122,7 +122,7 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV5{
+	role, _ := types.NewRoleV3(RoleNameForUser(u.GetName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -148,6 +148,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindApp, RW()),
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
+				types.NewRule(types.KindToken, RW()),
 			},
 		},
 	})
@@ -156,7 +157,7 @@ func RoleForUser(u types.User) types.Role {
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
+	role, _ := types.NewRoleV3(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
@@ -726,11 +727,16 @@ type AccessChecker interface {
 
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
+
+	// GetSearchAsRoles returns the list of roles which the checker should be able to
+	// "assume" while searching for resources, and should be able to request with a
+	// search-based access request.
+	GetSearchAsRoles() []string
 }
 
 // FromSpec returns new RoleSet created from spec
 func FromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
-	role, err := types.NewRole(name, spec)
+	role, err := types.NewRoleV3(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -778,9 +784,11 @@ func ExtractFromCertificate(cert *ssh.Certificate) ([]string, wrappers.Traits, e
 // which Teleport passes along as a *tlsca.Identity. If roles and traits do not
 // exist in the certificates, they are extracted from the backend.
 func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, wrappers.Traits, error) {
-	// For legacy certificates, fetch roles and traits from the services.User
-	// object in the backend.
-	if missingIdentity(identity) {
+	// Legacy certs are not encoded with roles or traits,
+	// so we fallback to the traits and roles in the backend.
+	// empty traits are a valid use case in standard certs,
+	// so we only check for whether roles are empty.
+	if len(identity.Groups) == 0 {
 		u, err := access.GetUser(identity.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -823,15 +831,6 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 	return NewRoleSet(roles...), nil
 }
 
-// missingIdentity returns true if the identity is missing or the identity
-// has no roles or traits.
-func missingIdentity(identity tlsca.Identity) bool {
-	if len(identity.Groups) == 0 || len(identity.Traits) == 0 {
-		return true
-	}
-	return false
-}
-
 // ExtractRolesFromCert extracts roles from certificate metadata extensions.
 func ExtractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
@@ -867,6 +866,110 @@ func NewRoleSet(roles ...types.Role) RoleSet {
 
 // RoleSet is a set of roles that implements access control functionality
 type RoleSet []types.Role
+
+// EnumerationResult is a result of enumerating a role set against some property, e.g. allowed names or logins.
+type EnumerationResult struct {
+	allowedDeniedMap map[string]bool
+	wildcardAllowed  bool
+	wildcardDenied   bool
+}
+
+func (result *EnumerationResult) filtered(value bool) []string {
+	var filtered []string
+
+	for entity, allow := range result.allowedDeniedMap {
+		if allow == value {
+			filtered = append(filtered, entity)
+		}
+	}
+
+	sort.Strings(filtered)
+
+	return filtered
+}
+
+// Denied returns all explicitly denied users.
+func (result *EnumerationResult) Denied() []string {
+	return result.filtered(false)
+}
+
+// Allowed returns all known allowed users.
+func (result *EnumerationResult) Allowed() []string {
+	if result.WildcardDenied() {
+		return nil
+	}
+	return result.filtered(true)
+}
+
+// WildcardAllowed is true if there * username allowed for given rule set.
+func (result *EnumerationResult) WildcardAllowed() bool {
+	return result.wildcardAllowed && !result.wildcardDenied
+}
+
+// WildcardDenied is true if there * username deny for given rule set.
+func (result *EnumerationResult) WildcardDenied() bool {
+	return result.wildcardDenied
+}
+
+// NewEnumerationResult returns new EnumerationResult.
+func NewEnumerationResult() EnumerationResult {
+	return EnumerationResult{
+		allowedDeniedMap: map[string]bool{},
+		wildcardAllowed:  false,
+		wildcardDenied:   false,
+	}
+}
+
+// EnumerateDatabaseUsers works on a given role set to return a minimal description of allowed set of usernames.
+// It is biased towards *allowed* usernames; It is meant to describe what the user can do, rather than cannot do.
+// For that reason if the user isn't allowed to pick *any* entities, the output will be empty.
+//
+// In cases where * is listed in set of allowed users, it may be hard for users to figure out the expected username.
+// For this reason the parameter extraUsers provides an extra set of users to be checked against RoleSet.
+// This extra set of users may be sourced e.g. from user connection history.
+func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
+	result := NewEnumerationResult()
+
+	// gather users for checking from the roles, check wildcards.
+	var users []string
+	for _, role := range set {
+		wildcardAllowed := false
+		wildcardDenied := false
+
+		for _, user := range role.GetDatabaseUsers(types.Allow) {
+			if user == types.Wildcard {
+				wildcardAllowed = true
+			} else {
+				users = append(users, user)
+			}
+		}
+
+		for _, user := range role.GetDatabaseUsers(types.Deny) {
+			if user == types.Wildcard {
+				wildcardDenied = true
+			} else {
+				users = append(users, user)
+			}
+		}
+
+		result.wildcardDenied = result.wildcardDenied || wildcardDenied
+
+		if err := NewRoleSet(role).CheckAccess(database, AccessMFAParams{Verified: true}); err == nil {
+			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
+		}
+
+	}
+
+	users = apiutils.Deduplicate(append(users, extraUsers...))
+
+	// check each individual user against the database.
+	for _, user := range users {
+		err := set.CheckAccess(database, AccessMFAParams{Verified: true}, &DatabaseUserMatcher{User: user})
+		result.allowedDeniedMap[user] = err == nil
+	}
+
+	return result
+}
 
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
@@ -1178,7 +1281,7 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 		// but ssh certificates must contain at least one valid principal.
 		// we add a single distinctive value which should be unique, and
 		// will never be a valid unix login (due to leading '-').
-		logins = []string{"-teleport-nologin-" + uuid.New().String()}
+		logins = []string{constants.NoLoginPrefix + uuid.New().String()}
 	}
 
 	if len(logins) == 0 {
@@ -2226,6 +2329,17 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 		return allowCond, nil
 	}
 	return &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: allowCond}}, nil
+}
+
+// GetSearchAsRoles returns the list of roles which the RoleSet should be able
+// to "assume" while searching for resources, and should be able to request with
+// a search-based access request.
+func (set RoleSet) GetSearchAsRoles() []string {
+	var searchAsRoles []string
+	for _, role := range set {
+		searchAsRoles = append(searchAsRoles, role.GetSearchAsRoles()...)
+	}
+	return apiutils.Deduplicate(searchAsRoles)
 }
 
 // AccessMFAParams contains MFA-related parameters for methods that check access.

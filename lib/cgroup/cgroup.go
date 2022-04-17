@@ -28,9 +28,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -83,7 +81,7 @@ func New(config *Config) (*Service, error) {
 
 	s := &Service{
 		Config:       config,
-		teleportRoot: path.Join(config.MountPath, teleportRoot, uuid.New().String()),
+		teleportRoot: filepath.Join(config.MountPath, teleportRoot, uuid.New().String()),
 	}
 
 	// Mount the cgroup2 filesystem.
@@ -93,7 +91,6 @@ func New(config *Config) (*Service, error) {
 	}
 
 	log.Debugf("Teleport session hierarchy mounted at: %v.", s.teleportRoot)
-
 	return s, nil
 }
 
@@ -115,7 +112,7 @@ func (s *Service) Close() error {
 
 // Create will create a cgroup for a given session.
 func (s *Service) Create(sessionID string) error {
-	err := os.Mkdir(path.Join(s.teleportRoot, sessionID), fileMode)
+	err := os.Mkdir(filepath.Join(s.teleportRoot, sessionID), fileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -126,33 +123,32 @@ func (s *Service) Create(sessionID string) error {
 // moved to the root controller.
 func (s *Service) Remove(sessionID string) error {
 	// Read in all PIDs for the cgroup.
-	pids, err := readPids(path.Join(s.teleportRoot, sessionID, cgroupProcs))
+	pids, err := readPids(filepath.Join(s.teleportRoot, sessionID, cgroupProcs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Move all PIDs to the root controller. This has to be done before a cgroup
 	// can be removed.
-	err = writePids(path.Join(s.MountPath, cgroupProcs), pids)
+	err = writePids(filepath.Join(s.MountPath, cgroupProcs), pids)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// The rmdir syscall is used to remove a cgroup.
-	err = unix.Rmdir(path.Join(s.teleportRoot, sessionID))
+	err = unix.Rmdir(filepath.Join(s.teleportRoot, sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	log.Debugf("Removed cgroup for session: %v.", sessionID)
-
 	return nil
 }
 
 // Place  place a process in the cgroup for that session.
 func (s *Service) Place(sessionID string, pid int) error {
 	// Open cgroup.procs file for the cgroup.
-	filepath := path.Join(s.teleportRoot, sessionID, cgroupProcs)
+	filepath := filepath.Join(s.teleportRoot, sessionID, cgroupProcs)
 	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY, fileMode)
 	if err != nil {
 		return trace.Wrap(err)
@@ -182,7 +178,8 @@ func readPids(path string) ([]string, error) {
 	for scanner.Scan() {
 		pids = append(pids, scanner.Text())
 	}
-	if scanner.Err() != nil {
+	err = scanner.Err()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -213,7 +210,7 @@ func (s *Service) cleanupHierarchy() error {
 	var sessions []string
 
 	// Recursively look within the Teleport hierarchy for cgroups for session.
-	err := filepath.Walk(path.Join(s.teleportRoot), func(path string, info os.FileInfo, _ error) error {
+	err := filepath.Walk(filepath.Join(s.teleportRoot), func(path string, info os.FileInfo, _ error) error {
 		// Only pick up cgroup.procs files.
 		if !pattern.MatchString(path) {
 			return nil
@@ -259,7 +256,7 @@ func (s *Service) mount() error {
 
 	// Check if the Teleport root cgroup exists, if it does the cgroup filesystem
 	// is already mounted, return right away.
-	files, err := ioutil.ReadDir(s.MountPath)
+	files, err := os.ReadDir(s.MountPath)
 	if err == nil && len(files) > 0 {
 		// Create cgroup that will hold Teleport sessions.
 		err = os.MkdirAll(s.teleportRoot, fileMode)
@@ -335,7 +332,7 @@ type fileHandle struct {
 // ID returns the cgroup ID for the given session.
 func (s *Service) ID(sessionID string) (uint64, error) {
 	var fh fileHandle
-	path := path.Join(s.teleportRoot, sessionID)
+	path := filepath.Join(s.teleportRoot, sessionID)
 
 	// Call the "name_to_handle_at" syscall directly (unix.NameToHandleAt is a
 	// thin wrapper around the syscall) instead of calling the glibc wrapper.

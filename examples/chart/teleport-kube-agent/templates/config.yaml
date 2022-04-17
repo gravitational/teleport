@@ -1,8 +1,14 @@
 {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
+{{- if .Values.teleportVersionOverride -}}
+  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride -}}
+{{- else -}}
+  {{- $_ := set . "teleportVersion" .Chart.Version -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
   {{- if .Values.annotations.config }}
   annotations:
     {{- toYaml .Values.annotations.config | nindent 4 }}
@@ -56,9 +62,8 @@ data:
       {{- if not (or (.Values.awsDatabases) (.Values.databases)) }}
         {{- fail "'awsDatabases' and/or 'databases' is required in chart values when db role is enabled, see README" }}
       {{- end }}
-      databases:
       {{- if .Values.awsDatabases }}
-        aws:
+      aws:
         {{- range $awsDb := .Values.awsDatabases }}
           {{- if not (hasKey $awsDb "types") }}
             {{- fail "'types' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
@@ -70,13 +75,11 @@ data:
             {{- fail "'tags' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
           {{- end }}
         {{- end }}
-        {{- toYaml .Values.awsDatabases | nindent 8 }}
+        {{- toYaml .Values.awsDatabases | nindent 6 }}
       {{- end }}
       {{- if .Values.databases }}
+      databases:
         {{- range $db := .Values.databases }}
-          {{- if (and ($.Values.awsDatabases) (hasKey $db "aws")) }}
-            {{- fail "The 'aws' key cannot be used under 'databases' when 'awsDatabases' is also set - use autodiscovery for AWS databases, or run a separate agent without awsDatabases" }}
-          {{- end }}
           {{- if not (hasKey $db "name") }}
             {{- fail "'name' is required for all 'databases' in chart values when db role is enabled, see README" }}
           {{- end }}
@@ -88,9 +91,9 @@ data:
           {{- end }}
         {{- end }}
         {{- toYaml .Values.databases | nindent 6 }}
-      {{- else }}
-      enabled: false
       {{- end }}
+    {{- else }}
+      enabled: false
     {{- end }}
     {{- end }}
 

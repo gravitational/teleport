@@ -152,7 +152,7 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 		announceC:   make(chan struct{}, 1),
 		sendC:       make(chan struct{}, 1),
 	}
-	h.Debugf("Starting %v heartbeat with announce period: %v, keep-alive period %v, poll period: %v", cfg.Mode, cfg.KeepAlivePeriod, cfg.AnnouncePeriod, cfg.CheckPeriod)
+	h.Debugf("Starting %v heartbeat with announce period: %v, keep-alive period %v, poll period: %v", cfg.Mode, cfg.AnnouncePeriod, cfg.KeepAlivePeriod, cfg.CheckPeriod)
 	return h, nil
 }
 

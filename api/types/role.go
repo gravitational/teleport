@@ -46,6 +46,9 @@ type Role interface {
 	// Resource provides common resource methods.
 	Resource
 
+	// SetMetadata sets role metadata
+	SetMetadata(meta Metadata)
+
 	// GetOptions gets role options.
 	GetOptions() RoleOptions
 	// SetOptions sets role options
@@ -154,13 +157,22 @@ type Role interface {
 	SetSessionJoinPolicies([]*SessionJoinPolicy)
 	// GetSessionPolicySet returns the RBAC policy set for a role.
 	GetSessionPolicySet() SessionTrackerPolicySet
+
+	// GetSearchAsRoles returns the list of roles which the user should be able
+	// to "assume" while searching for resources, and should be able to request
+	// with a search-based access request.
+	GetSearchAsRoles() []string
+	// SetSearchAsRoles sets the list of roles which the user should be able
+	// to "assume" while searching for resources, and should be able to request
+	// with a search-based access request.
+	SetSearchAsRoles([]string)
 }
 
-// NewRole constructs new standard V3 role.
-// This is mostly a legacy function and will create a role with V3 RBAC semantics.
+// NewRole constructs new standard V5 role.
+// This creates a V5 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV5) (Role, error) {
 	role := RoleV5{
-		Version: V3,
+		Version: V5,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -172,11 +184,11 @@ func NewRole(name string, spec RoleSpecV5) (Role, error) {
 	return &role, nil
 }
 
-// NewRoleV5 constructs new standard V5 role.
-// This creates a V5 role with V4+ RBAC semantics. This should be preferred over `NewRole`.
-func NewRoleV5(name string, spec RoleSpecV5) (Role, error) {
+// NewRoleV3 constructs new standard V3 role.
+// This is mostly a legacy function and will create a role with V3 RBAC semantics.
+func NewRoleV3(name string, spec RoleSpecV5) (Role, error) {
 	role := RoleV5{
-		Version: V5,
+		Version: V3,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -251,6 +263,11 @@ func (r *RoleV5) GetName() string {
 // GetMetadata returns role metadata.
 func (r *RoleV5) GetMetadata() Metadata {
 	return r.Metadata
+}
+
+// SetMetadata sets role metadata
+func (r *RoleV5) SetMetadata(meta Metadata) {
+	r.Metadata = meta
 }
 
 // GetOptions gets role options.
@@ -596,11 +613,8 @@ func (r *RoleV5) SetRules(rct RoleConditionType, in []Rule) {
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV5) setStaticFields() {
 	r.Kind = KindRole
-	// TODO(Joerger/nklaassen) Role should default to V4
-	// but shouldn't overwrite V3. For now, this does the
-	// opposite due to an internal reliance on V3 defaults.
-	if r.Version != V4 && r.Version != V5 {
-		r.Version = V3
+	if r.Version != V3 && r.Version != V4 {
+		r.Version = V5
 	}
 }
 
@@ -1134,4 +1148,24 @@ func (r *RoleV5) GetSessionJoinPolicies() []*SessionJoinPolicy {
 // SetSessionJoinPolicies sets the RBAC join policies for a role.
 func (r *RoleV5) SetSessionJoinPolicies(policies []*SessionJoinPolicy) {
 	r.Spec.Allow.JoinSessions = policies
+}
+
+// GetSearchAsRoles returns the list of roles which the user should be able to
+// "assume" while searching for resources, and should be able to request with a
+// search-based access request.
+func (r *RoleV5) GetSearchAsRoles() []string {
+	if r.Spec.Allow.Request == nil {
+		return nil
+	}
+	return r.Spec.Allow.Request.SearchAsRoles
+}
+
+// SetSearchAsRoles sets the list of roles which the user should be able to
+// "assume" while searching for resources, and should be able to request with a
+// search-based access request.
+func (r *RoleV5) SetSearchAsRoles(roles []string) {
+	if r.Spec.Allow.Request == nil {
+		r.Spec.Allow.Request = &AccessRequestConditions{}
+	}
+	r.Spec.Allow.Request.SearchAsRoles = roles
 }
