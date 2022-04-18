@@ -562,11 +562,11 @@ func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, vali
 func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
 	var err error
 
-	ver10orAbove := false
+	databaseCASupported := false
 	if validateRequest.TeleportVersion != "" {
 		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
 		// cluster this field will be empty.
-		ver10orAbove, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.DatabaseCAMinVersion)
+		databaseCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.DatabaseCAMinVersion)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
 		}
@@ -574,7 +574,7 @@ func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.
 
 	certTypes := []types.CertAuthType{types.HostCA, types.UserCA}
 
-	if ver10orAbove {
+	if databaseCASupported {
 		// Database CA was introduced in Teleport 10.0. Do not send it to older clusters
 		// as they don't understand it.
 		certTypes = append(certTypes, types.DatabaseCA)
