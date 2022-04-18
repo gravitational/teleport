@@ -37,6 +37,16 @@ works by asking the Auth Service to produce a CA pin, a hash value of the SPKI
 header in a certificate. This way, an attacker cannot easily forge a matching
 private key.
 
+If a CA pin is not provided, the Teleport Node will join a cluster but it will
+print a warning message.
+
+<Notice type="warning">
+
+The CA pin becomes invalid if a Teleport administrator performs the CA rotation
+by executing [`tctl auth rotate`](../reference/cli.mdx#tctl-auth-rotate).
+    
+</Notice>
+
 Retrieve the CA pin of the Auth Service <ScopedBlock scope="cloud"> by running the following
 command on your local machine</ScopedBlock>:
 
@@ -113,20 +123,6 @@ auth_service:
 </Details>
 
 ### Start your Node with the invite token and CA pin
-
-A CA pin needs to be passed to new Nodes when they're starting for the first
-time, i.e. when they join a cluster.
-
-If a CA pin is not provided, the Teleport Node will join a cluster but it will
-print a warning message.
-
-<Notice type="warning">
-
-The CA pin becomes invalid if a Teleport administrator performs the CA rotation
-by executing [`tctl auth rotate`](../reference/cli.mdx#tctl-auth-rotate).
-    
-</Notice>
-
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} scopeOnly={true} label="Self Hosted">
