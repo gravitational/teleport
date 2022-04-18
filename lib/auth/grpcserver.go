@@ -319,7 +319,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return trail.ToGRPC(watcher.Error())
 		case event := <-watcher.Events():
-			out, err := eventToGRPC(stream.Context(), event)
+			out, err := EventToGRPC(stream.Context(), event)
 			if err != nil {
 				return trail.ToGRPC(err)
 			}
@@ -348,8 +348,8 @@ func resourceLabel(event types.Event) string {
 	return fmt.Sprintf("/%s/%s", event.Resource.GetKind(), sub)
 }
 
-// eventToGRPC converts a types.Event to an proto.Event
-func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
+// EventToGRPC converts types.Event to proto.Event
+func EventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 	eventType, err := eventTypeToGRPC(in.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -441,6 +441,10 @@ func eventToGRPC(ctx context.Context, in types.Event) (*proto.Event, error) {
 	case *types.DatabaseServerV3:
 		out.Resource = &proto.Event_DatabaseServer{
 			DatabaseServer: r,
+		}
+	case *types.AuthPreferenceV2:
+		out.Resource = &proto.Event_AuthPreference{
+			AuthPreference: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)

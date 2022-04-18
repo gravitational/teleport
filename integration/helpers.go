@@ -38,6 +38,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -1626,4 +1628,27 @@ func fatalIf(err error) {
 	if err != nil {
 		log.Fatalf("%v at %v", string(debug.Stack()), err)
 	}
+}
+
+func enableKubernetesService(c *check.C, config *service.Config) {
+	kubeConfigPath := filepath.Join(c.MkDir(), "kube_config")
+
+	err := kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
+		TeleportClusterName: "teleport-cluster",
+		ClusterAddr:         fmt.Sprintf("%s:0", Host),
+		Credentials: &client.Key{
+			Cert:    []byte("cert"),
+			TLSCert: []byte("tls-cert"),
+			Priv:    []byte("priv"),
+			Pub:     []byte("pub"),
+			TrustedCA: []auth.TrustedCerts{{
+				TLSCertificates: [][]byte{[]byte("ca-cert")},
+			}},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	config.Kube.Enabled = true
+	config.Kube.KubeconfigPath = kubeConfigPath
+	config.Kube.ListenAddr = utils.MustParseAddr(fmt.Sprintf("%s:0", Host))
 }

@@ -75,6 +75,9 @@ message Event {
         types.WebSessionV2 WebSession = 18 [ (gogoproto.jsontag) = "web_session,omitempty" ];
         // WebToken is a web token.
         types.WebTokenV3 WebToken = 19 [ (gogoproto.jsontag) = "web_token,omitempty" ];
+        // AuthPreference is cluster auth preference.
+        types.AuthPreferenceV2 AuthPreference = 22
+            [ (gogoproto.jsontag) = "auth_preference,omitempty" ];
     }
 }
 

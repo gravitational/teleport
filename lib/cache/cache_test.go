@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1961,4 +1963,71 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch services.Watch) (ser
 	defer p.Unlock()
 	p.watchers = append(p.watchers, w)
 	return w, nil
+}
+
+// TestCacheWatchKindExistsInEvents ensures that the watch kinds for each cache component are in sync
+// with proto Events delivered via WatchEvents. If a watch kind is added to a cache component, but it
+// doesn't exist in the proto Events definition, then the WatchEvents will be closed. This causes the
+// cache to reinitialize every time that an unknown message is received and can lead to a permanently
+// unhealthy cache.
+//
+// While this test will ensure that there are no issues for the current release, it does not guarantee
+// that this issue won't arise across releases.
+func TestCacheWatchKindExistsInEvents(t *testing.T) {
+	cases := map[string]Config{
+		"ForAuth":           ForAuth(Config{}),
+		"ForProxy":          ForProxy(Config{}),
+		"ForRemoteProxy":    ForRemoteProxy(Config{}),
+		"ForOldRemoteProxy": ForOldRemoteProxy(Config{}),
+		"ForNode":           ForNode(Config{}),
+		"ForKubernetes":     ForKubernetes(Config{}),
+		"ForApps":           ForApps(Config{}),
+		"ForDatabases":      ForDatabases(Config{}),
+	}
+
+	events := map[string]types.Resource{
+		types.KindCertAuthority:         &types.CertAuthorityV2{},
+		types.KindClusterName:           &types.ClusterNameV2{},
+		types.KindClusterConfig:         &types.ClusterConfigV3{},
+		types.KindClusterAuthPreference: types.DefaultAuthPreference(),
+		types.KindStaticTokens:          &types.StaticTokensV2{},
+		types.KindToken:                 &types.ProvisionTokenV2{},
+		types.KindUser:                  &types.UserV2{},
+		types.KindRole:                  &types.RoleV4{Version: "v3"},
+		types.KindNamespace:             &types.Namespace{},
+		types.KindNode:                  &types.ServerV2{},
+		types.KindProxy:                 &types.ServerV2{},
+		types.KindAuthServer:            &types.ServerV2{},
+		types.KindReverseTunnel:         &types.ReverseTunnelV2{},
+		types.KindTunnelConnection:      &types.TunnelConnectionV2{},
+		types.KindAppServer:             &types.ServerV2{},
+		types.KindWebSession:            &types.WebSessionV2{SubKind: services.KindWebSession},
+		types.KindWebToken:              &types.WebTokenV3{},
+		types.KindRemoteCluster:         &types.RemoteClusterV3{},
+		types.KindKubeService:           &types.ServerV2{},
+		types.KindDatabaseServer:        &types.DatabaseServerV3{},
+		types.KindAccessRequest:         &types.AccessRequestV3{},
+		types.KindAppSession:            &types.WebSessionV2{SubKind: services.KindAppSession},
+	}
+
+	for name, cfg := range cases {
+		t.Run(name, func(t *testing.T) {
+			for _, watch := range cfg.Watches {
+				resource, ok := events[watch.Kind]
+				require.True(t, ok, "missing event for kind %q", watch.Kind)
+
+				protoEvent, err := auth.EventToGRPC(context.Background(), types.Event{
+					Type:     types.OpPut,
+					Resource: resource,
+				})
+				require.NoError(t, err)
+
+				event, err := client.EventFromGRPC(*protoEvent)
+				require.NoError(t, err)
+
+				require.Empty(t, cmp.Diff(resource, event.Resource))
+			}
+
+		})
+	}
 }
