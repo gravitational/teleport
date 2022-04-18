@@ -879,7 +879,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
-      "version": "8.3.6",
+      "version": "8.3.7",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
