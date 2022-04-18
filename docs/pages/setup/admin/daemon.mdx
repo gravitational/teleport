@@ -1,33 +1,55 @@
 ---
-title: Teleport Daemon
-description: Teleport Daemon Configuration and Systemd Unit
+title: Run Teleport as a Daemon
+description: Configure Teleport to run as a daemon using systemd
 ---
 
-## Teleport daemon
+The Teleport binary is called `teleport`. When you run `teleport start`, the
+Teleport process runs in the foreground. On Linux systems in non-containerized
+environments, we recommend running the `teleport` binary as a daemon using
+systemd.
 
-The Teleport daemon is called `teleport` and it supports
-the following commands:
+## Prerequisites
 
-| Command | Description |
-| - | - |
-| start | Starts the Teleport daemon. |
-| configure | Dumps a sample configuration file in YAML format into standard output. |
-| version | Shows the Teleport version. |
-| status | Shows the status of a Teleport connection. This command is only available from inside of an active SSH session. |
-| help | Shows help options. |
+A Linux host where you will install Teleport. The host must be configured to run
+userspace programs with systemd. 
 
-When experimenting, you can quickly start `teleport` with verbose logging by typing [`teleport start -d`](../reference/cli.mdx#teleport-start).
+If you're not sure, check whether `/sbin/init` is symbolically linked to
+`/lib/systemd/systemd` or similar:
+
+```code
+$ readlink /sbin/init
+/lib/systemd/systemd
+```
 
 <Notice
   type="danger"
   scope={["oss", "enterprise"]}
 >
-  Teleport stores data in `/var/lib/teleport`. Make sure that regular/non-admin users do not have access to this folder on the Auth Service host.
+
+  Teleport stores data in `/var/lib/teleport`. Make sure that regular/non-admin
+  users do not have access to this folder on the Auth Service host.
+
 </Notice>
 
-## Systemd unit file
+## Step 1/3. Install and configure Teleport
 
-In production, we recommend starting the `teleport` daemon via an init system like `systemd`. Here's the recommended Teleport service unit file for `systemd`:
+Choose the appropriate instructions for your environment.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Teleport requires a configuration file to run. After installation, no
+configuration file exists. We will create a minimal configuration file to show
+you how to run Teleport as a daemon:
+
+```code
+$ sudo teleport configure -o file
+Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
+```
+
+## Step 2/3. Create a systemd unit file
+
+Copy the recommended Teleport unit file for `systemd` below and paste the
+contents into a file called `/usr/lib/systemd/system/teleport.service`:
 
 ```systemd
 [Unit]
@@ -45,17 +67,83 @@ PIDFile=/run/teleport.pid
 WantedBy=multi-user.target
 ```
 
-## Daemon restarts
+<Notice type="tip">
 
-As covered in the [Graceful Restarts](./graceful-restarts.mdx) section, Teleport
-supports graceful restarts. To upgrade a host to a newer Teleport version, an
-administrator must:
+If `/usr/lib/systemd/system/` does not exist, consult the list of
+[unit file load paths](https://www.freedesktop.org/software/systemd/man/systemd.unit.html#Unit%20File%20Load%20Path)
+for other supported paths.
 
-1. Replace the Teleport binaries, usually [`teleport`](../reference/cli.mdx#teleport)
-   and [`tctl`](../reference/cli.mdx#tctl)
-2. Execute `systemctl reload teleport`
+</Notice>
 
-This will perform a graceful restart, i.e. the Teleport daemon will fork a new process to handle new incoming requests, leaving the old daemon process running until existing clients disconnect.
+Enable the unit so systemd can place it in its dependency tree:
+
+```code
+$ sudo systemctl enable teleport.service
+Created symlink /etc/systemd/system/multi-user.target.wants/teleport.service → /lib/systemd/system/teleport.service.
+```
+
+Restart your Linux host and log in again. You can confirm that Teleport is
+running as a systemd service with the following command, which should show an
+`Active` status of `active (running)`.
+
+```code
+$ systemctl status teleport.service
+● teleport.service - Teleport SSH Service
+     Loaded: loaded (/lib/systemd/system/teleport.service; enabled; vendor preset: enabled)
+     Active: active (running) since Mon 2022-04-18 18:33:41 UTC; 41s ago
+   Main PID: 442 (teleport)
+      Tasks: 9 (limit: 1116)
+     Memory: 116.9M
+     CGroup: /system.slice/teleport.service
+             └─442 /usr/local/bin/teleport start --pid-file=/run/teleport.pid
+
+Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [PROXY:SER] SSH proxy service 9.0.4:v9.0.4-0-gf577413>
+Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [PROXY:SER] SSH proxy service 9.0.4:v9.0.4-0-gf577413>
+Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [PROC:1]    The new service has started successfully.>
+Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [PROXY:AGE] Starting reverse tunnel agent pool. servi>
+Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [PROXY:PRO] Starting Kube proxy on . service/service.>
+Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [DB:SERVIC] Starting Postgres proxy server on 0.0.0.0>
+Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [DB:SERVIC] Starting Database TLS proxy server on 0.0>
+Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [PROXY:SER] Starting proxy gRPC server on [::]:3080. >
+Apr 18 18:33:49 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:49Z INFO [PROXY:SER] Starting TLS ALPN SNI proxy server on [::>
+Apr 18 18:33:51 ip-172-30-173-50 teleport[442]: 2022-04-18T18:33:51Z WARN [PROXY:1]   Restart watch on error: empty proxy list.>
+```
+
+## Step 3/3. Restart the Teleport daemon
+
+Teleport supports graceful restarts, enabling you to easily change your Teleport
+configuration or upgrade your `teleport` binary without sacrificing
+availability.
+
+Run the following command to gracefully restart the `teleport` daemon:
+
+```code
+$ sudo systemctl reload teleport
+```
+
+This will perform a graceful restart, i.e. the Teleport daemon will fork a new
+process to handle new incoming requests, leaving the old daemon process running
+until existing clients disconnect.
+
+<Admonition title="Upgrading" type="tip">
+
+To upgrade a host to a newer version of Teleport, you must:
+
+- Replace the Teleport binaries, usually [`teleport`](../reference/cli.mdx#teleport)
+   and [`tctl`](../reference/cli.mdx#tctl).
+- Execute `systemctl reload teleport`.
+
+</Admonition>
 
 ## Further reading
-- [Teleport CLI reference](../reference/cli.mdx#teleport)
+
+In this guide, we showed you how to run `teleport start` as a systemd service.
+To see all commands that you can run via the `teleport` binary, see the
+[Teleport CLI Reference](../reference/cli.mdx#teleport).
+
+While we used a minimal configuration in this guide, for a production Teleport
+cluster, you should consult our
+[Configuration Reference](../reference/config.mdx).
+
+For more information on how `systemctl reload teleport` works, see our guide to
+[Graceful Restarts](./graceful-restarts.mdx).
