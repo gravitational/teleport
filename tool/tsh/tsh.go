@@ -656,6 +656,9 @@ func Run(args []string, opts ...cliOption) error {
 	configProxy.Arg("target", "Target node host:port").Required().StringVar(&cf.ConfigProxyTarget)
 	configProxy.Arg("cluster-name", "Target cluster name").Required().StringVar(&cf.SiteName)
 
+	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
+	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
@@ -816,6 +819,8 @@ func Run(args []string, opts ...cliOption) error {
 		err = onAWS(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
+	case f2Diag.FullCommand():
+		err = onFIDO2Diag(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
