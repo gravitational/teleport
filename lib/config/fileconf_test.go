@@ -578,9 +578,37 @@ func TestMakeSampleFileConfig(t *testing.T) {
 
 	t.Run("App role", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
-			Roles: "app",
+			Roles:   "app",
+			AppName: "app name",
+			AppURI:  "localhost:8080",
 		})
 		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+	})
+
+	t.Run("App name and URI are mandatory", func(t *testing.T) {
+		_, err := MakeSampleFileConfig(SampleFlags{
+			Roles:  "app",
+			AppURI: "localhost:8080",
+		})
+		require.Error(t, err)
+
+		_, err = MakeSampleFileConfig(SampleFlags{
+			Roles:   "app",
+			AppName: "nginx",
+		})
+		require.Error(t, err)
+
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:   "app",
+			AppURI:  "localhost:8080",
+			AppName: "nginx",
+		})
+		require.NoError(t, err)
+
 		require.Equal(t, "no", fc.SSH.EnabledFlag)
 		require.Equal(t, "no", fc.Proxy.EnabledFlag)
 		require.Equal(t, "no", fc.Auth.EnabledFlag)
@@ -601,6 +629,7 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			Roles:   "proxy",
 			AppName: "my-app",
+			AppURI:  "localhost:8080",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "no", fc.SSH.EnabledFlag)
@@ -612,7 +641,9 @@ func TestMakeSampleFileConfig(t *testing.T) {
 
 	t.Run("Multiple roles", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
-			Roles: "proxy,app,db",
+			Roles:   "proxy,app,db",
+			AppName: "app name",
+			AppURI:  "localhost:8080",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "no", fc.SSH.EnabledFlag)

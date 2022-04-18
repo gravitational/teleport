@@ -200,92 +200,21 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	var s SSH
-	if roles[defaults.RoleNode] {
-		s.EnabledFlag = "yes"
-		s.ListenAddress = conf.SSH.Addr.Addr
-		s.Commands = []CommandLabel{
-			{
-				Name:    "hostname",
-				Command: []string{"hostname"},
-				Period:  time.Minute,
-			},
-		}
-		s.Labels = map[string]string{
-			"env": "example",
-		}
-	} else {
-		s.EnabledFlag = "no"
-	}
+	s := makeSampleSSHConfig(conf, roles)
 
 	// Auth config:
-	var a Auth
-	if roles[defaults.RoleAuthService] {
-		a.ListenAddress = conf.Auth.SSHAddr.Addr
-		a.ClusterName = ClusterName(flags.ClusterName)
-		a.EnabledFlag = "yes"
-
-		if flags.LicensePath != "" {
-			a.LicenseFile = flags.LicensePath
-		}
-
-		if flags.Version == defaults.TeleportConfigVersionV2 {
-			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
-		}
-	} else {
-		a.EnabledFlag = "no"
-	}
+	a := makeSampleAuthConfig(conf, flags, roles)
 
 	// sample proxy config:
-	var p Proxy
-	if roles[defaults.RoleProxy] {
-		p.EnabledFlag = "yes"
-		p.ListenAddress = conf.Proxy.SSHAddr.Addr
-		if flags.ACMEEnabled {
-			p.ACME.EnabledFlag = "yes"
-			p.ACME.Email = flags.ACMEEmail
-			// ACME uses TLS-ALPN-01 challenge that requires port 443
-			// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
-			p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
-			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
-		}
-		if flags.PublicAddr != "" {
-			// default to 443 if port is not specified
-			publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			p.PublicAddr = apiutils.Strings{publicAddr.String()}
-
-			// use same port for web addr
-			webPort := publicAddr.Port(teleport.StandardHTTPSPort)
-			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
-		}
-		if flags.KeyFile != "" && flags.CertFile != "" {
-			if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
-				return nil, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
-			}
-
-			p.KeyPairs = append(p.KeyPairs, KeyPair{
-				PrivateKey:  flags.KeyFile,
-				Certificate: flags.CertFile,
-			})
-		}
-	} else {
-		p.EnabledFlag = "no"
+	p, err := makeSampleProxyConfig(conf, flags, roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Apps config:
-	var apps Apps
-	// assume users want app role if they added app name and/or uri but didn't add app role
-	if roles[defaults.RoleApp] || flags.AppURI != "" || flags.AppName != "" {
-		apps.EnabledFlag = "yes"
-		apps.Apps = []*App{
-			{
-				Name: flags.AppName,
-				URI:  flags.AppURI,
-			},
-		}
+	apps, err := makeSampleAppsConfig(conf, flags, roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// DB config:
@@ -311,6 +240,111 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		WindowsDesktop: d,
 	}
 	return fc, nil
+}
+
+func makeSampleSSHConfig(conf *service.Config, roles map[string]bool) SSH {
+	var s SSH
+	if roles[defaults.RoleNode] {
+		s.EnabledFlag = "yes"
+		s.ListenAddress = conf.SSH.Addr.Addr
+		s.Commands = []CommandLabel{
+			{
+				Name:    "hostname",
+				Command: []string{"hostname"},
+				Period:  time.Minute,
+			},
+		}
+		s.Labels = map[string]string{
+			"env": "example",
+		}
+	} else {
+		s.EnabledFlag = "no"
+	}
+
+	return s
+}
+
+func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, roles map[string]bool) Auth {
+	var a Auth
+	if roles[defaults.RoleAuthService] {
+		a.ListenAddress = conf.Auth.SSHAddr.Addr
+		a.ClusterName = ClusterName(flags.ClusterName)
+		a.EnabledFlag = "yes"
+
+		if flags.LicensePath != "" {
+			a.LicenseFile = flags.LicensePath
+		}
+
+		if flags.Version == defaults.TeleportConfigVersionV2 {
+			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
+		}
+	} else {
+		a.EnabledFlag = "no"
+	}
+
+	return a
+}
+
+func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, roles map[string]bool) (Proxy, error) {
+	var p Proxy
+	if roles[defaults.RoleProxy] {
+		p.EnabledFlag = "yes"
+		p.ListenAddress = conf.Proxy.SSHAddr.Addr
+		if flags.ACMEEnabled {
+			p.ACME.EnabledFlag = "yes"
+			p.ACME.Email = flags.ACMEEmail
+			// ACME uses TLS-ALPN-01 challenge that requires port 443
+			// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
+			p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+		}
+		if flags.PublicAddr != "" {
+			// default to 443 if port is not specified
+			publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
+			if err != nil {
+				return Proxy{}, trace.Wrap(err)
+			}
+			p.PublicAddr = apiutils.Strings{publicAddr.String()}
+
+			// use same port for web addr
+			webPort := publicAddr.Port(teleport.StandardHTTPSPort)
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+		}
+		if flags.KeyFile != "" && flags.CertFile != "" {
+			if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
+				return Proxy{}, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
+			}
+
+			p.KeyPairs = append(p.KeyPairs, KeyPair{
+				PrivateKey:  flags.KeyFile,
+				Certificate: flags.CertFile,
+			})
+		}
+	} else {
+		p.EnabledFlag = "no"
+	}
+
+	return p, nil
+}
+
+func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, roles map[string]bool) (Apps, error) {
+	var apps Apps
+	// assume users want app role if they added app name and/or uri but didn't add app role
+	if roles[defaults.RoleApp] || flags.AppURI != "" || flags.AppName != "" {
+		if flags.AppURI == "" || flags.AppName == "" {
+			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
+		}
+
+		apps.EnabledFlag = "yes"
+		apps.Apps = []*App{
+			{
+				Name: flags.AppName,
+				URI:  flags.AppURI,
+			},
+		}
+	}
+
+	return apps, nil
 }
 
 func roleMapFromFlags(flags SampleFlags) map[string]bool {
