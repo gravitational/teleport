@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -31,8 +32,8 @@ import (
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
 type Server interface {
-	// Resource provides common resource headers
-	Resource
+	// ResourceWithLabels provides common resource headers
+	ResourceWithLabels
 	// GetTeleportVersion returns the teleport version the server is running on
 	GetTeleportVersion() string
 	// GetAddr return server address
@@ -41,8 +42,6 @@ type Server interface {
 	GetHostname() string
 	// GetNamespace returns server namespace
 	GetNamespace() string
-	// GetAllLabels returns server's static and dynamic label values merged together
-	GetAllLabels() map[string]string
 	// GetLabels returns server's static label key pairs
 	GetLabels() map[string]string
 	// GetCmdLabels gets command labels
@@ -235,6 +234,16 @@ func (s *ServerV2) GetCmdLabels() map[string]CommandLabel {
 	return V2ToLabels(s.Spec.CmdLabels)
 }
 
+// Origin returns the origin value of the resource.
+func (s *ServerV2) Origin() string {
+	return s.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (s *ServerV2) SetOrigin(origin string) {
+	s.Metadata.SetOrigin(origin)
+}
+
 // SetCmdLabels sets dynamic labels.
 func (s *ServerV2) SetCmdLabels(cmdLabels map[string]CommandLabel) {
 	s.Spec.CmdLabels = LabelsToV2(cmdLabels)
@@ -262,7 +271,22 @@ func (s *ServerV2) GetNamespace() string {
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
-	return CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+	// server labels (static and dynamic)
+	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+
+	// server-specific labels
+	switch s.Kind {
+	case KindKubeService:
+		for _, cluster := range s.Spec.KubernetesClusters {
+			// Combine cluster static and dynamic labels, and merge into
+			// `labels`.
+			for name, value := range CombineLabels(cluster.StaticLabels, cluster.DynamicLabels) {
+				labels[name] = value
+			}
+		}
+	}
+
+	return labels
 }
 
 // CombineLabels combines the passed in static and dynamic labels.
@@ -291,15 +315,7 @@ func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
 //
 // Any server matches against an empty label set
 func (s *ServerV2) MatchAgainst(labels map[string]string) bool {
-	if labels != nil {
-		myLabels := s.GetAllLabels()
-		for key, value := range labels {
-			if myLabels[key] != value {
-				return false
-			}
-		}
-	}
-	return true
+	return MatchLabels(s, labels)
 }
 
 // LabelsString returns a comma separated string of all labels.
@@ -351,6 +367,25 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *ServerV2) MatchSearch(values []string) bool {
+	var fieldVals []string
+	var custom func(val string) bool
+
+	if s.GetKind() == KindNode {
+		fieldVals = append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname(), s.GetAddr())
+
+		if s.GetUseTunnel() {
+			custom = func(val string) bool {
+				return strings.EqualFold(val, "tunnel")
+			}
+		}
+	}
+
+	return MatchSearch(fieldVals, values, custom)
 }
 
 // DeepCopy creates a clone of this server value
@@ -449,3 +484,76 @@ func LabelsToV2(labels map[string]CommandLabel) map[string]CommandLabelV2 {
 // client side, in the ~/.tsh directory. Restricting characters helps with
 // sneaky cluster names being used for client directory traversal and exploits.
 var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+// Servers represents a list of servers.
+type Servers []Server
+
+// Len returns the slice length.
+func (s Servers) Len() int { return len(s) }
+
+// Less compares servers by name.
+func (s Servers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
+// Swap swaps two servers.
+func (s Servers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s Servers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	case ResourceSpecHostname:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetHostname(), s[j].GetHostname(), isDesc)
+		})
+	case ResourceSpecAddr:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetAddr(), s[j].GetAddr(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindNode)
+	}
+
+	return nil
+}
+
+// AsResources returns as type resources with labels.
+func (s Servers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s Servers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetName())
+		}
+	case ResourceSpecHostname:
+		for _, server := range s {
+			vals = append(vals, server.GetHostname())
+		}
+	case ResourceSpecAddr:
+		for _, server := range s {
+			vals = append(vals, server.GetAddr())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindNode)
+	}
+
+	return vals, nil
+}

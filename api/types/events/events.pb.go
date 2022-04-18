@@ -10,6 +10,8 @@ import (
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	_ "github.com/golang/protobuf/ptypes/struct"
 	_ "github.com/golang/protobuf/ptypes/timestamp"
+	_ "github.com/gravitational/teleport/api/types/wrappers"
+	github_com_gravitational_teleport_api_types_wrappers "github.com/gravitational/teleport/api/types/wrappers"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -79,7 +81,7 @@ func (x SessionNetwork_NetworkOperation) String() string {
 }
 
 func (SessionNetwork_NetworkOperation) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{18, 0}
+	return fileDescriptor_8f22242cb04491f9, []int{21, 0}
 }
 
 // Metadata is a common event metadata
@@ -187,7 +189,9 @@ type UserMetadata struct {
 	// Impersonator is a user acting on behalf of another user
 	Impersonator string `protobuf:"bytes,3,opt,name=Impersonator,proto3" json:"impersonator,omitempty"`
 	// AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
-	AWSRoleARN           string   `protobuf:"bytes,4,opt,name=AWSRoleARN,proto3" json:"aws_role_arn,omitempty"`
+	AWSRoleARN string `protobuf:"bytes,4,opt,name=AWSRoleARN,proto3" json:"aws_role_arn,omitempty"`
+	// AccessRequests are the IDs of access requests created by the user
+	AccessRequests       []string `protobuf:"bytes,5,rep,name=AccessRequests,proto3" json:"access_requests,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -443,9 +447,7 @@ type SessionStart struct {
 	// InitialCommand is the command used to start this session.
 	InitialCommand []string `protobuf:"bytes,9,rep,name=InitialCommand,proto3" json:"initial_command,omitempty"`
 	// SessionRecording is the type of session recording.
-	SessionRecording string `protobuf:"bytes,10,opt,name=SessionRecording,proto3" json:"session_recording,omitempty"`
-	// AccessRequests are the IDs of access requests created by the user
-	AccessRequests       []string `protobuf:"bytes,11,rep,name=AccessRequests,proto3" json:"access_requests,omitempty"`
+	SessionRecording     string   `protobuf:"bytes,10,opt,name=SessionRecording,proto3" json:"session_recording,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -591,6 +593,159 @@ func (m *SessionPrint) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SessionPrint proto.InternalMessageInfo
 
+// DesktopRecording happens when a Teleport Desktop Protocol message
+// is captured during a Desktop Access Session.
+type DesktopRecording struct {
+	// Metadata is a common event metadata
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// Message is the encoded TDP message.
+	Message []byte `protobuf:"bytes,2,opt,name=Message,proto3" json:"message"`
+	// DelayMilliseconds is the delay in milliseconds from the start of the session
+	DelayMilliseconds    int64    `protobuf:"varint,3,opt,name=DelayMilliseconds,proto3" json:"ms"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DesktopRecording) Reset()         { *m = DesktopRecording{} }
+func (m *DesktopRecording) String() string { return proto.CompactTextString(m) }
+func (*DesktopRecording) ProtoMessage()    {}
+func (*DesktopRecording) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{10}
+}
+func (m *DesktopRecording) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DesktopRecording) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DesktopRecording.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DesktopRecording) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DesktopRecording.Merge(m, src)
+}
+func (m *DesktopRecording) XXX_Size() int {
+	return m.Size()
+}
+func (m *DesktopRecording) XXX_DiscardUnknown() {
+	xxx_messageInfo_DesktopRecording.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DesktopRecording proto.InternalMessageInfo
+
+// DesktopClipboardReceive is emitted when Teleport receives
+// clipboard data from a remote desktop.
+type DesktopClipboardReceive struct {
+	// Metadata is common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// Session is common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Connection holds information about the connection.
+	ConnectionMetadata `protobuf:"bytes,4,opt,name=Connection,proto3,embedded=Connection" json:""`
+	// DesktopAddr is the address of the desktop being accessed.
+	DesktopAddr string `protobuf:"bytes,5,opt,name=DesktopAddr,proto3" json:"desktop_addr"`
+	// Length is the number of bytes of data received from the remote clipboard.
+	Length               int32    `protobuf:"varint,6,opt,name=Length,proto3" json:"length"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DesktopClipboardReceive) Reset()         { *m = DesktopClipboardReceive{} }
+func (m *DesktopClipboardReceive) String() string { return proto.CompactTextString(m) }
+func (*DesktopClipboardReceive) ProtoMessage()    {}
+func (*DesktopClipboardReceive) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{11}
+}
+func (m *DesktopClipboardReceive) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DesktopClipboardReceive) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DesktopClipboardReceive.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DesktopClipboardReceive) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DesktopClipboardReceive.Merge(m, src)
+}
+func (m *DesktopClipboardReceive) XXX_Size() int {
+	return m.Size()
+}
+func (m *DesktopClipboardReceive) XXX_DiscardUnknown() {
+	xxx_messageInfo_DesktopClipboardReceive.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DesktopClipboardReceive proto.InternalMessageInfo
+
+// DesktopClipboardSend is emitted when clipboard data is
+// sent from a user's workstation to Teleport.
+type DesktopClipboardSend struct {
+	// Metadata is common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// Session is common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Connection holds information about the connection.
+	ConnectionMetadata `protobuf:"bytes,4,opt,name=Connection,proto3,embedded=Connection" json:""`
+	// DesktopAddr is the address of the desktop being accessed.
+	DesktopAddr string `protobuf:"bytes,5,opt,name=DesktopAddr,proto3" json:"desktop_addr"`
+	// Length is the number of bytes of data sent.
+	Length               int32    `protobuf:"varint,6,opt,name=Length,proto3" json:"length"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DesktopClipboardSend) Reset()         { *m = DesktopClipboardSend{} }
+func (m *DesktopClipboardSend) String() string { return proto.CompactTextString(m) }
+func (*DesktopClipboardSend) ProtoMessage()    {}
+func (*DesktopClipboardSend) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{12}
+}
+func (m *DesktopClipboardSend) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DesktopClipboardSend) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DesktopClipboardSend.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DesktopClipboardSend) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DesktopClipboardSend.Merge(m, src)
+}
+func (m *DesktopClipboardSend) XXX_Size() int {
+	return m.Size()
+}
+func (m *DesktopClipboardSend) XXX_DiscardUnknown() {
+	xxx_messageInfo_DesktopClipboardSend.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DesktopClipboardSend proto.InternalMessageInfo
+
 // SessionReject event happens when a user hits a session control restriction.
 type SessionReject struct {
 	// Metadata is a common event metadata
@@ -616,7 +771,7 @@ func (m *SessionReject) Reset()         { *m = SessionReject{} }
 func (m *SessionReject) String() string { return proto.CompactTextString(m) }
 func (*SessionReject) ProtoMessage()    {}
 func (*SessionReject) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{10}
+	return fileDescriptor_8f22242cb04491f9, []int{13}
 }
 func (m *SessionReject) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -659,7 +814,7 @@ func (m *SessionConnect) Reset()         { *m = SessionConnect{} }
 func (m *SessionConnect) String() string { return proto.CompactTextString(m) }
 func (*SessionConnect) ProtoMessage()    {}
 func (*SessionConnect) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{11}
+	return fileDescriptor_8f22242cb04491f9, []int{14}
 }
 func (m *SessionConnect) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -716,7 +871,7 @@ func (m *Resize) Reset()         { *m = Resize{} }
 func (m *Resize) String() string { return proto.CompactTextString(m) }
 func (*Resize) ProtoMessage()    {}
 func (*Resize) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{12}
+	return fileDescriptor_8f22242cb04491f9, []int{15}
 }
 func (m *Resize) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -787,7 +942,7 @@ func (m *SessionEnd) Reset()         { *m = SessionEnd{} }
 func (m *SessionEnd) String() string { return proto.CompactTextString(m) }
 func (*SessionEnd) ProtoMessage()    {}
 func (*SessionEnd) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{13}
+	return fileDescriptor_8f22242cb04491f9, []int{16}
 }
 func (m *SessionEnd) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -833,7 +988,7 @@ func (m *BPFMetadata) Reset()         { *m = BPFMetadata{} }
 func (m *BPFMetadata) String() string { return proto.CompactTextString(m) }
 func (*BPFMetadata) ProtoMessage()    {}
 func (*BPFMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{14}
+	return fileDescriptor_8f22242cb04491f9, []int{17}
 }
 func (m *BPFMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -879,7 +1034,7 @@ func (m *Status) Reset()         { *m = Status{} }
 func (m *Status) String() string { return proto.CompactTextString(m) }
 func (*Status) ProtoMessage()    {}
 func (*Status) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{15}
+	return fileDescriptor_8f22242cb04491f9, []int{18}
 }
 func (m *Status) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -938,7 +1093,7 @@ func (m *SessionCommand) Reset()         { *m = SessionCommand{} }
 func (m *SessionCommand) String() string { return proto.CompactTextString(m) }
 func (*SessionCommand) ProtoMessage()    {}
 func (*SessionCommand) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{16}
+	return fileDescriptor_8f22242cb04491f9, []int{19}
 }
 func (m *SessionCommand) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -994,7 +1149,7 @@ func (m *SessionDisk) Reset()         { *m = SessionDisk{} }
 func (m *SessionDisk) String() string { return proto.CompactTextString(m) }
 func (*SessionDisk) ProtoMessage()    {}
 func (*SessionDisk) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{17}
+	return fileDescriptor_8f22242cb04491f9, []int{20}
 }
 func (m *SessionDisk) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1056,7 +1211,7 @@ func (m *SessionNetwork) Reset()         { *m = SessionNetwork{} }
 func (m *SessionNetwork) String() string { return proto.CompactTextString(m) }
 func (*SessionNetwork) ProtoMessage()    {}
 func (*SessionNetwork) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{18}
+	return fileDescriptor_8f22242cb04491f9, []int{21}
 }
 func (m *SessionNetwork) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1110,7 +1265,7 @@ func (m *SessionData) Reset()         { *m = SessionData{} }
 func (m *SessionData) String() string { return proto.CompactTextString(m) }
 func (*SessionData) ProtoMessage()    {}
 func (*SessionData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{19}
+	return fileDescriptor_8f22242cb04491f9, []int{22}
 }
 func (m *SessionData) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1160,7 +1315,7 @@ func (m *SessionLeave) Reset()         { *m = SessionLeave{} }
 func (m *SessionLeave) String() string { return proto.CompactTextString(m) }
 func (*SessionLeave) ProtoMessage()    {}
 func (*SessionLeave) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{20}
+	return fileDescriptor_8f22242cb04491f9, []int{23}
 }
 func (m *SessionLeave) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1212,7 +1367,7 @@ func (m *UserLogin) Reset()         { *m = UserLogin{} }
 func (m *UserLogin) String() string { return proto.CompactTextString(m) }
 func (*UserLogin) ProtoMessage()    {}
 func (*UserLogin) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{21}
+	return fileDescriptor_8f22242cb04491f9, []int{24}
 }
 func (m *UserLogin) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1262,7 +1417,7 @@ func (m *ResourceMetadata) Reset()         { *m = ResourceMetadata{} }
 func (m *ResourceMetadata) String() string { return proto.CompactTextString(m) }
 func (*ResourceMetadata) ProtoMessage()    {}
 func (*ResourceMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{22}
+	return fileDescriptor_8f22242cb04491f9, []int{25}
 }
 func (m *ResourceMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1312,7 +1467,7 @@ func (m *UserCreate) Reset()         { *m = UserCreate{} }
 func (m *UserCreate) String() string { return proto.CompactTextString(m) }
 func (*UserCreate) ProtoMessage()    {}
 func (*UserCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{23}
+	return fileDescriptor_8f22242cb04491f9, []int{26}
 }
 func (m *UserCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1358,7 +1513,7 @@ func (m *UserDelete) Reset()         { *m = UserDelete{} }
 func (m *UserDelete) String() string { return proto.CompactTextString(m) }
 func (*UserDelete) ProtoMessage()    {}
 func (*UserDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{24}
+	return fileDescriptor_8f22242cb04491f9, []int{27}
 }
 func (m *UserDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1402,7 +1557,7 @@ func (m *UserPasswordChange) Reset()         { *m = UserPasswordChange{} }
 func (m *UserPasswordChange) String() string { return proto.CompactTextString(m) }
 func (*UserPasswordChange) ProtoMessage()    {}
 func (*UserPasswordChange) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{25}
+	return fileDescriptor_8f22242cb04491f9, []int{28}
 }
 func (m *UserPasswordChange) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1469,7 +1624,7 @@ func (m *AccessRequestCreate) Reset()         { *m = AccessRequestCreate{} }
 func (m *AccessRequestCreate) String() string { return proto.CompactTextString(m) }
 func (*AccessRequestCreate) ProtoMessage()    {}
 func (*AccessRequestCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{26}
+	return fileDescriptor_8f22242cb04491f9, []int{29}
 }
 func (m *AccessRequestCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1515,7 +1670,7 @@ func (m *AccessRequestDelete) Reset()         { *m = AccessRequestDelete{} }
 func (m *AccessRequestDelete) String() string { return proto.CompactTextString(m) }
 func (*AccessRequestDelete) ProtoMessage()    {}
 func (*AccessRequestDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{27}
+	return fileDescriptor_8f22242cb04491f9, []int{30}
 }
 func (m *AccessRequestDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1565,7 +1720,7 @@ func (m *PortForward) Reset()         { *m = PortForward{} }
 func (m *PortForward) String() string { return proto.CompactTextString(m) }
 func (*PortForward) ProtoMessage()    {}
 func (*PortForward) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{28}
+	return fileDescriptor_8f22242cb04491f9, []int{31}
 }
 func (m *PortForward) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1613,7 +1768,7 @@ func (m *X11Forward) Reset()         { *m = X11Forward{} }
 func (m *X11Forward) String() string { return proto.CompactTextString(m) }
 func (*X11Forward) ProtoMessage()    {}
 func (*X11Forward) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{29}
+	return fileDescriptor_8f22242cb04491f9, []int{32}
 }
 func (m *X11Forward) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1659,7 +1814,7 @@ func (m *CommandMetadata) Reset()         { *m = CommandMetadata{} }
 func (m *CommandMetadata) String() string { return proto.CompactTextString(m) }
 func (*CommandMetadata) ProtoMessage()    {}
 func (*CommandMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{30}
+	return fileDescriptor_8f22242cb04491f9, []int{33}
 }
 func (m *CommandMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1716,7 +1871,7 @@ func (m *Exec) Reset()         { *m = Exec{} }
 func (m *Exec) String() string { return proto.CompactTextString(m) }
 func (*Exec) ProtoMessage()    {}
 func (*Exec) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{31}
+	return fileDescriptor_8f22242cb04491f9, []int{34}
 }
 func (m *Exec) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1772,7 +1927,7 @@ func (m *SCP) Reset()         { *m = SCP{} }
 func (m *SCP) String() string { return proto.CompactTextString(m) }
 func (*SCP) ProtoMessage()    {}
 func (*SCP) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{32}
+	return fileDescriptor_8f22242cb04491f9, []int{35}
 }
 func (m *SCP) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1822,7 +1977,7 @@ func (m *Subsystem) Reset()         { *m = Subsystem{} }
 func (m *Subsystem) String() string { return proto.CompactTextString(m) }
 func (*Subsystem) ProtoMessage()    {}
 func (*Subsystem) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{33}
+	return fileDescriptor_8f22242cb04491f9, []int{36}
 }
 func (m *Subsystem) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1874,7 +2029,7 @@ func (m *ClientDisconnect) Reset()         { *m = ClientDisconnect{} }
 func (m *ClientDisconnect) String() string { return proto.CompactTextString(m) }
 func (*ClientDisconnect) ProtoMessage()    {}
 func (*ClientDisconnect) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{34}
+	return fileDescriptor_8f22242cb04491f9, []int{37}
 }
 func (m *ClientDisconnect) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1922,7 +2077,7 @@ func (m *AuthAttempt) Reset()         { *m = AuthAttempt{} }
 func (m *AuthAttempt) String() string { return proto.CompactTextString(m) }
 func (*AuthAttempt) ProtoMessage()    {}
 func (*AuthAttempt) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{35}
+	return fileDescriptor_8f22242cb04491f9, []int{38}
 }
 func (m *AuthAttempt) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1968,7 +2123,7 @@ func (m *UserTokenCreate) Reset()         { *m = UserTokenCreate{} }
 func (m *UserTokenCreate) String() string { return proto.CompactTextString(m) }
 func (*UserTokenCreate) ProtoMessage()    {}
 func (*UserTokenCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{36}
+	return fileDescriptor_8f22242cb04491f9, []int{39}
 }
 func (m *UserTokenCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2014,7 +2169,7 @@ func (m *RoleCreate) Reset()         { *m = RoleCreate{} }
 func (m *RoleCreate) String() string { return proto.CompactTextString(m) }
 func (*RoleCreate) ProtoMessage()    {}
 func (*RoleCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{37}
+	return fileDescriptor_8f22242cb04491f9, []int{40}
 }
 func (m *RoleCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2060,7 +2215,7 @@ func (m *RoleDelete) Reset()         { *m = RoleDelete{} }
 func (m *RoleDelete) String() string { return proto.CompactTextString(m) }
 func (*RoleDelete) ProtoMessage()    {}
 func (*RoleDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{38}
+	return fileDescriptor_8f22242cb04491f9, []int{41}
 }
 func (m *RoleDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2106,7 +2261,7 @@ func (m *TrustedClusterCreate) Reset()         { *m = TrustedClusterCreate{} }
 func (m *TrustedClusterCreate) String() string { return proto.CompactTextString(m) }
 func (*TrustedClusterCreate) ProtoMessage()    {}
 func (*TrustedClusterCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{39}
+	return fileDescriptor_8f22242cb04491f9, []int{42}
 }
 func (m *TrustedClusterCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2152,7 +2307,7 @@ func (m *TrustedClusterDelete) Reset()         { *m = TrustedClusterDelete{} }
 func (m *TrustedClusterDelete) String() string { return proto.CompactTextString(m) }
 func (*TrustedClusterDelete) ProtoMessage()    {}
 func (*TrustedClusterDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{40}
+	return fileDescriptor_8f22242cb04491f9, []int{43}
 }
 func (m *TrustedClusterDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2199,7 +2354,7 @@ func (m *TrustedClusterTokenCreate) Reset()         { *m = TrustedClusterTokenCr
 func (m *TrustedClusterTokenCreate) String() string { return proto.CompactTextString(m) }
 func (*TrustedClusterTokenCreate) ProtoMessage()    {}
 func (*TrustedClusterTokenCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{41}
+	return fileDescriptor_8f22242cb04491f9, []int{44}
 }
 func (m *TrustedClusterTokenCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2245,7 +2400,7 @@ func (m *GithubConnectorCreate) Reset()         { *m = GithubConnectorCreate{} }
 func (m *GithubConnectorCreate) String() string { return proto.CompactTextString(m) }
 func (*GithubConnectorCreate) ProtoMessage()    {}
 func (*GithubConnectorCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{42}
+	return fileDescriptor_8f22242cb04491f9, []int{45}
 }
 func (m *GithubConnectorCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2291,7 +2446,7 @@ func (m *GithubConnectorDelete) Reset()         { *m = GithubConnectorDelete{} }
 func (m *GithubConnectorDelete) String() string { return proto.CompactTextString(m) }
 func (*GithubConnectorDelete) ProtoMessage()    {}
 func (*GithubConnectorDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{43}
+	return fileDescriptor_8f22242cb04491f9, []int{46}
 }
 func (m *GithubConnectorDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2337,7 +2492,7 @@ func (m *OIDCConnectorCreate) Reset()         { *m = OIDCConnectorCreate{} }
 func (m *OIDCConnectorCreate) String() string { return proto.CompactTextString(m) }
 func (*OIDCConnectorCreate) ProtoMessage()    {}
 func (*OIDCConnectorCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{44}
+	return fileDescriptor_8f22242cb04491f9, []int{47}
 }
 func (m *OIDCConnectorCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2383,7 +2538,7 @@ func (m *OIDCConnectorDelete) Reset()         { *m = OIDCConnectorDelete{} }
 func (m *OIDCConnectorDelete) String() string { return proto.CompactTextString(m) }
 func (*OIDCConnectorDelete) ProtoMessage()    {}
 func (*OIDCConnectorDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{45}
+	return fileDescriptor_8f22242cb04491f9, []int{48}
 }
 func (m *OIDCConnectorDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2429,7 +2584,7 @@ func (m *SAMLConnectorCreate) Reset()         { *m = SAMLConnectorCreate{} }
 func (m *SAMLConnectorCreate) String() string { return proto.CompactTextString(m) }
 func (*SAMLConnectorCreate) ProtoMessage()    {}
 func (*SAMLConnectorCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{46}
+	return fileDescriptor_8f22242cb04491f9, []int{49}
 }
 func (m *SAMLConnectorCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2475,7 +2630,7 @@ func (m *SAMLConnectorDelete) Reset()         { *m = SAMLConnectorDelete{} }
 func (m *SAMLConnectorDelete) String() string { return proto.CompactTextString(m) }
 func (*SAMLConnectorDelete) ProtoMessage()    {}
 func (*SAMLConnectorDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{47}
+	return fileDescriptor_8f22242cb04491f9, []int{50}
 }
 func (m *SAMLConnectorDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2539,7 +2694,7 @@ func (m *KubeRequest) Reset()         { *m = KubeRequest{} }
 func (m *KubeRequest) String() string { return proto.CompactTextString(m) }
 func (*KubeRequest) ProtoMessage()    {}
 func (*KubeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{48}
+	return fileDescriptor_8f22242cb04491f9, []int{51}
 }
 func (m *KubeRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2587,7 +2742,7 @@ func (m *AppMetadata) Reset()         { *m = AppMetadata{} }
 func (m *AppMetadata) String() string { return proto.CompactTextString(m) }
 func (*AppMetadata) ProtoMessage()    {}
 func (*AppMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{49}
+	return fileDescriptor_8f22242cb04491f9, []int{52}
 }
 func (m *AppMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2635,7 +2790,7 @@ func (m *AppCreate) Reset()         { *m = AppCreate{} }
 func (m *AppCreate) String() string { return proto.CompactTextString(m) }
 func (*AppCreate) ProtoMessage()    {}
 func (*AppCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{50}
+	return fileDescriptor_8f22242cb04491f9, []int{53}
 }
 func (m *AppCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2683,7 +2838,7 @@ func (m *AppUpdate) Reset()         { *m = AppUpdate{} }
 func (m *AppUpdate) String() string { return proto.CompactTextString(m) }
 func (*AppUpdate) ProtoMessage()    {}
 func (*AppUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{51}
+	return fileDescriptor_8f22242cb04491f9, []int{54}
 }
 func (m *AppUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2729,7 +2884,7 @@ func (m *AppDelete) Reset()         { *m = AppDelete{} }
 func (m *AppDelete) String() string { return proto.CompactTextString(m) }
 func (*AppDelete) ProtoMessage()    {}
 func (*AppDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{52}
+	return fileDescriptor_8f22242cb04491f9, []int{55}
 }
 func (m *AppDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2784,7 +2939,7 @@ func (m *AppSessionStart) Reset()         { *m = AppSessionStart{} }
 func (m *AppSessionStart) String() string { return proto.CompactTextString(m) }
 func (*AppSessionStart) ProtoMessage()    {}
 func (*AppSessionStart) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{53}
+	return fileDescriptor_8f22242cb04491f9, []int{56}
 }
 func (m *AppSessionStart) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2841,7 +2996,7 @@ func (m *AppSessionChunk) Reset()         { *m = AppSessionChunk{} }
 func (m *AppSessionChunk) String() string { return proto.CompactTextString(m) }
 func (*AppSessionChunk) ProtoMessage()    {}
 func (*AppSessionChunk) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{54}
+	return fileDescriptor_8f22242cb04491f9, []int{57}
 }
 func (m *AppSessionChunk) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2893,7 +3048,7 @@ func (m *AppSessionRequest) Reset()         { *m = AppSessionRequest{} }
 func (m *AppSessionRequest) String() string { return proto.CompactTextString(m) }
 func (*AppSessionRequest) ProtoMessage()    {}
 func (*AppSessionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{55}
+	return fileDescriptor_8f22242cb04491f9, []int{58}
 }
 func (m *AppSessionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2953,7 +3108,7 @@ func (m *DatabaseMetadata) Reset()         { *m = DatabaseMetadata{} }
 func (m *DatabaseMetadata) String() string { return proto.CompactTextString(m) }
 func (*DatabaseMetadata) ProtoMessage()    {}
 func (*DatabaseMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{56}
+	return fileDescriptor_8f22242cb04491f9, []int{59}
 }
 func (m *DatabaseMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3001,7 +3156,7 @@ func (m *DatabaseCreate) Reset()         { *m = DatabaseCreate{} }
 func (m *DatabaseCreate) String() string { return proto.CompactTextString(m) }
 func (*DatabaseCreate) ProtoMessage()    {}
 func (*DatabaseCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{57}
+	return fileDescriptor_8f22242cb04491f9, []int{60}
 }
 func (m *DatabaseCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3049,7 +3204,7 @@ func (m *DatabaseUpdate) Reset()         { *m = DatabaseUpdate{} }
 func (m *DatabaseUpdate) String() string { return proto.CompactTextString(m) }
 func (*DatabaseUpdate) ProtoMessage()    {}
 func (*DatabaseUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{58}
+	return fileDescriptor_8f22242cb04491f9, []int{61}
 }
 func (m *DatabaseUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3095,7 +3250,7 @@ func (m *DatabaseDelete) Reset()         { *m = DatabaseDelete{} }
 func (m *DatabaseDelete) String() string { return proto.CompactTextString(m) }
 func (*DatabaseDelete) ProtoMessage()    {}
 func (*DatabaseDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{59}
+	return fileDescriptor_8f22242cb04491f9, []int{62}
 }
 func (m *DatabaseDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3149,7 +3304,7 @@ func (m *DatabaseSessionStart) Reset()         { *m = DatabaseSessionStart{} }
 func (m *DatabaseSessionStart) String() string { return proto.CompactTextString(m) }
 func (*DatabaseSessionStart) ProtoMessage()    {}
 func (*DatabaseSessionStart) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{60}
+	return fileDescriptor_8f22242cb04491f9, []int{63}
 }
 func (m *DatabaseSessionStart) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3203,7 +3358,7 @@ func (m *DatabaseSessionQuery) Reset()         { *m = DatabaseSessionQuery{} }
 func (m *DatabaseSessionQuery) String() string { return proto.CompactTextString(m) }
 func (*DatabaseSessionQuery) ProtoMessage()    {}
 func (*DatabaseSessionQuery) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{61}
+	return fileDescriptor_8f22242cb04491f9, []int{64}
 }
 func (m *DatabaseSessionQuery) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3256,7 +3411,7 @@ func (m *PostgresParse) Reset()         { *m = PostgresParse{} }
 func (m *PostgresParse) String() string { return proto.CompactTextString(m) }
 func (*PostgresParse) ProtoMessage()    {}
 func (*PostgresParse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{62}
+	return fileDescriptor_8f22242cb04491f9, []int{65}
 }
 func (m *PostgresParse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3311,7 +3466,7 @@ func (m *PostgresBind) Reset()         { *m = PostgresBind{} }
 func (m *PostgresBind) String() string { return proto.CompactTextString(m) }
 func (*PostgresBind) ProtoMessage()    {}
 func (*PostgresBind) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{63}
+	return fileDescriptor_8f22242cb04491f9, []int{66}
 }
 func (m *PostgresBind) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3362,7 +3517,7 @@ func (m *PostgresExecute) Reset()         { *m = PostgresExecute{} }
 func (m *PostgresExecute) String() string { return proto.CompactTextString(m) }
 func (*PostgresExecute) ProtoMessage()    {}
 func (*PostgresExecute) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{64}
+	return fileDescriptor_8f22242cb04491f9, []int{67}
 }
 func (m *PostgresExecute) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3415,7 +3570,7 @@ func (m *PostgresClose) Reset()         { *m = PostgresClose{} }
 func (m *PostgresClose) String() string { return proto.CompactTextString(m) }
 func (*PostgresClose) ProtoMessage()    {}
 func (*PostgresClose) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{65}
+	return fileDescriptor_8f22242cb04491f9, []int{68}
 }
 func (m *PostgresClose) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3468,7 +3623,7 @@ func (m *PostgresFunctionCall) Reset()         { *m = PostgresFunctionCall{} }
 func (m *PostgresFunctionCall) String() string { return proto.CompactTextString(m) }
 func (*PostgresFunctionCall) ProtoMessage()    {}
 func (*PostgresFunctionCall) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{66}
+	return fileDescriptor_8f22242cb04491f9, []int{69}
 }
 func (m *PostgresFunctionCall) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3518,17 +3673,19 @@ type WindowsDesktopSessionStart struct {
 	// WindowsUser is the Windows username used to connect.
 	WindowsUser string `protobuf:"bytes,9,opt,name=WindowsUser,proto3" json:"windows_user"`
 	// DesktopLabels are the labels on the desktop resource.
-	DesktopLabels        map[string]string `protobuf:"bytes,10,rep,name=DesktopLabels,proto3" json:"desktop_labels" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
-	XXX_unrecognized     []byte            `json:"-"`
-	XXX_sizecache        int32             `json:"-"`
+	DesktopLabels map[string]string `protobuf:"bytes,10,rep,name=DesktopLabels,proto3" json:"desktop_labels" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// DesktopName is the name of the desktop resource.
+	DesktopName          string   `protobuf:"bytes,11,opt,name=DesktopName,proto3" json:"desktop_name"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *WindowsDesktopSessionStart) Reset()         { *m = WindowsDesktopSessionStart{} }
 func (m *WindowsDesktopSessionStart) String() string { return proto.CompactTextString(m) }
 func (*WindowsDesktopSessionStart) ProtoMessage()    {}
 func (*WindowsDesktopSessionStart) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{67}
+	return fileDescriptor_8f22242cb04491f9, []int{70}
 }
 func (m *WindowsDesktopSessionStart) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3576,7 +3733,7 @@ func (m *DatabaseSessionEnd) Reset()         { *m = DatabaseSessionEnd{} }
 func (m *DatabaseSessionEnd) String() string { return proto.CompactTextString(m) }
 func (*DatabaseSessionEnd) ProtoMessage()    {}
 func (*DatabaseSessionEnd) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{68}
+	return fileDescriptor_8f22242cb04491f9, []int{71}
 }
 func (m *DatabaseSessionEnd) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3622,7 +3779,7 @@ func (m *MFADeviceMetadata) Reset()         { *m = MFADeviceMetadata{} }
 func (m *MFADeviceMetadata) String() string { return proto.CompactTextString(m) }
 func (*MFADeviceMetadata) ProtoMessage()    {}
 func (*MFADeviceMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{69}
+	return fileDescriptor_8f22242cb04491f9, []int{72}
 }
 func (m *MFADeviceMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3668,7 +3825,7 @@ func (m *MFADeviceAdd) Reset()         { *m = MFADeviceAdd{} }
 func (m *MFADeviceAdd) String() string { return proto.CompactTextString(m) }
 func (*MFADeviceAdd) ProtoMessage()    {}
 func (*MFADeviceAdd) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{70}
+	return fileDescriptor_8f22242cb04491f9, []int{73}
 }
 func (m *MFADeviceAdd) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3714,7 +3871,7 @@ func (m *MFADeviceDelete) Reset()         { *m = MFADeviceDelete{} }
 func (m *MFADeviceDelete) String() string { return proto.CompactTextString(m) }
 func (*MFADeviceDelete) ProtoMessage()    {}
 func (*MFADeviceDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{71}
+	return fileDescriptor_8f22242cb04491f9, []int{74}
 }
 func (m *MFADeviceDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3758,7 +3915,7 @@ func (m *BillingInformationUpdate) Reset()         { *m = BillingInformationUpda
 func (m *BillingInformationUpdate) String() string { return proto.CompactTextString(m) }
 func (*BillingInformationUpdate) ProtoMessage()    {}
 func (*BillingInformationUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{72}
+	return fileDescriptor_8f22242cb04491f9, []int{75}
 }
 func (m *BillingInformationUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3802,7 +3959,7 @@ func (m *BillingCardCreate) Reset()         { *m = BillingCardCreate{} }
 func (m *BillingCardCreate) String() string { return proto.CompactTextString(m) }
 func (*BillingCardCreate) ProtoMessage()    {}
 func (*BillingCardCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{73}
+	return fileDescriptor_8f22242cb04491f9, []int{76}
 }
 func (m *BillingCardCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3846,7 +4003,7 @@ func (m *BillingCardDelete) Reset()         { *m = BillingCardDelete{} }
 func (m *BillingCardDelete) String() string { return proto.CompactTextString(m) }
 func (*BillingCardDelete) ProtoMessage()    {}
 func (*BillingCardDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{74}
+	return fileDescriptor_8f22242cb04491f9, []int{77}
 }
 func (m *BillingCardDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3895,7 +4052,7 @@ func (m *LockCreate) Reset()         { *m = LockCreate{} }
 func (m *LockCreate) String() string { return proto.CompactTextString(m) }
 func (*LockCreate) ProtoMessage()    {}
 func (*LockCreate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{75}
+	return fileDescriptor_8f22242cb04491f9, []int{78}
 }
 func (m *LockCreate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3941,7 +4098,7 @@ func (m *LockDelete) Reset()         { *m = LockDelete{} }
 func (m *LockDelete) String() string { return proto.CompactTextString(m) }
 func (*LockDelete) ProtoMessage()    {}
 func (*LockDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{76}
+	return fileDescriptor_8f22242cb04491f9, []int{79}
 }
 func (m *LockDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3985,7 +4142,7 @@ func (m *RecoveryCodeGenerate) Reset()         { *m = RecoveryCodeGenerate{} }
 func (m *RecoveryCodeGenerate) String() string { return proto.CompactTextString(m) }
 func (*RecoveryCodeGenerate) ProtoMessage()    {}
 func (*RecoveryCodeGenerate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{77}
+	return fileDescriptor_8f22242cb04491f9, []int{80}
 }
 func (m *RecoveryCodeGenerate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4032,7 +4189,7 @@ func (m *RecoveryCodeUsed) Reset()         { *m = RecoveryCodeUsed{} }
 func (m *RecoveryCodeUsed) String() string { return proto.CompactTextString(m) }
 func (*RecoveryCodeUsed) ProtoMessage()    {}
 func (*RecoveryCodeUsed) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{78}
+	return fileDescriptor_8f22242cb04491f9, []int{81}
 }
 func (m *RecoveryCodeUsed) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4078,17 +4235,27 @@ type WindowsDesktopSessionEnd struct {
 	// WindowsUser is the Windows username used to connect.
 	WindowsUser string `protobuf:"bytes,7,opt,name=WindowsUser,proto3" json:"windows_user"`
 	// DesktopLabels are the labels on the desktop resource.
-	DesktopLabels        map[string]string `protobuf:"bytes,8,rep,name=DesktopLabels,proto3" json:"desktop_labels" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
-	XXX_unrecognized     []byte            `json:"-"`
-	XXX_sizecache        int32             `json:"-"`
+	DesktopLabels map[string]string `protobuf:"bytes,8,rep,name=DesktopLabels,proto3" json:"desktop_labels" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// StartTime is the timestamp at which the session began.
+	StartTime time.Time `protobuf:"bytes,9,opt,name=StartTime,proto3,stdtime" json:"session_start,omitempty"`
+	// EndTime is the timestamp at which the session ended.
+	EndTime time.Time `protobuf:"bytes,10,opt,name=EndTime,proto3,stdtime" json:"session_stop,omitempty"`
+	// DesktopName is the name of the desktop resource.
+	DesktopName string `protobuf:"bytes,11,opt,name=DesktopName,proto3" json:"desktop_name"`
+	// Recorded is true if the session was recorded, false otherwise.
+	Recorded bool `protobuf:"varint,12,opt,name=Recorded,proto3" json:"recorded"`
+	// Participants is a list of participants in the session.
+	Participants         []string `protobuf:"bytes,13,rep,name=Participants,proto3" json:"participants"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *WindowsDesktopSessionEnd) Reset()         { *m = WindowsDesktopSessionEnd{} }
 func (m *WindowsDesktopSessionEnd) String() string { return proto.CompactTextString(m) }
 func (*WindowsDesktopSessionEnd) ProtoMessage()    {}
 func (*WindowsDesktopSessionEnd) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{79}
+	return fileDescriptor_8f22242cb04491f9, []int{82}
 }
 func (m *WindowsDesktopSessionEnd) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4116,6 +4283,148 @@ func (m *WindowsDesktopSessionEnd) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_WindowsDesktopSessionEnd proto.InternalMessageInfo
+
+// CertificateCreate is emitted when a certificate is issued.
+type CertificateCreate struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// CertificateType is the type of certificate that was just issued.
+	CertificateType string `protobuf:"bytes,2,opt,name=CertificateType,proto3" json:"cert_type,omitempty"`
+	// Identity is the identity associated with the certificate, as interpreted by Teleport.
+	Identity             *Identity `protobuf:"bytes,3,opt,name=Identity,proto3" json:"identity"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *CertificateCreate) Reset()         { *m = CertificateCreate{} }
+func (m *CertificateCreate) String() string { return proto.CompactTextString(m) }
+func (*CertificateCreate) ProtoMessage()    {}
+func (*CertificateCreate) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{83}
+}
+func (m *CertificateCreate) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CertificateCreate) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CertificateCreate.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CertificateCreate) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CertificateCreate.Merge(m, src)
+}
+func (m *CertificateCreate) XXX_Size() int {
+	return m.Size()
+}
+func (m *CertificateCreate) XXX_DiscardUnknown() {
+	xxx_messageInfo_CertificateCreate.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CertificateCreate proto.InternalMessageInfo
+
+// RenewableCertificateGenerationMismatch is emitted when a renewable
+// certificiate's generation counter fails to validate, possibly indicating a
+// stolen certificate and an invalid renewal attempt.
+type RenewableCertificateGenerationMismatch struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// UserMetadata is a common user event metadata.
+	UserMetadata         `protobuf:"bytes,2,opt,name=UserMetadata,proto3,embedded=UserMetadata" json:""`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RenewableCertificateGenerationMismatch) Reset() {
+	*m = RenewableCertificateGenerationMismatch{}
+}
+func (m *RenewableCertificateGenerationMismatch) String() string { return proto.CompactTextString(m) }
+func (*RenewableCertificateGenerationMismatch) ProtoMessage()    {}
+func (*RenewableCertificateGenerationMismatch) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{84}
+}
+func (m *RenewableCertificateGenerationMismatch) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RenewableCertificateGenerationMismatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RenewableCertificateGenerationMismatch.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RenewableCertificateGenerationMismatch) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RenewableCertificateGenerationMismatch.Merge(m, src)
+}
+func (m *RenewableCertificateGenerationMismatch) XXX_Size() int {
+	return m.Size()
+}
+func (m *RenewableCertificateGenerationMismatch) XXX_DiscardUnknown() {
+	xxx_messageInfo_RenewableCertificateGenerationMismatch.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RenewableCertificateGenerationMismatch proto.InternalMessageInfo
+
+// Unknown is a fallback event used when we don't recognize an event from the backend.
+type Unknown struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// UnknownType is the event type extracted from the unknown event.
+	UnknownType string `protobuf:"bytes,2,opt,name=UnknownType,proto3" json:"unknown_event"`
+	// UnknownCode is the event code extracted from the unknown event.
+	UnknownCode string `protobuf:"bytes,3,opt,name=UnknownCode,proto3" json:"unknown_code,omitempty"`
+	// Data is the serialized JSON data of the unknown event.
+	Data                 string   `protobuf:"bytes,4,opt,name=Data,proto3" json:"data"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Unknown) Reset()         { *m = Unknown{} }
+func (m *Unknown) String() string { return proto.CompactTextString(m) }
+func (*Unknown) ProtoMessage()    {}
+func (*Unknown) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{85}
+}
+func (m *Unknown) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Unknown) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Unknown.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Unknown) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Unknown.Merge(m, src)
+}
+func (m *Unknown) XXX_Size() int {
+	return m.Size()
+}
+func (m *Unknown) XXX_DiscardUnknown() {
+	xxx_messageInfo_Unknown.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Unknown proto.InternalMessageInfo
 
 // OneOf is a union of one of audit events submitted to the auth service
 type OneOf struct {
@@ -4189,6 +4498,27 @@ type OneOf struct {
 	//	*OneOf_PostgresFunctionCall
 	//	*OneOf_AccessRequestDelete
 	//	*OneOf_SessionConnect
+	//	*OneOf_CertificateCreate
+	//	*OneOf_DesktopRecording
+	//	*OneOf_DesktopClipboardSend
+	//	*OneOf_DesktopClipboardReceive
+	//	*OneOf_MySQLStatementPrepare
+	//	*OneOf_MySQLStatementExecute
+	//	*OneOf_MySQLStatementSendLongData
+	//	*OneOf_MySQLStatementClose
+	//	*OneOf_MySQLStatementReset
+	//	*OneOf_MySQLStatementFetch
+	//	*OneOf_MySQLStatementBulkExecute
+	//	*OneOf_RenewableCertificateGenerationMismatch
+	//	*OneOf_Unknown
+	//	*OneOf_MySQLInitDB
+	//	*OneOf_MySQLCreateDB
+	//	*OneOf_MySQLDropDB
+	//	*OneOf_MySQLShutDown
+	//	*OneOf_MySQLProcessKill
+	//	*OneOf_MySQLDebug
+	//	*OneOf_MySQLRefresh
+	//	*OneOf_AccessRequestResourceSearch
 	Event                isOneOf_Event `protobuf_oneof:"Event"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
@@ -4199,7 +4529,7 @@ func (m *OneOf) Reset()         { *m = OneOf{} }
 func (m *OneOf) String() string { return proto.CompactTextString(m) }
 func (*OneOf) ProtoMessage()    {}
 func (*OneOf) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{80}
+	return fileDescriptor_8f22242cb04491f9, []int{86}
 }
 func (m *OneOf) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4435,74 +4765,158 @@ type OneOf_AccessRequestDelete struct {
 type OneOf_SessionConnect struct {
 	SessionConnect *SessionConnect `protobuf:"bytes,67,opt,name=SessionConnect,proto3,oneof" json:"SessionConnect,omitempty"`
 }
+type OneOf_CertificateCreate struct {
+	CertificateCreate *CertificateCreate `protobuf:"bytes,68,opt,name=CertificateCreate,proto3,oneof" json:"CertificateCreate,omitempty"`
+}
+type OneOf_DesktopRecording struct {
+	DesktopRecording *DesktopRecording `protobuf:"bytes,69,opt,name=DesktopRecording,proto3,oneof" json:"DesktopRecording,omitempty"`
+}
+type OneOf_DesktopClipboardSend struct {
+	DesktopClipboardSend *DesktopClipboardSend `protobuf:"bytes,70,opt,name=DesktopClipboardSend,proto3,oneof" json:"DesktopClipboardSend,omitempty"`
+}
+type OneOf_DesktopClipboardReceive struct {
+	DesktopClipboardReceive *DesktopClipboardReceive `protobuf:"bytes,71,opt,name=DesktopClipboardReceive,proto3,oneof" json:"DesktopClipboardReceive,omitempty"`
+}
+type OneOf_MySQLStatementPrepare struct {
+	MySQLStatementPrepare *MySQLStatementPrepare `protobuf:"bytes,72,opt,name=MySQLStatementPrepare,proto3,oneof" json:"MySQLStatementPrepare,omitempty"`
+}
+type OneOf_MySQLStatementExecute struct {
+	MySQLStatementExecute *MySQLStatementExecute `protobuf:"bytes,73,opt,name=MySQLStatementExecute,proto3,oneof" json:"MySQLStatementExecute,omitempty"`
+}
+type OneOf_MySQLStatementSendLongData struct {
+	MySQLStatementSendLongData *MySQLStatementSendLongData `protobuf:"bytes,74,opt,name=MySQLStatementSendLongData,proto3,oneof" json:"MySQLStatementSendLongData,omitempty"`
+}
+type OneOf_MySQLStatementClose struct {
+	MySQLStatementClose *MySQLStatementClose `protobuf:"bytes,75,opt,name=MySQLStatementClose,proto3,oneof" json:"MySQLStatementClose,omitempty"`
+}
+type OneOf_MySQLStatementReset struct {
+	MySQLStatementReset *MySQLStatementReset `protobuf:"bytes,76,opt,name=MySQLStatementReset,proto3,oneof" json:"MySQLStatementReset,omitempty"`
+}
+type OneOf_MySQLStatementFetch struct {
+	MySQLStatementFetch *MySQLStatementFetch `protobuf:"bytes,77,opt,name=MySQLStatementFetch,proto3,oneof" json:"MySQLStatementFetch,omitempty"`
+}
+type OneOf_MySQLStatementBulkExecute struct {
+	MySQLStatementBulkExecute *MySQLStatementBulkExecute `protobuf:"bytes,78,opt,name=MySQLStatementBulkExecute,proto3,oneof" json:"MySQLStatementBulkExecute,omitempty"`
+}
+type OneOf_RenewableCertificateGenerationMismatch struct {
+	RenewableCertificateGenerationMismatch *RenewableCertificateGenerationMismatch `protobuf:"bytes,79,opt,name=RenewableCertificateGenerationMismatch,proto3,oneof" json:"RenewableCertificateGenerationMismatch,omitempty"`
+}
+type OneOf_Unknown struct {
+	Unknown *Unknown `protobuf:"bytes,80,opt,name=Unknown,proto3,oneof" json:"Unknown,omitempty"`
+}
+type OneOf_MySQLInitDB struct {
+	MySQLInitDB *MySQLInitDB `protobuf:"bytes,81,opt,name=MySQLInitDB,proto3,oneof" json:"MySQLInitDB,omitempty"`
+}
+type OneOf_MySQLCreateDB struct {
+	MySQLCreateDB *MySQLCreateDB `protobuf:"bytes,82,opt,name=MySQLCreateDB,proto3,oneof" json:"MySQLCreateDB,omitempty"`
+}
+type OneOf_MySQLDropDB struct {
+	MySQLDropDB *MySQLDropDB `protobuf:"bytes,83,opt,name=MySQLDropDB,proto3,oneof" json:"MySQLDropDB,omitempty"`
+}
+type OneOf_MySQLShutDown struct {
+	MySQLShutDown *MySQLShutDown `protobuf:"bytes,84,opt,name=MySQLShutDown,proto3,oneof" json:"MySQLShutDown,omitempty"`
+}
+type OneOf_MySQLProcessKill struct {
+	MySQLProcessKill *MySQLProcessKill `protobuf:"bytes,85,opt,name=MySQLProcessKill,proto3,oneof" json:"MySQLProcessKill,omitempty"`
+}
+type OneOf_MySQLDebug struct {
+	MySQLDebug *MySQLDebug `protobuf:"bytes,86,opt,name=MySQLDebug,proto3,oneof" json:"MySQLDebug,omitempty"`
+}
+type OneOf_MySQLRefresh struct {
+	MySQLRefresh *MySQLRefresh `protobuf:"bytes,87,opt,name=MySQLRefresh,proto3,oneof" json:"MySQLRefresh,omitempty"`
+}
+type OneOf_AccessRequestResourceSearch struct {
+	AccessRequestResourceSearch *AccessRequestResourceSearch `protobuf:"bytes,88,opt,name=AccessRequestResourceSearch,proto3,oneof" json:"AccessRequestResourceSearch,omitempty"`
+}
 
-func (*OneOf_UserLogin) isOneOf_Event()                  {}
-func (*OneOf_UserCreate) isOneOf_Event()                 {}
-func (*OneOf_UserDelete) isOneOf_Event()                 {}
-func (*OneOf_UserPasswordChange) isOneOf_Event()         {}
-func (*OneOf_SessionStart) isOneOf_Event()               {}
-func (*OneOf_SessionJoin) isOneOf_Event()                {}
-func (*OneOf_SessionPrint) isOneOf_Event()               {}
-func (*OneOf_SessionReject) isOneOf_Event()              {}
-func (*OneOf_Resize) isOneOf_Event()                     {}
-func (*OneOf_SessionEnd) isOneOf_Event()                 {}
-func (*OneOf_SessionCommand) isOneOf_Event()             {}
-func (*OneOf_SessionDisk) isOneOf_Event()                {}
-func (*OneOf_SessionNetwork) isOneOf_Event()             {}
-func (*OneOf_SessionData) isOneOf_Event()                {}
-func (*OneOf_SessionLeave) isOneOf_Event()               {}
-func (*OneOf_PortForward) isOneOf_Event()                {}
-func (*OneOf_X11Forward) isOneOf_Event()                 {}
-func (*OneOf_SCP) isOneOf_Event()                        {}
-func (*OneOf_Exec) isOneOf_Event()                       {}
-func (*OneOf_Subsystem) isOneOf_Event()                  {}
-func (*OneOf_ClientDisconnect) isOneOf_Event()           {}
-func (*OneOf_AuthAttempt) isOneOf_Event()                {}
-func (*OneOf_AccessRequestCreate) isOneOf_Event()        {}
-func (*OneOf_UserTokenCreate) isOneOf_Event()            {}
-func (*OneOf_RoleCreate) isOneOf_Event()                 {}
-func (*OneOf_RoleDelete) isOneOf_Event()                 {}
-func (*OneOf_TrustedClusterCreate) isOneOf_Event()       {}
-func (*OneOf_TrustedClusterDelete) isOneOf_Event()       {}
-func (*OneOf_TrustedClusterTokenCreate) isOneOf_Event()  {}
-func (*OneOf_GithubConnectorCreate) isOneOf_Event()      {}
-func (*OneOf_GithubConnectorDelete) isOneOf_Event()      {}
-func (*OneOf_OIDCConnectorCreate) isOneOf_Event()        {}
-func (*OneOf_OIDCConnectorDelete) isOneOf_Event()        {}
-func (*OneOf_SAMLConnectorCreate) isOneOf_Event()        {}
-func (*OneOf_SAMLConnectorDelete) isOneOf_Event()        {}
-func (*OneOf_KubeRequest) isOneOf_Event()                {}
-func (*OneOf_AppSessionStart) isOneOf_Event()            {}
-func (*OneOf_AppSessionChunk) isOneOf_Event()            {}
-func (*OneOf_AppSessionRequest) isOneOf_Event()          {}
-func (*OneOf_DatabaseSessionStart) isOneOf_Event()       {}
-func (*OneOf_DatabaseSessionEnd) isOneOf_Event()         {}
-func (*OneOf_DatabaseSessionQuery) isOneOf_Event()       {}
-func (*OneOf_SessionUpload) isOneOf_Event()              {}
-func (*OneOf_MFADeviceAdd) isOneOf_Event()               {}
-func (*OneOf_MFADeviceDelete) isOneOf_Event()            {}
-func (*OneOf_BillingInformationUpdate) isOneOf_Event()   {}
-func (*OneOf_BillingCardCreate) isOneOf_Event()          {}
-func (*OneOf_BillingCardDelete) isOneOf_Event()          {}
-func (*OneOf_LockCreate) isOneOf_Event()                 {}
-func (*OneOf_LockDelete) isOneOf_Event()                 {}
-func (*OneOf_RecoveryCodeGenerate) isOneOf_Event()       {}
-func (*OneOf_RecoveryCodeUsed) isOneOf_Event()           {}
-func (*OneOf_DatabaseCreate) isOneOf_Event()             {}
-func (*OneOf_DatabaseUpdate) isOneOf_Event()             {}
-func (*OneOf_DatabaseDelete) isOneOf_Event()             {}
-func (*OneOf_AppCreate) isOneOf_Event()                  {}
-func (*OneOf_AppUpdate) isOneOf_Event()                  {}
-func (*OneOf_AppDelete) isOneOf_Event()                  {}
-func (*OneOf_WindowsDesktopSessionStart) isOneOf_Event() {}
-func (*OneOf_WindowsDesktopSessionEnd) isOneOf_Event()   {}
-func (*OneOf_PostgresParse) isOneOf_Event()              {}
-func (*OneOf_PostgresBind) isOneOf_Event()               {}
-func (*OneOf_PostgresExecute) isOneOf_Event()            {}
-func (*OneOf_PostgresClose) isOneOf_Event()              {}
-func (*OneOf_PostgresFunctionCall) isOneOf_Event()       {}
-func (*OneOf_AccessRequestDelete) isOneOf_Event()        {}
-func (*OneOf_SessionConnect) isOneOf_Event()             {}
+func (*OneOf_UserLogin) isOneOf_Event()                              {}
+func (*OneOf_UserCreate) isOneOf_Event()                             {}
+func (*OneOf_UserDelete) isOneOf_Event()                             {}
+func (*OneOf_UserPasswordChange) isOneOf_Event()                     {}
+func (*OneOf_SessionStart) isOneOf_Event()                           {}
+func (*OneOf_SessionJoin) isOneOf_Event()                            {}
+func (*OneOf_SessionPrint) isOneOf_Event()                           {}
+func (*OneOf_SessionReject) isOneOf_Event()                          {}
+func (*OneOf_Resize) isOneOf_Event()                                 {}
+func (*OneOf_SessionEnd) isOneOf_Event()                             {}
+func (*OneOf_SessionCommand) isOneOf_Event()                         {}
+func (*OneOf_SessionDisk) isOneOf_Event()                            {}
+func (*OneOf_SessionNetwork) isOneOf_Event()                         {}
+func (*OneOf_SessionData) isOneOf_Event()                            {}
+func (*OneOf_SessionLeave) isOneOf_Event()                           {}
+func (*OneOf_PortForward) isOneOf_Event()                            {}
+func (*OneOf_X11Forward) isOneOf_Event()                             {}
+func (*OneOf_SCP) isOneOf_Event()                                    {}
+func (*OneOf_Exec) isOneOf_Event()                                   {}
+func (*OneOf_Subsystem) isOneOf_Event()                              {}
+func (*OneOf_ClientDisconnect) isOneOf_Event()                       {}
+func (*OneOf_AuthAttempt) isOneOf_Event()                            {}
+func (*OneOf_AccessRequestCreate) isOneOf_Event()                    {}
+func (*OneOf_UserTokenCreate) isOneOf_Event()                        {}
+func (*OneOf_RoleCreate) isOneOf_Event()                             {}
+func (*OneOf_RoleDelete) isOneOf_Event()                             {}
+func (*OneOf_TrustedClusterCreate) isOneOf_Event()                   {}
+func (*OneOf_TrustedClusterDelete) isOneOf_Event()                   {}
+func (*OneOf_TrustedClusterTokenCreate) isOneOf_Event()              {}
+func (*OneOf_GithubConnectorCreate) isOneOf_Event()                  {}
+func (*OneOf_GithubConnectorDelete) isOneOf_Event()                  {}
+func (*OneOf_OIDCConnectorCreate) isOneOf_Event()                    {}
+func (*OneOf_OIDCConnectorDelete) isOneOf_Event()                    {}
+func (*OneOf_SAMLConnectorCreate) isOneOf_Event()                    {}
+func (*OneOf_SAMLConnectorDelete) isOneOf_Event()                    {}
+func (*OneOf_KubeRequest) isOneOf_Event()                            {}
+func (*OneOf_AppSessionStart) isOneOf_Event()                        {}
+func (*OneOf_AppSessionChunk) isOneOf_Event()                        {}
+func (*OneOf_AppSessionRequest) isOneOf_Event()                      {}
+func (*OneOf_DatabaseSessionStart) isOneOf_Event()                   {}
+func (*OneOf_DatabaseSessionEnd) isOneOf_Event()                     {}
+func (*OneOf_DatabaseSessionQuery) isOneOf_Event()                   {}
+func (*OneOf_SessionUpload) isOneOf_Event()                          {}
+func (*OneOf_MFADeviceAdd) isOneOf_Event()                           {}
+func (*OneOf_MFADeviceDelete) isOneOf_Event()                        {}
+func (*OneOf_BillingInformationUpdate) isOneOf_Event()               {}
+func (*OneOf_BillingCardCreate) isOneOf_Event()                      {}
+func (*OneOf_BillingCardDelete) isOneOf_Event()                      {}
+func (*OneOf_LockCreate) isOneOf_Event()                             {}
+func (*OneOf_LockDelete) isOneOf_Event()                             {}
+func (*OneOf_RecoveryCodeGenerate) isOneOf_Event()                   {}
+func (*OneOf_RecoveryCodeUsed) isOneOf_Event()                       {}
+func (*OneOf_DatabaseCreate) isOneOf_Event()                         {}
+func (*OneOf_DatabaseUpdate) isOneOf_Event()                         {}
+func (*OneOf_DatabaseDelete) isOneOf_Event()                         {}
+func (*OneOf_AppCreate) isOneOf_Event()                              {}
+func (*OneOf_AppUpdate) isOneOf_Event()                              {}
+func (*OneOf_AppDelete) isOneOf_Event()                              {}
+func (*OneOf_WindowsDesktopSessionStart) isOneOf_Event()             {}
+func (*OneOf_WindowsDesktopSessionEnd) isOneOf_Event()               {}
+func (*OneOf_PostgresParse) isOneOf_Event()                          {}
+func (*OneOf_PostgresBind) isOneOf_Event()                           {}
+func (*OneOf_PostgresExecute) isOneOf_Event()                        {}
+func (*OneOf_PostgresClose) isOneOf_Event()                          {}
+func (*OneOf_PostgresFunctionCall) isOneOf_Event()                   {}
+func (*OneOf_AccessRequestDelete) isOneOf_Event()                    {}
+func (*OneOf_SessionConnect) isOneOf_Event()                         {}
+func (*OneOf_CertificateCreate) isOneOf_Event()                      {}
+func (*OneOf_DesktopRecording) isOneOf_Event()                       {}
+func (*OneOf_DesktopClipboardSend) isOneOf_Event()                   {}
+func (*OneOf_DesktopClipboardReceive) isOneOf_Event()                {}
+func (*OneOf_MySQLStatementPrepare) isOneOf_Event()                  {}
+func (*OneOf_MySQLStatementExecute) isOneOf_Event()                  {}
+func (*OneOf_MySQLStatementSendLongData) isOneOf_Event()             {}
+func (*OneOf_MySQLStatementClose) isOneOf_Event()                    {}
+func (*OneOf_MySQLStatementReset) isOneOf_Event()                    {}
+func (*OneOf_MySQLStatementFetch) isOneOf_Event()                    {}
+func (*OneOf_MySQLStatementBulkExecute) isOneOf_Event()              {}
+func (*OneOf_RenewableCertificateGenerationMismatch) isOneOf_Event() {}
+func (*OneOf_Unknown) isOneOf_Event()                                {}
+func (*OneOf_MySQLInitDB) isOneOf_Event()                            {}
+func (*OneOf_MySQLCreateDB) isOneOf_Event()                          {}
+func (*OneOf_MySQLDropDB) isOneOf_Event()                            {}
+func (*OneOf_MySQLShutDown) isOneOf_Event()                          {}
+func (*OneOf_MySQLProcessKill) isOneOf_Event()                       {}
+func (*OneOf_MySQLDebug) isOneOf_Event()                             {}
+func (*OneOf_MySQLRefresh) isOneOf_Event()                           {}
+func (*OneOf_AccessRequestResourceSearch) isOneOf_Event()            {}
 
 func (m *OneOf) GetEvent() isOneOf_Event {
 	if m != nil {
@@ -4980,6 +5394,153 @@ func (m *OneOf) GetSessionConnect() *SessionConnect {
 	return nil
 }
 
+func (m *OneOf) GetCertificateCreate() *CertificateCreate {
+	if x, ok := m.GetEvent().(*OneOf_CertificateCreate); ok {
+		return x.CertificateCreate
+	}
+	return nil
+}
+
+func (m *OneOf) GetDesktopRecording() *DesktopRecording {
+	if x, ok := m.GetEvent().(*OneOf_DesktopRecording); ok {
+		return x.DesktopRecording
+	}
+	return nil
+}
+
+func (m *OneOf) GetDesktopClipboardSend() *DesktopClipboardSend {
+	if x, ok := m.GetEvent().(*OneOf_DesktopClipboardSend); ok {
+		return x.DesktopClipboardSend
+	}
+	return nil
+}
+
+func (m *OneOf) GetDesktopClipboardReceive() *DesktopClipboardReceive {
+	if x, ok := m.GetEvent().(*OneOf_DesktopClipboardReceive); ok {
+		return x.DesktopClipboardReceive
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLStatementPrepare() *MySQLStatementPrepare {
+	if x, ok := m.GetEvent().(*OneOf_MySQLStatementPrepare); ok {
+		return x.MySQLStatementPrepare
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLStatementExecute() *MySQLStatementExecute {
+	if x, ok := m.GetEvent().(*OneOf_MySQLStatementExecute); ok {
+		return x.MySQLStatementExecute
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLStatementSendLongData() *MySQLStatementSendLongData {
+	if x, ok := m.GetEvent().(*OneOf_MySQLStatementSendLongData); ok {
+		return x.MySQLStatementSendLongData
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLStatementClose() *MySQLStatementClose {
+	if x, ok := m.GetEvent().(*OneOf_MySQLStatementClose); ok {
+		return x.MySQLStatementClose
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLStatementReset() *MySQLStatementReset {
+	if x, ok := m.GetEvent().(*OneOf_MySQLStatementReset); ok {
+		return x.MySQLStatementReset
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLStatementFetch() *MySQLStatementFetch {
+	if x, ok := m.GetEvent().(*OneOf_MySQLStatementFetch); ok {
+		return x.MySQLStatementFetch
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLStatementBulkExecute() *MySQLStatementBulkExecute {
+	if x, ok := m.GetEvent().(*OneOf_MySQLStatementBulkExecute); ok {
+		return x.MySQLStatementBulkExecute
+	}
+	return nil
+}
+
+func (m *OneOf) GetRenewableCertificateGenerationMismatch() *RenewableCertificateGenerationMismatch {
+	if x, ok := m.GetEvent().(*OneOf_RenewableCertificateGenerationMismatch); ok {
+		return x.RenewableCertificateGenerationMismatch
+	}
+	return nil
+}
+
+func (m *OneOf) GetUnknown() *Unknown {
+	if x, ok := m.GetEvent().(*OneOf_Unknown); ok {
+		return x.Unknown
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLInitDB() *MySQLInitDB {
+	if x, ok := m.GetEvent().(*OneOf_MySQLInitDB); ok {
+		return x.MySQLInitDB
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLCreateDB() *MySQLCreateDB {
+	if x, ok := m.GetEvent().(*OneOf_MySQLCreateDB); ok {
+		return x.MySQLCreateDB
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLDropDB() *MySQLDropDB {
+	if x, ok := m.GetEvent().(*OneOf_MySQLDropDB); ok {
+		return x.MySQLDropDB
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLShutDown() *MySQLShutDown {
+	if x, ok := m.GetEvent().(*OneOf_MySQLShutDown); ok {
+		return x.MySQLShutDown
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLProcessKill() *MySQLProcessKill {
+	if x, ok := m.GetEvent().(*OneOf_MySQLProcessKill); ok {
+		return x.MySQLProcessKill
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLDebug() *MySQLDebug {
+	if x, ok := m.GetEvent().(*OneOf_MySQLDebug); ok {
+		return x.MySQLDebug
+	}
+	return nil
+}
+
+func (m *OneOf) GetMySQLRefresh() *MySQLRefresh {
+	if x, ok := m.GetEvent().(*OneOf_MySQLRefresh); ok {
+		return x.MySQLRefresh
+	}
+	return nil
+}
+
+func (m *OneOf) GetAccessRequestResourceSearch() *AccessRequestResourceSearch {
+	if x, ok := m.GetEvent().(*OneOf_AccessRequestResourceSearch); ok {
+		return x.AccessRequestResourceSearch
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*OneOf) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
@@ -5050,6 +5611,27 @@ func (*OneOf) XXX_OneofWrappers() []interface{} {
 		(*OneOf_PostgresFunctionCall)(nil),
 		(*OneOf_AccessRequestDelete)(nil),
 		(*OneOf_SessionConnect)(nil),
+		(*OneOf_CertificateCreate)(nil),
+		(*OneOf_DesktopRecording)(nil),
+		(*OneOf_DesktopClipboardSend)(nil),
+		(*OneOf_DesktopClipboardReceive)(nil),
+		(*OneOf_MySQLStatementPrepare)(nil),
+		(*OneOf_MySQLStatementExecute)(nil),
+		(*OneOf_MySQLStatementSendLongData)(nil),
+		(*OneOf_MySQLStatementClose)(nil),
+		(*OneOf_MySQLStatementReset)(nil),
+		(*OneOf_MySQLStatementFetch)(nil),
+		(*OneOf_MySQLStatementBulkExecute)(nil),
+		(*OneOf_RenewableCertificateGenerationMismatch)(nil),
+		(*OneOf_Unknown)(nil),
+		(*OneOf_MySQLInitDB)(nil),
+		(*OneOf_MySQLCreateDB)(nil),
+		(*OneOf_MySQLDropDB)(nil),
+		(*OneOf_MySQLShutDown)(nil),
+		(*OneOf_MySQLProcessKill)(nil),
+		(*OneOf_MySQLDebug)(nil),
+		(*OneOf_MySQLRefresh)(nil),
+		(*OneOf_AccessRequestResourceSearch)(nil),
 	}
 }
 
@@ -5070,7 +5652,7 @@ func (m *StreamStatus) Reset()         { *m = StreamStatus{} }
 func (m *StreamStatus) String() string { return proto.CompactTextString(m) }
 func (*StreamStatus) ProtoMessage()    {}
 func (*StreamStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{81}
+	return fileDescriptor_8f22242cb04491f9, []int{87}
 }
 func (m *StreamStatus) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5118,7 +5700,7 @@ func (m *SessionUpload) Reset()         { *m = SessionUpload{} }
 func (m *SessionUpload) String() string { return proto.CompactTextString(m) }
 func (*SessionUpload) ProtoMessage()    {}
 func (*SessionUpload) Descriptor() ([]byte, []int) {
-	return fileDescriptor_8f22242cb04491f9, []int{82}
+	return fileDescriptor_8f22242cb04491f9, []int{88}
 }
 func (m *SessionUpload) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5147,6 +5729,972 @@ func (m *SessionUpload) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SessionUpload proto.InternalMessageInfo
 
+// Identity matches github.com/gravitational/teleport/lib/tlsca.Identity except
+// for RouteToApp and RouteToDatabase which are nullable and Traits which is
+// represented as a google.protobuf.Struct (still containing a map from string
+// to strings). Field names match other names already used in other events
+// rather than the field names in tlsca.Identity.
+type Identity struct {
+	// User is a username or name of the node connection
+	User string `protobuf:"bytes,1,opt,name=User,proto3" json:"user,omitempty"`
+	// Impersonator is a username of a user impersonating this user
+	Impersonator string `protobuf:"bytes,2,opt,name=Impersonator,proto3" json:"impersonator,omitempty"`
+	// Roles is a list of groups (Teleport roles) encoded in the identity
+	Roles []string `protobuf:"bytes,3,rep,name=Roles,proto3" json:"roles,omitempty"`
+	// Usage is a list of usage restrictions encoded in the identity
+	Usage []string `protobuf:"bytes,4,rep,name=Usage,proto3" json:"usage,omitempty"`
+	// Logins is a list of Unix logins allowed.
+	Logins []string `protobuf:"bytes,5,rep,name=Logins,proto3" json:"logins,omitempty"`
+	// KubernetesGroups is a list of Kubernetes groups allowed
+	KubernetesGroups []string `protobuf:"bytes,6,rep,name=KubernetesGroups,proto3" json:"kubernetes_groups,omitempty"`
+	// KubernetesUsers is a list of Kubernetes users allowed
+	KubernetesUsers []string `protobuf:"bytes,7,rep,name=KubernetesUsers,proto3" json:"kubernetes_users,omitempty"`
+	// Expires specifies whenever the session will expire
+	Expires time.Time `protobuf:"bytes,8,opt,name=Expires,proto3,stdtime" json:"expires"`
+	// RouteToCluster specifies the target cluster
+	// if present in the session
+	RouteToCluster string `protobuf:"bytes,9,opt,name=RouteToCluster,proto3" json:"route_to_cluster,omitempty"`
+	// KubernetesCluster specifies the target kubernetes cluster for TLS
+	// identities. This can be empty on older Teleport clients.
+	KubernetesCluster string `protobuf:"bytes,10,opt,name=KubernetesCluster,proto3" json:"kubernetes_cluster,omitempty"`
+	// Traits hold claim data used to populate a role at runtime.
+	Traits github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,11,opt,name=Traits,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"traits,omitempty"`
+	// RouteToApp holds routing information for applications. Routing metadata
+	// allows Teleport web proxy to route HTTP requests to the appropriate
+	// cluster and Teleport application proxy within the cluster.
+	RouteToApp *RouteToApp `protobuf:"bytes,12,opt,name=RouteToApp,proto3" json:"route_to_app,omitempty"`
+	// TeleportCluster is the name of the teleport cluster that this identity
+	// originated from. For TLS certs this may not be the same as cert issuer,
+	// in case of multi-hop requests that originate from a remote cluster.
+	TeleportCluster string `protobuf:"bytes,13,opt,name=TeleportCluster,proto3" json:"teleport_cluster,omitempty"`
+	// RouteToDatabase contains routing information for databases.
+	RouteToDatabase *RouteToDatabase `protobuf:"bytes,14,opt,name=RouteToDatabase,proto3" json:"route_to_database,omitempty"`
+	// DatabaseNames is a list of allowed database names.
+	DatabaseNames []string `protobuf:"bytes,15,rep,name=DatabaseNames,proto3" json:"database_names,omitempty"`
+	// DatabaseUsers is a list of allowed database users.
+	DatabaseUsers []string `protobuf:"bytes,16,rep,name=DatabaseUsers,proto3" json:"database_users,omitempty"`
+	// MFADeviceUUID is the UUID of an MFA device when this Identity was
+	// confirmed immediately after an MFA check.
+	MFADeviceUUID string `protobuf:"bytes,17,opt,name=MFADeviceUUID,proto3" json:"mfa_device_uuid,omitempty"`
+	// ClientIP is an observed IP of the client that this Identity represents.
+	ClientIP string `protobuf:"bytes,18,opt,name=ClientIP,proto3" json:"client_ip,omitempty"`
+	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
+	AWSRoleARNs []string `protobuf:"bytes,19,rep,name=AWSRoleARNs,proto3" json:"aws_role_arns,omitempty"`
+	// AccessRequests is a list of UUIDs of active requests for this Identity.
+	AccessRequests []string `protobuf:"bytes,20,rep,name=AccessRequests,proto3" json:"access_requests,omitempty"`
+	// DisallowReissue is a flag that, if set, instructs the auth server to
+	// deny any attempts to reissue new certificates while authenticated with
+	// this certificate.
+	DisallowReissue      bool     `protobuf:"varint,21,opt,name=DisallowReissue,proto3" json:"disallow_reissue,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Identity) Reset()         { *m = Identity{} }
+func (m *Identity) String() string { return proto.CompactTextString(m) }
+func (*Identity) ProtoMessage()    {}
+func (*Identity) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{89}
+}
+func (m *Identity) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Identity) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Identity.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Identity) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Identity.Merge(m, src)
+}
+func (m *Identity) XXX_Size() int {
+	return m.Size()
+}
+func (m *Identity) XXX_DiscardUnknown() {
+	xxx_messageInfo_Identity.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Identity proto.InternalMessageInfo
+
+// RouteToApp contains parameters for application access certificate requests.
+type RouteToApp struct {
+	// Name is the application name certificate is being requested for.
+	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
+	// SessionID is the ID of the application session.
+	SessionID string `protobuf:"bytes,2,opt,name=SessionID,proto3" json:"session_id"`
+	// PublicAddr is the application public address.
+	PublicAddr string `protobuf:"bytes,3,opt,name=PublicAddr,proto3" json:"public_addr"`
+	// ClusterName is the cluster where the application resides.
+	ClusterName string `protobuf:"bytes,4,opt,name=ClusterName,proto3" json:"cluster_name"`
+	// AWSRoleARN is the AWS role to assume when accessing AWS API.
+	AWSRoleARN           string   `protobuf:"bytes,5,opt,name=AWSRoleARN,proto3" json:"aws_role_arn,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RouteToApp) Reset()         { *m = RouteToApp{} }
+func (m *RouteToApp) String() string { return proto.CompactTextString(m) }
+func (*RouteToApp) ProtoMessage()    {}
+func (*RouteToApp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{90}
+}
+func (m *RouteToApp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RouteToApp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RouteToApp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RouteToApp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouteToApp.Merge(m, src)
+}
+func (m *RouteToApp) XXX_Size() int {
+	return m.Size()
+}
+func (m *RouteToApp) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouteToApp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouteToApp proto.InternalMessageInfo
+
+// RouteToDatabase combines parameters for database service routing information.
+type RouteToDatabase struct {
+	// ServiceName is the Teleport database proxy service name the cert is for.
+	ServiceName string `protobuf:"bytes,1,opt,name=ServiceName,proto3" json:"service_name"`
+	// Protocol is the type of the database the cert is for.
+	Protocol string `protobuf:"bytes,2,opt,name=Protocol,proto3" json:"protocol"`
+	// Username is an optional database username to embed.
+	Username string `protobuf:"bytes,3,opt,name=Username,proto3" json:"username,omitempty"`
+	// Database is an optional database name to embed.
+	Database             string   `protobuf:"bytes,4,opt,name=Database,proto3" json:"database,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RouteToDatabase) Reset()         { *m = RouteToDatabase{} }
+func (m *RouteToDatabase) String() string { return proto.CompactTextString(m) }
+func (*RouteToDatabase) ProtoMessage()    {}
+func (*RouteToDatabase) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{91}
+}
+func (m *RouteToDatabase) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RouteToDatabase) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RouteToDatabase.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RouteToDatabase) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouteToDatabase.Merge(m, src)
+}
+func (m *RouteToDatabase) XXX_Size() int {
+	return m.Size()
+}
+func (m *RouteToDatabase) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouteToDatabase.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouteToDatabase proto.InternalMessageInfo
+
+// AccessRequestResourceSearch is emitted when a user searches for resources as
+// part of a search-based access request
+type AccessRequestResourceSearch struct {
+	// Metadata is common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is common user metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SearchAsRoles is the list of roles the search was performed as.
+	SearchAsRoles []string `protobuf:"bytes,3,rep,name=SearchAsRoles,proto3" json:"search_as_roles"`
+	// ResourceType is the type of resource being searched for.
+	ResourceType string `protobuf:"bytes,4,opt,name=ResourceType,proto3" json:"resource_type,omitempty"`
+	// Namespace is the namespace of resources.
+	Namespace string `protobuf:"bytes,5,opt,name=Namespace,proto3" json:"namespace,omitempty"`
+	// Labels is the label-based matcher used for the search.
+	Labels map[string]string `protobuf:"bytes,6,rep,name=Labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// PredicateExpression is the list of boolean conditions that were used for the search.
+	PredicateExpression string `protobuf:"bytes,7,opt,name=PredicateExpression,proto3" json:"predicate_expression,omitempty"`
+	// SearchKeywords is the list of search keywords used to match against resource field values.
+	SearchKeywords       []string `protobuf:"bytes,8,rep,name=SearchKeywords,proto3" json:"search_keywords,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *AccessRequestResourceSearch) Reset()         { *m = AccessRequestResourceSearch{} }
+func (m *AccessRequestResourceSearch) String() string { return proto.CompactTextString(m) }
+func (*AccessRequestResourceSearch) ProtoMessage()    {}
+func (*AccessRequestResourceSearch) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{92}
+}
+func (m *AccessRequestResourceSearch) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AccessRequestResourceSearch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AccessRequestResourceSearch.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *AccessRequestResourceSearch) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AccessRequestResourceSearch.Merge(m, src)
+}
+func (m *AccessRequestResourceSearch) XXX_Size() int {
+	return m.Size()
+}
+func (m *AccessRequestResourceSearch) XXX_DiscardUnknown() {
+	xxx_messageInfo_AccessRequestResourceSearch.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AccessRequestResourceSearch proto.InternalMessageInfo
+
+// MySQLStatementPrepare is emitted when a MySQL client creates a prepared
+// statement using the prepared statement protocol.
+type MySQLStatementPrepare struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// Query is the prepared statement query.
+	Query                string   `protobuf:"bytes,5,opt,name=Query,proto3" json:"query"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLStatementPrepare) Reset()         { *m = MySQLStatementPrepare{} }
+func (m *MySQLStatementPrepare) String() string { return proto.CompactTextString(m) }
+func (*MySQLStatementPrepare) ProtoMessage()    {}
+func (*MySQLStatementPrepare) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{93}
+}
+func (m *MySQLStatementPrepare) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLStatementPrepare) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLStatementPrepare.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLStatementPrepare) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLStatementPrepare.Merge(m, src)
+}
+func (m *MySQLStatementPrepare) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLStatementPrepare) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLStatementPrepare.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLStatementPrepare proto.InternalMessageInfo
+
+// MySQLStatementExecute is emitted when a MySQL client executes a prepared
+// statement using the prepared statement protocol.
+type MySQLStatementExecute struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// StatementID is the identifier of the prepared statement.
+	StatementID uint32 `protobuf:"varint,5,opt,name=StatementID,proto3" json:"statement_id"`
+	// Parameters are the parameters used to execute the prepared statement.
+	Parameters           []string `protobuf:"bytes,6,rep,name=Parameters,proto3" json:"parameters"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLStatementExecute) Reset()         { *m = MySQLStatementExecute{} }
+func (m *MySQLStatementExecute) String() string { return proto.CompactTextString(m) }
+func (*MySQLStatementExecute) ProtoMessage()    {}
+func (*MySQLStatementExecute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{94}
+}
+func (m *MySQLStatementExecute) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLStatementExecute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLStatementExecute.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLStatementExecute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLStatementExecute.Merge(m, src)
+}
+func (m *MySQLStatementExecute) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLStatementExecute) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLStatementExecute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLStatementExecute proto.InternalMessageInfo
+
+// MySQLStatementSendLongData is emitted when a MySQL client sends long bytes
+// stream using the prepared statement protocol.
+type MySQLStatementSendLongData struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// StatementID is the identifier of the prepared statement.
+	StatementID uint32 `protobuf:"varint,5,opt,name=StatementID,proto3" json:"statement_id"`
+	// ParameterID is the identifier of the parameter.
+	ParameterID uint32 `protobuf:"varint,6,opt,name=ParameterID,proto3" json:"parameter_id"`
+	// DataSize is the size of the data.
+	DataSize             uint32   `protobuf:"varint,7,opt,name=DataSize,proto3" json:"data_size"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLStatementSendLongData) Reset()         { *m = MySQLStatementSendLongData{} }
+func (m *MySQLStatementSendLongData) String() string { return proto.CompactTextString(m) }
+func (*MySQLStatementSendLongData) ProtoMessage()    {}
+func (*MySQLStatementSendLongData) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{95}
+}
+func (m *MySQLStatementSendLongData) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLStatementSendLongData) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLStatementSendLongData.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLStatementSendLongData) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLStatementSendLongData.Merge(m, src)
+}
+func (m *MySQLStatementSendLongData) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLStatementSendLongData) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLStatementSendLongData.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLStatementSendLongData proto.InternalMessageInfo
+
+// MySQLStatementClose is emitted when a MySQL client deallocates a prepared
+// statement using the prepared statement protocol.
+type MySQLStatementClose struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// StatementID is the identifier of the prepared statement.
+	StatementID          uint32   `protobuf:"varint,5,opt,name=StatementID,proto3" json:"statement_id"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLStatementClose) Reset()         { *m = MySQLStatementClose{} }
+func (m *MySQLStatementClose) String() string { return proto.CompactTextString(m) }
+func (*MySQLStatementClose) ProtoMessage()    {}
+func (*MySQLStatementClose) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{96}
+}
+func (m *MySQLStatementClose) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLStatementClose) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLStatementClose.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLStatementClose) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLStatementClose.Merge(m, src)
+}
+func (m *MySQLStatementClose) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLStatementClose) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLStatementClose.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLStatementClose proto.InternalMessageInfo
+
+// MySQLStatementReset is emitted when a MySQL client resets the data of a
+// prepared statement using the prepared statement protocol.
+type MySQLStatementReset struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// StatementID is the identifier of the prepared statement.
+	StatementID          uint32   `protobuf:"varint,5,opt,name=StatementID,proto3" json:"statement_id"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLStatementReset) Reset()         { *m = MySQLStatementReset{} }
+func (m *MySQLStatementReset) String() string { return proto.CompactTextString(m) }
+func (*MySQLStatementReset) ProtoMessage()    {}
+func (*MySQLStatementReset) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{97}
+}
+func (m *MySQLStatementReset) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLStatementReset) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLStatementReset.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLStatementReset) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLStatementReset.Merge(m, src)
+}
+func (m *MySQLStatementReset) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLStatementReset) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLStatementReset.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLStatementReset proto.InternalMessageInfo
+
+// MySQLStatementFetch is emitted when a MySQL client fetches rows from a
+// prepared statement using the prepared statement protocol.
+type MySQLStatementFetch struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// StatementID is the identifier of the prepared statement.
+	StatementID uint32 `protobuf:"varint,5,opt,name=StatementID,proto3" json:"statement_id"`
+	// RowsCount is the number of rows to fetch.
+	RowsCount            uint32   `protobuf:"varint,6,opt,name=RowsCount,proto3" json:"rows_count"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLStatementFetch) Reset()         { *m = MySQLStatementFetch{} }
+func (m *MySQLStatementFetch) String() string { return proto.CompactTextString(m) }
+func (*MySQLStatementFetch) ProtoMessage()    {}
+func (*MySQLStatementFetch) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{98}
+}
+func (m *MySQLStatementFetch) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLStatementFetch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLStatementFetch.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLStatementFetch) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLStatementFetch.Merge(m, src)
+}
+func (m *MySQLStatementFetch) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLStatementFetch) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLStatementFetch.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLStatementFetch proto.InternalMessageInfo
+
+// MySQLStatementBulkExecute is emitted when a MySQL client executes a bulk
+// insert of a prepared statement using the prepared statement protocol.
+type MySQLStatementBulkExecute struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// StatementID is the identifier of the prepared statement.
+	StatementID uint32 `protobuf:"varint,5,opt,name=StatementID,proto3" json:"statement_id"`
+	// Parameters are the parameters used to execute the prepared statement.
+	Parameters           []string `protobuf:"bytes,6,rep,name=Parameters,proto3" json:"parameters"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLStatementBulkExecute) Reset()         { *m = MySQLStatementBulkExecute{} }
+func (m *MySQLStatementBulkExecute) String() string { return proto.CompactTextString(m) }
+func (*MySQLStatementBulkExecute) ProtoMessage()    {}
+func (*MySQLStatementBulkExecute) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{99}
+}
+func (m *MySQLStatementBulkExecute) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLStatementBulkExecute) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLStatementBulkExecute.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLStatementBulkExecute) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLStatementBulkExecute.Merge(m, src)
+}
+func (m *MySQLStatementBulkExecute) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLStatementBulkExecute) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLStatementBulkExecute.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLStatementBulkExecute proto.InternalMessageInfo
+
+// MySQLInitDB is emitted when a MySQL client changes the default schema for
+// the connection.
+type MySQLInitDB struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// SchemaName is the name of the schema to use.
+	SchemaName           string   `protobuf:"bytes,5,opt,name=SchemaName,proto3" json:"schema_name"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLInitDB) Reset()         { *m = MySQLInitDB{} }
+func (m *MySQLInitDB) String() string { return proto.CompactTextString(m) }
+func (*MySQLInitDB) ProtoMessage()    {}
+func (*MySQLInitDB) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{100}
+}
+func (m *MySQLInitDB) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLInitDB) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLInitDB.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLInitDB) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLInitDB.Merge(m, src)
+}
+func (m *MySQLInitDB) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLInitDB) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLInitDB.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLInitDB proto.InternalMessageInfo
+
+// MySQLCreateDB is emitted when a MySQL client creates a schema.
+type MySQLCreateDB struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// SchemaName is the name of the schema to create.
+	SchemaName           string   `protobuf:"bytes,5,opt,name=SchemaName,proto3" json:"schema_name"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLCreateDB) Reset()         { *m = MySQLCreateDB{} }
+func (m *MySQLCreateDB) String() string { return proto.CompactTextString(m) }
+func (*MySQLCreateDB) ProtoMessage()    {}
+func (*MySQLCreateDB) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{101}
+}
+func (m *MySQLCreateDB) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLCreateDB) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLCreateDB.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLCreateDB) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLCreateDB.Merge(m, src)
+}
+func (m *MySQLCreateDB) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLCreateDB) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLCreateDB.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLCreateDB proto.InternalMessageInfo
+
+// MySQLDropDB is emitted when a MySQL client drops a schema.
+type MySQLDropDB struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// SchemaName is the name of the schema to drop.
+	SchemaName           string   `protobuf:"bytes,5,opt,name=SchemaName,proto3" json:"schema_name"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLDropDB) Reset()         { *m = MySQLDropDB{} }
+func (m *MySQLDropDB) String() string { return proto.CompactTextString(m) }
+func (*MySQLDropDB) ProtoMessage()    {}
+func (*MySQLDropDB) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{102}
+}
+func (m *MySQLDropDB) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLDropDB) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLDropDB.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLDropDB) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLDropDB.Merge(m, src)
+}
+func (m *MySQLDropDB) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLDropDB) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLDropDB.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLDropDB proto.InternalMessageInfo
+
+// MySQLShutDown is emitted when a MySQL client asks the server to shut down.
+type MySQLShutDown struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata     `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLShutDown) Reset()         { *m = MySQLShutDown{} }
+func (m *MySQLShutDown) String() string { return proto.CompactTextString(m) }
+func (*MySQLShutDown) ProtoMessage()    {}
+func (*MySQLShutDown) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{103}
+}
+func (m *MySQLShutDown) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLShutDown) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLShutDown.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLShutDown) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLShutDown.Merge(m, src)
+}
+func (m *MySQLShutDown) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLShutDown) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLShutDown.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLShutDown proto.InternalMessageInfo
+
+// MySQLProcessKill is emitted when a MySQL client asks the server to terminate
+// a connection.
+type MySQLProcessKill struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// ProcessID is the process ID of a connection.
+	ProcessID            uint32   `protobuf:"varint,5,opt,name=ProcessID,proto3" json:"process_id"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLProcessKill) Reset()         { *m = MySQLProcessKill{} }
+func (m *MySQLProcessKill) String() string { return proto.CompactTextString(m) }
+func (*MySQLProcessKill) ProtoMessage()    {}
+func (*MySQLProcessKill) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{104}
+}
+func (m *MySQLProcessKill) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLProcessKill) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLProcessKill.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLProcessKill) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLProcessKill.Merge(m, src)
+}
+func (m *MySQLProcessKill) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLProcessKill) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLProcessKill.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLProcessKill proto.InternalMessageInfo
+
+// MySQLDebug is emitted when a MySQL client asks the server to dump internal
+// debug info to stdout.
+type MySQLDebug struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata     `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLDebug) Reset()         { *m = MySQLDebug{} }
+func (m *MySQLDebug) String() string { return proto.CompactTextString(m) }
+func (*MySQLDebug) ProtoMessage()    {}
+func (*MySQLDebug) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{105}
+}
+func (m *MySQLDebug) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLDebug) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLDebug.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLDebug) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLDebug.Merge(m, src)
+}
+func (m *MySQLDebug) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLDebug) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLDebug.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLDebug proto.InternalMessageInfo
+
+// MySQLRefresh is emitted when a MySQL client sends refresh commands.
+type MySQLRefresh struct {
+	// Metadata is a common event metadata.
+	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
+	// User is a common user event metadata.
+	UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
+	// SessionMetadata is a common event session metadata.
+	SessionMetadata `protobuf:"bytes,3,opt,name=Session,proto3,embedded=Session" json:""`
+	// Database contains database related metadata.
+	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
+	// Subcommand is the string representation of the subcommand.
+	Subcommand           string   `protobuf:"bytes,5,opt,name=Subcommand,proto3" json:"subcommand"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *MySQLRefresh) Reset()         { *m = MySQLRefresh{} }
+func (m *MySQLRefresh) String() string { return proto.CompactTextString(m) }
+func (*MySQLRefresh) ProtoMessage()    {}
+func (*MySQLRefresh) Descriptor() ([]byte, []int) {
+	return fileDescriptor_8f22242cb04491f9, []int{106}
+}
+func (m *MySQLRefresh) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MySQLRefresh) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MySQLRefresh.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MySQLRefresh) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MySQLRefresh.Merge(m, src)
+}
+func (m *MySQLRefresh) XXX_Size() int {
+	return m.Size()
+}
+func (m *MySQLRefresh) XXX_DiscardUnknown() {
+	xxx_messageInfo_MySQLRefresh.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MySQLRefresh proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterEnum("events.EventAction", EventAction_name, EventAction_value)
 	proto.RegisterEnum("events.SessionNetwork_NetworkOperation", SessionNetwork_NetworkOperation_name, SessionNetwork_NetworkOperation_value)
@@ -5161,6 +6709,9 @@ func init() {
 	proto.RegisterType((*SessionStart)(nil), "events.SessionStart")
 	proto.RegisterType((*SessionJoin)(nil), "events.SessionJoin")
 	proto.RegisterType((*SessionPrint)(nil), "events.SessionPrint")
+	proto.RegisterType((*DesktopRecording)(nil), "events.DesktopRecording")
+	proto.RegisterType((*DesktopClipboardReceive)(nil), "events.DesktopClipboardReceive")
+	proto.RegisterType((*DesktopClipboardSend)(nil), "events.DesktopClipboardSend")
 	proto.RegisterType((*SessionReject)(nil), "events.SessionReject")
 	proto.RegisterType((*SessionConnect)(nil), "events.SessionConnect")
 	proto.RegisterType((*Resize)(nil), "events.Resize")
@@ -5235,366 +6786,501 @@ func init() {
 	proto.RegisterType((*RecoveryCodeUsed)(nil), "events.RecoveryCodeUsed")
 	proto.RegisterType((*WindowsDesktopSessionEnd)(nil), "events.WindowsDesktopSessionEnd")
 	proto.RegisterMapType((map[string]string)(nil), "events.WindowsDesktopSessionEnd.DesktopLabelsEntry")
+	proto.RegisterType((*CertificateCreate)(nil), "events.CertificateCreate")
+	proto.RegisterType((*RenewableCertificateGenerationMismatch)(nil), "events.RenewableCertificateGenerationMismatch")
+	proto.RegisterType((*Unknown)(nil), "events.Unknown")
 	proto.RegisterType((*OneOf)(nil), "events.OneOf")
 	proto.RegisterType((*StreamStatus)(nil), "events.StreamStatus")
 	proto.RegisterType((*SessionUpload)(nil), "events.SessionUpload")
+	proto.RegisterType((*Identity)(nil), "events.Identity")
+	proto.RegisterType((*RouteToApp)(nil), "events.RouteToApp")
+	proto.RegisterType((*RouteToDatabase)(nil), "events.RouteToDatabase")
+	proto.RegisterType((*AccessRequestResourceSearch)(nil), "events.AccessRequestResourceSearch")
+	proto.RegisterMapType((map[string]string)(nil), "events.AccessRequestResourceSearch.LabelsEntry")
+	proto.RegisterType((*MySQLStatementPrepare)(nil), "events.MySQLStatementPrepare")
+	proto.RegisterType((*MySQLStatementExecute)(nil), "events.MySQLStatementExecute")
+	proto.RegisterType((*MySQLStatementSendLongData)(nil), "events.MySQLStatementSendLongData")
+	proto.RegisterType((*MySQLStatementClose)(nil), "events.MySQLStatementClose")
+	proto.RegisterType((*MySQLStatementReset)(nil), "events.MySQLStatementReset")
+	proto.RegisterType((*MySQLStatementFetch)(nil), "events.MySQLStatementFetch")
+	proto.RegisterType((*MySQLStatementBulkExecute)(nil), "events.MySQLStatementBulkExecute")
+	proto.RegisterType((*MySQLInitDB)(nil), "events.MySQLInitDB")
+	proto.RegisterType((*MySQLCreateDB)(nil), "events.MySQLCreateDB")
+	proto.RegisterType((*MySQLDropDB)(nil), "events.MySQLDropDB")
+	proto.RegisterType((*MySQLShutDown)(nil), "events.MySQLShutDown")
+	proto.RegisterType((*MySQLProcessKill)(nil), "events.MySQLProcessKill")
+	proto.RegisterType((*MySQLDebug)(nil), "events.MySQLDebug")
+	proto.RegisterType((*MySQLRefresh)(nil), "events.MySQLRefresh")
 }
 
 func init() { proto.RegisterFile("events.proto", fileDescriptor_8f22242cb04491f9) }
 
 var fileDescriptor_8f22242cb04491f9 = []byte{
-	// 5611 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x3d, 0x5b, 0x6c, 0x1c, 0x59,
-	0x56, 0xfd, 0x70, 0x3f, 0x7c, 0xda, 0x4e, 0xec, 0x1b, 0x27, 0xa9, 0x78, 0x92, 0x74, 0xa6, 0xb2,
-	0x9b, 0x49, 0x76, 0x33, 0xce, 0x26, 0xf1, 0x4c, 0x76, 0x67, 0x67, 0x36, 0x69, 0x77, 0x3b, 0xe3,
-	0x66, 0x9c, 0xb8, 0xe7, 0xda, 0x99, 0x59, 0x09, 0xed, 0xb4, 0xca, 0x5d, 0x37, 0x76, 0x4d, 0xba,
-	0xab, 0x6a, 0xaa, 0xaa, 0x9d, 0x78, 0xbe, 0x78, 0x49, 0xa0, 0xd5, 0x80, 0x56, 0xcb, 0x07, 0x1f,
-	0x7c, 0x80, 0x16, 0xf1, 0x81, 0x84, 0x58, 0x04, 0xd2, 0x0a, 0x09, 0x7e, 0xd0, 0x00, 0x0a, 0x42,
-	0x0b, 0x0b, 0x8b, 0xf8, 0xa3, 0x81, 0x41, 0x08, 0xa9, 0xe1, 0x8f, 0x0f, 0x10, 0x5f, 0xe8, 0x3e,
-	0xaa, 0xea, 0xd6, 0xa3, 0x9d, 0x71, 0xec, 0xc5, 0x72, 0x92, 0xaf, 0xa4, 0xcf, 0xeb, 0xd6, 0x3d,
-	0xe7, 0x3e, 0xce, 0x3d, 0xf7, 0x9e, 0x63, 0x98, 0x20, 0x5b, 0xc4, 0xf4, 0xdc, 0x39, 0xdb, 0xb1,
-	0x3c, 0x0b, 0x15, 0xf9, 0xaf, 0xd9, 0x99, 0x0d, 0x6b, 0xc3, 0x62, 0xa0, 0x2b, 0xf4, 0x7f, 0x1c,
-	0x3b, 0x5b, 0xdd, 0xb0, 0xac, 0x8d, 0x2e, 0xb9, 0xc2, 0x7e, 0xad, 0xf7, 0xef, 0x5f, 0xf1, 0x8c,
-	0x1e, 0x71, 0x3d, 0xad, 0x67, 0x0b, 0x82, 0xd3, 0x71, 0x02, 0xd7, 0x73, 0xfa, 0x1d, 0x8f, 0x63,
-	0xd5, 0xef, 0xe6, 0xa0, 0x7c, 0x87, 0x78, 0x9a, 0xae, 0x79, 0x1a, 0x3a, 0x0d, 0x85, 0xa6, 0xa9,
-	0x93, 0x47, 0x4a, 0xf6, 0x5c, 0xf6, 0x62, 0x7e, 0xa1, 0x38, 0x1c, 0x54, 0x73, 0xc4, 0xc0, 0x1c,
-	0x88, 0xce, 0xc0, 0xd8, 0xda, 0xb6, 0x4d, 0x94, 0xdc, 0xb9, 0xec, 0xc5, 0xf1, 0x85, 0xf1, 0xe1,
-	0xa0, 0x5a, 0x60, 0x5f, 0x86, 0x19, 0x18, 0xbd, 0x0c, 0xb9, 0x66, 0x43, 0xc9, 0x33, 0xe4, 0xf4,
-	0x70, 0x50, 0x9d, 0xec, 0x1b, 0xfa, 0x65, 0xab, 0x67, 0x78, 0xa4, 0x67, 0x7b, 0xdb, 0x38, 0xd7,
-	0x6c, 0xa0, 0x0b, 0x30, 0x56, 0xb7, 0x74, 0xa2, 0x8c, 0x31, 0x22, 0x34, 0x1c, 0x54, 0x8f, 0x74,
-	0x2c, 0x9d, 0x48, 0x54, 0x0c, 0x8f, 0x6e, 0xc1, 0xd8, 0x9a, 0xd1, 0x23, 0x4a, 0xe1, 0x5c, 0xf6,
-	0x62, 0xe5, 0xda, 0xec, 0x1c, 0xef, 0xc1, 0x9c, 0xdf, 0x83, 0xb9, 0x35, 0xbf, 0x8b, 0x0b, 0x53,
-	0x8f, 0x07, 0xd5, 0xcc, 0x70, 0x50, 0x1d, 0xa3, 0xbd, 0xfe, 0xce, 0x3f, 0x55, 0xb3, 0x98, 0x71,
-	0xa2, 0x37, 0xa1, 0x52, 0xef, 0xf6, 0x5d, 0x8f, 0x38, 0x77, 0xb5, 0x1e, 0x51, 0x8a, 0xac, 0xc1,
-	0xd9, 0xe1, 0xa0, 0x7a, 0xa2, 0xc3, 0xc1, 0x6d, 0x53, 0xeb, 0xc9, 0x0d, 0xcb, 0xe4, 0xea, 0x87,
-	0x70, 0x74, 0x95, 0xb8, 0xae, 0x61, 0x99, 0x81, 0x6a, 0xbe, 0x08, 0xe3, 0x02, 0xd4, 0x6c, 0x30,
-	0xf5, 0x8c, 0x2f, 0x94, 0x86, 0x83, 0x6a, 0xde, 0x35, 0x74, 0x1c, 0x62, 0xd0, 0x57, 0xa0, 0xf4,
-	0xbe, 0xe1, 0x6d, 0xde, 0xb9, 0x5d, 0x13, 0x6a, 0x3a, 0x31, 0x1c, 0x54, 0xd1, 0x43, 0xc3, 0xdb,
-	0x6c, 0xf7, 0xee, 0x6b, 0x52, 0x7b, 0x3e, 0x99, 0xfa, 0x8f, 0x59, 0x98, 0xb8, 0xe7, 0x12, 0x27,
-	0x68, 0xe9, 0x02, 0x8c, 0xd1, 0xdf, 0xa2, 0x11, 0xa6, 0xa4, 0xbe, 0x4b, 0x1c, 0x59, 0x49, 0x14,
-	0x8f, 0x2e, 0x41, 0x61, 0xd9, 0xda, 0x30, 0x4c, 0xd1, 0xd0, 0xb1, 0xe1, 0xa0, 0x7a, 0xb4, 0x4b,
-	0x01, 0x12, 0x25, 0xa7, 0x40, 0xdf, 0x80, 0x89, 0x66, 0xcf, 0x26, 0x8e, 0x6b, 0x99, 0x9a, 0x67,
-	0x39, 0xc2, 0x48, 0x4c, 0x1d, 0x86, 0x04, 0x97, 0x18, 0x23, 0xf4, 0xe8, 0x0d, 0x80, 0xda, 0xfb,
-	0xab, 0xd8, 0xea, 0x92, 0x1a, 0xbe, 0x2b, 0xac, 0xc7, 0xb8, 0xb5, 0x87, 0x6e, 0xdb, 0xb1, 0xba,
-	0xa4, 0xad, 0x39, 0x72, 0xb3, 0x12, 0xb5, 0xfa, 0xfb, 0x79, 0x38, 0xb2, 0x4a, 0x9c, 0x2d, 0xa9,
-	0x87, 0x35, 0xaa, 0x5e, 0x0a, 0xa1, 0xca, 0x76, 0x6d, 0xad, 0x43, 0x44, 0x67, 0x4f, 0x0e, 0x07,
-	0xd5, 0x63, 0xa6, 0x0f, 0x94, 0x04, 0xc6, 0xe9, 0xd1, 0x25, 0x28, 0x73, 0x50, 0xb3, 0x21, 0xfa,
-	0x3f, 0x39, 0x1c, 0x54, 0xc7, 0x5d, 0x06, 0x6b, 0x1b, 0x3a, 0x0e, 0xd0, 0x68, 0xd1, 0x6f, 0x7f,
-	0xc9, 0x72, 0x3d, 0x2a, 0x5c, 0x74, 0xff, 0xcc, 0x70, 0x50, 0x3d, 0x25, 0x18, 0x36, 0x05, 0x4a,
-	0x6a, 0x32, 0xc6, 0x84, 0xbe, 0x06, 0xc0, 0x21, 0x35, 0x5d, 0x77, 0x84, 0x0e, 0x4e, 0x0d, 0x07,
-	0xd5, 0xe3, 0x42, 0x84, 0xa6, 0xeb, 0xb2, 0x02, 0x25, 0x62, 0xd4, 0x83, 0x09, 0xfe, 0x6b, 0x59,
-	0x5b, 0x27, 0x5d, 0x57, 0x29, 0x9c, 0xcb, 0x5f, 0xac, 0x5c, 0xbb, 0x38, 0x27, 0x66, 0x79, 0x54,
-	0x3b, 0x73, 0x32, 0xe9, 0xa2, 0xe9, 0x39, 0xdb, 0x0b, 0x55, 0x31, 0xc8, 0x4f, 0x8a, 0xa6, 0xba,
-	0x0c, 0x27, 0x5b, 0x4b, 0xe6, 0x99, 0xbd, 0x09, 0xd3, 0x09, 0x19, 0x68, 0x0a, 0xf2, 0x0f, 0xc8,
-	0x36, 0xd7, 0x33, 0xa6, 0xff, 0x45, 0x33, 0x50, 0xd8, 0xd2, 0xba, 0x7d, 0x31, 0x9f, 0x31, 0xff,
-	0xf1, 0x46, 0xee, 0xab, 0x59, 0xf5, 0x8f, 0xb2, 0x80, 0xea, 0x96, 0x69, 0x92, 0x8e, 0x27, 0x4f,
-	0x81, 0xd7, 0x61, 0x7c, 0xd9, 0xea, 0x68, 0x5d, 0xa6, 0x00, 0x6e, 0x30, 0x65, 0x38, 0xa8, 0xce,
-	0xd0, 0x9e, 0xcf, 0x75, 0x29, 0x46, 0xfa, 0xa4, 0x90, 0x94, 0x6a, 0x0e, 0x93, 0x9e, 0xe5, 0x11,
-	0xc6, 0x98, 0x0b, 0x35, 0xc7, 0x18, 0x1d, 0x86, 0x92, 0x35, 0x17, 0x12, 0xa3, 0x2b, 0x50, 0x6e,
-	0xd1, 0x49, 0xdf, 0xb1, 0xba, 0xc2, 0x6a, 0x6c, 0x98, 0xb3, 0x85, 0x40, 0x62, 0x09, 0x88, 0xd4,
-	0x9f, 0xcb, 0xc1, 0xa9, 0x77, 0xfa, 0xeb, 0xc4, 0x31, 0x89, 0x47, 0x5c, 0x31, 0xa7, 0x83, 0x1e,
-	0xdc, 0x85, 0xe9, 0x04, 0x52, 0xf4, 0xe4, 0xdc, 0x70, 0x50, 0x3d, 0xfd, 0x20, 0x40, 0xb6, 0xc5,
-	0x32, 0x21, 0x35, 0x92, 0x64, 0x45, 0x4b, 0x70, 0x34, 0x04, 0xd2, 0x49, 0xe9, 0x2a, 0xb9, 0x73,
-	0xf9, 0x8b, 0xe3, 0x0b, 0x67, 0x87, 0x83, 0xea, 0xac, 0x24, 0x8d, 0x4e, 0x60, 0xd9, 0x60, 0x71,
-	0x36, 0xf4, 0x0e, 0x4c, 0x85, 0xa0, 0xb7, 0x1d, 0xab, 0x6f, 0xbb, 0x4a, 0x9e, 0x89, 0xaa, 0x0e,
-	0x07, 0xd5, 0x97, 0x24, 0x51, 0x1b, 0x0c, 0x29, 0xc9, 0x4a, 0x30, 0xaa, 0xff, 0x96, 0x87, 0xe3,
-	0x21, 0xb0, 0x65, 0xe9, 0x81, 0x02, 0x56, 0x64, 0x05, 0xb4, 0x2c, 0x9d, 0x2d, 0x8e, 0x5c, 0x01,
-	0x2f, 0x0f, 0x07, 0xd5, 0x33, 0x52, 0x3b, 0xb6, 0xa5, 0xc7, 0xd7, 0xc8, 0x24, 0x2f, 0xfa, 0x00,
-	0x4e, 0x24, 0x80, 0x7c, 0x46, 0x73, 0x3b, 0x5f, 0x18, 0x0e, 0xaa, 0x6a, 0x8a, 0xd4, 0xf8, 0x04,
-	0x1f, 0x21, 0x05, 0x69, 0x70, 0x52, 0x52, 0xbb, 0x65, 0x7a, 0x9a, 0x61, 0x8a, 0x35, 0x9d, 0x8f,
-	0x87, 0x57, 0x86, 0x83, 0xea, 0x79, 0xd9, 0x6e, 0x3e, 0x4d, 0xfc, 0xe3, 0x47, 0xc9, 0x41, 0x3a,
-	0x28, 0x29, 0xa8, 0x66, 0x4f, 0xdb, 0xf0, 0x37, 0xaa, 0x8b, 0xc3, 0x41, 0xf5, 0x0b, 0xa9, 0x6d,
-	0x18, 0x94, 0x4a, 0x6a, 0x64, 0xa4, 0x24, 0x84, 0x01, 0x85, 0xb8, 0xbb, 0x96, 0x4e, 0x58, 0x1f,
-	0x0a, 0x4c, 0xbe, 0x3a, 0x1c, 0x54, 0xcf, 0x4a, 0xf2, 0x4d, 0x4b, 0x27, 0xf1, 0xcf, 0x4f, 0xe1,
-	0x56, 0xbf, 0x53, 0xa4, 0x0b, 0x0b, 0xdb, 0x7a, 0x56, 0x3d, 0xcd, 0xf1, 0xd0, 0x1b, 0xe1, 0x5e,
-	0xce, 0xac, 0x5a, 0xb9, 0x36, 0xe5, 0x2f, 0x32, 0x3e, 0x7c, 0x61, 0x82, 0x2e, 0x26, 0x3f, 0x1a,
-	0x54, 0xb3, 0xc3, 0x41, 0x35, 0x83, 0xcb, 0xd2, 0xec, 0xe6, 0xdb, 0x4e, 0x8e, 0xf1, 0xcd, 0xf8,
-	0x7c, 0xf2, 0xd6, 0x14, 0xe3, 0xe5, 0xdb, 0xd0, 0x4d, 0x28, 0x89, 0x6f, 0x60, 0x16, 0xa9, 0x5c,
-	0x3b, 0x19, 0xae, 0x6b, 0x91, 0x2d, 0x34, 0xc6, 0xed, 0x73, 0xa1, 0x37, 0xa1, 0xc8, 0x97, 0x2b,
-	0xa6, 0xed, 0xca, 0xb5, 0x13, 0xe9, 0xeb, 0x62, 0x8c, 0x5d, 0xf0, 0xa0, 0x25, 0x80, 0x70, 0xa9,
-	0x0a, 0x1c, 0x06, 0x21, 0x21, 0xb9, 0x88, 0xc5, 0xa4, 0x48, 0xbc, 0xe8, 0x75, 0x98, 0x58, 0x23,
-	0x4e, 0xcf, 0x30, 0xb5, 0xee, 0xaa, 0xf1, 0xb1, 0xef, 0x33, 0xb0, 0xfd, 0xd7, 0x35, 0x3e, 0x96,
-	0x6d, 0x11, 0xa1, 0x43, 0xdf, 0x4a, 0x5b, 0x54, 0x4a, 0xec, 0x43, 0x5e, 0xf6, 0x3f, 0x64, 0xe4,
-	0x92, 0x14, 0xfb, 0x9e, 0x94, 0x35, 0xe6, 0x5d, 0x98, 0x8c, 0xcc, 0x0d, 0xa5, 0xcc, 0x44, 0x9f,
-	0x49, 0x8a, 0x96, 0x26, 0x7a, 0x4c, 0x6c, 0x54, 0x02, 0xdd, 0x11, 0x9b, 0xa6, 0xe1, 0x19, 0x5a,
-	0xb7, 0x6e, 0xf5, 0x7a, 0x9a, 0xa9, 0x2b, 0xe3, 0x6c, 0xa9, 0x61, 0x3b, 0xa2, 0xc1, 0x31, 0xed,
-	0x0e, 0x47, 0xc9, 0x3b, 0x62, 0x94, 0x89, 0xae, 0x59, 0xc2, 0x86, 0x98, 0x74, 0x2c, 0x47, 0x37,
-	0xcc, 0x0d, 0x05, 0x98, 0xd2, 0xd8, 0x9a, 0xe5, 0x72, 0x5c, 0xdb, 0xf1, 0x91, 0xf2, 0x9a, 0x15,
-	0x67, 0xa4, 0xdf, 0x54, 0xeb, 0x74, 0x88, 0xeb, 0x62, 0xf2, 0x51, 0x9f, 0xb8, 0x9e, 0xab, 0x54,
-	0xc2, 0x6f, 0xd2, 0x18, 0xa6, 0xed, 0x08, 0x94, 0xfc, 0x4d, 0x51, 0x26, 0xf5, 0x77, 0xf2, 0x50,
-	0x11, 0xb2, 0x7f, 0xca, 0x32, 0xcc, 0x17, 0x33, 0x62, 0x2f, 0x33, 0x22, 0x75, 0x64, 0x17, 0xf7,
-	0x6b, 0x64, 0xab, 0x9f, 0xe4, 0x82, 0xe5, 0xab, 0xe5, 0x18, 0xe6, 0xde, 0x96, 0xaf, 0x0b, 0x00,
-	0xf5, 0xcd, 0xbe, 0xf9, 0x80, 0x9f, 0x5f, 0x72, 0xe1, 0xf9, 0xa5, 0x63, 0x60, 0x09, 0x43, 0x0f,
-	0x31, 0x0d, 0x2a, 0x9f, 0x5a, 0x66, 0x62, 0x61, 0xfc, 0x31, 0x97, 0x94, 0x7d, 0x15, 0x33, 0x30,
-	0xaa, 0x42, 0x61, 0x61, 0xdb, 0x23, 0x2e, 0xd3, 0x7c, 0x9e, 0x1f, 0x72, 0xd6, 0x29, 0x00, 0x73,
-	0x38, 0x9a, 0x87, 0xe9, 0x06, 0xe9, 0x6a, 0xdb, 0x77, 0x8c, 0x6e, 0xd7, 0x70, 0x49, 0xc7, 0x32,
-	0x75, 0x97, 0x29, 0x59, 0x34, 0xd7, 0x73, 0x71, 0x92, 0x00, 0xa9, 0x50, 0x5c, 0xb9, 0x7f, 0xdf,
-	0x25, 0x1e, 0x53, 0x5f, 0x7e, 0x01, 0x86, 0x83, 0x6a, 0xd1, 0x62, 0x10, 0x2c, 0x30, 0xea, 0xdf,
-	0xe5, 0x60, 0x32, 0x98, 0x16, 0x1f, 0x92, 0xce, 0xc1, 0x2c, 0xe7, 0xe1, 0xd8, 0xcb, 0xef, 0x79,
-	0xec, 0x8d, 0xed, 0x61, 0xec, 0xa9, 0x50, 0xc4, 0x44, 0x73, 0xc5, 0x08, 0x1e, 0xe7, 0x1a, 0x73,
-	0x18, 0x04, 0x0b, 0x0c, 0x7a, 0x19, 0x4a, 0x77, 0xb4, 0x47, 0x46, 0xaf, 0xdf, 0x13, 0x6a, 0x65,
-	0x27, 0xb2, 0x9e, 0xf6, 0x08, 0xfb, 0x70, 0xf5, 0xef, 0xb3, 0xd4, 0xfb, 0x67, 0x4a, 0x15, 0xc2,
-	0xf7, 0xa4, 0xd5, 0x50, 0x3b, 0xb9, 0x3d, 0x6b, 0x27, 0xff, 0xf4, 0xda, 0x51, 0xbf, 0x3f, 0x46,
-	0xd5, 0x43, 0xb7, 0xa5, 0xc3, 0xb9, 0xc2, 0xed, 0xdf, 0x38, 0x09, 0x2d, 0x52, 0x78, 0x0a, 0x8b,
-	0x3c, 0x37, 0x7b, 0xbe, 0xfa, 0xdf, 0x25, 0x7a, 0x7e, 0x65, 0xda, 0x5f, 0x34, 0xf5, 0x17, 0xa3,
-	0x66, 0x2f, 0xa3, 0xa6, 0x01, 0xd3, 0x8b, 0xe6, 0xa6, 0x66, 0x76, 0x88, 0x1e, 0x7a, 0x3e, 0x74,
-	0xe8, 0x94, 0x79, 0xb8, 0x87, 0x08, 0x64, 0xe8, 0xfa, 0xe0, 0x24, 0x03, 0xba, 0x0a, 0x95, 0xa6,
-	0xe9, 0x11, 0x47, 0xeb, 0x78, 0xc6, 0x16, 0x61, 0xa3, 0xa7, 0xbc, 0x70, 0x74, 0x38, 0xa8, 0x56,
-	0x8c, 0x10, 0x8c, 0x65, 0x1a, 0x34, 0x0f, 0x13, 0x2d, 0xcd, 0xf1, 0x8c, 0x8e, 0x61, 0x6b, 0xa6,
-	0xe7, 0x2a, 0x65, 0xe6, 0x22, 0x4d, 0x0d, 0x07, 0xd5, 0x09, 0x5b, 0x82, 0xe3, 0x08, 0x15, 0xfa,
-	0x16, 0x8c, 0xb3, 0xe3, 0x01, 0x0b, 0xa9, 0x8d, 0x3f, 0x31, 0xa4, 0x76, 0x3e, 0x8c, 0x36, 0x70,
-	0x07, 0xce, 0xa5, 0xcc, 0xe1, 0x54, 0x60, 0x51, 0xb6, 0x50, 0x22, 0xfa, 0x26, 0x94, 0x16, 0x4d,
-	0x9d, 0x09, 0x87, 0x27, 0x0a, 0x57, 0x85, 0xf0, 0x13, 0xa1, 0x70, 0xcb, 0x8e, 0xc9, 0xf6, 0xc5,
-	0xa5, 0xcf, 0xb2, 0xca, 0x4f, 0x6e, 0x96, 0x4d, 0xfc, 0x04, 0x3c, 0xeb, 0xc9, 0xfd, 0xf2, 0xac,
-	0x8f, 0x3c, 0xa5, 0x67, 0xad, 0x7e, 0x0c, 0x95, 0x85, 0xd6, 0xed, 0x60, 0xf6, 0x9e, 0x82, 0x7c,
-	0x4b, 0x84, 0x30, 0xc7, 0xf8, 0x86, 0x69, 0x1b, 0x3a, 0xa6, 0x30, 0x74, 0x09, 0xca, 0x75, 0x16,
-	0x5e, 0x10, 0x41, 0xb5, 0x31, 0x1e, 0x54, 0xeb, 0x30, 0x18, 0x0b, 0xaa, 0xf9, 0x68, 0xf4, 0x45,
-	0x28, 0xb5, 0x1c, 0x6b, 0xc3, 0xd1, 0x7a, 0xe2, 0x1c, 0x5e, 0x19, 0x0e, 0xaa, 0x25, 0x9b, 0x83,
-	0xb0, 0x8f, 0x53, 0x7f, 0x35, 0x0b, 0xc5, 0x55, 0x4f, 0xf3, 0xfa, 0x2e, 0xe5, 0x58, 0xed, 0x33,
-	0x67, 0x9d, 0xb5, 0x5d, 0xe6, 0x1c, 0x2e, 0x07, 0x61, 0x1f, 0x87, 0x2e, 0x41, 0x61, 0xd1, 0x71,
-	0x2c, 0x47, 0x8e, 0x6a, 0x12, 0x0a, 0x90, 0xa3, 0x9a, 0x8c, 0x02, 0xdd, 0x80, 0x0a, 0x5f, 0x73,
-	0x5c, 0x97, 0x9e, 0xd5, 0xf9, 0x77, 0x1c, 0x1f, 0x0e, 0xaa, 0xd3, 0x3d, 0x0e, 0x92, 0xc3, 0xbb,
-	0x12, 0xa5, 0xfa, 0x69, 0x5e, 0x72, 0x0a, 0xb8, 0xc6, 0x9f, 0xc3, 0x73, 0xc2, 0x75, 0xc8, 0x2f,
-	0xb4, 0x6e, 0x8b, 0x05, 0xf0, 0x98, 0xcf, 0x2a, 0x0d, 0x95, 0x18, 0x1f, 0xa5, 0x46, 0xa7, 0x61,
-	0xac, 0x45, 0x87, 0x4f, 0x91, 0x0d, 0x8f, 0xf2, 0x70, 0x50, 0x1d, 0xb3, 0xe9, 0xf8, 0x61, 0x50,
-	0x86, 0xd5, 0xbc, 0x4d, 0xb6, 0x96, 0x8d, 0x0b, 0xac, 0xe6, 0x6d, 0x62, 0x06, 0xa5, 0xd8, 0x9a,
-	0xb3, 0xb1, 0x25, 0x56, 0x2d, 0x86, 0xd5, 0x9c, 0x8d, 0x2d, 0xcc, 0xa0, 0xe8, 0x0a, 0x00, 0x26,
-	0x5e, 0xdf, 0x31, 0xd9, 0x0d, 0x01, 0x5d, 0xa6, 0x0a, 0x7c, 0x35, 0x74, 0x18, 0xb4, 0xdd, 0xb1,
-	0x74, 0x82, 0x25, 0x12, 0xf5, 0xb7, 0xc3, 0xa3, 0x5e, 0xc3, 0x70, 0x1f, 0xbc, 0x30, 0xe1, 0x2e,
-	0x4c, 0x48, 0x8d, 0x54, 0x4c, 0x35, 0x52, 0x15, 0x0a, 0xb7, 0xbb, 0xda, 0x86, 0xcb, 0x6c, 0x58,
-	0xe0, 0x07, 0xa0, 0xfb, 0x14, 0x80, 0x39, 0x3c, 0x66, 0xa7, 0xf2, 0x93, 0xed, 0xf4, 0x6b, 0x85,
-	0x60, 0xb6, 0xdd, 0x25, 0xde, 0x43, 0xcb, 0x79, 0x61, 0xaa, 0xcf, 0x6b, 0xaa, 0x0b, 0x50, 0x5a,
-	0x75, 0x3a, 0x2c, 0x6c, 0xce, 0xad, 0x35, 0x31, 0x1c, 0x54, 0xcb, 0xae, 0xd3, 0x61, 0xb7, 0x0d,
-	0xd8, 0x47, 0x52, 0xba, 0x86, 0xeb, 0x31, 0xba, 0x52, 0x48, 0xa7, 0xbb, 0x9e, 0xa0, 0x13, 0x48,
-	0x41, 0xd7, 0xb2, 0x1c, 0x4f, 0x18, 0x2e, 0xa0, 0xb3, 0x2d, 0xc7, 0xc3, 0x3e, 0x12, 0x7d, 0x19,
-	0x60, 0xad, 0xde, 0x7a, 0x8f, 0x38, 0x4c, 0x5d, 0x7c, 0x2e, 0xb2, 0xe5, 0x7a, 0x8b, 0x83, 0xb0,
-	0x84, 0x46, 0x6b, 0x30, 0xbe, 0x62, 0x13, 0x47, 0x63, 0x4e, 0x19, 0xf5, 0x00, 0x8e, 0x5c, 0x7b,
-	0x25, 0xa6, 0x5a, 0x61, 0xf7, 0x39, 0xf1, 0x6f, 0x40, 0xce, 0xf7, 0x17, 0xcb, 0xff, 0x89, 0x43,
-	0x41, 0xe8, 0x06, 0x14, 0x6b, 0xdc, 0xcf, 0xab, 0x30, 0x91, 0x81, 0xca, 0x16, 0xe9, 0x3f, 0x1c,
-	0xc5, 0x0f, 0x85, 0x1a, 0xfb, 0x3f, 0x16, 0xe4, 0xea, 0x25, 0x98, 0x8a, 0x37, 0x83, 0x2a, 0x50,
-	0xaa, 0xaf, 0xdc, 0xbd, 0xbb, 0x58, 0x5f, 0x9b, 0xca, 0xa0, 0x32, 0x8c, 0xad, 0x2e, 0xde, 0x6d,
-	0x4c, 0x65, 0xd5, 0xdf, 0x95, 0x56, 0x10, 0x3a, 0xb4, 0x5e, 0x04, 0x8b, 0xf6, 0xe0, 0x52, 0x5f,
-	0x83, 0x29, 0x16, 0x21, 0x59, 0x73, 0x34, 0xd3, 0xed, 0x19, 0x9e, 0x47, 0x74, 0xb1, 0x4b, 0xb0,
-	0xb8, 0x88, 0xf7, 0x08, 0x27, 0xf0, 0xe8, 0x32, 0x4c, 0x32, 0x18, 0x26, 0x1d, 0x62, 0x6c, 0x11,
-	0x9d, 0x8d, 0x5e, 0xc1, 0xe0, 0x3c, 0xc2, 0x51, 0xa4, 0xfa, 0x57, 0x61, 0xbc, 0x68, 0x99, 0x68,
-	0x5b, 0xe4, 0x85, 0xbd, 0xf6, 0x60, 0x2f, 0xf5, 0xb7, 0xf2, 0x30, 0x4e, 0x7b, 0xc4, 0x6f, 0x88,
-	0x0f, 0x42, 0x95, 0xf3, 0xbe, 0x6f, 0x28, 0x34, 0x79, 0x24, 0xd0, 0x04, 0x83, 0x26, 0x34, 0xc0,
-	0xfd, 0xc8, 0xcb, 0x50, 0xbc, 0x43, 0xbc, 0x4d, 0x4b, 0x17, 0x97, 0x33, 0x33, 0xc3, 0x41, 0x75,
-	0xaa, 0xc7, 0x20, 0x92, 0xbf, 0x27, 0x68, 0xd0, 0x03, 0x40, 0x4d, 0x9d, 0x98, 0x9e, 0xe1, 0x6d,
-	0xd7, 0x3c, 0xcf, 0x31, 0xd6, 0xfb, 0x1e, 0x71, 0x85, 0xde, 0x4e, 0x26, 0xce, 0x29, 0xab, 0xec,
-	0x65, 0x04, 0xbb, 0x8f, 0x99, 0xd1, 0x02, 0xf2, 0x50, 0xec, 0xff, 0x0e, 0xaa, 0x45, 0x4e, 0x83,
-	0x53, 0xc4, 0xa2, 0x77, 0x61, 0xfc, 0xce, 0xed, 0x5a, 0x83, 0x6c, 0x19, 0x1d, 0x22, 0xe2, 0xa4,
-	0xa7, 0x02, 0x2d, 0xfa, 0x88, 0x40, 0x25, 0xec, 0xee, 0xb4, 0x77, 0x5f, 0x6b, 0xeb, 0x0c, 0x2e,
-	0xdf, 0x9d, 0x06, 0xc4, 0xea, 0x7f, 0x66, 0x61, 0x0a, 0x13, 0xd7, 0xea, 0x3b, 0x21, 0x27, 0xba,
-	0x00, 0x63, 0xd2, 0xc5, 0x1d, 0x8b, 0x56, 0xc4, 0x6e, 0x8b, 0x18, 0x1e, 0xad, 0x42, 0x69, 0xf1,
-	0x91, 0x6d, 0x38, 0xc4, 0x15, 0xb6, 0xd9, 0xe9, 0x64, 0x76, 0x46, 0x9c, 0xcc, 0xa6, 0x09, 0x67,
-	0x49, 0x1c, 0xca, 0x38, 0x18, 0xbd, 0x0e, 0xe3, 0xf7, 0x6c, 0x5d, 0xf3, 0x88, 0xbe, 0xb0, 0x2d,
-	0x7c, 0x6e, 0xd6, 0x93, 0x3e, 0x07, 0xb6, 0xd7, 0xb7, 0xe5, 0x9e, 0x04, 0xa4, 0xe8, 0x3c, 0xe4,
-	0xd7, 0xd6, 0x96, 0x85, 0xd1, 0xd8, 0xfb, 0x10, 0xcf, 0x93, 0x2f, 0x8c, 0x29, 0x56, 0xfd, 0x6e,
-	0x0e, 0x80, 0x8e, 0x8d, 0xba, 0x43, 0x34, 0xef, 0x60, 0x26, 0xf8, 0x02, 0x94, 0x7d, 0x85, 0x8b,
-	0x71, 0xa9, 0xf8, 0xbc, 0x71, 0x43, 0xc4, 0xdb, 0xf6, 0xf1, 0xd4, 0x89, 0xc2, 0x56, 0x97, 0x45,
-	0x91, 0xf3, 0xfe, 0x53, 0x19, 0x87, 0x02, 0x30, 0x87, 0xa3, 0x2f, 0xc3, 0xb8, 0x98, 0x8a, 0x96,
-	0x23, 0x02, 0x9c, 0xfc, 0xa8, 0xe5, 0x03, 0x71, 0x88, 0x57, 0xff, 0x2c, 0xcb, 0x95, 0xd2, 0x20,
-	0x5d, 0x72, 0x78, 0x95, 0xa2, 0xfe, 0x52, 0x16, 0x10, 0x15, 0xd6, 0xd2, 0x5c, 0xf7, 0xa1, 0xe5,
-	0xe8, 0xf5, 0x4d, 0xcd, 0xdc, 0x38, 0x90, 0xee, 0xa8, 0xdf, 0x2e, 0xc0, 0xb1, 0xc8, 0xc5, 0xd1,
-	0x21, 0x1f, 0x6f, 0x97, 0xa2, 0xe3, 0x8d, 0x1d, 0x9a, 0xd9, 0x78, 0x93, 0x0f, 0xcd, 0x7c, 0xe4,
-	0x7d, 0x01, 0xc6, 0x45, 0x9f, 0x9b, 0x0d, 0x31, 0xf2, 0xd8, 0x76, 0x6b, 0xe8, 0x38, 0x44, 0xa0,
-	0x57, 0x61, 0x42, 0xfc, 0xa0, 0xab, 0xae, 0x1f, 0x17, 0x65, 0xe3, 0xd8, 0xa5, 0x00, 0x1c, 0x41,
-	0xa3, 0xd7, 0x60, 0x9c, 0x0e, 0xce, 0x0d, 0xf6, 0xb8, 0xa8, 0x14, 0x3e, 0xe5, 0xd1, 0x7d, 0xa0,
-	0xbc, 0x24, 0x04, 0x94, 0x74, 0x29, 0x17, 0x31, 0xfe, 0x72, 0xb8, 0x94, 0xf3, 0x18, 0xbf, 0xbc,
-	0x94, 0x8b, 0x68, 0xff, 0x07, 0x50, 0xa9, 0x99, 0xa6, 0xe5, 0x31, 0x97, 0xce, 0x15, 0x81, 0xac,
-	0x91, 0x6b, 0xf8, 0x79, 0xf6, 0xc0, 0x24, 0xa4, 0x4f, 0x5d, 0xc4, 0x65, 0x81, 0xe8, 0x1a, 0x35,
-	0xc4, 0x96, 0x41, 0x1e, 0x12, 0x47, 0x5c, 0x63, 0xb2, 0x60, 0x9e, 0x23, 0x60, 0xf2, 0x73, 0x13,
-	0x9f, 0x0e, 0x2d, 0xc0, 0x64, 0xcb, 0xb1, 0x6c, 0xcb, 0x25, 0x3a, 0x57, 0x54, 0x85, 0x31, 0x9e,
-	0x1e, 0x0e, 0xaa, 0x8a, 0x2d, 0x10, 0x6d, 0xa6, 0x31, 0x89, 0x3d, 0xca, 0xa2, 0x7e, 0x3f, 0x1b,
-	0x1b, 0x8c, 0x07, 0x38, 0xcf, 0x23, 0xa3, 0x23, 0x3f, 0x62, 0x74, 0xa8, 0xbf, 0x91, 0x83, 0x0a,
-	0x3d, 0x27, 0xdc, 0xb6, 0x9c, 0x87, 0x9a, 0x73, 0x30, 0xc1, 0x93, 0x7d, 0xbb, 0x4b, 0x91, 0xdc,
-	0x90, 0xb1, 0x5d, 0xb8, 0x21, 0xa7, 0x61, 0x8c, 0x9d, 0xb7, 0x0a, 0xe1, 0x29, 0x9a, 0x9d, 0xb5,
-	0x18, 0x54, 0xfd, 0x99, 0x1c, 0xc0, 0x37, 0xaf, 0x5e, 0x7d, 0x8e, 0x15, 0xa4, 0xfe, 0x7a, 0x16,
-	0x8e, 0x8a, 0xe8, 0x9a, 0xf4, 0x88, 0xb2, 0xe4, 0xc7, 0x45, 0xb3, 0x61, 0xd4, 0x50, 0xc4, 0x43,
-	0xb1, 0x8f, 0xa3, 0x33, 0x71, 0xf1, 0x91, 0xe1, 0xb1, 0x00, 0x83, 0xf4, 0x8a, 0x92, 0x08, 0x98,
-	0x3c, 0x13, 0x7d, 0x3a, 0xf4, 0xaa, 0x1f, 0x37, 0xcc, 0x87, 0xcb, 0x0f, 0x65, 0x58, 0x4c, 0x8d,
-	0x1d, 0xaa, 0x3f, 0x18, 0x83, 0xb1, 0xc5, 0x47, 0xa4, 0x73, 0xc8, 0x4d, 0x23, 0x9d, 0x46, 0xc6,
-	0xf6, 0x78, 0x1a, 0x79, 0x9a, 0x8b, 0x90, 0x9b, 0xa1, 0x3d, 0x8b, 0xd1, 0xe6, 0x63, 0x96, 0x8f,
-	0x37, 0xef, 0x5b, 0xfa, 0xf0, 0xdd, 0xa3, 0xfd, 0x79, 0x1e, 0xf2, 0xab, 0xf5, 0xd6, 0x8b, 0x71,
-	0x73, 0xa0, 0xe3, 0x66, 0xe7, 0x40, 0xb3, 0x1a, 0xc4, 0x8e, 0xca, 0xe1, 0xdb, 0x81, 0x58, 0x98,
-	0xe8, 0x93, 0x1c, 0x8c, 0xaf, 0xf6, 0xd7, 0xdd, 0x6d, 0xd7, 0x23, 0xbd, 0x43, 0x6e, 0xcd, 0xd3,
-	0xe2, 0x3c, 0x38, 0x16, 0x6a, 0x83, 0x9e, 0x07, 0xc5, 0x29, 0xf0, 0xbc, 0xbf, 0x32, 0x4a, 0xe7,
-	0x8c, 0x60, 0x65, 0xf4, 0xd7, 0xc3, 0x3f, 0xc8, 0xc1, 0x54, 0xbd, 0x6b, 0x10, 0xd3, 0x6b, 0x18,
-	0x6e, 0x67, 0x1f, 0x5e, 0x4a, 0x1c, 0xbc, 0x56, 0xf6, 0x16, 0x68, 0xf9, 0x1c, 0xef, 0x4f, 0xd4,
-	0x9f, 0xcd, 0x41, 0xa5, 0xd6, 0xf7, 0x36, 0x6b, 0x1e, 0xdb, 0x5c, 0x9e, 0xcb, 0x6d, 0xfe, 0x2f,
-	0xb3, 0x70, 0x94, 0x7e, 0xc8, 0x9a, 0xf5, 0x80, 0x98, 0xfb, 0x70, 0x8c, 0x92, 0x8f, 0x43, 0xb9,
-	0xa7, 0x3c, 0x0e, 0xf9, 0xba, 0xcc, 0xef, 0xf2, 0x58, 0x48, 0x0f, 0xda, 0xf4, 0x94, 0xf4, 0x8c,
-	0x74, 0x63, 0x1f, 0xce, 0x11, 0x07, 0xd9, 0x8d, 0xbf, 0xce, 0xc2, 0xcc, 0x9a, 0x43, 0x37, 0x72,
-	0x5d, 0xec, 0xe7, 0x87, 0xdc, 0x2e, 0xc9, 0x0e, 0x1d, 0x72, 0x0b, 0xfd, 0x38, 0x0b, 0xa7, 0xa2,
-	0x1d, 0x7a, 0x16, 0x56, 0x81, 0xbf, 0xc9, 0xc2, 0xf1, 0xb7, 0x0d, 0x6f, 0xb3, 0xbf, 0x1e, 0x84,
-	0xe0, 0x9e, 0xbd, 0x1e, 0x1d, 0xf2, 0x91, 0xf7, 0xc3, 0x2c, 0x1c, 0x5b, 0x69, 0x36, 0xea, 0xcf,
-	0x8a, 0x85, 0x12, 0xfd, 0x79, 0x06, 0xec, 0xb3, 0x5a, 0xbb, 0xb3, 0xfc, 0x2c, 0xd9, 0x27, 0xd2,
-	0x9f, 0x43, 0x6e, 0x9f, 0x9f, 0x2f, 0x42, 0x85, 0x9e, 0x6b, 0x45, 0x4c, 0xef, 0xb9, 0xf6, 0xf4,
-	0xaf, 0x41, 0x45, 0xa8, 0x81, 0x1d, 0x29, 0xb9, 0xbb, 0xcf, 0xde, 0x54, 0x8a, 0x7c, 0x93, 0x36,
-	0x3b, 0x5a, 0xca, 0x44, 0xf4, 0xc4, 0xf5, 0x1e, 0x71, 0xd6, 0xe5, 0x37, 0x34, 0x5b, 0xc4, 0x59,
-	0xc7, 0x0c, 0x8a, 0x96, 0xc3, 0x3b, 0xbb, 0x5a, 0xab, 0xc9, 0x92, 0xf2, 0xc4, 0x49, 0x95, 0x65,
-	0x19, 0x3a, 0x02, 0xd7, 0xd6, 0x6c, 0x83, 0xa7, 0xf3, 0xc9, 0xef, 0xf7, 0xe2, 0x9c, 0xe8, 0x2e,
-	0x4c, 0xfb, 0xb0, 0x30, 0xbb, 0xae, 0x9c, 0x22, 0x2e, 0x2d, 0xaf, 0x2e, 0xc9, 0x8a, 0x6e, 0xc2,
-	0x84, 0x0f, 0x7c, 0xc7, 0x60, 0xb9, 0x3f, 0x54, 0xd4, 0x4b, 0xc3, 0x41, 0xf5, 0x64, 0x20, 0xea,
-	0x81, 0x11, 0x79, 0x9f, 0x18, 0x61, 0x90, 0x05, 0xb0, 0x63, 0x27, 0xa4, 0x08, 0x88, 0xdd, 0x47,
-	0x46, 0x18, 0xd0, 0x6b, 0x4c, 0x80, 0x6d, 0x99, 0x2e, 0x61, 0x31, 0xbe, 0x0a, 0x7b, 0x60, 0xc2,
-	0xee, 0x04, 0x1d, 0x01, 0xe7, 0xcf, 0x88, 0x22, 0x64, 0x68, 0x05, 0x20, 0x8c, 0xc5, 0x88, 0xc7,
-	0x9a, 0xbb, 0x8e, 0x12, 0x49, 0x22, 0xd4, 0xbf, 0xa5, 0xe7, 0x37, 0xdb, 0x0e, 0x46, 0xf2, 0xab,
-	0x50, 0xac, 0xd9, 0xf6, 0x3d, 0xdc, 0x14, 0xd1, 0x49, 0xf6, 0x96, 0x50, 0xb3, 0xed, 0x76, 0xdf,
-	0x31, 0xe4, 0x0b, 0x09, 0x4e, 0x84, 0xea, 0x30, 0x59, 0xb3, 0xed, 0x56, 0x7f, 0xbd, 0x6b, 0x74,
-	0xa4, 0xd4, 0x56, 0x9e, 0xb1, 0x64, 0xdb, 0x6d, 0x9b, 0x61, 0xe2, 0x89, 0xc1, 0x51, 0x1e, 0xf4,
-	0x01, 0x8c, 0xd7, 0x6c, 0x5b, 0x24, 0x06, 0xe7, 0x59, 0x62, 0xb0, 0xea, 0xf7, 0x49, 0xfa, 0xb6,
-	0xb9, 0x80, 0x88, 0xa7, 0x04, 0x9f, 0x16, 0xb7, 0xb5, 0x33, 0xb4, 0xa1, 0x44, 0x3e, 0x70, 0x28,
-	0x12, 0x7d, 0x05, 0x4a, 0x35, 0xdb, 0x96, 0xc2, 0x03, 0x2c, 0x94, 0x4a, 0xb9, 0x62, 0x26, 0xf2,
-	0xc9, 0x66, 0xdf, 0x84, 0x23, 0xd1, 0xc6, 0x76, 0x95, 0x3b, 0xfc, 0x3f, 0x59, 0xd6, 0xa1, 0x43,
-	0x7e, 0xa1, 0x76, 0x1d, 0xf2, 0x35, 0xdb, 0x16, 0xcb, 0xc9, 0xb1, 0x14, 0x7b, 0xc4, 0x5f, 0x6b,
-	0xd5, 0x6c, 0xdb, 0xef, 0x3a, 0xbf, 0xf2, 0x7e, 0xbe, 0xba, 0xfe, 0x29, 0xef, 0xfa, 0x21, 0xbf,
-	0xa1, 0xfe, 0x41, 0x1e, 0x8e, 0xd6, 0x6c, 0xfb, 0x45, 0x4a, 0xed, 0x7e, 0xbd, 0x09, 0xbb, 0x0a,
-	0x20, 0x2d, 0x8f, 0xa5, 0xe0, 0xe9, 0x47, 0x45, 0x5a, 0x1a, 0x95, 0x2c, 0x96, 0x88, 0xfc, 0xe1,
-	0x57, 0xde, 0xd5, 0xf0, 0xfb, 0xd3, 0x88, 0xe1, 0x58, 0xb6, 0xdf, 0x0b, 0xc3, 0x15, 0xf6, 0xe4,
-	0x51, 0x1d, 0x91, 0x95, 0x29, 0x1e, 0x7c, 0x8b, 0x1b, 0x7a, 0x3f, 0xfd, 0xa0, 0x43, 0x51, 0x6d,
-	0x43, 0xc7, 0x31, 0x5a, 0xdf, 0x86, 0xa5, 0x5d, 0xd9, 0xf0, 0x7b, 0x39, 0x98, 0x0e, 0x6d, 0xb8,
-	0x1f, 0x8e, 0xe9, 0x15, 0x00, 0x1e, 0xa4, 0x0c, 0x2e, 0x12, 0x27, 0xf9, 0x4b, 0x65, 0x97, 0x41,
-	0xc5, 0x4b, 0xe5, 0x90, 0x24, 0xb8, 0x55, 0xc8, 0xa7, 0xde, 0x2a, 0x5c, 0x82, 0x32, 0xd6, 0x1e,
-	0xbe, 0xdb, 0x27, 0xce, 0xb6, 0xd8, 0x4a, 0x59, 0x28, 0xdd, 0xd1, 0x1e, 0xb6, 0x3f, 0xa2, 0x40,
-	0x1c, 0xa0, 0x91, 0x1a, 0xbc, 0x51, 0x93, 0x82, 0xc7, 0xfc, 0x8d, 0x5a, 0xf0, 0x32, 0x4d, 0x28,
-	0xa9, 0xb8, 0x2b, 0x25, 0xfd, 0xb8, 0x08, 0x53, 0x0d, 0xcd, 0xd3, 0xd6, 0x35, 0x97, 0x48, 0x07,
-	0x89, 0xa3, 0x3e, 0x8c, 0x0e, 0x04, 0x23, 0x28, 0xa7, 0xc2, 0xde, 0x65, 0xe9, 0xeb, 0x6d, 0x97,
-	0x43, 0xe5, 0xfa, 0x13, 0x31, 0x06, 0xf4, 0xf5, 0x50, 0x6e, 0x50, 0x70, 0x83, 0xbb, 0x33, 0x4c,
-	0x63, 0xfa, 0x7a, 0xdb, 0x16, 0x60, 0x9c, 0x20, 0x44, 0x97, 0xa1, 0xe2, 0xc3, 0xa8, 0xf3, 0x94,
-	0x0f, 0xfb, 0xac, 0xaf, 0x53, 0xdf, 0x09, 0xcb, 0x68, 0xf4, 0x35, 0x98, 0xf0, 0x7f, 0x4a, 0x6e,
-	0x09, 0xf3, 0xb5, 0xf4, 0xf5, 0x84, 0xe3, 0x28, 0x93, 0xca, 0xac, 0x6c, 0x7e, 0x16, 0x22, 0xac,
-	0xb1, 0x2a, 0x39, 0x11, 0x52, 0xf4, 0x11, 0x1c, 0xf1, 0x7f, 0x0b, 0x67, 0xab, 0xc8, 0x9c, 0xad,
-	0xcb, 0xbe, 0xe6, 0xe3, 0x6a, 0x9d, 0x8b, 0x92, 0x73, 0xb7, 0xeb, 0x25, 0xe1, 0x76, 0x1d, 0xd3,
-	0xd7, 0x93, 0x5e, 0x57, 0xac, 0x01, 0xd4, 0x84, 0x69, 0x1f, 0x52, 0x7b, 0x7f, 0x15, 0x93, 0x0d,
-	0x3a, 0x2b, 0x4b, 0xa1, 0xb3, 0xac, 0xaf, 0xb7, 0x59, 0xfd, 0x1c, 0x86, 0x90, 0x7d, 0xf6, 0x04,
-	0x17, 0xea, 0xc2, 0xe9, 0x08, 0x50, 0x77, 0x37, 0x8d, 0xfb, 0x9e, 0xf0, 0x74, 0x9b, 0x0d, 0x71,
-	0x1c, 0x60, 0x75, 0x2a, 0x02, 0xa9, 0x9c, 0xc6, 0x2f, 0x64, 0xd2, 0x8e, 0x14, 0x63, 0xda, 0x51,
-	0x1a, 0x5a, 0x85, 0x19, 0x1f, 0xff, 0x76, 0xbd, 0xd5, 0x72, 0xac, 0x0f, 0x49, 0xc7, 0x6b, 0x36,
-	0xc4, 0x49, 0x81, 0xa5, 0x20, 0xe9, 0xeb, 0xed, 0x8d, 0x8e, 0x4d, 0x07, 0x05, 0xc5, 0x45, 0x85,
-	0xa7, 0x32, 0xa3, 0xf7, 0xe0, 0xb8, 0x04, 0x6f, 0x9a, 0xae, 0xa7, 0x99, 0x1d, 0xd2, 0x6c, 0x88,
-	0xe3, 0x03, 0x3b, 0xca, 0x08, 0xa9, 0x86, 0x40, 0x46, 0xc5, 0xa6, 0xb3, 0xcf, 0xd6, 0xe0, 0x58,
-	0x8a, 0xa5, 0x76, 0xe5, 0xb3, 0x7e, 0x92, 0x0b, 0x07, 0xc7, 0x21, 0x77, 0x5c, 0x17, 0xa0, 0xec,
-	0xf7, 0x44, 0x6c, 0x21, 0xca, 0xa8, 0x01, 0x1e, 0x97, 0xe1, 0xe3, 0x23, 0xea, 0x38, 0xe4, 0xce,
-	0xec, 0x7e, 0xa8, 0xe3, 0x71, 0x36, 0x54, 0xc7, 0x21, 0x77, 0x70, 0x7f, 0x98, 0x0f, 0x67, 0xf6,
-	0x0b, 0x2f, 0x77, 0xbf, 0x9c, 0xa5, 0xf0, 0xe2, 0xb4, 0xb8, 0x8b, 0x07, 0x64, 0xf2, 0xd0, 0x2c,
-	0x3d, 0xe5, 0xd0, 0xfc, 0x87, 0xa4, 0x3d, 0xb9, 0x03, 0x72, 0x28, 0xed, 0xb9, 0x0f, 0x93, 0x15,
-	0x5d, 0x83, 0x49, 0xff, 0xff, 0xdc, 0x53, 0x2b, 0x48, 0xf9, 0x50, 0xeb, 0xc2, 0x51, 0x8b, 0x92,
-	0xa0, 0x9f, 0x86, 0x93, 0x11, 0x40, 0x4b, 0x73, 0xb4, 0x1e, 0xf1, 0x88, 0xc3, 0x7d, 0x04, 0x51,
-	0x1a, 0xcb, 0xe7, 0x6e, 0xdb, 0x01, 0x5a, 0xae, 0x2e, 0x35, 0x42, 0x82, 0x34, 0x38, 0x4a, 0xbb,
-	0xb8, 0x55, 0xff, 0xd7, 0x1c, 0x4c, 0xb6, 0x2c, 0xd7, 0xdb, 0x70, 0x88, 0xdb, 0xd2, 0x1c, 0x97,
-	0x3c, 0xbf, 0x16, 0xfd, 0x2a, 0x4c, 0xb2, 0x77, 0xb2, 0x3d, 0x62, 0x7a, 0x52, 0xcd, 0x2c, 0x5e,
-	0xa3, 0xc1, 0x47, 0x30, 0xb7, 0x11, 0x47, 0x09, 0x51, 0x15, 0x0a, 0x7c, 0x0c, 0x48, 0xaf, 0x97,
-	0xf9, 0x00, 0xe0, 0x70, 0xf5, 0x7b, 0x79, 0x98, 0xf0, 0xb5, 0xbc, 0x60, 0x1c, 0xd6, 0x2c, 0xe0,
-	0x83, 0x55, 0xf2, 0x15, 0x80, 0x96, 0xe5, 0x78, 0x5a, 0x57, 0xaa, 0xb3, 0xc9, 0x8e, 0x0c, 0x36,
-	0x83, 0x72, 0x1e, 0x89, 0x04, 0xcd, 0x01, 0x48, 0x13, 0xac, 0xc4, 0x26, 0xd8, 0x91, 0xe1, 0xa0,
-	0x0a, 0xe1, 0xbc, 0xc2, 0x12, 0x85, 0xfa, 0xc7, 0x39, 0x38, 0xea, 0x1b, 0x69, 0xf1, 0x11, 0xe9,
-	0xf4, 0xbd, 0xe7, 0x78, 0x32, 0x44, 0xb5, 0x5d, 0x78, 0xa2, 0xb6, 0xd5, 0xff, 0x92, 0x16, 0x92,
-	0x7a, 0xd7, 0x7a, 0xb1, 0x90, 0xfc, 0x7f, 0x8c, 0x71, 0xf5, 0x17, 0xf2, 0x30, 0xe3, 0x6b, 0xfd,
-	0x76, 0xdf, 0x64, 0x6e, 0x42, 0x5d, 0xeb, 0x76, 0x9f, 0xe7, 0x7d, 0xb9, 0xe2, 0x2b, 0x62, 0x45,
-	0x24, 0x9e, 0x4c, 0xf2, 0x4b, 0xb6, 0xfb, 0x02, 0xdc, 0xb6, 0x0c, 0x1d, 0xcb, 0x44, 0xe8, 0x26,
-	0x4c, 0xf8, 0x3f, 0x6b, 0xce, 0x86, 0xbf, 0x19, 0xb3, 0xa3, 0x73, 0xc0, 0xa4, 0x39, 0x1b, 0x91,
-	0x42, 0xa8, 0x32, 0x83, 0xfa, 0x1f, 0x05, 0x98, 0x7d, 0xdf, 0x30, 0x75, 0xeb, 0xa1, 0xdb, 0x20,
-	0xee, 0x03, 0xcf, 0x7a, 0x06, 0x42, 0xbb, 0xfb, 0x57, 0x03, 0x27, 0xf4, 0x4c, 0x0a, 0xbb, 0x70,
-	0x5b, 0xdf, 0x85, 0xe3, 0x71, 0x95, 0x3a, 0x41, 0xbe, 0xa3, 0xb0, 0xce, 0x43, 0x4e, 0xd0, 0xd6,
-	0x39, 0x85, 0x1f, 0x7f, 0xc2, 0xe9, 0x9c, 0x74, 0x6c, 0x08, 0x88, 0x14, 0x26, 0x66, 0x63, 0xc3,
-	0x17, 0xc0, 0x32, 0x2b, 0x64, 0x22, 0xf4, 0x25, 0x28, 0x36, 0xac, 0x9e, 0x66, 0xf8, 0x4f, 0x7c,
-	0xd9, 0x2c, 0x0e, 0xda, 0x65, 0x18, 0x2c, 0x28, 0xa8, 0x7c, 0xd1, 0x30, 0x33, 0xd9, 0x78, 0x28,
-	0xdf, 0x67, 0xe8, 0xbb, 0xc4, 0xc1, 0x32, 0x11, 0xb2, 0x60, 0x52, 0x34, 0x27, 0xa2, 0x45, 0xc0,
-	0xa2, 0x45, 0xaf, 0xf9, 0x3a, 0x1a, 0x3d, 0xac, 0xe6, 0x22, 0x7c, 0x3c, 0x6c, 0xc4, 0xbe, 0xce,
-	0xef, 0x0c, 0x8f, 0x1b, 0xe1, 0xa8, 0xfc, 0xd9, 0x5b, 0x80, 0x92, 0x8c, 0xbb, 0x8a, 0x62, 0xfc,
-	0x72, 0x0e, 0x50, 0xec, 0x30, 0xb0, 0xf8, 0x1c, 0xfb, 0x34, 0xea, 0xef, 0x65, 0x61, 0x3a, 0x91,
-	0x75, 0x8b, 0xae, 0x03, 0x70, 0x88, 0x94, 0x41, 0xcb, 0xf2, 0xe5, 0xc2, 0x4c, 0x5c, 0xb1, 0x9e,
-	0x87, 0x64, 0xe8, 0x0a, 0x94, 0xf9, 0xaf, 0xa0, 0xda, 0x74, 0x9c, 0xa5, 0xdf, 0x37, 0x74, 0x1c,
-	0x10, 0x85, 0xad, 0xb0, 0x82, 0xe9, 0xf9, 0x54, 0x16, 0x6f, 0xdb, 0x0e, 0x5a, 0xa1, 0x64, 0xea,
-	0xa7, 0x59, 0x98, 0x08, 0x3e, 0xb8, 0xa6, 0x1f, 0x94, 0xe9, 0x8a, 0x22, 0x81, 0x39, 0xff, 0xa4,
-	0x04, 0xe6, 0xd8, 0x02, 0x21, 0x32, 0x96, 0xff, 0x22, 0x0b, 0x47, 0x03, 0xda, 0x03, 0x8c, 0x97,
-	0xec, 0xb9, 0x23, 0xbf, 0x92, 0x05, 0x65, 0xc1, 0xe8, 0x76, 0x0d, 0x73, 0xa3, 0x69, 0xde, 0xb7,
-	0x9c, 0x1e, 0xcb, 0x13, 0x3c, 0xb8, 0x80, 0x98, 0xfa, 0x8b, 0x59, 0x98, 0x16, 0x1f, 0x54, 0xd7,
-	0x1c, 0xfd, 0xe0, 0x22, 0x95, 0xf1, 0x2f, 0x39, 0x38, 0x2b, 0xb3, 0xb7, 0xce, 0xcb, 0x56, 0xe7,
-	0xc1, 0x33, 0xf0, 0x64, 0x9b, 0x76, 0xe3, 0x90, 0x3f, 0x2b, 0xfb, 0x76, 0x16, 0x66, 0x30, 0xe9,
-	0x58, 0x5b, 0xc4, 0xd9, 0xae, 0x5b, 0x3a, 0x79, 0x9b, 0x98, 0xc4, 0x39, 0xa8, 0x41, 0xfa, 0x27,
-	0xac, 0x74, 0x42, 0xf8, 0x31, 0xf7, 0x5c, 0xa2, 0x1f, 0x9e, 0x3a, 0x17, 0xea, 0xbf, 0x8f, 0x81,
-	0x92, 0xea, 0x65, 0x1c, 0xda, 0x4d, 0x7d, 0xa4, 0xeb, 0x38, 0xb6, 0x5f, 0xae, 0x63, 0x61, 0x77,
-	0xae, 0x63, 0x71, 0xb7, 0xae, 0x63, 0xe9, 0xf3, 0xb8, 0x8e, 0xbd, 0xb8, 0xeb, 0x58, 0x66, 0xae,
-	0xe3, 0xf5, 0x1d, 0x5d, 0xc7, 0x45, 0x53, 0x3f, 0x30, 0xc7, 0xf1, 0x0f, 0xcf, 0x43, 0x61, 0xc5,
-	0x24, 0x2b, 0xf7, 0xd1, 0x55, 0xa9, 0x24, 0x8c, 0x18, 0x57, 0xd3, 0xf2, 0xf8, 0x60, 0x88, 0xa5,
-	0x0c, 0x96, 0x0a, 0xc7, 0xcc, 0xcb, 0x05, 0x3b, 0xc4, 0x98, 0x42, 0x32, 0x0f, 0xc7, 0x2c, 0x65,
-	0xb0, 0x5c, 0xd8, 0x63, 0x5e, 0xae, 0x68, 0x21, 0x86, 0x53, 0x84, 0x8b, 0x63, 0x7c, 0x2e, 0xb1,
-	0x2c, 0x2e, 0xa7, 0x15, 0x90, 0x88, 0x9f, 0x81, 0x92, 0x14, 0x4b, 0x19, 0x9c, 0x5e, 0x78, 0x22,
-	0x52, 0x3c, 0x5f, 0x9c, 0x82, 0x66, 0x62, 0x83, 0x9a, 0xe1, 0x96, 0x32, 0x38, 0x5a, 0x68, 0xff,
-	0x46, 0xa4, 0xca, 0x78, 0xfc, 0x12, 0x5f, 0x42, 0x2d, 0x65, 0x70, 0xac, 0x1e, 0x79, 0xa4, 0xe4,
-	0xb5, 0x08, 0x0a, 0xc7, 0x1b, 0x65, 0x38, 0xa9, 0x51, 0x5e, 0x1e, 0xfb, 0xad, 0x58, 0x7d, 0x68,
-	0xf1, 0x48, 0xe6, 0x78, 0x8c, 0x99, 0x23, 0x97, 0x32, 0x38, 0x56, 0x4d, 0xfa, 0xa2, 0x5f, 0x32,
-	0x58, 0x94, 0x4e, 0x38, 0x22, 0x6d, 0x0b, 0xc6, 0xc7, 0x54, 0x4b, 0x7e, 0x49, 0xe1, 0x79, 0xb9,
-	0x54, 0xac, 0x28, 0xea, 0x89, 0x62, 0xad, 0x2c, 0x9a, 0x3a, 0xb5, 0x8e, 0xb4, 0x26, 0xdd, 0x8a,
-	0x17, 0x55, 0x14, 0xa5, 0x3a, 0x4f, 0xc4, 0x38, 0x05, 0x76, 0x29, 0x83, 0xe3, 0x45, 0x18, 0x6f,
-	0x44, 0x0a, 0xfa, 0x89, 0x17, 0x9e, 0x71, 0xad, 0x52, 0x94, 0xa4, 0x55, 0x56, 0xfa, 0xef, 0x56,
-	0xbc, 0xc2, 0x9c, 0x32, 0x99, 0xda, 0xb4, 0xc0, 0x4a, 0x4d, 0xfb, 0x15, 0xe9, 0x6e, 0x44, 0x2a,
-	0x81, 0xb1, 0x62, 0x9b, 0x29, 0x4d, 0x6b, 0x9e, 0x26, 0x37, 0xcd, 0x6b, 0x86, 0x45, 0x6a, 0x52,
-	0x29, 0x47, 0x53, 0x0d, 0xca, 0x70, 0x92, 0x41, 0x79, 0xfd, 0xaa, 0x1b, 0x91, 0x32, 0x0a, 0xca,
-	0x54, 0xb4, 0x51, 0x09, 0x45, 0x1b, 0x95, 0x0b, 0x2e, 0xcc, 0xcb, 0xd5, 0x05, 0x94, 0xe9, 0xa8,
-	0x81, 0x42, 0x0c, 0x35, 0x90, 0x54, 0x85, 0xa0, 0xca, 0x32, 0x97, 0x15, 0xc4, 0xc8, 0x2b, 0xc1,
-	0x17, 0xd6, 0x5b, 0x4b, 0x19, 0xcc, 0x72, 0x9a, 0x55, 0x9e, 0x13, 0xaf, 0x1c, 0x63, 0x14, 0x13,
-	0x41, 0xc5, 0xb5, 0x47, 0xa4, 0xb3, 0x94, 0xc1, 0x3c, 0x5f, 0xfe, 0xaa, 0x94, 0x36, 0xab, 0xcc,
-	0x44, 0x97, 0x88, 0x00, 0x41, 0x97, 0x88, 0x30, 0xb9, 0xf6, 0x76, 0x32, 0xb5, 0x54, 0x39, 0x1e,
-	0xf5, 0x4c, 0xe2, 0xf8, 0xa5, 0x0c, 0x4e, 0xa6, 0xa3, 0xde, 0x88, 0x64, 0x5b, 0x2a, 0x27, 0x62,
-	0x2f, 0x67, 0x42, 0x14, 0x55, 0x97, 0x9c, 0x97, 0xb9, 0x92, 0x5a, 0xed, 0x45, 0x39, 0xc9, 0x04,
-	0xbc, 0x14, 0x08, 0x48, 0x92, 0x2c, 0x65, 0x70, 0x6a, 0x9d, 0x98, 0x7a, 0x22, 0xe7, 0x51, 0x51,
-	0xa2, 0x5b, 0x62, 0x0c, 0xbd, 0x94, 0xc1, 0x89, 0x2c, 0xc9, 0x79, 0x39, 0xd9, 0x50, 0x39, 0x15,
-	0x35, 0x62, 0x88, 0xa1, 0x46, 0x94, 0x92, 0x12, 0xe7, 0xe5, 0xdc, 0x3e, 0x65, 0x36, 0xc9, 0x15,
-	0xae, 0x9c, 0x52, 0x0e, 0x20, 0x4e, 0x4f, 0xa5, 0x53, 0x5e, 0x62, 0xfc, 0xa7, 0x7d, 0xfe, 0x34,
-	0x9a, 0xa5, 0x0c, 0x4e, 0x4f, 0xc3, 0xc3, 0xe9, 0xd9, 0x6c, 0xca, 0xe9, 0x9d, 0x64, 0x06, 0x5f,
-	0x97, 0x9e, 0x09, 0xa7, 0xed, 0x90, 0x50, 0xa6, 0x9c, 0x89, 0xbe, 0xf8, 0x1e, 0x49, 0xb8, 0x94,
-	0xc1, 0x3b, 0xa4, 0xa5, 0xdd, 0x1b, 0x91, 0xdd, 0xa5, 0x9c, 0x8d, 0xd6, 0x06, 0x48, 0x25, 0x5a,
-	0xca, 0xe0, 0x11, 0xb9, 0x61, 0xf7, 0x46, 0xa4, 0x58, 0x29, 0xd5, 0x1d, 0xc5, 0x06, 0xfa, 0x18,
-	0x91, 0xa0, 0xb5, 0x92, 0x9a, 0xe7, 0xa4, 0x9c, 0x8b, 0x0e, 0xdd, 0x14, 0x12, 0x3a, 0x74, 0xd3,
-	0x32, 0xa4, 0x56, 0x52, 0x13, 0x8d, 0x94, 0x97, 0x77, 0x10, 0x18, 0x7c, 0x63, 0x6a, 0x8a, 0xd2,
-	0x4a, 0x6a, 0xa6, 0x8f, 0xa2, 0x46, 0x05, 0xa6, 0x90, 0x50, 0x81, 0x69, 0x39, 0x42, 0x2b, 0xa9,
-	0xa9, 0x36, 0xca, 0xf9, 0x1d, 0x04, 0x86, 0x5f, 0x98, 0x96, 0xa4, 0x73, 0x23, 0x92, 0xeb, 0xa2,
-	0x7c, 0x21, 0xba, 0x6e, 0x48, 0x28, 0xba, 0x6e, 0xc8, 0x59, 0x31, 0xf5, 0xc4, 0x73, 0x60, 0xe5,
-	0x8b, 0xd1, 0x69, 0x1e, 0x43, 0xd3, 0x69, 0x1e, 0x7f, 0x40, 0x5c, 0x4f, 0x3c, 0x4d, 0x55, 0x2e,
-	0x8c, 0x12, 0xc2, 0xd0, 0x51, 0x21, 0xfc, 0x31, 0x6b, 0x33, 0xe5, 0x6d, 0xa4, 0xf2, 0x4a, 0x34,
-	0xae, 0x91, 0x20, 0x58, 0xca, 0xe0, 0x94, 0x17, 0x95, 0x38, 0xfd, 0x09, 0x88, 0x72, 0x31, 0x3a,
-	0x6d, 0xd3, 0x68, 0xe8, 0xb4, 0x4d, 0x7d, 0x3e, 0xb2, 0x9c, 0x16, 0x79, 0x54, 0x2e, 0x45, 0x1d,
-	0xb3, 0x24, 0x05, 0x75, 0xcc, 0x52, 0x22, 0x96, 0x38, 0xfd, 0x51, 0x83, 0xf2, 0xa5, 0x1d, 0xbf,
-	0x90, 0xd1, 0xa4, 0x7c, 0x21, 0xbf, 0xe3, 0x0f, 0x7d, 0xa7, 0x7b, 0x76, 0xd7, 0xd2, 0x74, 0xe5,
-	0xcb, 0xa9, 0xbe, 0x13, 0x47, 0x4a, 0xbe, 0x13, 0x07, 0xd0, 0x5d, 0x5e, 0x8e, 0xcc, 0x29, 0x97,
-	0xa3, 0xbb, 0xbc, 0x8c, 0xa3, 0xbb, 0x7c, 0x24, 0x8a, 0x57, 0x4f, 0xc4, 0xc3, 0x94, 0x57, 0xa3,
-	0x03, 0x20, 0x86, 0xa6, 0x03, 0x20, 0x1e, 0x41, 0xfb, 0x60, 0x74, 0x2c, 0x4a, 0x99, 0x63, 0xd2,
-	0xce, 0x05, 0x35, 0x65, 0x47, 0xd0, 0x2d, 0x65, 0xf0, 0xe8, 0x78, 0x56, 0x33, 0x25, 0xb4, 0xa4,
-	0x5c, 0x89, 0x0e, 0xb0, 0x04, 0x01, 0x1d, 0x60, 0xc9, 0x80, 0x54, 0x33, 0x25, 0x36, 0xa4, 0x7c,
-	0x65, 0xa4, 0xa8, 0xa0, 0xcf, 0x29, 0x11, 0xa5, 0x79, 0x39, 0xb8, 0xa3, 0x5c, 0x8d, 0x6e, 0x76,
-	0x21, 0x86, 0x6e, 0x76, 0x52, 0x10, 0x68, 0x5e, 0x8e, 0xa5, 0x28, 0xd7, 0x92, 0x5c, 0xe1, 0x16,
-	0x29, 0xc5, 0x5c, 0x70, 0x7a, 0xe8, 0x42, 0xb9, 0x1e, 0x1d, 0x75, 0x69, 0x34, 0x74, 0xd4, 0xa5,
-	0x86, 0x3d, 0x6e, 0x27, 0x23, 0x10, 0xca, 0x7c, 0x3c, 0x26, 0x13, 0xc5, 0x53, 0xcf, 0x27, 0x11,
-	0xb5, 0xb8, 0x15, 0x7f, 0x9f, 0xa8, 0xbc, 0x16, 0xf5, 0x6f, 0xa3, 0x58, 0xea, 0xdf, 0xc6, 0xde,
-	0x33, 0xde, 0x8a, 0x3f, 0xe9, 0x53, 0x5e, 0x4f, 0x97, 0x10, 0x8c, 0x95, 0xf8, 0x13, 0xc0, 0x5b,
-	0xf1, 0x57, 0x70, 0xca, 0x8d, 0x74, 0x09, 0x81, 0x76, 0xe3, 0xaf, 0xe6, 0xae, 0x4a, 0x99, 0x41,
-	0xca, 0x57, 0xa3, 0xae, 0x63, 0x80, 0xa0, 0xae, 0x63, 0x98, 0x3f, 0x74, 0x55, 0xca, 0xa8, 0x51,
-	0xbe, 0x96, 0x60, 0x09, 0x3e, 0x56, 0xca, 0xbb, 0xb9, 0x2a, 0x65, 0xa2, 0x28, 0x6f, 0x24, 0x58,
-	0x82, 0xaf, 0x93, 0xf2, 0x55, 0xf4, 0x9d, 0xae, 0x09, 0x95, 0xaf, 0x33, 0x19, 0xea, 0x93, 0x6f,
-	0x7e, 0x96, 0x32, 0x78, 0xa7, 0xeb, 0xc6, 0x0f, 0x46, 0xc7, 0x73, 0x94, 0x37, 0xa3, 0x53, 0x78,
-	0x14, 0x1d, 0x9d, 0xc2, 0x23, 0x63, 0x42, 0x6f, 0xc5, 0x9e, 0x0c, 0x29, 0x6f, 0x45, 0x97, 0xb8,
-	0x08, 0x92, 0x2e, 0x71, 0xf1, 0x07, 0x46, 0x91, 0xb7, 0x30, 0xca, 0x37, 0xa2, 0x4b, 0x9c, 0x8c,
-	0xa3, 0x4b, 0x5c, 0xe4, 0xdd, 0x4c, 0x3d, 0xf1, 0x44, 0x43, 0xb9, 0x19, 0x5d, 0xe2, 0x62, 0x68,
-	0xba, 0xc4, 0xc5, 0x1f, 0x75, 0xbc, 0x15, 0x7b, 0xa9, 0xa0, 0xdc, 0x4a, 0xff, 0x7e, 0x86, 0x94,
-	0xbf, 0x9f, 0xbf, 0x6b, 0xc0, 0xe9, 0x57, 0xee, 0x4a, 0x2d, 0x3a, 0x7f, 0xd3, 0x68, 0xe8, 0xfc,
-	0x4d, 0xbd, 0xae, 0x5f, 0x49, 0xad, 0xcc, 0xa7, 0x2c, 0xec, 0x70, 0x70, 0x08, 0x5d, 0x91, 0xb4,
-	0x9a, 0x7e, 0xb7, 0xe2, 0x7f, 0x8d, 0x48, 0xa9, 0x8f, 0x38, 0x23, 0xfb, 0xc7, 0xa0, 0x18, 0xfd,
-	0x42, 0x09, 0x0a, 0xac, 0x02, 0xb6, 0xfa, 0x9b, 0x59, 0x98, 0x58, 0xf5, 0x1c, 0xa2, 0xf5, 0xc4,
-	0xcd, 0xec, 0x2c, 0x94, 0xf9, 0x6e, 0xe5, 0xff, 0x81, 0x5a, 0x1c, 0xfc, 0x46, 0x17, 0xe0, 0xc8,
-	0xb2, 0xe6, 0x7a, 0x8c, 0x53, 0xfa, 0x0b, 0x59, 0x38, 0x06, 0x45, 0xcb, 0x9c, 0x8e, 0xf3, 0xb1,
-	0x3f, 0xe9, 0x91, 0x7f, 0x62, 0xe1, 0xd8, 0xf2, 0xe3, 0x41, 0x35, 0xc3, 0x6a, 0xc4, 0xc6, 0x78,
-	0xd5, 0x61, 0x16, 0x12, 0xfb, 0xe8, 0xd3, 0xc7, 0x2d, 0x57, 0x12, 0x7f, 0x94, 0x57, 0x84, 0x9b,
-	0x3e, 0x67, 0x1c, 0x32, 0xf1, 0x27, 0x7d, 0xcf, 0x43, 0xfe, 0x5e, 0xb3, 0x21, 0x57, 0xa4, 0x8d,
-	0xfe, 0xc5, 0x62, 0x8a, 0x45, 0xaf, 0x04, 0xb1, 0x90, 0x7b, 0x78, 0x59, 0x04, 0x18, 0xd9, 0x5f,
-	0xcd, 0xe8, 0x3b, 0x5d, 0x2c, 0xa1, 0xbe, 0xf4, 0x0a, 0x54, 0xa4, 0xd2, 0xe4, 0x68, 0x02, 0xca,
-	0x2b, 0x0b, 0xab, 0x8b, 0xf8, 0xbd, 0xc5, 0xc6, 0x54, 0x06, 0x01, 0x14, 0x1b, 0x8b, 0x77, 0x9b,
-	0x8b, 0x8d, 0xa9, 0xec, 0xc2, 0xd4, 0xe3, 0x7f, 0x39, 0x9b, 0x79, 0xfc, 0xd9, 0xd9, 0xec, 0x8f,
-	0x3e, 0x3b, 0x9b, 0xfd, 0xe7, 0xcf, 0xce, 0x66, 0xd7, 0x8b, 0x4c, 0xab, 0xd7, 0xff, 0x2f, 0x00,
-	0x00, 0xff, 0xff, 0xe6, 0x74, 0xb8, 0x13, 0xf7, 0x79, 0x00, 0x00,
+	// 7418 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x7d, 0x5b, 0x6c, 0x24, 0xc7,
+	0x75, 0x28, 0x67, 0x86, 0x1c, 0x0e, 0x6b, 0xf8, 0xac, 0xe5, 0x6a, 0x5b, 0xab, 0xd5, 0x8e, 0xd4,
+	0x6b, 0xaf, 0x76, 0xad, 0x15, 0xa9, 0x7d, 0x48, 0x6b, 0xc9, 0x92, 0xb5, 0xf3, 0xe0, 0x8a, 0x63,
+	0x71, 0x97, 0x54, 0x91, 0x2b, 0x19, 0x30, 0xac, 0x41, 0x73, 0xba, 0x96, 0x6c, 0xef, 0xcc, 0x74,
+	0xbb, 0xbb, 0x67, 0xb9, 0xd4, 0xd7, 0x7d, 0x5f, 0xc3, 0xf0, 0xbd, 0xb8, 0xf0, 0xfd, 0xb8, 0x1f,
+	0xf7, 0xc3, 0x81, 0x93, 0x00, 0x09, 0x60, 0xc4, 0x49, 0x10, 0xd8, 0x31, 0x92, 0x9f, 0xc4, 0x49,
+	0x20, 0x23, 0xb0, 0xe3, 0xc4, 0x81, 0x03, 0xe4, 0x63, 0x9c, 0x38, 0xc8, 0xcf, 0x20, 0x01, 0x0c,
+	0x24, 0x40, 0x9c, 0xe4, 0x27, 0xa8, 0x53, 0xd5, 0xdd, 0x55, 0xdd, 0x3d, 0xdc, 0xe5, 0x92, 0x0a,
+	0x43, 0x91, 0x5f, 0xe4, 0x9c, 0x57, 0x75, 0x9f, 0xaa, 0x3a, 0x55, 0x75, 0xea, 0x9c, 0xd3, 0x68,
+	0x9c, 0xde, 0xa7, 0x1d, 0xdf, 0x9b, 0x73, 0x5c, 0xdb, 0xb7, 0x71, 0x9e, 0xff, 0x3a, 0x3d, 0xbb,
+	0x61, 0x6f, 0xd8, 0x00, 0x9a, 0x67, 0xff, 0x71, 0xec, 0xe9, 0xd2, 0x86, 0x6d, 0x6f, 0xb4, 0xe8,
+	0x3c, 0xfc, 0x5a, 0xef, 0xde, 0x9d, 0xf7, 0xad, 0x36, 0xf5, 0x7c, 0xa3, 0xed, 0x08, 0x82, 0x33,
+	0x71, 0x02, 0xcf, 0x77, 0xbb, 0x4d, 0x5f, 0x60, 0xab, 0x1b, 0x96, 0xbf, 0xd9, 0x5d, 0x9f, 0x6b,
+	0xda, 0xed, 0xf9, 0x0d, 0xd7, 0xb8, 0x6f, 0xf9, 0x86, 0x6f, 0xd9, 0x1d, 0xa3, 0x35, 0xef, 0xd3,
+	0x16, 0x75, 0x6c, 0xd7, 0x9f, 0x37, 0x1c, 0x6b, 0xde, 0xdf, 0x76, 0xa8, 0x37, 0xbf, 0xe5, 0x1a,
+	0x8e, 0x43, 0xdd, 0xe8, 0x1f, 0x2e, 0x44, 0xff, 0x6a, 0x16, 0x15, 0x6e, 0x51, 0xdf, 0x30, 0x0d,
+	0xdf, 0xc0, 0x67, 0xd0, 0x48, 0xbd, 0x63, 0xd2, 0x07, 0x5a, 0xe6, 0x99, 0xcc, 0x85, 0x5c, 0x25,
+	0xdf, 0xef, 0x95, 0xb2, 0xd4, 0x22, 0x1c, 0x88, 0x9f, 0x46, 0xc3, 0x6b, 0xdb, 0x0e, 0xd5, 0xb2,
+	0xcf, 0x64, 0x2e, 0x8c, 0x55, 0xc6, 0xfa, 0xbd, 0xd2, 0x08, 0xbc, 0x1e, 0x01, 0x30, 0x7e, 0x16,
+	0x65, 0xeb, 0x35, 0x2d, 0x07, 0xc8, 0x99, 0x7e, 0xaf, 0x34, 0xd1, 0xb5, 0xcc, 0x4b, 0x76, 0xdb,
+	0xf2, 0x69, 0xdb, 0xf1, 0xb7, 0x49, 0xb6, 0x5e, 0xc3, 0xe7, 0xd1, 0x70, 0xd5, 0x36, 0xa9, 0x36,
+	0x0c, 0x44, 0xb8, 0xdf, 0x2b, 0x4d, 0x36, 0x6d, 0x93, 0x4a, 0x54, 0x80, 0xc7, 0x37, 0xd0, 0xf0,
+	0x9a, 0xd5, 0xa6, 0xda, 0xc8, 0x33, 0x99, 0x0b, 0xc5, 0x2b, 0xa7, 0xe7, 0xb8, 0x1a, 0xe6, 0x02,
+	0x35, 0xcc, 0xad, 0x05, 0x7a, 0xaa, 0x4c, 0x7f, 0xd0, 0x2b, 0x0d, 0xf5, 0x7b, 0xa5, 0x61, 0xa6,
+	0xba, 0xff, 0xf3, 0x93, 0x52, 0x86, 0x00, 0x27, 0x7e, 0x0d, 0x15, 0xab, 0xad, 0xae, 0xe7, 0x53,
+	0xf7, 0xb6, 0xd1, 0xa6, 0x5a, 0x1e, 0x1a, 0x3c, 0xdd, 0xef, 0x95, 0x9e, 0x68, 0x72, 0x70, 0xa3,
+	0x63, 0xb4, 0xe5, 0x86, 0x65, 0x72, 0xfd, 0x0b, 0x68, 0x6a, 0x95, 0x7a, 0x9e, 0x65, 0x77, 0x42,
+	0xd5, 0x7c, 0x1c, 0x8d, 0x09, 0x50, 0xbd, 0x06, 0xea, 0x19, 0xab, 0x8c, 0xf6, 0x7b, 0xa5, 0x9c,
+	0x67, 0x99, 0x24, 0xc2, 0xe0, 0x17, 0xd1, 0xe8, 0xbb, 0x96, 0xbf, 0x79, 0xeb, 0x66, 0x59, 0xa8,
+	0xe9, 0x89, 0x7e, 0xaf, 0x84, 0xb7, 0x2c, 0x7f, 0xb3, 0xd1, 0xbe, 0x6b, 0x48, 0xed, 0x05, 0x64,
+	0xfa, 0x2f, 0x65, 0xd1, 0xf8, 0x1d, 0x8f, 0xba, 0x61, 0x4b, 0xe7, 0xd1, 0x30, 0xfb, 0x2d, 0x1a,
+	0x01, 0x25, 0x75, 0x3d, 0xea, 0xca, 0x4a, 0x62, 0x78, 0x7c, 0x11, 0x8d, 0x2c, 0xd9, 0x1b, 0x56,
+	0x47, 0x34, 0x74, 0xa2, 0xdf, 0x2b, 0x4d, 0xb5, 0x18, 0x40, 0xa2, 0xe4, 0x14, 0xf8, 0xd3, 0x68,
+	0xbc, 0xde, 0x66, 0x9d, 0x6e, 0x77, 0x0c, 0xdf, 0x76, 0x45, 0x27, 0x81, 0x3a, 0x2c, 0x09, 0x2e,
+	0x31, 0x2a, 0xf4, 0xf8, 0x55, 0x84, 0xca, 0xef, 0xae, 0x12, 0xbb, 0x45, 0xcb, 0xe4, 0xb6, 0xe8,
+	0x3d, 0xe0, 0x36, 0xb6, 0xbc, 0x86, 0x6b, 0xb7, 0x68, 0xc3, 0x70, 0xe5, 0x66, 0x25, 0x6a, 0xbc,
+	0x80, 0x26, 0xcb, 0xcd, 0x26, 0xf5, 0x3c, 0x42, 0xbf, 0xd8, 0xa5, 0x9e, 0xef, 0x69, 0x23, 0xcf,
+	0xe4, 0x2e, 0x8c, 0x55, 0x9e, 0xee, 0xf7, 0x4a, 0x4f, 0x1a, 0x80, 0x69, 0xb8, 0x02, 0x25, 0x89,
+	0x88, 0x31, 0xe9, 0xbf, 0x9e, 0x43, 0x93, 0xab, 0xd4, 0xbd, 0x2f, 0x29, 0xaa, 0xcc, 0x7a, 0x89,
+	0x41, 0x58, 0x9f, 0x79, 0x8e, 0xd1, 0xa4, 0x42, 0x67, 0xa7, 0xfa, 0xbd, 0xd2, 0x89, 0x4e, 0x00,
+	0x94, 0x84, 0xc6, 0xe9, 0xf1, 0x45, 0x54, 0xe0, 0xa0, 0x7a, 0x4d, 0xa8, 0x71, 0xa2, 0xdf, 0x2b,
+	0x8d, 0x79, 0x00, 0x6b, 0x58, 0x26, 0x09, 0xd1, 0xec, 0x3d, 0xf8, 0xff, 0x8b, 0xb6, 0xe7, 0x33,
+	0xe1, 0x42, 0x8b, 0xf0, 0x1e, 0x82, 0x61, 0x53, 0xa0, 0xe4, 0xf7, 0x50, 0x99, 0xf0, 0x2b, 0x08,
+	0x71, 0x48, 0xd9, 0x34, 0x5d, 0xa1, 0xca, 0x27, 0xfb, 0xbd, 0xd2, 0x49, 0x21, 0xc2, 0x30, 0x4d,
+	0xb9, 0x1f, 0x24, 0x62, 0xdc, 0x46, 0xe3, 0xfc, 0xd7, 0x92, 0xb1, 0x4e, 0x5b, 0x5c, 0x8f, 0xc5,
+	0x2b, 0x17, 0xe6, 0x84, 0xc5, 0x51, 0xb5, 0x33, 0x27, 0x93, 0x2e, 0x74, 0x7c, 0x77, 0xbb, 0x52,
+	0x12, 0x73, 0xe5, 0x94, 0x68, 0xaa, 0x05, 0x38, 0xb9, 0xd3, 0x65, 0x9e, 0xd3, 0x6f, 0xa0, 0x99,
+	0x84, 0x0c, 0x3c, 0x8d, 0x72, 0xf7, 0xe8, 0x36, 0xd7, 0x33, 0x61, 0xff, 0xe2, 0x59, 0x34, 0x72,
+	0xdf, 0x68, 0x75, 0x85, 0x59, 0x20, 0xfc, 0xc7, 0xab, 0xd9, 0x4f, 0x66, 0xf4, 0xdf, 0xce, 0x20,
+	0x5c, 0xb5, 0x3b, 0x1d, 0xda, 0xf4, 0xe5, 0x99, 0xf4, 0x32, 0x1a, 0x5b, 0xb2, 0x9b, 0x46, 0x0b,
+	0x14, 0xc0, 0x3b, 0x4c, 0xeb, 0xf7, 0x4a, 0xb3, 0xec, 0xcd, 0xe7, 0x5a, 0x0c, 0x23, 0x3d, 0x52,
+	0x44, 0xca, 0x34, 0x47, 0x68, 0xdb, 0xf6, 0x29, 0x30, 0x66, 0x23, 0xcd, 0x01, 0xa3, 0x0b, 0x28,
+	0x59, 0x73, 0x11, 0x31, 0x9e, 0x47, 0x85, 0x15, 0x66, 0x3b, 0x9a, 0x76, 0x4b, 0xf4, 0x1a, 0xcc,
+	0x16, 0xb0, 0x27, 0x12, 0x4b, 0x48, 0xa4, 0xff, 0x97, 0x2c, 0x7a, 0xf2, 0xad, 0xee, 0x3a, 0x75,
+	0x3b, 0xd4, 0xa7, 0x9e, 0x30, 0x0d, 0xe1, 0x1b, 0xdc, 0x46, 0x33, 0x09, 0xa4, 0x78, 0x93, 0x67,
+	0xfa, 0xbd, 0xd2, 0x99, 0x7b, 0x21, 0xb2, 0x21, 0xac, 0x8d, 0xd4, 0x48, 0x92, 0x15, 0x2f, 0xa2,
+	0xa9, 0x08, 0xc8, 0xe6, 0xb6, 0xa7, 0x65, 0x61, 0x8e, 0x9c, 0xed, 0xf7, 0x4a, 0xa7, 0x25, 0x69,
+	0xcc, 0x0e, 0xc8, 0x1d, 0x16, 0x67, 0xc3, 0x6f, 0xa1, 0xe9, 0x08, 0xf4, 0xa6, 0x6b, 0x77, 0x1d,
+	0x4f, 0xcb, 0x81, 0xa8, 0x52, 0xbf, 0x57, 0x7a, 0x4a, 0x12, 0xb5, 0x01, 0x48, 0x49, 0x56, 0x82,
+	0x51, 0xff, 0xdb, 0x1c, 0x3a, 0x19, 0x01, 0x57, 0x6c, 0x33, 0x54, 0xc0, 0xb2, 0xac, 0x80, 0x15,
+	0xdb, 0x04, 0x1b, 0xcb, 0x15, 0xf0, 0x6c, 0xbf, 0x57, 0x7a, 0x5a, 0x6a, 0xc7, 0xb1, 0xcd, 0xb8,
+	0xa9, 0x4d, 0xf2, 0xe2, 0xf7, 0xd0, 0x13, 0x09, 0x20, 0x9f, 0xd1, 0xbc, 0x9f, 0xcf, 0xf7, 0x7b,
+	0x25, 0x3d, 0x45, 0x6a, 0x7c, 0x82, 0x0f, 0x90, 0x82, 0x0d, 0x74, 0x4a, 0x52, 0xbb, 0xdd, 0xf1,
+	0x0d, 0xab, 0x23, 0x96, 0x06, 0x3e, 0x1e, 0x9e, 0xeb, 0xf7, 0x4a, 0xe7, 0xe4, 0x7e, 0x0b, 0x68,
+	0xe2, 0x0f, 0x3f, 0x48, 0x0e, 0x36, 0x91, 0x96, 0x82, 0xaa, 0xb7, 0x8d, 0x8d, 0x60, 0xbd, 0xbb,
+	0xd0, 0xef, 0x95, 0x3e, 0x96, 0xda, 0x86, 0xc5, 0xa8, 0xa4, 0x46, 0x06, 0x4a, 0xc2, 0x04, 0xe1,
+	0x08, 0x77, 0xdb, 0x36, 0x29, 0xbc, 0xc3, 0x08, 0xc8, 0xd7, 0xfb, 0xbd, 0xd2, 0x59, 0x49, 0x7e,
+	0xc7, 0x36, 0x69, 0xfc, 0xf1, 0x53, 0xb8, 0xf5, 0x9f, 0x8c, 0x30, 0xc3, 0x02, 0x2b, 0xd8, 0xaa,
+	0x6f, 0xb8, 0x3e, 0x7e, 0x35, 0xda, 0x12, 0x40, 0xaf, 0x16, 0xaf, 0x4c, 0x07, 0x46, 0x26, 0x80,
+	0x57, 0xc6, 0x99, 0x31, 0xf9, 0x61, 0xaf, 0x94, 0xe9, 0xf7, 0x4a, 0x43, 0xa4, 0x20, 0xcd, 0x6e,
+	0xbe, 0x7a, 0x65, 0x81, 0x6f, 0x36, 0xe0, 0x93, 0x57, 0xb8, 0x18, 0x2f, 0x5f, 0xcd, 0xde, 0x40,
+	0xa3, 0xe2, 0x19, 0xa0, 0x47, 0x8a, 0x57, 0x4e, 0x45, 0x76, 0x4d, 0x59, 0x89, 0x63, 0xdc, 0x01,
+	0x17, 0x7e, 0x0d, 0xe5, 0xb9, 0xb9, 0x02, 0x6d, 0x17, 0xaf, 0x3c, 0x91, 0x6e, 0x17, 0x63, 0xec,
+	0x82, 0x07, 0x2f, 0x22, 0x14, 0x99, 0xaa, 0x70, 0xdf, 0x21, 0x24, 0x24, 0x8d, 0x58, 0x4c, 0x8a,
+	0xc4, 0x8b, 0x5f, 0x46, 0xe3, 0x6b, 0xd4, 0x6d, 0x5b, 0x1d, 0xa3, 0xb5, 0x6a, 0xbd, 0x1f, 0x6c,
+	0x3d, 0x60, 0x19, 0xf7, 0xac, 0xf7, 0xe5, 0xbe, 0x50, 0xe8, 0xf0, 0xe7, 0xd3, 0x8c, 0xca, 0x28,
+	0x3c, 0xc8, 0xb3, 0xc1, 0x83, 0x0c, 0x34, 0x49, 0xb1, 0xe7, 0x49, 0xb1, 0x31, 0x6f, 0xa3, 0x09,
+	0x65, 0x6e, 0x68, 0x05, 0x10, 0xfd, 0x74, 0x52, 0xb4, 0x34, 0xd1, 0x63, 0x62, 0x55, 0x09, 0x6c,
+	0x45, 0xac, 0x77, 0x2c, 0xdf, 0x32, 0x5a, 0x55, 0xbb, 0xdd, 0x36, 0x3a, 0xa6, 0x36, 0x16, 0xad,
+	0xec, 0x16, 0xc7, 0x34, 0x9a, 0x1c, 0x25, 0xaf, 0x88, 0x2a, 0x13, 0xb3, 0x59, 0xa2, 0x0f, 0x09,
+	0x6d, 0xda, 0xae, 0x69, 0x75, 0x36, 0x34, 0x04, 0x4a, 0x03, 0x9b, 0xe5, 0x71, 0x5c, 0xc3, 0x0d,
+	0x90, 0xb2, 0xcd, 0x8a, 0x33, 0x7e, 0x66, 0xb8, 0x50, 0x9c, 0x1e, 0x4f, 0x6c, 0x1e, 0x7e, 0x35,
+	0x87, 0x8a, 0x82, 0xf4, 0x33, 0xb6, 0xd5, 0x39, 0x1e, 0xe0, 0x7b, 0x19, 0xe0, 0xa9, 0x03, 0x35,
+	0xbf, 0x5f, 0x03, 0x55, 0xff, 0x4a, 0x36, 0xb4, 0x46, 0x2b, 0xae, 0xd5, 0xd9, 0x9b, 0x35, 0x3a,
+	0x8f, 0x50, 0x75, 0xb3, 0xdb, 0xb9, 0xc7, 0x4f, 0x35, 0xd9, 0xe8, 0x54, 0xd3, 0xb4, 0x88, 0x84,
+	0x61, 0x47, 0x9b, 0x1a, 0x93, 0xcf, 0x7a, 0x66, 0xbc, 0x32, 0xf6, 0x01, 0x97, 0x94, 0x79, 0x81,
+	0x00, 0x18, 0x97, 0xd0, 0x48, 0x65, 0xdb, 0xa7, 0x1e, 0x68, 0x3e, 0xc7, 0x8f, 0x3e, 0xeb, 0x0c,
+	0x40, 0x38, 0x1c, 0x5f, 0x43, 0x33, 0x35, 0xda, 0x32, 0xb6, 0x6f, 0x59, 0xad, 0x96, 0xe5, 0xd1,
+	0xa6, 0xdd, 0x31, 0x3d, 0x50, 0xb2, 0x68, 0xae, 0xed, 0x91, 0x24, 0x01, 0xd6, 0x51, 0x7e, 0xf9,
+	0xee, 0x5d, 0x8f, 0xfa, 0xa0, 0xbe, 0x5c, 0x05, 0xf5, 0x7b, 0xa5, 0xbc, 0x0d, 0x10, 0x22, 0x30,
+	0xfa, 0x37, 0x33, 0x68, 0xba, 0x46, 0xbd, 0x7b, 0xbe, 0xed, 0x84, 0xa3, 0x7c, 0x4f, 0x2a, 0xb9,
+	0x88, 0x46, 0x6f, 0x51, 0xcf, 0x63, 0xcb, 0x52, 0x16, 0xde, 0x76, 0x4a, 0xbc, 0xed, 0x68, 0x9b,
+	0x83, 0x49, 0x80, 0x4f, 0x7f, 0xab, 0xdc, 0x43, 0xde, 0x4a, 0xff, 0x59, 0x16, 0x9d, 0x12, 0x4f,
+	0x5c, 0x6d, 0x59, 0xce, 0xba, 0x6d, 0xb8, 0x26, 0xa1, 0x4d, 0x6a, 0xdd, 0xa7, 0x87, 0x73, 0xe2,
+	0xa9, 0x53, 0x67, 0x78, 0x0f, 0x53, 0xe7, 0x0a, 0x2a, 0x0a, 0xcd, 0xc0, 0x1e, 0x96, 0x2f, 0xdb,
+	0xd3, 0xfd, 0x5e, 0x69, 0xdc, 0xe4, 0x60, 0xd8, 0xfe, 0x13, 0x99, 0x88, 0x0d, 0x92, 0x25, 0xda,
+	0xd9, 0xf0, 0x37, 0x61, 0x90, 0x8c, 0xf0, 0x41, 0xd2, 0x02, 0x08, 0x11, 0x18, 0xfd, 0xef, 0xb3,
+	0x68, 0x36, 0xae, 0xf2, 0x55, 0xda, 0x31, 0x8f, 0xf5, 0xfd, 0xe1, 0xe8, 0xfb, 0xcf, 0xb2, 0x68,
+	0x22, 0x5c, 0x7a, 0xbe, 0x40, 0x9b, 0x07, 0xb3, 0x65, 0x8a, 0x16, 0x84, 0xdc, 0x9e, 0x17, 0x84,
+	0xbd, 0x68, 0x59, 0x47, 0x79, 0x42, 0x0d, 0x4f, 0x2c, 0x2b, 0x63, 0x5c, 0x63, 0x2e, 0x40, 0x88,
+	0xc0, 0xe0, 0x67, 0xd1, 0xe8, 0x2d, 0xe3, 0x81, 0xd5, 0xee, 0xb6, 0x85, 0xad, 0x03, 0xe7, 0x49,
+	0xdb, 0x78, 0x40, 0x02, 0xb8, 0xfe, 0xe7, 0x19, 0x76, 0xc2, 0x06, 0xa5, 0x0a, 0xe1, 0x7b, 0xd2,
+	0x6a, 0xa4, 0x9d, 0xec, 0x9e, 0xb5, 0x93, 0x7b, 0x7c, 0xed, 0xe8, 0xdf, 0x1c, 0x66, 0xea, 0x61,
+	0x5b, 0xbf, 0xa3, 0x3e, 0x1b, 0xa3, 0x1e, 0x19, 0x79, 0x8c, 0x1e, 0x39, 0x32, 0xfb, 0x6a, 0xfd,
+	0x9f, 0x46, 0x11, 0x12, 0xda, 0x5f, 0x38, 0xb6, 0xe1, 0x7b, 0x1b, 0x35, 0x35, 0x34, 0xb3, 0xd0,
+	0xd9, 0x34, 0x3a, 0x4d, 0x6a, 0x46, 0xa7, 0x0b, 0x36, 0x74, 0x0a, 0xdc, 0x33, 0x4b, 0x05, 0x32,
+	0x3a, 0x5e, 0x90, 0x24, 0x03, 0xbe, 0x8c, 0x8a, 0xf5, 0x8e, 0x4f, 0x5d, 0xa3, 0xe9, 0x5b, 0xf7,
+	0x29, 0x8c, 0x9e, 0x42, 0x65, 0xaa, 0xdf, 0x2b, 0x15, 0xad, 0x08, 0x4c, 0x64, 0x1a, 0x7c, 0x0d,
+	0x8d, 0xaf, 0x18, 0xae, 0x6f, 0x35, 0x2d, 0xc7, 0xe8, 0xf8, 0x9e, 0x56, 0x80, 0xa3, 0x11, 0xac,
+	0x3d, 0x8e, 0x04, 0x27, 0x0a, 0x15, 0xfe, 0x3c, 0x1a, 0x83, 0x23, 0x38, 0x78, 0xbf, 0xc7, 0x1e,
+	0xea, 0xfd, 0x3e, 0x17, 0x79, 0xf4, 0xf8, 0x21, 0xc9, 0x63, 0xcc, 0xd1, 0x54, 0x00, 0x87, 0x78,
+	0x24, 0x11, 0x7f, 0x16, 0x8d, 0x2e, 0x74, 0x4c, 0x10, 0x8e, 0x1e, 0x2a, 0x5c, 0x17, 0xc2, 0x9f,
+	0x88, 0x84, 0xdb, 0x4e, 0x4c, 0x76, 0x20, 0x2e, 0x7d, 0x96, 0x15, 0x3f, 0xbc, 0x59, 0x36, 0xfe,
+	0x21, 0x9c, 0x5e, 0x27, 0xf6, 0xeb, 0xf4, 0x3a, 0xf9, 0x98, 0xa7, 0x57, 0xfd, 0x7d, 0x54, 0xac,
+	0xac, 0xdc, 0x0c, 0x67, 0xef, 0x93, 0x28, 0xb7, 0x22, 0x6e, 0x1b, 0x86, 0xf9, 0x82, 0xe9, 0x58,
+	0x26, 0x61, 0x30, 0x7c, 0x11, 0x15, 0xaa, 0xe0, 0xc2, 0x13, 0x8e, 0xeb, 0x61, 0xee, 0xb8, 0x6e,
+	0x02, 0x0c, 0x1c, 0xd7, 0x01, 0x1a, 0x7f, 0x1c, 0x8d, 0xae, 0xb8, 0xf6, 0x86, 0x6b, 0xb4, 0x85,
+	0xaf, 0xab, 0xc8, 0x36, 0xfb, 0x0e, 0x07, 0x91, 0x00, 0xa7, 0xff, 0xdf, 0x0c, 0xca, 0xaf, 0xfa,
+	0x86, 0xdf, 0xf5, 0x18, 0xc7, 0x6a, 0x17, 0x4e, 0xd0, 0xd0, 0x76, 0x81, 0x73, 0x78, 0x1c, 0x44,
+	0x02, 0x1c, 0xbe, 0x88, 0x46, 0x16, 0x5c, 0xd7, 0x76, 0xe5, 0x0b, 0x08, 0xca, 0x00, 0xf2, 0x05,
+	0x04, 0x50, 0xe0, 0xeb, 0xa8, 0xc8, 0x6d, 0x0e, 0x3f, 0x78, 0xf0, 0xe7, 0x38, 0xd9, 0xef, 0x95,
+	0x66, 0xc4, 0xa1, 0x43, 0xbe, 0x89, 0x91, 0x28, 0xf5, 0xef, 0xe6, 0xa4, 0x4d, 0x01, 0xd7, 0xf8,
+	0x11, 0x3c, 0xbc, 0x5f, 0x45, 0xb9, 0xca, 0xca, 0x4d, 0x61, 0x00, 0x4f, 0x04, 0xac, 0xd2, 0x50,
+	0x89, 0xf1, 0x31, 0x6a, 0x7c, 0x06, 0x0d, 0xaf, 0xb0, 0xe1, 0x93, 0x87, 0xe1, 0x51, 0xe8, 0xf7,
+	0x4a, 0xc3, 0x0e, 0x1b, 0x3f, 0x00, 0x05, 0xac, 0xe1, 0x6f, 0x82, 0x2d, 0x1b, 0x13, 0x58, 0xc3,
+	0xdf, 0x24, 0x00, 0x65, 0xd8, 0xb2, 0xbb, 0x71, 0x5f, 0x58, 0x2d, 0xc0, 0x1a, 0xee, 0xc6, 0x7d,
+	0x02, 0x50, 0x3c, 0x8f, 0x10, 0xa1, 0x7e, 0xd7, 0xed, 0xc0, 0x65, 0xde, 0x18, 0x6c, 0x93, 0xc1,
+	0x1a, 0xba, 0x00, 0x6d, 0x34, 0x6d, 0x93, 0x12, 0x89, 0x44, 0xff, 0xe5, 0xc8, 0xff, 0x52, 0xb3,
+	0xbc, 0x7b, 0xc7, 0x5d, 0xb8, 0x8b, 0x2e, 0x34, 0xc4, 0x49, 0x24, 0xd9, 0x49, 0x25, 0x34, 0x72,
+	0xb3, 0x65, 0x6c, 0x78, 0xd0, 0x87, 0x23, 0xdc, 0x2b, 0x71, 0x97, 0x01, 0x08, 0x87, 0xc7, 0xfa,
+	0xa9, 0xf0, 0xf0, 0x7e, 0xfa, 0x7f, 0x23, 0xe1, 0x6c, 0xbb, 0x4d, 0xfd, 0x2d, 0xdb, 0x3d, 0xee,
+	0xaa, 0x47, 0xed, 0xaa, 0xf3, 0x68, 0x74, 0xd5, 0x6d, 0xc2, 0x31, 0x93, 0xf7, 0xd6, 0x78, 0xbf,
+	0x57, 0x2a, 0x78, 0x6e, 0x93, 0x1f, 0x31, 0x03, 0x24, 0xa3, 0xab, 0x79, 0x3e, 0xd0, 0x8d, 0x46,
+	0x74, 0xa6, 0xe7, 0x0b, 0x3a, 0x81, 0x14, 0x74, 0x2b, 0xb6, 0xeb, 0x8b, 0x8e, 0x0b, 0xe9, 0x1c,
+	0xdb, 0xf5, 0x49, 0x80, 0xc4, 0xcf, 0x23, 0xb4, 0x56, 0x5d, 0x79, 0x87, 0xba, 0xa0, 0x2e, 0x3e,
+	0x17, 0xc1, 0x5c, 0xdf, 0xe7, 0x20, 0x22, 0xa1, 0xf1, 0x1a, 0x1a, 0x5b, 0x76, 0xa8, 0x0b, 0x61,
+	0x02, 0xb0, 0x03, 0x98, 0xbc, 0xf2, 0x5c, 0x4c, 0xb5, 0xa2, 0xdf, 0xe7, 0xc4, 0xdf, 0x90, 0x9c,
+	0xaf, 0x2f, 0x76, 0xf0, 0x93, 0x44, 0x82, 0xf0, 0x75, 0x94, 0x2f, 0xf3, 0x7d, 0x5e, 0x11, 0x44,
+	0x86, 0x2a, 0x5b, 0x60, 0x7f, 0x38, 0x8a, 0x1f, 0x0a, 0x0d, 0xf8, 0x9f, 0x08, 0x72, 0xfd, 0x22,
+	0x9a, 0x8e, 0x37, 0x83, 0x8b, 0x68, 0xb4, 0xba, 0x7c, 0xfb, 0xf6, 0x42, 0x75, 0x6d, 0x7a, 0x08,
+	0x17, 0xd0, 0xf0, 0xea, 0xc2, 0xed, 0xda, 0x74, 0x46, 0xff, 0x86, 0x64, 0x41, 0xd8, 0xd0, 0x3a,
+	0xf6, 0xe0, 0xee, 0xc9, 0x2d, 0x32, 0x0d, 0x6e, 0xcb, 0x35, 0xd7, 0xe8, 0x78, 0x6d, 0xcb, 0xf7,
+	0xa9, 0x29, 0x56, 0x09, 0x70, 0xeb, 0xf9, 0x0f, 0x48, 0x02, 0x8f, 0x2f, 0xa1, 0x09, 0x80, 0x09,
+	0x4f, 0x9e, 0x09, 0xa3, 0x57, 0x30, 0xb8, 0x0f, 0x88, 0x8a, 0xd4, 0xff, 0x38, 0x72, 0xe2, 0x2e,
+	0x51, 0xe3, 0xb0, 0x3a, 0xfe, 0xfe, 0x83, 0xf4, 0x97, 0xfe, 0x8b, 0x39, 0x34, 0xc6, 0xde, 0x88,
+	0x07, 0x73, 0x1c, 0x84, 0x2a, 0xaf, 0x05, 0x7b, 0x43, 0xa1, 0xc9, 0xc9, 0x50, 0x13, 0x00, 0x4d,
+	0x68, 0x80, 0xef, 0x23, 0x2f, 0xa1, 0xfc, 0x2d, 0xea, 0x6f, 0xda, 0xa6, 0xb8, 0x00, 0x9d, 0xed,
+	0xf7, 0x4a, 0xd3, 0x6d, 0x80, 0x48, 0xfb, 0x3d, 0x41, 0x83, 0xef, 0x21, 0x5c, 0x37, 0x69, 0xc7,
+	0xb7, 0xfc, 0xed, 0xb2, 0xef, 0xbb, 0xd6, 0x7a, 0xd7, 0xa7, 0x9e, 0xd0, 0xdb, 0xa9, 0xc4, 0x39,
+	0x65, 0x15, 0x22, 0xa1, 0xe0, 0xce, 0x73, 0xd6, 0x08, 0xc9, 0x23, 0xb1, 0xff, 0xd2, 0x2b, 0xe5,
+	0x39, 0x0d, 0x49, 0x11, 0x8b, 0xdf, 0x46, 0x63, 0xb7, 0x6e, 0x96, 0x6b, 0xf4, 0xbe, 0xd5, 0xa4,
+	0xe2, 0xf2, 0xe2, 0xc9, 0x50, 0x8b, 0x01, 0x22, 0x54, 0x09, 0xc4, 0x27, 0xb4, 0xef, 0x1a, 0x0d,
+	0x13, 0xe0, 0x72, 0x7c, 0x42, 0x48, 0xac, 0xff, 0x5d, 0x06, 0x4d, 0x13, 0xea, 0xd9, 0x5d, 0x37,
+	0xe2, 0xc4, 0xe7, 0xd1, 0xb0, 0x74, 0x39, 0x0e, 0xde, 0x8a, 0xd8, 0x8d, 0x2c, 0xe0, 0xf1, 0x2a,
+	0x1a, 0x5d, 0x78, 0xe0, 0x58, 0x2e, 0xf5, 0x44, 0xdf, 0xec, 0x74, 0x32, 0x7b, 0x5a, 0x9c, 0xcc,
+	0x66, 0x28, 0x67, 0x49, 0x1c, 0xca, 0x38, 0x18, 0xbf, 0x8c, 0xc6, 0xee, 0x38, 0xa6, 0xe1, 0x53,
+	0xb3, 0xb2, 0x2d, 0xf6, 0xdc, 0xf0, 0x26, 0x5d, 0x0e, 0x6c, 0xac, 0x6f, 0xcb, 0x6f, 0x12, 0x92,
+	0xe2, 0x73, 0x28, 0xb7, 0xb6, 0xb6, 0x24, 0x3a, 0x0d, 0x42, 0xb9, 0x7c, 0x5f, 0x0e, 0xca, 0x60,
+	0x58, 0xfd, 0xab, 0x59, 0x84, 0xd8, 0xd8, 0xa8, 0xba, 0xd4, 0xf0, 0x0f, 0x66, 0x82, 0x57, 0x50,
+	0x21, 0x50, 0xb8, 0x18, 0x97, 0x5a, 0xc0, 0x1b, 0xef, 0x88, 0x78, 0xdb, 0x01, 0x9e, 0x6d, 0xa2,
+	0x88, 0xdd, 0x82, 0xab, 0x9d, 0x5c, 0x10, 0xd5, 0xe6, 0x32, 0x00, 0xe1, 0x70, 0xfc, 0x3c, 0x1a,
+	0x13, 0x53, 0xd1, 0x0e, 0x3c, 0xc8, 0xfc, 0xa8, 0x15, 0x00, 0x49, 0x84, 0xd7, 0xff, 0x20, 0xc3,
+	0x95, 0x52, 0xa3, 0x2d, 0x7a, 0x78, 0x95, 0xa2, 0x7f, 0x29, 0x83, 0x30, 0x13, 0xb6, 0x62, 0x78,
+	0xde, 0x96, 0xed, 0x9a, 0xd5, 0x4d, 0xa3, 0xb3, 0x71, 0x20, 0xaf, 0xa3, 0x7f, 0x79, 0x04, 0x9d,
+	0x50, 0x6e, 0x73, 0x0f, 0xf9, 0x78, 0xbb, 0xa8, 0x8e, 0x37, 0x38, 0x34, 0xc3, 0x78, 0x93, 0x0f,
+	0xcd, 0x7c, 0xe4, 0x7d, 0x0c, 0x8d, 0x89, 0x77, 0xae, 0xd7, 0xc4, 0xc8, 0x83, 0xe5, 0xd6, 0x32,
+	0x49, 0x84, 0xc0, 0x2f, 0xa0, 0x71, 0xf1, 0x83, 0x59, 0xdd, 0xc0, 0x2f, 0x0a, 0xe3, 0xd8, 0x63,
+	0x00, 0xa2, 0xa0, 0xf1, 0x4b, 0x68, 0x8c, 0x0d, 0xce, 0x0d, 0x88, 0x03, 0x1c, 0x8d, 0xc2, 0xe5,
+	0xcc, 0x00, 0x28, 0x9b, 0x84, 0x90, 0x92, 0x99, 0x72, 0xe1, 0xe3, 0x2f, 0x44, 0xa6, 0x9c, 0xfb,
+	0xf8, 0x65, 0x53, 0x2e, 0xbc, 0xfd, 0xef, 0xa1, 0x62, 0xb9, 0xd3, 0xb1, 0x79, 0x3c, 0xaa, 0x27,
+	0x1c, 0x59, 0x03, 0x6d, 0xf8, 0x39, 0x08, 0xe2, 0x8a, 0xe8, 0x53, 0x8d, 0xb8, 0x2c, 0x10, 0x5f,
+	0x61, 0x1d, 0x71, 0xdf, 0xa2, 0x5b, 0xd4, 0x15, 0xa1, 0x02, 0xe0, 0xcc, 0x73, 0x05, 0x4c, 0x0e,
+	0xe9, 0x0a, 0xe8, 0x70, 0x05, 0x4d, 0xac, 0xb8, 0xb6, 0x63, 0x7b, 0xd4, 0xe4, 0x8a, 0x2a, 0x02,
+	0xe3, 0x99, 0x7e, 0xaf, 0xa4, 0x39, 0x02, 0xd1, 0x00, 0x8d, 0x49, 0xec, 0x2a, 0x8b, 0xfe, 0xcd,
+	0x4c, 0x6c, 0x30, 0x1e, 0xe0, 0x3c, 0x57, 0x46, 0x47, 0x6e, 0xc0, 0xe8, 0xd0, 0xbf, 0x96, 0x45,
+	0x45, 0x76, 0x4e, 0xb8, 0x69, 0xbb, 0x5b, 0x86, 0x7b, 0x30, 0xce, 0x93, 0x7d, 0xbb, 0x4b, 0x91,
+	0xb6, 0x21, 0xc3, 0xbb, 0xd8, 0x86, 0x9c, 0x41, 0xc3, 0xd2, 0xf5, 0x1f, 0x77, 0x66, 0xb0, 0xb3,
+	0x16, 0x40, 0xf5, 0xff, 0x94, 0x45, 0xe8, 0xb3, 0x97, 0x2f, 0x1f, 0x61, 0x05, 0xe9, 0xff, 0x3f,
+	0x83, 0xa6, 0x84, 0x77, 0x4d, 0x8a, 0x77, 0x1e, 0x0d, 0xfc, 0xa2, 0x99, 0xc8, 0x6b, 0x28, 0xfc,
+	0xa1, 0x24, 0xc0, 0xb1, 0x99, 0xb8, 0xf0, 0xc0, 0xf2, 0xc1, 0xc1, 0x20, 0x05, 0x3c, 0x53, 0x01,
+	0x93, 0x67, 0x62, 0x40, 0x87, 0x5f, 0x08, 0xfc, 0x86, 0xb9, 0xc8, 0xfc, 0x30, 0x86, 0x85, 0x54,
+	0xdf, 0xa1, 0xfe, 0xad, 0x61, 0x34, 0xbc, 0xf0, 0x80, 0x36, 0x0f, 0x79, 0xd7, 0x48, 0xa7, 0x91,
+	0xe1, 0x3d, 0x9e, 0x46, 0x1e, 0xe7, 0x22, 0xe4, 0x8d, 0xa8, 0x3f, 0xf3, 0x6a, 0xf3, 0xb1, 0x9e,
+	0x8f, 0x37, 0x1f, 0xf4, 0xf4, 0xe1, 0xbb, 0x47, 0xfb, 0xc3, 0x1c, 0xca, 0xad, 0x56, 0x57, 0x8e,
+	0xc7, 0xcd, 0x81, 0x8e, 0x9b, 0x9d, 0x1d, 0xcd, 0x7a, 0xe8, 0x3b, 0x2a, 0x44, 0xb1, 0x03, 0x31,
+	0x37, 0xd1, 0x57, 0xb2, 0x68, 0x6c, 0xb5, 0xbb, 0xee, 0x6d, 0x7b, 0x3e, 0x6d, 0x1f, 0xf2, 0xde,
+	0x3c, 0x23, 0xce, 0x83, 0xc3, 0x91, 0x36, 0xd8, 0x79, 0x50, 0x9c, 0x02, 0xcf, 0x05, 0x96, 0x51,
+	0x3a, 0x67, 0x84, 0x96, 0x31, 0xb0, 0x87, 0xbf, 0x99, 0x45, 0xd3, 0xd5, 0x96, 0x45, 0x3b, 0x7e,
+	0xcd, 0xf2, 0x9a, 0xfb, 0x10, 0x29, 0x71, 0xf0, 0x5a, 0xd9, 0x9b, 0xa3, 0xe5, 0x11, 0xe2, 0x4f,
+	0xf4, 0xff, 0x9c, 0x45, 0xc5, 0x72, 0xd7, 0xdf, 0x2c, 0xfb, 0xb0, 0xb8, 0x1c, 0xc9, 0x65, 0xfe,
+	0x7b, 0x19, 0x34, 0xc5, 0x1e, 0x64, 0xcd, 0xbe, 0x47, 0x3b, 0xfb, 0x70, 0x8c, 0x92, 0x8f, 0x43,
+	0xd9, 0xc7, 0x3c, 0x0e, 0x05, 0xba, 0xcc, 0xed, 0xf2, 0x58, 0xc8, 0x0e, 0xda, 0xec, 0x94, 0xf4,
+	0x11, 0x79, 0x8d, 0x7d, 0x38, 0x47, 0x1c, 0xe4, 0x6b, 0xfc, 0x20, 0x83, 0x66, 0xd7, 0x5c, 0xb6,
+	0x90, 0x9b, 0x62, 0x3d, 0x3f, 0xe4, 0xfd, 0x92, 0x7c, 0xa1, 0x43, 0xde, 0x43, 0x3f, 0xca, 0xa0,
+	0x27, 0xd5, 0x17, 0xfa, 0x28, 0x58, 0x81, 0x3f, 0xc9, 0xa0, 0x93, 0x6f, 0x42, 0x12, 0x6c, 0xe8,
+	0x82, 0xfb, 0xe8, 0xbd, 0xd1, 0x21, 0x1f, 0x79, 0xdf, 0xcf, 0xa0, 0x13, 0xcb, 0xf5, 0x5a, 0xf5,
+	0xa3, 0xd2, 0x43, 0x89, 0xf7, 0xf9, 0x08, 0xf4, 0xcf, 0x6a, 0xf9, 0xd6, 0xd2, 0x47, 0xa9, 0x7f,
+	0x94, 0xf7, 0x39, 0xe4, 0xfd, 0xf3, 0x5f, 0xf3, 0xa8, 0xc8, 0xce, 0xb5, 0xc2, 0xa7, 0x77, 0xa4,
+	0x77, 0xfa, 0x57, 0x50, 0x51, 0xa8, 0x01, 0x8e, 0x94, 0x52, 0x3c, 0xbf, 0xc8, 0x20, 0x6f, 0xc0,
+	0xd1, 0x52, 0x26, 0x62, 0x27, 0xae, 0x77, 0xa8, 0xbb, 0x2e, 0xc7, 0xd0, 0xdc, 0xa7, 0xee, 0x3a,
+	0x01, 0x28, 0x5e, 0x8a, 0xee, 0xec, 0xca, 0x2b, 0x75, 0x48, 0x7c, 0x15, 0x27, 0x55, 0xc8, 0xe4,
+	0x75, 0x05, 0xae, 0x61, 0x38, 0x16, 0x4f, 0x99, 0x95, 0xe3, 0xf7, 0xe2, 0x9c, 0xf8, 0x36, 0x9a,
+	0x09, 0x60, 0x51, 0x06, 0x6b, 0x21, 0x45, 0x5c, 0x5a, 0xee, 0x6a, 0x92, 0x15, 0xbf, 0x81, 0xc6,
+	0x03, 0xe0, 0x5b, 0x16, 0xe4, 0xd7, 0x31, 0x51, 0x4f, 0xf5, 0x7b, 0xa5, 0x53, 0xa1, 0xa8, 0x7b,
+	0x96, 0x12, 0x9f, 0xa8, 0x30, 0xc8, 0x02, 0xe0, 0xd8, 0x89, 0x52, 0x04, 0xc4, 0xee, 0x23, 0x15,
+	0x06, 0xfc, 0x12, 0x08, 0x70, 0xec, 0x8e, 0x47, 0xc1, 0xc7, 0x57, 0x84, 0x00, 0x13, 0xb8, 0x13,
+	0x74, 0x05, 0x9c, 0x87, 0x11, 0x29, 0x64, 0x78, 0x19, 0xa1, 0xc8, 0x17, 0x23, 0x82, 0x35, 0x77,
+	0xed, 0x25, 0x92, 0x44, 0xe8, 0x7f, 0xca, 0xce, 0x6f, 0x8e, 0x13, 0x8e, 0xe4, 0x17, 0x50, 0xbe,
+	0xec, 0x38, 0x77, 0x48, 0x5d, 0x78, 0x27, 0x21, 0x96, 0xd0, 0x70, 0x9c, 0x46, 0xd7, 0xb5, 0xe4,
+	0x0b, 0x09, 0x4e, 0x84, 0xab, 0x68, 0xa2, 0xec, 0x38, 0x2b, 0xdd, 0xf5, 0x96, 0xd5, 0x94, 0xd2,
+	0xc7, 0x79, 0x0d, 0x02, 0xc7, 0x69, 0x38, 0x80, 0x89, 0x27, 0xdf, 0xab, 0x3c, 0xf8, 0x3d, 0x34,
+	0x56, 0x76, 0x1c, 0x91, 0x7c, 0x9f, 0x83, 0xe4, 0x7b, 0x3d, 0x78, 0x27, 0xe9, 0xd9, 0xe6, 0x42,
+	0x22, 0x9e, 0x76, 0x7f, 0x46, 0xdc, 0xd6, 0xce, 0xb2, 0x86, 0x12, 0x39, 0xf7, 0x91, 0x48, 0xfc,
+	0x22, 0x1a, 0x2d, 0x3b, 0x8e, 0xe4, 0x1e, 0x00, 0x57, 0x2a, 0xe3, 0x8a, 0x75, 0x51, 0x40, 0x76,
+	0xfa, 0x35, 0x34, 0xa9, 0x36, 0xb6, 0xab, 0xfc, 0xfc, 0x9f, 0x67, 0xe0, 0x85, 0x0e, 0xf9, 0x85,
+	0xda, 0x55, 0x94, 0x2b, 0x3b, 0x8e, 0x30, 0x27, 0x27, 0x52, 0xfa, 0x23, 0x1e, 0xad, 0x55, 0x76,
+	0x9c, 0xe0, 0xd5, 0xf9, 0x95, 0xf7, 0xd1, 0x7a, 0xf5, 0xef, 0xf2, 0x57, 0x3f, 0xe4, 0x37, 0xd4,
+	0xdf, 0xca, 0xa1, 0xa9, 0xb2, 0xe3, 0x1c, 0xa7, 0xad, 0xef, 0x57, 0x4c, 0xd8, 0x65, 0x84, 0x24,
+	0xf3, 0x38, 0x1a, 0x86, 0x7e, 0x14, 0x25, 0xd3, 0xa8, 0x65, 0x88, 0x44, 0x14, 0x0c, 0xbf, 0xc2,
+	0xae, 0x86, 0xdf, 0xef, 0x29, 0x1d, 0x07, 0x29, 0xb8, 0xc7, 0x1d, 0x37, 0xb2, 0xa7, 0x1d, 0xd5,
+	0xa4, 0xac, 0x4c, 0x11, 0xf0, 0x2d, 0x6e, 0xe8, 0x83, 0xf4, 0x83, 0x26, 0x43, 0x35, 0x2c, 0x93,
+	0xc4, 0x68, 0x83, 0x3e, 0x1c, 0xdd, 0x55, 0x1f, 0x7e, 0x3d, 0x8b, 0x66, 0xa2, 0x3e, 0xdc, 0x8f,
+	0x8d, 0xe9, 0x3c, 0x42, 0xdc, 0x49, 0x19, 0x5e, 0x24, 0x4e, 0xf0, 0x48, 0x65, 0x0f, 0xa0, 0x22,
+	0x52, 0x39, 0x22, 0x09, 0x6f, 0x15, 0x72, 0xa9, 0xb7, 0x0a, 0x17, 0x51, 0x81, 0x18, 0x5b, 0x6f,
+	0x77, 0xa9, 0xbb, 0x2d, 0x96, 0x52, 0x70, 0xa5, 0xbb, 0xc6, 0x56, 0xe3, 0x8b, 0x0c, 0x48, 0x42,
+	0x34, 0xd6, 0xc3, 0x18, 0x35, 0xc9, 0x79, 0xcc, 0x63, 0xd4, 0xc2, 0xc8, 0x34, 0xa1, 0xa4, 0xfc,
+	0xae, 0x94, 0xf4, 0xa3, 0x3c, 0x9a, 0xae, 0x19, 0xbe, 0xb1, 0x6e, 0x78, 0x54, 0x3a, 0x48, 0x4c,
+	0x05, 0x30, 0x36, 0x10, 0xac, 0xb0, 0x64, 0x11, 0xc4, 0x65, 0x99, 0xeb, 0x0d, 0x8f, 0x43, 0xe5,
+	0x1a, 0x2f, 0x31, 0x06, 0xfc, 0xa9, 0x48, 0x6e, 0x58, 0xd4, 0x86, 0x6f, 0x67, 0x40, 0x63, 0xe6,
+	0x7a, 0xc3, 0x11, 0x60, 0x92, 0x20, 0xc4, 0x97, 0x50, 0x31, 0x80, 0xb1, 0xcd, 0x53, 0x2e, 0x7a,
+	0x67, 0x73, 0x9d, 0xed, 0x9d, 0x88, 0x8c, 0xc6, 0xaf, 0xa0, 0xf1, 0xe0, 0xa7, 0xb4, 0x2d, 0x81,
+	0xbd, 0x96, 0xb9, 0x9e, 0xd8, 0x38, 0xca, 0xa4, 0x32, 0x2b, 0xcc, 0xcf, 0x11, 0x85, 0x35, 0x56,
+	0xd0, 0x4a, 0x21, 0xc5, 0x5f, 0x44, 0x93, 0xc1, 0x6f, 0xb1, 0xd9, 0xca, 0xc3, 0x66, 0xeb, 0x52,
+	0xa0, 0xf9, 0xb8, 0x5a, 0xe7, 0x54, 0x72, 0xbe, 0xed, 0x7a, 0x4a, 0x6c, 0xbb, 0x4e, 0x98, 0xeb,
+	0xc9, 0x5d, 0x57, 0xac, 0x01, 0x5c, 0x47, 0x33, 0x01, 0xa4, 0xfc, 0xee, 0x2a, 0xa1, 0x1b, 0x6c,
+	0x56, 0x8e, 0x46, 0x9b, 0x65, 0x73, 0xbd, 0x01, 0xa5, 0xae, 0x00, 0x21, 0xef, 0xd9, 0x13, 0x5c,
+	0xb8, 0x85, 0xce, 0x28, 0x40, 0xd3, 0xdb, 0xb4, 0xee, 0xfa, 0x62, 0xa7, 0x5b, 0xaf, 0x89, 0xe3,
+	0x00, 0xd4, 0x82, 0x09, 0xa5, 0x72, 0x9a, 0xa0, 0x58, 0x50, 0x43, 0xa9, 0x9b, 0xb6, 0xa3, 0x34,
+	0xbc, 0x8a, 0x66, 0x03, 0xfc, 0x9b, 0xd5, 0x95, 0x15, 0xd7, 0xfe, 0x02, 0x6d, 0xfa, 0xf5, 0x9a,
+	0x38, 0x29, 0x40, 0x0a, 0x92, 0xb9, 0xde, 0xd8, 0x68, 0x3a, 0x6c, 0x50, 0x30, 0x9c, 0x2a, 0x3c,
+	0x95, 0x19, 0xbf, 0x83, 0x4e, 0x4a, 0xf0, 0x7a, 0xc7, 0xf3, 0x8d, 0x4e, 0x93, 0xd6, 0x6b, 0xe2,
+	0xf8, 0x00, 0x47, 0x19, 0x21, 0xd5, 0x12, 0x48, 0x55, 0x6c, 0x3a, 0xfb, 0xe9, 0x32, 0x3a, 0x91,
+	0xd2, 0x53, 0xbb, 0xda, 0xb3, 0x7e, 0x25, 0x1b, 0x0d, 0x8e, 0x43, 0xbe, 0x71, 0xad, 0xa0, 0x42,
+	0xf0, 0x26, 0x62, 0x09, 0xd1, 0x06, 0x0d, 0xf0, 0xb8, 0x8c, 0x00, 0xaf, 0xa8, 0xe3, 0x90, 0x6f,
+	0x66, 0xf7, 0x43, 0x1d, 0x1f, 0x64, 0x22, 0x75, 0x1c, 0xf2, 0x0d, 0xee, 0xf7, 0x73, 0xd1, 0xcc,
+	0x3e, 0xde, 0xe5, 0xee, 0xd7, 0x66, 0x29, 0xba, 0x38, 0xcd, 0xef, 0x22, 0x80, 0x4c, 0x1e, 0x9a,
+	0xa3, 0x8f, 0x39, 0x34, 0x7f, 0x9c, 0xec, 0x4f, 0xbe, 0x01, 0x39, 0x94, 0xfd, 0xb9, 0x0f, 0x93,
+	0x15, 0x5f, 0x41, 0x13, 0xc1, 0xff, 0x7c, 0xa7, 0x36, 0x22, 0xe5, 0x43, 0xad, 0x8b, 0x8d, 0x9a,
+	0x4a, 0x82, 0x3f, 0x87, 0x4e, 0x29, 0x80, 0x15, 0xc3, 0x35, 0xda, 0xd4, 0xa7, 0x2e, 0xdf, 0x23,
+	0x88, 0xf2, 0x73, 0x01, 0x77, 0xc3, 0x09, 0xd1, 0x72, 0x05, 0xb7, 0x01, 0x12, 0xa4, 0xc1, 0x31,
+	0xba, 0x8b, 0x5b, 0xf5, 0xbf, 0xc9, 0xa2, 0x89, 0x15, 0xdb, 0xf3, 0x37, 0x5c, 0xea, 0xad, 0x18,
+	0xae, 0x47, 0x8f, 0x6e, 0x8f, 0x7e, 0x12, 0x4d, 0x40, 0x9c, 0x6c, 0x9b, 0x76, 0x7c, 0xa9, 0x2e,
+	0x1d, 0xaf, 0xd1, 0x10, 0x20, 0x60, 0xdb, 0x48, 0x54, 0x42, 0x5c, 0x42, 0x23, 0x7c, 0x0c, 0x48,
+	0xd1, 0xcb, 0x7c, 0x00, 0x70, 0xb8, 0xfe, 0xf5, 0x1c, 0x1a, 0x0f, 0xb4, 0x5c, 0xb1, 0x0e, 0x6b,
+	0x16, 0xf0, 0xc1, 0x2a, 0x79, 0x1e, 0xa1, 0x15, 0xdb, 0xf5, 0x8d, 0x96, 0x54, 0x12, 0x17, 0x8e,
+	0x0c, 0x0e, 0x40, 0x39, 0x8f, 0x44, 0x82, 0xe7, 0x10, 0x92, 0x26, 0xd8, 0x28, 0x4c, 0xb0, 0xc9,
+	0x7e, 0xaf, 0x84, 0xa2, 0x79, 0x45, 0x24, 0x0a, 0xfd, 0x77, 0xb2, 0x68, 0x2a, 0xe8, 0xa4, 0x85,
+	0x07, 0xb4, 0xd9, 0xf5, 0x8f, 0xf0, 0x64, 0x50, 0xb5, 0x3d, 0xf2, 0x50, 0x6d, 0xeb, 0xff, 0x20,
+	0x19, 0x92, 0x6a, 0xcb, 0x3e, 0x36, 0x24, 0xff, 0x1e, 0x63, 0x5c, 0xff, 0x6f, 0x39, 0x34, 0x1b,
+	0x68, 0xfd, 0x66, 0xb7, 0x03, 0xdb, 0x84, 0xaa, 0xd1, 0x6a, 0x1d, 0xe5, 0x75, 0xb9, 0x18, 0x28,
+	0x62, 0x59, 0x24, 0x9e, 0x4c, 0xf0, 0x4b, 0xb6, 0xbb, 0x02, 0xdc, 0xb0, 0x2d, 0x93, 0xc8, 0x44,
+	0xf8, 0x0d, 0x34, 0x1e, 0xfc, 0x2c, 0xbb, 0x1b, 0xc1, 0x62, 0x0c, 0x47, 0xe7, 0x90, 0xc9, 0x70,
+	0x37, 0x94, 0x62, 0xc3, 0x32, 0x83, 0xfe, 0xb5, 0x3c, 0x3a, 0xfd, 0xae, 0xd5, 0x31, 0xed, 0x2d,
+	0x4f, 0x14, 0xe3, 0x3a, 0xfc, 0x9b, 0xde, 0xfd, 0xab, 0x81, 0x13, 0xed, 0x4c, 0x46, 0x76, 0xb1,
+	0x6d, 0x7d, 0x1b, 0x9d, 0x8c, 0xab, 0xd4, 0x0d, 0xf3, 0x1d, 0x45, 0xef, 0x6c, 0x71, 0x82, 0x46,
+	0x50, 0x0f, 0x4d, 0xf8, 0x9f, 0x48, 0x3a, 0x67, 0xbc, 0xa0, 0xda, 0xe8, 0xa3, 0x14, 0x54, 0xfb,
+	0x04, 0xca, 0xd7, 0xec, 0xb6, 0x61, 0x05, 0x21, 0xbe, 0x30, 0x8b, 0xc3, 0x76, 0x01, 0x43, 0x04,
+	0x05, 0x93, 0x2f, 0x1a, 0x86, 0x2e, 0x1b, 0x8b, 0xe4, 0x07, 0x0c, 0x5d, 0x8f, 0xba, 0x44, 0x26,
+	0xc2, 0x36, 0x9a, 0x10, 0xcd, 0x09, 0x6f, 0x11, 0x02, 0x6f, 0xd1, 0x4b, 0x81, 0x8e, 0x06, 0x0f,
+	0xab, 0x39, 0x85, 0x8f, 0xbb, 0x8d, 0xe0, 0xe9, 0x82, 0x97, 0xe1, 0x7e, 0x23, 0xa2, 0xca, 0x97,
+	0x94, 0x00, 0x46, 0xa6, 0x98, 0x54, 0x02, 0x58, 0x19, 0x99, 0xe8, 0xf4, 0x0d, 0x84, 0x93, 0x8d,
+	0xed, 0xca, 0xf3, 0xf1, 0xbf, 0xb2, 0x08, 0xc7, 0x0e, 0x10, 0x0b, 0x47, 0x78, 0x1f, 0xa4, 0xff,
+	0x5a, 0x06, 0xcd, 0x24, 0x32, 0x75, 0xf1, 0x55, 0x84, 0x38, 0x44, 0xca, 0xba, 0x85, 0x1c, 0xbb,
+	0x28, 0x7b, 0x57, 0xac, 0x01, 0x11, 0x19, 0x9e, 0x47, 0x05, 0xfe, 0x2b, 0xac, 0x02, 0x1f, 0x67,
+	0xe9, 0x76, 0x2d, 0x93, 0x84, 0x44, 0x51, 0x2b, 0xf0, 0x3d, 0x84, 0x5c, 0x2a, 0x8b, 0xbf, 0xed,
+	0x84, 0xad, 0x30, 0x32, 0xfd, 0xbb, 0x19, 0x34, 0x1e, 0x3e, 0x70, 0xd9, 0x3c, 0xa8, 0xae, 0xcb,
+	0x8b, 0xa4, 0xe7, 0xdc, 0xc3, 0x92, 0x9e, 0x63, 0x46, 0x45, 0x64, 0x39, 0xff, 0x51, 0x06, 0x4d,
+	0x85, 0xb4, 0x07, 0xe8, 0x63, 0xd9, 0xf3, 0x8b, 0xfc, 0xef, 0x0c, 0xd2, 0x2a, 0x56, 0xab, 0x65,
+	0x75, 0x36, 0xea, 0x9d, 0xbb, 0xb6, 0xdb, 0x86, 0xdc, 0xc2, 0x83, 0x73, 0xa2, 0xe9, 0xff, 0x33,
+	0x83, 0x66, 0xc4, 0x03, 0x55, 0x0d, 0xd7, 0x3c, 0x38, 0xef, 0x66, 0xfc, 0x49, 0x0e, 0xae, 0x97,
+	0x21, 0x3e, 0x7a, 0xc9, 0x6e, 0xde, 0xfb, 0x08, 0x84, 0x79, 0xb3, 0xd7, 0x38, 0xe4, 0xa1, 0x68,
+	0x5f, 0xce, 0xa0, 0x59, 0x42, 0x9b, 0xf6, 0x7d, 0xea, 0x6e, 0x57, 0x6d, 0x93, 0xbe, 0x49, 0x3b,
+	0xd4, 0x3d, 0xa8, 0x41, 0xfa, 0xbb, 0x50, 0x6e, 0x21, 0x7a, 0x98, 0x3b, 0x1e, 0x35, 0x0f, 0x4f,
+	0x6d, 0x0c, 0xfd, 0xb7, 0x46, 0x91, 0x96, 0xba, 0x33, 0x39, 0xb4, 0x8b, 0xfa, 0xc0, 0xed, 0xe6,
+	0xf0, 0x7e, 0x6d, 0x37, 0x47, 0x76, 0xb7, 0xdd, 0xcc, 0xef, 0x76, 0xbb, 0x39, 0xfa, 0x28, 0xdb,
+	0xcd, 0x76, 0x7c, 0xbb, 0x59, 0x80, 0xed, 0xe6, 0xd5, 0x1d, 0xb7, 0x9b, 0x0b, 0x1d, 0xf3, 0x31,
+	0x37, 0x9b, 0x87, 0xb6, 0x22, 0xe4, 0x63, 0xec, 0x92, 0xf1, 0x05, 0x66, 0xdc, 0x9a, 0xb6, 0x6b,
+	0x52, 0x5e, 0xe1, 0xb1, 0xc0, 0xbd, 0xc1, 0xae, 0x80, 0x91, 0x10, 0x9b, 0x28, 0xaf, 0x39, 0xf1,
+	0x28, 0xe5, 0x35, 0xf7, 0x61, 0x17, 0xfe, 0x83, 0x0c, 0x9a, 0xa9, 0x52, 0xd7, 0xb7, 0xee, 0x5a,
+	0x4d, 0xc3, 0xdf, 0x8f, 0x2b, 0xc8, 0x32, 0x9a, 0x92, 0x04, 0x4a, 0x1f, 0xd8, 0x82, 0xbc, 0xe8,
+	0x26, 0x75, 0x7d, 0xd8, 0x4a, 0xca, 0x11, 0x01, 0x31, 0x7a, 0xd6, 0x7c, 0x50, 0xe2, 0x46, 0xcc,
+	0xdd, 0xb0, 0xf9, 0x00, 0xce, 0x15, 0x69, 0x89, 0x5f, 0x24, 0xa4, 0xd7, 0xbf, 0x91, 0x41, 0xe7,
+	0x09, 0xed, 0xd0, 0x2d, 0x63, 0xbd, 0x45, 0x25, 0xc1, 0xc2, 0xb6, 0xb3, 0x79, 0x6f, 0x79, 0x6d,
+	0xc3, 0x6f, 0x6e, 0xee, 0xe9, 0x2d, 0x6f, 0xaa, 0x1f, 0xb9, 0xda, 0x85, 0x75, 0x52, 0xf8, 0xf4,
+	0x1f, 0x67, 0xd0, 0xe8, 0x9d, 0xce, 0xbd, 0x8e, 0xbd, 0xb5, 0xb7, 0x42, 0x48, 0x57, 0x51, 0x51,
+	0x88, 0x91, 0x34, 0xce, 0xbf, 0x5a, 0xc6, 0xc1, 0x0d, 0xfe, 0x69, 0x33, 0x99, 0x0a, 0xbf, 0x16,
+	0x32, 0x41, 0x98, 0x8a, 0xf4, 0x15, 0xad, 0x80, 0x29, 0xf6, 0x35, 0x33, 0x99, 0x1c, 0x9f, 0x11,
+	0xdf, 0x18, 0x90, 0x52, 0x3f, 0xd9, 0xa3, 0xf0, 0x4f, 0x0c, 0xe8, 0xdf, 0x78, 0x11, 0x8d, 0x2c,
+	0x77, 0xe8, 0xf2, 0x5d, 0x7c, 0x59, 0x2a, 0xf6, 0x24, 0xde, 0x6b, 0x46, 0xd6, 0x13, 0x20, 0x16,
+	0x87, 0x88, 0x54, 0x12, 0xea, 0x9a, 0x5c, 0x8a, 0x47, 0xe8, 0x16, 0xcb, 0x3c, 0x1c, 0xb3, 0x38,
+	0x44, 0xe4, 0x92, 0x3d, 0xd7, 0xe4, 0x5a, 0x35, 0x62, 0xe0, 0x28, 0x5c, 0x1c, 0x13, 0x70, 0x89,
+	0xcd, 0xcb, 0x52, 0x5a, 0x69, 0x98, 0xb8, 0x77, 0x23, 0x49, 0xb1, 0x38, 0x44, 0xd2, 0x4b, 0xca,
+	0x28, 0x9f, 0x9e, 0x11, 0xfe, 0x8d, 0xd9, 0xd8, 0xd2, 0x03, 0xb8, 0xc5, 0x21, 0xa2, 0x7e, 0xa6,
+	0xe6, 0xba, 0xf2, 0x51, 0x8f, 0x78, 0x78, 0x8e, 0x84, 0x5a, 0x1c, 0x22, 0xb1, 0xcf, 0x7f, 0x28,
+	0x5f, 0x98, 0x10, 0xd7, 0x3d, 0xf1, 0x46, 0x01, 0x27, 0x35, 0xca, 0xbf, 0x46, 0xf1, 0x7a, 0xac,
+	0xf2, 0xbb, 0x08, 0x7f, 0x3b, 0x19, 0x63, 0xe6, 0xc8, 0xc5, 0x21, 0x12, 0xab, 0x13, 0x7f, 0x21,
+	0x28, 0x06, 0x2e, 0x6c, 0xf9, 0xa4, 0xb4, 0x79, 0xb3, 0xde, 0x67, 0x5a, 0x0a, 0x8a, 0x85, 0x5f,
+	0x93, 0x8b, 0x40, 0x0b, 0xe3, 0x8c, 0x63, 0xad, 0x2c, 0x74, 0x4c, 0xd6, 0x3b, 0xd2, 0xce, 0xe1,
+	0x46, 0xbc, 0x5c, 0xaa, 0x28, 0xc2, 0xfb, 0x44, 0x8c, 0x53, 0x60, 0x17, 0x87, 0x48, 0xbc, 0xbc,
+	0xea, 0x75, 0xa5, 0x54, 0xa7, 0x88, 0xdd, 0x8e, 0x6b, 0x95, 0xa1, 0x24, 0xad, 0x42, 0x51, 0xcf,
+	0x1b, 0xf1, 0xda, 0x91, 0xda, 0x44, 0x6a, 0xd3, 0x02, 0x2b, 0x35, 0x1d, 0xd4, 0x9a, 0xbc, 0xae,
+	0xd4, 0xf8, 0x83, 0x32, 0xba, 0x29, 0x4d, 0x1b, 0xbe, 0x21, 0x37, 0xcd, 0xab, 0x01, 0x2a, 0xd5,
+	0xe6, 0xb4, 0xa9, 0xd4, 0x0e, 0x05, 0x9c, 0xd4, 0xa1, 0xbc, 0x32, 0xdd, 0x75, 0xa5, 0x40, 0x8a,
+	0x36, 0xad, 0x36, 0x2a, 0xa1, 0x58, 0xa3, 0x72, 0x29, 0x95, 0x6b, 0x72, 0xdd, 0x10, 0x6d, 0x46,
+	0xed, 0xa0, 0x08, 0xc3, 0x3a, 0x48, 0xaa, 0x2f, 0x52, 0x82, 0x9a, 0x04, 0x1a, 0x06, 0xf2, 0x62,
+	0xf8, 0x84, 0xd5, 0x95, 0xc5, 0x21, 0x02, 0xd5, 0x0a, 0x74, 0x5e, 0xed, 0x42, 0x3b, 0x01, 0x14,
+	0xe3, 0x61, 0x2d, 0xc5, 0x07, 0xb4, 0xb9, 0x38, 0x44, 0x78, 0x25, 0x8c, 0xcb, 0x52, 0x42, 0xbc,
+	0x36, 0xab, 0x9a, 0x88, 0x10, 0xc1, 0x4c, 0x44, 0x94, 0x36, 0x7f, 0x33, 0x99, 0x34, 0xae, 0x9d,
+	0x54, 0xcf, 0x0f, 0x71, 0xfc, 0xe2, 0x10, 0x49, 0x26, 0x9a, 0x5f, 0x57, 0xf2, 0xa8, 0xb5, 0x27,
+	0x62, 0x31, 0x71, 0x11, 0x8a, 0xa9, 0x4b, 0xce, 0xb8, 0x5e, 0x4e, 0xad, 0xe3, 0xa4, 0x9d, 0x02,
+	0x01, 0x4f, 0x85, 0x02, 0x92, 0x24, 0x8b, 0x43, 0x24, 0xb5, 0x02, 0x54, 0x35, 0x91, 0xcd, 0xac,
+	0x69, 0xea, 0xc6, 0x35, 0x86, 0x5e, 0x1c, 0x22, 0x89, 0xfc, 0xe7, 0x6b, 0x72, 0x1a, 0xb1, 0xf6,
+	0xa4, 0xda, 0x89, 0x11, 0x86, 0x75, 0xa2, 0x94, 0x6e, 0x7c, 0x4d, 0xce, 0xda, 0xd5, 0x4e, 0x27,
+	0xb9, 0x22, 0xcb, 0x29, 0x65, 0xf7, 0x92, 0xf4, 0x24, 0x59, 0xed, 0x29, 0xe0, 0x3f, 0x13, 0xf0,
+	0xa7, 0xd1, 0x2c, 0x0e, 0x91, 0xf4, 0x04, 0x5b, 0x92, 0x9e, 0xa7, 0xaa, 0x9d, 0xd9, 0x49, 0x66,
+	0xf8, 0x74, 0xe9, 0x39, 0xae, 0xc6, 0x0e, 0xa9, 0xa2, 0xda, 0xd3, 0x6a, 0x2e, 0xc7, 0x40, 0xc2,
+	0xc5, 0x21, 0xb2, 0x43, 0xc2, 0xe9, 0x9d, 0x01, 0x79, 0x9b, 0xda, 0x59, 0xb5, 0xea, 0x47, 0x2a,
+	0xd1, 0xe2, 0x10, 0x19, 0x90, 0xf5, 0x79, 0x67, 0x40, 0xf2, 0xa4, 0x56, 0xda, 0x51, 0x6c, 0xa8,
+	0x8f, 0x01, 0xa9, 0x97, 0xcb, 0xa9, 0x19, 0x8c, 0xda, 0x33, 0xea, 0xd0, 0x4d, 0x21, 0x61, 0x43,
+	0x37, 0x2d, 0xf7, 0x71, 0x39, 0x35, 0x85, 0x50, 0x7b, 0x76, 0x07, 0x81, 0xe1, 0x33, 0xa6, 0x26,
+	0x1f, 0x2e, 0xa7, 0xe6, 0xf0, 0x69, 0xba, 0x2a, 0x30, 0x85, 0x84, 0x09, 0x4c, 0xcb, 0xfe, 0x5b,
+	0x4e, 0x4d, 0xa2, 0xd3, 0xce, 0xed, 0x20, 0x30, 0x7a, 0xc2, 0xb4, 0xf4, 0xbb, 0xeb, 0x4a, 0x16,
+	0x9b, 0xf6, 0x31, 0xd5, 0x6e, 0x48, 0x28, 0x66, 0x37, 0xe4, 0x7c, 0xb7, 0x6a, 0x22, 0xd0, 0x5f,
+	0xfb, 0xb8, 0x3a, 0xcd, 0x63, 0x68, 0x36, 0xcd, 0xe3, 0xa9, 0x01, 0xd5, 0x44, 0xd0, 0xb9, 0x76,
+	0x7e, 0x90, 0x10, 0x40, 0xab, 0x42, 0x78, 0x98, 0x7a, 0x3d, 0x25, 0xea, 0x59, 0x7b, 0x4e, 0xf5,
+	0x3e, 0x26, 0x08, 0x16, 0x87, 0x48, 0x4a, 0xac, 0x34, 0x49, 0x0f, 0xee, 0xd2, 0x2e, 0xa8, 0xd3,
+	0x36, 0x8d, 0x86, 0x4d, 0xdb, 0xd4, 0xc0, 0xb0, 0xa5, 0xb4, 0xfb, 0x01, 0xed, 0xa2, 0xba, 0x31,
+	0x4b, 0x52, 0xb0, 0x8d, 0x59, 0xca, 0xbd, 0x02, 0x49, 0x0f, 0x57, 0xd2, 0x3e, 0xb1, 0xe3, 0x13,
+	0x02, 0x4d, 0xca, 0x13, 0xf2, 0xe8, 0x9d, 0x68, 0xef, 0x74, 0xc7, 0x69, 0xd9, 0x86, 0xa9, 0x3d,
+	0x9f, 0xba, 0x77, 0xe2, 0x48, 0x69, 0xef, 0xc4, 0x01, 0x6c, 0x95, 0x97, 0xfd, 0xe7, 0xda, 0x25,
+	0x75, 0x95, 0x97, 0x71, 0x6c, 0x95, 0x57, 0x7c, 0xed, 0xd5, 0x84, 0xd7, 0x5a, 0x7b, 0x41, 0x1d,
+	0x00, 0x31, 0x34, 0x1b, 0x00, 0x71, 0x3f, 0xf7, 0x7b, 0x83, 0x3d, 0xc6, 0xda, 0x1c, 0x48, 0x7b,
+	0x26, 0xac, 0x16, 0x3d, 0x80, 0x6e, 0x71, 0x88, 0x0c, 0xf6, 0x3a, 0xd7, 0x53, 0x1c, 0xc0, 0xda,
+	0xbc, 0x3a, 0xc0, 0x12, 0x04, 0x6c, 0x80, 0x25, 0xdd, 0xc6, 0xf5, 0x14, 0x0f, 0xae, 0xf6, 0xe2,
+	0x40, 0x51, 0xe1, 0x3b, 0xa7, 0xf8, 0x7d, 0xaf, 0xc9, 0x2e, 0x58, 0xed, 0xb2, 0xba, 0xd8, 0x45,
+	0x18, 0xb6, 0xd8, 0x49, 0xae, 0xda, 0x6b, 0xb2, 0xc7, 0x53, 0xbb, 0x92, 0xe4, 0x8a, 0x96, 0x48,
+	0xc9, 0x33, 0x4a, 0xd2, 0x1d, 0x8c, 0xda, 0x55, 0x75, 0xd4, 0xa5, 0xd1, 0xb0, 0x51, 0x97, 0xea,
+	0x9c, 0xbc, 0x99, 0xf4, 0x13, 0x6a, 0xd7, 0xe2, 0x9e, 0x53, 0x15, 0xcf, 0x76, 0x3e, 0x09, 0xdf,
+	0xe2, 0x8d, 0x78, 0xe4, 0xb1, 0xf6, 0x92, 0xba, 0xbf, 0x55, 0xb1, 0x6c, 0x7f, 0x1b, 0x8b, 0x54,
+	0xbe, 0x11, 0x0f, 0xd6, 0xd5, 0x5e, 0x4e, 0x97, 0x10, 0x8e, 0x95, 0x78, 0x70, 0xef, 0x8d, 0x78,
+	0x7c, 0xab, 0x76, 0x3d, 0x5d, 0x42, 0xa8, 0xdd, 0x78, 0x3c, 0xec, 0x65, 0x29, 0xe7, 0x4f, 0xfb,
+	0xa4, 0xba, 0x75, 0x0c, 0x11, 0x6c, 0xeb, 0x18, 0x65, 0x06, 0x5e, 0x96, 0x72, 0xe5, 0xb4, 0x57,
+	0x12, 0x2c, 0xe1, 0xc3, 0x4a, 0x19, 0x75, 0x97, 0xa5, 0x1c, 0x33, 0xed, 0xd5, 0x04, 0x4b, 0xf8,
+	0x74, 0x52, 0x26, 0x9a, 0xb9, 0x53, 0x00, 0x80, 0xf6, 0x29, 0x90, 0xa1, 0x3f, 0xfc, 0x4e, 0x77,
+	0x71, 0x88, 0xec, 0x14, 0x48, 0xf0, 0xde, 0x60, 0xaf, 0xab, 0xf6, 0x9a, 0x3a, 0x85, 0x07, 0xd1,
+	0xb1, 0x29, 0x3c, 0xd0, 0x73, 0xfb, 0x7a, 0x2c, 0x18, 0x50, 0x7b, 0x5d, 0x35, 0x71, 0x0a, 0x92,
+	0x99, 0xb8, 0x78, 0xe8, 0xa0, 0x12, 0xe5, 0xa6, 0x7d, 0x5a, 0x35, 0x71, 0x32, 0x8e, 0x99, 0x38,
+	0x25, 0x22, 0xae, 0x9a, 0x08, 0xbe, 0xd2, 0xde, 0x50, 0x4d, 0x5c, 0x0c, 0xcd, 0x4c, 0x5c, 0x3c,
+	0x5c, 0xeb, 0xf5, 0x58, 0x0c, 0x92, 0x76, 0x23, 0xfd, 0xf9, 0x01, 0x29, 0x3f, 0x3f, 0x8f, 0x58,
+	0x22, 0xe9, 0xc1, 0x34, 0x5a, 0x59, 0x9d, 0xbf, 0x69, 0x34, 0x6c, 0xfe, 0xa6, 0x06, 0xe2, 0x2c,
+	0xa7, 0xd6, 0xdc, 0xd4, 0x2a, 0x3b, 0x1c, 0x1c, 0xa2, 0xad, 0x48, 0x5a, 0xb5, 0xce, 0x1b, 0xf1,
+	0xef, 0x8c, 0x69, 0xd5, 0x01, 0x67, 0xe4, 0xe0, 0x18, 0x14, 0xff, 0x2e, 0x59, 0x3d, 0xc5, 0x09,
+	0xa8, 0xd5, 0x54, 0xeb, 0x9a, 0x20, 0x60, 0xd6, 0x35, 0xe9, 0x3a, 0xbc, 0x99, 0xfc, 0xbc, 0xa3,
+	0xb6, 0x10, 0xbb, 0x12, 0x8f, 0xe1, 0x99, 0x75, 0x4a, 0x7c, 0x12, 0x92, 0xa4, 0x7f, 0x01, 0x50,
+	0xbb, 0x19, 0x5b, 0xaf, 0x53, 0x68, 0x60, 0xbd, 0x4e, 0xfb, 0x7a, 0xe0, 0xe7, 0x06, 0x7e, 0xc8,
+	0x51, 0x7b, 0x13, 0xc4, 0x96, 0x06, 0x89, 0x15, 0x64, 0x8b, 0x43, 0x64, 0xe0, 0xa7, 0x20, 0xef,
+	0xa0, 0x93, 0xb7, 0xb6, 0x57, 0xdf, 0x5e, 0x0a, 0xe3, 0xb7, 0x56, 0x5c, 0xea, 0x18, 0x2e, 0xd5,
+	0x16, 0xd5, 0xbd, 0x7a, 0x2a, 0x11, 0xdb, 0xab, 0xa7, 0x22, 0x92, 0x62, 0x83, 0xb9, 0x50, 0xdf,
+	0x49, 0x6c, 0x34, 0x23, 0xd2, 0xb9, 0x99, 0x75, 0x52, 0x11, 0x4c, 0x41, 0x4b, 0x76, 0x67, 0x03,
+	0x3c, 0x15, 0x9f, 0x51, 0xad, 0xd3, 0x60, 0x4a, 0x66, 0x9d, 0x06, 0x63, 0xd9, 0x50, 0x57, 0xb1,
+	0x7c, 0x0e, 0xbe, 0xa5, 0x0e, 0xf5, 0x14, 0x12, 0x36, 0xd4, 0x53, 0xc0, 0x49, 0x81, 0x84, 0x7a,
+	0xd4, 0xd7, 0x96, 0x76, 0x12, 0x08, 0x24, 0x49, 0x81, 0x00, 0x4e, 0x0a, 0xbc, 0x49, 0xfd, 0xe6,
+	0xa6, 0x76, 0x6b, 0x27, 0x81, 0x40, 0x92, 0x14, 0x08, 0x60, 0x76, 0xd8, 0x54, 0xc1, 0x95, 0x6e,
+	0xeb, 0x5e, 0xd0, 0x67, 0xb7, 0xd5, 0xc3, 0xe6, 0x40, 0x42, 0x76, 0xd8, 0x1c, 0x88, 0xc4, 0x5f,
+	0x7a, 0x64, 0x17, 0xb7, 0xb6, 0x0c, 0x0d, 0xce, 0x45, 0xfb, 0x82, 0x47, 0xe1, 0x5a, 0x1c, 0x22,
+	0x8f, 0xea, 0x42, 0x7f, 0x3e, 0xf4, 0x5e, 0x6b, 0x2b, 0xd0, 0xd4, 0x54, 0xe8, 0xab, 0xe0, 0xe0,
+	0xc5, 0x21, 0x12, 0xfa, 0xb7, 0xaf, 0xa3, 0x22, 0xbc, 0x54, 0xbd, 0x63, 0xf9, 0xb5, 0x8a, 0xf6,
+	0xb6, 0x7a, 0x64, 0x92, 0x50, 0xec, 0xc8, 0x24, 0xfd, 0x64, 0x46, 0x1c, 0x7e, 0x72, 0x13, 0x53,
+	0xab, 0x68, 0x44, 0x35, 0xe2, 0x0a, 0x92, 0x19, 0x71, 0x05, 0x10, 0xb6, 0x5b, 0x73, 0x6d, 0xa7,
+	0x56, 0xd1, 0x56, 0x53, 0xda, 0xe5, 0xa8, 0xb0, 0x5d, 0xfe, 0x33, 0x6c, 0x77, 0x75, 0xb3, 0xeb,
+	0xd7, 0xd8, 0x3b, 0xae, 0xa5, 0xb4, 0x1b, 0x20, 0xc3, 0x76, 0x03, 0x00, 0x33, 0x85, 0x00, 0x58,
+	0x71, 0x6d, 0x66, 0xb4, 0xdf, 0xb2, 0x5a, 0x2d, 0xed, 0x8e, 0x6a, 0x0a, 0xe3, 0x78, 0x66, 0x0a,
+	0xe3, 0x30, 0xb6, 0xf5, 0xe4, 0x4f, 0x45, 0xd7, 0xbb, 0x1b, 0xda, 0x3b, 0xea, 0xd6, 0x33, 0xc2,
+	0xb0, 0xad, 0x67, 0xf4, 0x0b, 0x4e, 0x17, 0xec, 0x17, 0xa1, 0x77, 0x5d, 0xea, 0x6d, 0x6a, 0xef,
+	0xc6, 0x4e, 0x17, 0x12, 0x0e, 0x4e, 0x17, 0xd2, 0x6f, 0xbc, 0x81, 0x9e, 0x52, 0x16, 0x9a, 0xe0,
+	0xa6, 0x7d, 0x95, 0x1a, 0x6e, 0x73, 0x53, 0xfb, 0x2c, 0x88, 0x3a, 0x97, 0xba, 0x54, 0xa9, 0xa4,
+	0x8b, 0x43, 0x64, 0x27, 0x49, 0x95, 0x51, 0x34, 0x02, 0x1f, 0x55, 0xd1, 0x7f, 0x21, 0x83, 0xc6,
+	0x57, 0x7d, 0x97, 0x1a, 0x6d, 0x11, 0xec, 0x77, 0x1a, 0x15, 0xf8, 0x31, 0x49, 0x7c, 0x30, 0x6c,
+	0x8c, 0x84, 0xbf, 0xf1, 0x79, 0x34, 0xb9, 0x64, 0x78, 0x3e, 0x70, 0x4a, 0x5f, 0x42, 0x26, 0x31,
+	0x28, 0x5e, 0xe2, 0x74, 0x9c, 0x0f, 0xee, 0x04, 0x73, 0x0f, 0xbd, 0x13, 0x2c, 0x7c, 0xd0, 0x2b,
+	0x0d, 0xc1, 0xcd, 0x5f, 0x8c, 0x57, 0xef, 0x67, 0x50, 0xe2, 0x00, 0xf7, 0xf8, 0x17, 0x36, 0xcb,
+	0x68, 0x2a, 0x76, 0x0f, 0x2d, 0xee, 0x39, 0x1e, 0xf1, 0x9a, 0x3a, 0xce, 0x8d, 0xcf, 0xa1, 0xdc,
+	0x9d, 0x7a, 0x4d, 0xfe, 0xc8, 0x41, 0x57, 0xc9, 0x61, 0x64, 0x58, 0xfc, 0x5c, 0xe8, 0x84, 0xbf,
+	0x43, 0x96, 0xc4, 0xfd, 0x33, 0x7c, 0x88, 0xad, 0xeb, 0xb6, 0x88, 0x84, 0xd2, 0xbf, 0x57, 0x8c,
+	0xee, 0xe0, 0xf0, 0x79, 0x71, 0x05, 0x2f, 0x7d, 0xf4, 0x21, 0x96, 0xf0, 0xca, 0xaf, 0xdc, 0x3f,
+	0x8d, 0xc6, 0xeb, 0x6d, 0x87, 0xba, 0x9e, 0xdd, 0x81, 0x72, 0xec, 0xd9, 0xe8, 0x42, 0xc9, 0x92,
+	0xe0, 0x72, 0xd0, 0xac, 0x4c, 0x1f, 0xd5, 0x92, 0xcf, 0x3d, 0xb4, 0x96, 0xfc, 0x45, 0x34, 0x72,
+	0x07, 0x3e, 0xbd, 0x26, 0x95, 0x9d, 0xef, 0xc6, 0x3e, 0xbc, 0xc6, 0x29, 0xf0, 0x25, 0x94, 0x87,
+	0x5b, 0x25, 0x4f, 0x1b, 0x01, 0x5a, 0x48, 0x24, 0x6f, 0x01, 0x44, 0xae, 0xac, 0xc2, 0x69, 0xf0,
+	0x5b, 0x68, 0x3a, 0x2a, 0xd3, 0x02, 0x55, 0x70, 0x82, 0xe8, 0x5f, 0x48, 0x3e, 0xbd, 0x17, 0xe2,
+	0x78, 0xf9, 0x1c, 0x59, 0x44, 0x82, 0x11, 0x2f, 0xa2, 0xa9, 0x08, 0xc6, 0x54, 0x14, 0x64, 0x1d,
+	0x9c, 0xed, 0xf7, 0x4a, 0xa7, 0x25, 0x59, 0x4c, 0x9d, 0xb2, 0xa8, 0x38, 0x1b, 0xae, 0x47, 0xdf,
+	0xd3, 0x28, 0x3c, 0x74, 0x0c, 0x9f, 0x10, 0xf7, 0xda, 0xa3, 0xe2, 0x7b, 0x1a, 0xea, 0x57, 0x34,
+	0x6e, 0xa2, 0x49, 0x62, 0x77, 0x7d, 0xba, 0x66, 0x07, 0x55, 0x8f, 0x79, 0x58, 0x2a, 0x3c, 0x93,
+	0xcb, 0x30, 0x0d, 0xdf, 0x0e, 0x72, 0x77, 0xe5, 0x1c, 0x63, 0x95, 0x0b, 0xdf, 0x4e, 0x2b, 0xa0,
+	0x2c, 0x65, 0xd4, 0x4a, 0xaf, 0x97, 0x14, 0x96, 0x52, 0x31, 0xf9, 0x7f, 0x64, 0x50, 0x7e, 0xcd,
+	0x35, 0x2c, 0xdf, 0x13, 0x77, 0x3c, 0x27, 0xe7, 0xb6, 0x5c, 0xc3, 0x61, 0xe3, 0x63, 0x0e, 0xae,
+	0xb7, 0xdf, 0x31, 0x5a, 0x5d, 0xea, 0x55, 0xde, 0x65, 0x6f, 0xf7, 0x97, 0xbd, 0xd2, 0xa7, 0x36,
+	0xc0, 0xb9, 0x39, 0xd7, 0xb4, 0xdb, 0xf3, 0x1b, 0xae, 0x71, 0xdf, 0xe2, 0xd5, 0xf4, 0x8d, 0xd6,
+	0xbc, 0x4f, 0x5b, 0xd4, 0xb1, 0x5d, 0x7f, 0xde, 0x70, 0xac, 0x79, 0x7f, 0xdb, 0xa1, 0xde, 0x7c,
+	0x28, 0x89, 0xb7, 0xc0, 0x86, 0x80, 0x0f, 0xff, 0xc9, 0x43, 0x80, 0xe3, 0xf0, 0x6d, 0x84, 0xc4,
+	0xab, 0x96, 0x1d, 0x47, 0x5c, 0x18, 0x49, 0xde, 0xf0, 0x00, 0xc3, 0x07, 0x76, 0xa8, 0x30, 0xc3,
+	0x91, 0x6b, 0x29, 0x49, 0x12, 0xd8, 0x28, 0x58, 0x13, 0x4f, 0x14, 0xa8, 0x69, 0x22, 0xd2, 0x78,
+	0xf0, 0xb0, 0x29, 0x4a, 0x8a, 0xb3, 0xe1, 0x75, 0x34, 0x25, 0xe4, 0x86, 0xe1, 0xa6, 0x93, 0xaa,
+	0xd1, 0x88, 0xa1, 0xf9, 0xa0, 0x0d, 0x9f, 0xd1, 0x14, 0x60, 0xb9, 0x8d, 0x18, 0x07, 0xae, 0x44,
+	0x69, 0x6c, 0x50, 0xb8, 0x49, 0x9b, 0x82, 0x11, 0x0b, 0xdf, 0x15, 0x08, 0xf8, 0x79, 0xbd, 0x27,
+	0xb9, 0xb2, 0x90, 0xc2, 0x22, 0xcb, 0xe0, 0xa3, 0x7e, 0x3a, 0x45, 0x46, 0x7c, 0xcc, 0xab, 0x2c,
+	0xb8, 0x8a, 0x26, 0x42, 0x7f, 0xd5, 0x1d, 0x66, 0xd9, 0x66, 0xa2, 0x12, 0x47, 0xb1, 0x48, 0x56,
+	0x59, 0x88, 0xc2, 0x83, 0xaf, 0xa2, 0x02, 0xbf, 0xf1, 0xa9, 0xf3, 0x2b, 0xaa, 0x20, 0x0a, 0x01,
+	0x60, 0x0d, 0x4b, 0xee, 0xb1, 0x90, 0x10, 0xbf, 0x8e, 0x8a, 0xe5, 0x77, 0x57, 0x99, 0x9d, 0x29,
+	0x93, 0xdb, 0x9e, 0x76, 0x22, 0x8a, 0xfd, 0x87, 0xec, 0x76, 0xbb, 0x45, 0x1b, 0x86, 0xab, 0x18,
+	0x0f, 0x99, 0x1e, 0x2f, 0xa0, 0x49, 0x65, 0xc9, 0xf3, 0xb4, 0xd9, 0xe8, 0x43, 0x9c, 0x06, 0x60,
+	0x1a, 0xa2, 0xbc, 0x97, 0x92, 0xc2, 0xaf, 0x32, 0xb1, 0x51, 0x53, 0xb3, 0x3c, 0xa3, 0xd5, 0xb2,
+	0xb7, 0x08, 0xb5, 0x3c, 0xaf, 0x4b, 0xe1, 0x7e, 0xab, 0xc0, 0x47, 0x8d, 0x29, 0x50, 0x0d, 0x97,
+	0xe3, 0x94, 0x02, 0x0b, 0x2a, 0x9b, 0xfe, 0xcf, 0x19, 0x79, 0x40, 0x87, 0x25, 0x9b, 0x33, 0xa9,
+	0x25, 0x9b, 0x2f, 0xa1, 0x31, 0xb1, 0x0c, 0x84, 0xc1, 0xc3, 0x90, 0x22, 0x15, 0x84, 0xc8, 0x58,
+	0x26, 0x89, 0x08, 0x20, 0x3d, 0x25, 0xaa, 0xb2, 0x92, 0x93, 0xd2, 0x53, 0xa2, 0x2a, 0x2b, 0x4a,
+	0x8d, 0x95, 0x2b, 0xa8, 0x28, 0x06, 0xb3, 0x54, 0x80, 0x01, 0xc2, 0x5c, 0x82, 0x62, 0x01, 0x3c,
+	0x8a, 0x46, 0x22, 0xc2, 0xaf, 0x22, 0x14, 0xe9, 0x57, 0x2c, 0x5a, 0x30, 0xf7, 0xe4, 0xee, 0x90,
+	0xe7, 0x5e, 0x44, 0xad, 0xff, 0x45, 0x26, 0x31, 0x65, 0xd8, 0x33, 0x88, 0x80, 0x2c, 0x49, 0x0f,
+	0xf0, 0x0c, 0x22, 0x7c, 0x4b, 0x3c, 0x83, 0x44, 0x84, 0x2f, 0xa0, 0x42, 0xac, 0x38, 0x05, 0x04,
+	0xa0, 0x84, 0x95, 0x29, 0x42, 0x2c, 0xbe, 0x82, 0x0a, 0x6c, 0x00, 0x33, 0x11, 0x42, 0x21, 0x50,
+	0xf6, 0xaa, 0x2b, 0x60, 0xf2, 0x88, 0x0b, 0xe8, 0x18, 0x8f, 0x12, 0x3f, 0x2e, 0x78, 0x52, 0xa6,
+	0x6b, 0x14, 0x2f, 0xfe, 0xaf, 0xc3, 0x3b, 0x6e, 0xd2, 0x0e, 0x24, 0xe6, 0xee, 0x15, 0xb6, 0x43,
+	0x62, 0xad, 0x97, 0xbd, 0xc4, 0x42, 0xee, 0x01, 0xa2, 0x61, 0xf0, 0x2e, 0xf3, 0x88, 0x4a, 0x29,
+	0x57, 0x76, 0x83, 0x08, 0x96, 0xe1, 0x94, 0xca, 0x6e, 0xb1, 0xb8, 0x21, 0x85, 0x01, 0xbf, 0x84,
+	0xc6, 0xa2, 0x1a, 0x75, 0x23, 0xd1, 0x5c, 0x4f, 0x2b, 0x4d, 0x17, 0x51, 0xe2, 0xcf, 0xa3, 0xbc,
+	0x52, 0x94, 0x63, 0xfe, 0x11, 0x76, 0xb5, 0x73, 0x72, 0xcc, 0x1b, 0xdf, 0x4e, 0xc4, 0x0b, 0x72,
+	0x08, 0xa1, 0x78, 0x0d, 0x9d, 0x58, 0x71, 0xa9, 0x09, 0xe7, 0xa7, 0x85, 0x07, 0x8e, 0x2b, 0x22,
+	0x12, 0x79, 0x64, 0x9e, 0xde, 0xef, 0x95, 0xce, 0x3a, 0x01, 0xba, 0x41, 0x43, 0xbc, 0x24, 0x28,
+	0x8d, 0x9d, 0x99, 0x18, 0xfe, 0x24, 0x6f, 0xd1, 0xed, 0x2d, 0xdb, 0x35, 0x83, 0xcf, 0x31, 0x83,
+	0x89, 0x11, 0x8a, 0xbe, 0x27, 0x50, 0xb2, 0x89, 0x51, 0x99, 0x4e, 0xbf, 0x82, 0x8a, 0x8f, 0x1b,
+	0x37, 0xf6, 0x1b, 0xd9, 0x01, 0xee, 0x8e, 0xa3, 0x9b, 0x67, 0x16, 0xe6, 0xfc, 0x8e, 0x0c, 0xc8,
+	0xf9, 0xfd, 0xc7, 0xec, 0x00, 0x5f, 0xce, 0x91, 0xce, 0xcd, 0x0b, 0x95, 0xa1, 0xe6, 0xe6, 0x45,
+	0x69, 0x91, 0x96, 0x49, 0x64, 0xa2, 0x58, 0x16, 0x6f, 0xfe, 0xa1, 0x59, 0xbc, 0xbf, 0x92, 0xdb,
+	0xc9, 0xd7, 0x75, 0xac, 0xfb, 0xdd, 0xe8, 0xfe, 0x0a, 0x2a, 0x86, 0x9a, 0x15, 0x95, 0xb9, 0x26,
+	0xc2, 0x28, 0x55, 0x0e, 0x06, 0x1e, 0x89, 0x08, 0x5f, 0xe4, 0xcf, 0xba, 0x6a, 0xbd, 0xcf, 0xab,
+	0x4d, 0x4c, 0xf0, 0xe2, 0x55, 0xec, 0xd9, 0x1a, 0x9e, 0xf5, 0x3e, 0x25, 0x21, 0x5a, 0xff, 0xfd,
+	0x6c, 0xaa, 0xc3, 0xf0, 0xb8, 0x8f, 0x76, 0xd1, 0x47, 0x29, 0x4a, 0xe4, 0xae, 0xce, 0x63, 0x25,
+	0xee, 0x42, 0x89, 0x3f, 0xcb, 0xa6, 0x3a, 0x86, 0x8f, 0x95, 0xb8, 0x1b, 0x6b, 0x71, 0x09, 0x8d,
+	0x11, 0x7b, 0xcb, 0xab, 0xda, 0xdd, 0x8e, 0x2f, 0x6c, 0x05, 0x18, 0x6a, 0xd7, 0xde, 0xf2, 0x1a,
+	0x4d, 0x06, 0x25, 0x11, 0x81, 0xfe, 0xf3, 0xec, 0x0e, 0xae, 0xf3, 0x63, 0xc5, 0x7f, 0x98, 0x4b,
+	0xe4, 0xb7, 0xb3, 0x8a, 0x6b, 0xfe, 0x48, 0x17, 0xb9, 0x58, 0x6d, 0x6e, 0xd2, 0xb6, 0x11, 0x2f,
+	0x72, 0xe1, 0x01, 0x54, 0xa4, 0xda, 0x46, 0x24, 0xfa, 0x77, 0xb2, 0xb1, 0xbb, 0x89, 0x63, 0xdd,
+	0x3d, 0xb2, 0xee, 0xc2, 0x51, 0x27, 0xae, 0x5b, 0x8e, 0x35, 0xf7, 0xa8, 0x9a, 0xfb, 0x52, 0x36,
+	0x76, 0x33, 0x75, 0x74, 0xd3, 0xe6, 0xbf, 0x93, 0x4d, 0xde, 0xb2, 0x1d, 0xdd, 0x91, 0x74, 0x09,
+	0x8d, 0x09, 0x3d, 0x84, 0x4b, 0x05, 0xb7, 0xfb, 0x1c, 0x08, 0xde, 0xbb, 0x90, 0x40, 0xff, 0xef,
+	0x59, 0xa4, 0xde, 0x18, 0x1e, 0xd1, 0x31, 0xf4, 0xed, 0xac, 0x7a, 0x57, 0x7a, 0x74, 0xc7, 0xcf,
+	0x1c, 0x42, 0xab, 0xdd, 0x75, 0xf1, 0x55, 0x54, 0x61, 0x89, 0xb8, 0xfb, 0x37, 0x84, 0x12, 0x89,
+	0xe2, 0x13, 0xcf, 0xa1, 0x22, 0xdc, 0xb7, 0xf2, 0x2f, 0x1b, 0xe2, 0x71, 0x54, 0x58, 0xae, 0xac,
+	0x2e, 0x90, 0x77, 0x16, 0x6a, 0xd3, 0x43, 0x18, 0xa1, 0x7c, 0x6d, 0xe1, 0x76, 0x7d, 0xa1, 0x36,
+	0x9d, 0xa9, 0x4c, 0x7f, 0xf0, 0xd7, 0x67, 0x87, 0x3e, 0xf8, 0xe9, 0xd9, 0xcc, 0x0f, 0x7f, 0x7a,
+	0x36, 0xf3, 0x57, 0x3f, 0x3d, 0x9b, 0x59, 0xcf, 0x83, 0xef, 0xf4, 0xea, 0xbf, 0x05, 0x00, 0x00,
+	0xff, 0xff, 0x93, 0x90, 0x04, 0x5c, 0x61, 0xa4, 0x00, 0x00,
 }
 
 func (m *Metadata) Marshal() (dAtA []byte, err error) {
@@ -5729,6 +7415,15 @@ func (m *UserMetadata) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.AccessRequests) > 0 {
+		for iNdEx := len(m.AccessRequests) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.AccessRequests[iNdEx])
+			copy(dAtA[i:], m.AccessRequests[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.AccessRequests[iNdEx])))
+			i--
+			dAtA[i] = 0x2a
+		}
 	}
 	if len(m.AWSRoleARN) > 0 {
 		i -= len(m.AWSRoleARN)
@@ -6021,15 +7716,6 @@ func (m *SessionStart) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.AccessRequests) > 0 {
-		for iNdEx := len(m.AccessRequests) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.AccessRequests[iNdEx])
-			copy(dAtA[i:], m.AccessRequests[iNdEx])
-			i = encodeVarintEvents(dAtA, i, uint64(len(m.AccessRequests[iNdEx])))
-			i--
-			dAtA[i] = 0x5a
-		}
-	}
 	if len(m.SessionRecording) > 0 {
 		i -= len(m.SessionRecording)
 		copy(dAtA[i:], m.SessionRecording)
@@ -6264,6 +7950,213 @@ func (m *SessionPrint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x10
 	}
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *DesktopRecording) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DesktopRecording) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DesktopRecording) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.DelayMilliseconds != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.DelayMilliseconds))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.Message) > 0 {
+		i -= len(m.Message)
+		copy(dAtA[i:], m.Message)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Message)))
+		i--
+		dAtA[i] = 0x12
+	}
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *DesktopClipboardReceive) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DesktopClipboardReceive) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DesktopClipboardReceive) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Length != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.Length))
+		i--
+		dAtA[i] = 0x30
+	}
+	if len(m.DesktopAddr) > 0 {
+		i -= len(m.DesktopAddr)
+		copy(dAtA[i:], m.DesktopAddr)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.DesktopAddr)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	{
+		size, err := m.ConnectionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *DesktopClipboardSend) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DesktopClipboardSend) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DesktopClipboardSend) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Length != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.Length))
+		i--
+		dAtA[i] = 0x30
+	}
+	if len(m.DesktopAddr) > 0 {
+		i -= len(m.DesktopAddr)
+		copy(dAtA[i:], m.DesktopAddr)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.DesktopAddr)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	{
+		size, err := m.ConnectionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
 	{
 		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
@@ -6577,20 +8470,20 @@ func (m *SessionEnd) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i--
 	dAtA[i] = 0x5a
-	n32, err32 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndTime):])
-	if err32 != nil {
-		return 0, err32
+	n41, err41 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndTime):])
+	if err41 != nil {
+		return 0, err41
 	}
-	i -= n32
-	i = encodeVarintEvents(dAtA, i, uint64(n32))
+	i -= n41
+	i = encodeVarintEvents(dAtA, i, uint64(n41))
 	i--
 	dAtA[i] = 0x52
-	n33, err33 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTime):])
-	if err33 != nil {
-		return 0, err33
+	n42, err42 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTime):])
+	if err42 != nil {
+		return 0, err42
 	}
-	i -= n33
-	i = encodeVarintEvents(dAtA, i, uint64(n33))
+	i -= n42
+	i = encodeVarintEvents(dAtA, i, uint64(n42))
 	i--
 	dAtA[i] = 0x4a
 	if len(m.Participants) > 0 {
@@ -7368,12 +9261,12 @@ func (m *ResourceMetadata) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1a
 	}
-	n69, err69 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err69 != nil {
-		return 0, err69
+	n78, err78 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err78 != nil {
+		return 0, err78
 	}
-	i -= n69
-	i = encodeVarintEvents(dAtA, i, uint64(n69))
+	i -= n78
+	i = encodeVarintEvents(dAtA, i, uint64(n78))
 	i--
 	dAtA[i] = 0x12
 	if len(m.Name) > 0 {
@@ -10594,6 +12487,13 @@ func (m *WindowsDesktopSessionStart) MarshalToSizedBuffer(dAtA []byte) (int, err
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if len(m.DesktopName) > 0 {
+		i -= len(m.DesktopName)
+		copy(dAtA[i:], m.DesktopName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.DesktopName)))
+		i--
+		dAtA[i] = 0x5a
+	}
 	if len(m.DesktopLabels) > 0 {
 		for k := range m.DesktopLabels {
 			v := m.DesktopLabels[k]
@@ -11306,6 +13206,48 @@ func (m *WindowsDesktopSessionEnd) MarshalToSizedBuffer(dAtA []byte) (int, error
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if len(m.Participants) > 0 {
+		for iNdEx := len(m.Participants) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Participants[iNdEx])
+			copy(dAtA[i:], m.Participants[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.Participants[iNdEx])))
+			i--
+			dAtA[i] = 0x6a
+		}
+	}
+	if m.Recorded {
+		i--
+		if m.Recorded {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x60
+	}
+	if len(m.DesktopName) > 0 {
+		i -= len(m.DesktopName)
+		copy(dAtA[i:], m.DesktopName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.DesktopName)))
+		i--
+		dAtA[i] = 0x5a
+	}
+	n267, err267 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndTime):])
+	if err267 != nil {
+		return 0, err267
+	}
+	i -= n267
+	i = encodeVarintEvents(dAtA, i, uint64(n267))
+	i--
+	dAtA[i] = 0x52
+	n268, err268 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTime):])
+	if err268 != nil {
+		return 0, err268
+	}
+	i -= n268
+	i = encodeVarintEvents(dAtA, i, uint64(n268))
+	i--
+	dAtA[i] = 0x4a
 	if len(m.DesktopLabels) > 0 {
 		for k := range m.DesktopLabels {
 			v := m.DesktopLabels[k]
@@ -11373,6 +13315,167 @@ func (m *WindowsDesktopSessionEnd) MarshalToSizedBuffer(dAtA []byte) (int, error
 	}
 	i--
 	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *CertificateCreate) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CertificateCreate) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CertificateCreate) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Identity != nil {
+		{
+			size, err := m.Identity.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.CertificateType) > 0 {
+		i -= len(m.CertificateType)
+		copy(dAtA[i:], m.CertificateType)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.CertificateType)))
+		i--
+		dAtA[i] = 0x12
+	}
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *RenewableCertificateGenerationMismatch) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RenewableCertificateGenerationMismatch) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RenewableCertificateGenerationMismatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *Unknown) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Unknown) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Unknown) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.UnknownCode) > 0 {
+		i -= len(m.UnknownCode)
+		copy(dAtA[i:], m.UnknownCode)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.UnknownCode)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.UnknownType) > 0 {
+		i -= len(m.UnknownType)
+		copy(dAtA[i:], m.UnknownType)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.UnknownType)))
+		i--
+		dAtA[i] = 0x12
+	}
 	{
 		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
@@ -12933,6 +15036,489 @@ func (m *OneOf_SessionConnect) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	return len(dAtA) - i, nil
 }
+func (m *OneOf_CertificateCreate) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_CertificateCreate) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.CertificateCreate != nil {
+		{
+			size, err := m.CertificateCreate.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xa2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_DesktopRecording) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_DesktopRecording) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.DesktopRecording != nil {
+		{
+			size, err := m.DesktopRecording.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xaa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_DesktopClipboardSend) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_DesktopClipboardSend) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.DesktopClipboardSend != nil {
+		{
+			size, err := m.DesktopClipboardSend.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xb2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_DesktopClipboardReceive) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_DesktopClipboardReceive) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.DesktopClipboardReceive != nil {
+		{
+			size, err := m.DesktopClipboardReceive.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xba
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLStatementPrepare) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLStatementPrepare) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLStatementPrepare != nil {
+		{
+			size, err := m.MySQLStatementPrepare.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xc2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLStatementExecute) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLStatementExecute) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLStatementExecute != nil {
+		{
+			size, err := m.MySQLStatementExecute.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xca
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLStatementSendLongData) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLStatementSendLongData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLStatementSendLongData != nil {
+		{
+			size, err := m.MySQLStatementSendLongData.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xd2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLStatementClose) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLStatementClose) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLStatementClose != nil {
+		{
+			size, err := m.MySQLStatementClose.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xda
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLStatementReset) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLStatementReset) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLStatementReset != nil {
+		{
+			size, err := m.MySQLStatementReset.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xe2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLStatementFetch) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLStatementFetch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLStatementFetch != nil {
+		{
+			size, err := m.MySQLStatementFetch.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xea
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLStatementBulkExecute) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLStatementBulkExecute) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLStatementBulkExecute != nil {
+		{
+			size, err := m.MySQLStatementBulkExecute.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xf2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_RenewableCertificateGenerationMismatch) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_RenewableCertificateGenerationMismatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.RenewableCertificateGenerationMismatch != nil {
+		{
+			size, err := m.RenewableCertificateGenerationMismatch.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0xfa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_Unknown) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_Unknown) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Unknown != nil {
+		{
+			size, err := m.Unknown.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0x82
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLInitDB) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLInitDB) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLInitDB != nil {
+		{
+			size, err := m.MySQLInitDB.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0x8a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLCreateDB) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLCreateDB) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLCreateDB != nil {
+		{
+			size, err := m.MySQLCreateDB.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0x92
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLDropDB) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLDropDB) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLDropDB != nil {
+		{
+			size, err := m.MySQLDropDB.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0x9a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLShutDown) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLShutDown) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLShutDown != nil {
+		{
+			size, err := m.MySQLShutDown.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0xa2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLProcessKill) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLProcessKill) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLProcessKill != nil {
+		{
+			size, err := m.MySQLProcessKill.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0xaa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLDebug) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLDebug) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLDebug != nil {
+		{
+			size, err := m.MySQLDebug.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0xb2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_MySQLRefresh) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_MySQLRefresh) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MySQLRefresh != nil {
+		{
+			size, err := m.MySQLRefresh.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0xba
+	}
+	return len(dAtA) - i, nil
+}
+func (m *OneOf_AccessRequestResourceSearch) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OneOf_AccessRequestResourceSearch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.AccessRequestResourceSearch != nil {
+		{
+			size, err := m.AccessRequestResourceSearch.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5
+		i--
+		dAtA[i] = 0xc2
+	}
+	return len(dAtA) - i, nil
+}
 func (m *StreamStatus) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -12957,12 +15543,12 @@ func (m *StreamStatus) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n328, err328 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastUploadTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastUploadTime):])
-	if err328 != nil {
-		return 0, err328
+	n365, err365 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastUploadTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastUploadTime):])
+	if err365 != nil {
+		return 0, err365
 	}
-	i -= n328
-	i = encodeVarintEvents(dAtA, i, uint64(n328))
+	i -= n365
+	i = encodeVarintEvents(dAtA, i, uint64(n365))
 	i--
 	dAtA[i] = 0x1a
 	if m.LastEventIndex != 0 {
@@ -13020,6 +15606,1490 @@ func (m *SessionUpload) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	{
 		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *Identity) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Identity) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Identity) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.DisallowReissue {
+		i--
+		if m.DisallowReissue {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xa8
+	}
+	if len(m.AccessRequests) > 0 {
+		for iNdEx := len(m.AccessRequests) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.AccessRequests[iNdEx])
+			copy(dAtA[i:], m.AccessRequests[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.AccessRequests[iNdEx])))
+			i--
+			dAtA[i] = 0x1
+			i--
+			dAtA[i] = 0xa2
+		}
+	}
+	if len(m.AWSRoleARNs) > 0 {
+		for iNdEx := len(m.AWSRoleARNs) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.AWSRoleARNs[iNdEx])
+			copy(dAtA[i:], m.AWSRoleARNs[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.AWSRoleARNs[iNdEx])))
+			i--
+			dAtA[i] = 0x1
+			i--
+			dAtA[i] = 0x9a
+		}
+	}
+	if len(m.ClientIP) > 0 {
+		i -= len(m.ClientIP)
+		copy(dAtA[i:], m.ClientIP)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.ClientIP)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x92
+	}
+	if len(m.MFADeviceUUID) > 0 {
+		i -= len(m.MFADeviceUUID)
+		copy(dAtA[i:], m.MFADeviceUUID)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.MFADeviceUUID)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x8a
+	}
+	if len(m.DatabaseUsers) > 0 {
+		for iNdEx := len(m.DatabaseUsers) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.DatabaseUsers[iNdEx])
+			copy(dAtA[i:], m.DatabaseUsers[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.DatabaseUsers[iNdEx])))
+			i--
+			dAtA[i] = 0x1
+			i--
+			dAtA[i] = 0x82
+		}
+	}
+	if len(m.DatabaseNames) > 0 {
+		for iNdEx := len(m.DatabaseNames) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.DatabaseNames[iNdEx])
+			copy(dAtA[i:], m.DatabaseNames[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.DatabaseNames[iNdEx])))
+			i--
+			dAtA[i] = 0x7a
+		}
+	}
+	if m.RouteToDatabase != nil {
+		{
+			size, err := m.RouteToDatabase.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x72
+	}
+	if len(m.TeleportCluster) > 0 {
+		i -= len(m.TeleportCluster)
+		copy(dAtA[i:], m.TeleportCluster)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.TeleportCluster)))
+		i--
+		dAtA[i] = 0x6a
+	}
+	if m.RouteToApp != nil {
+		{
+			size, err := m.RouteToApp.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x62
+	}
+	{
+		size := m.Traits.Size()
+		i -= size
+		if _, err := m.Traits.MarshalTo(dAtA[i:]); err != nil {
+			return 0, err
+		}
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x5a
+	if len(m.KubernetesCluster) > 0 {
+		i -= len(m.KubernetesCluster)
+		copy(dAtA[i:], m.KubernetesCluster)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.KubernetesCluster)))
+		i--
+		dAtA[i] = 0x52
+	}
+	if len(m.RouteToCluster) > 0 {
+		i -= len(m.RouteToCluster)
+		copy(dAtA[i:], m.RouteToCluster)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.RouteToCluster)))
+		i--
+		dAtA[i] = 0x4a
+	}
+	n371, err371 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err371 != nil {
+		return 0, err371
+	}
+	i -= n371
+	i = encodeVarintEvents(dAtA, i, uint64(n371))
+	i--
+	dAtA[i] = 0x42
+	if len(m.KubernetesUsers) > 0 {
+		for iNdEx := len(m.KubernetesUsers) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.KubernetesUsers[iNdEx])
+			copy(dAtA[i:], m.KubernetesUsers[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.KubernetesUsers[iNdEx])))
+			i--
+			dAtA[i] = 0x3a
+		}
+	}
+	if len(m.KubernetesGroups) > 0 {
+		for iNdEx := len(m.KubernetesGroups) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.KubernetesGroups[iNdEx])
+			copy(dAtA[i:], m.KubernetesGroups[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.KubernetesGroups[iNdEx])))
+			i--
+			dAtA[i] = 0x32
+		}
+	}
+	if len(m.Logins) > 0 {
+		for iNdEx := len(m.Logins) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Logins[iNdEx])
+			copy(dAtA[i:], m.Logins[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.Logins[iNdEx])))
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	if len(m.Usage) > 0 {
+		for iNdEx := len(m.Usage) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Usage[iNdEx])
+			copy(dAtA[i:], m.Usage[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.Usage[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if len(m.Roles) > 0 {
+		for iNdEx := len(m.Roles) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Roles[iNdEx])
+			copy(dAtA[i:], m.Roles[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.Roles[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.Impersonator) > 0 {
+		i -= len(m.Impersonator)
+		copy(dAtA[i:], m.Impersonator)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Impersonator)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.User) > 0 {
+		i -= len(m.User)
+		copy(dAtA[i:], m.User)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.User)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RouteToApp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RouteToApp) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RouteToApp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.AWSRoleARN) > 0 {
+		i -= len(m.AWSRoleARN)
+		copy(dAtA[i:], m.AWSRoleARN)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.AWSRoleARN)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if len(m.ClusterName) > 0 {
+		i -= len(m.ClusterName)
+		copy(dAtA[i:], m.ClusterName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.ClusterName)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.PublicAddr) > 0 {
+		i -= len(m.PublicAddr)
+		copy(dAtA[i:], m.PublicAddr)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.PublicAddr)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.SessionID) > 0 {
+		i -= len(m.SessionID)
+		copy(dAtA[i:], m.SessionID)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.SessionID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RouteToDatabase) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RouteToDatabase) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RouteToDatabase) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Database) > 0 {
+		i -= len(m.Database)
+		copy(dAtA[i:], m.Database)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Database)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.Username) > 0 {
+		i -= len(m.Username)
+		copy(dAtA[i:], m.Username)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Username)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Protocol) > 0 {
+		i -= len(m.Protocol)
+		copy(dAtA[i:], m.Protocol)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Protocol)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ServiceName) > 0 {
+		i -= len(m.ServiceName)
+		copy(dAtA[i:], m.ServiceName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.ServiceName)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *AccessRequestResourceSearch) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AccessRequestResourceSearch) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AccessRequestResourceSearch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SearchKeywords) > 0 {
+		for iNdEx := len(m.SearchKeywords) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.SearchKeywords[iNdEx])
+			copy(dAtA[i:], m.SearchKeywords[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.SearchKeywords[iNdEx])))
+			i--
+			dAtA[i] = 0x42
+		}
+	}
+	if len(m.PredicateExpression) > 0 {
+		i -= len(m.PredicateExpression)
+		copy(dAtA[i:], m.PredicateExpression)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.PredicateExpression)))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if len(m.Labels) > 0 {
+		for k := range m.Labels {
+			v := m.Labels[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
+			i = encodeVarintEvents(dAtA, i, uint64(len(v)))
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintEvents(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintEvents(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x32
+		}
+	}
+	if len(m.Namespace) > 0 {
+		i -= len(m.Namespace)
+		copy(dAtA[i:], m.Namespace)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Namespace)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if len(m.ResourceType) > 0 {
+		i -= len(m.ResourceType)
+		copy(dAtA[i:], m.ResourceType)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.ResourceType)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.SearchAsRoles) > 0 {
+		for iNdEx := len(m.SearchAsRoles) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.SearchAsRoles[iNdEx])
+			copy(dAtA[i:], m.SearchAsRoles[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.SearchAsRoles[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLStatementPrepare) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLStatementPrepare) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLStatementPrepare) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Query) > 0 {
+		i -= len(m.Query)
+		copy(dAtA[i:], m.Query)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Query)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLStatementExecute) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLStatementExecute) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLStatementExecute) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Parameters) > 0 {
+		for iNdEx := len(m.Parameters) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Parameters[iNdEx])
+			copy(dAtA[i:], m.Parameters[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.Parameters[iNdEx])))
+			i--
+			dAtA[i] = 0x32
+		}
+	}
+	if m.StatementID != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.StatementID))
+		i--
+		dAtA[i] = 0x28
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLStatementSendLongData) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLStatementSendLongData) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLStatementSendLongData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.DataSize != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.DataSize))
+		i--
+		dAtA[i] = 0x38
+	}
+	if m.ParameterID != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.ParameterID))
+		i--
+		dAtA[i] = 0x30
+	}
+	if m.StatementID != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.StatementID))
+		i--
+		dAtA[i] = 0x28
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLStatementClose) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLStatementClose) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLStatementClose) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.StatementID != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.StatementID))
+		i--
+		dAtA[i] = 0x28
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLStatementReset) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLStatementReset) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLStatementReset) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.StatementID != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.StatementID))
+		i--
+		dAtA[i] = 0x28
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLStatementFetch) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLStatementFetch) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLStatementFetch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.RowsCount != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.RowsCount))
+		i--
+		dAtA[i] = 0x30
+	}
+	if m.StatementID != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.StatementID))
+		i--
+		dAtA[i] = 0x28
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLStatementBulkExecute) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLStatementBulkExecute) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLStatementBulkExecute) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Parameters) > 0 {
+		for iNdEx := len(m.Parameters) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Parameters[iNdEx])
+			copy(dAtA[i:], m.Parameters[iNdEx])
+			i = encodeVarintEvents(dAtA, i, uint64(len(m.Parameters[iNdEx])))
+			i--
+			dAtA[i] = 0x32
+		}
+	}
+	if m.StatementID != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.StatementID))
+		i--
+		dAtA[i] = 0x28
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLInitDB) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLInitDB) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLInitDB) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SchemaName) > 0 {
+		i -= len(m.SchemaName)
+		copy(dAtA[i:], m.SchemaName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.SchemaName)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLCreateDB) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLCreateDB) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLCreateDB) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SchemaName) > 0 {
+		i -= len(m.SchemaName)
+		copy(dAtA[i:], m.SchemaName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.SchemaName)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLDropDB) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLDropDB) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLDropDB) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SchemaName) > 0 {
+		i -= len(m.SchemaName)
+		copy(dAtA[i:], m.SchemaName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.SchemaName)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLShutDown) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLShutDown) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLShutDown) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLProcessKill) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLProcessKill) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLProcessKill) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ProcessID != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.ProcessID))
+		i--
+		dAtA[i] = 0x28
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLDebug) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLDebug) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLDebug) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *MySQLRefresh) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MySQLRefresh) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MySQLRefresh) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Subcommand) > 0 {
+		i -= len(m.Subcommand)
+		copy(dAtA[i:], m.Subcommand)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Subcommand)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	{
+		size, err := m.DatabaseMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.SessionMetadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintEvents(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.UserMetadata.MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -13126,6 +17196,12 @@ func (m *UserMetadata) Size() (n int) {
 	l = len(m.AWSRoleARN)
 	if l > 0 {
 		n += 1 + l + sovEvents(uint64(l))
+	}
+	if len(m.AccessRequests) > 0 {
+		for _, s := range m.AccessRequests {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -13287,12 +17363,6 @@ func (m *SessionStart) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovEvents(uint64(l))
 	}
-	if len(m.AccessRequests) > 0 {
-		for _, s := range m.AccessRequests {
-			l = len(s)
-			n += 1 + l + sovEvents(uint64(l))
-		}
-	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -13346,6 +17416,81 @@ func (m *SessionPrint) Size() (n int) {
 	}
 	if m.Offset != 0 {
 		n += 1 + sovEvents(uint64(m.Offset))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DesktopRecording) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.Message)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.DelayMilliseconds != 0 {
+		n += 1 + sovEvents(uint64(m.DelayMilliseconds))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DesktopClipboardReceive) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.ConnectionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.DesktopAddr)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.Length != 0 {
+		n += 1 + sovEvents(uint64(m.Length))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DesktopClipboardSend) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.ConnectionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.DesktopAddr)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.Length != 0 {
+		n += 1 + sovEvents(uint64(m.Length))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -14872,6 +19017,10 @@ func (m *WindowsDesktopSessionStart) Size() (n int) {
 			n += mapEntrySize + 1 + sovEvents(uint64(mapEntrySize))
 		}
 	}
+	l = len(m.DesktopName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -15111,6 +19260,87 @@ func (m *WindowsDesktopSessionEnd) Size() (n int) {
 			mapEntrySize := 1 + len(k) + sovEvents(uint64(len(k))) + 1 + len(v) + sovEvents(uint64(len(v)))
 			n += mapEntrySize + 1 + sovEvents(uint64(mapEntrySize))
 		}
+	}
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTime)
+	n += 1 + l + sovEvents(uint64(l))
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.EndTime)
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.DesktopName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.Recorded {
+		n += 2
+	}
+	if len(m.Participants) > 0 {
+		for _, s := range m.Participants {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CertificateCreate) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.CertificateType)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.Identity != nil {
+		l = m.Identity.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RenewableCertificateGenerationMismatch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Unknown) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.UnknownType)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.UnknownCode)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.Data)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -15937,6 +20167,258 @@ func (m *OneOf_SessionConnect) Size() (n int) {
 	}
 	return n
 }
+func (m *OneOf_CertificateCreate) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.CertificateCreate != nil {
+		l = m.CertificateCreate.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_DesktopRecording) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.DesktopRecording != nil {
+		l = m.DesktopRecording.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_DesktopClipboardSend) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.DesktopClipboardSend != nil {
+		l = m.DesktopClipboardSend.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_DesktopClipboardReceive) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.DesktopClipboardReceive != nil {
+		l = m.DesktopClipboardReceive.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLStatementPrepare) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLStatementPrepare != nil {
+		l = m.MySQLStatementPrepare.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLStatementExecute) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLStatementExecute != nil {
+		l = m.MySQLStatementExecute.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLStatementSendLongData) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLStatementSendLongData != nil {
+		l = m.MySQLStatementSendLongData.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLStatementClose) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLStatementClose != nil {
+		l = m.MySQLStatementClose.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLStatementReset) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLStatementReset != nil {
+		l = m.MySQLStatementReset.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLStatementFetch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLStatementFetch != nil {
+		l = m.MySQLStatementFetch.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLStatementBulkExecute) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLStatementBulkExecute != nil {
+		l = m.MySQLStatementBulkExecute.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_RenewableCertificateGenerationMismatch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.RenewableCertificateGenerationMismatch != nil {
+		l = m.RenewableCertificateGenerationMismatch.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_Unknown) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Unknown != nil {
+		l = m.Unknown.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLInitDB) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLInitDB != nil {
+		l = m.MySQLInitDB.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLCreateDB) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLCreateDB != nil {
+		l = m.MySQLCreateDB.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLDropDB) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLDropDB != nil {
+		l = m.MySQLDropDB.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLShutDown) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLShutDown != nil {
+		l = m.MySQLShutDown.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLProcessKill) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLProcessKill != nil {
+		l = m.MySQLProcessKill.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLDebug) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLDebug != nil {
+		l = m.MySQLDebug.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_MySQLRefresh) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MySQLRefresh != nil {
+		l = m.MySQLRefresh.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *OneOf_AccessRequestResourceSearch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.AccessRequestResourceSearch != nil {
+		l = m.AccessRequestResourceSearch.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
 func (m *StreamStatus) Size() (n int) {
 	if m == nil {
 		return 0
@@ -15973,6 +20455,565 @@ func (m *SessionUpload) Size() (n int) {
 		n += 1 + l + sovEvents(uint64(l))
 	}
 	l = len(m.SessionURL)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Identity) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.User)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.Impersonator)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if len(m.Roles) > 0 {
+		for _, s := range m.Roles {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	if len(m.Usage) > 0 {
+		for _, s := range m.Usage {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	if len(m.Logins) > 0 {
+		for _, s := range m.Logins {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	if len(m.KubernetesGroups) > 0 {
+		for _, s := range m.KubernetesGroups {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	if len(m.KubernetesUsers) > 0 {
+		for _, s := range m.KubernetesUsers {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires)
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.RouteToCluster)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.KubernetesCluster)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = m.Traits.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.RouteToApp != nil {
+		l = m.RouteToApp.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.TeleportCluster)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.RouteToDatabase != nil {
+		l = m.RouteToDatabase.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if len(m.DatabaseNames) > 0 {
+		for _, s := range m.DatabaseNames {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	if len(m.DatabaseUsers) > 0 {
+		for _, s := range m.DatabaseUsers {
+			l = len(s)
+			n += 2 + l + sovEvents(uint64(l))
+		}
+	}
+	l = len(m.MFADeviceUUID)
+	if l > 0 {
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	l = len(m.ClientIP)
+	if l > 0 {
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	if len(m.AWSRoleARNs) > 0 {
+		for _, s := range m.AWSRoleARNs {
+			l = len(s)
+			n += 2 + l + sovEvents(uint64(l))
+		}
+	}
+	if len(m.AccessRequests) > 0 {
+		for _, s := range m.AccessRequests {
+			l = len(s)
+			n += 2 + l + sovEvents(uint64(l))
+		}
+	}
+	if m.DisallowReissue {
+		n += 3
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RouteToApp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.SessionID)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.PublicAddr)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.ClusterName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.AWSRoleARN)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RouteToDatabase) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ServiceName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.Protocol)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.Username)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.Database)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AccessRequestResourceSearch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if len(m.SearchAsRoles) > 0 {
+		for _, s := range m.SearchAsRoles {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	l = len(m.ResourceType)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.Namespace)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if len(m.Labels) > 0 {
+		for k, v := range m.Labels {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovEvents(uint64(len(k))) + 1 + len(v) + sovEvents(uint64(len(v)))
+			n += mapEntrySize + 1 + sovEvents(uint64(mapEntrySize))
+		}
+	}
+	l = len(m.PredicateExpression)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if len(m.SearchKeywords) > 0 {
+		for _, s := range m.SearchKeywords {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLStatementPrepare) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.Query)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLStatementExecute) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.StatementID != 0 {
+		n += 1 + sovEvents(uint64(m.StatementID))
+	}
+	if len(m.Parameters) > 0 {
+		for _, s := range m.Parameters {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLStatementSendLongData) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.StatementID != 0 {
+		n += 1 + sovEvents(uint64(m.StatementID))
+	}
+	if m.ParameterID != 0 {
+		n += 1 + sovEvents(uint64(m.ParameterID))
+	}
+	if m.DataSize != 0 {
+		n += 1 + sovEvents(uint64(m.DataSize))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLStatementClose) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.StatementID != 0 {
+		n += 1 + sovEvents(uint64(m.StatementID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLStatementReset) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.StatementID != 0 {
+		n += 1 + sovEvents(uint64(m.StatementID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLStatementFetch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.StatementID != 0 {
+		n += 1 + sovEvents(uint64(m.StatementID))
+	}
+	if m.RowsCount != 0 {
+		n += 1 + sovEvents(uint64(m.RowsCount))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLStatementBulkExecute) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.StatementID != 0 {
+		n += 1 + sovEvents(uint64(m.StatementID))
+	}
+	if len(m.Parameters) > 0 {
+		for _, s := range m.Parameters {
+			l = len(s)
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLInitDB) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.SchemaName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLCreateDB) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.SchemaName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLDropDB) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.SchemaName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLShutDown) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLProcessKill) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.ProcessID != 0 {
+		n += 1 + sovEvents(uint64(m.ProcessID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLDebug) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MySQLRefresh) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Metadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.UserMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.SessionMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = m.DatabaseMetadata.Size()
+	n += 1 + l + sovEvents(uint64(l))
+	l = len(m.Subcommand)
 	if l > 0 {
 		n += 1 + l + sovEvents(uint64(l))
 	}
@@ -16490,6 +21531,38 @@ func (m *UserMetadata) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.AWSRoleARN = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AccessRequests", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AccessRequests = append(m.AccessRequests, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -17680,38 +22753,6 @@ func (m *SessionStart) Unmarshal(dAtA []byte) error {
 			}
 			m.SessionRecording = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 11:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AccessRequests", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthEvents
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.AccessRequests = append(m.AccessRequests, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipEvents(dAtA[iNdEx:])
@@ -18151,6 +23192,611 @@ func (m *SessionPrint) Unmarshal(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.Offset |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DesktopRecording) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DesktopRecording: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DesktopRecording: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Message = append(m.Message[:0], dAtA[iNdEx:postIndex]...)
+			if m.Message == nil {
+				m.Message = []byte{}
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DelayMilliseconds", wireType)
+			}
+			m.DelayMilliseconds = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DelayMilliseconds |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DesktopClipboardReceive) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DesktopClipboardReceive: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DesktopClipboardReceive: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConnectionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.ConnectionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DesktopAddr", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DesktopAddr = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Length", wireType)
+			}
+			m.Length = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Length |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DesktopClipboardSend) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DesktopClipboardSend: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DesktopClipboardSend: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConnectionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.ConnectionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DesktopAddr", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DesktopAddr = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Length", wireType)
+			}
+			m.Length = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Length |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -31330,6 +36976,38 @@ func (m *WindowsDesktopSessionStart) Unmarshal(dAtA []byte) error {
 			}
 			m.DesktopLabels[mapkey] = mapvalue
 			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DesktopName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DesktopName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipEvents(dAtA[iNdEx:])
@@ -33282,6 +38960,605 @@ func (m *WindowsDesktopSessionEnd) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.DesktopLabels[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.StartTime, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EndTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.EndTime, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DesktopName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DesktopName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 12:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Recorded", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Recorded = bool(v != 0)
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Participants", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Participants = append(m.Participants, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CertificateCreate) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CertificateCreate: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CertificateCreate: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CertificateType", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CertificateType = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Identity", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Identity == nil {
+				m.Identity = &Identity{}
+			}
+			if err := m.Identity.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RenewableCertificateGenerationMismatch) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RenewableCertificateGenerationMismatch: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RenewableCertificateGenerationMismatch: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Unknown) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Unknown: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Unknown: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UnknownType", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.UnknownType = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UnknownCode", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.UnknownCode = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Data = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -35679,6 +41956,741 @@ func (m *OneOf) Unmarshal(dAtA []byte) error {
 			}
 			m.Event = &OneOf_SessionConnect{v}
 			iNdEx = postIndex
+		case 68:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CertificateCreate", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &CertificateCreate{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_CertificateCreate{v}
+			iNdEx = postIndex
+		case 69:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DesktopRecording", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &DesktopRecording{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_DesktopRecording{v}
+			iNdEx = postIndex
+		case 70:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DesktopClipboardSend", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &DesktopClipboardSend{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_DesktopClipboardSend{v}
+			iNdEx = postIndex
+		case 71:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DesktopClipboardReceive", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &DesktopClipboardReceive{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_DesktopClipboardReceive{v}
+			iNdEx = postIndex
+		case 72:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLStatementPrepare", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLStatementPrepare{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLStatementPrepare{v}
+			iNdEx = postIndex
+		case 73:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLStatementExecute", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLStatementExecute{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLStatementExecute{v}
+			iNdEx = postIndex
+		case 74:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLStatementSendLongData", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLStatementSendLongData{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLStatementSendLongData{v}
+			iNdEx = postIndex
+		case 75:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLStatementClose", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLStatementClose{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLStatementClose{v}
+			iNdEx = postIndex
+		case 76:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLStatementReset", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLStatementReset{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLStatementReset{v}
+			iNdEx = postIndex
+		case 77:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLStatementFetch", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLStatementFetch{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLStatementFetch{v}
+			iNdEx = postIndex
+		case 78:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLStatementBulkExecute", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLStatementBulkExecute{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLStatementBulkExecute{v}
+			iNdEx = postIndex
+		case 79:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RenewableCertificateGenerationMismatch", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &RenewableCertificateGenerationMismatch{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_RenewableCertificateGenerationMismatch{v}
+			iNdEx = postIndex
+		case 80:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Unknown", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &Unknown{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_Unknown{v}
+			iNdEx = postIndex
+		case 81:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLInitDB", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLInitDB{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLInitDB{v}
+			iNdEx = postIndex
+		case 82:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLCreateDB", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLCreateDB{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLCreateDB{v}
+			iNdEx = postIndex
+		case 83:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLDropDB", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLDropDB{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLDropDB{v}
+			iNdEx = postIndex
+		case 84:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLShutDown", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLShutDown{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLShutDown{v}
+			iNdEx = postIndex
+		case 85:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLProcessKill", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLProcessKill{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLProcessKill{v}
+			iNdEx = postIndex
+		case 86:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLDebug", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLDebug{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLDebug{v}
+			iNdEx = postIndex
+		case 87:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MySQLRefresh", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MySQLRefresh{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_MySQLRefresh{v}
+			iNdEx = postIndex
+		case 88:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AccessRequestResourceSearch", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &AccessRequestResourceSearch{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &OneOf_AccessRequestResourceSearch{v}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipEvents(dAtA[iNdEx:])
@@ -35994,6 +43006,4497 @@ func (m *SessionUpload) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.SessionURL = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Identity) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Identity: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Identity: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field User", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.User = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Impersonator", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Impersonator = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Roles", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Roles = append(m.Roles, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Usage", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Usage = append(m.Usage, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Logins", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Logins = append(m.Logins, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KubernetesGroups", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.KubernetesGroups = append(m.KubernetesGroups, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KubernetesUsers", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.KubernetesUsers = append(m.KubernetesUsers, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Expires", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Expires, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RouteToCluster", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RouteToCluster = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KubernetesCluster", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.KubernetesCluster = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Traits", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Traits.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RouteToApp", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.RouteToApp == nil {
+				m.RouteToApp = &RouteToApp{}
+			}
+			if err := m.RouteToApp.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TeleportCluster", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TeleportCluster = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 14:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RouteToDatabase", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.RouteToDatabase == nil {
+				m.RouteToDatabase = &RouteToDatabase{}
+			}
+			if err := m.RouteToDatabase.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseNames", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DatabaseNames = append(m.DatabaseNames, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 16:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseUsers", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DatabaseUsers = append(m.DatabaseUsers, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 17:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MFADeviceUUID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.MFADeviceUUID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 18:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ClientIP", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ClientIP = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 19:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AWSRoleARNs", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AWSRoleARNs = append(m.AWSRoleARNs, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 20:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AccessRequests", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AccessRequests = append(m.AccessRequests, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 21:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DisallowReissue", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.DisallowReissue = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RouteToApp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RouteToApp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RouteToApp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SessionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PublicAddr", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PublicAddr = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ClusterName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ClusterName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AWSRoleARN", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AWSRoleARN = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RouteToDatabase) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RouteToDatabase: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RouteToDatabase: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServiceName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServiceName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Protocol", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Protocol = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Username", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Username = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Database", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Database = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AccessRequestResourceSearch) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AccessRequestResourceSearch: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AccessRequestResourceSearch: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SearchAsRoles", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SearchAsRoles = append(m.SearchAsRoles, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceType", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResourceType = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Namespace", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Namespace = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Labels", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Labels == nil {
+				m.Labels = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowEvents
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowEvents
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthEvents
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthEvents
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowEvents
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthEvents
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthEvents
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipEvents(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthEvents
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Labels[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PredicateExpression", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PredicateExpression = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SearchKeywords", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SearchKeywords = append(m.SearchKeywords, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLStatementPrepare) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLStatementPrepare: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLStatementPrepare: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Query", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Query = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLStatementExecute) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLStatementExecute: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLStatementExecute: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StatementID", wireType)
+			}
+			m.StatementID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StatementID |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Parameters", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Parameters = append(m.Parameters, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLStatementSendLongData) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLStatementSendLongData: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLStatementSendLongData: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StatementID", wireType)
+			}
+			m.StatementID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StatementID |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ParameterID", wireType)
+			}
+			m.ParameterID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ParameterID |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DataSize", wireType)
+			}
+			m.DataSize = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DataSize |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLStatementClose) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLStatementClose: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLStatementClose: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StatementID", wireType)
+			}
+			m.StatementID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StatementID |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLStatementReset) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLStatementReset: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLStatementReset: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StatementID", wireType)
+			}
+			m.StatementID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StatementID |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLStatementFetch) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLStatementFetch: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLStatementFetch: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StatementID", wireType)
+			}
+			m.StatementID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StatementID |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RowsCount", wireType)
+			}
+			m.RowsCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RowsCount |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLStatementBulkExecute) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLStatementBulkExecute: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLStatementBulkExecute: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StatementID", wireType)
+			}
+			m.StatementID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StatementID |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Parameters", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Parameters = append(m.Parameters, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLInitDB) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLInitDB: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLInitDB: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SchemaName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SchemaName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLCreateDB) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLCreateDB: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLCreateDB: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SchemaName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SchemaName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLDropDB) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLDropDB: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLDropDB: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SchemaName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SchemaName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLShutDown) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLShutDown: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLShutDown: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLProcessKill) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLProcessKill: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLProcessKill: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ProcessID", wireType)
+			}
+			m.ProcessID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ProcessID |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLDebug) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLDebug: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLDebug: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MySQLRefresh) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MySQLRefresh: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MySQLRefresh: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.UserMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SessionMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseMetadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.DatabaseMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Subcommand", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Subcommand = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

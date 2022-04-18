@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -157,8 +156,8 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 // to benchmark spec. It returns benchmark result when completed.
 // This is a blocking function that can be cancelled via context argument.
 func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Result, error) {
-	tc.Stdout = ioutil.Discard
-	tc.Stderr = ioutil.Discard
+	tc.Stdout = io.Discard
+	tc.Stderr = io.Discard
 	tc.Stdin = &bytes.Buffer{}
 	var delay time.Duration
 	ctx, cancel := context.WithCancel(ctx)

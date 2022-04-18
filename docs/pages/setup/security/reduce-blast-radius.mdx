@@ -12,6 +12,8 @@ Teleport encourages users to practice defense in depth so that every component o
 - [Restrict role requests based on user traits](#restrict-role-requests-based-on-user-traits)
 - [Set up your RBAC without admin roles](#set-up-your-rbac-without-admin-roles)
 
+(!docs/pages/includes/tctl.mdx!)
+
 ## Make MFA mandatory for `tsh login`
 If a user sets up an account to authenticate to their Teleport cluster with only a password, an adversary can gain access to the password using brute-force attacks, person-in-the-middle attacks, or phishing. But even if a user's password is compromised, you can stop an attacker from authenticating with it when they run `tsh login`. 
 
@@ -112,7 +114,7 @@ You can enable some users to review other users' role escalation requests by app
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: reviewer
 spec:
@@ -128,7 +130,7 @@ You can require a user to request access from reviewers by applying a dynamic re
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: reviewee
 spec:
@@ -152,7 +154,7 @@ As an illustration, we have assigned user `myuser` to the `user` role, which we 
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: user
 spec:
@@ -202,7 +204,7 @@ you can prevent analysts who are *not* in the `admins` group from requesting acc
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: analyst
 spec:
@@ -230,7 +232,7 @@ First, define a role with privileged but limited access. In the following exampl
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: editor
 spec:
@@ -244,7 +246,7 @@ Next, we define the general `user` role. Users with this role can review other u
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: user
 spec:

@@ -19,7 +19,7 @@ package utils
 import (
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 
@@ -64,7 +64,7 @@ func TestUserMessageFromError(t *testing.T) {
 func TestConsolefLongComponent(t *testing.T) {
 	require.NotPanics(t, func() {
 		component := strings.Repeat("na ", 10) + "batman!"
-		Consolef(ioutil.Discard, logrus.New(), component, "test message")
+		Consolef(io.Discard, logrus.New(), component, "test message")
 	})
 }
 

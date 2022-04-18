@@ -20,14 +20,13 @@ limitations under the License.
 package cgroup
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"gopkg.in/check.v1"
 )
 
@@ -51,7 +50,7 @@ func (s *Suite) TestCreate(c *check.C) {
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir, err := ioutil.TempDir("", "cgroup-test")
+	dir, err := os.MkdirTemp("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)
 
@@ -62,7 +61,7 @@ func (s *Suite) TestCreate(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Create fake session ID and cgroup.
-	sessionID := uuid.New()
+	sessionID := uuid.New().String()
 	err = service.Create(sessionID)
 	c.Assert(err, check.IsNil)
 
@@ -103,7 +102,7 @@ func (s *Suite) TestCleanup(c *check.C) {
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir, err := ioutil.TempDir("", "cgroup-test")
+	dir, err := os.MkdirTemp("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)
 
@@ -115,7 +114,7 @@ func (s *Suite) TestCleanup(c *check.C) {
 	defer service.Close()
 
 	// Create fake session ID and cgroup.
-	sessionID := uuid.New()
+	sessionID := uuid.New().String()
 	err = service.Create(sessionID)
 	c.Assert(err, check.IsNil)
 

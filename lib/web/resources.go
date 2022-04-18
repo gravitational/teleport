@@ -288,6 +288,16 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	return &unknownRes, nil
 }
 
+type listResourcesGetResponse struct {
+	// Items is a list of resources retrieved.
+	Items interface{} `json:"items"`
+	// StartKey is the position to resume search events.
+	StartKey string `json:"startKey"`
+	// TotalCount is the total count of resources available
+	// after filter.
+	TotalCount int `json:"totalCount"`
+}
+
 type resourcesAPIGetter interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)

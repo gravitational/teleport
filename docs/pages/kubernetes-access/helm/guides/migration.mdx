@@ -13,9 +13,21 @@ to use the newer `teleport-cluster` Helm chart instead.
   consider [following a different guide](../guides.mdx) and storing your cluster's data in AWS DynamoDB or Google Cloud Firestore.
 </Admonition>
 
-(!docs/pages/kubernetes-access/helm/includes/helm-install.mdx!)
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
 
-## Step 3. Get the Teleport configuration file from your existing cluster
+## Prerequisites
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+
+## Step 1/6. Install Helm
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
+
+## Step 2/6. Add the Teleport Helm chart repository
+
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+## Step 3/6. Get the Teleport configuration file from your existing cluster
 
 <Admonition type="tip" title="Teleport storage in AWS or GCP">
   If your Teleport cluster's database is currently stored in AWS DynamoDB or Google Cloud Firestore rather than
@@ -81,7 +93,7 @@ $ kubectl --namespace teleport-cluster create configmap teleport --from-file=tel
 # configmap/teleport created
 ```
 
-## Step 4. Extracting the contents of Teleport's database
+## Step 4/6. Extracting the contents of Teleport's database
 
 <Admonition type="note" title="Note on namespacing">
   If you migrate your existing data, the `cluster_name` which is configured in `teleport.yaml` must stay the same.
@@ -112,7 +124,7 @@ Add the backup to your new `teleport-cluster` namespace as a secret:
 $ kubectl --namespace teleport-cluster create secret generic bootstrap --from-file=backup.yaml
 ```
 
-## Step 5. Start the new cluster with your old config file and backup
+## Step 5/6. Start the new cluster with your old config file and backup
 
 We will start the new cluster and bootstrap it using the backup of your cluster's data. Once this step is complete and the cluster is working,
 we'll modify the deployment to remove references to the backup data, and remove it from Kubernetes for security.
@@ -185,7 +197,7 @@ $ kubectl --namespace teleport-cluster get all
   browser to view the page successfully.
 </Admonition>
 
-## Step 6. Remove the bootstrap data and update the chart deployment
+## Step 6/6. Remove the bootstrap data and update the chart deployment
 
 Once you've tested your new Teleport cluster and you're confident that your data has been migrated successfully,
 you should redeploy the chart without your backup data mounted for security.

@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -47,6 +48,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 			options.Client().
 				ApplyURI("mongodb://" + config.Address).
 				SetTLSConfig(tlsConfig).
+				SetDirect(true).
 				// Mongo client connects in background so set a short heartbeat
 				// interval and server selection timeout so access errors are
 				// returned to the client quicker.
@@ -72,7 +74,8 @@ type TestServer struct {
 	port     string
 	log      logrus.FieldLogger
 
-	wireVersion int
+	wireVersion      int
+	activeConnection int32
 }
 
 // TestServerOption allows to set test server options.
@@ -137,6 +140,8 @@ func (s *TestServer) Serve() error {
 		go func() {
 			defer s.log.Debug("Connection done.")
 			defer conn.Close()
+			atomic.AddInt32(&s.activeConnection, 1)
+			defer atomic.AddInt32(&s.activeConnection, -1)
 			if err := s.handleConnection(conn); err != nil {
 				if !utils.IsOKNetworkError(err) {
 					s.log.Errorf("Failed to handle connection: %v.",
@@ -255,6 +260,11 @@ func (s *TestServer) getWireVersion() int {
 // Port returns the port server is listening on.
 func (s *TestServer) Port() string {
 	return s.port
+}
+
+// GetActiveConnectionsCount returns the current value of activeConnection counter.
+func (s *TestServer) GetActiveConnectionsCount() int32 {
+	return atomic.LoadInt32(&s.activeConnection)
 }
 
 // Close closes the server listener.

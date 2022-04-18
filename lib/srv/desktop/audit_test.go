@@ -20,20 +20,22 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
-func setup() (*WindowsService, *tlsca.Identity, *libevents.MockEmitter) {
-	emitter := &libevents.MockEmitter{}
+func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockEmitter) {
+	emitter := &eventstest.MockEmitter{}
 	log := logrus.New()
 	log.SetOutput(io.Discard)
 
@@ -45,6 +47,7 @@ func setup() (*WindowsService, *tlsca.Identity, *libevents.MockEmitter) {
 			Heartbeat: HeartbeatConfig{
 				HostUUID: "test-host-id",
 			},
+			Clock: clockwork.NewFakeClockAt(time.Now()),
 		},
 	}
 
@@ -74,16 +77,16 @@ func TestSessionStartEvent(t *testing.T) {
 		},
 	}
 
+	userMeta := id.GetUserMetadata()
+	userMeta.Login = "Administrator"
 	expected := &events.WindowsDesktopSessionStart{
 		Metadata: events.Metadata{
 			ClusterName: s.clusterName,
 			Type:        libevents.WindowsDesktopSessionStartEvent,
 			Code:        libevents.DesktopSessionStartCode,
+			Time:        s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		},
-		UserMetadata: events.UserMetadata{
-			User:         id.Username,
-			Impersonator: id.Impersonator,
-		},
+		UserMetadata: userMeta,
 		SessionMetadata: events.SessionMetadata{
 			SessionID: "sessionID",
 			WithMFA:   id.MFAVerified,
@@ -97,6 +100,7 @@ func TestSessionStartEvent(t *testing.T) {
 			Success: true,
 		},
 		WindowsDesktopService: s.cfg.Heartbeat.HostUUID,
+		DesktopName:           "test-desktop",
 		DesktopAddr:           desktop.GetAddr(),
 		Domain:                desktop.GetDomain(),
 		WindowsUser:           "Administrator",
@@ -129,7 +133,9 @@ func TestSessionStartEvent(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			s.onSessionStart(
 				context.Background(),
+				s.cfg.Emitter,
 				id,
+				s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				"Administrator",
 				"sessionID",
 				desktop,
@@ -142,9 +148,7 @@ func TestSessionStartEvent(t *testing.T) {
 			startEvent, ok := event.(*events.WindowsDesktopSessionStart)
 			require.True(t, ok)
 
-			require.Empty(t, cmp.Diff(test.exp(), *startEvent,
-				cmpopts.IgnoreFields(events.Metadata{}, "Time"),
-			))
+			require.Empty(t, cmp.Diff(test.exp(), *startEvent))
 		})
 	}
 }
@@ -165,9 +169,17 @@ func TestSessionEndEvent(t *testing.T) {
 		},
 	}
 
+	c := clockwork.NewFakeClockAt(time.Now())
+	s.cfg.Clock = c
+	startTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
+	c.Advance(30 * time.Second)
+
 	s.onSessionEnd(
 		context.Background(),
+		s.cfg.Emitter,
 		id,
+		startTime,
+		true,
 		"Administrator",
 		"sessionID",
 		desktop,
@@ -178,16 +190,15 @@ func TestSessionEndEvent(t *testing.T) {
 	endEvent, ok := event.(*events.WindowsDesktopSessionEnd)
 	require.True(t, ok)
 
+	userMeta := id.GetUserMetadata()
+	userMeta.Login = "Administrator"
 	expected := &events.WindowsDesktopSessionEnd{
 		Metadata: events.Metadata{
 			ClusterName: s.clusterName,
 			Type:        libevents.WindowsDesktopSessionEndEvent,
 			Code:        libevents.DesktopSessionEndCode,
 		},
-		UserMetadata: events.UserMetadata{
-			User:         id.Username,
-			Impersonator: id.Impersonator,
-		},
+		UserMetadata: userMeta,
 		SessionMetadata: events.SessionMetadata{
 			SessionID: "sessionID",
 			WithMFA:   id.MFAVerified,
@@ -197,6 +208,11 @@ func TestSessionEndEvent(t *testing.T) {
 		Domain:                desktop.GetDomain(),
 		WindowsUser:           "Administrator",
 		DesktopLabels:         map[string]string{"env": "production"},
+		StartTime:             startTime,
+		EndTime:               c.Now().UTC().Round(time.Millisecond),
+		DesktopName:           desktop.GetName(),
+		Recorded:              true,
+		Participants:          []string{"foo"},
 	}
 	require.Empty(t, cmp.Diff(expected, endEvent))
 }

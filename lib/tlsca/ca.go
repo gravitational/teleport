@@ -26,15 +26,18 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"strconv"
 	"time"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -133,6 +136,11 @@ type Identity struct {
 	// deny any attempts to reissue new certificates while authenticated with
 	// this certificate.
 	DisallowReissue bool
+	// Renewable indicates that this identity is allowed to renew it's
+	// own credentials. This is only enabled for certificate renewal bots.
+	Renewable bool
+	// Generation counts the number of times this certificate has been renewed.
+	Generation uint64
 }
 
 // RouteToApp holds routing information for applications.
@@ -192,6 +200,54 @@ func (id *Identity) GetRouteToApp() (RouteToApp, error) {
 	}
 
 	return id.RouteToApp, nil
+}
+
+func (id *Identity) GetEventIdentity() events.Identity {
+	// leave a nil instead of a zero struct so the field doesn't appear when
+	// serialized as json
+	var routeToApp *events.RouteToApp
+	if id.RouteToApp != (RouteToApp{}) {
+		routeToApp = &events.RouteToApp{
+			Name:        id.RouteToApp.Name,
+			SessionID:   id.RouteToApp.SessionID,
+			PublicAddr:  id.RouteToApp.PublicAddr,
+			ClusterName: id.RouteToApp.ClusterName,
+			AWSRoleARN:  id.RouteToApp.AWSRoleARN,
+		}
+	}
+	var routeToDatabase *events.RouteToDatabase
+	if id.RouteToDatabase != (RouteToDatabase{}) {
+		routeToDatabase = &events.RouteToDatabase{
+			ServiceName: id.RouteToDatabase.ServiceName,
+			Protocol:    id.RouteToDatabase.Protocol,
+			Username:    id.RouteToDatabase.Username,
+			Database:    id.RouteToDatabase.Database,
+		}
+	}
+
+	return events.Identity{
+		User:              id.Username,
+		Impersonator:      id.Impersonator,
+		Roles:             id.Groups,
+		Usage:             id.Usage,
+		Logins:            id.Principals,
+		KubernetesGroups:  id.KubernetesGroups,
+		KubernetesUsers:   id.KubernetesUsers,
+		Expires:           id.Expires,
+		RouteToCluster:    id.RouteToCluster,
+		KubernetesCluster: id.KubernetesCluster,
+		Traits:            id.Traits,
+		RouteToApp:        routeToApp,
+		TeleportCluster:   id.TeleportCluster,
+		RouteToDatabase:   routeToDatabase,
+		DatabaseNames:     id.DatabaseNames,
+		DatabaseUsers:     id.DatabaseUsers,
+		MFADeviceUUID:     id.MFAVerified,
+		ClientIP:          id.ClientIP,
+		AWSRoleARNs:       id.AWSRoleARNs,
+		AccessRequests:    id.ActiveRequests,
+		DisallowReissue:   id.DisallowReissue,
+	}
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -260,6 +316,14 @@ var (
 	// AWSRoleARNsASN1ExtensionOID is an extension ID used when encoding/decoding
 	// allowed AWS role ARNs into a certificate.
 	AWSRoleARNsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 12}
+
+	// RenewableCertificateASN1ExtensionOID is an extension ID used to indicate
+	// that a certificate may be renewed by a certificate renewal bot.
+	RenewableCertificateASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 13}
+
+	// GenerationASN1ExtensionOID is an extension OID used to count the number
+	// of times this certificate has been renewed.
+	GenerationASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 14}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
@@ -391,6 +455,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: id.AWSRoleARNs[i],
 			})
 	}
+	if id.Renewable {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  RenewableCertificateASN1ExtensionOID,
+				Value: types.True,
+			})
+	}
 	if id.TeleportCluster != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -485,6 +556,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	if id.Generation > 0 {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  GenerationASN1ExtensionOID,
+				Value: fmt.Sprint(id.Generation),
+			},
+		)
+	}
+
 	return subject, nil
 }
 
@@ -554,6 +634,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.AWSRoleARNs = append(id.AWSRoleARNs, val)
 			}
+		case attr.Type.Equal(RenewableCertificateASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.Renewable = val == types.True
+			}
 		case attr.Type.Equal(TeleportClusterASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -614,6 +699,17 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.DisallowReissue = val == types.True
 			}
+		case attr.Type.Equal(GenerationASN1ExtensionOID):
+			// This doesn't seem to play nice with int types, so we'll parse it
+			// from a string.
+			val, ok := attr.Value.(string)
+			if ok {
+				generation, err := strconv.ParseUint(val, 10, 64)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				id.Generation = generation
+			}
 		}
 	}
 
@@ -628,6 +724,14 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 	return id, nil
+}
+
+func (id Identity) GetUserMetadata() events.UserMetadata {
+	return events.UserMetadata{
+		User:           id.Username,
+		Impersonator:   id.Impersonator,
+		AccessRequests: id.ActiveRequests,
+	}
 }
 
 // CertificateRequest is a X.509 signing certificate request
@@ -669,6 +773,9 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 	if c.KeyUsage == 0 {
 		c.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	}
+
+	c.DNSNames = utils.Deduplicate(c.DNSNames)
+
 	return nil
 }
 

@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -99,6 +100,8 @@ type RemoteSite interface {
 	// IsClosed reports whether this RemoteSite has been closed and should no
 	// longer be used.
 	IsClosed() bool
+	// Closer allows the site to be closed
+	io.Closer
 }
 
 // Tunnel provides access to connected local or remote clusters
@@ -123,3 +126,18 @@ type Server interface {
 	// Wait waits for server to close all outstanding operations
 	Wait()
 }
+
+const (
+	// NoApplicationTunnel is the error message returned when application
+	// reverse tunnel cannot be found.
+	//
+	// It usually happens when an app agent has shut down (or crashed) but
+	// hasn't expired from the backend yet.
+	NoApplicationTunnel = "could not find reverse tunnel, check that Application Service agent proxying this application is up and running"
+	// NoDatabaseTunnel is the error message returned when database reverse
+	// tunnel cannot be found.
+	//
+	// It usually happens when a database agent has shut down (or crashed) but
+	// hasn't expired from the backend yet.
+	NoDatabaseTunnel = "could not find reverse tunnel, check that Database Service agent proxying this database is up and running"
+)

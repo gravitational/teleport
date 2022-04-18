@@ -111,15 +111,18 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    desktop_clipboard: true
     enhanced_recording:
     - command
     - network
     forward_agent: false
     max_session_ttl: 30h0m0s
     port_forwarding: true
+    record_session:
+      desktop: true
 version: v3
 `
-	role, err := types.NewRole("roleName", types.RoleSpecV4{
+	role, err := types.NewRoleV3("roleName", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{"test"},
 		},
@@ -128,12 +131,12 @@ version: v3
 
 	item, err := ui.NewResourceItem(role)
 	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "role:roleName",
 		Kind:    types.KindRole,
 		Name:    "roleName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestNewResourceItemTrustedCluster(t *testing.T) {
@@ -164,7 +167,7 @@ func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
-		role, err := types.NewRole("test", types.RoleSpecV4{
+		role, err := types.NewRoleV3("test", types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Logins: []string{"test"},
 			},

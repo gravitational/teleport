@@ -43,9 +43,9 @@ import (
 
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -324,7 +324,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	} else {
 		// no session id - global event gets a random uuid to get a good partition
 		// key distribution
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 
 	event := event{
@@ -352,7 +352,7 @@ func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) e
 	// no session id - global event gets a random uuid to get a good partition
 	// key distribution
 	if sessionID == "" {
-		sessionID = uuid.New()
+		sessionID = uuid.New().String()
 	}
 	err := events.UpdateEventFields(ev, fields, l.Clock, l.UIDGenerator)
 	if err != nil {
@@ -628,7 +628,7 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 // SearchSessionEvents returns session related events only. This is used to
 // find completed sessions.
 func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
-	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent}}
+	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
 	if cond != nil {
 		condFn, err := utils.ToFieldsCondition(cond)
 		if err != nil {
@@ -692,7 +692,7 @@ func (l *Log) Close() error {
 }
 
 func (l *Log) getDocIDForEvent(event event) string {
-	return uuid.New()
+	return uuid.New().String()
 }
 
 func (l *Log) purgeExpiredEvents() error {
@@ -731,7 +731,7 @@ func (l *Log) purgeExpiredEvents() error {
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)

@@ -31,6 +31,9 @@ func (b *Bot) Label(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if len(labels) == 0 {
+		return nil
+	}
 
 	err = b.c.GitHub.AddLabels(ctx,
 		b.c.Environment.Organization,
@@ -48,7 +51,7 @@ func (b *Bot) labels(ctx context.Context) ([]string, error) {
 	var labels []string
 
 	// The branch name is unsafe, but here we are simply adding a label.
-	if strings.HasPrefix(b.c.Environment.UnsafeBranch, "branch/") {
+	if strings.HasPrefix(b.c.Environment.UnsafeHead, "branch/") {
 		log.Println("Label: Found backport branch.")
 		labels = append(labels, "backport")
 	}
@@ -72,12 +75,6 @@ func (b *Bot) labels(ctx context.Context) ([]string, error) {
 				labels = append(labels, v...)
 			}
 		}
-		for k, v := range suffixes {
-			if strings.HasSuffix(file, k) {
-				log.Printf("Label: Found suffix %v, attaching labels: %v.", k, v)
-				labels = append(labels, v...)
-			}
-		}
 	}
 
 	return deduplicate(labels), nil
@@ -90,31 +87,26 @@ func deduplicate(s []string) []string {
 	}
 
 	var out []string
-	for k, _ := range m {
+	for k := range m {
 		out = append(out, k)
 	}
 
 	return out
 }
 
-var prefixes map[string][]string = map[string][]string{
-	"bpf/":                []string{"bpf"},
-	"docs/":               []string{"documentation"},
-	"rfd/":                []string{"documentation", "rfd"},
-	"examples/chart":      []string{"helm"},
-	"lib/bpf/":            []string{"bpf"},
-	"lib/events":          []string{"audit-log"},
-	"lib/kube":            []string{"kubernetes"},
-	"lib/srv/desktop":     []string{"desktop-access"},
-	"lib/srv/desktop/rdp": []string{"desktop-access", "rdp"},
-	"lib/srv/app/":        []string{"application-access"},
-	"lib/srv/db":          []string{"database-access"},
-	"lib/web/desktop.go":  []string{"desktop-access"},
-	"tool/tctl/":          []string{"tctl"},
-	"tool/tsh/":           []string{"tsh"},
-}
-
-var suffixes map[string][]string = map[string][]string{
-	".md":  []string{"documentation"},
-	".mdx": []string{"documentation"},
+var prefixes = map[string][]string{
+	"bpf/":                {"bpf"},
+	"docs/":               {"documentation"},
+	"rfd/":                {"rfd"},
+	"examples/chart":      {"helm"},
+	"lib/bpf/":            {"bpf"},
+	"lib/events":          {"audit-log"},
+	"lib/kube":            {"kubernetes"},
+	"lib/srv/desktop":     {"desktop-access"},
+	"lib/srv/desktop/rdp": {"desktop-access", "rdp"},
+	"lib/srv/app/":        {"application-access"},
+	"lib/srv/db":          {"database-access"},
+	"lib/web/desktop.go":  {"desktop-access"},
+	"tool/tctl/":          {"tctl"},
+	"tool/tsh/":           {"tsh"},
 }

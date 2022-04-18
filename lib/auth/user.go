@@ -63,10 +63,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         user.GetCreatedBy().User.Name,
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, user.GetCreatedBy().User.Name),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
@@ -98,10 +95,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
@@ -150,6 +144,43 @@ func (s *Server) UpsertUser(user types.User) error {
 	return nil
 }
 
+// CompareAndSwapUser updates a user but fails if the value on the backend does
+// not match the expected value.
+func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
+	err := s.Identity.CompareAndSwapUser(ctx, new, existing)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var connectorName string
+	if new.GetCreatedBy().Connector == nil {
+		connectorName = constants.Local
+	} else {
+		connectorName = new.GetCreatedBy().Connector.ID
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+		Metadata: apievents.Metadata{
+			Type: events.UserUpdatedEvent,
+			Code: events.UserUpdateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         ClientUsername(ctx),
+			Impersonator: ClientImpersonator(ctx),
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    new.GetName(),
+			Expires: new.Expiry(),
+		},
+		Connector: connectorName,
+		Roles:     new.GetRoles(),
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit user update event.")
+	}
+
+	return nil
+}
+
 // DeleteUser deletes an existng user in a backend by username.
 func (s *Server) DeleteUser(ctx context.Context, user string) error {
 	role, err := s.Access.GetRole(ctx, services.RoleNameForUser(user))
@@ -176,10 +207,7 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 			Type: events.UserDeleteEvent,
 			Code: events.UserDeleteCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: user,
 		},

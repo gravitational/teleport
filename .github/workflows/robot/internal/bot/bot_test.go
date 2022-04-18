@@ -39,6 +39,7 @@ func TestParseChanges(t *testing.T) {
 			desc: "code-only",
 			files: []string{
 				"file.go",
+				"examples/README.md",
 			},
 			docs: false,
 			code: true,
@@ -77,7 +78,7 @@ func TestParseChanges(t *testing.T) {
 						Number:       0,
 					},
 					GitHub: &fakeGithub{
-						test.files,
+						files: test.files,
 					},
 				},
 			}
@@ -90,15 +91,26 @@ func TestParseChanges(t *testing.T) {
 }
 
 type fakeGithub struct {
-	files []string
+	files     []string
+	pull      github.PullRequest
+	reviewers []string
+	reviews   []github.Review
 }
 
 func (f *fakeGithub) RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
 	return nil
 }
 
-func (f *fakeGithub) ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*github.Review, error) {
-	return nil, nil
+func (f *fakeGithub) ListReviews(ctx context.Context, organization string, repository string, number int) ([]github.Review, error) {
+	return f.reviews, nil
+}
+
+func (f *fakeGithub) ListReviewers(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	return f.reviewers, nil
+}
+
+func (f *fakeGithub) GetPullRequest(ctx context.Context, organization string, repository string, number int) (github.PullRequest, error) {
+	return f.pull, nil
 }
 
 func (f *fakeGithub) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]github.PullRequest, error) {

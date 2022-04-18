@@ -119,6 +119,13 @@ func (w *Watcher) fetchAndSend() {
 	for _, fetcher := range w.fetchers {
 		databases, err := fetcher.Get(w.ctx)
 		if err != nil {
+			// DB agent may have permissions to fetch some databases but not
+			// others. This is acceptable, thus continue to other fetchers.
+			if trace.IsAccessDenied(err) {
+				w.log.WithError(err).Debugf("Skipping fetcher %v.", fetcher)
+				continue
+			}
+
 			w.log.WithError(err).Errorf("%s failed.", fetcher)
 			return
 		}
@@ -138,9 +145,17 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 // makeFetchers returns cloud fetchers for the provided matchers.
 func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
 	for _, matcher := range matchers {
-		if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDS) {
-			for _, region := range matcher.Regions {
-				fetcher, err := makeRDSFetcher(clients, region, matcher.Tags)
+		for _, region := range matcher.Regions {
+			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRDS) {
+				fetchers, err := makeRDSFetchers(clients, region, matcher.Tags)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result = append(result, fetchers...)
+			}
+
+			if utils.SliceContainsStr(matcher.Types, services.AWSMatcherRedshift) {
+				fetcher, err := makeRedshiftFetcher(clients, region, matcher.Tags)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -151,15 +166,41 @@ func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (
 	return result, nil
 }
 
-// makeRDSFetcher returns RDS fetcher for the provided region and tags.
-func makeRDSFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+// makeRDSFetchers returns RDS fetcher for the provided region and tags.
+func makeRDSFetchers(clients common.CloudClients, region string, tags types.Labels) ([]Fetcher, error) {
 	rds, err := clients.GetAWSRDSClient(region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newRDSFetcher(rdsFetcherConfig{
-		Region: region,
-		Labels: tags,
-		RDS:    rds,
+
+	var fetchers []Fetcher
+	for _, new := range []func(rdsFetcherConfig) (Fetcher, error){
+		newRDSDBInstancesFetcher,
+		newRDSAuroraClustersFetcher,
+	} {
+		fetcher, err := new(rdsFetcherConfig{
+			Region: region,
+			Labels: tags,
+			RDS:    rds,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fetchers = append(fetchers, fetcher)
+	}
+
+	return fetchers, nil
+}
+
+// makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.
+func makeRedshiftFetcher(clients common.CloudClients, region string, tags types.Labels) (Fetcher, error) {
+	redshift, err := clients.GetAWSRedshiftClient(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newRedshiftFetcher(redshiftFetcherConfig{
+		Region:   region,
+		Labels:   tags,
+		Redshift: redshift,
 	})
 }

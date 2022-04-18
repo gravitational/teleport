@@ -20,7 +20,6 @@ package filesessions
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,6 +32,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -242,7 +242,7 @@ func TestUploadResume(t *testing.T) {
 			name:    "stream created when checkpoint is lost after failure",
 			retries: 1,
 			onRetry: func(t *testing.T, attempt int, uploader *Uploader) {
-				files, err := ioutil.ReadDir(uploader.cfg.ScanDir)
+				files, err := os.ReadDir(uploader.cfg.ScanDir)
 				require.Nil(t, err)
 				checkpointsDeleted := 0
 				for i := range files {
@@ -405,7 +405,7 @@ func TestUploadBadSession(t *testing.T) {
 	sessionID := session.NewID()
 	fileName := filepath.Join(p.scanDir, string(sessionID)+tarExt)
 
-	err := ioutil.WriteFile(fileName, []byte("this session is corrupted"), 0600)
+	err := os.WriteFile(fileName, []byte("this session is corrupted"), 0600)
 	require.NoError(t, err)
 
 	// initiate the scan by advancing clock past
@@ -450,16 +450,10 @@ func (u *uploaderPack) Close(t *testing.T) {
 
 	err := u.uploader.Close()
 	require.NoError(t, err)
-
-	if u.scanDir != "" {
-		err := os.RemoveAll(u.scanDir)
-		require.NoError(t, err)
-	}
 }
 
 func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
-	scanDir, err := ioutil.TempDir("", "teleport-streams")
-	require.NoError(t, err)
+	scanDir := t.TempDir()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	pack := uploaderPack{
@@ -492,7 +486,7 @@ func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
 		Clock:      pack.clock,
 		EventsC:    pack.eventsC,
 		AuditLog:   &events.DiscardAuditLog{},
-	})
+	}, &eventstest.MockSessionTrackerService{})
 	require.NoError(t, err)
 	pack.uploader = uploader
 	go pack.uploader.Serve()
@@ -518,9 +512,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 
 	test := testCase.newTest(streamer)
 
-	scanDir, err := ioutil.TempDir("", "teleport-streams")
-	require.Nil(t, err)
-	defer os.RemoveAll(scanDir)
+	scanDir := t.TempDir()
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
@@ -531,7 +523,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		Streamer:   test.streamer,
 		Clock:      clock,
 		AuditLog:   &events.DiscardAuditLog{},
-	})
+	}, &eventstest.MockSessionTrackerService{})
 	require.Nil(t, err)
 	go uploader.Serve()
 	// wait until uploader blocks on the clock

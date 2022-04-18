@@ -37,8 +37,9 @@ The second is the "IAM Method", in which the EC2 instance will create and sign
 an HTTPS API request to Amazon's public `sts:GetCallerIdentity` endpoint and
 pass it to the auth server.
 
-Update: The EC2 Method has been chosen as it does not require any IAM role on
-the nodes.
+Update 2022-01-24: The EC2 Method was implemented first and released in Teleport
+7.3, the IAM method is currently being implemented and will support Teleport
+Cloud.
 
 ### EC2 Method
 

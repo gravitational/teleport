@@ -52,13 +52,13 @@ package rdpclient
 
 /*
 // Flags to include the static Rust library.
-#cgo linux,386 LDFLAGS: -L${SRCDIR}/target/i686-unknown-linux-gnu/release
-#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/target/x86_64-unknown-linux-gnu/release
-#cgo linux,arm LDFLAGS: -L${SRCDIR}/target/arm-unknown-linux-gnueabihf/release
-#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-unknown-linux-gnu/release
+#cgo linux,386 LDFLAGS: -L${SRCDIR}/../../../../../target/i686-unknown-linux-gnu/release
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release
+#cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release
 #cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
-#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/target/x86_64-apple-darwin/release
-#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/target/aarch64-apple-darwin/release
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
 #include <librdprs.h>
 */
@@ -68,6 +68,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -86,7 +87,7 @@ func init() {
 	// on the logrus log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
-	if rl := os.Getenv("RUST_LOG"); rl != "" {
+	if rl := os.Getenv("RUST_LOG"); rl == "" {
 		var rustLogLevel string
 		switch l := logrus.GetLevel(); l {
 		case logrus.TraceLevel:
@@ -115,6 +116,9 @@ type Client struct {
 	clientWidth, clientHeight uint16
 	username                  string
 
+	// handle allows the rust code to call back into the client
+	handle cgo.Handle
+
 	// RDP client on the Rust side.
 	rustClient *C.Client
 
@@ -141,6 +145,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		cfg:           cfg,
 		readyForInput: 0,
 	}
+	c.handle = cgo.NewHandle(c)
 
 	if err := c.readClientUsername(); err != nil {
 		return nil, trace.Wrap(err)
@@ -160,7 +165,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 
 func (c *Client) readClientUsername() error {
 	for {
-		msg, err := c.cfg.InputMessage()
+		msg, err := c.cfg.Conn.InputMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -177,7 +182,7 @@ func (c *Client) readClientUsername() error {
 
 func (c *Client) readClientSize() error {
 	for {
-		msg, err := c.cfg.InputMessage()
+		msg, err := c.cfg.Conn.InputMessage()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -194,7 +199,7 @@ func (c *Client) readClientSize() error {
 }
 
 func (c *Client) connect(ctx context.Context) error {
-	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username)
+	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -207,6 +212,7 @@ func (c *Client) connect(ctx context.Context) error {
 	defer C.free(unsafe.Pointer(username))
 
 	res := C.connect_rdp(
+		C.uintptr_t(c.handle),
 		addr,
 		username,
 		// cert length and bytes.
@@ -218,6 +224,7 @@ func (c *Client) connect(ctx context.Context) error {
 		// screen size.
 		C.uint16_t(c.clientWidth),
 		C.uint16_t(c.clientHeight),
+		C.bool(c.cfg.AllowClipboard),
 	)
 	if err := cgoError(res.err); err != nil {
 		return trace.Wrap(err)
@@ -236,13 +243,16 @@ func (c *Client) start() {
 		defer c.Close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
-		h := cgo.NewHandle(c)
-		defer h.Delete()
-
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
-		if err := cgoError(C.read_rdp_output(c.rustClient, C.uintptr_t(h))); err != nil {
+		if err := cgoError(C.read_rdp_output(c.rustClient)); err != nil {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", err)
+
+			// close the TDP connection to the browser
+			// (without this the input streaming goroutine will hang
+			// waiting for user input)
+			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
+			c.cfg.Conn.Close()
 		}
 	}()
 
@@ -251,13 +261,15 @@ func (c *Client) start() {
 	go func() {
 		defer c.wg.Done()
 		defer c.Close()
-		defer c.cfg.Log.Info("RDP input streaming finished")
+		defer c.cfg.Log.Info("TDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
-			msg, err := c.cfg.InputMessage()
-			if err != nil {
-				c.cfg.Log.Warningf("Failed reading RDP input message: %v", err)
+			msg, err := c.cfg.Conn.InputMessage()
+			if errors.Is(err, io.EOF) {
+				return
+			} else if err != nil {
+				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
 				return
 			}
 
@@ -280,7 +292,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Warningf("Failed forwarding RDP mouse pointer: %v", err)
 					return
 				}
 			case tdp.MouseButton:
@@ -306,7 +318,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Warningf("Failed forwarding RDP mouse button: %v", err)
 					return
 				}
 			case tdp.MouseWheel:
@@ -335,7 +347,7 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Warningf("Failed forwarding RDP mouse wheel: %v", err)
 					return
 				}
 			case tdp.KeyboardButton:
@@ -346,28 +358,47 @@ func (c *Client) start() {
 						down: m.State == tdp.ButtonPressed,
 					},
 				)); err != nil {
-					c.cfg.Log.Warningf("Failed forwarding RDP input message: %v", err)
+					c.cfg.Log.Warningf("Failed forwarding RDP key press: %v", err)
 					return
 				}
+			case tdp.ClipboardData:
+				if len(m) > 0 {
+					if err := cgoError(C.update_clipboard(
+						c.rustClient,
+						(*C.uint8_t)(unsafe.Pointer(&m[0])),
+						C.uint32_t(len(m)),
+					)); err != nil {
+						c.cfg.Log.Warningf("Failed forwarding RDP clipboard data: %v", err)
+						return
+					}
+				} else {
+					c.cfg.Log.Warning("Recieved an empty clipboard message")
+				}
 			default:
-				c.cfg.Log.Warningf("Skipping unimplemented desktop protocol message type %T", msg)
+				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}
 		}
 	}()
 }
 
 //export handle_bitmap
-func handle_bitmap(handle C.uintptr_t, cb C.CGOBitmap) C.CGOError {
+func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOError {
 	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
-func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
+func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOError {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a bitmap was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	data := C.GoBytes(unsafe.Pointer(cb.data_ptr), C.int(cb.data_len))
+	// use unsafe.Slice here instead of C.GoBytes, because unsafe.Slice
+	// creates a Go slice backed by data managed from Rust - it does not
+	// copy. This way we only need one copy into img.Pix below.
+	ptr := unsafe.Pointer(cb.data_ptr)
+	uptr := (*uint8)(ptr)
+	data := unsafe.Slice(uptr, C.int(cb.data_len))
+
 	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
 	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
 	// a byte slice with 4-byte segments representing pixels (RGBA).
@@ -383,8 +414,25 @@ func (c *Client) handleBitmap(cb C.CGOBitmap) C.CGOError {
 	})
 	copy(img.Pix, data)
 
-	if err := c.cfg.OutputMessage(tdp.PNGFrame{Img: img}); err != nil {
+	if err := c.cfg.Conn.OutputMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
 		return C.CString(fmt.Sprintf("failed to send PNG frame %v: %v", img.Rect, err))
+	}
+	return nil
+}
+
+//export handle_remote_copy
+func handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOError {
+	goData := C.GoBytes(unsafe.Pointer(data), C.int(length))
+	return cgo.Handle(handle).Value().(*Client).handleRemoteCopy(goData)
+}
+
+// handleRemoteCopy is called from Rust when data is copied
+// on the remote desktop
+func (c *Client) handleRemoteCopy(data []byte) C.CGOError {
+	c.cfg.Log.Debugf("Received %d bytes of clipboard data from Windows desktop", len(data))
+
+	if err := c.cfg.Conn.OutputMessage(tdp.ClipboardData(data)); err != nil {
+		return C.CString(fmt.Sprintf("failed to send clipboard data: %v", err))
 	}
 	return nil
 }
@@ -402,6 +450,8 @@ func (c *Client) Wait() error {
 // Calls other than the first one are no-ops.
 func (c *Client) Close() {
 	c.closeOnce.Do(func() {
+		c.handle.Delete()
+
 		if err := cgoError(C.close_rdp(c.rustClient)); err != nil {
 			c.cfg.Log.Warningf("Error closing RDP connection: %v", err)
 		}

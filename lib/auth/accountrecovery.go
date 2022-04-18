@@ -260,7 +260,8 @@ func (s *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		}
 
 		if err := s.verifyAuthnWithRecoveryLock(ctx, startToken, func() error {
-			_, err := s.validateMFAAuthResponse(ctx, startToken.GetUser(), req.GetMFAAuthenticateResponse(), s.Identity)
+			_, _, err := s.validateMFAAuthResponse(
+				ctx, req.GetMFAAuthenticateResponse(), startToken.GetUser(), false /* passwordless */)
 			return err
 		}); err != nil {
 			return nil, trace.Wrap(err)

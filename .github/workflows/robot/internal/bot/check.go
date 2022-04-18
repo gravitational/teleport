@@ -40,7 +40,7 @@ func (b *Bot) Check(ctx context.Context) error {
 		err := b.dismiss(ctx,
 			b.c.Environment.Organization,
 			b.c.Environment.Repository,
-			b.c.Environment.UnsafeBranch)
+			b.c.Environment.UnsafeHead)
 		if err != nil {
 			return trace.Wrap(err)
 		}

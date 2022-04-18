@@ -19,8 +19,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"testing"
 	"time"
 
@@ -35,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 
-	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/assert"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 const clusterName = "bench.example.com"
@@ -77,16 +75,12 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			var err error
 			if tt.memory {
 				bk, err = memory.New(memory.Config{})
-				assert.NoError(b, err)
+				require.NoError(b, err)
 			} else {
-				dir, err := ioutil.TempDir("", "teleport")
-				assert.NoError(b, err)
-				defer os.RemoveAll(dir)
-
 				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
-					Path: dir,
+					Path: b.TempDir(),
 				})
-				assert.NoError(b, err)
+				require.NoError(b, err)
 			}
 			defer bk.Close()
 
@@ -113,14 +107,14 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 }
 
 // insertServers inserts a collection of servers into a backend.
-func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence, kind string, count int) {
+func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := 0; i < labelCount; i++ {
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
 	for i := 0; i < count; i++ {
-		name := uuid.New()
+		name := uuid.New().String()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
 		server := &types.ServerV2{
 			Kind:    kind,
@@ -145,9 +139,9 @@ func insertServers(ctx context.Context, t assert.TestingT, svc services.Presence
 		case types.KindAuthServer:
 			err = svc.UpsertAuthServer(server)
 		default:
-			t.Errorf("Unexpected server kind: %s", kind)
+			b.Errorf("Unexpected server kind: %s", kind)
 		}
-		assert.NoError(t, err)
+		require.NoError(b, err)
 	}
 }
 
@@ -156,10 +150,10 @@ func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reverset
 	var err error
 	for i := 0; i < b.N; i++ {
 		cluster, err = GetClusterDetails(ctx, site, opts...)
-		assert.NoError(b, err)
+		require.NoError(b, err)
 	}
-	assert.NotNil(b, cluster)
-	assert.Equal(b, nodes, cluster.NodeCount)
+	require.NotNil(b, cluster)
+	require.Equal(b, nodes, cluster.NodeCount)
 }
 
 type mockRemoteSite struct {
