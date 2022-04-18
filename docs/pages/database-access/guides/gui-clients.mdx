@@ -252,7 +252,8 @@ In the search bar of the "Connect to a database" window that opens up, type "mys
 
 ![DBeaver Select Driver](../../../img/database-access/dbeaver-select-driver.png)
 
-In the newly-opened "Connection Settings" tab, copy the `Server Host` and `Port` from the `tsh db config` output into the DBeaver config fields:
+In the newly-opened "Connection Settings" tab, use the Host as `localhost` and
+Port as the one returned by the proxy command (`62652` in the example above):
 
 ![DBeaver Select Configure Server](../../../img/database-access/dbeaver-configure-server.png)
 
@@ -266,20 +267,8 @@ Authentication" box, and click "Ok" to save:
 
 ![DBeaver Driver Settings](../../../img/database-access/dbeaver-driver-settings.png)
 
-Once you are back in the "Connection Settings" window, navigate to the "Driver
-Properties" tab, scroll down to find the `enabledTLSProtocols` field and enter
-"TLSv1.2" into the `Value` field:
-
-![DBeaver TLS Settings](../../../img/database-access/dbeaver-tls-settings.png)
-
-Navigate to the "SSL" tab, check the "Use SSL" box, uncheck the "Verify Server
-Certificates" box, and copy the `CA Certificate`, `Client Certificate`, and
-`Client Private Key` paths from the output of the `tsh` command you ran at the
-beginning of this guide:
-
-![DBeaver SSL](../../../img/database-access/dbeaver-ssl.png)
-
-Click "Ok" to finish and DBeaver should connect to the remote MySQL server automatically.
+Once you are back in the "Connection Settings" window, click "Ok" to finish and
+DBeaver should connect to the remote MySQL server automatically.
 
 ## MongoDB Compass
 
@@ -309,7 +298,7 @@ Click on the "Connect" button.
 ## SQL Server DBeaver
 
 In the DBeaver connection configuration menu, use your proxy's endpoint. This is
-`localhost:4242` in the example above. (See
+`localhost:62652` in the example above. (See
 [Get connection information](./gui-clients.mdx#get-connection-information) for
 more information.)
 
