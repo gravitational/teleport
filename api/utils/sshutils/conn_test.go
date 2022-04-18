@@ -48,7 +48,6 @@ func (s *server) Run(errC chan error) {
 		}
 
 		go func() {
-			defer conn.Close()
 			sconn, _, _, err := ssh.NewServerConn(conn, s.config)
 			if err != nil {
 				errC <- err
