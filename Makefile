@@ -157,7 +157,7 @@ endif
 
 # Enable libfido2 for testing?
 # Eargerly enable if we detect the package, we want to test as much as possible.
-ifneq ("$(shell ls {/opt/homebrew,/usr/lib/x86_64-linux-gnu,/usr/local/lib}/libfido2.* 2>/dev/null)","")
+ifeq ("$(shell pkg-config libfido2 2>/dev/null; echo $$?)", "0")
 LIBFIDO2_TEST_TAG := libfido2
 endif
 
@@ -466,9 +466,6 @@ docs-test-whitespace:
 		echo "run 'make docs-fix-whitespace' to fix it"; \
 		exit 1; \
 	fi
-
-
-
 
 #
 # Builds some tooling for filtering and displaying test progress/output/etc
