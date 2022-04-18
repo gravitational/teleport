@@ -26,7 +26,7 @@ As of Jan 2022, [instance tags are available via the instance metadata service](
 
 EC2 tags will be supported everywhere that dynamic labels are currently supported (i.e. SSH, Kube, Apps, and Databases).
 
-When a node is created, it will check if it is running in an EC2 instance. If it is, start a service (similar to dynamic labels) that periodically [every 10min] queries the instance metadata service and update the tags. Tags created this way will use the [`aws`/`aws.ec2`/`aws/ec2`/`ec2`] prefix.
+When a node is created, check if it is running in an EC2 instance. If it is, start a service (similar to dynamic labels) that periodically [every 10min] queries the instance metadata service and updates the tags. Tags created this way will use the [`aws`/`aws.ec2`/`aws/ec2`/`ec2`] prefix.
 
 In order to use this feature, instance tags in metadata must be enabled for the instance.
 
