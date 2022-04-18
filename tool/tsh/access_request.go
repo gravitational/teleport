@@ -115,7 +115,7 @@ func onRequestList(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
@@ -164,7 +164,7 @@ func onRequestShow(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}

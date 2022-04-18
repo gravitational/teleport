@@ -248,7 +248,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, a
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return fmt.Sprintf("%s\n", string(out)), nil
+		return fmt.Sprintf("%s\n", out), nil
 	}
 	return fmt.Sprintf(`Name:      %v
 URI:       %v
