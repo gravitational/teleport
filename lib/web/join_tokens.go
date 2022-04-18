@@ -87,6 +87,10 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		// if a token with this name is found and it has indeed the same rule set,
 		// return it. Otherwise, go ahead and create it
 		t, err := clt.GetToken(r.Context(), tokenName)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+
 		if err == nil {
 			// check if the token found has the right rules
 			if t.GetJoinMethod() != types.JoinMethodIAM || !isSameRuleSet(req.Allow, t.GetAllowRules()) {
