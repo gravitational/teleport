@@ -156,10 +156,12 @@ endif
 endif
 
 # Enable libfido2 for buildbox and local environments that have it.
-# TODO(codingllama): Build static binaries with libfido2.
 ifneq ("$(shell ls {/opt/homebrew,/usr/lib/x86_64-linux-gnu,/usr/local/lib}/libfido2.* 2>/dev/null)","")
 LIBFIDO2_TAG := libfido2
+else
 endif
+# TODO(codingllama): Re-enable fido2 static builds.
+LIBFIDO2_MESSAGE := without libfido2
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
@@ -170,7 +172,7 @@ endif
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE) and $(RDPCLIENT_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE) and $(RDPCLIENT_MESSAGE) and $(LIBFIDO2_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
@@ -216,7 +218,7 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_STATIC_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
@@ -846,6 +848,12 @@ docker-binaries: clean
 .PHONY:enter
 enter:
 	make -C build.assets enter
+
+# Interactively enters a Docker container (which you can build and run Teleport inside of).
+# Similar to `enter`, but uses the centos7 container.
+.PHONY:enter/centos7
+enter/centos7:
+	make -C build.assets enter/centos7
 
 # grpc generates GRPC stubs from service definitions.
 # This target runs in the buildbox container.
