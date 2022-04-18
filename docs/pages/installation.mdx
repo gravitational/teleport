@@ -4,19 +4,24 @@ description: The guide for installing Teleport on servers and into Kubernetes cl
 h1: Installation
 ---
 
-Teleport core service [`teleport`](./setup/reference/cli.mdx#teleport) and admin tool [`tctl`](./setup/reference/cli.mdx#tctl) have been designed to run on **Linux** and **Mac** operating systems. The Teleport user client [`tsh`](./setup/reference/cli.mdx#tsh) and UI are available for **Linux, Mac**, and **Windows** operating systems.
-
 <Admonition type="tip" title="First time trying Teleport?">
 If you are new to Teleport, we recommend following our [getting started guides](getting-started.mdx).
 </Admonition>
 
+## Supported operating systems
+
+The Teleport daemon [`teleport`](./setup/reference/cli.mdx#teleport) and admin
+tool [`tctl`](./setup/reference/cli.mdx#tctl) have been designed to run on
+**Linux** and **macOS** operating systems. The Teleport user client
+[`tsh`](./setup/reference/cli.mdx#tsh) and Web UI are available for **Linux,
+macOS**, and **Windows** operating systems.
 
 ## Linux
 
 The following examples install the 64-bit version of Teleport binaries, but
-32-bit (i386) and ARM binaries are also available. Check the [Latest
-Release](https://goteleport.com/download/) page for the most
-up-to-date information.
+32-bit (i386) and ARM binaries are also available. Check the
+[Downloads](https://goteleport.com/download/) page for the most up-to-date
+information.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -24,7 +29,10 @@ up-to-date information.
 
 ## Docker
 
-Please follow our [Getting started with Teleport using Docker](./setup/guides/docker.mdx) or with [Teleport Enterprise using Docker](enterprise/getting-started.mdx#run-teleport-enterprise-using-docker) for install and setup instructions.
+Please follow
+[Getting started with Teleport using Docker](./setup/guides/docker.mdx) or
+[Teleport Enterprise using Docker](enterprise/getting-started.mdx#run-teleport-enterprise-using-docker)
+for installation and setup instructions.
 
 ```code
 $ docker pull (=teleport.latest_oss_docker_image=)
@@ -32,7 +40,11 @@ $ docker pull (=teleport.latest_oss_docker_image=)
 
 ## Helm
 
-Please follow our [Getting Started with Kubernetes Access](./kubernetes-access/getting-started.mdx) or [Helm Chart Readme](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) for install and setup instructions.
+Please follow our
+[Getting Started with Kubernetes Access](./kubernetes-access/getting-started.mdx)
+or
+[Helm Chart Readme](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport)
+for installation and setup instructions.
 
 ```code
 $ helm repo add teleport https://charts.releases.teleport.dev
@@ -57,7 +69,7 @@ $ helm repo add teleport https://charts.releases.teleport.dev
 
     <Admonition type="note">
       The Teleport package in Homebrew is not maintained by Teleport and we can't
-      guarantee its reliability or security. We recommend the use of our [own
+      guarantee its reliability or security. We recommend the use of our [official
       Teleport packages](https://goteleport.com/teleport/download?os=mac).
     </Admonition>
 
@@ -86,10 +98,12 @@ $ helm repo add teleport https://charts.releases.teleport.dev
 
 ## Windows (tsh client only)
 
-As of version v3.0.1 we have `tsh` client binary available for Windows 64-bit
-architecture - `teleport` and `tctl` are not supported. Most `tsh` features are
-supported under Windows 10 1607+ as of Teleport v7.2. We support running
-`tsh ssh` under `cmd.exe`, PowerShell, and the Windows Terminal app.
+The `teleport` and `tctl` tools require Linux or macOS, but the `tsh` client
+binary is available on Windows starting with Teleport v3.0.1.
+
+Starting with Teleport v7.2.0, most `tsh` features are supported for Windows 10
+1607+. The `tsh ssh` command can be run under `cmd.exe`, PowerShell, and Windows
+Terminal.
 
 <Tabs>
   <TabItem label="Powershell">
@@ -108,54 +122,24 @@ supported under Windows 10 1607+ as of Teleport v7.2. We support running
   </TabItem>
 </Tabs>
 
-## Installing from source
+## Building from source
 
-Gravitational Teleport is written in Go language. It requires **Golang v(=teleport.golang=)**
-or newer. Check [the repo README](https://github.com/gravitational/teleport#building-teleport) for the
-latest requirements.
+Teleport is written in Go, and currently requires **go v(=teleport.golang=)** or
+newer. Detailed instructions for building from source are available in the
+[README](https://github.com/gravitational/teleport#building-teleport).
 
-### Install Go
-
-If you don't already have Golang installed you can [see installation
-instructions here](https://golang.org/doc/install). If you are new to Go there are a few quick setup things to note:
-
-
-- Go installs all dependencies *for all projects* in a single directory
-  determined by the `$GOPATH` variable. The default directory is
-  `GOPATH=$HOME/go` but you can set it to any directory you wish.
-- If you plan to use Golang for more than just this installation you may want to
-  `echo "export GOPATH=$HOME/go" >> ~/.bashrc` (or your shell config).
-
-### Build Teleport
-
-```code
-# get the source & build:
-$ mkdir -p $GOPATH/src/github.com/gravitational
-$ cd $GOPATH/src/github.com/gravitational
-$ git clone https://github.com/gravitational/teleport.git
-$ cd teleport
-# Make sure you have `zip` installed - the Makefile uses it
-$ make full
-# create the default data directory before running `teleport`
-$ sudo mkdir -p /var/lib/teleport
-$ sudo chown $USER /var/lib/teleport
-```
-
-If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the directory `$GOPATH/src/github.com/gravitational/teleport/build`
-
-{
-  /* Notes on what to do if the build does not succeed, troubleshooting */
-}
 
 ## Checksums
 
-Gravitational Teleport provides a checksum from the [Downloads](https://gravitational.com/teleport/download/). This should be used to verify the integrity of our binary.
+SHA256 checksums are available for all downloads on our
+[downloads page](https://goteleport.com/download/) should you wish to verify the
+integrity of the download.
 
 ![Teleport Checksum](../img/teleport-sha.png)
 
 If you download Teleport via an automated system, you can programmatically
-obtain the checksum by adding `.sha256` to the binary. This is the method shown
-in the installation examples.
+obtain the checksum by adding `.sha256` to the download link. This is the method
+shown in the installation examples.
 
 ```code
 $ export version=v(=teleport.version=)
@@ -184,8 +168,12 @@ supports most features on Windows 10 and later.*
 
 ## Next steps
 
-Now that you know how to install Teleport, you can enable access to all of your infrastructure. Get started with:
+Now that you know how to install Teleport, you can enable access to all of your
+infrastructure. Get started with:
+
 - [Server Access](server-access/introduction.mdx)
 - [Kubernetes Access](kubernetes-access/introduction.mdx)
 - [Database Access](database-access/introduction.mdx)
+- [Application Access](application-access/introduction.mdx)
 - [Desktop Access](desktop-access/introduction.mdx)
+- [Machine ID](machine-id/introduction.mdx)

@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -76,7 +77,9 @@ var fidoNewDevice = func(path string) (FIDODevice, error) {
 
 // IsFIDO2Available returns true if libfido2 is available in the current build.
 func IsFIDO2Available() bool {
-	return true
+	val, ok := os.LookupEnv("TSH_FIDO2")
+	// Default to enabled, otherwise obey the env variable.
+	return !ok || val == "1"
 }
 
 // fido2Login implements FIDO2Login.
