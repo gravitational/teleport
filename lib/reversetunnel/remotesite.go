@@ -464,7 +464,7 @@ func (s *remoteSite) watchCertAuthorities(remoteClusterVersion string) error {
 	localWatchedTypes := []types.CertAuthType{types.HostCA, types.UserCA}
 
 	// Delete in 11.0.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, "10.0.0")
+	ver10orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.DatabaseCAMinVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
