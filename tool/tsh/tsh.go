@@ -45,7 +45,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -304,9 +303,6 @@ type CLIConf struct {
 	// JoinMode is the participant mode someone is joining a session as.
 	JoinMode string
 
-	// Passwordless instructs tsh to do passwordless login.
-	Passwordless bool
-
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
 
@@ -398,9 +394,6 @@ func Run(args []string, opts ...cliOption) error {
 	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
-	if wancli.IsFIDO2Available() {
-		app.Flag("pwdless", "Do passwordless login").BoolVar(&cf.Passwordless)
-	}
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
@@ -2221,7 +2214,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		c.Username = cf.Username
 	}
 	c.ExplicitUsername = cf.ExplicitUsername
-	c.Passwordless = cf.Passwordless
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
 	if err := setClientWebProxyAddr(cf, c); err != nil {

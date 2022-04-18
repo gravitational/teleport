@@ -138,11 +138,12 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	ctx := context.Background()
 	tests := []struct {
-		name                      string
-		secondFactor              constants.SecondFactorType
-		inputReader               *prompt.FakeReader
-		solveWebauthn             func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
-		pwdless, useStrongestAuth bool
+		name             string
+		secondFactor     constants.SecondFactorType
+		inputReader      *prompt.FakeReader
+		solveWebauthn    func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		authConnector    string
+		useStrongestAuth bool
 	}{
 		{
 			name:          "OTP device login",
@@ -178,7 +179,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			secondFactor:  constants.SecondFactorOptional,
 			inputReader:   prompt.NewFakeReader(), // no inputs
 			solveWebauthn: solvePwdless,
-			pwdless:       true,
+			authConnector: constants.PasswordlessConnector,
 		},
 	}
 	for _, test := range tests {
@@ -205,7 +206,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
-			tc.Passwordless = test.pwdless
+			tc.AuthConnector = test.authConnector
 			tc.UseStrongestAuth = test.useStrongestAuth
 
 			clock.Advance(30 * time.Second)
