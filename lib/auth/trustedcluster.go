@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
@@ -523,7 +524,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	// export local cluster certificate authority and return it to the cluster
 	validateResponse := ValidateTrustedClusterResponse{}
 
-	validateResponse.CAs, err = validationTrustedClusterCerts(ctx, a, domainName, validateRequest)
+	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName, validateRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -534,25 +535,11 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	return &validateResponse, nil
 }
 
-func validationTrustedClusterCerts(ctx context.Context, srv *Server, domainName string, validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthority, error) {
-	var err error
-
-	ver10orAbove := false
-	if validateRequest.TeleportVersion != "" {
-		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
-		// cluster this field will be empty.
-		ver10orAbove, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, "10.0.0")
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
-		}
-	}
-
-	certTypes := []types.CertAuthType{types.HostCA, types.UserCA}
-
-	if ver10orAbove {
-		// Database CA was introduced in Teleport 10.0. Do not send it to older clusters
-		// as they don't understand it.
-		certTypes = append(certTypes, types.DatabaseCA)
+// getLeafClusterCAs returns a slice with Cert Authorities that should be returned in response to ValidateTrustedClusterRequest.
+func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthority, error) {
+	certTypes, err := getCATypesForLeaf(validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	caCerts := make([]types.CertAuthority, 0, len(certTypes))
@@ -569,6 +556,31 @@ func validationTrustedClusterCerts(ctx context.Context, srv *Server, domainName 
 	}
 
 	return caCerts, nil
+}
+
+// getCATypesForLeaf returns the list of CA certificates that should be sync in response to ValidateTrustedClusterRequest.
+func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
+	var err error
+
+	ver10orAbove := false
+	if validateRequest.TeleportVersion != "" {
+		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
+		// cluster this field will be empty.
+		ver10orAbove, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.DatabaseCAMinVersion)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
+		}
+	}
+
+	certTypes := []types.CertAuthType{types.HostCA, types.UserCA}
+
+	if ver10orAbove {
+		// Database CA was introduced in Teleport 10.0. Do not send it to older clusters
+		// as they don't understand it.
+		certTypes = append(certTypes, types.DatabaseCA)
+	}
+
+	return certTypes, nil
 }
 
 func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName string) (map[string]string, error) {

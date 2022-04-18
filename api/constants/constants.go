@@ -121,6 +121,9 @@ const (
 
 	// NoLoginPrefix is the prefix used for nologin certificate principals.
 	NoLoginPrefix = "-teleport-nologin-"
+
+	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
+	DatabaseCAMinVersion = "10.0.0"
 )
 
 // SecondFactorType is the type of 2FA authentication.
