@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -95,10 +94,8 @@ func (e *MockEmitter) Complete(ctx context.Context) error {
 }
 
 type MockSessionTrackerService struct {
-	Clock clockwork.Clock
-
-	mockTrackersMux sync.Mutex
-	MockTrackers    []types.SessionTracker
+	Clock        clockwork.Clock
+	MockTrackers []types.SessionTracker
 }
 
 func (m *MockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
@@ -106,8 +103,6 @@ func (m *MockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context
 }
 
 func (m *MockSessionTrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	m.mockTrackersMux.Lock()
-	defer m.mockTrackersMux.Unlock()
 	for _, tracker := range m.MockTrackers {
 		// mock session tracker expiration
 		if tracker.GetSessionID() == sessionID && tracker.Expiry().After(m.Clock.Now()) {
@@ -118,23 +113,6 @@ func (m *MockSessionTrackerService) GetSessionTracker(ctx context.Context, sessi
 }
 
 func (m *MockSessionTrackerService) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	m.mockTrackersMux.Lock()
-	defer m.mockTrackersMux.Unlock()
-
-	now := m.Clock.Now()
-	spec := types.SessionTrackerSpecV1{
-		SessionID: req.ID,
-		Created:   now,
-	}
-
-	tracker, err := types.NewSessionTracker(spec)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tracker.SetExpiry(now.Add(defaults.SessionTrackerTTL))
-
-	m.MockTrackers = append(m.MockTrackers, tracker)
 	return nil, nil
 }
 

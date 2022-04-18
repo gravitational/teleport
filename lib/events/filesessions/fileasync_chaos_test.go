@@ -1,3 +1,6 @@
+//go:build !race
+// +build !race
+
 /*
 Copyright 2020 Gravitational, Inc.
 
@@ -30,7 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -47,9 +49,9 @@ import (
 // `go test -race` flag or `go test -short` flag
 //
 func TestChaosUpload(t *testing.T) {
-	// if testing.Short() {
-	// 	t.Skip("Skipping chaos test in short mode.")
-	// }
+	if testing.Short() {
+		t.Skip("Skipping chaos test in short mode.")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -114,7 +116,6 @@ func TestChaosUpload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mockSessionTrackerService := &eventstest.MockSessionTrackerService{Clock: clock}
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
 		Context:    ctx,
@@ -123,7 +124,7 @@ func TestChaosUpload(t *testing.T) {
 		Streamer:   faultyStreamer,
 		Clock:      clock,
 		AuditLog:   &events.DiscardAuditLog{},
-	}, mockSessionTrackerService)
+	}, &eventstest.MockSessionTrackerService{})
 	require.NoError(t, err)
 	go uploader.Serve()
 	// wait until uploader blocks on the clock
@@ -150,10 +151,6 @@ func TestChaosUpload(t *testing.T) {
 				events: inEvents,
 			}
 
-			mockSessionTrackerService.CreateSessionTracker(ctx, &proto.CreateSessionTrackerRequest{
-				ID: sid,
-			})
-
 			stream, err := fileStreamer.CreateAuditStream(ctx, session.ID(sid))
 			if err != nil {
 				s.err = err
@@ -177,10 +174,6 @@ func TestChaosUpload(t *testing.T) {
 	scansCh := make(chan error, parallelStreams)
 	for i := 0; i < parallelStreams; i++ {
 		go func() {
-			if err := uploader.uploadCompleter.CheckUploads(ctx); err != nil {
-				scansCh <- trace.Wrap(err)
-				return
-			}
 			_, err := uploader.Scan()
 			scansCh <- trace.Wrap(err)
 		}()
