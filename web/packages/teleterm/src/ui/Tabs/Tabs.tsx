@@ -63,16 +63,11 @@ export function Tabs(props: Props) {
     : $emptyTab;
 
   return (
-    <StyledTabs
-      as="nav"
-      typography="h5"
-      color="text.placeholder"
-      bold
-      {...styledProps}
-    >
+    <StyledTabs as="nav" typography="h5" bold {...styledProps}>
       {$items}
       <ButtonIcon
-        ml="2"
+        ml="1"
+        mr="2"
         size={0}
         color="light"
         disabled={disableNew}
@@ -104,6 +99,7 @@ const Separator = styled.div`
 `;
 
 const StyledTabs = styled(Box)`
+  background-color: ${props => props.theme.colors.primary.main};
   min-height: 32px;
   border-radius: 4px;
   display: flex;

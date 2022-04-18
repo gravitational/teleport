@@ -23,6 +23,7 @@ export function TopBar() {
 }
 
 const Grid = styled.div`
+  background: ${props => props.theme.colors.primary.main};
   display: grid;
   grid-template-columns: 1fr 4fr 2fr;
   width: 100%;

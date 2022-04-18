@@ -79,13 +79,8 @@ type Props = {
   onEnterKey?(): void;
 };
 
-const StyledXterm = styled(Box)(
-  props => `
-   height: 100%;
-   width: 100%;
-   background-color: ${props.theme.colors.bgTerminal};
-   .terminal .xterm-viewport {
-     background-color: ${props.theme.bgTerminal};
-   }
- }`
-);
+const StyledXterm = styled(Box)`
+  height: 100%;
+  width: 100%;
+  background-color: ${props => props.theme.colors.primary.darker};
+`;

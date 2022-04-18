@@ -37,6 +37,13 @@ export default function useGateway(doc: types.DocumentGateway) {
 
       workspaceDocumentsService.update(doc.uri, {
         gatewayUri: gw.uri,
+        // Set the port on doc to match the one returned from the daemon. Teleterm doesn't let the
+        // user provide a port for the gateway, so instead we have to let the daemon use a random
+        // one.
+        //
+        // Setting it here makes it so that on app restart, Teleterm will restart the proxy with the
+        // same port number.
+        port: gw.localPort,
       });
     }
   );
@@ -67,6 +74,10 @@ export default function useGateway(doc: types.DocumentGateway) {
     }
   };
 
+  const runCliCommand = () => {
+    workspaceDocumentsService.openNewTerminal(gateway.cliCommand);
+  };
+
   React.useEffect(() => {
     if (disconnectAttempt.status === 'success') {
       workspaceDocumentsService.close(doc.uri);
@@ -86,6 +97,7 @@ export default function useGateway(doc: types.DocumentGateway) {
     connected,
     reconnect,
     connectAttempt,
+    runCliCommand,
   };
 }
 

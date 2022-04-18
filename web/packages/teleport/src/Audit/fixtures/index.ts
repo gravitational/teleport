@@ -1010,6 +1010,95 @@ export const events = [
     time: "2022-02-10T20:57:53.000Z",
     user: "alice@example.com"
   },
+  {
+    cluster_name: "im-a-cluster-name",
+    code: "TMY07I",
+    db_name: "test",
+    db_protocol: "mysql",
+    db_service: "self-hosted-mysql",
+    db_uri: "localhost:3306",
+    db_user: "alice",
+    event: "db.session.mysql.init_db",
+    schema_name: "another_database",
+    time: "2022-04-13T20:00:10.000Z",
+    user: "alice@example.com"
+  },
+  {
+    cluster_name: "im-a-cluster-name",
+    code: "TMY08I",
+    db_name: "test",
+    db_protocol: "mysql",
+    db_service: "self-hosted-mysql",
+    db_uri: "localhost:3306",
+    db_user: "alice",
+    event: "db.session.mysql.create_db",
+    schema_name: "another_database",
+    time: "2022-04-13T20:00:09.000Z",
+    user: "alice@example.com"
+  },
+  {
+    cluster_name: "im-a-cluster-name",
+    code: "TMY09I",
+    db_name: "test",
+    db_protocol: "mysql",
+    db_service: "self-hosted-mysql",
+    db_uri: "localhost:3306",
+    db_user: "alice",
+    event: "db.session.mysql.drop_db",
+    schema_name: "another_database",
+    time: "2022-04-13T20:00:08.000Z",
+    user: "alice@example.com"
+  },
+  {
+    cluster_name: "im-a-cluster-name",
+    code: "TMY10I",
+    db_name: "test",
+    db_protocol: "mysql",
+    db_service: "self-hosted-mysql",
+    db_uri: "localhost:3306",
+    db_user: "alice",
+    event: "db.session.mysql.shut_down",
+    time: "2022-04-13T20:00:07.000Z",
+    user: "alice@example.com"
+  },
+  {
+    cluster_name: "im-a-cluster-name",
+    code: "TMY11I",
+    db_name: "test",
+    db_protocol: "mysql",
+    db_service: "self-hosted-mysql",
+    db_uri: "localhost:3306",
+    db_user: "alice",
+    event: "db.session.mysql.process_kill",
+    process_id: 60,
+    time: "2022-04-13T20:00:06.000Z",
+    user: "alice@example.com"
+  },
+  {
+    cluster_name: "im-a-cluster-name",
+    code: "TMY12I",
+    db_name: "test",
+    db_protocol: "mysql",
+    db_service: "self-hosted-mysql",
+    db_uri: "localhost:3306",
+    db_user: "alice",
+    event: "db.session.mysql.debug",
+    time: "2022-04-13T20:00:05.000Z",
+    user: "alice@example.com"
+  },
+  {
+    cluster_name: "im-a-cluster-name",
+    code: "TMY13I",
+    db_name: "test",
+    db_protocol: "mysql",
+    db_service: "self-hosted-mysql",
+    db_uri: "localhost:3306",
+    db_user: "alice",
+    event: "db.session.mysql.refresh",
+    subcommand: "REFRESH_THREADS",
+    time: "2022-04-13T20:00:04.000Z",
+    user: "alice@example.com"
+  },
 ].map(makeEvent);
 
 export const eventsSample = [

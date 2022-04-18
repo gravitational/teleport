@@ -61,9 +61,10 @@ const StyledNavButton = styled.button(props => {
     border: 'none',
     backgroundColor: 'inherit',
     flexShrink: '0',
+    borderRadius: '4px',
 
     '&:hover, &:focus': {
-      background: props.theme.colors.primary.light,
+      background: props.theme.colors.primary.main,
     },
     ...space(props),
     ...width(props),

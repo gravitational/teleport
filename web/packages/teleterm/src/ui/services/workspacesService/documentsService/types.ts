@@ -53,9 +53,9 @@ export interface DocumentTshKube extends DocumentBase {
 
 export interface DocumentGateway extends DocumentBase {
   kind: 'doc.gateway';
-  gatewayUri: string;
+  gatewayUri?: string;
   targetUri: string;
-  targetUser?: string;
+  targetUser: string;
   port?: string;
 }
 
@@ -82,9 +82,9 @@ export type Document =
   | DocumentTerminal;
 
 export type CreateGatewayDocumentOpts = {
-  gatewayUri: string;
+  gatewayUri?: string;
   targetUri: string;
-  targetUser?: string;
+  targetUser: string;
   title: string;
   port?: string;
 };

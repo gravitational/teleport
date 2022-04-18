@@ -25,6 +25,8 @@ export function AddNewClusterItem(props: AddNewClusterItemProps) {
 }
 
 const StyledListItem = styled(ListItem)`
+  border-radius: 0;
+  height: 38px;
   justify-content: center;
   color: ${props => props.theme.colors.text.secondary};
 `;

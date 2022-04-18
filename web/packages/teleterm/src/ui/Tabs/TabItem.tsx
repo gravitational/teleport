@@ -48,28 +48,32 @@ export function TabItem(props: TabItemProps) {
   };
 
   return (
-    <>
-      <StyledTabItem
-        onClick={onClick}
-        onContextMenu={onContextMenu}
-        ref={ref}
-        active={active}
-        dragging={isDragging}
-        title={name}
-        canDrag={canDrag}
-      >
-        <StyledTabButton>
-          <Text color="inherit" fontWeight={700} fontSize="12px">
-            {name}
-          </Text>
-        </StyledTabButton>
-        {onClose && (
-          <ButtonIcon size={0} mr={1} title="Close" onClick={handleClose}>
-            <CloseIcon fontSize="16px" />
-          </ButtonIcon>
-        )}
-      </StyledTabItem>
-    </>
+    <StyledTabItem
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      ref={ref}
+      active={active}
+      dragging={isDragging}
+      title={name}
+      canDrag={canDrag}
+    >
+      <Title color="inherit" fontWeight={700} fontSize="12px">
+        {name}
+      </Title>
+      {onClose && (
+        <ButtonIcon
+          size={0}
+          mr={1}
+          title="Close"
+          css={`
+            transition: none;
+          `}
+          onClick={handleClose}
+        >
+          <CloseIcon fontSize="16px" />
+        </ButtonIcon>
+      )}
+    </StyledTabItem>
   );
 }
 
@@ -79,6 +83,7 @@ const StyledTabItem = styled.div(({ theme, active, dragging, canDrag }) => {
     flexBasis: '0',
     flexGrow: '1',
     opacity: '1',
+    color: theme.colors.text.secondary,
     alignItems: 'center',
     minWidth: '0',
     height: '100%',
@@ -91,7 +96,7 @@ const StyledTabItem = styled.div(({ theme, active, dragging, canDrag }) => {
   };
 
   if (active) {
-    styles['backgroundColor'] = theme.colors.terminalDark;
+    styles['backgroundColor'] = theme.colors.primary.darker;
     styles['color'] = theme.colors.secondary.contrastText;
     styles['transition'] = 'none';
   }
@@ -107,8 +112,8 @@ const StyledTabItem = styled.div(({ theme, active, dragging, canDrag }) => {
   return styles;
 });
 
-const StyledTabButton = styled.button`
-  display: flex;
+const Title = styled(Text)`
+  display: block;
   cursor: pointer;
   outline: none;
   color: inherit;
@@ -116,7 +121,7 @@ const StyledTabButton = styled.button`
   line-height: 32px;
   background-color: transparent;
   white-space: nowrap;
-  padding: 0 12px;
+  padding-left: 12px;
   border: none;
   min-width: 0;
   width: 100%;

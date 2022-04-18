@@ -56,7 +56,7 @@ function Entry(props: { title: string; shortcut: string }) {
       <Text textAlign="right" color="light" typography="subtitle1" py="4px">
         {props.title}
       </Text>
-      <MonoText bg="primary.lighter" textAlign="left" px="12px" py="4px">
+      <MonoText bg="primary.main" textAlign="left" px="12px" py="4px">
         {props.shortcut}
       </MonoText>
     </>

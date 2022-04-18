@@ -72,6 +72,13 @@ export const eventCodes = {
   MYSQL_STATEMENT_RESET: 'TMY04I',
   MYSQL_STATEMENT_FETCH: 'TMY05I',
   MYSQL_STATEMENT_BULK_EXECUTE: 'TMY06I',
+  MYSQL_INIT_DB: 'TMY07I',
+  MYSQL_CREATE_DB: 'TMY08I',
+  MYSQL_DROP_DB: 'TMY09I',
+  MYSQL_SHUT_DOWN: 'TMY10I',
+  MYSQL_PROCESS_KILL: 'TMY11I',
+  MYSQL_DEBUG: 'TMY12I',
+  MYSQL_REFRESH: 'TMY13I',
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
   DESKTOP_SESSION_ENDED: 'TDP01I',
@@ -537,6 +544,53 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       statement_id: number;
+    }
+  >;
+  [eventCodes.MYSQL_INIT_DB]: RawEvent<
+    typeof eventCodes.MYSQL_INIT_DB,
+    {
+      db_service: string;
+      schema_name: string;
+    }
+  >;
+  [eventCodes.MYSQL_CREATE_DB]: RawEvent<
+    typeof eventCodes.MYSQL_CREATE_DB,
+    {
+      db_service: string;
+      schema_name: string;
+    }
+  >;
+  [eventCodes.MYSQL_DROP_DB]: RawEvent<
+    typeof eventCodes.MYSQL_DROP_DB,
+    {
+      db_service: string;
+      schema_name: string;
+    }
+  >;
+  [eventCodes.MYSQL_SHUT_DOWN]: RawEvent<
+    typeof eventCodes.MYSQL_SHUT_DOWN,
+    {
+      db_service: string;
+    }
+  >;
+  [eventCodes.MYSQL_PROCESS_KILL]: RawEvent<
+    typeof eventCodes.MYSQL_PROCESS_KILL,
+    {
+      db_service: string;
+      process_id: number;
+    }
+  >;
+  [eventCodes.MYSQL_DEBUG]: RawEvent<
+    typeof eventCodes.MYSQL_DEBUG,
+    {
+      db_service: string;
+    }
+  >;
+  [eventCodes.MYSQL_REFRESH]: RawEvent<
+    typeof eventCodes.MYSQL_REFRESH,
+    {
+      db_service: string;
+      subcommand: string;
     }
   >;
   [eventCodes.MFA_DEVICE_ADD]: RawEvent<

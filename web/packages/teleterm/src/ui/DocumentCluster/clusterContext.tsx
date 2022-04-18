@@ -71,10 +71,6 @@ class ClusterContext extends Store<State> {
     this.appCtx.commandLauncher.executeCommand('kube-connect', { kubeUri });
   };
 
-  connectDb = (dbUri: string) => {
-    this.appCtx.commandLauncher.executeCommand('proxy-db', { dbUri });
-  };
-
   sync = () => {
     this.appCtx.clustersService.syncCluster(this.clusterUri);
   };

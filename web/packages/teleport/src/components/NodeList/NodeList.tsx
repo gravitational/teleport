@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import Table, { Cell, LabelCell } from 'design/DataTable';
-import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
+import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { Node } from 'teleport/services/nodes';
 
 function NodeList(props: Props) {
@@ -85,8 +85,8 @@ const renderLoginCell = (
 
   return (
     <Cell align="right">
-      <MenuSshLogin
-        onOpen={handleOnOpen}
+      <MenuLogin
+        getLoginItems={handleOnOpen}
         onSelect={handleOnSelect}
         transformOrigin={{
           vertical: 'top',

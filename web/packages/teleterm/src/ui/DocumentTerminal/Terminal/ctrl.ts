@@ -52,7 +52,7 @@ export default class TtyTerminal {
       cursorBlink: false,
       fontFamily: this.options.fontFamily,
       theme: {
-        background: theme.colors.bgTerminal,
+        background: theme.colors.primary.darker,
       },
       windowOptions: {
         setWinSizeChars: true,

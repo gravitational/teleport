@@ -19,12 +19,12 @@ import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 import Menu, { MenuItem } from 'design/Menu';
 import { space } from 'design/system';
-import { MenuSshLoginProps } from './types';
+import { MenuLoginProps } from './types';
 import { ButtonBorder, Flex } from 'design';
 import { CarrotDown } from 'design/Icon';
 
-class MenuSshLogin extends React.Component<MenuSshLoginProps> {
-  static displayName = 'MenuSshLogin';
+export class MenuLogin extends React.Component<MenuLoginProps> {
+  static displayName = 'MenuLogin';
 
   anchorEl = React.createRef();
 
@@ -35,7 +35,7 @@ class MenuSshLogin extends React.Component<MenuSshLoginProps> {
   };
 
   onOpen = () => {
-    const logins = this.props.onOpen();
+    const logins = this.props.getLoginItems();
     this.setState({
       logins,
       open: true,
@@ -60,6 +60,7 @@ class MenuSshLogin extends React.Component<MenuSshLoginProps> {
 
   render() {
     const { anchorOrigin, transformOrigin } = this.props;
+    const placeholder = this.props.placeholder || 'Enter login name…';
     const { open, logins } = this.state;
     return (
       <React.Fragment>
@@ -84,6 +85,7 @@ class MenuSshLogin extends React.Component<MenuSshLoginProps> {
             logins={logins}
             onKeyPress={this.onKeyPress}
             onClick={this.onItemClick}
+            placeholder={placeholder}
           />
         </Menu>
       </React.Fragment>
@@ -91,7 +93,7 @@ class MenuSshLogin extends React.Component<MenuSshLoginProps> {
   }
 }
 
-export const LoginItemList = ({ logins, onClick, onKeyPress }) => {
+export const LoginItemList = ({ logins, onClick, onKeyPress, placeholder }) => {
   logins = logins || [];
   const $menuItems = logins.map((item, key) => {
     const { login, url } = item;
@@ -119,7 +121,7 @@ export const LoginItemList = ({ logins, onClick, onKeyPress }) => {
         onKeyPress={onKeyPress}
         type="text"
         autoFocus
-        placeholder="Enter login name..."
+        placeholder={placeholder}
         autoComplete="off"
       />
       {$menuItems}
@@ -172,5 +174,3 @@ const Input = styled.input(
 `,
   space
 );
-
-export default MenuSshLogin;

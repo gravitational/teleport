@@ -17,12 +17,6 @@ limitations under the License.
 import { useStore } from 'shared/libs/stores';
 import { ImmutableStore } from '../immutableStore';
 
-type OpenProxyDbDialogOpts = {
-  dbUri: string;
-  port?: string;
-  onSuccess?: (gatewayUri: string) => void;
-};
-
 export class ModalsService extends ImmutableStore<Dialog> {
   state: Dialog = {
     kind: 'none',
@@ -30,15 +24,6 @@ export class ModalsService extends ImmutableStore<Dialog> {
 
   openDialog(dialog: Dialog) {
     this.setState(() => dialog);
-  }
-
-  openProxyDbDialog(opts: OpenProxyDbDialogOpts) {
-    this.setState(() => ({
-      kind: 'create-gateway',
-      onSuccess: opts.onSuccess,
-      targetUri: opts.dbUri,
-      port: opts.port,
-    }));
   }
 
   openClusterConnectDialog(options: {
@@ -77,13 +62,6 @@ export interface DialogBase {
   kind: 'none';
 }
 
-export interface DialogNewGateway {
-  kind: 'create-gateway';
-  targetUri: string;
-  port?: string;
-  onSuccess?: (gatewayUri: string) => void;
-}
-
 export interface DialogClusterConnect {
   kind: 'cluster-connect';
   clusterUri?: string;
@@ -110,6 +88,5 @@ export interface DialogDocumentsReopen {
 export type Dialog =
   | DialogBase
   | DialogClusterConnect
-  | DialogNewGateway
   | DialogClusterLogout
   | DialogDocumentsReopen;

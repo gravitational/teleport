@@ -22,7 +22,6 @@ export function useApps() {
   const syncStatus = ctx.getSyncStatus().apps;
 
   return {
-    connect: ctx.connectDb,
     apps,
     syncStatus,
   };

@@ -17,11 +17,11 @@ limitations under the License.
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { Flex } from 'design';
-import MenuSshLogin from './MenuSshLogin';
+import { MenuLogin } from './MenuLogin';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 
-storiesOf('Shared/MenuSshLogin', module).add('MenuSshLogin', () => (
+storiesOf('Shared/MenuLogin', module).add('MenuLogin', () => (
   <Flex
     width="400px"
     height="100px"
@@ -29,13 +29,17 @@ storiesOf('Shared/MenuSshLogin', module).add('MenuSshLogin', () => (
     justifyContent="space-around"
     bg="primary.light"
   >
-    <MenuSshLogin onOpen={() => []} onSelect={() => null} />
+    <MenuLogin
+      getLoginItems={() => []}
+      onSelect={() => null}
+      placeholder="Please provide user name…"
+    />
     <SampleMenu />
   </Flex>
 ));
 
 class SampleMenu extends React.Component {
-  menuRef = React.createRef<MenuSshLogin>();
+  menuRef = React.createRef<MenuLogin>();
 
   componentDidMount() {
     this.menuRef.current.onOpen();
@@ -44,9 +48,9 @@ class SampleMenu extends React.Component {
   render() {
     return (
       <Router history={createMemoryHistory()}>
-        <MenuSshLogin
+        <MenuLogin
           ref={this.menuRef}
-          onOpen={() => loginItems}
+          getLoginItems={() => loginItems}
           onSelect={() => null}
         />
       </Router>

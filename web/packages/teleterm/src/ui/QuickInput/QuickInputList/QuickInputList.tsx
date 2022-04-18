@@ -158,8 +158,8 @@ const StyledItem = styled.div(({ theme, $active }) => {
     padding: '2px 8px',
     color: theme.colors.primary.contrastText,
     background: $active
-      ? theme.colors.primary.lighter
-      : theme.colors.primary.dark,
+      ? theme.colors.primary.main
+      : theme.colors.primary.darker,
   };
 });
 

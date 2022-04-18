@@ -5,7 +5,7 @@ const resolvepath = require('@gravitational/build/webpack/resolvepath');
 
 function extend(cfg) {
   cfg.entry = { app: ['./src/ui/boot'] };
-  cfg.output.publicPath = '';
+  cfg.output.publicPath = 'auto';
   cfg.output.path = resolvepath('build/app/dist/renderer');
   cfg.output.libraryTarget = 'umd';
   cfg.output.globalObject = 'this';

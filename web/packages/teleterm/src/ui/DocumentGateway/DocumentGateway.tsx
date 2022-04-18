@@ -16,16 +16,11 @@ limitations under the License.
 
 import React from 'react';
 import { Text, Flex, Box, ButtonPrimary, ButtonSecondary, Link } from 'design';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import Document from 'teleterm/ui/Document';
 import * as Alerts from 'design/Alert';
 import * as types from 'teleterm/ui/services/workspacesService';
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
-import { GatewayProtocol } from 'teleterm/ui/services/clusters/types';
 import useDocumentGateway, { State } from './useDocumentGateway';
-import { usePostgres } from './Postgres/usePostgres';
-import { useMongo } from './Mongo/useMongo';
-import { useMySql } from './MySql/useMySql';
 
 type Props = {
   visible: boolean;
@@ -43,9 +38,19 @@ export default function Container(props: Props) {
 }
 
 export function DocumentGateway(props: State) {
-  const { gateway, connected, connectAttempt, disconnect, reconnect } = props;
+  const {
+    gateway,
+    connected,
+    connectAttempt,
+    disconnect,
+    reconnect,
+    runCliCommand,
+  } = props;
 
   if (!connected) {
+    const statusDescription =
+      connectAttempt.status === 'processing' ? 'being set up' : 'offline';
+
     return (
       <Flex flexDirection="column" mx="auto" alignItems="center" mt={100}>
         <Text
@@ -53,7 +58,7 @@ export function DocumentGateway(props: State) {
           color="text.primary"
           style={{ position: 'relative' }}
         >
-          The database connection is currently offline
+          The database connection is {statusDescription}
           {connectAttempt.status === 'processing' && <LinearProgress />}
         </Text>
         {connectAttempt.status === 'error' && (
@@ -71,32 +76,6 @@ export function DocumentGateway(props: State) {
     );
   }
 
-  let cliConnectionString: string;
-
-  switch (gateway.protocol as GatewayProtocol) {
-    case 'mongodb':
-      cliConnectionString = useMongo(gateway);
-      break;
-    case 'postgres':
-      cliConnectionString = usePostgres(gateway);
-      break;
-    case 'mysql':
-      cliConnectionString = useMySql(gateway);
-      break;
-  }
-
-  const cliSection = cliConnectionString ? (
-    <TextSelectCopy
-      bash={false}
-      bg={'primary.dark'}
-      mb={4}
-      text={cliConnectionString}
-    />
-  ) : (
-    // We're going to add support for other protocols before the preview release.
-    <Text mb={4}>{gateway.protocol} support is coming soon!</Text>
-  );
-
   return (
     <Box maxWidth="1024px" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4">
@@ -108,7 +87,7 @@ export function DocumentGateway(props: State) {
         </ButtonSecondary>
       </Flex>
       <Text bold>Connect with CLI</Text>
-      {cliSection}
+      <CliCommand cliCommand={gateway.cliCommand} onClick={runCliCommand} />
       <Text bold>Connect with GUI</Text>
       <Text>
         To connect with a GUI database client, see our{' '}
@@ -121,5 +100,50 @@ export function DocumentGateway(props: State) {
         for instructions.
       </Text>
     </Box>
+  );
+}
+
+function CliCommand({
+  cliCommand,
+  onClick,
+}: {
+  cliCommand: string;
+  onClick(): void;
+}) {
+  return (
+    <Flex
+      p="2"
+      alignItems="center"
+      justifyContent="space-between"
+      borderRadius={2}
+      bg={'primary.dark'}
+      mb={4}
+    >
+      <Flex
+        mr="2"
+        css={`
+          overflow: auto;
+          white-space: pre;
+          word-break: break-all;
+          font-size: 12px;
+          font-family: ${props => props.theme.fonts.mono};
+        `}
+      >
+        <Box mr="1">{`$`}</Box>
+        <div>{cliCommand}</div>
+      </Flex>
+      <ButtonPrimary
+        onClick={onClick}
+        css={`
+          max-width: 48px;
+          width: 100%;
+          padding: 4px 8px;
+          min-height: 10px;
+          font-size: 10px;
+        `}
+      >
+        Run
+      </ButtonPrimary>
+    </Flex>
   );
 }

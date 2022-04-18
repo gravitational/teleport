@@ -60,5 +60,5 @@ export function Connections() {
 }
 
 const Container = styled(Box)`
-  background: ${props => props.theme.colors.primary.dark};
+  background: ${props => props.theme.colors.primary.light};
 `;

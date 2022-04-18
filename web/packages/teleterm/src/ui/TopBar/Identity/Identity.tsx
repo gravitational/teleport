@@ -23,6 +23,15 @@ export function Identity() {
     setIsPopoverOpened(wasOpened => !wasOpened);
   }, [setIsPopoverOpened]);
 
+  function withClose<T extends (...args) => any>(
+    fn: T
+  ): (...args: Parameters<T>) => ReturnType<T> {
+    return (...args) => {
+      setIsPopoverOpened(false);
+      return fn(...args);
+    };
+  }
+
   useKeyboardShortcuts(
     useMemo(
       () => ({
@@ -46,19 +55,21 @@ export function Identity() {
         open={isPopoverOpened}
         anchorEl={selectorRef.current}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         onClose={() => setIsPopoverOpened(false)}
+        popoverCss={() => `max-width: min(560px, 90%)`}
       >
         <Container>
           {rootClusters.length ? (
             <IdentityList
               loggedInUser={loggedInUser}
               clusters={rootClusters}
-              onSelectCluster={changeRootCluster}
-              onLogout={logout}
-              onAddCluster={addCluster}
+              onSelectCluster={withClose(changeRootCluster)}
+              onLogout={withClose(logout)}
+              onAddCluster={withClose(addCluster)}
             />
           ) : (
-            <EmptyIdentityList />
+            <EmptyIdentityList onConnect={withClose(addCluster)} />
           )}
         </Container>
       </Popover>
@@ -67,5 +78,5 @@ export function Identity() {
 }
 
 const Container = styled(Box)`
-  background: ${props => props.theme.colors.primary.dark};
+  background: ${props => props.theme.colors.primary.light};
 `;

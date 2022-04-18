@@ -27,4 +27,5 @@ const Container = styled.div`
   position: fixed;
   bottom: 12px;
   right: 12px;
+  z-index: 10;
 `;

@@ -42,11 +42,12 @@ const colors = {
   light: '#FFFFFF',
 
   primary: {
-    main: '#01172C',
-    light: '#091E32',
-    lighter: '#0E2337',
-    dark: '#011223',
-    darker: '#010e1a',
+    darker: '#0C143D',
+    dark: '#131B43',
+    main: '#182047',
+    light: '#222C59',
+    lighter: '#2D3761',
+    contrastText: '#FFFFFF',
   },
 
   secondary: {
@@ -94,9 +95,6 @@ const colors = {
 
   subtle: '#CFD8DC',
   link: '#039BE5',
-  terminal: '#28FE14',
-  terminalDark: '#011223',
-  bgTerminal: '#01172C',
 
   danger: pink.A400,
   highlight: yellow[50],
