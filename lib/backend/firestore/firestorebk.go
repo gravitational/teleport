@@ -27,6 +27,7 @@ import (
 	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
@@ -94,7 +95,6 @@ func (cfg *backendConfig) CheckAndSetDefaults() error {
 type Backend struct {
 	*log.Entry
 	backendConfig
-	backend.NoMigrations
 	// svc is the primary Firestore client
 	svc *firestore.Client
 	// clock is the
@@ -218,7 +218,7 @@ func CreateFirestoreClients(ctx context.Context, projectID string, endPoint stri
 	var args []option.ClientOption
 
 	if len(endPoint) != 0 {
-		args = append(args, option.WithoutAuthentication(), option.WithEndpoint(endPoint), option.WithGRPCDialOption(grpc.WithInsecure()))
+		args = append(args, option.WithoutAuthentication(), option.WithEndpoint(endPoint), option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
 	} else if len(credentialsFile) != 0 {
 		args = append(args, option.WithCredentialsFile(credentialsFile))
 	}

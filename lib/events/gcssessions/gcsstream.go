@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"cloud.google.com/go/storage"
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/trace"
@@ -41,9 +41,8 @@ import (
 // CreateUpload creates a multipart upload
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
 	upload := events.StreamUpload{
-		ID:        uuid.New(),
+		ID:        uuid.New().String(),
 		SessionID: sessionID,
-		Initiated: time.Now().UTC(),
 	}
 	if err := upload.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -123,6 +122,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	_, err = bucket.Object(uploadPath).Attrs(ctx)
 	if err != nil {
 		return convertGCSError(err)
+	}
+
+	// If there are no parts to complete, move to cleanup
+	if len(parts) == 0 {
+		return h.cleanupUpload(ctx, upload)
 	}
 
 	objects := h.partsToObjects(upload, parts)
@@ -247,8 +251,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	return parts, nil
 }
 
-// ListUploads lists uploads that have been initiated but not completed with
-// earlier uploads returned first
+// ListUploads lists uploads that have been initiated but not completed
 func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
 	i := h.gcsClient.Bucket(h.Config.Bucket).Objects(ctx, &storage.Query{
 		Prefix: h.uploadsPrefix(),
@@ -270,7 +273,6 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		upload.Initiated = attrs.Created
 		uploads = append(uploads, *upload)
 	}
 	return uploads, nil
@@ -365,7 +367,7 @@ func uploadFromPath(path string) (*events.StreamUpload, error) {
 	if err := sessionID.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parts := strings.Split(dir, slash)
+	parts := strings.Split(strings.TrimSuffix(dir, slash), slash)
 	if len(parts) < 2 {
 		return nil, trace.BadParameter("expected format uploads/<upload-id>, got %v", dir)
 	}

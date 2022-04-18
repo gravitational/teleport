@@ -16,7 +16,12 @@ limitations under the License.
 
 package common
 
-import "golang.org/x/crypto/acme"
+import (
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/acme"
+
+	"github.com/gravitational/teleport/lib/defaults"
+)
 
 // Protocol is the TLS ALPN protocol type.
 type Protocol string
@@ -30,6 +35,12 @@ const (
 
 	// ProtocolMongoDB is TLS ALPN protocol value used to indicate Mongo protocol.
 	ProtocolMongoDB Protocol = "teleport-mongodb"
+
+	// ProtocolRedisDB is TLS ALPN protocol value used to indicate Redis protocol.
+	ProtocolRedisDB Protocol = "teleport-redis"
+
+	// ProtocolSQLServer is the TLS ALPN protocol value used to indicate SQL Server protocol.
+	ProtocolSQLServer Protocol = "teleport-sqlserver"
 
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
@@ -48,6 +59,10 @@ const (
 
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
 	ProtocolAuth Protocol = "teleport-auth@"
+
+	// ProtocolProxyGRPC is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy.
+	ProtocolProxyGRPC Protocol = "teleport-proxy-grpc"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -56,6 +71,8 @@ var SupportedProtocols = []Protocol{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolRedisDB,
+	ProtocolSQLServer,
 	ProtocolProxySSH,
 	ProtocolReverseTunnel,
 	ProtocolHTTP,
@@ -70,4 +87,36 @@ func ProtocolsToString(protocols []Protocol) []string {
 		out = append(out, string(v))
 	}
 	return out
+}
+
+// ToALPNProtocol maps provided database protocol to ALPN protocol.
+func ToALPNProtocol(dbProtocol string) (Protocol, error) {
+	switch dbProtocol {
+	case defaults.ProtocolMySQL:
+		return ProtocolMySQL, nil
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+		return ProtocolPostgres, nil
+	case defaults.ProtocolMongoDB:
+		return ProtocolMongoDB, nil
+	case defaults.ProtocolRedis:
+		return ProtocolRedisDB, nil
+	case defaults.ProtocolSQLServer:
+		return ProtocolSQLServer, nil
+	default:
+		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
+	}
+}
+
+// IsDBTLSProtocol returns if DB protocol has supported native TLS protocol.
+// where connection can be TLS terminated on ALPN proxy side.
+// For protocol like MySQL or Postgres where custom TLS implementation is used the incoming
+// connection needs to be forwarded to proxy database service where custom TLS handler is invoked
+// to terminated DB connection.
+func IsDBTLSProtocol(protocol Protocol) bool {
+	switch protocol {
+	case ProtocolMongoDB, ProtocolRedisDB, ProtocolSQLServer:
+		return true
+	default:
+		return false
+	}
 }

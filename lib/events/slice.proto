@@ -15,8 +15,6 @@
 syntax = "proto3";
 package events;
 
-import "google/protobuf/empty.proto";
-
 // SessionSlice is a slice of submitted chunks
 message SessionSlice {
     // Namespace is a session namespace
@@ -46,8 +44,4 @@ message SessionChunk {
     int64 Offset = 7;
     // Delay is a delay from the previous event in milliseconds
     int64 Delay = 8;
-}
-
-service AuditLog {
-    rpc SubmitSessionSlice(stream SessionSlice) returns (google.protobuf.Empty) {}
 }

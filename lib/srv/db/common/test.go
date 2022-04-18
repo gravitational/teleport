@@ -46,11 +46,17 @@ type TestServerConfig struct {
 	AuthUser string
 	// AuthToken is used in tests simulating IAM token authentication.
 	AuthToken string
-	// CN allows to set specific CommonName in the database server certificate.
+	// CN allows setting specific CommonName in the database server certificate.
 	//
 	// Used when simulating test Cloud SQL database which should contains
 	// <project-id>:<instance-id> in its certificate.
 	CN string
+	// ListenTLS creates a TLS listener when true instead of using a net listener.
+	// This is used to simulate MySQL connections through the GCP Cloud SQL Proxy.
+	ListenTLS bool
+	// ClientAuth sets tls.ClientAuth in server's tls.Config. It can be used to force client
+	// certificate validation in tests.
+	ClientAuth tls.ClientAuthType
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test
@@ -91,6 +97,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	}
 	return &tls.Config{
 		ClientCAs:    pool,
+		ClientAuth:   config.ClientAuth,
 		Certificates: []tls.Certificate{cert},
 	}, nil
 }
@@ -111,9 +118,9 @@ type TestClientConfig struct {
 	RouteToDatabase tlsca.RouteToDatabase
 }
 
-// MakeTestClientTLSConfig returns TLS config suitable for configuring test
+// MakeTestClientTLSCert returns TLS certificate suitable for configuring test
 // database Postgres/MySQL clients.
-func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
+func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 	key, err := client.NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -132,8 +139,18 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := config.AuthClient.GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
+	return &tlsCert, nil
+}
+
+// MakeTestClientTLSConfig returns TLS config suitable for configuring test
+// database Postgres/MySQL clients.
+func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
+	tlsCert, err := MakeTestClientTLSCert(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := config.AuthClient.GetCertAuthority(context.Background(), types.CertAuthID{
+		Type:       types.DatabaseCA,
 		DomainName: config.Cluster,
 	}, false)
 	if err != nil {
@@ -145,7 +162,7 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 	}
 	return &tls.Config{
 		RootCAs:            pool,
-		Certificates:       []tls.Certificate{tlsCert},
+		Certificates:       []tls.Certificate{*tlsCert},
 		InsecureSkipVerify: true,
 	}, nil
 }

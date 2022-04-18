@@ -1,0 +1,11 @@
+suite: ClusterRole
+templates:
+  - clusterrole.yaml
+tests:
+  - it: creates a ClusterRole
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRole
+      - matchSnapshot: {}

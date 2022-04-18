@@ -22,7 +22,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"math"
 	"os"
@@ -56,21 +55,15 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 	switch purpose {
 	case LoggingForCLI:
 		// If debug logging was asked for on the CLI, then write logs to stderr.
-		// Otherwise discard all logs.
+		// Otherwise, discard all logs.
 		if level == log.DebugLevel {
-			log.SetFormatter(&trace.TextFormatter{
-				DisableTimestamp: true,
-				EnableColors:     trace.IsTerminal(os.Stderr),
-			})
+			log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 			log.SetOutput(os.Stderr)
 		} else {
-			log.SetOutput(ioutil.Discard)
+			log.SetOutput(io.Discard)
 		}
 	case LoggingForDaemon:
-		log.SetFormatter(&trace.TextFormatter{
-			DisableTimestamp: true,
-			EnableColors:     trace.IsTerminal(os.Stderr),
-		})
+		log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 		log.SetOutput(os.Stderr)
 	}
 }
@@ -82,21 +75,21 @@ func InitLoggerForTests() {
 
 	logger := log.StandardLogger()
 	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(&trace.TextFormatter{})
+	log.SetFormatter(NewTestTextFormatter())
 	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
 		return
 	}
 	logger.SetLevel(log.WarnLevel)
-	logger.SetOutput(ioutil.Discard)
+	logger.SetOutput(io.Discard)
 }
 
 // NewLoggerForTests creates a new logger for test environment
 func NewLoggerForTests() *log.Logger {
 	logger := log.New()
 	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(&trace.TextFormatter{})
+	logger.SetFormatter(NewTestTextFormatter())
 	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
@@ -111,10 +104,7 @@ func WrapLogger(logger *log.Entry) Logger {
 // NewLogger creates a new empty logger
 func NewLogger() *log.Logger {
 	logger := log.New()
-	logger.SetFormatter(&trace.TextFormatter{
-		DisableTimestamp: true,
-		EnableColors:     trace.IsTerminal(os.Stderr),
-	})
+	logger.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	return logger
 }
 
@@ -260,6 +250,8 @@ func formatCertError(err error) string {
 }
 
 const (
+	// Bold is an escape code to format as bold or increased intensity
+	Bold = 1
 	// Red is an escape code for red terminal color
 	Red = 31
 	// Yellow is an escape code for yellow terminal color
@@ -300,7 +292,55 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app.HelpFlag.NoEnvar()
 
 	// set our own help template
-	return app.UsageTemplate(defaultUsageTemplate)
+	return app.UsageTemplate(createUsageTemplate())
+}
+
+// createUsageTemplate creates an usage template for kingpin applications.
+func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
+	opt := &usageTemplateOptions{
+		commandPrintfWidth: defaultCommandPrintfWidth,
+	}
+
+	for _, optFunc := range opts {
+		optFunc(opt)
+	}
+	return fmt.Sprintf(defaultUsageTemplate, opt.commandPrintfWidth)
+}
+
+// UpdateAppUsageTemplate updates usage template for kingpin applications by
+// pre-parsing the arguments then applying any changes to the usage template if
+// necessary.
+func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
+	// If ParseContext fails, kingpin will not show usage so there is no need
+	// to update anything here. See app.Parse for more details.
+	context, err := app.ParseContext(args)
+	if err != nil {
+		return
+	}
+
+	app.UsageTemplate(createUsageTemplate(
+		withCommandPrintfWidth(app, context),
+	))
+}
+
+// withCommandPrintfWidth returns an usage template option that
+// updates command printf width if longer than default.
+func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseContext) func(*usageTemplateOptions) {
+	return func(opt *usageTemplateOptions) {
+		var commands []*kingpin.CmdModel
+		if context.SelectedCommand != nil {
+			commands = context.SelectedCommand.Model().FlattenedCommands()
+		} else {
+			commands = app.Model().FlattenedCommands()
+		}
+
+		for _, command := range commands {
+			if !command.Hidden && len(command.FullCommand) > opt.commandPrintfWidth {
+				opt.commandPrintfWidth = len(command.FullCommand)
+			}
+		}
+
+	}
 }
 
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
@@ -388,8 +428,19 @@ func needsQuoting(text string) bool {
 	return false
 }
 
-// Usage template with compactly formatted commands.
-var defaultUsageTemplate = `{{define "FormatCommand"}}\
+// usageTemplateOptions defines options to format the usage template.
+type usageTemplateOptions struct {
+	// commandPrintfWidth is the width of the command name with padding, for
+	//   {{.FullCommand | printf "%%-%ds"}}
+	commandPrintfWidth int
+}
+
+// defaultCommandPrintfWidth is the default command printf width.
+const defaultCommandPrintfWidth = 12
+
+// defaultUsageTemplate is a fmt format that defines the usage template with
+// compactly formatted commands. Should be only used in createUsageTemplate.
+const defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{if .FlagSummary}} {{.FlagSummary}}{{end}}\
 {{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
 {{end}}\
@@ -397,7 +448,7 @@ var defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{define "FormatCommands"}}\
 {{range .FlattenedCommands}}\
 {{if not .Hidden}}\
-  {{.FullCommand | printf "%-12s" }}{{if .Default}} (Default){{end}} {{ .Help }}
+  {{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end}}\
 {{end}}\
 {{end}}\

@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"net/url"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 
@@ -33,9 +35,11 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestAPI(t *testing.T) { check.TestingT(t) }
+
 type GithubSuite struct {
 	a           *Server
-	mockEmitter *events.MockEmitter
+	mockEmitter *eventstest.MockEmitter
 	b           backend.Backend
 	c           clockwork.FakeClock
 }
@@ -67,7 +71,7 @@ func (s *GithubSuite) SetUpSuite(c *check.C) {
 	s.a, err = NewServer(authConfig)
 	c.Assert(err, check.IsNil)
 
-	s.mockEmitter = &events.MockEmitter{}
+	s.mockEmitter = &eventstest.MockEmitter{}
 	s.a.emitter = s.mockEmitter
 }
 
@@ -80,6 +84,7 @@ func (s *GithubSuite) TestPopulateClaims(c *check.C) {
 			"org1": {"team1", "team2"},
 			"org2": {"team1"},
 		},
+		Teams: []string{"team1", "team2", "team1"},
 	})
 }
 

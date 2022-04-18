@@ -30,16 +30,16 @@ import (
 // errorMessage is the error message to return when invalid input is provided by the caller.
 const errorMessage = "special characters are not allowed in resource names, please use name composed only from characters, hyphens, dots, and plus signs: %q"
 
-// whitelistPattern is the pattern of allowed characters for each key within
+// allowPattern is the pattern of allowed characters for each key within
 // the path.
-var whitelistPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
+var allowPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
 
-// blacklistPattern matches some unallowed combinations
-var blacklistPattern = regexp.MustCompile(`//`)
+// denyPattern matches some unallowed combinations
+var denyPattern = regexp.MustCompile(`//`)
 
 // isKeySafe checks if the passed in key conforms to whitelist
 func isKeySafe(s []byte) bool {
-	return whitelistPattern.Match(s) && !blacklistPattern.Match(s) && utf8.Valid(s)
+	return allowPattern.Match(s) && !denyPattern.Match(s) && utf8.Valid(s)
 }
 
 // Sanitizer wraps a Backend implementation to make sure all values requested
@@ -118,12 +118,12 @@ func (s *Sanitizer) Delete(ctx context.Context, key []byte) error {
 
 // DeleteRange deletes range of items
 func (s *Sanitizer) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
+	// we only validate the start key, since we often compute the end key
+	// in order to delete a bunch of related entries
 	if !isKeySafe(startKey) {
 		return trace.BadParameter(errorMessage, startKey)
 	}
-	if !isKeySafe(endKey) {
-		return trace.BadParameter(errorMessage, endKey)
-	}
+
 	return s.backend.DeleteRange(ctx, startKey, endKey)
 }
 
@@ -163,6 +163,3 @@ func (s *Sanitizer) Clock() clockwork.Clock {
 func (s *Sanitizer) CloseWatchers() {
 	s.backend.CloseWatchers()
 }
-
-// Migrate runs the necessary data migrations for this backend.
-func (s *Sanitizer) Migrate(ctx context.Context) error { return s.backend.Migrate(ctx) }

@@ -29,23 +29,38 @@ const (
 	defaultIcon        = ""
 )
 
-func newWebAuthn(cfg *types.Webauthn, rpID, origin string) (*wan.WebAuthn, error) {
+// webAuthnParams groups the parameters necessary for the creation of
+// wan.WebAuthn instances.
+type webAuthnParams struct {
+	cfg                     *types.Webauthn
+	rpID                    string
+	origin                  string
+	requireResidentKey      bool
+	requireUserVerification bool
+}
+
+func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 	attestation := protocol.PreferNoAttestation
-	if len(cfg.AttestationAllowedCAs) > 0 || len(cfg.AttestationDeniedCAs) > 0 {
+	if len(p.cfg.AttestationAllowedCAs) > 0 || len(p.cfg.AttestationDeniedCAs) > 0 {
 		attestation = protocol.PreferDirectAttestation
 	}
-	rrk := false
+
+	// Default to "discouraged", otherwise some browsers may do needless PIN
+	// prompts.
+	userVerification := protocol.VerificationDiscouraged
+	if p.requireUserVerification {
+		userVerification = protocol.VerificationRequired
+	}
+
 	return wan.New(&wan.Config{
-		RPID:                  rpID,
-		RPOrigin:              origin,
+		RPID:                  p.rpID,
+		RPOrigin:              p.origin,
 		RPDisplayName:         defaultDisplayName,
 		RPIcon:                defaultIcon,
 		AttestationPreference: attestation,
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
-			RequireResidentKey: &rrk,
-			// Do not ask for PIN (or other verifications), users already go through
-			// password authn.
-			UserVerification: protocol.VerificationDiscouraged,
+			RequireResidentKey: &p.requireResidentKey,
+			UserVerification:   userVerification,
 		},
 		Timeout: int(defaults.WebauthnChallengeTimeout.Milliseconds()),
 	})

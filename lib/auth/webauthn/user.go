@@ -17,37 +17,10 @@ limitations under the License.
 package webauthn
 
 import (
-	"context"
-
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 
 	wan "github.com/duo-labs/webauthn/webauthn"
 )
-
-// userIDStorage is used to keep getOrCreateUserWebauthnID as focused as
-// possible, since it's used both by login and registration.
-type userIDStorage interface {
-	UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error
-	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
-}
-
-func getOrCreateUserWebauthnID(ctx context.Context, user string, identity userIDStorage) ([]byte, error) {
-	wla, err := identity.GetWebauthnLocalAuth(ctx, user)
-	switch {
-	case trace.IsNotFound(err): // first-time user, create a new ID
-		webID := uuid.New()
-		err := identity.UpsertWebauthnLocalAuth(ctx, user, &types.WebauthnLocalAuth{
-			UserID: webID[:],
-		})
-		return webID[:], trace.Wrap(err)
-	case err != nil:
-		return nil, trace.Wrap(err)
-	default:
-		return wla.UserID, nil
-	}
-}
 
 // webUser implements a WebAuthn protocol user.
 // It is used to provide user information to WebAuthn APIs, but has no direct

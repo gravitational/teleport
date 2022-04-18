@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -80,10 +81,10 @@ type AuthorizerAccessPoint interface {
 	GetUser(name string, withSecrets bool) (types.User, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -145,6 +146,28 @@ Loop:
 	return lockTargets
 }
 
+// UseSearchAsRoles extends the roles of the Checker on the current Context with
+// the set of roles the user is allowed to search as.
+func (c *Context) UseSearchAsRoles(access services.RoleGetter) error {
+	var newRoleNames []string
+	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
+	newRoleNames = append(newRoleNames, c.Checker.GetSearchAsRoles()...)
+	newRoleSet, err := services.FetchRoles(newRoleNames, access, c.User.GetTraits())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, ok := c.Checker.(LocalUserRoleSet); ok {
+		c.Checker = LocalUserRoleSet{newRoleSet}
+	} else if _, ok := c.Checker.(RemoteUserRoleSet); ok {
+		c.Checker = RemoteUserRoleSet{newRoleSet}
+	} else {
+		// builtin roles should not be searching
+		return trace.AccessDenied("unexpected checker of type %T attempting UseSearchAsRoles", c.Checker)
+	}
+	c.User.SetRoles(newRoleNames)
+	return nil
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
@@ -173,7 +196,7 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	case LocalUser:
 		return a.authorizeLocalUser(user)
 	case RemoteUser:
-		return a.authorizeRemoteUser(user)
+		return a.authorizeRemoteUser(ctx, user)
 	case BuiltinRole:
 		return a.authorizeBuiltinRole(ctx, user)
 	case RemoteBuiltinRole:
@@ -189,8 +212,8 @@ func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
-func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
-	ca, err := a.accessPoint.GetCertAuthority(types.CertAuthID{
+func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Context, error) {
+	ca, err := a.accessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: u.ClusterName,
 	}, false)
@@ -308,7 +331,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	roles, err := services.FromSpec(
 		string(types.RoleRemoteProxy),
-		types.RoleSpecV4{
+		types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces: []string{types.Wildcard},
 				Rules: []types.Rule{
@@ -363,7 +386,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAuth:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -372,11 +395,11 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProvisionToken:
-		return services.FromSpec(role.String(), types.RoleSpecV4{})
+		return services.FromSpec(role.String(), types.RoleSpecV5{})
 	case types.RoleNode:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -405,7 +428,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleApp:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -435,7 +458,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleDatabase:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -466,7 +489,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 		if services.IsRecordAtProxy(recConfig.GetMode()) {
 			return services.FromSpec(
 				role.String(),
-				types.RoleSpecV4{
+				types.RoleSpecV5{
 					Allow: types.RoleConditions{
 						Namespaces:    []string{types.Wildcard},
 						ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -529,7 +552,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 		}
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces:    []string{types.Wildcard},
 					ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -591,7 +614,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleSignup:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -603,7 +626,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleAdmin:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.MaxDuration(),
 				},
@@ -621,7 +644,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleNop:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{},
 					Rules:      []types.Rule{},
@@ -630,7 +653,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleKube:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
@@ -652,7 +675,7 @@ func GetCheckerForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	case types.RoleWindowsDesktop:
 		return services.FromSpec(
 			role.String(),
-			types.RoleSpecV4{
+			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces:           []string{types.Wildcard},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -782,6 +805,41 @@ func ClientImpersonator(ctx context.Context) string {
 	}
 	identity := userWithIdentity.GetIdentity()
 	return identity.Impersonator
+}
+
+// ClientUserMetadata returns a UserMetadata suitable for events caused by a
+// remote client making a call. If ctx didn't pass through auth middleware or
+// did not come from an HTTP request, metadata for teleport.UserSystem is
+// returned.
+func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return apievents.UserMetadata{
+			User: teleport.UserSystem,
+		}
+	}
+	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	if meta.User == "" {
+		meta.User = teleport.UserSystem
+	}
+	return meta
+}
+
+// ClientUserMetadataWithUser returns a UserMetadata suitable for events caused
+// by a remote client making a call, with the specified username overriding the one
+// from the remote client.
+func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.UserMetadata {
+	userI := ctx.Value(ContextUser)
+	userWithIdentity, ok := userI.(IdentityGetter)
+	if !ok {
+		return apievents.UserMetadata{
+			User: user,
+		}
+	}
+	meta := userWithIdentity.GetIdentity().GetUserMetadata()
+	meta.User = user
+	return meta
 }
 
 // LocalUser is a local user

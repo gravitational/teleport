@@ -17,9 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,4 +60,120 @@ func TestDatabaseServerGetDatabase(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, database, server.GetDatabase())
+}
+
+func TestDatabaseServerSorter(t *testing.T) {
+	t.Parallel()
+
+	testValsUnordered := []string{"d", "b", "a", "c"}
+
+	// DB types are hardcoded and types are determined
+	// by which spec fields are set, values don't matter.
+	// Used to randomly assign db types.
+	dbSpecs := []DatabaseSpecV3{
+		// type redshift
+		{
+			Protocol: "_",
+			URI:      "_",
+			AWS: AWS{
+				Redshift: Redshift{
+					ClusterID: "_",
+				},
+			},
+		},
+		// type azure
+		{
+			Protocol: "_",
+			URI:      "_",
+			Azure: Azure{
+				Name: "_",
+			},
+		},
+		// type rds
+		{
+			Protocol: "_",
+			URI:      "_",
+			AWS: AWS{
+				Region: "_",
+			},
+		},
+		// type gcp
+		{
+			Protocol: "_",
+			URI:      "_",
+			GCP: GCPCloudSQL{
+				ProjectID: "_",
+			},
+		},
+	}
+
+	makeServers := func(testVals []string, testField string) []DatabaseServer {
+		servers := make([]DatabaseServer, len(testVals))
+		for i := 0; i < len(testVals); i++ {
+			testVal := testVals[i]
+			dbSpec := dbSpecs[i%len(dbSpecs)]
+			var err error
+
+			servers[i], err = NewDatabaseServerV3(Metadata{
+				Name: "_",
+			}, DatabaseServerSpecV3{
+				HostID:   "_",
+				Hostname: "_",
+				Database: &DatabaseV3{
+					Metadata: Metadata{
+						Name:        getTestVal(testField == ResourceMetadataName, testVal),
+						Description: getTestVal(testField == ResourceSpecDescription, testVal),
+					},
+					Spec: dbSpec,
+				},
+			})
+			require.NoError(t, err)
+		}
+		return servers
+	}
+
+	cases := []struct {
+		name      string
+		wantErr   bool
+		fieldName string
+	}{
+		{
+			name:      "by name",
+			fieldName: ResourceMetadataName,
+		},
+		{
+			name:      "by description",
+			fieldName: ResourceSpecDescription,
+		},
+		{
+			name:      "by type",
+			fieldName: ResourceSpecType,
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(fmt.Sprintf("%s desc", c.name), func(t *testing.T) {
+			sortBy := SortBy{Field: c.fieldName, IsDesc: true}
+			servers := DatabaseServers(makeServers(testValsUnordered, c.fieldName))
+			require.NoError(t, servers.SortByCustom(sortBy))
+			targetVals, err := servers.GetFieldVals(c.fieldName)
+			require.NoError(t, err)
+			require.IsDecreasing(t, targetVals)
+		})
+
+		t.Run(fmt.Sprintf("%s asc", c.name), func(t *testing.T) {
+			sortBy := SortBy{Field: c.fieldName}
+			servers := DatabaseServers(makeServers(testValsUnordered, c.fieldName))
+			require.NoError(t, servers.SortByCustom(sortBy))
+			targetVals, err := servers.GetFieldVals(c.fieldName)
+			require.NoError(t, err)
+			require.IsIncreasing(t, targetVals)
+		})
+	}
+
+	// Test error.
+	sortBy := SortBy{Field: "unsupported"}
+	servers := makeServers(testValsUnordered, "does-not-matter")
+	require.True(t, trace.IsNotImplemented(DatabaseServers(servers).SortByCustom(sortBy)))
 }

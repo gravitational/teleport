@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -116,7 +116,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application
 	// Each chunk has its own ID. Create a new UUID for this chunk which will be
 	// emitted in a new event to the audit log that can be use to aggregate all
 	// chunks for a particular session.
-	chunkID := uuid.New()
+	chunkID := uuid.New().String()
 
 	// Create a sync or async streamer depending on configuration of cluster.
 	streamer, err := s.newStreamer(s.closeContext, chunkID, recConfig)
@@ -155,10 +155,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application
 			SessionID: identity.RouteToApp.SessionID,
 			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         identity.Username,
-			Impersonator: identity.Impersonator,
-		},
+		UserMetadata: identity.GetUserMetadata(),
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
 			AppPublicAddr: app.GetPublicAddr(),

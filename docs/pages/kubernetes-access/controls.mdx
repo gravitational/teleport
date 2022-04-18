@@ -88,7 +88,7 @@ Enterprise Edition:
 Identity provider admins can assign metadata to a user, such as
 group membership or access permissions. Administrators configure what metadata
 is shared with Teleport. Teleport receives user metadata keys and values as OIDC claims or SAML
-attributes during [signle sign-on redirect flow](https://goteleport.com/blog/how-oidc-authentication-works/):
+attributes during [single sign-on redirect flow](https://goteleport.com/blog/how-oidc-authentication-works/):
 
 ```yaml
 # Alice has an email alice@example.com. Email is a standard OIDC claim.
@@ -105,7 +105,7 @@ be substituted to the users' group list in the role definition.
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: group-member
 spec:
@@ -229,7 +229,7 @@ Limit access to cluster based on the label:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: group-member
 spec:

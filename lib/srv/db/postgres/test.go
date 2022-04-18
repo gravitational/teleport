@@ -39,7 +39,7 @@ import (
 // parameters.
 func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgconn.PgConn, error) {
 	// Client will be connecting directly to the multiplexer address.
-	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v", config.Address))
+	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v/?sslmode=verify-full", config.Address))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,6 +163,9 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 			// Bind binds prepared statement with parameters.
 		case *pgproto3.Describe:
 		case *pgproto3.Sync:
+			if err := s.handleSync(client); err != nil {
+				s.log.WithError(err).Error("Failed to handle sync.")
+			}
 		case *pgproto3.Execute:
 			// Execute executes prepared statement.
 			if err := s.handleQuery(client); err != nil {
@@ -265,6 +268,16 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
+
+func (s *TestServer) handleSync(client *pgproto3.Backend) error {
+	message := &pgproto3.ReadyForQuery{}
+	s.log.Debugf("Sending %#v.", message)
+	err := client.Send(message)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
