@@ -31,6 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -92,7 +93,7 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 }
 
 // NewUploader creates new disk based session logger
-func NewUploader(cfg UploaderConfig) (*Uploader, error) {
+func NewUploader(cfg UploaderConfig, sessionTracker services.SessionTrackerService) (*Uploader, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,9 +106,10 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	// completer scans for uploads that have been initiated, but not completed
 	// by the client (aborted or crashed) and completes them
 	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-		Uploader:  handler,
-		AuditLog:  cfg.AuditLog,
-		Unstarted: true,
+		Uploader:       handler,
+		AuditLog:       cfg.AuditLog,
+		Unstarted:      true,
+		SessionTracker: sessionTracker,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

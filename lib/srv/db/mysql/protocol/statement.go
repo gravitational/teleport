@@ -16,7 +16,11 @@ limitations under the License.
 
 package protocol
 
-import "github.com/siddontang/go-mysql/mysql"
+import (
+	"github.com/gravitational/trace"
+
+	"github.com/siddontang/go-mysql/mysql"
+)
 
 // StatementPreparePacket represents the COM_STMT_PREPARE command.
 //
@@ -189,22 +193,22 @@ func (p *StatementBulkExecutePacket) Parameters(definitions []mysql.Field) (para
 
 // parseStatementPreparePacket parses packet bytes and returns a Packet if
 // successful.
-func parseStatementPreparePacket(rawPacket packet) (Packet, bool) {
-	unread, ok := skipHeaderAndType(rawPacket.bytes)
+func parseStatementPreparePacket(packetBytes []byte) (Packet, error) {
+	unread, ok := skipHeaderAndType(packetBytes)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_PREAPRE packet: %v", packetBytes)
 	}
 
 	return &StatementPreparePacket{
-		packet: rawPacket,
+		packet: packet{bytes: packetBytes},
 		query:  string(unread),
-	}, true
+	}, nil
 }
 
 // parseStatementIDPacket parses packet bytes and returns a statementIDPacket
 // if successful.
-func parseStatementIDPacket(rawPacket packet) (statementIDPacket, []byte, bool) {
-	unread, ok := skipHeaderAndType(rawPacket.bytes)
+func parseStatementIDPacket(packetBytes []byte) (statementIDPacket, []byte, bool) {
+	unread, ok := skipHeaderAndType(packetBytes)
 	if !ok {
 		return statementIDPacket{}, nil, false
 	}
@@ -215,47 +219,47 @@ func parseStatementIDPacket(rawPacket packet) (statementIDPacket, []byte, bool) 
 	}
 
 	return statementIDPacket{
-		packet:      rawPacket,
+		packet:      packet{bytes: packetBytes},
 		statementID: statementID,
 	}, unread, true
 }
 
 // parseStatementSendLongDataPacket parses packet bytes and returns a Packet if
 // successful.
-func parseStatementSendLongDataPacket(rawPacket packet) (Packet, bool) {
-	parent, unread, ok := parseStatementIDPacket(rawPacket)
+func parseStatementSendLongDataPacket(packetBytes []byte) (Packet, error) {
+	parent, unread, ok := parseStatementIDPacket(packetBytes)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_SEND_LONG_DATA packet: %v", packetBytes)
 	}
 
 	unread, parameterID, ok := readUint16(unread)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_SEND_LONG_DATA packet: %v", packetBytes)
 	}
 
 	return &StatementSendLongDataPacket{
 		statementIDPacket: parent,
 		parameterID:       parameterID,
 		data:              unread,
-	}, true
+	}, nil
 }
 
 // parseStatementExecutePacket parses packet bytes and returns a Packet if
 // successful.
-func parseStatementExecutePacket(rawPacket packet) (Packet, bool) {
-	parent, unread, ok := parseStatementIDPacket(rawPacket)
+func parseStatementExecutePacket(packetBytes []byte) (Packet, error) {
+	parent, unread, ok := parseStatementIDPacket(packetBytes)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_EXECUTE packet: %v", packetBytes)
 	}
 
 	unread, cursorFlag, ok := readByte(unread)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_EXECUTE packet: %v", packetBytes)
 	}
 
 	unread, iterations, ok := readUint32(unread)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_EXECUTE packet: %v", packetBytes)
 	}
 
 	return &StatementExecutePacket{
@@ -263,67 +267,67 @@ func parseStatementExecutePacket(rawPacket packet) (Packet, bool) {
 		cursorFlag:              cursorFlag,
 		iterations:              iterations,
 		nullBitmapAndParameters: unread,
-	}, true
+	}, nil
 }
 
 // parseStatementClosePacket parses packet bytes and returns a Packet if
 // successful.
-func parseStatementClosePacket(rawPacket packet) (Packet, bool) {
-	parent, _, ok := parseStatementIDPacket(rawPacket)
+func parseStatementClosePacket(packetBytes []byte) (Packet, error) {
+	parent, _, ok := parseStatementIDPacket(packetBytes)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_CLOSE packet: %v", packetBytes)
 	}
 	return &StatementClosePacket{
 		statementIDPacket: parent,
-	}, true
+	}, nil
 }
 
 // parseStatementResetPacket parses packet bytes and returns a Packet if
 // successful.
-func parseStatementResetPacket(rawPacket packet) (Packet, bool) {
-	parent, _, ok := parseStatementIDPacket(rawPacket)
+func parseStatementResetPacket(packetBytes []byte) (Packet, error) {
+	parent, _, ok := parseStatementIDPacket(packetBytes)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_RESET packet: %v", packetBytes)
 	}
 	return &StatementResetPacket{
 		statementIDPacket: parent,
-	}, true
+	}, nil
 }
 
 // parseStatementFetchPacket parses packet bytes and returns a Packet if
 // successful.
-func parseStatementFetchPacket(rawPacket packet) (Packet, bool) {
-	parent, unread, ok := parseStatementIDPacket(rawPacket)
+func parseStatementFetchPacket(packetBytes []byte) (Packet, error) {
+	parent, unread, ok := parseStatementIDPacket(packetBytes)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_FETCH packet: %v", packetBytes)
 	}
 
 	_, rowsCount, ok := readUint32(unread)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_FETCH packet: %v", packetBytes)
 	}
 	return &StatementFetchPacket{
 		statementIDPacket: parent,
 		rowsCount:         rowsCount,
-	}, true
+	}, nil
 }
 
 // parseStatementBulkExecutePacket parses packet bytes and returns a Packet if
 // successful.
-func parseStatementBulkExecutePacket(rawPacket packet) (Packet, bool) {
-	parent, unread, ok := parseStatementIDPacket(rawPacket)
+func parseStatementBulkExecutePacket(packetBytes []byte) (Packet, error) {
+	parent, unread, ok := parseStatementIDPacket(packetBytes)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_BULK_EXECUTE packet: %v", packetBytes)
 	}
 
 	unread, bulkFlag, ok := readUint16(unread)
 	if !ok {
-		return nil, false
+		return nil, trace.BadParameter("failed to parse COM_STMT_BULK_EXECUTE packet: %v", packetBytes)
 	}
 
 	return &StatementBulkExecutePacket{
 		statementIDPacket: parent,
 		bulkFlag:          bulkFlag,
 		parameters:        unread,
-	}, true
+	}, nil
 }
