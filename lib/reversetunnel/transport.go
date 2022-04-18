@@ -39,19 +39,50 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TunnelAuthDialer connects to the Auth Server through the reverse tunnel.
-type TunnelAuthDialer struct {
-	// ProxyAddr is the address of the proxy
-	ProxyAddr string
+// NewTunnelAuthDialer creates a new instance of TunnelAuthDialer
+func NewTunnelAuthDialer(config TunnelAuthDialerConfig) (*TunnelAuthDialer, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &TunnelAuthDialer{
+		TunnelAuthDialerConfig: config,
+	}, nil
+}
+
+// TunnelAuthDialerConfig specifies TunnelAuthDialer configuration.
+type TunnelAuthDialerConfig struct {
+	// Resolver retrieves the address of the proxy
+	Resolver Resolver
 	// ClientConfig is SSH tunnel client config
 	ClientConfig *ssh.ClientConfig
+	// Log is used for logging.
+	Log logrus.FieldLogger
+}
+
+func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
+	if c.Resolver == nil {
+		return trace.BadParameter("missing tunnel address resolver")
+	}
+	return nil
+}
+
+// TunnelAuthDialer connects to the Auth Server through the reverse tunnel.
+type TunnelAuthDialer struct {
+	// TunnelAuthDialerConfig is the TunnelAuthDialer configuration.
+	TunnelAuthDialerConfig
 }
 
 // DialContext dials auth server via SSH tunnel
-func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
+	addr, err := t.Resolver()
+	if err != nil {
+		t.Log.Errorf("Failed to resolve tunnel address %v", err)
+		return nil, trace.Wrap(err)
+	}
+
 	// Connect to the reverse tunnel server.
-	dialer := proxy.DialerFromEnvironment(t.ProxyAddr)
-	sconn, err := dialer.Dial("tcp", t.ProxyAddr, t.ClientConfig)
+	dialer := proxy.DialerFromEnvironment(addr.Addr)
+	sconn, err := dialer.Dial("tcp", addr.Addr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

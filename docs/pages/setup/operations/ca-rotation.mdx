@@ -5,20 +5,9 @@ description: How to rotate Teleport's certificate authority
 
 ## Prerequisites
 
-- Installed [Teleport](../../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
-- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
-
-<Admonition type="note">
-  For Cloud, log in with a Teleport user with editor privileges:
-  ```code
-  # tsh logs you in and receives short-lived certificates
-  $ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
-  # try out the connection
-  $ tctl get nodes
-  ```
-</Admonition>
 
 ## Certificate Authority rotation
 

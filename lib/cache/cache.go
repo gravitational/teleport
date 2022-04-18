@@ -39,10 +39,6 @@ import (
 	"go.uber.org/atomic"
 )
 
-func tombstoneKey() []byte {
-	return backend.Key("cache", teleport.Version, "tombstone", "ok")
-}
-
 const cacheTargetAuth string = "auth"
 
 // ForAuth sets up watch configuration for the auth server
@@ -303,7 +299,7 @@ type Cache struct {
 
 	// fnCache is used to perform short ttl-based caching of the results of
 	// regularly called methods.
-	fnCache *fnCache
+	fnCache *utils.FnCache
 
 	trustCache         services.Trust
 	clusterConfigCache services.ClusterConfiguration
@@ -544,9 +540,6 @@ const (
 	WatcherStarted = "watcher_started"
 	// WatcherFailed is emitted when event watcher has failed
 	WatcherFailed = "watcher_failed"
-	// TombstoneWritten is emitted if cache is closed in a healthy
-	// state and successfully writes its tombstone.
-	TombstoneWritten = "tombstone_written"
 	// Reloading is emitted when an error occurred watching events
 	// and the cache is waiting to create a new watcher
 	Reloading = "reloading_cache"
@@ -568,6 +561,14 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   time.Second,
+		Clock: config.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(config.Context)
 	cs := &Cache{
 		wrapper:            wrapper,
@@ -576,7 +577,7 @@ func New(config Config) (*Cache, error) {
 		Config:             config,
 		generation:         atomic.NewUint64(0),
 		initC:              make(chan struct{}),
-		fnCache:            newFnCache(time.Second),
+		fnCache:            fnCache,
 		trustCache:         local.NewCAService(wrapper),
 		clusterConfigCache: clusterConfigCache,
 		provisionerCache:   local.NewProvisioningService(wrapper),
@@ -600,28 +601,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 	cs.collections = collections
-
-	// if the ok tombstone is present, set the initial read state of the cache
-	// to ok. this tombstone's presence indicates that we are dealing with an
-	// on-disk cache produced by the same teleport version which gracefully shutdown
-	// while in an ok state.  We delete the tombstone rather than check for its
-	// presence to ensure self-healing in the event that the tombstone wasn't actually
-	// valid.  Note that setting the cache's read state to ok does not cause us to skip
-	// our normal init logic, it just means that reads against the local cache will
-	// be allowed in the event the init step fails before it starts applying.
-	// Note also that we aren't setting our event fanout system to an initialized state
-	// or incrementing the generation counter; this cache isn't so much "healthy" as it is
-	// "slightly preferable to an unreachable auth server".
-	err = cs.wrapper.Delete(ctx, tombstoneKey())
-	switch {
-	case err == nil:
-		cs.setReadOK(true)
-	case trace.IsNotFound(err):
-		// do nothing
-	default:
-		cs.Close()
-		return nil, trace.Wrap(err)
-	}
 
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(cs.MaxRetryPeriod / 10),
@@ -676,10 +655,6 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		c.Debugf("Cache is closing, returning from update loop.")
 		// ensure that close operations have been run
 		c.Close()
-		// run tombstone operations in an orphaned context
-		tombCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-		c.writeTombstone(tombCtx)
 	}()
 	timer := time.NewTimer(c.Config.WatcherInitTimeout)
 	for {
@@ -709,24 +684,6 @@ func (c *Cache) update(ctx context.Context, retry utils.Retry) {
 		case <-c.ctx.Done():
 			return
 		}
-	}
-}
-
-// writeTombstone writes the cache tombstone.
-func (c *Cache) writeTombstone(ctx context.Context) {
-	if !c.getReadOK() || c.generation.Load() == 0 {
-		// state is unhealthy or was loaded from a previously
-		// entombed state; do nothing.
-		return
-	}
-	item := backend.Item{
-		Key:   tombstoneKey(),
-		Value: []byte("{}"),
-	}
-	if _, err := c.wrapper.Create(ctx, item); err != nil {
-		c.Warningf("Failed to set tombstone: %v", err)
-	} else {
-		c.notify(ctx, Event{Type: TombstoneWritten})
 	}
 }
 
@@ -815,7 +772,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	// by receiving init event first.
 	select {
 	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 	case <-c.ctx.Done():
 		return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 	case event := <-watcher.Events():
@@ -868,7 +825,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 	for {
 		select {
 		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case <-relativeExpiryInterval.Next():

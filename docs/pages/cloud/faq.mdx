@@ -28,7 +28,7 @@ Currently there is no way to provide your own bucket.
 ### How do I add nodes to Teleport Cloud?
 
 You can connect servers, kubernetes clusters, databases and applications
-using [reverse tunnels](../setup/admin/adding-nodes.mdx#adding-a-node-located-behind-nat).
+using [reverse tunnels](../setup/admin/adding-nodes.mdx).
 
 There is no need to open any ports on your infrastructure for inbound traffic.
 
@@ -55,7 +55,7 @@ $ tctl tokens add --type=node
 ### Are dynamic node tokens available?
 
 After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Cloud, users can generate
-[dynamic tokens](../setup/admin/adding-nodes.mdx#short-lived-dynamic-tokens):
+[dynamic tokens](../setup/admin/adding-nodes.mdx):
 
 ```code
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)

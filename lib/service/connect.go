@@ -19,13 +19,14 @@ package service
 import (
 	"crypto/tls"
 	"path/filepath"
+	"strings"
+
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/teleport/api/constants"
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/roundtrip"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -150,6 +151,15 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 		process.log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
 		clt, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
+			// In the event that a user is attempting to connect a machine to
+			// a different cluster it will give a cryptic warning about an
+			// unknown certificate authority. Unfortunately we cannot intercept
+			// this error as it comes from the http package before a request is
+			// made. So provide a more user friendly error as a hint of what
+			// they can do to resolve the issue.
+			if strings.Contains(err.Error(), "certificate signed by unknown authority") {
+				process.log.Errorf("Was this node already registered to a different cluster? To join this node to a new cluster, remove `%s` and try again", process.Config.DataDir)
+			}
 			return nil, trace.Wrap(err)
 		}
 		return &Connector{
@@ -472,28 +482,13 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	})
 	defer periodic.Stop()
 
-	errors := utils.NewTimedCounter(process.Clock, process.Config.RestartThreshold.Time)
-
 	for {
 		err := process.syncRotationStateCycle()
 		if err == nil {
 			return nil
 		}
-		process.log.WithError(err).Warning("Sync rotation state cycle failed")
 
-		// If we have had a *lot* of failures very recently, then it's likely that our
-		// route to the auth server is gone. If we're using a tunnel then it's possible
-		// that the proxy has been reconfigured and the tunnel address has moved.
-		count := errors.Increment()
-		process.log.Warnf("%d connection errors in last %v.", count, process.Config.RestartThreshold.Time)
-		if count > process.Config.RestartThreshold.Amount {
-			// signal quit
-			process.log.Error("Connection error threshold exceeded. Asking for a graceful restart.")
-			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
-			return nil
-		}
-
-		process.log.Warningf("Retrying in ~%v", process.Config.RotationConnectionInterval)
+		process.log.Warningf("Sync rotation state cycle failed. Retrying in ~%v", process.Config.RotationConnectionInterval)
 
 		select {
 		case <-periodic.Next():
@@ -852,67 +847,58 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
 	logger.Debug("Attempting to connect to Auth Server directly.")
-	directClient, err := process.newClientDirect(authServers, tlsConfig)
-	if err == nil {
+	directClient, directErr := process.newClientDirect(authServers, tlsConfig)
+	if directErr == nil {
 		logger.Debug("Connected to Auth Server with direct connection.")
 		return directClient, nil
 	}
 	logger.Debug("Failed to connect to Auth Server directly.")
 	// store err in directLogger, only log it if tunnel dial fails.
-	directErrLogger := logger.WithError(err)
+	directErrLogger := logger.WithError(directErr)
 
 	// Don't attempt to connect through a tunnel as a proxy or auth server.
 	if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(directErr)
 	}
 
 	logger.Debug("Attempting to discover reverse tunnel address.")
-	proxyAddr, err := process.findReverseTunnel(authServers)
-	if err != nil {
-		directErrLogger.Debug("Failed to connect to Auth Server directly.")
-		logger.WithError(err).Debug("Failed to discover reverse tunnel address.")
-		return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
-	}
 
-	logger = process.log.WithField("proxy-addr", proxyAddr)
 	logger.Debug("Attempting to connect to Auth Server through tunnel.")
 	sshClientConfig, err := identity.SSHClientConfig(process.Config.FIPS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tunnelClient, err := process.newClientThroughTunnel(proxyAddr, tlsConfig, sshClientConfig)
+	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
 	if err != nil {
 		directErrLogger.Debug("Failed to connect to Auth Server directly.")
 		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
-		return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
+		return nil, trace.WrapWithMessage(
+			trace.NewAggregate(directErr, err),
+			trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining."))
 	}
 
 	logger.Debug("Connected to Auth Server through tunnel.")
 	return tunnelClient, nil
 }
 
-// findReverseTunnel uses the web proxy to discover where the SSH reverse tunnel
-// server is running.
-func (process *TeleportProcess) findReverseTunnel(addrs []utils.NetAddr) (string, error) {
-	var errs []error
-	for _, addr := range addrs {
-		// In insecure mode, any certificate is accepted. In secure mode the hosts
-		// CAs are used to validate the certificate on the proxy.
-		tunnelAddr, err := webclient.GetTunnelAddr(process.ExitContext(), addr.String(), lib.IsInsecureDevMode(), nil)
-		if err == nil {
-			return tunnelAddr, nil
-		}
-		errs = append(errs, err)
-	}
-	return "", trace.NewAggregate(errs...)
-}
+func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
+	resolver := reversetunnel.WebClientResolver(process.ExitContext(), authServers, lib.IsInsecureDevMode())
 
-func (process *TeleportProcess) newClientThroughTunnel(proxyAddr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
+	resolver, err := reversetunnel.CachingResolver(resolver, process.Clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
+		Resolver:     resolver,
+		ClientConfig: sshConfig,
+		Log:          process.log,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	clt, err := auth.NewClient(apiclient.Config{
-		Dialer: &reversetunnel.TunnelAuthDialer{
-			ProxyAddr:    proxyAddr,
-			ClientConfig: sshConfig,
-		},
+		Dialer: dialer,
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},

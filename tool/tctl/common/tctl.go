@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -222,20 +221,18 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 
 		errs := []error{err}
 
-		// Figure out the reverse tunnel address on the proxy first.
-		tunAddr, err := findReverseTunnel(ctx, cfg.AuthServers, clientConfig.TLS.InsecureSkipVerify)
-		if err != nil {
-			errs = append(errs, trace.Wrap(err, "failed lookup of proxy reverse tunnel address: %v", err))
-			return nil, trace.NewAggregate(errs...)
-		}
-		log.Debugf("Attempting to connect using reverse tunnel address %v.", tunAddr)
 		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 		// within an SSH tunnel.
+		dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
+			Resolver:     reversetunnel.WebClientResolver(ctx, cfg.AuthServers, clientConfig.TLS.InsecureSkipVerify),
+			ClientConfig: clientConfig.SSH,
+			Log:          cfg.Log,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		client, err = auth.NewClient(apiclient.Config{
-			Dialer: &reversetunnel.TunnelAuthDialer{
-				ProxyAddr:    tunAddr,
-				ClientConfig: clientConfig.SSH,
-			},
+			Dialer: dialer,
 			Credentials: []apiclient.Credentials{
 				apiclient.LoadTLS(clientConfig.TLS),
 			},
@@ -251,22 +248,6 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 		}
 	}
 	return client, nil
-}
-
-// findReverseTunnel uses the web proxy to discover where the SSH reverse tunnel
-// server is running.
-func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS bool) (string, error) {
-	var errs []error
-	for _, addr := range addrs {
-		// In insecure mode, any certificate is accepted. In secure mode the hosts
-		// CAs are used to validate the certificate on the proxy.
-		tunnelAddr, err := webclient.GetTunnelAddr(ctx, addr.String(), insecureTLS, nil)
-		if err == nil {
-			return tunnelAddr, nil
-		}
-		errs = append(errs, err)
-	}
-	return "", trace.NewAggregate(errs...)
 }
 
 // applyConfig takes configuration values from the config file and applies

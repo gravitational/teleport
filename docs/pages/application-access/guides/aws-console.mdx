@@ -6,19 +6,21 @@ videoBanner: GVcy_rffxQw
 
 # AWS Management Console Access
 
-Teleport can automatically sign your users into AWS management console with
+Teleport can automatically sign your users into the AWS management console with
 appropriate IAM roles.
 
 This guide will explain how to:
 
-- Connect your AWS account(-s) to Teleport.
-- Setup example AWS IAM Read Only and Power User roles.
+- Connect your AWS account(s) to Teleport.
+- Set up example AWS IAM Read Only and Power User roles.
 - Use Teleport's role-based access control with AWS IAM roles.
 - View Teleport users' AWS console activity in CloudTrail.
+- Access the AWS Command Line Interface (CLI) through Teleport. 
 
 ## Prerequisites
 
-- Teleport with Application Access. Follow [Getting Started](../getting-started.mdx)
+- A running Teleport cluster, either self hosted or in Teleport Cloud.
+- A Teleport Node with Application Access enabled. Follow the [Getting Started](../getting-started.mdx)
   or [Connecting Apps](./connecting-apps.mdx) guides to get it running.
 - IAM permissions in the AWS account you want to connect.
 - AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
@@ -32,7 +34,7 @@ Otherwise, you will receive "400 Bad Request" errors from AWS.
 
 ## Step 1. [Optional] Configure Read Only and Power User roles
 
-AWS provides the `ReadOnlyAccess` and `PowerUserAccess` IAM policies that can be incorporated into roles.  <b>Skip this step</b> if you already have the roles you want to provide access to.
+AWS provides the `ReadOnlyAccess` and `PowerUserAccess` IAM policies that can be incorporated into roles. **Skip this step** if you already have the roles you want to provide access to.
 
 <Admonition type="note">
 These policies may provide too much or not enough access for your intentions. Validate these meet your expectations if you plan on using them.
@@ -65,16 +67,15 @@ Enter a role name and press create role.
 Follow the same steps and select `PowerUserAccess` IAM Policy to create a `ExamplePowerUser` role.
 
 
-## Step 2. Update IAM roles trust relationships
+## Step 2. Update IAM role trust relationships
 
 <Admonition type="note">
-This step is only required if you are allowing access from another account.  The trust relationship will already exist for the same account.
+This step is only required if you are allowing access from another account. The trust relationship will already exist for the same account.
 </Admonition>
 
-Teleport uses AWS [Federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html)
-service to generate sign-in URLs for users, which relies on the `AssumeRole` API
-for getting temporary security credentials. As such, you would first need to
-update your IAM roles' "Trusted entities" to include AWS account ID.
+Teleport uses AWS [federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html) to generate sign-in URLs for users, which relies on the `AssumeRole` API
+for getting temporary security credentials. 
+You will need to update your IAM roles' "Trusted entities" to include your AWS account ID.
 
 Go to the [Roles](https://console.aws.amazon.com/iamv2/home#/roles) list, pick
 a role and create the following trust policy for it by clicking on "Edit trust
@@ -97,8 +98,9 @@ relationship" button on the "Trust relationships" tab:
 
 See [How to use trust policies with IAM roles](https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/)
 for more details. After saving the trust policy, the account will show as a
-trusted entity:
-From the EC2 dashboard select Actions -> Security -> Modify IAM Role
+trusted entity.
+
+From the EC2 dashboard select Actions -> Security -> Modify IAM Role.
 ![AWS trusted entities](../../../img/application-access/aws-trusted-entities@2x.png)
 
 Do this for each IAM role your Teleport users will need to assume.
@@ -134,7 +136,7 @@ is using.
 
 The next step is to give your Teleport users permissions to assume IAM roles.
 
-You can do this by creating a role with `aws_role_arns` field listing all IAM
+You can do this by creating a role with the `aws_role_arns` field listing all IAM
 role ARNs this particular role permits its users to assume:
 
 ```yaml
@@ -230,8 +232,8 @@ an IAM role selector:
 
 ![IAM role selector](../../../img/application-access/iam-role-selector.png)
 
-Click on the role you want to assume and you will get redirected to AWS
-management console signed in with the selected role.
+Click on the role you want to assume and you will get redirected to the AWS
+management console, signed in with the selected role.
 
 In the console's top-right corner you should see that you're logged in through
 federated login and the name of your assumed IAM role:
@@ -245,10 +247,39 @@ Note that your federated login session is marked with your Teleport username.
 To view CloudTrail events for your federated sessions, navigate to the CloudTrail
 [dashboard](https://console.aws.amazon.com/cloudtrail/home) and go to "Event history".
 
-Each Teleport federated login session uses Teleport username as the federated
+Each Teleport federated login session uses a Teleport username as the federated
 username which you can search for to get the events history:
 
 ![CloudTrail](../../../img/application-access/cloud-trail.png)
+
+## Step 8. Using AWS CLI
+
+Before beginning this step, make sure that the `aws` command line interface (CLI) tool is installed in your PATH. For more information, read [Installing or updating the latest version of the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html).
+
+First, log into the previously configured AWS console app on your desktop:
+
+```code
+$ tsh app login --aws-role ExamplePowerUser awsconsole-test
+Logged into AWS app awsconsole-test. Example AWS CLI command:
+
+$ tsh aws s3 ls
+```
+
+The `--aws-role` flag allows you to specify the AWS IAM role to assume when accessing AWS API. You can either
+provide a role name like `--aws-role ExamplePowerUser` or a full role ARN `arn:aws:iam::1234567890:role/ExamplePowerUser`
+
+Now you can use the `tsh aws` command like the native `aws` command-line tool:
+
+```code
+$ tsh aws s3 ls
+```
+
+To log out of the aws application and remove credentials:
+
+```code
+$ tsh app logout awsconsole-test
+```
+
 
 ## Next steps
 

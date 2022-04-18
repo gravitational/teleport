@@ -1,5 +1,23 @@
 # Changelog
 
+## 7.3.18
+
+This release of Teleport contains multiple performance and stability improvements.
+
+* Fixed issue with certificates growing large when repeatedly requesting access. [#11036](https://github.com/gravitational/teleport/pull/11036)
+* Multiple improvements for stability of CA rotation. [#11192](https://github.com/gravitational/teleport/pull/11192), [#11186](https://github.com/gravitational/teleport/pull/11186), [#10902](https://github.com/gravitational/teleport/pull/10902)
+* Multiple improvements to session uploader. [#10796](https://github.com/gravitational/teleport/pull/10796)
+* Fixed issue with `tsh` ignoring `TELEPORT_HOME` environment variable. [#11094](https://github.com/gravitational/teleport/pull/11094)
+* Fixed utmp accounting on some systems. [#10618](https://github.com/gravitational/teleport/pull/10618)
+* Fixed issue with MongoDB access connections not being closed properly. [#10729](https://github.com/gravitational/teleport/pull/10729)
+* Fixed issue with DynamoDB backend not returning results beyond 1MB. [#10849](https://github.com/gravitational/teleport/pull/10849)
+* Fixed issue with Kubernetes service identity missing certain DNS names. [#10946](https://github.com/gravitational/teleport/pull/10946)
+* Fixed issue with deleting certain users from backend. [#11133](https://github.com/gravitational/teleport/pull/11133)
+* Fixed issue with session recording panic. [#10876](https://github.com/gravitational/teleport/pull/10876)
+* Fixed issue with slow session reclaim preventing the use of full `max_connections` allowance. [#10879](https://github.com/gravitational/teleport/pull/10879)
+* Fixed goroutine and memory leak in certificate authorities watcher. [#11122](https://github.com/gravitational/teleport/pull/11122)
+* Fixed panic caused by `ClusterConfig` backwards compatibility. [#11145](https://github.com/gravitational/teleport/pull/11145)
+
 ## 7.3.17
 
 This release of Teleport contains a security fix and multiple improvements and fixes.

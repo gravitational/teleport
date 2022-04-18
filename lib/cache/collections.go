@@ -1066,17 +1066,38 @@ func (c *clusterConfig) storeDerivedResources(clusterConfig types.ClusterConfig,
 		if err := services.UpdateAuthPreferenceWithLegacyClusterConfig(clusterConfig, authPref); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, derivedResources.ClusterAuditConfig); err != nil {
-			return trace.Wrap(err)
+		if derivedResources.ClusterAuditConfig != nil {
+			if err := c.clusterConfigCache.SetClusterAuditConfig(ctx, derivedResources.ClusterAuditConfig); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.clusterConfigCache.DeleteClusterAuditConfig(ctx); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
 		}
-		if err := c.clusterConfigCache.SetClusterNetworkingConfig(ctx, derivedResources.ClusterNetworkingConfig); err != nil {
-			return trace.Wrap(err)
+		if derivedResources.ClusterNetworkingConfig != nil {
+			if err := c.clusterConfigCache.SetClusterNetworkingConfig(ctx, derivedResources.ClusterNetworkingConfig); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.clusterConfigCache.DeleteClusterNetworkingConfig(ctx); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
 		}
-		if err := c.clusterConfigCache.SetSessionRecordingConfig(ctx, derivedResources.SessionRecordingConfig); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := c.clusterConfigCache.SetAuthPreference(ctx, authPref); err != nil {
-			return trace.Wrap(err)
+		if derivedResources.SessionRecordingConfig != nil {
+			if err := c.clusterConfigCache.SetSessionRecordingConfig(ctx, derivedResources.SessionRecordingConfig); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.clusterConfigCache.DeleteSessionRecordingConfig(ctx); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
 		}
 		return nil
 	}

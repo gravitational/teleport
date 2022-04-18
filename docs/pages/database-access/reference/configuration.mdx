@@ -53,6 +53,9 @@ db_service:
 
 ## Proxy configuration
 
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
 The following Proxy service configuration is relevant for Database Access:
 
 <Admonition
@@ -81,4 +84,95 @@ proxy_service:
   postgres_public_addr: "postgres.teleport.example.com:443"
   # Address advertised to MySQL clients. If not set, public_addr is used.
   mysql_public_addr: "mysql.teleport.example.com:3306"
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport Cloud automatically configures the Teleport Proxy Service with the
+following settings that are relevant to Database Access. This reference
+configuration uses `mytenant.teleport.sh` in place of your Teleport Cloud tenant
+address.
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  # PostgreSQL proxy is listening on the regular web proxy port.
+  web_listen_addr: "0.0.0.0:3080"
+  # MySQL proxy is listening on a separate port.
+  mysql_listen_addr: "0.0.0.0:3036"
+  # Database clients will connect to the Proxy Service over this hostname.
+  public_addr: "mytenant.teleport.sh:443"
+  # Address advertised to MySQL clients.
+  mysql_public_addr: "mytenant.teleport.sh:3036"
+  # Address advertised to PostgreSQL clients.
+  postgres_public_addr: "mytenant.teleport.sh:443"
+```
+
+</TabItem>
+</Tabs>
+
+## Database resource
+
+Full YAML spec of database resources managed by `tctl` resource commands:
+
+```yaml
+kind: db
+version: v3
+metadata:
+  # Database resource name.
+  name: example
+
+  # Database resource description.
+  description: "Example database"
+
+  # Database resource static labels.
+  labels:
+    env: example
+
+spec:
+  # Database protocol.
+  protocol: "postgres"
+
+  # Database connection endpoint.
+  uri: "localhost:5432"
+
+  # Optional CA for validating the database certificate.
+  ca_cert: |
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+
+  # Optional AWS configuration for RDS/Aurora/Redshift. Can be auto-detected from the endpoint.
+  aws:
+    # Region the database is deployed in.
+    region: "us-east-1"
+    # Redshift specific configuration.
+    redshift:
+      # Redshift cluster identifier.
+      cluster_id: "redshift-cluster-1"
+
+  # Optional GCP configuration for Cloud SQL.
+  gcp:
+    # GCP project ID.
+    project_id: "xxx-1234"
+    # Cloud SQL instance ID.
+    instance_id: "example"
+
+  # Settings specific to Active Directory authentication e.g. for SQL Server.
+  ad:
+    # Path to Kerberos keytab file.
+    keytab_file: /path/to/keytab
+    # Active Directory domain name.
+    domain: EXAMPLE.COM
+    # Service Principal Name to obtain Kerberos tickets for.
+    spn: MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433
+    # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
+    krb5_file: /etc/krb5.conf
+
+  # Optional dynamic labels.
+  dynamic_labels:
+  - name: "hostname"
+    command: ["hostname"]
+    period: 1m0s
 ```
