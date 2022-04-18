@@ -20,7 +20,7 @@ The current recommended method of [using EC2 tags as Teleport labels](https://go
 - Individually adding each tag as a dynamic label
 - Using the AWS API gateway, where the cost scales with the number of nodes using it
 
-As of Jan 2022, [instance tags are available via the instance metadata service](https://aws.amazon.com/about-aws/whats-new/2022/01/instance-tags-amazon-ec2-instance-metadata-service/). This will allow Teleport nodes to discover their own instance tags. Unlike the AWS API gateway, instance metadata requests are free and per-instance.
+As of January 2022, [instance tags are available via the instance metadata service](https://aws.amazon.com/about-aws/whats-new/2022/01/instance-tags-amazon-ec2-instance-metadata-service/). This will allow Teleport nodes to discover their own instance tags. Unlike the AWS API gateway, instance metadata requests are free and per-instance.
 
 ## Details
 
