@@ -79,6 +79,25 @@ Ensure that your environment includes the following:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 <Tabs>
+<TabItem label="Authenticated Proxy">
+Starting the local database proxy with the `--tunnel` flag will create an
+authenticated tunnel that you can use to connect to your database instances.
+You won't need to configure any credentials when connecting to this tunnel.
+
+Here is an example on how to start the proxy:
+
+```bash
+# First, login into the database.
+$ tsh db login <database-name>
+
+# Then, start the local proxy.
+$ tsh proxy db --tunnel <database-name>
+Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.
+```
+
+You can then connect to the address the proxy command returns, in our example it
+is `127.0.0.1:62652`.
+</TabItem>
 <TabItem label="TLS routing">
 If you're using Teleport in [TLS routing](../../setup/operations/tls-routing.mdx)
 mode where each database protocol is multiplexed on the same web proxy port, use
@@ -177,6 +196,20 @@ certificate, key and root certificate from the configuration above:
 
 Click "Save", and pgAdmin should immediately connect. If pgAdmin prompts you
 for password, leave the password field empty and click OK.
+
+## PostgreSQL DBeaver
+To connect to your PostgreSQL instance, use the authenticated proxy address.
+This is `127.0.0.1:62652` in the example above (see the “Authenticated Proxy”
+section on [Get connection information](./gui-clients.mdx#get-connection-information)
+for more information).
+
+Use the "Database native" authentication with an empty password:
+
+![DBeaver Postgres Configure
+Server](../../../img/database-access/dbeaver-pg-configure-server.png)
+
+Clicking on "Test connection" should return a connection success message. Then,
+click on "Finish" to save the configuration.
 
 ## MySQL Workbench
 
