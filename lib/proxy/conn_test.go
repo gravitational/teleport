@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -81,16 +82,16 @@ func TestStreamConnWrite(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		n, err := streamConn.Write(data)
-		require.NoError(t, err)
-		require.Equal(t, len(data), n)
+		assert.NoError(t, err)
+		assert.Equal(t, len(data), n)
 	}()
 	go func() {
 		defer wg.Done()
 		b := make([]byte, 2*maxChunkSize)
 		n, err := local.Read(b)
-		require.NoError(t, err)
-		require.Equal(t, len(data), n)
-		require.Equal(t, data, b[:n])
+		assert.NoError(t, err)
+		assert.Equal(t, len(data), n)
+		assert.Equal(t, data, b[:n])
 	}()
 
 	wg.Wait()
@@ -105,21 +106,21 @@ func TestStreamConnWriteChunk(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		n, err := streamConn.Write(data)
-		require.NoError(t, err)
-		require.Equal(t, len(data), n)
+		assert.NoError(t, err)
+		assert.Equal(t, len(data), n)
 	}()
 	go func() {
 		defer wg.Done()
 		b := make([]byte, 2*maxChunkSize)
 		n, err := local.Read(b)
-		require.NoError(t, err)
-		require.Equal(t, maxChunkSize, n)
-		require.Equal(t, data[:n], b[:n])
+		assert.NoError(t, err)
+		assert.Equal(t, maxChunkSize, n)
+		assert.Equal(t, data[:n], b[:n])
 
 		n, err = local.Read(b)
-		require.NoError(t, err)
-		require.Equal(t, 1, n)
-		require.Equal(t, data[:n], b[:n])
+		assert.NoError(t, err)
+		assert.Equal(t, 1, n)
+		assert.Equal(t, data[:n], b[:n])
 	}()
 
 	wg.Wait()
@@ -135,15 +136,15 @@ func TestStreamConnRead(t *testing.T) {
 		b := make([]byte, 2*maxChunkSize)
 		defer wg.Done()
 		n, err := streamConn.Read(b)
-		require.NoError(t, err)
-		require.Equal(t, len(data), n)
-		require.Equal(t, data, b[:n])
+		assert.NoError(t, err)
+		assert.Equal(t, len(data), n)
+		assert.Equal(t, data, b[:n])
 	}()
 	go func() {
 		defer wg.Done()
 		n, err := local.Write(data)
-		require.NoError(t, err)
-		require.Equal(t, len(data), n)
+		assert.NoError(t, err)
+		assert.Equal(t, len(data), n)
 	}()
 
 	wg.Wait()
