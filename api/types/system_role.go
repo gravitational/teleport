@@ -187,7 +187,10 @@ func (roles SystemRoles) String() string {
 
 // Set sets the value of the teleport role from string, used to integrate with CLI tools
 func (r *SystemRole) Set(v string) error {
-	val := SystemRole(strings.Title(v))
+	if len(v) > 0 {
+		v = strings.ToUpper(v[:1]) + v[1:]
+	}
+	val := SystemRole(v)
 	if err := val.Check(); err != nil {
 		return trace.Wrap(err)
 	}

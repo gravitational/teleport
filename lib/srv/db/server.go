@@ -280,7 +280,9 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// Update TLS config to require client certificate.
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log,
+		// TODO: Remove UserCA in Teleport 11.
+		types.UserCA, types.DatabaseCA)
 
 	return server, nil
 }

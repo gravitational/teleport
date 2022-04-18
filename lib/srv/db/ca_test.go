@@ -206,7 +206,7 @@ func setupPostgres(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *tes
 	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
 
 	if cfg.injectValidCA {
-		cfg.caCert = string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert)
+		cfg.caCert = string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert)
 	}
 
 	postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
@@ -252,7 +252,7 @@ func setupMySQL(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
 
 	if cfg.injectValidCA {
-		cfg.caCert = string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert)
+		cfg.caCert = string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert)
 	}
 
 	mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
@@ -297,7 +297,7 @@ func setupMongo(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
 
 	if cfg.injectValidCA {
-		cfg.caCert = string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert)
+		cfg.caCert = string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert)
 	}
 
 	mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{

@@ -67,6 +67,9 @@ type AuthCommand struct {
 	leafCluster                string
 	kubeCluster                string
 	appName                    string
+	dbService                  string
+	dbName                     string
+	dbUser                     string
 	signOverwrite              bool
 
 	rotateGracePeriod time.Duration
@@ -118,14 +121,17 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("kube-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).Hidden().StringVar(&a.leafCluster)
 	a.authSign.Flag("leaf-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.leafCluster)
 	a.authSign.Flag("kube-cluster-name", `Kubernetes cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
-	a.authSign.Flag("app-name", `Application to generate identity file for`).StringVar(&a.appName)
+	a.authSign.Flag("app-name", `Application to generate identity file for. Mutually exclusive with "--db-service".`).StringVar(&a.appName)
+	a.authSign.Flag("db-service", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbService)
+	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbUser)
+	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
-	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
+	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
 		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
 		DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
-	a.authRotate.Flag("type", "Certificate authority to rotate, rotates both host and user CA by default").StringVar(&a.rotateType)
+	a.authRotate.Flag("type", "Certificate authority to rotate, rotates host, user and database CA by default").StringVar(&a.rotateType)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
 }
 
@@ -148,7 +154,7 @@ func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 	return true, trace.Wrap(err)
 }
 
-var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows"}
+var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows", "db"}
 
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
@@ -165,13 +171,15 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 		return a.exportTLSAuthority(ctx, client, types.HostCA, false)
 	case "tls-user":
 		return a.exportTLSAuthority(ctx, client, types.UserCA, false)
+	case "db":
+		return a.exportTLSAuthority(ctx, client, types.DatabaseCA, false)
 	case "tls-user-der", "windows":
 		return a.exportTLSAuthority(ctx, client, types.UserCA, true)
 	}
 
 	// if no --type flag is given, export all types
 	if a.authType == "" {
-		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA}
+		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA}
 	} else {
 		authType := types.CertAuthType(a.authType)
 		if err := authType.Check(); err != nil {
@@ -594,10 +602,19 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		return trace.Wrap(err)
 	}
 
-	var routeToApp proto.RouteToApp
-	var certUsage proto.UserCertsRequest_CertUsage
+	var (
+		routeToApp      proto.RouteToApp
+		routeToDatabase proto.RouteToDatabase
+		certUsage       proto.UserCertsRequest_CertUsage
+	)
 
-	if a.appName != "" {
+	// `appName` and `db` are mutually exclusive.
+	if a.appName != "" && a.dbService != "" {
+		return trace.BadParameter("only --app-name or --db-service can be set, not both")
+	}
+
+	switch {
+	case a.appName != "":
 		server, err := getApplicationServer(ctx, clusterAPI, a.appName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -619,6 +636,19 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 			SessionID:   appSession.GetName(),
 		}
 		certUsage = proto.UserCertsRequest_App
+	case a.dbService != "":
+		server, err := getDatabaseServer(context.TODO(), clusterAPI, a.dbService)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		routeToDatabase = proto.RouteToDatabase{
+			ServiceName: a.dbService,
+			Protocol:    server.GetDatabase().GetProtocol(),
+			Database:    a.dbName,
+			Username:    a.dbUser,
+		}
+		certUsage = proto.UserCertsRequest_Database
 	}
 
 	reqExpiry := time.Now().UTC().Add(a.genTTL)
@@ -632,6 +662,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		KubernetesCluster: a.kubeCluster,
 		RouteToApp:        routeToApp,
 		Usage:             certUsage,
+		RouteToDatabase:   routeToDatabase,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -831,4 +862,21 @@ func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName 
 		}
 	}
 	return nil, trace.NotFound("app %q not found", appName)
+}
+
+// getDatabaseServer fetches a single `DatabaseServer` by name using the
+// provided `auth.ClientI`.
+func getDatabaseServer(ctx context.Context, clientAPI auth.ClientI, dbName string) (types.DatabaseServer, error) {
+	servers, err := clientAPI.GetDatabaseServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, server := range servers {
+		if server.GetName() == dbName {
+			return server, nil
+		}
+	}
+
+	return nil, trace.NotFound("database %q not found", dbName)
 }

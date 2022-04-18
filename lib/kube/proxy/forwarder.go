@@ -799,11 +799,6 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	<-party.closeC
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return nil, nil
 }
 

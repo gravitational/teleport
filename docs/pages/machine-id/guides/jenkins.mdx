@@ -19,6 +19,21 @@ You will need the following tools to use Teleport with Jenkins.
 - Jenkins
 - The `tctl` admin tool version >= (=teleport.version=)
 
+<Admonition type="note" title="Machine ID and TLS Routing">
+TLS Routing support will be added to Machine ID in [Teleport
+9.1](https://goteleport.com/docs/preview/upcoming-releases/#teleport-91). Until
+that time, the Teleport Proxy Server will need to be configured with a
+dedicated SSH listener.
+
+```yaml
+version: v1
+proxy_service:
+  enabled: "yes"
+  listen_addr: "0.0.0.0:3023"
+  ...
+```
+</Admonition>
+
 (!docs/pages/includes/tctl.mdx!)
 
 ## Architecture
@@ -54,18 +69,36 @@ scope for server access, reduce the blast radius if one pipeline is
 compromised, and allow you to remotely audit and lock pipelines if you detect
 malicious behavior.
 
+<Figure align="left" bordered caption="Jenkins Deployments">
+  ![Jenkins Deployments](../../../img/machine-id/jenkins.png)
+</Figure>
+
 ## Step 1/2 Configure and start Machine ID
 
-First, determine which role(s) you would like to assign to Machine ID running
-on Jenkins. You can run `tctl get roles` to inspect roles within Teleport and
-then `tctl bots add` to create a bot user with the roles you want to assign to Machine
-ID. In the example below, you will create a bot user `jenkins` and assign this
-bot user the `api-workers` role.
+First, determine if you would like to create a new role for Machine ID or use
+an existing role. You can run `tctl get roles` to examine your existing roles.
+
+In the example below, create a file called `api-workers.yaml` with the content below
+to create a new role called `api-workers` that will allow you to log in to Nodes
+with the label `group: api` and Linux user `jenkins`.
+
+```
+kind: "role"
+version: "v3"
+metadata:
+  name: "api-workers"
+spec:
+  allow:
+    logins: ["jenkins"]
+    node_labels:
+      "group": "api"
+```
 
 <Details scope={["cloud"]} scopeOnly={true}>
 On your client machine, log in to Teleport using `tsh` before using `tctl`.
 
 ```code
+$ tctl create -f api-workers.yaml
 $ tctl bots add jenkins --roles=api-workers
 ```
 </Details>
@@ -74,6 +107,7 @@ Connect to the Teleport Auth Server and use `tctl` to examine what roles exist o
 your system.
 
 ```code
+$ tctl create -f api-workers.yaml
 $ tctl bots add jenkins --roles=api-workers
 ```
 </Details>
@@ -82,13 +116,24 @@ Machine ID allows you to use Linux Access Control Lists (ACLs) to control
 access to certificates on disk. You will use this to limit the access Jenkins
 has to the short-lived certificates Machine ID issues.
 
-In the example that follows, we'll work with the assumption you will be running
-Machine ID as the Linux user `teleport` and Jenkins as the Linux user
-`jenkins`. Create and initialize the directories you will need using the `tbot
-init` command.
+In the example that follows, you will create a Linux user called `teleport` to
+run Machine ID but short-lived certificates will be written to disk as the
+Linux user `jenkins`.
 
 ```code
-$ tbot init \
+$ sudo adduser \
+    --disabled-password \
+    --no-create-home \
+    --shell=/bin/false \
+    --gecos "" \
+    teleport
+```
+
+Create and initialize the directories you will need using the `tbot init`
+command.
+
+```code
+$ sudo tbot init \
     --destination-dir=/opt/machine-id \
     --bot-user=teleport \
     --owner=teleport:teleport \

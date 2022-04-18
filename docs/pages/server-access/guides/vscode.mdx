@@ -8,28 +8,14 @@ This guide explains how to use Teleport and Visual Studio Code's remote SSH exte
 
 ## Prerequisites
 
-- [tsh client tool](https://goteleport.com/teleport/download) >= (=teleport.version=).
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - OpenSSH client.
 - Visual Studio Code with the [Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh#_system-requirements)
 for the Remote - SSH extension.
-- The Teleport Auth Service and Proxy Service, deployed on your own infrastructure or managed via Teleport Cloud.
-- One or more Teleport Nodes with Server Access enabled. If you have not yet done this, read the [Server Access Getting Started Guide](../getting-started.mdx) to learn how.
-
-<Details 
-scopeOnly={true}
-scope={["oss", "enterprise"]}
-opened={false}
-title="Haven't deployed the Auth and Proxy Services?" >
-Follow one of our [getting started](../getting-started.mdx) guides to learn how to deploy the Teleport Auth Service and Proxy Service in your environment.
-</Details>
-
-<Details 
-scopeOnly={true}
-scope={["cloud"]}
-opened={false}
-title="Not yet a Teleport customer?" >
-Sign up for a [free trial](https://goteleport.com/signup/) of Teleport Cloud to get started.
-</Details>
+- One or more Teleport Nodes with Server Access enabled. If you have not yet
+  done this, read the
+  [Server Access Getting Started Guide](../getting-started.mdx) to learn how.
 
 <Admonition type="note">
 Linux and MacOS clients should rely on their operating system-provided OpenSSH

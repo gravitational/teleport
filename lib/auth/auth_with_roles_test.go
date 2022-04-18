@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -2075,6 +2076,94 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	require.Empty(t, resp.TotalCount)
 }
 
+func TestListResources_SearchAsRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	const numTestNodes = 2
+	for i := 0; i < numTestNodes; i++ {
+		name := fmt.Sprintf("node%d", i)
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, numTestNodes)
+
+	// create user and client
+	user, role, err := CreateUserAndRole(srv.Auth(), "user", []string{"user"})
+	require.NoError(t, err)
+
+	// only allow user to see first node
+	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
+
+	// create a new role which can see second node
+	searchAsRole := services.RoleForUser(user)
+	searchAsRole.SetName("test_search_role")
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"user"})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, searchAsRole))
+
+	role.SetSearchAsRoles([]string{searchAsRole.GetName()})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Regular ListResources returns first node, which user normally has
+	// permission for
+	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Limit:        int32(len(testNodes)),
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Equal(t, resp.Resources[0].GetName(), testNodes[0].GetName())
+
+	// ListResources with UseSearchAsRoles returns both nodes
+	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType:     types.KindNode,
+		Limit:            int32(len(testNodes)),
+		UseSearchAsRoles: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testNodes))
+	var expectedNodes []string
+	for _, node := range testNodes {
+		expectedNodes = append(expectedNodes, node.GetName())
+	}
+	var gotNodes []string
+	for _, node := range resp.Resources {
+		gotNodes = append(gotNodes, node.GetName())
+	}
+	require.ElementsMatch(t, expectedNodes, gotNodes)
+
+	// make sure an audit event is logged for the search
+	auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", nil, 10, 0, "")
+	require.NoError(t, err)
+	foundAuditEvent := false
+	for _, event := range auditEvents {
+		if searchEvent, ok := event.(*apievents.AccessRequestResourceSearch); ok {
+			foundAuditEvent = true
+			require.ElementsMatch(t,
+				[]string{role.GetName(), searchAsRole.GetName()},
+				searchEvent.SearchAsRoles)
+		}
+	}
+	require.True(t, foundAuditEvent)
+}
+
 func TestGetAndList_WindowsDesktops(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2311,4 +2400,102 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.IsDecreasing(t, names)
 	})
+}
+
+func TestDeleteUserAppSessions(t *testing.T) {
+	ctx := context.Background()
+
+	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
+
+	// Generates a new user client.
+	userClient := func(username string) *Client {
+		user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+		require.NoError(t, err)
+		identity := TestUser(user.GetName())
+		clt, err := srv.NewClient(identity)
+		require.NoError(t, err)
+		return clt
+	}
+
+	// Register users.
+	aliceClt := userClient("alice")
+	bobClt := userClient("bob")
+
+	// Register multiple applications.
+	applications := []struct {
+		name       string
+		publicAddr string
+	}{
+		{name: "panel", publicAddr: "panel.example.com"},
+		{name: "admin", publicAddr: "admin.example.com"},
+		{name: "metrics", publicAddr: "metrics.example.com"},
+	}
+
+	// Register and create a session for each application.
+	for _, application := range applications {
+		// Register an application.
+		app, err := types.NewAppV3(types.Metadata{
+			Name: application.name,
+		}, types.AppSpecV3{
+			URI:        "localhost",
+			PublicAddr: application.publicAddr,
+		})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+
+		// Create a session for alice.
+		_, err = aliceClt.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			Username:    "alice",
+			PublicAddr:  application.publicAddr,
+			ClusterName: "localhost",
+		})
+		require.NoError(t, err)
+
+		// Create a session for bob.
+		_, err = bobClt.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			Username:    "bob",
+			PublicAddr:  application.publicAddr,
+			ClusterName: "localhost",
+		})
+		require.NoError(t, err)
+	}
+
+	// Ensure the correct number of sessions.
+	sessions, err := srv.Auth().GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 6)
+
+	// Try to delete other user app sessions.
+	err = aliceClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "bob"})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	err = bobClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "alice"})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Delete alice sessions.
+	err = aliceClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "alice"})
+	require.NoError(t, err)
+
+	// Check if only bob's sessions are left.
+	sessions, err = srv.Auth().GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 3)
+	for _, session := range sessions {
+		require.Equal(t, "bob", session.GetUser())
+	}
+
+	// Delete bob sessions.
+	err = bobClt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: "bob"})
+	require.NoError(t, err)
+
+	// No sessions left.
+	sessions, err = srv.Auth().GetAppSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 0)
 }
