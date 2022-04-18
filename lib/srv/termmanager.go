@@ -68,7 +68,7 @@ func NewTermManager() *TermManager {
 		closed:            false,
 		readStateUpdate:   sync.NewCond(&sync.Mutex{}),
 		incoming:          make(chan []byte, 100),
-		terminateNotifier: make(chan struct{}),
+		terminateNotifier: make(chan struct{}, 1),
 	}
 }
 

@@ -16,9 +16,13 @@ package webauthncli
 
 import (
 	"context"
+	"io"
 	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
@@ -47,9 +51,9 @@ type LoginPrompt interface {
 // IsFIDO2Available.
 func FIDO2Login(
 	ctx context.Context,
-	origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt,
+	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	return fido2Login(ctx, origin, user, assertion, prompt)
+	return fido2Login(ctx, origin, assertion, prompt, opts)
 }
 
 // RegisterPrompt is the user interface for FIDO2Register.
@@ -72,4 +76,72 @@ func FIDO2Register(
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
 ) (*proto.MFARegisterResponse, error) {
 	return fido2Register(ctx, origin, cc, prompt)
+}
+
+type FIDO2DiagResult struct {
+	Available                           bool
+	RegisterSuccessful, LoginSuccessful bool
+}
+
+// FIDO2Diag runs a few diagnostic commands and returns the result.
+// User interaction is required.
+func FIDO2Diag(ctx context.Context, promptOut io.Writer) (*FIDO2DiagResult, error) {
+	res := &FIDO2DiagResult{}
+	if !IsFIDO2Available() {
+		return res, nil
+	}
+	res.Available = true
+
+	// Attempt registration.
+	const origin = "localhost"
+	cc := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: make([]byte, 32),
+			RelyingParty: protocol.RelyingPartyEntity{
+				ID: "localhost",
+			},
+			User: protocol.UserEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "test",
+				},
+				ID:          []byte("test"),
+				DisplayName: "test",
+			},
+			Parameters: []protocol.CredentialParameter{
+				{
+					Type:      protocol.PublicKeyCredentialType,
+					Algorithm: webauthncose.AlgES256,
+				},
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+	prompt := NewDefaultPrompt(ctx, promptOut)
+	ccr, err := FIDO2Register(ctx, origin, cc, prompt)
+	if err != nil {
+		return res, trace.Wrap(err)
+	}
+	res.RegisterSuccessful = true
+
+	// Attempt login.
+	assertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:      make([]byte, 32),
+			RelyingPartyID: cc.Response.RelyingParty.ID,
+			AllowedCredentials: []protocol.CredentialDescriptor{
+				{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: ccr.GetWebauthn().GetRawId(),
+				},
+			},
+			UserVerification: protocol.VerificationDiscouraged,
+		},
+	}
+	prompt = NewDefaultPrompt(ctx, promptOut) // Avoid reusing prompts
+	if _, _, err := FIDO2Login(ctx, origin, assertion, prompt, nil /* opts */); err != nil {
+		return res, trace.Wrap(err)
+	}
+	res.LoginSuccessful = true
+
+	return res, nil
 }

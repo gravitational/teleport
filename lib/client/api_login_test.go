@@ -138,11 +138,11 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	ctx := context.Background()
 	tests := []struct {
-		name          string
-		secondFactor  constants.SecondFactorType
-		inputReader   *prompt.FakeReader
-		solveWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
-		pwdless       bool
+		name                      string
+		secondFactor              constants.SecondFactorType
+		inputReader               *prompt.FakeReader
+		solveWebauthn             func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		pwdless, useStrongestAuth bool
 	}{
 		{
 			name:          "OTP device login",
@@ -155,6 +155,17 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			secondFactor:  constants.SecondFactorOptional,
 			inputReader:   prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
 			solveWebauthn: solveWebauthn,
+		},
+		{
+			name:         "Webauthn and UseStrongestAuth",
+			secondFactor: constants.SecondFactorOptional,
+			inputReader: prompt.NewFakeReader().
+				AddString(password).
+				AddReply(func(ctx context.Context) (string, error) {
+					panic("this should not be called")
+				}),
+			solveWebauthn:    solveWebauthn,
+			useStrongestAuth: true,
 		},
 		{
 			name:          "Webauthn device with PIN", // a bit hypothetical, but _could_ happen.
@@ -176,7 +187,10 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			defer cancel()
 
 			prompt.SetStdin(test.inputReader)
-			*client.PromptWebauthn = func(ctx context.Context, origin, _ string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+			*client.PromptWebauthn = func(
+				ctx context.Context,
+				origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
+			) (*proto.MFAAuthenticateResponse, string, error) {
 				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
 				return resp, "", err
 			}
@@ -192,6 +206,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
 			tc.Passwordless = test.pwdless
+			tc.UseStrongestAuth = test.useStrongestAuth
 
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)

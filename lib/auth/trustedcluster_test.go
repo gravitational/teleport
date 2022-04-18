@@ -119,7 +119,9 @@ func TestValidateTrustedCluster(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	a.SetStaticTokens(tks)
+
+	err = a.SetStaticTokens(tks)
+	require.NoError(t, err)
 
 	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
 		Token: "invalidtoken",
@@ -187,10 +189,10 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Len(t, resp.CAs, 2)
+	require.Len(t, resp.CAs, 3)
 	require.ElementsMatch(t,
-		[]types.CertAuthType{types.HostCA, types.UserCA},
-		[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType()},
+		[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+		[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
 	)
 
 	for _, returnedCA := range resp.CAs {
@@ -223,6 +225,11 @@ func TestValidateTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, userCAs, 1)
 	require.Equal(t, localClusterName, userCAs[0].GetName())
+
+	dbCAs, err := a.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1)
+	require.Equal(t, localClusterName, dbCAs[0].GetName())
 }
 
 func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {

@@ -104,8 +104,13 @@ type CLIConf struct {
 	MyRequests bool
 	// Approve/Deny indicates the desired review kind.
 	Approve, Deny bool
+	// ResourcKind is the resource kind to search for
+	ResourceKind string
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
+	// ExplicitUsername is true if Username was initially set by the end-user
+	// (for example, using command-line flags).
+	ExplicitUsername bool
 	// Proxy keeps the hostname:port of the SSH proxy to use
 	Proxy string
 	// TTL defines how long a session must be active (in minutes)
@@ -138,6 +143,8 @@ type CLIConf struct {
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
+	// DaemonAddr is the daemon listening address.
+	DaemonAddr string
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -277,6 +284,8 @@ type CLIConf struct {
 	LocalProxyCertFile string
 	// LocalProxyKeyFile is the client key used by local proxy.
 	LocalProxyKeyFile string
+	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
+	LocalProxyTunnel bool
 
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
@@ -408,7 +417,7 @@ func Run(args []string, opts ...cliOption) error {
 			BoolVar(&cf.InsecureSkipVerify)
 	}
 
-	app.Flag("auth", "Specify the type of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
+	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
@@ -447,6 +456,11 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 
+	// Daemon service for teleterm client
+	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
+	daemonStart := daemon.Command("start", "Starts tsh daemon service").Hidden()
+	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
+
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI").StringsVar(&cf.AWSCommandArgs)
@@ -482,6 +496,7 @@ func Run(args []string, opts ...cliOption) error {
 	proxyDB.Flag("port", " Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
 	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
+	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
@@ -632,6 +647,17 @@ func Run(args []string, opts ...cliOption) error {
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
 
+	// TODO(nic): unhide this command when the rest of search-based access
+	// requests is implemented (#10887)
+	reqSearch := req.Command("search", "Search for resources to request access to").Hidden()
+	reqSearch.Flag(
+		"kind",
+		fmt.Sprintf("Resource kind to search for (%s)", strings.Join(types.ResourceKinds, ", ")),
+	).Required().EnumVar(&cf.ResourceKind, types.ResourceKinds...)
+	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
+
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
 	// MFA subcommands.
@@ -647,6 +673,9 @@ func Run(args []string, opts ...cliOption) error {
 	configProxy.Arg("target", "Target node host:port").Required().StringVar(&cf.ConfigProxyTarget)
 	configProxy.Arg("cluster-name", "Target cluster name").Required().StringVar(&cf.SiteName)
 
+	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
+	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
+
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
 	if runtime.GOOS == constants.WindowsOS {
@@ -660,6 +689,8 @@ func Run(args []string, opts ...cliOption) error {
 		app.Usage(args)
 		return trace.Wrap(err)
 	}
+	// Did we initially get the Username from flags/env?
+	cf.ExplicitUsername = cf.Username != ""
 
 	// apply any options after parsing of arguments to ensure
 	// that defaults don't overwrite options.
@@ -795,12 +826,18 @@ func Run(args []string, opts ...cliOption) error {
 		err = onRequestCreate(&cf)
 	case reqReview.FullCommand():
 		err = onRequestReview(&cf)
+	case reqSearch.FullCommand():
+		err = onRequestSearch(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
 	case configProxy.FullCommand():
 		err = onConfigProxy(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
+	case daemonStart.FullCommand():
+		err = onDaemonStart(&cf)
+	case f2Diag.FullCommand():
+		err = onFIDO2Diag(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -1659,11 +1696,11 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	}
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, format string, verbose bool) error {
+func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		showDatabasesAsText(clusterFlag, databases, active, verbose)
+		showDatabasesAsText(clusterFlag, databases, active, roleSet, verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabases(databases, format)
 		if err != nil {
@@ -1690,9 +1727,29 @@ func serializeDatabases(databases []types.Database, format string) (string, erro
 	return string(out), trace.Wrap(err)
 }
 
-func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, verbose bool) {
+func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
+	dbUsers := roleSet.EnumerateDatabaseUsers(database)
+	allowed := dbUsers.Allowed()
+
+	if dbUsers.WildcardAllowed() {
+		// start the list with *
+		allowed = append([]string{types.Wildcard}, allowed...)
+	}
+
+	if len(allowed) == 0 {
+		return "(none)"
+	}
+
+	denied := dbUsers.Denied()
+	if len(denied) == 0 || !dbUsers.WildcardAllowed() {
+		return fmt.Sprintf("%v", allowed)
+	}
+	return fmt.Sprintf("%v, except: %v", allowed, denied)
+}
+
+func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	if verbose {
-		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Labels", "Connect", "Expires"})
+		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
 			name := database.GetName()
 			var connect string
@@ -1702,12 +1759,14 @@ func showDatabasesAsText(clusterFlag string, databases []types.Database, active 
 					connect = formatConnectCommand(clusterFlag, a)
 				}
 			}
+
 			t.AddRow([]string{
 				name,
 				database.GetDescription(),
 				database.GetProtocol(),
 				database.GetType(),
 				database.GetURI(),
+				getUsersForDb(database, roleSet),
 				database.LabelsString(),
 				connect,
 				database.Expiry().Format(constants.HumanDateFormatSeconds),
@@ -1728,11 +1787,12 @@ func showDatabasesAsText(clusterFlag string, databases []types.Database, active 
 			rows = append(rows, []string{
 				name,
 				database.GetDescription(),
+				getUsersForDb(database, roleSet),
 				formatDatabaseLabels(database),
 				connect,
 			})
 		}
-		t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Labels", "Connect"}, rows, "Labels")
+		t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 		fmt.Println(t.AsBuffer().String())
 	}
 }
@@ -2073,6 +2133,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.IdentityFileIn != "" {
 		// Ignore local authentication methods when identity file is provided
 		c.SkipLocalAuth = true
+		// Force the use of the certificate principals so Unix
+		// username does not get used when logging in
+		c.UseKeyPrincipals = hostLogin == ""
+
 		var (
 			key          *client.Key
 			identityAuth ssh.AuthMethod
@@ -2156,6 +2220,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
+	c.ExplicitUsername = cf.ExplicitUsername
 	c.Passwordless = cf.Passwordless
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values

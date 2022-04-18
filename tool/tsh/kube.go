@@ -192,7 +192,13 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	session, err := client.NewKubeSession(cf.Context, tc, meta, k, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode))
+	ciphers := utils.DefaultCipherSuites()
+	tlsConfig, err := k.KubeClientTLSConfig(ciphers, kubeCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, err := client.NewKubeSession(cf.Context, tc, meta, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}

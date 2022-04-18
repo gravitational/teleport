@@ -21,9 +21,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -41,12 +43,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/siddontang/go-mysql/client"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -116,6 +118,185 @@ func TestDatabaseAccessPostgresLeafCluster(t *testing.T) {
 	// Disconnect.
 	err = client.Close(context.Background())
 	require.NoError(t, err)
+}
+
+func TestDatabaseRotateTrustedCluster(t *testing.T) {
+	// TODO(jakule): Fix flaky test
+	t.Skip("flaky test, skip for now")
+
+	pack := setupDatabaseTest(t,
+		// set tighter rotation intervals
+		withLeafConfig(func(config *service.Config) {
+			config.PollingPeriod = 5 * time.Second
+			config.RotationConnectionInterval = 2 * time.Second
+		}),
+		withRootConfig(func(config *service.Config) {
+			config.PollingPeriod = 5 * time.Second
+			config.RotationConnectionInterval = 2 * time.Second
+		}))
+	pack.waitForLeaf(t)
+
+	var (
+		ctx             = context.Background()
+		rootCluster     = pack.root.cluster
+		authServer      = rootCluster.Process.GetAuthServer()
+		clusterRootName = rootCluster.Secrets.SiteName
+		clusterLeafName = pack.leaf.cluster.Secrets.SiteName
+	)
+
+	pw := phaseWatcher{
+		clusterRootName: clusterRootName,
+		pollingPeriod:   rootCluster.Process.Config.PollingPeriod,
+		clock:           pack.clock,
+		siteAPI:         rootCluster.GetSiteAPI(clusterLeafName),
+		certType:        types.DatabaseCA,
+	}
+
+	currentDbCA, err := pack.root.dbAuthClient.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: clusterRootName,
+	}, false)
+	require.NoError(t, err)
+
+	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
+
+	waitForEvent := func(process *service.TeleportProcess, event string) {
+		eventC := make(chan service.Event, 1)
+		process.WaitForEvent(context.TODO(), event, eventC)
+		select {
+		case <-eventC:
+
+		case <-time.After(20 * time.Second):
+			t.Fatalf("timeout waiting for service to broadcast event %s", event)
+		}
+	}
+
+	for _, phase := range rotationPhases {
+		errChan := make(chan error, 1)
+
+		go func() {
+			errChan <- pw.waitForPhase(phase, func() error {
+				return authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+					Type:        types.DatabaseCA,
+					TargetPhase: phase,
+					Mode:        types.RotationModeManual,
+				})
+			})
+		}()
+
+		err = <-errChan
+
+		if err != nil && strings.Contains(err.Error(), "context deadline exceeded") {
+			// TODO(jakule): Workaround for CertAuthorityWatcher failing to get the correct rotation status.
+			// Query auth server directly to see if the incorrect rotation status is a rotation or watcher problem.
+			dbCA, err := pack.leaf.cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
+				Type:       types.DatabaseCA,
+				DomainName: clusterRootName,
+			}, false)
+			require.NoError(t, err)
+			require.Equal(t, dbCA.GetRotation().Phase, phase)
+		} else {
+			require.NoError(t, err)
+		}
+
+		// Reload doesn't happen on Init
+		if phase == types.RotationPhaseInit {
+			continue
+		}
+
+		waitForEvent(pack.root.cluster.Process, service.TeleportReloadEvent)
+		waitForEvent(pack.leaf.cluster.Process, service.TeleportReadyEvent)
+
+		pack.waitForLeaf(t)
+	}
+
+	rotatedDbCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: clusterRootName,
+	}, false)
+	require.NoError(t, err)
+
+	// Sanity check. Check if the CA was rotated.
+	require.NotEqual(t, currentDbCA.GetActiveKeys(), rotatedDbCA.GetActiveKeys())
+
+	// Connect to the database service in leaf cluster via root cluster.
+	dbClient, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Cluster:    pack.leaf.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.leaf.postgresService.Name,
+			Protocol:    pack.leaf.postgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := dbClient.Exec(context.Background(), "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, uint32(1), pack.leaf.postgres.QueryCount())
+	require.Equal(t, uint32(0), pack.root.postgres.QueryCount())
+
+	// Disconnect.
+	err = dbClient.Close(context.Background())
+	require.NoError(t, err)
+}
+
+// phaseWatcher holds all arguments required by rotation watcher.
+type phaseWatcher struct {
+	clusterRootName string
+	pollingPeriod   time.Duration
+	clock           clockwork.Clock
+	siteAPI         types.Events
+	certType        types.CertAuthType
+}
+
+// waitForPhase waits until rootCluster cluster detects the rotation. fn is a rotation function that is called after
+// watcher is created.
+func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), p.pollingPeriod*10)
+	defer cancel()
+
+	watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Clock:     p.clock,
+			Client:    p.siteAPI,
+		},
+		WatchCertTypes: []types.CertAuthType{p.certType},
+	})
+	if err != nil {
+		return err
+	}
+	defer watcher.Close()
+
+	if err := fn(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var lastPhase string
+	for i := 0; i < 10; i++ {
+		select {
+		case <-ctx.Done():
+			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, ctx.Err())
+		case cas := <-watcher.CertAuthorityC:
+			for _, ca := range cas {
+				if ca.GetClusterName() == p.clusterRootName &&
+					ca.GetType() == p.certType &&
+					ca.GetRotation().Phase == phase {
+					return nil
+				}
+				lastPhase = ca.GetRotation().Phase
+			}
+		}
+	}
+	return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
 }
 
 // TestDatabaseAccessMySQLRootCluster tests a scenario where a user connects
@@ -1043,15 +1224,16 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 		case <-time.Tick(500 * time.Millisecond):
 			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
-				logrus.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+				// Use root logger as we need a configured logger instance and the root cluster have one.
+				p.root.cluster.log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
 			}
 			if !containsDB(servers, p.leaf.mysqlService.Name) {
-				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
+				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
 				continue
 			}
 			if !containsDB(servers, p.leaf.postgresService.Name) {
-				logrus.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
+				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
 				continue
 			}
 			return

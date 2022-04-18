@@ -15,6 +15,21 @@ You will need the following tools to use Teleport with Ansible.
 - `ansible` >= (=ansible.min_version=)
 - Optional tool `jq` to process `JSON` output
 
+<Admonition type="note" title="Machine ID and TLS Routing">
+TLS Routing support will be added to Machine ID in [Teleport
+9.1](https://goteleport.com/docs/preview/upcoming-releases/#teleport-91). Until
+that time, the Teleport Proxy Server will need to be configured with a
+dedicated SSH listener.
+
+```yaml
+version: v1
+proxy_service:
+  enabled: "yes"
+  listen_addr: "0.0.0.0:3023"
+  ...
+```
+</Admonition>
+
 In addition, if you already have not done so, follow the
 [Machine ID Getting Started Guide](../getting-started.mdx) to create a bot
 user and start Machine ID.
@@ -35,8 +50,8 @@ $ mkdir -p ansible
 $ cd ansible
 ```
 
-Create a file called `ansible.cfg`. We will configure Ansible 
-to run the OpenSSH client with the configuration file generated 
+Create a file called `ansible.cfg`. We will configure Ansible
+to run the OpenSSH client with the configuration file generated
 by Machine ID, `/opt/machine-id/ssh_config`.
 
 ```
@@ -55,6 +70,7 @@ below to generate it from your environment. Note, `example.com` here is the
 name of your Teleport cluster.
 
 ```code
+$ # Replace ".example.com" below with the name of your cluster.
 $ tsh ls --format=json | jq -r '.[].spec.hostname + ".example.com"' > hosts
 ```
 
@@ -77,7 +93,7 @@ and is allowed by Teleport RBAC.
 From the folder `ansible`, run the Ansible playbook:
 
 ```code
-$ ansible-playbook playbook.yaml 
+$ ansible-playbook playbook.yaml
 
 # PLAY [all] *****************************************************************************************************************************************
 # TASK [Gathering Facts] *****************************************************************************************************************************

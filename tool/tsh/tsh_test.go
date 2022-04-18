@@ -40,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib"
@@ -708,9 +709,6 @@ func TestIdentityRead(t *testing.T) {
 	conf, err := k.TeleportClientTLSConfig(nil, []string{"one"})
 	require.NoError(t, err)
 	require.NotNil(t, conf)
-
-	// ensure that at least root CA was successfully loaded
-	require.Greater(t, len(conf.RootCAs.Subjects()), 0)
 }
 
 func TestFormatConnectCommand(t *testing.T) {
@@ -1237,6 +1235,45 @@ func TestSetX11Config(t *testing.T) {
 			require.Equal(t, tc.expectConfig, clt)
 		})
 	}
+}
+
+// TestAuthClientFromTSHProfile tests if API Client can be successfully created from tsh profile where clusters
+// certs are stored separately in CAS directory and in case where legacy certs.pem file was used.
+func TestAuthClientFromTSHProfile(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run([]string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	})
+	require.NoError(t, err)
+
+	profile, err := profile.FromDir(tmpHomePath, "")
+	require.NoError(t, err)
+
+	mustCreateAuthClientFormUserProfile(t, tmpHomePath, proxyAddr.String())
+
+	// Simulate legacy tsh client behavior where all clusters certs were stored in the certs.pem file.
+	require.NoError(t, os.RemoveAll(profile.TLSClusterCASDir()))
+
+	// Verify that authClient created from profile will create a valid client in case where cas dir doesn't exit.
+	mustCreateAuthClientFormUserProfile(t, tmpHomePath, proxyAddr.String())
 }
 
 type testServersOpts struct {
@@ -1999,4 +2036,104 @@ func TestSerializeMFADevices(t *testing.T) {
 	testSerialization(t, expected, func(f string) (string, error) {
 		return serializeMFADevices([]*types.MFADevice{dev}, f)
 	})
+}
+
+func Test_getUsersForDb(t *testing.T) {
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	roleDevStage := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		roles    services.RoleSet
+		database types.Database
+		result   string
+	}{
+		{
+			name:     "developer allowed any username in stage database except superuser",
+			roles:    services.RoleSet{roleDevStage, roleDevProd},
+			database: dbStage,
+			result:   "[* dev], except: [superuser]",
+		},
+		{
+			name:     "developer allowed only specific username/database in prod database",
+			roles:    services.RoleSet{roleDevStage, roleDevProd},
+			database: dbProd,
+			result:   "[dev]",
+		},
+
+		{
+			name:     "roleDevStage x dbStage",
+			roles:    services.RoleSet{roleDevStage},
+			database: dbStage,
+			result:   "[*], except: [superuser]",
+		},
+
+		{
+			name:     "roleDevStage x dbProd",
+			roles:    services.RoleSet{roleDevStage},
+			database: dbProd,
+			result:   "(none)",
+		},
+
+		{
+			name:     "roleDevProd x dbStage",
+			roles:    services.RoleSet{roleDevProd},
+			database: dbStage,
+			result:   "(none)",
+		},
+
+		{
+			name:     "roleDevProd x dbProd",
+			roles:    services.RoleSet{roleDevProd},
+			database: dbProd,
+			result:   "[dev]",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := getUsersForDb(tc.database, tc.roles)
+			require.Equal(t, tc.result, got)
+		})
+	}
 }
