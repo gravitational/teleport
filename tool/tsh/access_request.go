@@ -106,7 +106,7 @@ func onRequestList(cf *CLIConf) error {
 
 	format := strings.ToLower(cf.Format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		if err := showRequestTable(reqs); err != nil {
 			return trace.Wrap(err)
 		}
@@ -154,7 +154,7 @@ func onRequestShow(cf *CLIConf) error {
 
 	format := strings.ToLower(cf.Format)
 	switch format {
-	case teleport.Text:
+	case teleport.Text, "":
 		err = printRequest(req)
 		if err != nil {
 			return trace.Wrap(err)

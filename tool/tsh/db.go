@@ -237,7 +237,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 
 	format := strings.ToLower(cf.Format)
 	switch format {
-	case dbFormatText:
+	case dbFormatText, "":
 		for k, v := range env {
 			fmt.Printf("export %v=%v\n", k, v)
 		}
