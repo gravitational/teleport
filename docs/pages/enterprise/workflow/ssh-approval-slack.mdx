@@ -4,7 +4,8 @@ description: This guide explains how to setup a Slack plugin for Teleport for pr
 h1: Teleport Slack Plugin Setup
 ---
 
-This guide will talk through how to set up Teleport with Slack. Teleport's Slack integration notifies individuals and channels of access requests.
+This guide will explain how to set up Teleport with Slack. Teleport's Slack
+integration notifies individuals and channels of access requests.
 
 <Notice
   type="danger"
@@ -283,8 +284,9 @@ Save this as `teleport-slack.service`.
 
 ## Audit log
 
-The plugin will let anyone with access to the Slack Channel so it's
-important to review Teleport' audit log.
+The plugin will let anyone with access to the Slack channel approve access
+requests, so it's important to review Teleport's audit log to ensure that only
+the expected users are accessing the channel.
 
 ## Feedback
 
