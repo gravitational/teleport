@@ -17,13 +17,13 @@ limitations under the License.
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -102,21 +103,34 @@ func onRequestList(cf *CLIConf) error {
 		}
 		reqs = filtered
 	}
-	switch cf.Format {
-	case teleport.Text:
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
 		if err := showRequestTable(reqs); err != nil {
 			return trace.Wrap(err)
 		}
-	case teleport.JSON:
-		ser, err := json.MarshalIndent(reqs, "", "  ")
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeAccessRequests(reqs, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("%s\n", ser)
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 	return nil
+}
+
+func serializeAccessRequests(reqs []types.AccessRequest, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(reqs, "", "  ")
+	} else {
+		out, err = yaml.Marshal(reqs)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func onRequestShow(cf *CLIConf) error {
@@ -138,6 +152,37 @@ func onRequestShow(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		err = printRequest(req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeAccessRequest(req, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+	return nil
+}
+
+func serializeAccessRequest(req types.AccessRequest, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(req, "", "  ")
+	} else {
+		out, err = yaml.Marshal(req)
+	}
+	return string(out), trace.Wrap(err)
+}
+
+func printRequest(req types.AccessRequest) error {
 	reason := "[none]"
 	if r := req.GetRequestReason(); r != "" {
 		reason = fmt.Sprintf("%q", r)
@@ -156,7 +201,7 @@ func onRequestShow(cf *CLIConf) error {
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
-	_, err = table.AsBuffer().WriteTo(os.Stdout)
+	_, err := table.AsBuffer().WriteTo(os.Stdout)
 	if err != nil {
 		return trace.Wrap(err)
 	}
