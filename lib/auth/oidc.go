@@ -67,6 +67,7 @@ func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
 		return clientPack.client, nil
 	}
 
+	clientPack.cancel()
 	delete(a.oidcClients, conn.GetName())
 	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
 
@@ -79,26 +80,36 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 		return nil, trace.Wrap(err)
 	}
 
-	doneSyncing := make(chan struct{})
+	// SyncProviderConfig doesn't take a context for cancellation, instead it
+	// returns a channel that has to be closed to stop the sync. To ensure that
+	// the sync is eventually stopped we create a child context of the server context, which
+	// is cancelled either on deletion of the connector or shutdown of the server.
+	// This will cause syncCtx.Done() to unblock, at which point we can close the stop channel.
+	firstSync := make(chan struct{})
+	syncCtx, syncCancel := context.WithCancel(a.closeCtx)
 	go func() {
-		defer close(doneSyncing)
-		client.SyncProviderConfig(conn.GetIssuerURL())
+		stop := client.SyncProviderConfig(conn.GetIssuerURL())
+		close(firstSync)
+		<-syncCtx.Done()
+		close(stop)
 	}()
 
 	select {
-	case <-doneSyncing:
+	case <-firstSync:
 	case <-time.After(defaults.WebHeadersTimeout):
+		syncCancel()
 		return nil, trace.ConnectionProblem(nil,
 			"timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
 			conn.GetName(), conn.GetIssuerURL())
 	case <-a.closeCtx.Done():
+		syncCancel()
 		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
 	}
 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
+	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config, cancel: syncCancel}
 
 	return client, nil
 }
