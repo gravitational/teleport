@@ -10,6 +10,7 @@
 {{- if and .Values.acme .Values.tls.existingSecretName }}
 {{- fail "Cannot set both acme.enabled and tls.existingSecretName, choose one or the other" }}
 {{- end }}
+  {{- $persistence := (coalesce .Values.standalone .Values.persistence) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -230,9 +231,9 @@ spec:
         configMap:
           name: {{ .Release.Name }}
       - name: "data"
-        {{- if eq .Values.chartMode "standalone" }}
+        {{- if and (.Values.persistence.enabled) (or (eq .Values.chartMode "standalone") (eq .Values.chartMode "custom")) }}
         persistentVolumeClaim:
-          claimName: {{ if .Values.standalone.existingClaimName }}{{ .Values.standalone.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
+          claimName: {{ if $persistence.existingClaimName }}{{ $persistence.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
         {{- else }}
         emptyDir: {}
         {{- end }}
