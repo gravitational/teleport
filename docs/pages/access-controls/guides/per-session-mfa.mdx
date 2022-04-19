@@ -4,8 +4,6 @@ description: Require MFA checks to initiate sessions.
 videoBanner: j8Ze7HhjFGw
 ---
 
-# Per-session MFA
-
 Teleport supports requiring additional multi-factor authentication checks
 when starting new:
 
@@ -48,11 +46,10 @@ their on-disk Teleport certificates.
 - Second factor hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
-  SSH from the Teleport Web UI)
+  SSH from the Teleport Web UI).
 
-(!docs/pages/includes/tctl.mdx!)
+<Admonition type="note" title="Per-session MFA with FIPS" scope="enterprise" scopeOnly>
 
-<Admonition type="note" title="Per-session MFA with FIPS">
 Teleport FIPS builds disable local users. To configure WebAuthn in order to use
 per-session MFA with FIPS builds, provide the following in your `teleport.yaml`:
 
@@ -66,14 +63,21 @@ teleport:
 ```
 </Admonition>
 
-## Configuration
+## Configure per-session MFA
 
 Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 ### Cluster-wide
 
-To enforce MFA checks cluster-wide, update `teleport.yaml` on the Auth server
-to contain:
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+To enforce MFA checks for all roles, edit your cluster authentication
+configuration:
+
+<Tabs>
+<TabItem label="Static configuration">
+
+Update `teleport.yaml` on the Auth Server to contain:
 
 ```yaml
 auth_service:
@@ -81,6 +85,51 @@ auth_service:
     # require per-session MFA cluster-wide
     require_session_mfa: yes
 ```
+
+</TabItem>
+<TabItem label="Dynamic resources">
+
+Create a file called `cap.yaml` with the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  require_session_mfa: true
+version: v2
+```
+
+Create the resource:
+
+```code
+$ tctl create -f cap.yaml
+```
+
+</TabItem>
+</Tabs>
+
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+
+Create a file called `cap.yaml` with the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  require_session_mfa: true
+version: v2
+```
+
+Create the resource:
+
+```code
+$ tctl create -f cap.yaml
+```
+
+</ScopedBlock>
 
 ### Per role
 
@@ -104,7 +153,7 @@ spec:
 Role-specific enforcement only applies when accessing resources matching a
 role's `allow` section.
 
-#### Roles example
+### Roles example
 
 Let's walk through an example of setting up per-session MFA checks for roles.
 
@@ -182,9 +231,9 @@ $ tsh ssh prod3.example.com
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA
 even when logging into `dev1.example.com`.
 
-## Database access MFA
+<Admonition title="Per-session MFA for Database Access" type="tip">
 
-Database access supports per-connection MFA. When Jerry connects to the database
+Database Access supports per-connection MFA. When Jerry connects to the database
 `prod-mysql-instance` (with label `env: prod`), he gets
 prompted for an MFA check for each `tsh db connect` call:
 
@@ -206,6 +255,8 @@ $ tsh db connect prod-mysql-instance
 #
 # mysql>
 ```
+
+</Admonition>
 
 ## Limitations
 

@@ -14,7 +14,7 @@ provider "teleport" {
 }
 
 resource "teleport_role" "terraform-test" {
-  metadata {
+  metadata = {
     name        = "terraform-test"
     description = "Terraform test role"
     labels = {
@@ -22,58 +22,62 @@ resource "teleport_role" "terraform-test" {
     }
   }
   
-  spec {
-    options {
+  spec = {
+    options = {
       forward_agent           = false
       max_session_ttl         = "30m"
       port_forwarding         = false
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
-      permit_x11_forwarding    = false
+      permit_x11_forwarding   = false
       request_access          = "denied"
     }
 
-    allow {
+    allow = {
       logins = ["this-user-does-not-exist"]
 
-      rules {
-        resources = ["user", "role"]
-        verbs = ["list"]
-      }
-
-      request {
-        roles = ["example"]
-        claims_to_roles {
-          claim = "example"
-          value = "example"
-          roles = ["example"]
+      rules = [
+        {
+          resources = ["user", "role"]
+          verbs = ["list"]
         }
+      ]
+
+      request = {
+        roles = ["example"]
+        claims_to_roles = [
+          {
+            claim = "example"
+            value = "example"
+            roles = ["example"]
+          }
+        ]
       }
 
-      node_labels {
-         key = "example"
+      node_labels = {
+         key = ["example"]
          value = ["yes"]
       }
     }
 
-    deny {
+    deny = {
       logins = ["anonymous"]
     }
   }
 }
 
 resource "teleport_user" "terraform-test" {
-  metadata {
+  metadata = {
     name        = "terraform-test"
     description = "Test terraform user"
-    expires     = "2022-10-12T07:20:50.52Z"
+    expires     = "2022-10-12T07:20:50Z"
 
     labels = {
       test      = "true"
     }
   }
 
-  spec {
+  spec = {
     roles = ["terraform-test"]
   }
 }

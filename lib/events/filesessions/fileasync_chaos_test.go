@@ -174,10 +174,6 @@ func TestChaosUpload(t *testing.T) {
 	scansCh := make(chan error, parallelStreams)
 	for i := 0; i < parallelStreams; i++ {
 		go func() {
-			if err := uploader.uploadCompleter.CheckUploads(ctx); err != nil {
-				scansCh <- trace.Wrap(err)
-				return
-			}
 			_, err := uploader.Scan()
 			scansCh <- trace.Wrap(err)
 		}()
