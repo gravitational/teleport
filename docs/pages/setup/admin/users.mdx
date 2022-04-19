@@ -12,7 +12,7 @@ GitHub<ScopedBlock scope={["enterprise", "cloud"]}> as well as OIDC and SAML
 
 This guide shows you how to:
 
-- [Add local users](./users.mdx#adding-users)
+- [Add local users](./users.mdx#adding-local-users)
 - [Edit existing users](./users.mdx#editing-users)
 - [Delete users](./users.mdx#deleting-users)
 
@@ -32,7 +32,7 @@ Let's look at this table:
 | Teleport User | Allowed OS Logins | Description |
 | - | - | - |
 | `joe` | `joe`, `root` | Teleport user `joe` can log in to member Nodes as user `joe` or `root` on the OS. |
-| `bob` | `bob` | Teleport user ``bob` can log in to member Nodes only as OS user `bob`. |
+| `bob` | `bob` | Teleport user `bob` can log in to member Nodes only as OS user `bob`. |
 | `kim` | | If no OS login is specified, it defaults to the same name as the Teleport user, `kim`. |
 
 Let's add a new user to Teleport using the `tctl` tool:
