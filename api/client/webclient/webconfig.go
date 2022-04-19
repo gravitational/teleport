@@ -22,17 +22,17 @@ const (
 	// WebConfigAuthProviderOIDCType is OIDC provider type
 	WebConfigAuthProviderOIDCType = "oidc"
 	// WebConfigAuthProviderOIDCURL is OIDC webapi endpoint
-	WebConfigAuthProviderOIDCURL = "/v1/webapi/oidc/login/web?redirect_url=:redirect&connector_id=:providerName"
+	WebConfigAuthProviderOIDCURL = "/v1/webapi/oidc/login/web?connector_id=:providerName&redirect_url=:redirect"
 
 	// WebConfigAuthProviderSAMLType is SAML provider type
 	WebConfigAuthProviderSAMLType = "saml"
 	// WebConfigAuthProviderSAMLURL is SAML webapi endpoint
-	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?redirect_url=:redirect&connector_id=:providerName"
+	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?connector_id=:providerName&redirect_url=:redirect"
 
 	// WebConfigAuthProviderGitHubType is GitHub provider type
 	WebConfigAuthProviderGitHubType = "github"
 	// WebConfigAuthProviderGitHubURL is GitHub webapi endpoint
-	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?redirect_url=:redirect&connector_id=:providerName"
+	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?connector_id=:providerName&redirect_url=:redirect"
 )
 
 // WebConfig is web application configuration served by the backend to be used in frontend apps.
