@@ -15,7 +15,7 @@ RUN yum groupinstall -y 'Development Tools' && \
 # libudev-zero replaces systemd's libudev
 RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
-    make install-static
+    make install-static LIBDIR='$(PREFIX)/lib64'
 
 # Instal openssl.
 # Pulled from source because repository versions are too old.
@@ -119,7 +119,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
 # Do this last to take better advantage of the multi-stage build.
 USER root
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
-COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 /usr/local/lib64/pkgconfig/ /usr/local/lib64/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib64/libcbor.a \
@@ -129,8 +128,8 @@ COPY --from=libfido2 \
     /usr/local/lib64/libfido2.so.1.10.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.1.1 \
+    /usr/local/lib64/libudev.a \
     /usr/local/lib64/
-COPY --from=libfido2 /usr/local/lib/libudev.a /usr/local/lib/
 RUN cd /usr/local/lib64 && \
 # Re-create usual lib64 links.
     ln -s libcrypto.so.1.1 libcrypto.so && \

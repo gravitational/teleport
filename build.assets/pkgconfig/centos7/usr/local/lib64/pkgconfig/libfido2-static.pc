@@ -7,7 +7,7 @@ Name: libfido2
 Description: A FIDO2 library
 URL: https://github.com/yubico/libfido2
 Version: 1.10.0
-Requires: libcrypto-static libudev-static
-# libfido2 and libcbor combined here for simplicity.
-Libs: ${libdir}/libfido2.a ${libdir}/libcbor.a
+Requires: libcrypto-static
+# libfido2, libcbor and libudev combined here for simplicity.
+Libs: ${libdir}/libfido2.a ${libdir}/libcbor.a ${libdir}/libudev.a -pthread
 Cflags: -I${includedir}
