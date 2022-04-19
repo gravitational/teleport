@@ -55,3 +55,28 @@ func TestRangeEnd(t *testing.T) {
 		})
 	}
 }
+
+func TestParamsCleanse(t *testing.T) {
+	source := Params{
+		"Addr": "localhost:345",
+		"TLS": map[interface{}]interface{}{
+			"CAFile": "/path/to/file",
+			"Certs": map[interface{}]interface{}{
+				"Cert": "cert.crt",
+				"Key":  "key.crt",
+			},
+		},
+	}
+	expect := Params{
+		"Addr": "localhost:345",
+		"TLS": map[string]interface{}{
+			"CAFile": "/path/to/file",
+			"Certs": map[string]interface{}{
+				"Cert": "cert.crt",
+				"Key":  "key.crt",
+			},
+		},
+	}
+	source.Cleanse()
+	require.Equal(t, source, expect)
+}

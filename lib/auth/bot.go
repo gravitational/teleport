@@ -44,7 +44,7 @@ func BotResourceName(botName string) string {
 
 // createBotRole creates a role from a bot template with the given parameters.
 func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (types.Role, error) {
-	role, err := types.NewRoleV3(resourceName, types.RoleSpecV5{
+	role, err := types.NewRole(resourceName, types.RoleSpecV5{
 		Options: types.RoleOptions{
 			// TODO: inherit TTLs from cert length?
 			MaxSessionTTL: types.Duration(12 * time.Hour),
@@ -397,7 +397,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 
 		// Emit an audit event.
 		userMetadata := ClientUserMetadata(ctx)
-		if s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
+		if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
 			Metadata: apievents.Metadata{
 				Type: events.RenewableCertificateGenerationMismatchEvent,
 				Code: events.RenewableCertificateGenerationMismatchCode,

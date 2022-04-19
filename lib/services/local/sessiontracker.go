@@ -23,9 +23,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -80,7 +84,11 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 			return trace.Wrap(err)
 		}
 
-		item := backend.Item{Key: backend.Key(sessionPrefix, sessionID), Value: sessionJSON}
+		item := backend.Item{
+			Key:     backend.Key(sessionPrefix, sessionID),
+			Value:   sessionJSON,
+			Expires: session.Expiry(),
+		}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {
 			select {
@@ -115,14 +123,48 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 		return nil, trace.Wrap(err)
 	}
 
-	sessions := make([]types.SessionTracker, len(result.Items))
-	for i, item := range result.Items {
+	sessions := make([]types.SessionTracker, 0, len(result.Items))
+
+	// We don't overallocate expired since cleaning up sessions here should be rare.
+	var noExpiry []backend.Item
+	now := s.bk.Clock().Now()
+	for _, item := range result.Items {
 		session, err := unmarshalSession(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		sessions[i] = session
+		// NOTE: This is the session expiry timestamp, not the backend timestamp stored in `item.Expires`.
+		exp := session.GetExpires()
+		if session.Expiry().After(exp) {
+			exp = session.Expiry()
+		}
+
+		after := exp.After(now)
+
+		switch {
+		case after:
+			// Keep any items that aren't expired.
+			sessions = append(sessions, session)
+		case !after && item.Expires.IsZero():
+			// Clear item if expiry is not set on the backend.
+			// We currently don't set the expiry here but we will when #11551 is merged.
+			noExpiry = append(noExpiry, item)
+		default:
+			// If we take this branch, the expiry is set and the backend is responsible for cleaning up the item.
+		}
+	}
+
+	if len(noExpiry) > 0 {
+		go func() {
+			for _, item := range noExpiry {
+				if err := s.bk.Delete(ctx, item.Key); err != nil {
+					if !trace.IsNotFound(err) {
+						logrus.WithError(err).Error("Failed to remove stale session tracker")
+					}
+				}
+			}
+		}()
 	}
 
 	return sessions, nil
@@ -130,8 +172,17 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	now := time.Now().UTC()
+	// Don't allow sessions that require moderation without the enterprise feature enabled.
+	for _, policySet := range req.HostPolicies {
+		if len(policySet.RequireSessionJoin) != 0 {
+			if !modules.GetModules().Features().ModeratedSessions {
+				return nil, trace.AccessDenied(
+					"this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			}
+		}
+	}
 
+	now := s.bk.Clock().Now()
 	spec := types.SessionTrackerSpecV1{
 		SessionID:         req.ID,
 		Kind:              req.Type,
@@ -154,12 +205,22 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, req *proto.Cr
 		return nil, trace.Wrap(err)
 	}
 
+	// By default, resource expiration should match session expiration.
+	session.SetExpiry(session.GetExpires())
+	if session.Expiry().IsZero() {
+		session.SetExpiry(now.Add(defaults.SessionTrackerTTL))
+	}
+
 	json, err := marshalSession(session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	item := backend.Item{Key: backend.Key(sessionPrefix, session.GetSessionID()), Value: json}
+	item := backend.Item{
+		Key:     backend.Key(sessionPrefix, session.GetSessionID()),
+		Value:   json,
+		Expires: session.Expiry(),
+	}
 	_, err = s.bk.Put(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -186,10 +247,17 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			switch update := req.Update.(type) {
 			case *proto.UpdateSessionTrackerRequest_UpdateState:
 				session.SetState(update.UpdateState.State)
+				if update.UpdateState.State == types.SessionState_SessionStateTerminated {
+					// Mark session tracker for deletion.
+					session.SetExpiry(s.bk.Clock().Now())
+				}
+
 			case *proto.UpdateSessionTrackerRequest_AddParticipant:
 				session.AddParticipant(*update.AddParticipant.Participant)
 			case *proto.UpdateSessionTrackerRequest_RemoveParticipant:
 				session.RemoveParticipant(update.RemoveParticipant.ParticipantID)
+			case *proto.UpdateSessionTrackerRequest_UpdateExpiry:
+				session.SetExpiry(*update.UpdateExpiry.Expires)
 			}
 		default:
 			return trace.BadParameter("unrecognized session version %T", session)
@@ -200,7 +268,11 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 			return trace.Wrap(err)
 		}
 
-		item := backend.Item{Key: backend.Key(sessionPrefix, req.SessionID), Value: sessionJSON}
+		item := backend.Item{
+			Key:     backend.Key(sessionPrefix, req.SessionID),
+			Value:   sessionJSON,
+			Expires: session.Expiry(),
+		}
 		_, err = s.bk.CompareAndSwap(ctx, *sessionItem, item)
 		if trace.IsCompareFailed(err) {
 			select {

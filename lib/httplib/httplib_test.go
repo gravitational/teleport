@@ -62,6 +62,7 @@ type testHandler struct {
 func newTestHandler() *testHandler {
 	h := &testHandler{}
 	h.Router = *httprouter.New()
+	h.Router.UseRawPath = true
 	h.POST("/v1/sessions/:id/stream", MakeHandler(h.postSessionChunkOriginal))
 	h.POST("/v1/namespaces/:namespace/sessions/:id/stream", MakeHandler(h.postSessionChunkNamespace))
 	return h

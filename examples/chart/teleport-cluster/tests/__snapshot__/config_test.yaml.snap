@@ -398,6 +398,78 @@ matches snapshot for aws.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for existing-tls-secret-with-ca.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-cluster-name
+          authentication:
+            type: local
+            second_factor: otp
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-cluster-name
+        proxy_service:
+          public_addr: 'test-cluster-name:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          https_keypairs:
+          - key_file: /etc/teleport-tls/tls.key
+            cert_file: /etc/teleport-tls/tls.crt
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for existing-tls-secret.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: test-cluster-name
+          authentication:
+            type: local
+            second_factor: otp
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-cluster-name
+        proxy_service:
+          public_addr: 'test-cluster-name:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+          https_keypairs:
+          - key_file: /etc/teleport-tls/tls.key
+            cert_file: /etc/teleport-tls/tls.crt
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for gcp-ha-acme.yaml:
   1: |
     apiVersion: v1
@@ -832,6 +904,76 @@ matches snapshot for resources.yaml:
           public_addr: 'helm-lint:443'
           kube_listen_addr: 0.0.0.0:3026
           mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for separate-mongo-listener.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: otp
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          mongo_listen_addr: 0.0.0.0:27017
+          mongo_public_addr: helm-lint:27017
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for separate-postgres-listener.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: otp
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          postgres_listen_addr: 0.0.0.0:5432
+          postgres_public_addr: helm-lint:5432
           enabled: true
         ssh_service:
           enabled: false

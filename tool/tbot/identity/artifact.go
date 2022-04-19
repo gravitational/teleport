@@ -28,6 +28,7 @@ type Artifact struct {
 	Kind      ArtifactKind
 	ToBytes   func(*Identity) []byte
 	FromBytes func(*proto.Certs, *LoadIdentityParams, []byte)
+	Optional  bool
 }
 
 // Matches returns true if this artifact's Kind matches any one of the given
@@ -136,6 +137,7 @@ var artifacts = []Artifact{
 		FromBytes: func(c *proto.Certs, p *LoadIdentityParams, b []byte) {
 			// nothing to do
 		},
+		Optional: true,
 	},
 }
 

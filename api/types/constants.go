@@ -33,6 +33,10 @@ const (
 	// True holds "true" string value
 	True = "true"
 
+	// HomeEnvVar specifies the home location for tsh configuration
+	// and data
+	HomeEnvVar = "TELEPORT_HOME"
+
 	// KindNamespace is a namespace
 	KindNamespace = "namespace"
 
@@ -398,3 +402,6 @@ const (
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = "teleport.internal/bot-generation"
 )
+
+// ResourceKinds lists all Teleport resource kinds users can request access to.
+var ResourceKinds = []string{KindNode, KindDatabaseServer, KindAppServer, KindKubeService, KindWindowsDesktop}

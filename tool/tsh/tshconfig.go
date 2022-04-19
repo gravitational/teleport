@@ -17,10 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"errors"
+	"io/fs"
 	"os"
-	"path/filepath"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v2"
 )
@@ -46,14 +46,18 @@ type ExtraProxyHeaders struct {
 	Headers map[string]string `yaml:"headers,omitempty"`
 }
 
-func loadConfig(homePath string) (*TshConfig, error) {
-	confPath := filepath.Join(profile.FullProfilePath(homePath), tshConfigPath)
-	configFile, err := os.Open(confPath)
+func loadConfig(fullConfigPath string) (*TshConfig, error) {
+	bs, err := os.ReadFile(fullConfigPath)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return &TshConfig{}, nil
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
-	defer configFile.Close()
+
 	cfg := TshConfig{}
-	err = yaml.NewDecoder(configFile).Decode(&cfg)
-	return &cfg, trace.Wrap(err)
+	if err := yaml.Unmarshal(bs, &cfg); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	return &cfg, nil
 }

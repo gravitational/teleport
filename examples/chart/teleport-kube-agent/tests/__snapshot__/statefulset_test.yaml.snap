@@ -12,6 +12,7 @@ sets Pod annotations when specified:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -24,6 +25,7 @@ sets Pod annotations when specified:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -66,6 +68,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -78,6 +81,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -119,6 +123,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -131,6 +136,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -172,6 +178,7 @@ should add volumeMount for data volume when using StatefulSet:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -184,6 +191,7 @@ should add volumeMount for data volume when using StatefulSet:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -225,6 +233,7 @@ should expose diag port:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -237,6 +246,7 @@ should expose diag port:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -290,6 +300,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -302,6 +313,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -355,6 +367,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -367,6 +380,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -408,6 +422,7 @@ should have one replica when replicaCount is not set:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -420,6 +435,7 @@ should have one replica when replicaCount is not set:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -461,6 +477,7 @@ should mount extraVolumes and extraVolumeMounts:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -473,6 +490,7 @@ should mount extraVolumes and extraVolumeMounts:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -519,6 +537,7 @@ should not add emptyDir for data when using StatefulSet:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -531,6 +550,7 @@ should not add emptyDir for data when using StatefulSet:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -572,6 +592,7 @@ should provision initContainer correctly when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -584,6 +605,7 @@ should provision initContainer correctly when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       resources:
         limits:
           cpu: 2
@@ -661,6 +683,7 @@ should set SecurityContext:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -673,6 +696,7 @@ should set SecurityContext:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -734,6 +758,7 @@ should set affinity when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -746,6 +771,7 @@ should set affinity when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -787,6 +813,7 @@ should set default serviceAccountName when not set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -799,6 +826,7 @@ should set default serviceAccountName when not set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -843,6 +871,7 @@ should set environment when extraEnv set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -855,6 +884,7 @@ should set environment when extraEnv set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -896,6 +926,7 @@ should set image and tag correctly:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -908,6 +939,7 @@ should set image and tag correctly:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -949,6 +981,7 @@ should set imagePullPolicy when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -961,6 +994,7 @@ should set imagePullPolicy when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1002,6 +1036,7 @@ should set nodeSelector if set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1014,6 +1049,7 @@ should set nodeSelector if set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1069,6 +1105,7 @@ should set preferred affinity when more than one replica is used:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1081,6 +1118,62 @@ should set preferred affinity when more than one replica is used:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: RELEASE-NAME-teleport-data
+    securityContext:
+      fsGroup: 9807
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+should set probeTimeoutSeconds when set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:10.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 5
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 5
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1132,6 +1225,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1144,6 +1238,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1185,6 +1280,7 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1197,6 +1293,7 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       resources:
         limits:
           cpu: 2
@@ -1245,6 +1342,7 @@ should set serviceAccountName when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1257,6 +1355,7 @@ should set serviceAccountName when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1298,6 +1397,7 @@ should set storage.requests when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1310,6 +1410,7 @@ should set storage.requests when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1351,6 +1452,7 @@ should set storage.storageClassName when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1363,6 +1465,7 @@ should set storage.storageClassName when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -1404,6 +1507,7 @@ should set tolerations when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       name: teleport
       ports:
       - containerPort: 3000
@@ -1416,6 +1520,7 @@ should set tolerations when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 1
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:

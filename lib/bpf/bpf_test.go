@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
@@ -80,7 +80,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	defer service.Close()
 
 	// Create a fake audit log that can be used to capture the events emitted.
-	emitter := &events.MockEmitter{}
+	emitter := &eventstest.MockEmitter{}
 
 	// Create and start a program that does nothing. Since sleep will run longer
 	// than we wait below, nothing should be emit to the Audit Log.

@@ -35,6 +35,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -134,7 +135,7 @@ type Suite struct {
 	srcAddrs         map[int]string
 
 	// Audit events emitted by us
-	emitter             events.MockEmitter
+	emitter             eventstest.MockEmitter
 	expectedAuditEvents []apievents.AuditEvent
 }
 

@@ -35,6 +35,10 @@ CGOFLAG ?= CGO_ENABLED=1
 CGOFLAG_TSH ?= CGO_ENABLED=1
 # Windows requires extra parameters to cross-compile with CGO.
 ifeq ("$(OS)","windows")
+ARCH ?= amd64
+ifneq ("$(ARCH)","amd64")
+$(error "Building for windows requires ARCH=amd64")
+endif
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 CGOFLAG_TSH = $(CGOFLAG)
@@ -151,6 +155,14 @@ endif
 endif
 endif
 
+# Enable libfido2 for buildbox and local environments that have it.
+ifneq ("$(shell ls {/opt/homebrew,/usr/lib/x86_64-linux-gnu,/usr/local/lib}/libfido2.* 2>/dev/null)","")
+LIBFIDO2_TAG := libfido2
+else
+endif
+# TODO(codingllama): Re-enable fido2 static builds.
+LIBFIDO2_MESSAGE := without libfido2
+
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
@@ -160,7 +172,7 @@ endif
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE) and $(RDPCLIENT_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE) and $(RDPCLIENT_MESSAGE) and $(LIBFIDO2_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
@@ -198,7 +210,7 @@ all: version
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl: roletester
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
@@ -206,7 +218,7 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_STATIC_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
@@ -468,7 +480,7 @@ test: test-helm test-sh test-ci test-api test-go test-rust
 #
 .PHONY: test-bot
 test-bot:
-test-bot: FLAGS ?= '-race'
+test-bot: FLAGS ?= -race -shuffle on
 test-bot:
 	cd .github/workflows/robot && go test $(FLAGS) ./...
 
@@ -494,14 +506,23 @@ test-helm-update-snapshots:
 #
 .PHONY: test-go
 test-go: ensure-webassets bpf-bytecode roletester rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-go: FLAGS ?= '-race'
+test-go: FLAGS ?= -race -shuffle on
 test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh)
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
-	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
+# rdpclient and libfido2 don't play well together, so we run libfido2 tests
+# separately.
+# TODO(codingllama): Run libfido2 tests along with others once RDP doesn't
+#  embed openssl/libcrypto.
+ifneq ("$(LIBFIDO2_TAG)", "")
+	$(CGOFLAG) go test -cover -json -tags "$(LIBFIDO2_TAG)" ./lib/auth/webauthncli/... $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| ${RENDER_TESTS}
+endif
+	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
@@ -521,7 +542,7 @@ test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode roletester rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-go-root: FLAGS ?= '-race'
+test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
@@ -533,7 +554,7 @@ test-go-root: $(VERSRC)
 #
 .PHONY: test-api
 test-api:
-test-api: FLAGS ?= '-race'
+test-api: FLAGS ?= -race -shuffle on
 test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
@@ -625,7 +646,7 @@ endif
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run -c .golangci.yml $(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TAG)' $(GO_LINT_FLAGS)
 
 .PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
@@ -717,6 +738,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'e/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/web/build/**' \
+		-ignore 'lib/teleterm/api/protogen/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
@@ -827,6 +849,12 @@ docker-binaries: clean
 enter:
 	make -C build.assets enter
 
+# Interactively enters a Docker container (which you can build and run Teleport inside of).
+# Similar to `enter`, but uses the centos7 container.
+.PHONY:enter/centos7
+enter/centos7:
+	make -C build.assets enter/centos7
+
 # grpc generates GRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
@@ -899,6 +927,23 @@ buildbox-grpc:
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		envelope.proto
 
+# grpc-teleterm generates Go, TypeScript and JavaScript gRPC stubs from definitions for Teleport
+# Terminal. This target runs in the buildbox-teleterm container.
+#
+# It exists as a separate target because on M1 MacBooks we must build grpc_node_plugin from source.
+# That involves apt-get install of cmake & build-essential as well pulling hundreds of megabytes of
+# git repos. It would significantly increase the time it takes to build buildbox for M1 users that
+# don't need to generate Teleterm gRPC files.
+# TODO(ravicious): incorporate grpc-teleterm into grpc once grpc-tools adds arm64 binary.
+# https://github.com/grpc/grpc-node/issues/1405
+.PHONY: grpc-teleterm
+grpc-teleterm:
+	$(MAKE) -C build.assets grpc-teleterm
+
+# buildbox-grpc generates GRPC stubs
+.PHONY: buildbox-grpc-teleterm
+buildbox-grpc-teleterm:
+	cd lib/teleterm && buf generate
 
 .PHONY: goinstall
 goinstall:

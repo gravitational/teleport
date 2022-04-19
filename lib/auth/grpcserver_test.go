@@ -622,13 +622,15 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Enable MFA support.
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+	authSpec := &types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-	})
+	}
+	authPref, err := types.NewAuthPreference(*authSpec)
+
 	const webOrigin = "https://localhost" // matches RPID above
 	require.NoError(t, err)
 	auth := srv.Auth()
@@ -711,8 +713,10 @@ func TestDeleteLastMFADevice(t *testing.T) {
 			cap, err := auth.GetAuthPreference(ctx)
 			require.NoError(t, err)
 			if cap.GetSecondFactor() != test.secondFactor {
-				cap.SetSecondFactor(test.secondFactor)
-				require.NoError(t, auth.SetAuthPreference(ctx, cap))
+				authSpec.SecondFactor = test.secondFactor
+				newCAP, err := types.NewAuthPreference(*authSpec)
+				require.NoError(t, err)
+				require.NoError(t, auth.SetAuthPreference(ctx, newCAP))
 			}
 
 			testDeleteMFADevice(ctx, t, cl, test.opts)
