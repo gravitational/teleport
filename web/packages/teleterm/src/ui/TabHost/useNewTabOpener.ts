@@ -1,15 +1,13 @@
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useCallback } from 'react';
+import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 
-export function useNewTabOpener() {
-  const ctx = useAppContext();
-
-  const documentsService =
-    ctx.workspacesService.getActiveWorkspaceDocumentService();
-
-  const localClusterUri =
-    ctx.workspacesService.getActiveWorkspace()?.localClusterUri;
-
+export function useNewTabOpener({
+  documentsService,
+  localClusterUri,
+}: {
+  documentsService: DocumentsService;
+  localClusterUri: string;
+}) {
   const openClusterTab = useCallback(() => {
     if (localClusterUri) {
       const clusterDocument = documentsService.createClusterDocument({

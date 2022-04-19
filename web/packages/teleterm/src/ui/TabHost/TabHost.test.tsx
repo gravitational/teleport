@@ -14,6 +14,7 @@ import {
   TabContextMenuOptions,
 } from 'teleterm/mainProcess/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
+import AppContext from 'teleterm/ui/appContext';
 
 function getMockDocuments(): Document[] {
   return [
@@ -94,20 +95,20 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     },
   };
 
+  const appContext: AppContext = {
+    // @ts-expect-error - using mocks
+    keyboardShortcutsService,
+    // @ts-expect-error - using mocks
+    mainProcessClient,
+    // @ts-expect-error - using mocks
+    clustersService,
+    // @ts-expect-error - using mocks
+    workspacesService,
+  };
+
   const utils = render(
-    <MockAppContextProvider
-      appContext={{
-        // @ts-expect-error - using mocks
-        keyboardShortcutsService,
-        // @ts-expect-error - using mocks
-        mainProcessClient,
-        // @ts-expect-error - using mocks
-        clustersService,
-        // @ts-expect-error - using mocks
-        workspacesService,
-      }}
-    >
-      <TabHost />
+    <MockAppContextProvider appContext={appContext}>
+      <TabHost ctx={appContext} />
     </MockAppContextProvider>
   );
 

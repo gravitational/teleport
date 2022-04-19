@@ -18,6 +18,7 @@ export function useClusterLogout({ clusterUri, onClose, clusterTitle }: Props) {
         await ctx.workspacesService.setActiveWorkspace(null);
       }
     }
+    ctx.workspacesService.removeWorkspace(clusterUri);
   });
 
   useEffect(() => {

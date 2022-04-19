@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -24,31 +24,36 @@ import { useTabShortcuts } from './useTabShortcuts';
 import { DocumentsRenderer } from 'teleterm/ui/Documents';
 import { useNewTabOpener } from './useNewTabOpener';
 import { ClusterConnectPanel } from './ClusterConnectPanel/ClusterConnectPanel';
+import AppContext from 'teleterm/ui/appContext';
 
 export function TabHostContainer() {
   const ctx = useAppContext();
   ctx.workspacesService.useState();
-
   const isRootClusterSelected = !!ctx.workspacesService.getRootClusterUri();
 
-  return useMemo(() => {
-    if (isRootClusterSelected) {
-      return <TabHost />;
-    }
-    return <ClusterConnectPanel />;
-  }, [isRootClusterSelected]);
+  if (isRootClusterSelected) {
+    return <TabHost ctx={ctx} />;
+  }
+  return <ClusterConnectPanel />;
 }
 
-export function TabHost() {
-  const ctx = useAppContext();
+export function TabHost({ ctx }: { ctx: AppContext }) {
   const documentsService =
     ctx.workspacesService.getActiveWorkspaceDocumentService();
-  const activeDocument = documentsService.getActive();
-  const { openClusterTab } = useNewTabOpener();
-  ctx.workspacesService.useState();
+  const activeDocument = documentsService?.getActive();
 
-  // enable keyboard shortcuts
-  useTabShortcuts();
+  // TODO(gzdunek): make workspace refactor - it'd be helpful to have a single object that fully represents a workspace
+  const { openClusterTab } = useNewTabOpener({
+    documentsService,
+    localClusterUri:
+      ctx.workspacesService.getActiveWorkspace()?.localClusterUri,
+  });
+
+  useTabShortcuts({
+    documentsService,
+    localClusterUri:
+      ctx.workspacesService.getActiveWorkspace()?.localClusterUri,
+  });
 
   function handleTabClick(doc: types.Document) {
     documentsService.open(doc.uri);

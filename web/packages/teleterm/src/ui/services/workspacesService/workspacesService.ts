@@ -113,8 +113,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   setActiveWorkspace(clusterUri: string): Promise<void> {
     const setWorkspace = () => {
       this.setState(draftState => {
-        // clusterUri can be undefined - we don't want to create a workspace for it
-        if (clusterUri && !draftState.workspaces[clusterUri]) {
+        if (!draftState.workspaces[clusterUri]) {
           const persistedWorkspace =
             this.statePersistenceService.getWorkspaces().workspaces[clusterUri];
           const defaultDocument = this.getWorkspaceDocumentService(
@@ -136,6 +135,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         draftState.rootClusterUri = clusterUri;
       });
     };
+
+    // empty cluster URI - no cluster selected
+    if (!clusterUri) {
+      this.setState(draftState => {
+        draftState.rootClusterUri = undefined;
+      });
+      return Promise.resolve();
+    }
 
     const cluster = this.clustersService.findCluster(clusterUri);
     if (!cluster) {
@@ -168,6 +175,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       .then(() => {
         return new Promise<void>(resolve => {
           if (!this.canReopenPreviousDocuments(this.getWorkspace(clusterUri))) {
+            this.discardPreviousDocuments(clusterUri);
             return resolve();
           }
           this.modalsService.openDocumentsReopenDialog({

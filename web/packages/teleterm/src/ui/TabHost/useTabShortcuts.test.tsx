@@ -13,6 +13,7 @@ import {
 } from 'teleterm/ui/services/keyboardShortcuts';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import AppContext from 'teleterm/ui/appContext';
 
 function getMockDocuments(): Document[] {
   return [
@@ -85,7 +86,8 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     },
   };
 
-  const docsService: Partial<DocumentsService> = {
+  // @ts-expect-error - using mocks
+  const docsService: DocumentsService = {
     getDocuments(): Document[] {
       return documents;
     },
@@ -103,7 +105,6 @@ function getTestSetup({ documents }: { documents: Document[] }) {
   };
 
   const workspacesService: Partial<WorkspacesService> = {
-    // @ts-expect-error - using mocks
     getActiveWorkspaceDocumentService() {
       return docsService;
     },
@@ -121,16 +122,26 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     },
   };
 
-  renderHook(() => useTabShortcuts(), {
-    wrapper: props => (
-      <AppContextProvider
-        // @ts-expect-error - using mocks
-        value={{ keyboardShortcutsService, workspacesService }}
-      >
-        {props.children}
-      </AppContextProvider>
-    ),
-  });
+  const appContext: AppContext = {
+    // @ts-expect-error - using mocks
+    keyboardShortcutsService,
+    // @ts-expect-error - using mocks
+    workspacesService,
+  };
+  renderHook(
+    () =>
+      useTabShortcuts({
+        documentsService: docsService,
+        localClusterUri: workspacesService.getActiveWorkspace().localClusterUri,
+      }),
+    {
+      wrapper: props => (
+        <AppContextProvider value={appContext}>
+          {props.children}
+        </AppContextProvider>
+      ),
+    }
+  );
 
   return {
     emitKeyboardShortcutEvent: eventEmitter,
