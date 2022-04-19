@@ -699,8 +699,8 @@ func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCCon
 		return nil, trace.Wrap(err)
 	}
 
-	// For OIDC, Ping and Okta will If the default client secret basic is used the Ping OIDC
-	// will throw an error when the default client secret basic method is used.
+	// For OIDC, Ping and Okta will throw an error when the
+	// default client secret basic method is used.
 	// See: https://github.com/gravitational/teleport/issues/8374
 	switch connector.GetProvider() {
 	case teleport.Ping, teleport.Okta:

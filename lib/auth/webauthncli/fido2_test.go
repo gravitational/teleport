@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -126,6 +127,48 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 
 func (p pinCancelPrompt) PromptTouch() {
 	// 2nd touch never happens
+}
+
+func TestIsFIDO2Available(t *testing.T) {
+	const fido2Key = "TSH_FIDO2"
+	defer func() {
+		os.Unsetenv(fido2Key)
+	}()
+
+	tests := []struct {
+		name   string
+		setenv func()
+		want   bool
+	}{
+		{
+			name: "TSH_FIDO2 unset",
+			setenv: func() {
+				os.Unsetenv(fido2Key)
+			},
+			want: true,
+		},
+		{
+			name: "TSH_FIDO2=1",
+			setenv: func() {
+				os.Setenv(fido2Key, "1")
+			},
+			want: true,
+		},
+		{
+			name: "TSH_FIDO2=0",
+			setenv: func() {
+				os.Setenv(fido2Key, "0")
+			},
+			want: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.setenv()
+			got := wancli.IsFIDO2Available()
+			require.Equal(t, test.want, got, "IsFIDO2Available")
+		})
+	}
 }
 
 func TestFIDO2Login(t *testing.T) {
