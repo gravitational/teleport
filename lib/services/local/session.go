@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -86,6 +87,40 @@ func (s *IdentityService) DeleteAppSession(ctx context.Context, req types.Delete
 	if err := s.Delete(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// GetUserAppSessions gets all user's application sessions.
+func (s *IdentityService) GetUserAppSessions(ctx context.Context, user string) ([]types.WebSession, error) {
+	sessions, err := s.GetAppSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var userSessions []types.WebSession
+	for _, session := range sessions {
+		if session.GetUser() == user {
+			userSessions = append(userSessions, session)
+		}
+	}
+
+	return userSessions, nil
+}
+
+// DeleteAllAppSessions removes all application web sessions for a particular user.
+func (s *IdentityService) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	sessions, err := s.GetUserAppSessions(ctx, req.Username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		err := s.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: session.GetName()})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
