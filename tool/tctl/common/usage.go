@@ -17,7 +17,7 @@ limitations under the License.
 package common
 
 const (
-	GlobalHelpString = "CLI Admin tool for the Teleport Auth service. Runs on a host where Teleport Auth is running."
+	GlobalHelpString = "Admin tool for the Teleport Access Plane"
 
 	AddUserHelp = `Notes:
 
@@ -25,7 +25,8 @@ const (
      A user will have to complete account creation by visiting the URL.
 
   2. The allowed logins of the account only apply if a role uses them by including
-     '{{ internal.logins }}' variable in a role definition.
+     '{{ internal.logins }}' variable in a role definition. The same is true for
+     the allowed Windows logins and the '{{ internal.windows_logins }}' variable.
 
 Examples:
 
@@ -36,12 +37,12 @@ Examples:
 `
 
 	AddNodeHelp = `Notes:
-  This command generates and prints an invitation token another node can use to 
-  join the cluster. 
+  This command generates and prints an invitation token another node can use to
+  join the cluster.
 
 Examples:
 
-  > tctl nodes add 
+  > tctl nodes add
 
   Generates a token when can be used to add a regular SSH node to the cluster.
   The token genrated single-use token will be valid for 30 minutes.
@@ -49,7 +50,7 @@ Examples:
   > tctl nodes add --roles=node,proxy --ttl=1h
 
   Generates a token when can be used to add an SSH node to the cluster which
-  will also be a proxy node. This token can be used multiple times within an 
+  will also be a proxy node. This token can be used multiple times within an
   hour.
 `
 	ListNodesHelp = `Notes:

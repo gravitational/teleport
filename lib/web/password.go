@@ -19,13 +19,12 @@ package web
 import (
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/api/client/proto"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -37,8 +36,8 @@ type changePasswordReq struct {
 	NewPassword []byte `json:"new_password"`
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
-	// U2FSignResponse is U2F response
-	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
+	// WebauthnAssertionResponse is a Webauthn response
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // changePassword updates users password based on the old password.
@@ -58,7 +57,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		OldPassword:       req.OldPassword,
 		NewPassword:       req.NewPassword,
 		SecondFactorToken: req.SecondFactorToken,
-		U2FSignResponse:   req.U2FSignResponse,
+		WebauthnResponse:  req.WebauthnAssertionResponse,
 	}
 
 	if err := clt.ChangePassword(servicedReq); err != nil {
@@ -68,9 +67,10 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 	return OK(), nil
 }
 
-// u2fChangePasswordRequest is called to get U2F challedge for changing a user password
-func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req *client.MFAChallengeRequest
+// createAuthenticateChallengeWithPassword verifies given password for the authenticated user
+// and on success returns MFA challenges for the users registered devices.
+func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req client.MFAChallengeRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,7 +80,12 @@ func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	u2fReq, err := clt.GetMFAAuthenticateChallenge(ctx.GetUser(), []byte(req.Pass))
+	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
+			Username: ctx.GetUser(),
+			Password: []byte(req.Pass),
+		}},
+	})
 	if err != nil && trace.IsAccessDenied(err) {
 		// logout in case of access denied
 		logoutErr := h.logout(w, ctx)
@@ -93,5 +98,5 @@ func (h *Handler) u2fChangePasswordRequest(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return u2fReq, nil
+	return client.MakeAuthenticateChallenge(chal), nil
 }

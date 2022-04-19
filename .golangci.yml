@@ -1,7 +1,11 @@
 issues:
   exclude-rules:
-    - linters: gosimple
+    - linters:
+      - gosimple
       text: "S1002: should omit comparison to bool constant"
+    - linters:
+      - revive
+      text: "exported: exported const"
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -11,12 +15,13 @@ linters:
   enable:
     - bodyclose
     - deadcode
+    - depguard
     - goimports
-    - golint
     - gosimple
     - govet
     - ineffassign
     - misspell
+    - revive
     - staticcheck
     - structcheck
     - typecheck
@@ -24,11 +29,16 @@ linters:
     - unconvert
     - varcheck
 
+linters-settings:
+  depguard:
+    list-type: denylist
+    include-go-root: true # check against stdlib
+    packages-with-error-message:
+    - io/ioutil: 'use "io" or "os" packages instead'
+
 output:
   uniq-by-line: false
 
 run:
-  skip-dirs:
-    - vendor
   skip-dirs-use-default: false
   timeout: 5m

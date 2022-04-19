@@ -24,9 +24,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/u2f"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gokyle/hotp"
@@ -47,6 +48,9 @@ type UsersService interface {
 	UpdateUser(ctx context.Context, user types.User) error
 	// UpsertUser updates parameters about user
 	UpsertUser(user types.User) error
+	// CompareAndSwapUser updates an existing user, but fails if the user does
+	// not match an expected backend value.
+	CompareAndSwapUser(ctx context.Context, new, existing types.User) error
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(ctx context.Context, user string) error
 	// GetUsers returns a list of users registered with the local auth server
@@ -108,23 +112,57 @@ type Identity interface {
 	// UpsertPassword upserts new password and OTP token
 	UpsertPassword(user string, password []byte) error
 
-	// UpsertU2FRegisterChallenge upserts a U2F challenge for a new user corresponding to the token
-	UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error
+	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
+	// Webauthn.
+	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	// Automatically indexes the WebAuthn user ID for lookup by
+	// GetTeleportUserByWebauthnID.
+	UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error
 
-	// GetU2FRegisterChallenge returns a U2F challenge for a new user corresponding to the token
-	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
+	// GetWebauthnLocalAuth retrieves the existing local auth configuration for
+	// Webauthn, if any.
+	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
 
-	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
-	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error
+	// GetTeleportUserByWebauthnID reads a Teleport username from a WebAuthn user
+	// ID (aka user handle).
+	// See UpsertWebauthnLocalAuth and types.WebauthnLocalAuth.
+	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error)
 
-	// GetU2FSignChallenge returns a U2F sign (auth) challenge
-	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
+	// UpsertWebauthnSessionData creates or updates WebAuthn session data in
+	// storage, for the purpose of later verifying an authentication or
+	// registration challenge.
+	// Session data is expected to expire according to backend settings.
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
+
+	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
+	// if it exists and has not expired.
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
+
+	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
+	// not expired.
+	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
+
+	// UpsertGlobalWebauthnSessionData creates or updates WebAuthn session data in
+	// storage, for the purpose of later verifying an authentication challenge.
+	// Session data is expected to expire according to backend settings.
+	// Used for passwordless challenges.
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
+
+	// GetGlobalWebauthnSessionData retrieves previously-stored session data by ID,
+	// if it exists and has not expired.
+	// Used for passwordless challenges.
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
+
+	// DeleteGlobalWebauthnSessionData deletes session data by ID, if it exists
+	// and has not expired.
+	DeleteGlobalWebauthnSessionData(ctx context.Context, scope, id string) error
 
 	// UpsertMFADevice upserts an MFA device for the user.
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 
 	// GetMFADevices gets all MFA devices for the user.
-	GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error)
+	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 
 	// DeleteMFADevice deletes an MFA device for the user by ID.
 	DeleteMFADevice(ctx context.Context, user, id string) error
@@ -207,6 +245,21 @@ type Identity interface {
 	// GetUserTokenSecrets returns a user token secrets.
 	GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
 
+	// UpsertRecoveryCodes upserts a user's new recovery codes.
+	UpsertRecoveryCodes(ctx context.Context, user string, recovery *types.RecoveryCodesV1) error
+
+	// GetRecoveryCodes gets a user's recovery codes.
+	GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error)
+
+	// CreateUserRecoveryAttempt logs user recovery attempt.
+	CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error
+
+	// GetUserRecoveryAttempts returns user recovery attempts sorted by oldest to latest time.
+	GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error)
+
+	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
+	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 
@@ -226,6 +279,8 @@ type AppSession interface {
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
+	// DeleteUserAppSessions deletes all user’s application sessions.
+	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

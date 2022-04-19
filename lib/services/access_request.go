@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 	"github.com/vulcand/predicate"
 )
 
@@ -37,7 +37,8 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	if err := ar.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if uuid.Parse(ar.GetName()) == nil {
+	_, err := uuid.Parse(ar.GetName())
+	if err != nil {
 		return trace.BadParameter("invalid access request id %q", ar.GetName())
 	}
 	return nil
@@ -45,7 +46,7 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 // NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(user string, roles ...string) (types.AccessRequest, error) {
-	req, err := types.NewAccessRequest(uuid.New(), user, roles...)
+	req, err := types.NewAccessRequest(uuid.New().String(), user, roles...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -77,7 +78,8 @@ func (r *RequestIDs) Unmarshal(data []byte) error {
 
 func (r *RequestIDs) Check() error {
 	for _, id := range r.AccessRequests {
-		if uuid.Parse(id) == nil {
+		_, err := uuid.Parse(id)
+		if err != nil {
 			return trace.BadParameter("invalid request id %q", id)
 		}
 	}
@@ -213,7 +215,7 @@ func ValidateAccessPredicates(role types.Role) error {
 		return trace.Wrap(err, "failed to build empty threshold predicate parser (this is a bug)")
 	}
 
-	if len(role.GetAccessRequestConditions(Deny).Thresholds) != 0 {
+	if len(role.GetAccessRequestConditions(types.Deny).Thresholds) != 0 {
 		// deny blocks never contain thresholds.  a threshold which happens to describe a *denial condition* is
 		// still part of the "allow" block.  thresholds are not part of deny blocks because thresholds describe the
 		// state-transition scenarios supported by a request (including potentially being denied).  deny.request blocks match
@@ -221,7 +223,7 @@ func ValidateAccessPredicates(role types.Role) error {
 		return trace.BadParameter("deny.request cannot contain thresholds, set denial counts in allow.request.thresholds instead")
 	}
 
-	for _, t := range role.GetAccessRequestConditions(Allow).Thresholds {
+	for _, t := range role.GetAccessRequestConditions(types.Allow).Thresholds {
 		if t.Filter == "" {
 			continue
 		}
@@ -235,13 +237,13 @@ func ValidateAccessPredicates(role types.Role) error {
 		return trace.Wrap(err, "failed to build empty review predicate parser (this is a bug)")
 	}
 
-	if w := role.GetAccessReviewConditions(Deny).Where; w != "" {
+	if w := role.GetAccessReviewConditions(types.Deny).Where; w != "" {
 		if _, err := rp.EvalBoolPredicate(w); err != nil {
 			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
 		}
 	}
 
-	if w := role.GetAccessReviewConditions(Allow).Where; w != "" {
+	if w := role.GetAccessReviewConditions(types.Allow).Where; w != "" {
 		if _, err := rp.EvalBoolPredicate(w); err != nil {
 			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
 		}
@@ -778,7 +780,7 @@ func NewReviewPermissionChecker(ctx context.Context, getter UserAndRoleGetter, u
 
 func (c *ReviewPermissionChecker) push(role types.Role) error {
 
-	allow, deny := role.GetAccessReviewConditions(Allow), role.GetAccessReviewConditions(Deny)
+	allow, deny := role.GetAccessReviewConditions(types.Allow), role.GetAccessReviewConditions(types.Deny)
 
 	var err error
 
@@ -966,7 +968,7 @@ func (m *RequestValidator) push(role types.Role) error {
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
 
-	allow, deny := role.GetAccessRequestConditions(Allow), role.GetAccessRequestConditions(Deny)
+	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
 	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.user.GetTraits())
 	if err != nil {

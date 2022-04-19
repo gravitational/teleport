@@ -39,11 +39,12 @@ import (
 // parameters.
 func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgconn.PgConn, error) {
 	// Client will be connecting directly to the multiplexer address.
-	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v@%v/?database=%v",
-		config.RouteToDatabase.Username, config.Address, config.RouteToDatabase.Database))
+	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v/?sslmode=verify-full", config.Address))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	pgconnConfig.User = config.RouteToDatabase.Username
+	pgconnConfig.Database = config.RouteToDatabase.Database
 	pgconnConfig.TLSConfig, err = common.MakeTestClientTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,6 +71,8 @@ type TestServer struct {
 	log       logrus.FieldLogger
 	// queryCount keeps track of the number of queries the server has received.
 	queryCount uint32
+	// parametersCh receives startup message connection parameters.
+	parametersCh chan map[string]string
 }
 
 // NewTestServer returns a new instance of a test Postgres server.
@@ -99,6 +102,7 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 			trace.Component: defaults.ProtocolPostgres,
 			"name":          config.Name,
 		}),
+		parametersCh: make(chan map[string]string, 100),
 	}, nil
 }
 
@@ -159,6 +163,9 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 			// Bind binds prepared statement with parameters.
 		case *pgproto3.Describe:
 		case *pgproto3.Sync:
+			if err := s.handleSync(client); err != nil {
+				s.log.WithError(err).Error("Failed to handle sync.")
+			}
 		case *pgproto3.Execute:
 			// Execute executes prepared statement.
 			if err := s.handleQuery(client); err != nil {
@@ -192,14 +199,17 @@ func (s *TestServer) startTLS(conn net.Conn) (*pgproto3.Backend, error) {
 }
 
 func (s *TestServer) handleStartup(client *pgproto3.Backend) error {
-	startupMessage, err := client.ReceiveStartupMessage()
+	startupMessageI, err := client.ReceiveStartupMessage()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, ok := startupMessage.(*pgproto3.StartupMessage); !ok {
+	startupMessage, ok := startupMessageI.(*pgproto3.StartupMessage)
+	if !ok {
 		return trace.BadParameter("expected *pgproto3.StartupMessage, got: %#v", startupMessage)
 	}
 	s.log.Debugf("Received %#v.", startupMessage)
+	// Push connect parameters into the channel so tests can consume them.
+	s.parametersCh <- startupMessage.Parameters
 	// If auth token is specified, used it for password authentication, this
 	// simulates cloud provider IAM auth.
 	if s.cfg.AuthToken != "" {
@@ -262,6 +272,16 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend) error {
 	return nil
 }
 
+func (s *TestServer) handleSync(client *pgproto3.Backend) error {
+	message := &pgproto3.ReadyForQuery{}
+	s.log.Debugf("Sending %#v.", message)
+	err := client.Send(message)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // Port returns the port server is listening on.
 func (s *TestServer) Port() string {
 	return s.port
@@ -270,6 +290,11 @@ func (s *TestServer) Port() string {
 // QueryCount returns the number of queries the server has received.
 func (s *TestServer) QueryCount() uint32 {
 	return atomic.LoadUint32(&s.queryCount)
+}
+
+// ParametersCh returns channel that receives startup message parameters.
+func (s *TestServer) ParametersCh() chan map[string]string {
+	return s.parametersCh
 }
 
 // Close closes the server listener.

@@ -1,0 +1,200 @@
+---
+title: "Second Factor: WebAuthn"
+description: Configuring WebAuthn support in Teleport clusters.
+---
+
+Teleport supports [WebAuthn](https://webauthn.guide/) as a second authentication
+factor. WebAuthn can be used for logging in to Teleport (`tsh login` or the login
+page on the Web UI) and for logging in to individual SSH nodes or Kubernetes
+clusters (`tsh ssh` and `kubectl`).
+
+WebAuthn support includes hardware devices, such as YubiKeys or SoloKeys (`tsh`
+and Web UI), as well as biometric authenticators like Touch ID and Windows Hello
+(Web UI only).
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- WebAuthn hardware device, such as YubiKey or SoloKey
+- A Web browser with [WebAuthn support](
+  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/)
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Enable WebAuthn support
+
+WebAuthn is disabled by default. To enable WebAuthn support, update your Teleport
+configuration as below:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+<Tabs>
+  <TabItem label="Static Config">
+    Auth Server `teleport.yaml` file:
+
+    ```yaml
+    # snippet from /etc/teleport.yaml:
+    auth_service:
+      authentication:
+        type: local
+        # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+        second_factor: on
+        webauthn:
+          rp_id: example.com
+          attestation_allowed_cas:
+          - "/path/to/allowed_ca.pem"
+          attestation_denied_cas:
+          - "/path/to/denied_ca.pem"
+    ```
+  </TabItem>
+  <TabItem label="Dynamic resources">
+    Create a `cap.yaml` file or get the existing configuration using
+    `tctl get cluster_auth_preference`:
+
+    ```yaml
+    kind: cluster_auth_preference
+    version: v2
+    metadata:
+      name: cluster-auth-preference
+    spec:
+      type: local
+      # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+      second_factor: on
+      webauthn:
+        rp_id: example.com
+        attestation_allowed_cas:
+        - "/path/to/allowed_ca.pem"
+        attestation_denied_cas:
+        - "/path/to/denied_ca.pem"
+    ```
+
+    Update the configuration:
+
+    ```code
+    $ tctl create -f cap.yaml
+    # cluster auth preference has been updated
+    ```
+  </TabItem>
+</Tabs>
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+Create a `cap.yaml` file or get the existing configuration using
+`tctl get cluster_auth_preference`:
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+  second_factor: on
+  webauthn:
+    rp_id: example.com
+    attestation_allowed_cas:
+    - "/path/to/allowed_ca.pem"
+    attestation_denied_cas:
+    - "/path/to/denied_ca.pem"
+```
+
+Update the configuration:
+
+```code
+$ tctl create -f cap.yaml
+# cluster auth preference has been updated
+```
+
+</ScopedBlock>
+
+You will need to include the following configuration fields.
+
+`rp_id` is the public domain of the Teleport Proxy Service, *excluding* protocol
+  (`https://`) and port number.
+
+`attestation_allowed_cas` is an optional allow list of certificate authorities
+(as local file paths or inline PEM certificate strings) for
+[device verification](
+https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+
+This field allows you to restrict which device models and vendors you trust.
+Devices outside of the list will be rejected during registration. By default all
+devices are allowed. If you must use attestation, consider using
+`attestation_denied_cas` to forbid troublesome devices instead.
+
+`attestation_denied_cas` is an optional deny list of certificate authorities (as
+local file paths or inline PEM certificate strings) for [device verification](
+https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
+
+This field allows you to forbid specific device models and vendors, while
+allowing all others (provided they clear `attestation_allowed_cas` as well).
+Devices within this list will be rejected during registration. By default no
+devices are forbidden.
+
+## Step 2/3. Register WebAuthn devices as a user
+
+A user can register multiple WebAuthn devices using `tsh`:
+
+```code
+$ tsh mfa add
+# Choose device type [TOTP, WEBAUTHN]: webauthn
+# Enter device name: desktop yubikey
+# Tap any *registered* security key or enter a code from a *registered* OTP device:
+# Tap your *new* security key
+# MFA device "desktop yubikey" added.
+```
+
+<Admonition type="warning" title="Windows support">
+  WebAuthn devices are currently not supported in `tsh` on Windows.
+</Admonition>
+
+## Step 3/3. Log in using WebAuthn
+
+Once a WebAuthn device is registered, the user will be prompted for it on login:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ tsh login --proxy=example.com
+# Enter password for Teleport user codingllama:
+# Tap any security key or enter a code from a OTP device:
+# > Profile URL:        https://example.com
+#   Logged in as:       codingllama
+#   Cluster:            example.com
+#   Roles:              access, editor
+#   Logins:             codingllama
+#   Kubernetes:         enabled
+#   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
+#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh
+# Enter password for Teleport user codingllama:
+# Tap any security key or enter a code from a OTP device:
+# > Profile URL:        https://mytenant.teleport.sh
+#   Logged in as:       codingllama
+#   Cluster:            mytenant.teleport.sh
+#   Roles:              access, editor
+#   Logins:             codingllama
+#   Kubernetes:         enabled
+#   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
+#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</ScopedBlock>
+
+<Admonition type="note">
+  WebAuthn for logging in to Teleport is only required for [local users](
+  ../../setup/reference/authentication.mdx#local-no-authentication-connector). SSO users should configure
+  multi-factor authentication in their SSO provider.
+</Admonition>
+
+## Next steps
+
+- [Setup per-session MFA checks](per-session-mfa.mdx)

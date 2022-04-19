@@ -15,6 +15,7 @@ darwin
 # editors
 .vscode
 *.swp
+.idea
 
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
 out
@@ -27,6 +28,8 @@ build
 _obj
 _test
 tmp
+target/
+test-logs/
 
 # Architecture specific extensions/prefixes
 [568vq].out
@@ -60,3 +63,15 @@ terraform.tfstate
 # ansible stuff
 ssh.config
 *.retry
+
+# Code signing certificate for Windows binaries
+/windows-signing-cert.pfx
+
+# Build cache and tooling
+/build.assets/.cache
+/build.assets/tooling/bin/**
+
+# Teleport binaries
+/tctl
+/teleport
+/tsh

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 
@@ -125,6 +126,13 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 )
 
 func TestKeyStore(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			HSM: true,
+		},
+	})
+
 	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
 	var softHSMConfig keystore.Config
 	if !skipSoftHSM {
@@ -199,7 +207,6 @@ func TestKeyStore(t *testing.T) {
 				t.SkipNow()
 				return
 			}
-			t.Parallel()
 
 			// create the keystore
 			keyStore, err := keystore.NewKeyStore(tc.config)
@@ -337,4 +344,30 @@ func TestKeyStore(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLicenseRequirement(t *testing.T) {
+	// we need the SoftHSM2 tests to be enabled so that the HSM keystore can be
+	// selected
+	if os.Getenv("SOFTHSM2_PATH") == "" {
+		t.SkipNow()
+	}
+
+	config := keystore.SetupSoftHSMTest(t)
+	config.HostUUID = "server1"
+
+	// should fail to create the keystore with default modules
+	_, err := keystore.NewKeyStore(config)
+	require.Error(t, err)
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			HSM: true,
+		},
+	})
+
+	// should succeed when HSM feature is enabled
+	_, err = keystore.NewKeyStore(config)
+	require.NoError(t, err)
 }

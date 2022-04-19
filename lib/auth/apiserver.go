@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -67,7 +66,7 @@ type APIConfig struct {
 // CheckAndSetDefaults checks and sets default values
 func (a *APIConfig) CheckAndSetDefaults() error {
 	if a.KeepAlivePeriod == 0 {
-		a.KeepAlivePeriod = apidefaults.ServerKeepAliveTTL
+		a.KeepAlivePeriod = apidefaults.ServerKeepAliveTTL()
 	}
 	if a.KeepAliveCount == 0 {
 		a.KeepAliveCount = apidefaults.KeepAliveCountMax
@@ -126,7 +125,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.withAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.getWebSession))
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.withAuth(srv.deleteWebSession))
-	srv.POST("/:version/web/password/token", srv.withRate(srv.withAuth(srv.changePasswordWithToken)))
 
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes", srv.withAuth(srv.upsertNode))
@@ -148,9 +146,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections/:cluster", srv.withAuth(srv.deleteTunnelConnections))
 	srv.DELETE("/:version/tunnelconnections", srv.withAuth(srv.deleteAllTunnelConnections))
 
-	// Server Credentials
-	srv.POST("/:version/server/credentials", srv.withAuth(srv.generateServerKeys))
-
+	// Remote clusters
 	srv.POST("/:version/remoteclusters", srv.withAuth(srv.createRemoteCluster))
 	srv.GET("/:version/remoteclusters/:cluster", srv.withAuth(srv.getRemoteCluster))
 	srv.GET("/:version/remoteclusters", srv.withAuth(srv.getRemoteClusters))
@@ -174,7 +170,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
 	srv.POST("/:version/tokens/register/auth", srv.withAuth(srv.registerNewAuthServer))
 
-	// active sesssions
+	// Active sessions
 	srv.POST("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
 	srv.PUT("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
 	srv.DELETE("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.deleteSession))
@@ -191,16 +187,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/namespaces/:namespace", srv.withAuth(srv.getNamespace))
 	srv.DELETE("/:version/namespaces/:namespace", srv.withAuth(srv.deleteNamespace))
 
-	// Roles - Moved to grpc
-	// DELETE IN 7.0
-	srv.POST("/:version/roles", srv.withAuth(srv.upsertRole))
-	srv.GET("/:version/roles", srv.withAuth(srv.getRoles))
-	srv.GET("/:version/roles/:role", srv.withAuth(srv.getRole))
-	srv.DELETE("/:version/roles/:role", srv.withAuth(srv.deleteRole))
-
 	// cluster configuration
-	srv.GET("/:version/configuration", srv.withAuth(srv.getClusterConfig))
-	srv.POST("/:version/configuration", srv.withAuth(srv.setClusterConfig))
 	srv.GET("/:version/configuration/name", srv.withAuth(srv.getClusterName))
 	srv.POST("/:version/configuration/name", srv.withAuth(srv.setClusterName))
 	srv.GET("/:version/configuration/static_tokens", srv.withAuth(srv.getStaticTokens))
@@ -234,11 +221,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/github/connectors/:id", srv.withAuth(srv.deleteGithubConnector))
 	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest))
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
-
-	// U2F
-	srv.GET("/:version/u2f/signuptokens/:token", srv.withAuth(srv.getSignupU2FRegisterRequest))
-	srv.POST("/:version/u2f/users/:user/sign", srv.withAuth(srv.u2fSignRequest))
-	srv.GET("/:version/u2f/appid", srv.withAuth(srv.getU2FAppID))
 
 	// Provisioning tokens- Moved to grpc
 	// DELETE IN 8.0
@@ -627,7 +609,7 @@ func (s *APIServer) validateTrustedCluster(auth ClientI, w http.ResponseWriter, 
 		return nil, trace.Wrap(err)
 	}
 
-	validateResponse, err := auth.ValidateTrustedCluster(validateRequest)
+	validateResponse, err := auth.ValidateTrustedCluster(r.Context(), validateRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -734,24 +716,6 @@ func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 	return string(certs.SSH), nil
-}
-
-type signInReq struct {
-	Password string `json:"password"`
-}
-
-func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *signInReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user := p.ByName("user")
-	pass := []byte(req.Password)
-	u2fSignReq, err := auth.GetMFAAuthenticateChallenge(user, pass)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return u2fSignReq, nil
 }
 
 type WebSessionReq struct {
@@ -967,7 +931,11 @@ func (s *APIServer) generateHostCert(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles, req.TTL)
+	if len(req.Roles) != 1 {
+		return nil, trace.BadParameter("exactly one system role is required")
+	}
+
+	cert, err := auth.GenerateHostCert(req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles[0], req.TTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -988,7 +956,7 @@ func (s *APIServer) generateToken(auth ClientI, w http.ResponseWriter, r *http.R
 }
 
 func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req RegisterUsingTokenRequest
+	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -996,11 +964,12 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	// Pass along the remote address the request came from to the registration function.
 	req.RemoteAddr = r.RemoteAddr
 
-	keys, err := auth.RegisterUsingToken(req)
+	certs, err := auth.RegisterUsingToken(r.Context(), &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return keys, nil
+
+	return certs, nil
 }
 
 type registerNewAuthServerReq struct {
@@ -1019,29 +988,12 @@ func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r
 	return message("ok"), nil
 }
 
-func (s *APIServer) generateServerKeys(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req GenerateServerKeysRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Pass along the remote address the request came from to the registration function.
-	req.RemoteAddr = r.RemoteAddr
-
-	keys, err := auth.GenerateServerKeys(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return keys, nil
-}
-
 func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req RotateRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.RotateCertAuthority(req); err != nil {
+	if err := auth.RotateCertAuthority(r.Context(), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -1086,7 +1038,7 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.RotateExternalCertAuthority(ca); err != nil {
+	if err := auth.RotateExternalCertAuthority(r.Context(), ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -1097,8 +1049,7 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := auth.GetCertAuthorities(types.CertAuthType(p.ByName("type")), loadKeys)
-
+	certs, err := auth.GetCertAuthorities(r.Context(), types.CertAuthType(p.ByName("type")), loadKeys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1122,7 +1073,7 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 		Type:       types.CertAuthType(p.ByName("type")),
 		DomainName: p.ByName("domain"),
 	}
-	ca, err := auth.GetCertAuthority(id, loadKeys)
+	ca, err := auth.GetCertAuthority(r.Context(), id, loadKeys)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1147,37 +1098,6 @@ func (s *APIServer) getClusterCACert(auth ClientI, w http.ResponseWriter, r *htt
 	}
 
 	return localCA, nil
-}
-
-func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req ChangePasswordWithTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
-	if err != nil {
-		log.Debugf("Failed to change user password with token: %v.", err)
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalWebSession(webSession, services.WithVersion(version)))
-}
-
-// getU2FAppID returns the U2F AppID in the auth configuration
-func (s *APIServer) getU2FAppID(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cap, err := auth.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	universalSecondFactor, err := cap.GetU2F()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	w.Header().Set("Content-Type", "application/fido.trusted-apps+json")
-	return universalSecondFactor.AppID, nil
 }
 
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -1265,15 +1185,6 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	return se, nil
-}
-
-func (s *APIServer) getSignupU2FRegisterRequest(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	token := p.ByName("token")
-	u2fRegReq, err := auth.GetSignupU2FRegisterRequest(token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return u2fRegReq, nil
 }
 
 type upsertOIDCConnectorRawReq struct {
@@ -1856,7 +1767,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "")
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "", nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1914,7 +1825,7 @@ func (s *APIServer) emitAuditEvent(auth ClientI, w http.ResponseWriter, r *http.
 
 // HTTP POST /:version/sessions/:id/slice
 func (s *APIServer) postSessionSlice(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2121,111 +2032,6 @@ func (s *APIServer) deleteNamespace(auth ClientI, w http.ResponseWriter, r *http
 
 type upsertRoleRawReq struct {
 	Role json.RawMessage `json:"role"`
-}
-
-// DELETE IN 7.0
-func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertRoleRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	role, err := services.UnmarshalRole(req.Role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = services.ValidateRole(role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.UpsertRole(r.Context(), role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("'%v' role upserted", role.GetName())), nil
-}
-
-// DELETE IN 7.0
-func (s *APIServer) getRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role, err := auth.GetRole(r.Context(), p.ByName("role"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleV4, ok := role.(*types.RoleV4)
-	if !ok {
-		return nil, trace.BadParameter("unrecognized role version")
-	}
-	downgraded, err := downgradeRole(context.Background(), roleV4)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-// DELETE IN 7.0
-func (s *APIServer) getRoles(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	roles, err := auth.GetRoles(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := make([]json.RawMessage, len(roles))
-	for i, role := range roles {
-		roleV4, ok := role.(*types.RoleV4)
-		if !ok {
-			return nil, trace.BadParameter("unrecognized role version")
-		}
-		downgraded, err := downgradeRole(r.Context(), roleV4)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		raw, err := services.MarshalRole(downgraded, services.WithVersion(version), services.PreserveResourceID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out[i] = raw
-	}
-	return out, nil
-}
-
-// DELETE IN 7.0
-func (s *APIServer) deleteRole(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	role := p.ByName("role")
-	if err := auth.DeleteRole(r.Context(), role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("role %q deleted", role)), nil
-}
-
-func (s *APIServer) getClusterConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cc, err := auth.GetClusterConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalClusterConfig(cc, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-type setClusterConfigReq struct {
-	ClusterConfig json.RawMessage `json:"cluster_config"`
-}
-
-func (s *APIServer) setClusterConfig(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req setClusterConfigReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cc, err := services.UnmarshalClusterConfig(req.ClusterConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.SetClusterConfig(cc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message("cluster config set"), nil
 }
 
 func (s *APIServer) getClusterName(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

@@ -28,8 +28,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
@@ -50,13 +49,9 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 		config.CipherSuites = cipherSuites
 	}
 
-	// Pick the servers preferred ciphersuite, not the clients.
-	config.PreferServerCipherSuites = true
-
 	config.MinVersion = tls.VersionTLS12
 	config.SessionTicketsDisabled = false
-	config.ClientSessionCache = tls.NewLRUClientSessionCache(
-		DefaultLRUCapacity)
+	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
 }
 
 // CreateTLSConfiguration sets up default TLS configuration
@@ -88,15 +83,21 @@ type TLSCredentials struct {
 	Cert       []byte
 }
 
+// macMaxTLSCertValidityPeriod is the maximum validity period
+// for a TLS certificate enforced by macOS.
+// As of Go 1.18, certificates are validated via the system
+// verifier and not in Go.
+const macMaxTLSCertValidityPeriod = 825 * 24 * time.Hour
+
 // GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
 func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	notBefore := time.Now()
-	notAfter := notBefore.Add(time.Hour * 24 * 365 * 10) // 10 years
+	notAfter := notBefore.Add(macMaxTLSCertValidityPeriod)
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -164,7 +165,7 @@ func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
 
 // cipherSuiteMapping is the mapping between Teleport formatted cipher
 // suites strings and uint16 IDs.
-var cipherSuiteMapping map[string]uint16 = map[string]uint16{
+var cipherSuiteMapping = map[string]uint16{
 	"tls-rsa-with-aes-128-cbc-sha":            tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 	"tls-rsa-with-aes-256-cbc-sha":            tls.TLS_RSA_WITH_AES_256_CBC_SHA,
 	"tls-rsa-with-aes-128-cbc-sha256":         tls.TLS_RSA_WITH_AES_128_CBC_SHA256,

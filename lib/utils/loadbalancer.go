@@ -125,14 +125,14 @@ func (l *LoadBalancer) RemoveBackend(b NetAddr) error {
 	return trace.NotFound("lb has no backend matching: %+v", b)
 }
 
-func (l *LoadBalancer) nextBackend() (*NetAddr, error) {
+func (l *LoadBalancer) nextBackend() (NetAddr, error) {
 	l.Lock()
 	defer l.Unlock()
 	if len(l.backends) == 0 {
-		return nil, trace.ConnectionProblem(nil, "no backends")
+		return NetAddr{}, trace.ConnectionProblem(nil, "no backends")
 	}
 	l.currentIndex = ((l.currentIndex + 1) % len(l.backends))
-	return &l.backends[l.currentIndex], nil
+	return l.backends[l.currentIndex], nil
 }
 
 func (l *LoadBalancer) closeListener() {
@@ -223,8 +223,8 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	connID := l.trackConnection(*backend, conn)
-	defer l.untrackConnection(*backend, connID)
+	connID := l.trackConnection(backend, conn)
+	defer l.untrackConnection(backend, connID)
 
 	backendConn, err := net.Dial(backend.AddrNetwork, backend.Addr)
 	if err != nil {
@@ -232,8 +232,8 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 	}
 	defer backendConn.Close()
 
-	backendConnID := l.trackConnection(*backend, backendConn)
-	defer l.untrackConnection(*backend, backendConnID)
+	backendConnID := l.trackConnection(backend, backendConn)
+	defer l.untrackConnection(backend, backendConnID)
 
 	logger := l.WithFields(log.Fields{
 		"source": conn.RemoteAddr(),

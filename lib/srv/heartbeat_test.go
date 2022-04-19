@@ -93,6 +93,24 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "keep alive kubernetes server",
+			mode: HeartbeatModeKube,
+			makeServer: func() types.Resource {
+				return &types.ServerV2{
+					Kind:    types.KindKubeService,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Namespace: apidefaults.Namespace,
+						Name:      "1",
+					},
+					Spec: types.ServerSpecV2{
+						Addr:     "127.0.0.1:1234",
+						Hostname: "2",
+					},
+				}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -199,7 +217,6 @@ func TestHeartbeatAnnounce(t *testing.T) {
 	}{
 		{mode: HeartbeatModeProxy, kind: types.KindProxy},
 		{mode: HeartbeatModeAuth, kind: types.KindAuthServer},
-		{mode: HeartbeatModeKube, kind: types.KindKubeService},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode.String(), func(t *testing.T) {
@@ -316,6 +333,14 @@ func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s types.Server) (*t
 	return &types.KeepAlive{}, nil
 }
 
+func (f *fakeAnnouncer) UpsertApplicationServer(ctx context.Context, s types.AppServer) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeApp]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, nil
+}
+
 func (f *fakeAnnouncer) UpsertDatabaseServer(ctx context.Context, s types.DatabaseServer) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeDB]++
 	if f.err != nil {
@@ -345,6 +370,14 @@ func (f *fakeAnnouncer) UpsertAuthServer(s types.Server) error {
 func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s types.Server) error {
 	f.upsertCalls[HeartbeatModeKube]++
 	return f.err
+}
+
+func (f *fakeAnnouncer) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeKube]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, f.err
 }
 
 func (f *fakeAnnouncer) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {

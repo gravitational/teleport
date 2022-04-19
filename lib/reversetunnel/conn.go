@@ -17,7 +17,6 @@ limitations under the License.
 package reversetunnel
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -28,8 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -48,6 +45,10 @@ type connKey struct {
 
 // remoteConn holds a connection to a remote host, either node or proxy.
 type remoteConn struct {
+	// lastHeartbeat is the last time a heartbeat was received.
+	// intentionally placed first to ensure 64-bit alignment
+	lastHeartbeat int64
+
 	*connConfig
 	mu  sync.Mutex
 	log *logrus.Entry
@@ -69,16 +70,8 @@ type remoteConn struct {
 	// Used to make sure calling Close on the connection multiple times is safe.
 	closed int32
 
-	// closeContext and closeCancel are used to signal to any waiting goroutines
-	// that the remoteConn is now closed and to release any resources.
-	closeContext context.Context
-	closeCancel  context.CancelFunc
-
 	// clock is used to control time in tests.
 	clock clockwork.Clock
-
-	// lastHeartbeat is the last time a heartbeat was received.
-	lastHeartbeat int64
 }
 
 // connConfig is the configuration for the remoteConn.
@@ -88,9 +81,6 @@ type connConfig struct {
 
 	// sconn is the underlying SSH connection.
 	sconn ssh.Conn
-
-	// accessPoint provides access to the Auth Server API.
-	accessPoint auth.AccessPoint
 
 	// tunnelType is the type of tunnel connection, either proxy or node.
 	tunnelType string
@@ -120,8 +110,6 @@ func newRemoteConn(cfg *connConfig) *remoteConn {
 		newProxiesC: make(chan []types.Server, 100),
 	}
 
-	c.closeContext, c.closeCancel = context.WithCancel(context.Background())
-
 	return c
 }
 
@@ -130,8 +118,6 @@ func (c *remoteConn) String() string {
 }
 
 func (c *remoteConn) Close() error {
-	defer c.closeCancel()
-
 	// If the connection has already been closed, return right away.
 	if !atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
 		return nil

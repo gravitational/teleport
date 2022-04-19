@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
+Copyright 2015-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -68,6 +68,8 @@ type ResourceCommand struct {
 	createCmd *kingpin.CmdClause
 	updateCmd *kingpin.CmdClause
 
+	verbose bool
+
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
@@ -98,7 +100,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 		types.KindLock:                    rc.createLock,
 		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
+		types.KindApp:                     rc.createApp,
 		types.KindDatabase:                rc.createDatabase,
+		types.KindToken:                   rc.createToken,
 	}
 	rc.config = config
 
@@ -131,6 +135,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
 	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
+	rc.getCmd.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&rc.verbose)
 
 	rc.getCmd.Alias(getHelp)
 
@@ -266,7 +271,7 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 		if !found {
 			// if we're trying to create an OIDC/SAML connector with the OSS version of tctl, return a specific error
 			if raw.Kind == "oidc" || raw.Kind == "saml" {
-				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
+				return trace.BadParameter("creating resources of type %q is only supported in Teleport Enterprise. If you connecting to a Teleport Enterprise Cluster you must install the enterprise version of tctl. https://goteleport.com/teleport/docs/enterprise/", raw.Kind)
 			}
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
@@ -543,6 +548,28 @@ func (rc *ResourceCommand) createNetworkRestrictions(client auth.ClientI, raw se
 	return nil
 }
 
+func (rc *ResourceCommand) createApp(client auth.ClientI, raw services.UnknownResource) error {
+	app, err := services.UnmarshalApp(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.CreateApp(context.Background(), app); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !rc.force {
+				return trace.AlreadyExists("application %q already exists", app.GetName())
+			}
+			if err := client.UpdateApp(context.Background(), app); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("application %q has been updated\n", app.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	fmt.Printf("application %q has been created\n", app.GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createDatabase(client auth.ClientI, raw services.UnknownResource) error {
 	database, err := services.UnmarshalDatabase(raw.Raw)
 	if err != nil {
@@ -563,6 +590,16 @@ func (rc *ResourceCommand) createDatabase(client auth.ClientI, raw services.Unkn
 	}
 	fmt.Printf("database %q has been created\n", database.GetName())
 	return nil
+}
+
+func (rc *ResourceCommand) createToken(client auth.ClientI, raw services.UnknownResource) error {
+	token, err := services.UnmarshalProvisionToken(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.UpsertToken(context.Background(), token)
+	return trace.Wrap(err)
 }
 
 // Delete deletes resource by name
@@ -690,6 +727,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
+	case types.KindApp:
+		if err = client.DeleteApp(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabase:
 		if err = client.DeleteDatabase(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -701,10 +743,51 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 		}
 		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktop:
-		if err = client.DeleteWindowsDesktop(ctx, rc.ref.Name); err != nil {
+		desktops, err := client.GetWindowsDesktops(ctx,
+			types.WindowsDesktopFilter{Name: rc.ref.Name})
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("windows desktop %q has been deleted\n", rc.ref.Name)
+		if len(desktops) == 0 {
+			return trace.NotFound("no desktops with name %q were found", rc.ref.Name)
+		}
+		deleted := 0
+		var errs []error
+		for _, desktop := range desktops {
+			if desktop.GetName() != rc.ref.Name {
+				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				deleted++
+			}
+		}
+		if deleted == 0 {
+			errs = append(errs,
+				trace.Errorf("failed to delete any desktops with the name %q, %d were found",
+					rc.ref.Name, len(desktops)))
+		}
+		fmts := "%d windows desktops with name %q have been deleted"
+		if err := trace.NewAggregate(errs...); err != nil {
+			fmt.Printf(fmts+" with errors while deleting\n", deleted, rc.ref.Name)
+			return err
+		}
+		fmt.Printf(fmts+"\n", deleted, rc.ref.Name)
+	case types.KindCertAuthority:
+		if rc.ref.SubKind == "" || rc.ref.Name == "" {
+			return trace.BadParameter(
+				"full %s path must be specified (e.g. '%s/%s/clustername')",
+				types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
+			)
+		}
+		err := client.DeleteCertAuthority(types.CertAuthID{
+			Type:       types.CertAuthType(rc.ref.SubKind),
+			DomainName: rc.ref.Name,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -895,7 +978,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		if rc.ref.SubKind == "" && rc.ref.Name == "" {
 			var allAuthorities []types.CertAuthority
 			for _, caType := range types.CertAuthTypes {
-				authorities, err := client.GetCertAuthorities(caType, rc.withSecrets)
+				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -904,7 +987,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return &authorityCollection{cas: allAuthorities}, nil
 		}
 		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
-		authority, err := client.GetCertAuthority(id, rc.withSecrets)
+		authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -957,13 +1040,13 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &roleCollection{roles: roles}, nil
+			return &roleCollection{roles: roles, verbose: rc.verbose}, nil
 		}
 		role, err := client.GetRole(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &roleCollection{roles: []types.Role{role}}, nil
+		return &roleCollection{roles: []types.Role{role}, verbose: rc.verbose}, nil
 	case types.KindNamespace:
 		if rc.ref.Name == "" {
 			namespaces, err := client.GetNamespaces()
@@ -1095,6 +1178,19 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.Wrap(err)
 		}
 		return &netRestrictionsCollection{nr}, nil
+	case types.KindApp:
+		if rc.ref.Name == "" {
+			apps, err := client.GetApps(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &appCollection{apps: apps}, nil
+		}
+		app, err := client.GetApp(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
 		if rc.ref.Name == "" {
 			databases, err := client.GetDatabases(ctx)
@@ -1128,7 +1224,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 		}
 		return &windowsDesktopServiceCollection{services: out}, nil
 	case types.KindWindowsDesktop:
-		desktops, err := client.GetWindowsDesktops(ctx)
+		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1146,6 +1242,19 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (ResourceCollectio
 			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
 		}
 		return &windowsDesktopCollection{desktops: out}, nil
+	case types.KindToken:
+		if rc.ref.Name == "" {
+			tokens, err := client.GetTokens(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &tokenCollection{tokens: tokens}, nil
+		}
+		token, err := client.GetToken(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

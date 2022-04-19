@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gravitational/teleport/api"
@@ -28,8 +29,8 @@ import (
 
 // DatabaseServer represents a database access server.
 type DatabaseServer interface {
-	// Resource provides common resource methods.
-	Resource
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetNamespace returns server namespace.
 	GetNamespace() string
 	// GetTeleportVersion returns the teleport version the server is running on.
@@ -46,10 +47,10 @@ type DatabaseServer interface {
 	String() string
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
-	// GetDatabases returns databases this database server proxies.
-	GetDatabases() []Database
-	// SetDatabases sets databases this database server proxies.
-	SetDatabases([]Database) error
+	// GetDatabase returns the database this database server proxies.
+	GetDatabase() Database
+	// SetDatabase sets the database this database server proxies.
+	SetDatabase(Database) error
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -149,65 +150,74 @@ func (s *DatabaseServerV3) SetRotation(r Rotation) {
 	s.Spec.Rotation = r
 }
 
-// GetDatabases returns databases this database server proxies.
-func (s *DatabaseServerV3) GetDatabases() (databases []Database) {
-	if len(s.Spec.Databases) > 0 {
-		for _, database := range s.Spec.Databases {
-			databases = append(databases, database)
-		}
-	} else if s.Spec.URI != "" {
-		// Database server used to represent a single database in 7 and before,
-		// so in case any older database agents are still heartbeating back,
-		// adapt them to the current interface where server has a list of
-		// databases it proxies.
-		//
-		// DELETE IN 9.0.
-		databases = append(databases, &DatabaseV3{
-			Kind:    KindDatabase,
-			Version: V3,
-			Metadata: Metadata{
-				Name:        s.Metadata.Name,
-				Namespace:   s.Metadata.Namespace,
-				Description: s.Spec.Description,
-				Labels:      s.Metadata.Labels,
-			},
-			Spec: DatabaseSpecV3{
-				Protocol:      s.Spec.Protocol,
-				URI:           s.Spec.URI,
-				CACert:        string(s.Spec.CACert),
-				DynamicLabels: s.Spec.DynamicLabels,
-				AWS:           s.Spec.AWS,
-				GCP:           s.Spec.GCP,
-			},
-		})
+// GetDatabase returns the database this database server proxies.
+func (s *DatabaseServerV3) GetDatabase() Database {
+	if s.Spec.Database != nil {
+		return s.Spec.Database
 	}
-	return databases
+	// If any older database agents are still heartbeating back, they have
+	// fields like protocol, URI, etc. set in the DatabaseServer object
+	// itself, so construct the Database object from them.
+	//
+	// DELETE IN 9.0.
+	return &DatabaseV3{
+		Kind:    KindDatabase,
+		Version: V3,
+		Metadata: Metadata{
+			Name:        s.Metadata.Name,
+			Namespace:   s.Metadata.Namespace,
+			Description: s.Spec.Description,
+			Labels:      s.Metadata.Labels,
+		},
+		Spec: DatabaseSpecV3{
+			Protocol:      s.Spec.Protocol,
+			URI:           s.Spec.URI,
+			CACert:        string(s.Spec.CACert),
+			DynamicLabels: s.Spec.DynamicLabels,
+			AWS:           s.Spec.AWS,
+			GCP:           s.Spec.GCP,
+		},
+	}
 }
 
-// SetDatabases sets databases this database server proxies.
-func (s *DatabaseServerV3) SetDatabases(databases []Database) error {
-	databasesV3 := make([]*DatabaseV3, 0, len(databases))
-	for _, database := range databases {
-		databaseV3, ok := database.(*DatabaseV3)
-		if !ok {
-			return trace.BadParameter("expected *DatabaseV3, got %T", database)
-		}
-		databasesV3 = append(databasesV3, databaseV3)
+// SetDatabase sets the database this database server proxies.
+func (s *DatabaseServerV3) SetDatabase(database Database) error {
+	databaseV3, ok := database.(*DatabaseV3)
+	if !ok {
+		return trace.BadParameter("expected *DatabaseV3, got %T", database)
 	}
-	s.Spec.Databases = databasesV3
+	s.Spec.Database = databaseV3
 	return nil
 }
 
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
-	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Databases=%v)",
-		s.GetName(), s.GetTeleportVersion(), s.GetHostname(), s.GetHostID(), s.GetDatabases())
+	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Database=%v)",
+		s.GetName(), s.GetTeleportVersion(), s.GetHostname(), s.GetHostID(), s.GetDatabase())
 }
 
 // setStaticFields sets static resource header and metadata fields.
 func (s *DatabaseServerV3) setStaticFields() {
 	s.Kind = KindDatabaseServer
 	s.Version = V3
+}
+
+// setLegacyFields sets fields that database servers used to have before
+// Database resource became a separate field.
+//
+// This is required for backwards compatibility in case a database agent
+// connects back to a pre-8.0 auth server.
+//
+// DELETE IN 9.0.
+func (s *DatabaseServerV3) setLegacyFields(database *DatabaseV3) {
+	s.Metadata.Labels = database.Metadata.Labels
+	s.Spec.Description = database.Metadata.Description
+	s.Spec.Protocol = database.Spec.Protocol
+	s.Spec.URI = database.Spec.URI
+	s.Spec.CACert = []byte(database.Spec.CACert)
+	s.Spec.DynamicLabels = database.Spec.DynamicLabels
+	s.Spec.AWS = database.Spec.AWS
+	s.Spec.GCP = database.Spec.GCP
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
@@ -225,12 +235,41 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 	if s.Spec.Version == "" {
 		s.Spec.Version = api.Version
 	}
-	for i := range s.Spec.Databases {
-		if err := s.Spec.Databases[i].CheckAndSetDefaults(); err != nil {
+	if s.Spec.Database != nil {
+		if err := s.Spec.Database.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+		s.setLegacyFields(s.Spec.Database)
 	}
 	return nil
+}
+
+// Origin returns the origin value of the resource.
+func (s *DatabaseServerV3) Origin() string {
+	return s.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (s *DatabaseServerV3) SetOrigin(origin string) {
+	s.Metadata.SetOrigin(origin)
+}
+
+// GetAllLabels returns all resource's labels. Considering:
+// * Static labels from `Metadata.Labels` and `Spec.Database`.
+// * Dynamic labels from `Spec.DynamicLabels`.
+func (s *DatabaseServerV3) GetAllLabels() map[string]string {
+	staticLabels := make(map[string]string)
+	for name, value := range s.Metadata.Labels {
+		staticLabels[name] = value
+	}
+
+	if s.Spec.Database != nil {
+		for name, value := range s.Spec.Database.Metadata.Labels {
+			staticLabels[name] = value
+		}
+	}
+
+	return CombineLabels(staticLabels, s.Spec.DynamicLabels)
 }
 
 // Copy returns a copy of this database server object.
@@ -238,16 +277,90 @@ func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return proto.Clone(s).(*DatabaseServerV3)
 }
 
-// SortedDatabaseServers implements sorter for database servers.
-type SortedDatabaseServers []DatabaseServer
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (s *DatabaseServerV3) MatchSearch(values []string) bool {
+	return MatchSearch(nil, values, nil)
+}
+
+// DatabaseServers represents a list of database servers.
+type DatabaseServers []DatabaseServer
 
 // Len returns the slice length.
-func (s SortedDatabaseServers) Len() int { return len(s) }
+func (s DatabaseServers) Len() int { return len(s) }
 
 // Less compares database servers by name and host ID.
-func (s SortedDatabaseServers) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName() && s[i].GetHostID() < s[j].GetHostID()
+func (s DatabaseServers) Less(i, j int) bool {
+	switch {
+	case s[i].GetName() < s[j].GetName():
+		return true
+	case s[i].GetName() > s[j].GetName():
+		return false
+	default:
+		return s[i].GetHostID() < s[j].GetHostID()
+	}
 }
 
 // Swap swaps two database servers.
-func (s SortedDatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s DatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s DatabaseServers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	// We assume sorting by type DatabaseServer, we are really
+	// wanting to sort its contained resource Database.
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetDatabase().GetName(), s[j].GetDatabase().GetName(), isDesc)
+		})
+	case ResourceSpecDescription:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetDatabase().GetDescription(), s[j].GetDatabase().GetDescription(), isDesc)
+		})
+	case ResourceSpecType:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetDatabase().GetType(), s[j].GetDatabase().GetType(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindDatabaseServer)
+	}
+
+	return nil
+}
+
+// AsResources returns db servers as type resources with labels.
+func (s DatabaseServers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s DatabaseServers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetName())
+		}
+	case ResourceSpecDescription:
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetDescription())
+		}
+	case ResourceSpecType:
+		for _, server := range s {
+			vals = append(vals, server.GetDatabase().GetType())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindDatabaseServer)
+	}
+
+	return vals, nil
+}

@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -40,31 +39,10 @@ import (
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 )
-
-// getExtendedAdminUserRules provides access to the default set of rules assigned to
-// all users.
-func getExtendedAdminUserRules(features modules.Features) []types.Rule {
-	rules := []types.Rule{
-		types.NewRule(types.KindRole, RW()),
-		types.NewRule(types.KindAuthConnector, RW()),
-		types.NewRule(types.KindSession, RO()),
-		types.NewRule(types.KindTrustedCluster, RW()),
-		types.NewRule(types.KindEvent, RO()),
-		types.NewRule(types.KindUser, RW()),
-		types.NewRule(types.KindToken, RW()),
-		types.NewRule(types.KindLock, RW()),
-	}
-
-	if features.Cloud {
-		rules = append(rules, types.NewRule(types.KindBilling, RW()))
-	}
-
-	return rules
-}
 
 // DefaultImplicitRules provides access to the default set of implicit rules
 // assigned to all roles.
@@ -81,6 +59,10 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindRemoteCluster, RO()),
 	types.NewRule(types.KindKubeService, RO()),
 	types.NewRule(types.KindDatabaseServer, RO()),
+	types.NewRule(types.KindDatabase, RO()),
+	types.NewRule(types.KindApp, RO()),
+	types.NewRule(types.KindWindowsDesktopService, RO()),
+	types.NewRule(types.KindWindowsDesktop, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -108,52 +90,25 @@ func RoleNameForCertAuthority(name string) string {
 	return "ca:" + name
 }
 
-// NewAdminRole is the default admin role for all local users if another role
-// is not explicitly assigned (this role applies to all users in OSS version).
-func NewAdminRole() types.Role {
-	adminRules := getExtendedAdminUserRules(modules.GetModules().Features())
-	role, _ := types.NewRole(teleport.AdminRoleName, types.RoleSpecV4{
-		Options: types.RoleOptions{
-			CertificateFormat: constants.CertificateFormatStandard,
-			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
-			PortForwarding:    types.NewBoolOption(true),
-			ForwardAgent:      types.NewBool(true),
-			BPF:               defaults.EnhancedEvents(),
-		},
-		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-			DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-			Rules:            adminRules,
-		},
-	})
-	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable, teleport.Root})
-	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
-	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
-	return role
-}
-
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	return &types.RoleV4{
+	return &types.RoleV5{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
 			Namespace: defaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
-				// PortForwarding has to be set to false in the default-implicit-role
-				// otherwise all roles will be allowed to forward ports (since we default
-				// to true in the check).
+				// Explicitly disable options that default to true, otherwise the option
+				// will always be enabled, as this implicit role is part of every role set.
 				PortForwarding: types.NewBoolOption(false),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
@@ -167,7 +122,7 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV4{
+	role, _ := types.NewRoleV3(RoleNameForUser(u.GetName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -190,87 +145,19 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterAuthPreference, RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
+				types.NewRule(types.KindApp, RW()),
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
+				types.NewRule(types.KindToken, RW()),
 			},
 		},
 	})
-	return role
-}
-
-// NewDowngradedOSSAdminRole is a role for enabling RBAC for open source users.
-// This role overrides built in OSS "admin" role to have less privileges.
-// DELETE IN (7.x)
-func NewDowngradedOSSAdminRole() types.Role {
-	role := &types.RoleV4{
-		Kind:    types.KindRole,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:      teleport.AdminRoleName,
-			Namespace: defaults.Namespace,
-			Labels:    map[string]string{teleport.OSSMigratedV6: types.True},
-		},
-		Spec: types.RoleSpecV4{
-			Options: types.RoleOptions{
-				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               defaults.EnhancedEvents(),
-			},
-			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
-				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-				Rules: []types.Rule{
-					types.NewRule(types.KindEvent, RO()),
-					types.NewRule(types.KindSession, RO()),
-				},
-			},
-		},
-	}
-	role.SetLogins(Allow, []string{teleport.TraitInternalLoginsVariable})
-	role.SetKubeUsers(Allow, []string{teleport.TraitInternalKubeUsersVariable})
-	role.SetKubeGroups(Allow, []string{teleport.TraitInternalKubeGroupsVariable})
-	return role
-}
-
-// NewOSSGithubRole creates a role for enabling RBAC for open source Github users
-func NewOSSGithubRole(logins []string, kubeUsers []string, kubeGroups []string) types.Role {
-	role, _ := types.NewRole("github-"+uuid.New(), types.RoleSpecV4{
-		Options: types.RoleOptions{
-			CertificateFormat: constants.CertificateFormatStandard,
-			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
-			PortForwarding:    types.NewBoolOption(true),
-			ForwardAgent:      types.NewBool(true),
-			BPF:               defaults.EnhancedEvents(),
-		},
-		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
-			DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
-			Rules: []types.Rule{
-				types.NewRule(types.KindEvent, RO()),
-			},
-		},
-	})
-	role.SetLogins(Allow, logins)
-	role.SetKubeUsers(Allow, kubeUsers)
-	role.SetKubeGroups(Allow, kubeGroups)
 	return role
 }
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV4{
+	role, _ := types.NewRoleV3(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
@@ -286,12 +173,17 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 	return role
 }
 
-const (
-	// Allow is the set of conditions that allow access.
-	Allow types.RoleConditionType = true
-	// Deny is the set of conditions that prevent access.
-	Deny types.RoleConditionType = false
-)
+// ValidateRoleName checks that the role name is allowed to be created.
+func ValidateRoleName(role types.Role) error {
+	// System role names are not allowed.
+	systemRoles := types.SystemRoles([]types.SystemRole{
+		types.SystemRole(role.GetMetadata().Name),
+	})
+	if err := systemRoles.Check(); err == nil {
+		return trace.BadParameter("reserved role: %s", role.GetMetadata().Name)
+	}
+	return nil
+}
 
 // ValidateRole parses validates the role, and sets default values.
 func ValidateRole(r types.Role) error {
@@ -300,7 +192,7 @@ func ValidateRole(r types.Role) error {
 	}
 
 	// if we find {{ or }} but the syntax is invalid, the role is invalid
-	for _, condition := range []types.RoleConditionType{Allow, Deny} {
+	for _, condition := range []types.RoleConditionType{types.Allow, types.Deny} {
 		for _, login := range r.GetLogins(condition) {
 			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
 				_, err := parse.NewExpression(login)
@@ -367,14 +259,37 @@ func filterInvalidUnixLogins(candidates []string) []string {
 	return output
 }
 
+func filterInvalidWindowsLogins(candidates []string) []string {
+	var output []string
+
+	// https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-2000-server/bb726984(v=technet.10)
+	const invalidChars = `"/\[]:;|=,+*?<>`
+
+	for _, candidate := range candidates {
+		if strings.ContainsAny(candidate, invalidChars) {
+			log.Debugf("Skipping Windows login %v, not a valid Windows login.", candidate)
+			continue
+		}
+
+		output = append(output, candidate)
+	}
+
+	return output
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
-	for _, condition := range []types.RoleConditionType{Allow, Deny} {
+	for _, condition := range []types.RoleConditionType{types.Allow, types.Deny} {
 		inLogins := r.GetLogins(condition)
 		outLogins := applyValueTraitsSlice(inLogins, traits, "login")
 		outLogins = filterInvalidUnixLogins(outLogins)
 		r.SetLogins(condition, apiutils.Deduplicate(outLogins))
+
+		inWindowsLogins := r.GetWindowsLogins(condition)
+		outWindowsLogins := applyValueTraitsSlice(inWindowsLogins, traits, "windows_login")
+		outWindowsLogins = filterInvalidWindowsLogins(outWindowsLogins)
+		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
 		inRoleARNs := r.GetAWSRoleARNs(condition)
 		var outRoleARNs []string
@@ -406,7 +321,6 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		r.SetDatabaseNames(condition, apiutils.Deduplicate(outDbNames))
 
 		// apply templates to database users
-
 		inDbUsers := r.GetDatabaseUsers(condition)
 		outDbUsers := applyValueTraitsSlice(inDbUsers, traits, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
@@ -439,6 +353,18 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		inLabels = r.GetDatabaseLabels(condition)
 		if inLabels != nil {
 			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
+		options := r.GetOptions()
+		for i, ext := range options.CertExtensions {
+			vals, err := ApplyValueTraits(ext.Value, traits)
+			if err != nil && !trace.IsNotFound(err) {
+				log.Warnf("didnt applying trait to cert_extensions.value: %v", err)
+				continue
+			}
+			if len(vals) != 0 {
+				options.CertExtensions[i].Value = vals[0]
+			}
 		}
 
 		// apply templates to impersonation conditions
@@ -523,11 +449,12 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	// For internal traits, only internal.logins, internal.kubernetes_users and
-	// internal.kubernetes_groups are supported at the moment.
+	// verify that internal traits match the supported variables
 	if variable.Namespace() == teleport.TraitInternalPrefix {
 		switch variable.Name() {
-		case teleport.TraitLogins, teleport.TraitKubeGroups, teleport.TraitKubeUsers, teleport.TraitDBNames, teleport.TraitDBUsers:
+		case teleport.TraitLogins, teleport.TraitWindowsLogins,
+			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
+			teleport.TraitDBNames, teleport.TraitDBUsers:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -708,8 +635,8 @@ type AccessChecker interface {
 	// RoleNames returns a list of role names
 	RoleNames() []string
 
-	// CheckAccessToServer checks access to server.
-	CheckAccessToServer(login string, server types.Server, mfa AccessMFAParams) error
+	// CheckAccess checks access to the specified resource.
+	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
@@ -723,7 +650,7 @@ type AccessChecker interface {
 
 	// CheckKubeGroupsAndUsers check if role can login into kubernetes
 	// and returns two lists of combined allowed groups and users
-	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) (groups []string, users []string, err error)
+	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error)
 
 	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
@@ -752,6 +679,14 @@ type AccessChecker interface {
 	// CanPortForward returns true if this RoleSet can forward ports.
 	CanPortForward() bool
 
+	// DesktopClipboard returns true if the role set has enabled shared
+	// clipboard for desktop sessions. Clipboard sharing is disabled if
+	// one or more of the roles in the set has disabled it.
+	DesktopClipboard() bool
+	// RecordDesktopSession returns true if a role in the role set has enabled
+	// desktop session recoring.
+	RecordDesktopSession() bool
+
 	// MaybeCanReviewRequests attempts to guess if this RoleSet belongs
 	// to a user who should be submitting access reviews. Because not all rolesets
 	// are derived from statically assigned roles, this may return false positives.
@@ -768,34 +703,40 @@ type AccessChecker interface {
 	// for enhanced session recording.
 	EnhancedRecordingSet() map[string]bool
 
-	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams, matchers ...RoleMatcher) error
-
-	// CheckAccessToKubernetes checks access to a kubernetes cluster.
-	CheckAccessToKubernetes(namespace string, app *types.KubernetesCluster, mfa AccessMFAParams) error
-
 	// CheckDatabaseNamesAndUsers returns database names and users this role
 	// is allowed to use.
 	CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) (names []string, users []string, err error)
 
-	// CheckAccessToDatabase checks whether a user has access to the provided
-	// database server.
-	CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error
-
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
 	CheckImpersonate(currentUser, impersonateUser types.User, impersonateRoles []types.Role) error
+
+	// CheckImpersonateRoles checks whether the current user is allowed to
+	// perform roles-only impersonation.
+	CheckImpersonateRoles(currentUser types.User, impersonateRoles []types.Role) error
 
 	// CanImpersonateSomeone returns true if this checker has any impersonation rules
 	CanImpersonateSomeone() bool
 
 	// LockingMode returns the locking mode to apply with this checker.
 	LockingMode(defaultMode constants.LockingMode) constants.LockingMode
+
+	// ExtractConditionForIdentifier returns a restrictive filter expression
+	// for list queries based on the rules' `where` conditions.
+	ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error)
+
+	// CertificateExtensions returns the list of extensions for each role in the RoleSet
+	CertificateExtensions() []*types.CertExtension
+
+	// GetSearchAsRoles returns the list of roles which the checker should be able to
+	// "assume" while searching for resources, and should be able to request with a
+	// search-based access request.
+	GetSearchAsRoles() []string
 }
 
 // FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec types.RoleSpecV4) (RoleSet, error) {
-	role, err := types.NewRole(name, spec)
+func FromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
+	role, err := types.NewRoleV3(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -825,24 +766,8 @@ type RoleGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
-// ExtractFromCertificate will extract roles and traits from a *ssh.Certificate
-// or from the backend if they do not exist in the certificate.
-func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string, wrappers.Traits, error) {
-	// For legacy certificates, fetch roles and traits from the services.User
-	// object in the backend.
-	if isFormatOld(cert) {
-		u, err := access.GetUser(cert.KeyId, false)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		log.Warnf("User %v using old style SSH certificate, fetching roles and traits "+
-			"from backend. If the identity provider allows username changes, this can "+
-			"potentially allow an attacker to change the role of the existing user. "+
-			"It's recommended to upgrade to standard SSH certificates.", cert.KeyId)
-		return u.GetRoles(), u.GetTraits(), nil
-	}
-
-	// Standard certificates have the roles and traits embedded in them.
+// ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.
+func ExtractFromCertificate(cert *ssh.Certificate) ([]string, wrappers.Traits, error) {
 	roles, err := ExtractRolesFromCert(cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -859,9 +784,11 @@ func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string,
 // which Teleport passes along as a *tlsca.Identity. If roles and traits do not
 // exist in the certificates, they are extracted from the backend.
 func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, wrappers.Traits, error) {
-	// For legacy certificates, fetch roles and traits from the services.User
-	// object in the backend.
-	if missingIdentity(identity) {
+	// Legacy certs are not encoded with roles or traits,
+	// so we fallback to the traits and roles in the backend.
+	// empty traits are a valid use case in standard certs,
+	// so we only check for whether roles are empty.
+	if len(identity.Groups) == 0 {
 		u, err := access.GetUser(identity.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -904,27 +831,6 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 	return NewRoleSet(roles...), nil
 }
 
-// isFormatOld returns true if roles and traits were not found in the
-// *ssh.Certificate.
-func isFormatOld(cert *ssh.Certificate) bool {
-	_, hasRoles := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	_, hasTraits := cert.Extensions[teleport.CertExtensionTeleportTraits]
-
-	if hasRoles || hasTraits {
-		return false
-	}
-	return true
-}
-
-// missingIdentity returns true if the identity is missing or the identity
-// has no roles or traits.
-func missingIdentity(identity tlsca.Identity) bool {
-	if len(identity.Groups) == 0 || len(identity.Traits) == 0 {
-		return true
-	}
-	return false
-}
-
 // ExtractRolesFromCert extracts roles from certificate metadata extensions.
 func ExtractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
 	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
@@ -961,6 +867,110 @@ func NewRoleSet(roles ...types.Role) RoleSet {
 // RoleSet is a set of roles that implements access control functionality
 type RoleSet []types.Role
 
+// EnumerationResult is a result of enumerating a role set against some property, e.g. allowed names or logins.
+type EnumerationResult struct {
+	allowedDeniedMap map[string]bool
+	wildcardAllowed  bool
+	wildcardDenied   bool
+}
+
+func (result *EnumerationResult) filtered(value bool) []string {
+	var filtered []string
+
+	for entity, allow := range result.allowedDeniedMap {
+		if allow == value {
+			filtered = append(filtered, entity)
+		}
+	}
+
+	sort.Strings(filtered)
+
+	return filtered
+}
+
+// Denied returns all explicitly denied users.
+func (result *EnumerationResult) Denied() []string {
+	return result.filtered(false)
+}
+
+// Allowed returns all known allowed users.
+func (result *EnumerationResult) Allowed() []string {
+	if result.WildcardDenied() {
+		return nil
+	}
+	return result.filtered(true)
+}
+
+// WildcardAllowed is true if there * username allowed for given rule set.
+func (result *EnumerationResult) WildcardAllowed() bool {
+	return result.wildcardAllowed && !result.wildcardDenied
+}
+
+// WildcardDenied is true if there * username deny for given rule set.
+func (result *EnumerationResult) WildcardDenied() bool {
+	return result.wildcardDenied
+}
+
+// NewEnumerationResult returns new EnumerationResult.
+func NewEnumerationResult() EnumerationResult {
+	return EnumerationResult{
+		allowedDeniedMap: map[string]bool{},
+		wildcardAllowed:  false,
+		wildcardDenied:   false,
+	}
+}
+
+// EnumerateDatabaseUsers works on a given role set to return a minimal description of allowed set of usernames.
+// It is biased towards *allowed* usernames; It is meant to describe what the user can do, rather than cannot do.
+// For that reason if the user isn't allowed to pick *any* entities, the output will be empty.
+//
+// In cases where * is listed in set of allowed users, it may be hard for users to figure out the expected username.
+// For this reason the parameter extraUsers provides an extra set of users to be checked against RoleSet.
+// This extra set of users may be sourced e.g. from user connection history.
+func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
+	result := NewEnumerationResult()
+
+	// gather users for checking from the roles, check wildcards.
+	var users []string
+	for _, role := range set {
+		wildcardAllowed := false
+		wildcardDenied := false
+
+		for _, user := range role.GetDatabaseUsers(types.Allow) {
+			if user == types.Wildcard {
+				wildcardAllowed = true
+			} else {
+				users = append(users, user)
+			}
+		}
+
+		for _, user := range role.GetDatabaseUsers(types.Deny) {
+			if user == types.Wildcard {
+				wildcardDenied = true
+			} else {
+				users = append(users, user)
+			}
+		}
+
+		result.wildcardDenied = result.wildcardDenied || wildcardDenied
+
+		if err := NewRoleSet(role).CheckAccess(database, AccessMFAParams{Verified: true}); err == nil {
+			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
+		}
+
+	}
+
+	users = apiutils.Deduplicate(append(users, extraUsers...))
+
+	// check each individual user against the database.
+	for _, user := range users {
+		err := set.CheckAccess(database, AccessMFAParams{Verified: true}, &DatabaseUserMatcher{User: user})
+		result.allowedDeniedMap[user] = err == nil
+	}
+
+	return result
+}
+
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
 func MatchNamespace(selectors []string, namespace string) (bool, string) {
@@ -970,16 +980,6 @@ func MatchNamespace(selectors []string, namespace string) (bool, string) {
 		}
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, server namespace: %v", selectors, namespace)
-}
-
-// MatchLogin returns true if attempted login matches any of the logins.
-func MatchLogin(selectors []string, login string) (bool, string) {
-	for _, l := range selectors {
-		if l == login {
-			return true, "matched"
-		}
-	}
-	return false, fmt.Sprintf("no match, role selectors %v, login: %v", selectors, login)
 }
 
 // MatchAWSRoleARN returns true if provided role ARN matches selectors.
@@ -1158,27 +1158,42 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
-func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
+func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
 	groups := make(map[string]struct{})
 	users := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
+		ok, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if !ok {
+			continue
+		}
+
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
-			for _, group := range role.GetKubeGroups(Allow) {
+			for _, group := range role.GetKubeGroups(types.Allow) {
 				groups[group] = struct{}{}
 			}
-			for _, user := range role.GetKubeUsers(Allow) {
+			for _, user := range role.GetKubeUsers(types.Allow) {
 				users[user] = struct{}{}
 			}
 		}
 	}
 	for _, role := range set {
-		for _, group := range role.GetKubeGroups(Deny) {
+		ok, _, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if !ok {
+			continue
+		}
+		for _, group := range role.GetKubeGroups(types.Deny) {
 			delete(groups, group)
 		}
-		for _, user := range role.GetKubeUsers(Deny) {
+		for _, user := range role.GetKubeUsers(types.Deny) {
 			delete(users, user)
 		}
 	}
@@ -1201,19 +1216,19 @@ func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL boo
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
-			for _, name := range role.GetDatabaseNames(Allow) {
+			for _, name := range role.GetDatabaseNames(types.Allow) {
 				names[name] = struct{}{}
 			}
-			for _, user := range role.GetDatabaseUsers(Allow) {
+			for _, user := range role.GetDatabaseUsers(types.Allow) {
 				users[user] = struct{}{}
 			}
 		}
 	}
 	for _, role := range set {
-		for _, name := range role.GetDatabaseNames(Deny) {
+		for _, name := range role.GetDatabaseNames(types.Deny) {
 			delete(names, name)
 		}
-		for _, user := range role.GetDatabaseUsers(Deny) {
+		for _, user := range role.GetDatabaseUsers(types.Deny) {
 			delete(users, user)
 		}
 	}
@@ -1234,13 +1249,13 @@ func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]stri
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
-			for _, arn := range role.GetAWSRoleARNs(Allow) {
+			for _, arn := range role.GetAWSRoleARNs(types.Allow) {
 				arns[arn] = struct{}{}
 			}
 		}
 	}
 	for _, role := range set {
-		for _, arn := range role.GetAWSRoleARNs(Deny) {
+		for _, arn := range role.GetAWSRoleARNs(types.Deny) {
 			delete(arns, arn)
 		}
 	}
@@ -1266,7 +1281,7 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 		// but ssh certificates must contain at least one valid principal.
 		// we add a single distinctive value which should be unique, and
 		// will never be a valid unix login (due to leading '-').
-		logins = []string{"-teleport-nologin-" + uuid.New()}
+		logins = []string{constants.NoLoginPrefix + uuid.New().String()}
 	}
 
 	if len(logins) == 0 {
@@ -1285,7 +1300,7 @@ func (set RoleSet) GetLoginsForTTL(ttl time.Duration) (logins []string, matchedT
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
 			matchedTTL = true
-			logins = append(logins, role.GetLogins(Allow)...)
+			logins = append(logins, role.GetLogins(types.Allow)...)
 		}
 	}
 	return apiutils.Deduplicate(logins), matchedTTL
@@ -1294,16 +1309,15 @@ func (set RoleSet) GetLoginsForTTL(ttl time.Duration) (logins []string, matchedT
 // CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are
 // checked first then allow rules. Access to a cluster is determined by
 // namespaces, labels, and logins.
-//
-// Note, logging in this function only happens in debug mode, this is because
-// adding logging to this function (which is called on every server returned
-// by GetRemoteClusters) can slow down this function by 50x for large clusters!
 func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 	if len(set) == 0 {
 		return trace.AccessDenied("access to cluster denied")
 	}
 
-	var errs []error
+	// Note: logging in this function only happens in debug mode, this is because
+	// adding logging to this function (which is called on every server returned
+	// by GetRemoteClusters) can slow down this function by 50x for large clusters!
+	isDebugEnabled, debugf := rbacDebugLogger()
 
 	rcLabels := rc.GetMetadata().Labels
 
@@ -1311,66 +1325,53 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 	// has no labels, assume that the role set has access to the cluster.
 	usesLabels := false
 	for _, role := range set {
-		if len(role.GetClusterLabels(Allow)) != 0 || len(role.GetClusterLabels(Deny)) != 0 {
+		if len(role.GetClusterLabels(types.Allow)) != 0 || len(role.GetClusterLabels(types.Deny)) != 0 {
 			usesLabels = true
 			break
 		}
 	}
 
 	if usesLabels == false && len(rcLabels) == 0 {
-		if log.GetLevel() == log.DebugLevel {
-			log.WithFields(log.Fields{
-				trace.Component: teleport.ComponentRBAC,
-			}).Debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
-				rc.GetName(), set.RoleNames())
-		}
+		debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
+			rc.GetName(), set.RoleNames())
 		return nil
 	}
 
 	// Check deny rules first: a single matching label from
 	// the deny role set prohibits access.
+	var errs []error
 	for _, role := range set {
-		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(Deny), rcLabels)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(types.Deny), rcLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if matchLabels {
 			// This condition avoids formatting calls on large scale.
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to cluster %v denied, deny rule in %v matched; match(label=%v)",
-					rc.GetName(), role.GetName(), labelsMessage)
-			}
+			debugf("Access to cluster %v denied, deny rule in %v matched; match(label=%v)",
+				rc.GetName(), role.GetName(), labelsMessage)
 			return trace.AccessDenied("access to cluster denied")
 		}
 	}
 
 	// Check allow rules: label has to match in any role in the role set to be granted access.
 	for _, role := range set {
-		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(Allow), rcLabels)
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
-			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, role.GetClusterLabels(Allow), rcLabels)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(types.Allow), rcLabels)
+		debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
+			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, role.GetClusterLabels(types.Allow), rcLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if matchLabels {
 			return nil
 		}
-		if log.GetLevel() == log.DebugLevel {
+		if isDebugEnabled {
 			deniedError := trace.AccessDenied("role=%v, match(label=%v)",
 				role.GetName(), labelsMessage)
 			errs = append(errs, deniedError)
 		}
 	}
 
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
-	}
+	debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
 	return trace.AccessDenied("access to cluster denied")
 }
 
@@ -1379,92 +1380,11 @@ func (set RoleSet) hasPossibleLogins() bool {
 		if role.GetName() == constants.DefaultImplicitRole {
 			continue
 		}
-		if len(role.GetLogins(Allow)) != 0 {
+		if len(role.GetLogins(types.Allow)) != 0 {
 			return true
 		}
 	}
 	return false
-}
-
-// CheckAccessToServer checks if a role has access to a node. Deny rules are
-// checked first then allow rules. Access to a node is determined by
-// namespaces, labels, and logins.
-//
-// Note, logging in this function only happens in debug mode, this is because
-// adding logging to this function (which is called on every server returned
-// by GetNodes) can slow down this function by 50x for large clusters!
-func (set RoleSet) CheckAccessToServer(login string, s types.Server, mfa AccessMFAParams) error {
-	if mfa.AlwaysRequired && !mfa.Verified {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to node %q denied, cluster requires per-session MFA", s.GetHostname())
-		return ErrSessionMFARequired
-	}
-	var errs []error
-
-	// Check deny rules first: a single matching namespace, label, or login from
-	// the deny role set prohibits access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), s.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchLogin, loginMessage := MatchLogin(role.GetLogins(Deny), login)
-		if matchNamespace && (matchLabels || matchLogin) {
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to node %v denied, deny rule in %v matched; match(namespace=%v, label=%v, login=%v)",
-					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-			}
-			return trace.AccessDenied("access to server denied")
-		}
-	}
-
-	allowed := false
-	// Check allow rules: namespace, label, and login have to all match in
-	// one role in the role set to be granted access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), s.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchLogin, loginMessage := MatchLogin(role.GetLogins(Allow), login)
-		if matchNamespace && matchLabels && matchLogin {
-			if mfa.Verified {
-				return nil
-			}
-			if role.GetOptions().RequireSessionMFA {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to node %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v, login=%v)",
-					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-				return ErrSessionMFARequired
-			}
-			// Check all remaining roles, even if we found a match.
-			// RequireSessionMFA should be enforced when at least one role has
-			// it.
-			allowed = true
-			continue
-		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v, login=%v)",
-				role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-			errs = append(errs, deniedError)
-		}
-	}
-	if allowed {
-		return nil
-	}
-
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to node %v denied, no allow rule matched; %v", s.GetHostname(), errs)
-	}
-	return trace.AccessDenied("access to server denied")
 }
 
 // AWSRoleARNMatcher matches a role against AWS role ARN.
@@ -1483,166 +1403,10 @@ func (m *AWSRoleARNMatcher) String() string {
 	return fmt.Sprintf("AWSRoleARNMatcher(RoleARN=%v)", m.RoleARN)
 }
 
-// CheckAccessToApp checks if a role has access to an application. Deny rules
-// are checked first, then allow rules. Access to an application is determined by
-// namespaces and labels.
-func (set RoleSet) CheckAccessToApp(namespace string, app *types.App, mfa AccessMFAParams, matchers ...RoleMatcher) error {
-	if mfa.AlwaysRequired && !mfa.Verified {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to app %q denied, cluster requires per-session MFA", app.Name)
-		return ErrSessionMFARequired
-	}
-	var errs []error
-
-	// Check deny rules: a matching namespace and label in the deny section
-	// prohibits access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), types.CombineLabels(app.StaticLabels, app.DynamicLabels))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchMatchers, _, err := RoleMatchers(matchers).MatchAny(role, Deny)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && (matchLabels || matchMatchers) {
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to app %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
-					app.Name, role.GetName(), namespaceMessage, labelsMessage)
-			}
-			return trace.AccessDenied("access to app denied")
-		}
-	}
-
-	allowed := false
-	// Check allow rules: namespace and label both have to match to be granted access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), types.CombineLabels(app.StaticLabels, app.DynamicLabels))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, Allow)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && matchLabels && matchMatchers {
-			if mfa.Verified {
-				return nil
-			}
-			if role.GetOptions().RequireSessionMFA {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to app %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
-					app.Name, role.GetName(), namespaceMessage, labelsMessage)
-				return ErrSessionMFARequired
-			}
-			// Check all remaining roles, even if we found a match.
-			// RequireSessionMFA should be enforced when at least one role has
-			// it.
-			allowed = true
-			continue
-		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
-				role.GetName(), namespaceMessage, labelsMessage)
-			errs = append(errs, deniedError)
-		}
-	}
-	if allowed {
-		return nil
-	}
-
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.Name, errs)
-	}
-	return trace.AccessDenied("access to app denied")
-}
-
-// CheckAccessToKubernetes checks if a role has access to a kubernetes cluster.
-// Deny rules are checked first, then allow rules. Access to a kubernetes
-// cluster is determined by namespaces and labels.
-func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *types.KubernetesCluster, mfa AccessMFAParams) error {
-	if mfa.AlwaysRequired && !mfa.Verified {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to kubernetes cluster %q denied, cluster requires per-session MFA", kube.Name)
-		return ErrSessionMFARequired
-	}
-	var errs []error
-
-	// Check deny rules: a matching namespace and label in the deny section
-	// prohibits access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetKubernetesLabels(Deny), types.CombineLabels(kube.StaticLabels, kube.DynamicLabels))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && matchLabels {
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to kubernetes cluster %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
-					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
-			}
-			return trace.AccessDenied("access to kubernetes cluster denied")
-		}
-	}
-
-	allowed := false
-	// Check allow rules: namespace and label both have to match to be granted access.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetKubernetesLabels(Allow), types.CombineLabels(kube.StaticLabels, kube.DynamicLabels))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && matchLabels {
-			if mfa.Verified {
-				return nil
-			}
-			if role.GetOptions().RequireSessionMFA {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to kubernetes cluster %q denied, role %q requires per-session MFA; match(namespace=%v, label=%v)",
-					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
-				return ErrSessionMFARequired
-			}
-			// Check all remaining roles, even if we found a match.
-			// RequireSessionMFA should be enforced when at least one role has
-			// it.
-			allowed = true
-			continue
-		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
-				role.GetName(), namespaceMessage, labelsMessage)
-			errs = append(errs, deniedError)
-		}
-	}
-	if allowed {
-		return nil
-	}
-
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to kubernetes cluster %v denied, no allow rule matched; %v", kube.Name, errs)
-	}
-	return trace.AccessDenied("access to kubernetes cluster denied")
-}
-
 // CanImpersonateSomeone returns true if this checker has any impersonation rules
 func (set RoleSet) CanImpersonateSomeone() bool {
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(Allow)
+		cond := role.GetImpersonateConditions(types.Allow)
 		if !cond.IsEmpty() {
 			return true
 		}
@@ -1665,7 +1429,7 @@ func (set RoleSet) CheckImpersonate(currentUser, impersonateUser types.User, imp
 	}
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(Deny)
+		cond := role.GetImpersonateConditions(types.Deny)
 		matched, err := matchDenyImpersonateCondition(cond, impersonateUser, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1677,7 +1441,7 @@ func (set RoleSet) CheckImpersonate(currentUser, impersonateUser types.User, imp
 
 	// check allow: if matches, allow to impersonate
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(Allow)
+		cond := role.GetImpersonateConditions(types.Allow)
 		matched, err := matchAllowImpersonateCondition(ctx, whereParser, cond, impersonateUser, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1688,6 +1452,52 @@ func (set RoleSet) CheckImpersonate(currentUser, impersonateUser types.User, imp
 	}
 
 	return trace.AccessDenied("access denied to '%s' to impersonate user '%s' and roles '%s'", currentUser.GetName(), impersonateUser.GetName(), roleNames(impersonateRoles))
+}
+
+// CheckImpersonateRoles validates that the current user can perform role-only impersonation
+// of the given roles. Role-only impersonation requires an allow rule with
+// roles but no users (and no user-less deny rules). All requested roles must
+// be allowed for the check to succeed.
+func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRoles []types.Role) error {
+	ctx := &impersonateContext{
+		user: currentUser,
+	}
+	whereParser, err := newImpersonateWhereParser(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO: Unlike regular impersonation where all requested roles must be
+	// granted by a single impersonation role, it would be reasonable to
+	// request several roles whose `allow` conditions are split between
+	// several roles. Our initial use-case doesn't require this, so for now
+	// we'll assume all requested roles must be granted by a single `allow`.
+
+	// check deny: a single match on a deny rule prohibits access
+	for _, role := range set {
+		cond := role.GetImpersonateConditions(types.Deny)
+		matched, err := matchDenyRoleImpersonateCondition(cond, impersonateRoles)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return trace.AccessDenied("access denied to '%s' to impersonate roles '%s'", currentUser.GetName(), roleNames(impersonateRoles))
+		}
+	}
+
+	// check allow: if any one Role satisfies all the role requests, allow impersonation
+	for _, role := range set {
+		cond := role.GetImpersonateConditions(types.Allow)
+		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, cond, impersonateRoles)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return nil
+		}
+	}
+
+	return trace.AccessDenied("access denied to '%s' to impersonate roles '%s'", currentUser.GetName(), roleNames(impersonateRoles))
 }
 
 // LockingMode returns the locking mode to apply with this RoleSet.
@@ -1705,6 +1515,15 @@ func (set RoleSet) LockingMode(defaultMode constants.LockingMode) constants.Lock
 	return mode
 }
 
+// CertificateExtensions returns the list of extensions for each role in the RoleSet
+func (set RoleSet) CertificateExtensions() []*types.CertExtension {
+	var exts []*types.CertExtension
+	for _, role := range set {
+		exts = append(exts, role.GetOptions().CertExtensions...)
+	}
+	return exts
+}
+
 func roleNames(roles []types.Role) string {
 	out := make([]string, len(roles))
 	for i := range roles {
@@ -1716,13 +1535,12 @@ func roleNames(roles []types.Role) string {
 // matchAllowImpersonateCondition matches impersonate condition,
 // both user, role and where condition has to match
 func matchAllowImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, cond types.ImpersonateConditions, impersonateUser types.User, impersonateRoles []types.Role) (bool, error) {
-	// an empty set matches nothing
-	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
-		return false, nil
-	}
-	// should specify both roles and users, this condition is also verified on the role level
+	// User impersonation requires both users and roles. Roles with no users
+	// must use RoleRequests instead; however, we can't treat this as an error
+	// since this function is tested against all roles regardless of how
+	// they'll be used.
 	if len(cond.Users) == 0 || len(cond.Roles) == 0 {
-		return false, trace.BadParameter("the system does not support empty roles and users")
+		return false, nil
 	}
 
 	anyUser, err := parse.NewAnyMatcher(cond.Users)
@@ -1764,13 +1582,11 @@ func matchAllowImpersonateCondition(ctx *impersonateContext, whereParser predica
 // matchDenyImpersonateCondition matches impersonate condition,
 // greedy is used for deny type rules, where any user or role can match
 func matchDenyImpersonateCondition(cond types.ImpersonateConditions, impersonateUser types.User, impersonateRoles []types.Role) (bool, error) {
-	// an empty set matches nothing
-	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
-		return false, nil
-	}
-	// should specify both roles and users, this condition is also verified on the role level
+	// As above, user impersonation requires both users and roles. We can't
+	// return an error to ensure role impersonation rules are allowed to exist
+	// in the system.
 	if len(cond.Users) == 0 || len(cond.Roles) == 0 {
-		return false, trace.BadParameter("the system does not support empty roles and users")
+		return false, nil
 	}
 
 	anyUser, err := parse.NewAnyMatcher(cond.Users)
@@ -1782,6 +1598,75 @@ func matchDenyImpersonateCondition(cond types.ImpersonateConditions, impersonate
 		return true, nil
 	}
 
+	anyRole, err := parse.NewAnyMatcher(cond.Roles)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, impersonateRole := range impersonateRoles {
+		if anyRole.Match(impersonateRole.GetName()) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// matchAllowRoleImpersonateCondition matches an allow impersonate condition
+// specifically for role-only impersonation, where only roles are matched.
+func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+	// an empty set matches nothing
+	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
+		return false, nil
+	}
+
+	// Role impersonation can never apply to users.
+	if len(cond.Users) != 0 {
+		return false, nil
+	}
+
+	// By this point, at least 1 role is guaranteed.
+	anyRole, err := parse.NewAnyMatcher(cond.Roles)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, impersonateRole := range impersonateRoles {
+		if !anyRole.Match(impersonateRole.GetName()) {
+			return false, nil
+		}
+		// TODO:
+		// This set impersonateRole inside the ctx that is in turn used inside whereParser
+		// which is created in CheckImpersonate above but is being used right below.
+		// This is unfortunate interface of the parser, instead
+		// parser should accept additional context as a first argument.
+		ctx.impersonateRole = impersonateRole
+		match, err := matchesImpersonateWhere(cond, whereParser)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !match {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// matchDenyRoleImpersonateCondition matches a deny impersonate condition
+// specifically for role impersonation, where only roles are matched.
+func matchDenyRoleImpersonateCondition(cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+	// an empty set matches nothing
+	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
+		return false, nil
+	}
+
+	// Role impersonation can never apply to users.
+	if len(cond.Users) != 0 {
+		return false, nil
+	}
+
+	// By this point, at least 1 role is guaranteed.
 	anyRole, err := parse.NewAnyMatcher(cond.Roles)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1834,22 +1719,6 @@ func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionTyp
 	return false, nil, nil
 }
 
-// DatabaseLabelsMatcher matches a role against a list of database server labels.
-type DatabaseLabelsMatcher struct {
-	Labels map[string]string
-}
-
-// Match matches database server labels against provided role and condition.
-func (m *DatabaseLabelsMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	match, _, err := MatchLabels(role.GetDatabaseLabels(condition), m.Labels)
-	return match, trace.Wrap(err)
-}
-
-// String returns the matcher's string representation.
-func (m *DatabaseLabelsMatcher) String() string {
-	return fmt.Sprintf("DatabaseLabelsMatcher(Labels=%v)", m.Labels)
-}
-
 // DatabaseUserMatcher matches a role against database account name.
 type DatabaseUserMatcher struct {
 	User string
@@ -1882,69 +1751,225 @@ func (m *DatabaseNameMatcher) String() string {
 	return fmt.Sprintf("DatabaseNameMatcher(Name=%v)", m.Name)
 }
 
-// CheckAccessToDatabase checks if this role set has access to a particular database.
-//
-// The checker always checks the server namespace, other matchers are supplied
-// by the caller.
-func (set RoleSet) CheckAccessToDatabase(server types.Database, mfa AccessMFAParams, matchers ...RoleMatcher) error {
-	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-	if mfa.AlwaysRequired && !mfa.Verified {
-		log.Debugf("Access to database %q denied, cluster requires per-session MFA", server.GetName())
-		return ErrSessionMFARequired
-	}
-	// Check deny rules.
-	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), server.GetNamespace())
-		// Deny rules are greedy on purpose. They will always match if
-		// at least one of the matchers returns true.
-		if matchNamespace {
-			match, matcher, err := RoleMatchers(matchers).MatchAny(role, Deny)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if match {
-				log.Debugf("Access to database %q denied, deny rule in role %q matched; %s.",
-					server.GetName(), role.GetName(), matcher)
-				return trace.AccessDenied("access to database denied")
-			}
+type loginMatcher struct {
+	login string
+}
+
+// NewLoginMatcher creates a RoleMatcher that checks whether the role's logins
+// match the specified condition.
+func NewLoginMatcher(login string) RoleMatcher {
+	return &loginMatcher{login: login}
+}
+
+// Match matches a login against a role.
+func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	logins := role.GetLogins(typ)
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
 		}
 	}
+	return false, nil
+}
+
+type windowsLoginMatcher struct {
+	login string
+}
+
+// NewWindowsLoginMatcher creates a RoleMatcher that checks whether the role's
+// Windows desktop logins match the specified condition.
+func NewWindowsLoginMatcher(login string) RoleMatcher {
+	return &windowsLoginMatcher{login: login}
+}
+
+// Match matches a Windows Desktop login against a role.
+func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	logins := role.GetWindowsLogins(typ)
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+type kubernetesClusterLabelMatcher struct {
+	clusterLabels map[string]string
+}
+
+// NewKubernetesClusterLabelMatcher creates a RoleMatcher that checks whether a role's
+// Kubernetes service labels match.
+func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatcher {
+	return &kubernetesClusterLabelMatcher{clusterLabels: clustersLabels}
+}
+
+// Match matches a Kubernetes cluster labels against a role.
+func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	ok, _, err := MatchLabels(l.getKubeLabels(role, typ), l.clusterLabels)
+	return ok, trace.Wrap(err)
+}
+
+// getKubeLabels returns kubernetes_labels based on resource version and role type.
+func (l kubernetesClusterLabelMatcher) getKubeLabels(role types.Role, typ types.RoleConditionType) types.Labels {
+	labels := role.GetKubernetesLabels(typ)
+
+	// After the introduction of https://github.com/gravitational/teleport/pull/9759 the
+	// kubernetes_labels started to be respected. Former role behavior evaluated deny rules
+	// even if the kubernetes_labels was empty. To preserve this behavior after respecting kubernetes label the label
+	// logic needs to be aligned.
+	// Default wildcard rules should be added to  deny.kubernetes_labels if
+	// deny.kubernetes_labels is empty to ensure that deny rule will be evaluated
+	// even if kubernetes_labels are empty.
+	if len(labels) == 0 && typ == types.Deny {
+		return map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}}
+	}
+	return labels
+}
+
+// AccessCheckable is the subset of types.Resource required for the RBAC checks.
+type AccessCheckable interface {
+	GetKind() string
+	GetName() string
+	GetMetadata() types.Metadata
+	GetAllLabels() map[string]string
+}
+
+// rbacDebugLogger creates a debug logger for Teleport's RBAC component.
+// It also returns a flag indicating whether debug logging is enabled,
+// allowing the RBAC system to generate more verbose errors in debug mode.
+func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
+	isDebugEnabled := log.IsLevelEnabled(log.DebugLevel)
+	log := log.WithField(trace.Component, teleport.ComponentRBAC)
+	return isDebugEnabled, log.Debugf
+}
+
+// CheckAccess checks if this role set has access to a particular resource,
+// optionally matching the resource's labels.
+func (set RoleSet) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+	// Note: logging in this function only happens in debug mode. This is because
+	// adding logging to this function (which is called on every resource returned
+	// by the backend) can slow down this function by 50x for large clusters!
+	isDebugEnabled, debugf := rbacDebugLogger()
+
+	if mfa.AlwaysRequired && !mfa.Verified {
+		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
+		return ErrSessionMFARequired
+	}
+
+	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
+	allLabels := r.GetAllLabels()
+
+	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
+	switch r.GetKind() {
+	case types.KindDatabase:
+		getRoleLabels = types.Role.GetDatabaseLabels
+	case types.KindApp:
+		getRoleLabels = types.Role.GetAppLabels
+	case types.KindNode:
+		getRoleLabels = types.Role.GetNodeLabels
+	case types.KindKubernetesCluster:
+		getRoleLabels = types.Role.GetKubernetesLabels
+	case types.KindWindowsDesktop:
+		getRoleLabels = types.Role.GetWindowsDesktopLabels
+	default:
+		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
+	}
+
+	// Check deny rules.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Deny), namespace)
+		if !matchNamespace {
+			continue
+		}
+
+		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, types.Deny), allLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchLabels {
+			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
+				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+			return trace.AccessDenied("access to %v denied", r.GetKind())
+		}
+
+		// Deny rules are greedy on purpose. They will always match if
+		// at least one of the matchers returns true.
+		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchMatchers {
+			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
+				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
+			return trace.AccessDenied("access to %v denied", r.GetKind())
+		}
+	}
+
+	var errs []error
 	allowed := false
 	// Check allow rules.
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Allow), server.GetNamespace())
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Allow), namespace)
+		if !matchNamespace {
+			if isDebugEnabled {
+				errs = append(errs, trace.AccessDenied("role=%v, match(namespace=%v)",
+					role.GetName(), namespaceMessage))
+			}
+			continue
+		}
+
+		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, types.Allow), allLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !matchLabels {
+			if isDebugEnabled {
+				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
+					role.GetName(), labelsMessage))
+			}
+			continue
+		}
+
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.
-		if matchNamespace {
-			match, err := RoleMatchers(matchers).MatchAll(role, Allow)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if match {
-				if mfa.Verified {
-					return nil
-				}
-				if role.GetOptions().RequireSessionMFA {
-					log.Debugf("Access to database %q denied, role %q requires per-session MFA", server.GetName(), role.GetName())
-					return ErrSessionMFARequired
-				}
-				// Check all remaining roles, even if we found a match.
-				// RequireSessionMFA should be enforced when at least one role has
-				// it.
-				allowed = true
-				log.Debugf("Access to database %q granted, allow rule in role %q matched.",
-					server.GetName(), role.GetName())
-				continue
-			}
+		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		if !matchMatchers {
+			if isDebugEnabled {
+				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
+					role.GetName(), err))
+			}
+			continue
+		}
+
+		// if we've reached this point, namespace, labels, and matchers all match.
+		// if MFA is verified, we're done.
+		if mfa.Verified {
+			return nil
+		}
+		// if MFA is not verified and we require session MFA, deny access
+		if role.GetOptions().RequireSessionMFA {
+			debugf("Access to %v %q denied, role %q requires per-session MFA",
+				r.GetKind(), r.GetName(), role.GetName())
+			return ErrSessionMFARequired
+		}
+
+		// Check all remaining roles, even if we found a match.
+		// RequireSessionMFA should be enforced when at least one role has
+		// it.
+		allowed = true
+		debugf("Access to %v %q granted, allow rule in role %q matched.",
+			r.GetKind(), r.GetName(), role.GetName())
 	}
+
 	if allowed {
 		return nil
 	}
 
-	log.Debugf("Access to database %q denied, no allow rule matched.",
-		server.GetName())
-	return trace.AccessDenied("access to database denied")
+	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
+	return trace.AccessDenied("access to %v denied", r.GetKind())
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
@@ -1967,12 +1992,40 @@ func (set RoleSet) CanPortForward() bool {
 	return false
 }
 
+// RecordDesktopSession returns true if the role set has enabled desktop
+// session recording. Recording is considered enabled if at least one
+// role in the set has enabled it.
+func (set RoleSet) RecordDesktopSession() bool {
+	for _, role := range set {
+		var bo *types.BoolOption
+		if role.GetOptions().RecordSession != nil {
+			bo = role.GetOptions().RecordSession.Desktop
+		}
+		if types.BoolDefaultTrue(bo) {
+			return true
+		}
+	}
+	return false
+}
+
+// DesktopClipboard returns true if the role set has enabled shared
+// clipboard for desktop sessions. Clipboard sharing is disabled if
+// one or more of the roles in the set has disabled it.
+func (set RoleSet) DesktopClipboard() bool {
+	for _, role := range set {
+		if !types.BoolDefaultTrue(role.GetOptions().DesktopClipboard) {
+			return false
+		}
+	}
+	return true
+}
+
 // MaybeCanReviewRequests attempts to guess if this RoleSet belongs
 // to a user who should be submitting access reviews.  Because not all rolesets
 // are derived from statically assigned roles, this may return false positives.
 func (set RoleSet) MaybeCanReviewRequests() bool {
 	for _, role := range set {
-		if !role.GetAccessReviewConditions(Allow).IsZero() {
+		if !role.GetAccessReviewConditions(types.Allow).IsZero() {
 			// at least one nonzero allow directive exists for
 			// review submission.
 			return true
@@ -2055,7 +2108,7 @@ func (set RoleSet) CheckAgentForward(login string) error {
 	// for deny rules because if you can't forward an agent if you can't login
 	// in the first place.
 	for _, role := range set {
-		for _, l := range role.GetLogins(Allow) {
+		for _, l := range role.GetLogins(types.Allow) {
 			if role.GetOptions().ForwardAgent.Value() && l == login {
 				return nil
 			}
@@ -2075,6 +2128,37 @@ func (set RoleSet) String() string {
 	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
 
+// GuessIfAccessIsPossible guesses if access is possible for an entire category
+// of resources.
+// It responds the question: "is it possible that there is a resource of this
+// kind that the current user can access?".
+// GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
+// for resource X appear"?). Most callers should use CheckAccessToRule instead.
+func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+	// "Where" clause are handled differently by the method:
+	// - "allow" rules have their "where" clause always match, as it's assumed
+	//   that there could be a resource that matches it.
+	// - "deny" rules have their "where" clause always fail, as it's assumed that
+	//   there could be a resource that passes it.
+	return set.checkAccessToRuleImpl(checkAccessParams{
+		ctx:        ctx,
+		namespace:  namespace,
+		resource:   resource,
+		verb:       verb,
+		allowWhere: boolParser(true),  // always matches
+		denyWhere:  boolParser(false), // never matches
+		silent:     silent,
+	})
+}
+
+type boolParser bool
+
+func (p boolParser) Parse(string) (interface{}, error) {
+	return predicate.BoolPredicate(func() bool {
+		return bool(p)
+	}), nil
+}
+
 // CheckAccessToRule checks if the RoleSet provides access in the given
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
@@ -2083,35 +2167,58 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	actionsParser, err := NewActionsParser(ctx)
+
+	return set.checkAccessToRuleImpl(checkAccessParams{
+		ctx:        ctx,
+		namespace:  namespace,
+		resource:   resource,
+		verb:       verb,
+		allowWhere: whereParser,
+		denyWhere:  whereParser,
+		silent:     silent,
+	})
+}
+
+type checkAccessParams struct {
+	ctx                   RuleContext
+	namespace             string
+	resource              string
+	verb                  string
+	allowWhere, denyWhere predicate.Parser
+	silent                bool
+}
+
+func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
+	actionsParser, err := NewActionsParser(p.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), types.ProcessNamespace(namespace))
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
-			matched, err := MakeRuleSet(role.GetRules(Deny)).Match(whereParser, actionsParser, resource, verb)
+			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(p.denyWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if matched {
-				if !silent {
+				if !p.silent {
 					log.WithFields(log.Fields{
 						trace.Component: teleport.ComponentRBAC,
 					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
-						verb, resource, namespace, role.GetName())
+						p.verb, p.resource, p.namespace, role.GetName())
 				}
-				return trace.AccessDenied("access denied to perform action '%s' on %s", verb, resource)
+				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 			}
 		}
 	}
 
 	// check allow: if rule matches, grant access to resource
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Allow), types.ProcessNamespace(namespace))
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
-			match, err := MakeRuleSet(role.GetRules(Allow)).Match(whereParser, actionsParser, resource, verb)
+			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(p.allowWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2121,16 +2228,121 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 		}
 	}
 
-	if !silent {
+	if !p.silent {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
 		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
-			verb, resource, namespace, set)
+			p.verb, p.resource, p.namespace, set)
 	}
-	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+	return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 }
 
-// AccessMFAParams contains MFA-related parameters for CheckAccessTo* methods.
+// ExtractConditionForIdentifier returns a restrictive filter expression
+// for list queries based on the rules' `where` conditions.
+func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error) {
+	parser, err := newParserForIdentifierSubcondition(ctx, identifier)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	parseWhere := func(rule types.Rule) (types.WhereExpr, error) {
+		if rule.Where == "" {
+			return types.WhereExpr{Literal: true}, nil
+		}
+		out, err := parser.Parse(rule.Where)
+		if err != nil {
+			return types.WhereExpr{}, trace.Wrap(err)
+		}
+		expr, ok := out.(types.WhereExpr)
+		if !ok {
+			return types.WhereExpr{}, trace.BadParameter("invalid type %T when extracting identifier subcondition from %q", out, rule.Where)
+		}
+		return expr, nil
+	}
+
+	// Gather identifier-related subconditions from the deny rules
+	// and concatenate their negations by AND.
+	var denyCond *types.WhereExpr
+	for _, role := range set {
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(namespace))
+		if !matchNamespace {
+			continue
+		}
+		rules := MakeRuleSet(role.GetRules(types.Deny))
+		for _, rule := range rules[resource] {
+			if !rule.HasVerb(verb) && !rule.HasVerb(types.Wildcard) {
+				continue
+			}
+			expr, err := parseWhere(rule)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if b, ok := expr.Literal.(bool); ok {
+				if b {
+					return nil, trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+				}
+				continue
+			}
+			negated := types.WhereExpr{Not: &expr}
+			if denyCond == nil {
+				denyCond = &negated
+			} else {
+				denyCond = &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: &negated}}
+			}
+		}
+	}
+
+	// Gather identifier-related subconditions from the allow rules
+	// and concatenate by OR.
+	var allowCond *types.WhereExpr
+	for _, role := range set {
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(namespace))
+		if !matchNamespace {
+			continue
+		}
+		rules := MakeRuleSet(role.GetRules(types.Allow))
+		for _, rule := range rules[resource] {
+			if !rule.HasVerb(verb) && !rule.HasVerb(types.Wildcard) {
+				continue
+			}
+			expr, err := parseWhere(rule)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if b, ok := expr.Literal.(bool); ok {
+				if b {
+					return denyCond, nil
+				}
+				continue
+			}
+			if allowCond == nil {
+				allowCond = &expr
+			} else {
+				allowCond = &types.WhereExpr{Or: types.WhereExpr2{L: allowCond, R: &expr}}
+			}
+		}
+	}
+
+	if denyCond == nil {
+		if allowCond == nil {
+			return nil, trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+		}
+		return allowCond, nil
+	}
+	return &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: allowCond}}, nil
+}
+
+// GetSearchAsRoles returns the list of roles which the RoleSet should be able
+// to "assume" while searching for resources, and should be able to request with
+// a search-based access request.
+func (set RoleSet) GetSearchAsRoles() []string {
+	var searchAsRoles []string
+	for _, role := range set {
+		searchAsRoles = append(searchAsRoles, role.GetSearchAsRoles()...)
+	}
+	return apiutils.Deduplicate(searchAsRoles)
+}
+
+// AccessMFAParams contains MFA-related parameters for methods that check access.
 type AccessMFAParams struct {
 	// AlwaysRequired is set when MFA is required for all sessions, regardless
 	// of per-role options.
@@ -2171,11 +2383,13 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	}
 
 	switch h.Version {
+	case types.V5:
+		fallthrough
 	case types.V4:
 		// V4 roles are identical to V3 except for their defaults
 		fallthrough
 	case types.V3:
-		var role types.RoleV4
+		var role types.RoleV5
 		if err := utils.FastUnmarshal(bytes, &role); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -2208,7 +2422,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	switch role := role.(type) {
-	case *types.RoleV4:
+	case *types.RoleV5:
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -2222,36 +2436,18 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
-// DowngradeToV3 converts a V4 role to V3 so that it will be compatible with
+// DowngradeToV4 converts a V5 role to V4 so that it will be compatible with
 // older instances. Makes a shallow copy if the conversion is necessary. The
 // passed in role will not be mutated.
-// DELETE IN 8.0.0
-func DowngradeRoleToV3(r *types.RoleV4) (*types.RoleV4, error) {
+// DELETE IN 10.0.0
+func DowngradeRoleToV4(r *types.RoleV5) (*types.RoleV5, error) {
 	switch r.Version {
-	case types.V3:
+	case types.V3, types.V4:
 		return r, nil
-	case types.V4:
-		var downgraded types.RoleV4
+	case types.V5:
+		var downgraded types.RoleV5
 		downgraded = *r
-		downgraded.Version = types.V3
-
-		// V3 roles will set the default labels to wildcard allow if they are
-		// empty. To prevent this for roles which are created as V4 and
-		// downgraded, set a placeholder label
-		const labelKey = "__teleport_no_labels"
-		labelVal := uuid.New()
-		if len(r.Spec.Allow.NodeLabels) == 0 {
-			downgraded.Spec.Allow.NodeLabels = types.Labels{labelKey: []string{labelVal}}
-		}
-		if len(r.Spec.Allow.AppLabels) == 0 {
-			downgraded.Spec.Allow.AppLabels = types.Labels{labelKey: []string{labelVal}}
-		}
-		if len(r.Spec.Allow.KubernetesLabels) == 0 {
-			downgraded.Spec.Allow.KubernetesLabels = types.Labels{labelKey: []string{labelVal}}
-		}
-		if len(r.Spec.Allow.DatabaseLabels) == 0 {
-			downgraded.Spec.Allow.DatabaseLabels = types.Labels{labelKey: []string{labelVal}}
-		}
+		downgraded.Version = types.V4
 		return &downgraded, nil
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", r.Version)

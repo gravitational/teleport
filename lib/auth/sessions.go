@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 )
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -66,15 +66,16 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		return nil, trace.Wrap(err)
 	}
 	certs, err := s.generateUserCert(certRequest{
-		user:      user,
-		publicKey: publicKey,
-		checker:   checker,
-		ttl:       ttl,
-		traits:    traits,
+		user:           user,
+		publicKey:      publicKey,
+		checker:        checker,
+		ttl:            ttl,
+		traits:         traits,
+		activeRequests: services.RequestIDs{AccessRequests: identity.ActiveRequests},
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   uuid.New(),
+		appSessionID:   uuid.New().String(),
 		appPublicAddr:  req.PublicAddr,
 		appClusterName: req.ClusterName,
 		awsRoleARN:     req.AWSRoleARN,
@@ -91,8 +92,8 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
-		Pub:     certs.ssh,
-		TLSCert: certs.tls,
+		Pub:     certs.SSH,
+		TLSCert: certs.TLS,
 		Expires: s.clock.Now().Add(ttl),
 	})
 	if err != nil {
@@ -108,7 +109,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 
 // WaitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
-func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoint) error {
+func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
 	_, err := ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
 	if err == nil {
 		return nil
@@ -155,13 +156,13 @@ func WaitForAppSession(ctx context.Context, sessionID, user string, ap AccessPoi
 
 // generateAppToken generates an JWT token that will be passed along with every
 // application request.
-func (s *Server) generateAppToken(username string, roles []string, uri string, expires time.Time) (string, error) {
+func (s *Server) generateAppToken(ctx context.Context, username string, roles []string, uri string, expires time.Time) (string, error) {
 	// Get the clusters CA.
 	clusterName, err := s.GetDomainName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	ca, err := s.GetCertAuthority(types.CertAuthID{
+	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.JWTSigner,
 		DomainName: clusterName,
 	}, true)
@@ -231,5 +232,5 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return certs.ssh, certs.tls, nil
+	return certs.SSH, certs.TLS, nil
 }

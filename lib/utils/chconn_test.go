@@ -19,13 +19,13 @@ package utils
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/stretchr/testify/require"
@@ -60,7 +60,7 @@ func TestChConn(t *testing.T) {
 		go func() {
 			// Nothing is sent on the channel so this will block until the
 			// read is canceled by the deadline set below.
-			_, err := ioutil.ReadAll(chConn)
+			_, err := io.ReadAll(chConn)
 			doneCh <- err
 		}()
 		// Set the read deadline in the past and make sure that the read
@@ -87,7 +87,7 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 	require.NoError(t, err)
 	t.Cleanup(func() { nConn.Close() })
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	_, private, err := MarshalPrivateKey(privateKey)

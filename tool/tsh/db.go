@@ -18,18 +18,19 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
-	"os/exec"
 	"sort"
-	"strconv"
 	"strings"
-	"text/template"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -44,27 +45,44 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	var databases []types.Database
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		databases, err = tc.ListDatabases(cf.Context)
+		databases, err = tc.ListDatabases(cf.Context, nil /* custom filter */)
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Refresh the creds in case user was logged into any databases.
-	err = fetchDatabaseCreds(cf, tc)
+
+	proxy, err := tc.ConnectToProxy(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	cluster, err := proxy.ConnectToCurrentCluster(cf.Context, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer cluster.Close()
+
 	// Retrieve profile to be able to show which databases user is logged into.
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	sort.Slice(databases, func(i, j int) bool {
 		return databases[i].GetName() < databases[j].GetName()
 	})
-	showDatabases(tc.SiteName, databases, profile.Databases, cf.Verbose)
-	return nil
+
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
 }
 
 // onDatabaseLogin implements "tsh db login" command.
@@ -73,26 +91,13 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var databases []types.Database
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		allDatabases, err := tc.ListDatabases(cf.Context)
-		for _, database := range allDatabases {
-			if database.GetName() == cf.DatabaseService {
-				databases = append(databases, database)
-			}
-		}
-		return trace.Wrap(err)
-	})
+	database, err := getDatabase(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(databases) == 0 {
-		return trace.NotFound(
-			"database %q not found, use 'tsh db ls' to see registered databases", cf.DatabaseService)
-	}
 	err = databaseLogin(cf, tc, tlsca.RouteToDatabase{
 		ServiceName: cf.DatabaseService,
-		Protocol:    databases[0].GetProtocol(),
+		Protocol:    database.GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
 	}, false)
@@ -110,23 +115,36 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	if db.Protocol == defaults.ProtocolMongoDB && db.Username == "" {
 		return trace.BadParameter("please provide the database user name using --db-user flag")
 	}
+	if db.Protocol == defaults.ProtocolRedis && db.Username == "" {
+		// Default to "default" in the same way as Redis does. We need the username to check access on our side.
+		// ref: https://redis.io/commands/auth
+		db.Username = defaults.DefaultRedisUsername
+	}
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: tc.SiteName,
-		RouteToDatabase: proto.RouteToDatabase{
-			ServiceName: db.ServiceName,
-			Protocol:    db.Protocol,
-			Username:    db.Username,
-			Database:    db.Database,
-		},
-		AccessRequests: profile.ActiveRequests.AccessRequests,
-	})
-	if err != nil {
+
+	var key *client.Key
+	if err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+			RouteToCluster: tc.SiteName,
+			RouteToDatabase: proto.RouteToDatabase{
+				ServiceName: db.ServiceName,
+				Protocol:    db.Protocol,
+				Username:    db.Username,
+				Database:    db.Database,
+			},
+			AccessRequests: profile.ActiveRequests.AccessRequests,
+		})
+		return trace.Wrap(err)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
+	if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Refresh the profile.
 	profile, err = client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
@@ -139,28 +157,8 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}
 	// Print after-connect message.
 	if !quiet {
-		return connectMessage.Execute(os.Stdout, db)
-	}
-	return nil
-}
-
-// fetchDatabaseCreds is called as a part of tsh login to refresh database
-// access certificates for databases the current profile is logged into.
-func fetchDatabaseCreds(cf *CLIConf, tc *client.TeleportClient) error {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if trace.IsNotFound(err) {
-		return nil // No currently logged in profiles.
-	}
-	for _, db := range profile.Databases {
-		if err := databaseLogin(cf, tc, db, true); err != nil {
-			log.WithError(err).Errorf("Failed to fetch database access certificate for %s.", db)
-			if err := databaseLogout(tc, db); err != nil {
-				log.WithError(err).Errorf("Failed to log out of database %s.", db)
-			}
-		}
+		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, db))
+		return nil
 	}
 	return nil
 }
@@ -175,12 +173,17 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var logout []tlsca.RouteToDatabase
 	// If database name wasn't given on the command line, log out of all.
 	if cf.DatabaseService == "" {
-		logout = profile.Databases
+		logout = activeDatabases
 	} else {
-		for _, db := range profile.Databases {
+		for _, db := range activeDatabases {
 			if db.ServiceName == cf.DatabaseService {
 				logout = append(logout, db)
 			}
@@ -231,10 +234,35 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for k, v := range env {
-		fmt.Printf("export %v=%v\n", k, v)
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case dbFormatText, "":
+		for k, v := range env {
+			fmt.Printf("export %v=%v\n", k, v)
+		}
+	case dbFormatJSON, dbFormatYAML:
+		out, err := serializeDatabaseEnvironment(env, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
+
 	return nil
+}
+
+func serializeDatabaseEnvironment(env map[string]string, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == dbFormatJSON {
+		out, err = utils.FastMarshalIndent(env, "", "  ")
+	} else {
+		out, err = yaml.Marshal(env)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // onDatabaseConfig implements "tsh db config" command.
@@ -251,27 +279,48 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	rootCluster, err := tc.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// Postgres proxy listens on web proxy port while MySQL proxy listens on
 	// a separate port due to the specifics of the protocol.
 	var host string
 	var port int
 	switch database.Protocol {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		host, port = tc.PostgresProxyHostPort()
 	case defaults.ProtocolMySQL:
 		host, port = tc.MySQLProxyHostPort()
-	case defaults.ProtocolMongoDB:
+	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSQLServer:
 		host, port = tc.WebProxyHostPort()
 	default:
 		return trace.BadParameter("unknown database protocol: %q", database)
 	}
-	switch cf.Format {
+
+	format := strings.ToLower(cf.Format)
+	switch format {
 	case dbFormatCommand:
-		cmd, err := getConnectCommand(cf, tc, profile, database)
+		cmd, err := dbcmd.NewCmdBuilder(tc, profile, database, rootCluster,
+			dbcmd.WithPrintFormat(),
+			dbcmd.WithLogger(log),
+		).GetConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Println(cmd.Path, strings.Join(cmd.Args[1:], " "))
+	case dbFormatJSON, dbFormatYAML:
+		configInfo := &dbConfigInfo{
+			database.ServiceName, host, port, database.Username,
+			database.Database, profile.CACertPathForCluster(rootCluster),
+			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
+			profile.KeyPath(),
+		}
+		out, err := serializeDatabaseConfig(configInfo, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
 	default:
 		fmt.Printf(`Name:      %v
 Host:      %v
@@ -283,10 +332,87 @@ Cert:      %v
 Key:       %v
 `,
 			database.ServiceName, host, port, database.Username,
-			database.Database, profile.CACertPath(),
-			profile.DatabaseCertPath(database.ServiceName), profile.KeyPath())
+			database.Database, profile.CACertPathForCluster(rootCluster),
+			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName), profile.KeyPath())
 	}
 	return nil
+}
+
+type dbConfigInfo struct {
+	Name     string `json:"name"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	User     string `json:"user,omitempty"`
+	Database string `json:"database,omitempty"`
+	CA       string `json:"ca"`
+	Cert     string `json:"cert"`
+	Key      string `json:"key"`
+}
+
+func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == dbFormatJSON {
+		out, err = utils.FastMarshalIndent(configInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(configInfo)
+	}
+	return string(out), trace.Wrap(err)
+}
+
+// maybeStartLocalProxy starts local TLS ALPN proxy if needed depending on the
+// connection scenario and returns a list of options to use in the connect
+// command.
+func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase, cluster string) ([]dbcmd.ConnectCommandFunc, error) {
+	// Local proxy is started if TLS routing is enabled, or if this is a SQL
+	// Server connection which always requires a local proxy.
+	if !tc.TLSRoutingEnabled && db.Protocol != defaults.ProtocolSQLServer {
+		return []dbcmd.ConnectCommandFunc{}, nil
+	}
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	opts := localProxyOpts{
+		proxyAddr: tc.WebProxyAddr,
+		listener:  listener,
+		protocol:  db.Protocol,
+		insecure:  cf.InsecureSkipVerify,
+	}
+
+	// For SQL Server connections, local proxy must be configured with the
+	// client certificate that will be used to route connections.
+	if db.Protocol == defaults.ProtocolSQLServer {
+		opts.certFile = profile.DatabaseCertPathForCluster("", db.ServiceName)
+		opts.keyFile = profile.KeyPath()
+	}
+
+	lp, err := mkLocalProxy(cf.Context, opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go func() {
+		defer listener.Close()
+		if err := lp.Start(cf.Context); err != nil {
+			log.WithError(err).Errorf("Failed to start local proxy")
+		}
+	}()
+
+	addr, err := utils.ParseAddr(lp.GetAddr())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// When connecting over TLS, psql only validates hostname against presented
+	// certificate's DNS names. As such, connecting to 127.0.0.1 will fail
+	// validation, so connect to localhost.
+	host := "localhost"
+	return []dbcmd.ConnectCommandFunc{
+		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(cluster)),
+	}, nil
 }
 
 // onDatabaseConnect implements "tsh db connect" command.
@@ -295,19 +421,44 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent("", cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := pickActiveDatabase(cf)
+	database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cmd, err := getConnectCommand(cf, tc, profile, database)
+	// Check is cert is still valid or DB connection requires MFA. If yes trigger db login logic.
+	relogin, err := needRelogin(cf, tc, database, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Debugf("Executing command: %s.", cmd)
+	if relogin {
+		if err := databaseLogin(cf, tc, *database, true); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	key, err := tc.LocalAgent().GetCoreKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootClusterName, err := key.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	opts, err := maybeStartLocalProxy(cf, tc, profile, database, rootClusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	opts = append(opts, dbcmd.WithLogger(log))
+	cmd, err := dbcmd.NewCmdBuilder(tc, profile, database, rootClusterName, opts...).GetConnectCommand()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.Debug(cmd.String())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -318,97 +469,215 @@ func onDatabaseConnect(cf *CLIConf) error {
 	return nil
 }
 
+// getDatabaseInfo fetches information about the database from tsh profile is DB is active in profile. Otherwise,
+// the ListDatabases endpoint is called.
+func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, error) {
+	database, err := pickActiveDatabase(cf)
+	if err == nil {
+		return database, nil
+	}
+	if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	db, err := getDatabase(cf, tc, dbName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &tlsca.RouteToDatabase{
+		ServiceName: db.GetName(),
+		Protocol:    db.GetProtocol(),
+		Username:    cf.DatabaseUser,
+		Database:    cf.DatabaseName,
+	}, nil
+}
+
+func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.Database, error) {
+	var databases []types.Database
+	err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		allDatabases, err := tc.ListDatabases(cf.Context, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
+		})
+		// Kept for fallback in case an older auth does not apply filters.
+		// DELETE IN 11.0.0
+		for _, database := range allDatabases {
+			if database.GetName() == dbName {
+				databases = append(databases, database)
+			}
+		}
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(databases) == 0 {
+		return nil, trace.NotFound(
+			"database %q not found, use '%v' to see registered databases", dbName, formatDatabaseListCommand(cf.SiteName))
+	}
+	return databases[0], nil
+}
+
+func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+	found := false
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, v := range activeDatabases {
+		if v.ServiceName == database.ServiceName {
+			found = true
+		}
+	}
+	// database not found in active list of databases.
+	if !found {
+		return true, nil
+	}
+
+	// For database protocols where database username is encoded in client certificate like Mongo
+	// check if the command line dbUser matches the encoded username in database certificate.
+	userChanged, err := dbInfoHasChanged(cf, profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName))
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if userChanged {
+		return true, nil
+	}
+
+	// Call API and check is a user needs to use MFA to connect to the database.
+	mfaRequired, err := isMFADatabaseAccessRequired(cf, tc, database)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return mfaRequired, nil
+}
+
+// dbInfoHasChanged checks if cf.DatabaseUser or cf.DatabaseName info has changed in the user database certificate.
+func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
+	if cf.DatabaseUser == "" && cf.DatabaseName == "" {
+		return false, nil
+	}
+
+	buff, err := os.ReadFile(certPath)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	cert, err := tlsca.ParseCertificatePEM(buff)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	if cf.DatabaseUser != "" && cf.DatabaseUser != identity.RouteToDatabase.Username {
+		log.Debugf("Will reissue database certificate for user %s (was %s)", cf.DatabaseUser, identity.RouteToDatabase.Username)
+		return true, nil
+	}
+	if cf.DatabaseName != "" && cf.DatabaseName != identity.RouteToDatabase.Database {
+		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
+		return true, nil
+	}
+	return false, nil
+}
+
+// isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
+// requires MFA.
+func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase) (bool, error) {
+	proxy, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName, true)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer cluster.Close()
+
+	dbParam := proto.RouteToDatabase{
+		ServiceName: database.ServiceName,
+		Protocol:    database.Protocol,
+		Username:    database.Username,
+		Database:    database.Database,
+	}
+	mfaResp, err := cluster.IsMFARequired(cf.Context, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Database{
+			Database: &dbParam,
+		},
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return mfaResp.GetRequired(), nil
+}
+
 // pickActiveDatabase returns the database the current profile is logged into.
 //
 // If logged into multiple databases, returns an error unless one specified
-// explicily via --db flag.
+// explicitly via --db flag.
 func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(profile.Databases) == 0 {
+	activeDatabases, err := profile.DatabasesForCluster(cf.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(activeDatabases) == 0 {
 		return nil, trace.NotFound("Please login using 'tsh db login' first")
 	}
+
 	name := cf.DatabaseService
 	if name == "" {
-		services := profile.DatabaseServices()
-		if len(services) > 1 {
+		if len(activeDatabases) > 1 {
+			var services []string
+			for _, database := range activeDatabases {
+				services = append(services, database.ServiceName)
+			}
 			return nil, trace.BadParameter("Multiple databases are available (%v), please specify one using CLI argument",
 				strings.Join(services, ", "))
 		}
-		name = services[0]
+		name = activeDatabases[0].ServiceName
 	}
-	for _, db := range profile.Databases {
+	for _, db := range activeDatabases {
 		if db.ServiceName == name {
+			// If database user or name were provided on the CLI,
+			// override the default ones.
+			if cf.DatabaseUser != "" {
+				db.Username = cf.DatabaseUser
+			}
+			if cf.DatabaseName != "" {
+				db.Database = cf.DatabaseName
+			}
 			return &db, nil
 		}
 	}
 	return nil, trace.NotFound("Not logged into database %q", name)
 }
 
-func getConnectCommand(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase) (*exec.Cmd, error) {
-	switch db.Protocol {
-	case defaults.ProtocolPostgres:
-		return getPostgresCommand(db, profile.Cluster, cf.DatabaseUser, cf.DatabaseName), nil
-	case defaults.ProtocolMySQL:
-		return getMySQLCommand(db, profile.Cluster, cf.DatabaseUser, cf.DatabaseName), nil
-	case defaults.ProtocolMongoDB:
-		host, port := tc.WebProxyHostPort()
-		return getMongoCommand(host, port, profile.DatabaseCertPath(db.ServiceName), cf.DatabaseName), nil
+func formatDatabaseListCommand(clusterFlag string) string {
+	if clusterFlag == "" {
+		return "tsh db ls"
 	}
-	return nil, trace.BadParameter("unsupported database protocol: %v", db)
+	return fmt.Sprintf("tsh db ls --cluster=%v", clusterFlag)
 }
 
-func getPostgresCommand(db *tlsca.RouteToDatabase, cluster, user, name string) *exec.Cmd {
-	connString := []string{fmt.Sprintf("service=%v-%v", cluster, db.ServiceName)}
-	if user != "" {
-		connString = append(connString, fmt.Sprintf("user=%v", user))
+func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) string {
+	if clusterFlag == "" {
+		return fmt.Sprintf("tsh db config --format=cmd %v", db.ServiceName)
 	}
-	if name != "" {
-		connString = append(connString, fmt.Sprintf("dbname=%v", name))
-	}
-	return exec.Command(postgresBin, strings.Join(connString, " "))
+	return fmt.Sprintf("tsh db config --cluster=%v --format=cmd %v", clusterFlag, db.ServiceName)
 }
 
-func getMySQLCommand(db *tlsca.RouteToDatabase, cluster, user, name string) *exec.Cmd {
-	args := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", cluster, db.ServiceName)}
-	if user != "" {
-		args = append(args, "--user", user)
-	}
-	if name != "" {
-		args = append(args, "--database", name)
-	}
-	return exec.Command(mysqlBin, args...)
-}
+func formatDatabaseConnectMessage(clusterFlag string, db tlsca.RouteToDatabase) string {
+	connectCommand := formatConnectCommand(clusterFlag, db)
+	configCommand := formatDatabaseConfigCommand(clusterFlag, db)
 
-func getMongoCommand(host string, port int, certPath, name string) *exec.Cmd {
-	args := []string{"--host", host, "--port", strconv.Itoa(port), "--ssl", "--sslPEMKeyFile", certPath}
-	if name != "" {
-		args = append(args, name)
-	}
-	return exec.Command(mongoBin, args...)
-}
-
-const (
-	// dbFormatText prints database configuration in text format.
-	dbFormatText = "text"
-	// dbFormatCommand prints database connection command.
-	dbFormatCommand = "cmd"
-)
-
-const (
-	// postgresBin is the Postgres client binary name.
-	postgresBin = "psql"
-	// mysqlBin is the MySQL client binary name.
-	mysqlBin = "mysql"
-	// mongoBin is the Mongo client binary name.
-	mongoBin = "mongo"
-)
-
-// connectMessage is printed after successful login to a database.
-var connectMessage = template.Must(template.New("").Parse(fmt.Sprintf(`
-Connection information for database "{{.ServiceName}}" has been saved.
+	return fmt.Sprintf(`
+Connection information for database "%v" has been saved.
 
 You can now connect to it using the following command:
 
@@ -419,5 +688,18 @@ Or view the connect command for the native database CLI client:
   %v
 
 `,
-	utils.Color(utils.Yellow, "tsh db connect {{.ServiceName}}"),
-	utils.Color(utils.Yellow, "tsh db config --format=cmd {{.ServiceName}}"))))
+		db.ServiceName,
+		utils.Color(utils.Yellow, connectCommand),
+		utils.Color(utils.Yellow, configCommand))
+}
+
+const (
+	// dbFormatText prints database configuration in text format.
+	dbFormatText = "text"
+	// dbFormatCommand prints database connection command.
+	dbFormatCommand = "cmd"
+	// dbFormatJSON prints database info as JSON.
+	dbFormatJSON = "json"
+	// dbFormatYAML prints database info as YAML.
+	dbFormatYAML = "yaml"
+)

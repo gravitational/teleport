@@ -20,10 +20,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -38,7 +37,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -48,14 +46,14 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 )
 
 const (
 	// CurrentVersion is a current API version
 	CurrentVersion = types.V2
 
-	// MissingNamespaceError is a _very_ common error this file generatets
+	// MissingNamespaceError indicates that the client failed to
+	// provide the namespace in the request.
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
@@ -122,12 +120,16 @@ type HTTPClient struct {
 
 // NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
 func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, err
+	}
+
 	dialer := cfg.Dialer
 	if dialer == nil {
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -145,6 +147,9 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	// it will attempt to upgrade to HTTP2 and at that point there is no way
 	// to distinguish between HTTP2/JSON or GPRC.
 	tls.NextProtos = []string{teleport.HTTPNextProtoTLS}
+	// Configure ALPN SNI direct dial TLS routing information used by ALPN SNI proxy in order to
+	// dial auth service without using SSH tunnels.
+	tls = client.ConfigureALPN(tls, cfg.ALPNSNIAuthDialClusterName)
 
 	transport := &http.Transport{
 		// notice that below roundtrip.Client is passed
@@ -184,6 +189,9 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		},
 		params...,
 	)
+
+	// Since the client uses a custom dialer and SNI is used for TLS handshake, the address
+	// used here is arbitrary as it just needs to be set to pass http request validation.
 	httpClient, err := roundtrip.NewClient("https://"+constants.APIDomain, CurrentVersion, clientParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -246,33 +254,6 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	return NewClient(c, params...)
 }
 
-// EncodeClusterName encodes cluster name in the SNI hostname
-func EncodeClusterName(clusterName string) string {
-	// hex is used to hide "." that will prevent wildcard *. entry to match
-	return fmt.Sprintf("%v.%v", hex.EncodeToString([]byte(clusterName)), constants.APIDomain)
-}
-
-// DecodeClusterName decodes cluster name, returns NotFound
-// if no cluster name is encoded (empty subdomain),
-// so servers can detect cases when no server name passed
-// returns BadParameter if encoding does not match
-func DecodeClusterName(serverName string) (string, error) {
-	if serverName == constants.APIDomain {
-		return "", trace.NotFound("no cluster name is encoded")
-	}
-	const suffix = "." + constants.APIDomain
-	if !strings.HasSuffix(serverName, suffix) {
-		return "", trace.NotFound("no cluster name is encoded")
-	}
-	clusterName := strings.TrimSuffix(serverName, suffix)
-
-	decoded, err := hex.DecodeString(clusterName)
-	if err != nil {
-		return "", trace.BadParameter("failed to decode cluster name: %v", err)
-	}
-	return string(decoded), nil
-}
-
 // ClientTimeout sets idle and dial timeouts of the HTTP transport
 // used by the client.
 func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
@@ -288,28 +269,28 @@ func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
 }
 
 // PostJSON is a generic method that issues http POST request to the server
-func (c *Client) PostJSON(endpoint string, val interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.PostJSON(context.TODO(), endpoint, val))
+func (c *Client) PostJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.PostJSON(ctx, endpoint, val))
 }
 
 // PutJSON is a generic method that issues http PUT request to the server
-func (c *Client) PutJSON(endpoint string, val interface{}) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.PutJSON(context.TODO(), endpoint, val))
+func (c *Client) PutJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.PutJSON(ctx, endpoint, val))
 }
 
 // PostForm is a generic method that issues http POST request to the server
-func (c *Client) PostForm(endpoint string, vals url.Values, files ...roundtrip.File) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.PostForm(context.TODO(), endpoint, vals, files...))
+func (c *Client) PostForm(ctx context.Context, endpoint string, vals url.Values, files ...roundtrip.File) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.PostForm(ctx, endpoint, vals, files...))
 }
 
 // Get issues http GET request to the server
-func (c *Client) Get(u string, params url.Values) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.Get(context.TODO(), u, params))
+func (c *Client) Get(ctx context.Context, u string, params url.Values) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.Get(ctx, u, params))
 }
 
 // Delete issues http Delete Request to the server
-func (c *Client) Delete(u string) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(c.Client.Delete(context.TODO(), u))
+func (c *Client) Delete(ctx context.Context, u string) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(c.Client.Delete(ctx, u))
 }
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
@@ -318,7 +299,7 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.PostJSON(c.Endpoint("kube", "csr"), req)
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("kube", "csr"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,13 +310,13 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// GetSessions returns a list of active sessions in the cluster
-// as reported by auth server
+// GetSessions returns a list of active sessions in the cluster as reported by
+// the auth server.
 func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -355,7 +336,7 @@ func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, 
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(id)), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(id)), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -371,7 +352,7 @@ func (c *Client) DeleteSession(namespace string, id session.ID) error {
 	if namespace == "" {
 		return trace.BadParameter(MissingNamespaceError)
 	}
-	_, err := c.Delete(c.Endpoint("namespaces", namespace, "sessions", string(id)))
+	_, err := c.Delete(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(id)))
 	return trace.Wrap(err)
 }
 
@@ -380,7 +361,7 @@ func (c *Client) CreateSession(sess session.Session) error {
 	if sess.Namespace == "" {
 		return trace.BadParameter(MissingNamespaceError)
 	}
-	_, err := c.PostJSON(c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
+	_, err := c.PostJSON(context.TODO(), c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
 	return trace.Wrap(err)
 }
 
@@ -389,13 +370,13 @@ func (c *Client) UpdateSession(req session.UpdateRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.PutJSON(c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
+	_, err := c.PutJSON(context.TODO(), c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
 	return trace.Wrap(err)
 }
 
 // GetDomainName returns local auth domain of the current auth server
 func (c *Client) GetDomainName() (string, error) {
-	out, err := c.Get(c.Endpoint("domain"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("domain"), url.Values{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -409,7 +390,7 @@ func (c *Client) GetDomainName() (string, error) {
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
 // the cluster has multiple TLS certs, they will all be concatenated.
 func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
-	out, err := c.Get(c.Endpoint("cacert"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("cacert"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -435,19 +416,19 @@ func (c *Client) CreateCertAuthority(ca types.CertAuthority) error {
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
-func (c *Client) RotateCertAuthority(req RotateRequest) error {
+func (c *Client) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
 	caType := "all"
 	if req.Type != "" {
 		caType = string(req.Type)
 	}
-	_, err := c.PostJSON(c.Endpoint("authorities", caType, "rotate"), req)
+	_, err := c.PostJSON(ctx, c.Endpoint("authorities", caType, "rotate"), req)
 	return trace.Wrap(err)
 }
 
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is used to update only public keys and certificates of the
 // the certificate authorities of trusted clusters.
-func (c *Client) RotateExternalCertAuthority(ca types.CertAuthority) error {
+func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
@@ -455,7 +436,7 @@ func (c *Client) RotateExternalCertAuthority(ca types.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("authorities", string(ca.GetType()), "rotate", "external"),
+	_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType()), "rotate", "external"),
 		&rotateExternalCertAuthorityRawReq{CA: data})
 	return trace.Wrap(err)
 }
@@ -469,7 +450,7 @@ func (c *Client) UpsertCertAuthority(ca types.CertAuthority) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("authorities", string(ca.GetType())),
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("authorities", string(ca.GetType())),
 		&upsertCertAuthorityRawReq{CA: data})
 	return trace.Wrap(err)
 }
@@ -481,11 +462,11 @@ func (c *Client) CompareAndSwapCertAuthority(new, existing types.CertAuthority) 
 }
 
 // GetCertAuthorities returns a list of certificate authorities
-func (c *Client) GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(c.Endpoint("authorities", string(caType)), url.Values{
+	out, err := c.Get(ctx, c.Endpoint("authorities", string(caType)), url.Values{
 		"load_keys": []string{fmt.Sprintf("%t", loadKeys)},
 	})
 	if err != nil {
@@ -508,11 +489,11 @@ func (c *Client) GetCertAuthorities(caType types.CertAuthType, loadKeys bool, op
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Client) GetCertAuthority(id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
+	out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
 		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
 	})
 	if err != nil {
@@ -526,7 +507,7 @@ func (c *Client) DeleteCertAuthority(id types.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.Delete(c.Endpoint("authorities", string(id.Type), id.DomainName))
+	_, err := c.Delete(context.TODO(), c.Endpoint("authorities", string(id.Type), id.DomainName))
 	return trace.Wrap(err)
 }
 
@@ -549,7 +530,7 @@ func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
 // If token is not supplied, it will be auto generated and returned.
 // If TTL is not supplied, token will be valid until removed.
 func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
-	out, err := c.PostJSON(c.Endpoint("tokens"), req)
+	out, err := c.PostJSON(ctx, c.Endpoint("tokens"), req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -562,42 +543,26 @@ func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
-func (c *Client) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
+func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.PostJSON(c.Endpoint("tokens", "register"), req)
+	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var keys PackedKeys
-	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &keys, nil
-}
 
-// RenewCredentials returns a new set of credentials associated
-// with the server with the same privileges
-func (c *Client) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(c.Endpoint("server", "credentials"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var keys PackedKeys
-	if err := json.Unmarshal(out.Bytes(), &keys); err != nil {
+	var certs proto.Certs
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &keys, nil
+	return &certs, nil
 }
 
 // RegisterNewAuthServer is used to register new auth server with token
 func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error {
-	_, err := c.PostJSON(c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
+	_, err := c.PostJSON(ctx, c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
 		Token: token,
 	})
 	return trace.Wrap(err)
@@ -631,7 +596,7 @@ func (c *Client) UpsertNodes(namespace string, servers []types.Server) error {
 		Namespace: namespace,
 		Nodes:     bytes,
 	}
-	_, err = c.PutJSON(c.Endpoint("namespaces", namespace, "nodes"), args)
+	_, err = c.PutJSON(context.TODO(), c.Endpoint("namespaces", namespace, "nodes"), args)
 	return trace.Wrap(err)
 }
 
@@ -645,7 +610,7 @@ func (c *Client) UpsertReverseTunnel(tunnel types.ReverseTunnel) error {
 	args := &upsertReverseTunnelRawReq{
 		ReverseTunnel: data,
 	}
-	_, err = c.PostJSON(c.Endpoint("reversetunnels"), args)
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("reversetunnels"), args)
 	return trace.Wrap(err)
 }
 
@@ -656,7 +621,7 @@ func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (
 
 // GetReverseTunnels returns the list of created reverse tunnels
 func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	out, err := c.Get(c.Endpoint("reversetunnels"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("reversetunnels"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,7 +648,7 @@ func (c *Client) DeleteReverseTunnel(domainName string) error {
 	if strings.TrimSpace(domainName) == "" {
 		return trace.BadParameter("empty domain name")
 	}
-	_, err := c.Delete(c.Endpoint("reversetunnels", domainName))
+	_, err := c.Delete(context.TODO(), c.Endpoint("reversetunnels", domainName))
 	return trace.Wrap(err)
 }
 
@@ -696,7 +661,7 @@ func (c *Client) UpsertTunnelConnection(conn types.TunnelConnection) error {
 	args := &upsertTunnelConnectionRawReq{
 		TunnelConnection: data,
 	}
-	_, err = c.PostJSON(c.Endpoint("tunnelconnections"), args)
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("tunnelconnections"), args)
 	return trace.Wrap(err)
 }
 
@@ -705,7 +670,7 @@ func (c *Client) GetTunnelConnections(clusterName string, opts ...services.Marsh
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name parameter")
 	}
-	out, err := c.Get(c.Endpoint("tunnelconnections", clusterName), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("tunnelconnections", clusterName), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -726,7 +691,7 @@ func (c *Client) GetTunnelConnections(clusterName string, opts ...services.Marsh
 
 // GetAllTunnelConnections returns all tunnel connections
 func (c *Client) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	out, err := c.Get(c.Endpoint("tunnelconnections"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("tunnelconnections"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -753,7 +718,7 @@ func (c *Client) DeleteTunnelConnection(clusterName string, connName string) err
 	if connName == "" {
 		return trace.BadParameter("missing parameter connection name")
 	}
-	_, err := c.Delete(c.Endpoint("tunnelconnections", clusterName, connName))
+	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections", clusterName, connName))
 	return trace.Wrap(err)
 }
 
@@ -762,7 +727,7 @@ func (c *Client) DeleteTunnelConnections(clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	_, err := c.Delete(c.Endpoint("tunnelconnections", clusterName))
+	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections", clusterName))
 	return trace.Wrap(err)
 }
 
@@ -773,7 +738,7 @@ func (c *Client) DeleteAllTokens() error {
 
 // DeleteAllTunnelConnections deletes all tunnel connections
 func (c *Client) DeleteAllTunnelConnections() error {
-	_, err := c.Delete(c.Endpoint("tunnelconnections"))
+	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections"))
 	return trace.Wrap(err)
 }
 
@@ -789,7 +754,7 @@ func (c *Client) GetUserLoginAttempts(user string) ([]services.LoginAttempt, err
 
 // GetRemoteClusters returns a list of remote clusters
 func (c *Client) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	out, err := c.Get(c.Endpoint("remoteclusters"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("remoteclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -813,7 +778,7 @@ func (c *Client) GetRemoteCluster(clusterName string) (types.RemoteCluster, erro
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	out, err := c.Get(c.Endpoint("remoteclusters", clusterName), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("remoteclusters", clusterName), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -825,13 +790,13 @@ func (c *Client) DeleteRemoteCluster(clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	_, err := c.Delete(c.Endpoint("remoteclusters", clusterName))
+	_, err := c.Delete(context.TODO(), c.Endpoint("remoteclusters", clusterName))
 	return trace.Wrap(err)
 }
 
 // DeleteAllRemoteClusters deletes all remote clusters
 func (c *Client) DeleteAllRemoteClusters() error {
-	_, err := c.Delete(c.Endpoint("remoteclusters"))
+	_, err := c.Delete(context.TODO(), c.Endpoint("remoteclusters"))
 	return trace.Wrap(err)
 }
 
@@ -844,7 +809,7 @@ func (c *Client) CreateRemoteCluster(rc types.RemoteCluster) error {
 	args := &createRemoteClusterRawReq{
 		RemoteCluster: data,
 	}
-	_, err = c.PostJSON(c.Endpoint("remoteclusters"), args)
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("remoteclusters"), args)
 	return trace.Wrap(err)
 }
 
@@ -858,13 +823,13 @@ func (c *Client) UpsertAuthServer(s types.Server) error {
 	args := &upsertServerRawReq{
 		Server: data,
 	}
-	_, err = c.PostJSON(c.Endpoint("authservers"), args)
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("authservers"), args)
 	return trace.Wrap(err)
 }
 
 // GetAuthServers returns the list of auth servers registered in the cluster.
 func (c *Client) GetAuthServers() ([]types.Server, error) {
-	out, err := c.Get(c.Endpoint("authservers"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("authservers"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -903,13 +868,13 @@ func (c *Client) UpsertProxy(s types.Server) error {
 	args := &upsertServerRawReq{
 		Server: data,
 	}
-	_, err = c.PostJSON(c.Endpoint("proxies"), args)
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
 }
 
 // GetProxies returns the list of auth servers registered in the cluster.
 func (c *Client) GetProxies() ([]types.Server, error) {
-	out, err := c.Get(c.Endpoint("proxies"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("proxies"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -930,7 +895,7 @@ func (c *Client) GetProxies() ([]types.Server, error) {
 
 // DeleteAllProxies deletes all proxies
 func (c *Client) DeleteAllProxies() error {
-	_, err := c.Delete(c.Endpoint("proxies"))
+	_, err := c.Delete(context.TODO(), c.Endpoint("proxies"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -942,29 +907,17 @@ func (c *Client) DeleteProxy(name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	_, err := c.Delete(c.Endpoint("proxies", name))
+	_, err := c.Delete(context.TODO(), c.Endpoint("proxies", name))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// GetU2FAppID returns U2F settings, like App ID and Facets
-func (c *Client) GetU2FAppID() (string, error) {
-	out, err := c.Get(c.Endpoint("u2f", "appID"), url.Values{})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var appid string
-	if err := json.Unmarshal(out.Bytes(), &appid); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return appid, nil
-}
-
 // UpsertPassword updates web access password for the user
 func (c *Client) UpsertPassword(user string, password []byte) error {
 	_, err := c.PostJSON(
+		context.TODO(),
 		c.Endpoint("users", user, "web", "password"),
 		upsertPasswordReq{
 			Password: string(password),
@@ -982,19 +935,25 @@ func (c *Client) UpsertUser(user types.User) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
+}
+
+// CompareAndSwapUser not implemented: can only be called locally
+func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // ChangePassword updates users password based on the old password.
 func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
-	_, err := c.PutJSON(c.Endpoint("users", req.User, "web", "password"), req)
+	_, err := c.PutJSON(context.TODO(), c.Endpoint("users", req.User, "web", "password"), req)
 	return trace.Wrap(err)
 }
 
 // CheckPassword checks if the suplied web access password is valid.
 func (c *Client) CheckPassword(user string, password []byte, otpToken string) error {
 	_, err := c.PostJSON(
+		context.TODO(),
 		c.Endpoint("users", user, "web", "password", "check"),
 		checkPasswordReq{
 			Password: string(password),
@@ -1003,28 +962,11 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 	return trace.Wrap(err)
 }
 
-// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
-func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error) {
-	out, err := c.PostJSON(
-		c.Endpoint("u2f", "users", user, "sign"),
-		signInReq{
-			Password: string(password),
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var signRequest *MFAAuthenticateChallenge
-	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
-		return nil, err
-	}
-	return signRequest, nil
-}
-
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
 func (c *Client) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
 	out, err := c.PostJSON(
+		context.TODO(),
 		c.Endpoint("users", req.User, "web", "sessions"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1035,6 +977,7 @@ func (c *Client) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
 // CreateWebSession creates a new web session for a user
 func (c *Client) CreateWebSession(user string) (types.WebSession, error) {
 	out, err := c.PostJSON(
+		context.TODO(),
 		c.Endpoint("users", user, "web", "sessions"),
 		WebSessionReq{User: user},
 	)
@@ -1048,6 +991,7 @@ func (c *Client) CreateWebSession(user string) (types.WebSession, error) {
 // in case if authentication is successful
 func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
 	out, err := c.PostJSON(
+		context.TODO(),
 		c.Endpoint("users", req.Username, "web", "authenticate"),
 		req,
 	)
@@ -1061,6 +1005,7 @@ func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSess
 // short lived certificates as a result
 func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	out, err := c.PostJSON(
+		context.TODO(),
 		c.Endpoint("users", req.Username, "ssh", "authenticate"),
 		req,
 	)
@@ -1078,6 +1023,7 @@ func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 // it is valid, or error otherwise.
 func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
 	out, err := c.Get(
+		ctx,
 		c.Endpoint("users", user, "web", "sessions", sessionID), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1087,7 +1033,7 @@ func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 
 // DeleteWebSession deletes the web session specified with sid for the given user
 func (c *Client) DeleteWebSession(user string, sid string) error {
-	_, err := c.Delete(c.Endpoint("users", user, "web", "sessions", sid))
+	_, err := c.Delete(context.TODO(), c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
 }
 
@@ -1095,7 +1041,7 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 // by password. If the pass parameter is an empty string, the key pair
 // is not password-protected.
 func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
-	out, err := c.PostJSON(c.Endpoint("keypair"), generateKeyPairReq{Password: pass})
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("keypair"), generateKeyPairReq{Password: pass})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1110,16 +1056,16 @@ func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, roles types.SystemRoles, ttl time.Duration) ([]byte, error) {
+	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
 
-	out, err := c.PostJSON(c.Endpoint("ca", "host", "certs"),
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,
 			HostID:      hostID,
 			NodeName:    nodeName,
 			Principals:  principals,
 			ClusterName: clusterName,
-			Roles:       roles,
+			Roles:       types.SystemRoles{role},
 			TTL:         ttl,
 		})
 	if err != nil {
@@ -1134,31 +1080,9 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
-func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
-	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
-	if err != nil {
-		return nil, err
-	}
-	var u2fRegReq u2f.RegisterChallenge
-	if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
-		return nil, err
-	}
-	return &u2fRegReq, nil
-}
-
-// ChangePasswordWithToken changes user password with ResetPasswordToken
-func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
 // CreateOIDCAuthRequest creates OIDCAuthRequest
 func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
 		Req: req,
 	})
 	if err != nil {
@@ -1173,7 +1097,7 @@ func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
-	out, err := c.PostJSON(c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
 		Query: q,
 	})
 	if err != nil {
@@ -1214,7 +1138,7 @@ func (c *Client) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("saml", "connectors"), &createSAMLConnectorRawReq{
+	_, err = c.PostJSON(ctx, c.Endpoint("saml", "connectors"), &createSAMLConnectorRawReq{
 		Connector: data,
 	})
 	if err != nil {
@@ -1225,7 +1149,7 @@ func (c *Client) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 
 // CreateSAMLAuthRequest creates SAML AuthnRequest
 func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
-	out, err := c.PostJSON(c.Endpoint("saml", "requests", "create"), createSAMLAuthRequestReq{
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("saml", "requests", "create"), createSAMLAuthRequestReq{
 		Req: req,
 	})
 	if err != nil {
@@ -1240,7 +1164,7 @@ func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
 func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
-	out, err := c.PostJSON(c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
 		Response: re,
 	})
 	if err != nil {
@@ -1281,7 +1205,7 @@ func (c *Client) CreateGithubConnector(connector types.GithubConnector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("github", "connectors"), &createGithubConnectorRawReq{
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("github", "connectors"), &createGithubConnectorRawReq{
 		Connector: bytes,
 	})
 	if err != nil {
@@ -1292,7 +1216,7 @@ func (c *Client) CreateGithubConnector(connector types.GithubConnector) error {
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (c *Client) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
-	out, err := c.PostJSON(c.Endpoint("github", "requests", "create"),
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("github", "requests", "create"),
 		createGithubAuthRequestReq{Req: req})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1306,7 +1230,7 @@ func (c *Client) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
 func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
-	out, err := c.PostJSON(c.Endpoint("github", "requests", "validate"),
+	out, err := c.PostJSON(context.TODO(), c.Endpoint("github", "requests", "validate"),
 		validateGithubAuthCallbackReq{Query: q})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1343,7 +1267,7 @@ func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 
 // EmitAuditEventLegacy sends an auditable event to the auth server (part of events.IAuditLog interface)
 func (c *Client) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
-	_, err := c.PostJSON(c.Endpoint("events"), &auditEventReq{
+	_, err := c.PostJSON(context.TODO(), c.Endpoint("events"), &auditEventReq{
 		Event:  event,
 		Fields: fields,
 		// Send "type" as well for backwards compatibility.
@@ -1378,7 +1302,7 @@ func (c *Client) PostSessionSlice(slice events.SessionSlice) error {
 	// we **must** consume response by reading all of its body, otherwise the http
 	// client will allocate a new connection for subsequent requests
 	defer re.Body.Close()
-	responseBytes, _ := ioutil.ReadAll(re.Body)
+	responseBytes, _ := io.ReadAll(re.Body)
 	return trace.ReadError(re.StatusCode, responseBytes)
 }
 
@@ -1389,7 +1313,7 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
-	response, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), url.Values{
+	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), url.Values{
 		"offset": []string{strconv.Itoa(offsetBytes)},
 		"bytes":  []string{strconv.Itoa(maxBytes)},
 	})
@@ -1411,7 +1335,7 @@ func (c *Client) UploadSessionRecording(r events.SessionRecording) error {
 		"sid":       []string{string(r.SessionID)},
 		"namespace": []string{r.Namespace},
 	}
-	_, err := c.PostForm(c.Endpoint("namespaces", r.Namespace, "sessions", string(r.SessionID), "recording"), values, file)
+	_, err := c.PostForm(context.TODO(), c.Endpoint("namespaces", r.Namespace, "sessions", string(r.SessionID), "recording"), values, file)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1437,7 +1361,7 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 	if includePrintEvents {
 		query.Set("print", fmt.Sprintf("%v", includePrintEvents))
 	}
-	response, err := c.Get(c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
+	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1449,7 +1373,7 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	return c.APIClient.StreamSessionEvents(ctx, string(sessionID), startIndex)
@@ -1466,7 +1390,7 @@ func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventT
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (c *Client) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -1477,7 +1401,7 @@ func (c *Client) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit i
 
 // GetNamespaces returns a list of namespaces
 func (c *Client) GetNamespaces() ([]types.Namespace, error) {
-	out, err := c.Get(c.Endpoint("namespaces"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("namespaces"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1493,7 +1417,7 @@ func (c *Client) GetNamespace(name string) (*types.Namespace, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing namespace name")
 	}
-	out, err := c.Get(c.Endpoint("namespaces", name), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1502,13 +1426,13 @@ func (c *Client) GetNamespace(name string) (*types.Namespace, error) {
 
 // UpsertNamespace upserts namespace
 func (c *Client) UpsertNamespace(ns types.Namespace) error {
-	_, err := c.PostJSON(c.Endpoint("namespaces"), upsertNamespaceReq{Namespace: ns})
+	_, err := c.PostJSON(context.TODO(), c.Endpoint("namespaces"), upsertNamespaceReq{Namespace: ns})
 	return trace.Wrap(err)
 }
 
 // DeleteNamespace deletes namespace by name
 func (c *Client) DeleteNamespace(name string) error {
-	_, err := c.Delete(c.Endpoint("namespaces", name))
+	_, err := c.Delete(context.TODO(), c.Endpoint("namespaces", name))
 	return trace.Wrap(err)
 }
 
@@ -1517,39 +1441,9 @@ func (c *Client) CreateRole(role types.Role) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GetClusterConfig returns cluster level configuration information.
-func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (types.ClusterConfig, error) {
-	out, err := c.Get(c.Endpoint("configuration"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cc, err := services.UnmarshalClusterConfig(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cc, err
-}
-
-// SetClusterConfig sets cluster level configuration information.
-func (c *Client) SetClusterConfig(cc types.ClusterConfig) error {
-	data, err := services.MarshalClusterConfig(cc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(c.Endpoint("configuration"), &setClusterConfigReq{ClusterConfig: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // GetClusterName returns a cluster name
 func (c *Client) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	out, err := c.Get(c.Endpoint("configuration", "name"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("configuration", "name"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1570,7 +1464,7 @@ func (c *Client) SetClusterName(cn types.ClusterName) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = c.PostJSON(c.Endpoint("configuration", "name"), &setClusterNameReq{ClusterName: data})
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "name"), &setClusterNameReq{ClusterName: data})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1585,13 +1479,13 @@ func (c *Client) UpsertClusterName(cn types.ClusterName) error {
 
 // DeleteStaticTokens deletes static tokens
 func (c *Client) DeleteStaticTokens() error {
-	_, err := c.Delete(c.Endpoint("configuration", "static_tokens"))
+	_, err := c.Delete(context.TODO(), c.Endpoint("configuration", "static_tokens"))
 	return trace.Wrap(err)
 }
 
 // GetStaticTokens returns a list of static register tokens
 func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
-	out, err := c.Get(c.Endpoint("configuration", "static_tokens"), url.Values{})
+	out, err := c.Get(context.TODO(), c.Endpoint("configuration", "static_tokens"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1611,7 +1505,7 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = c.PostJSON(c.Endpoint("configuration", "static_tokens"), &setStaticTokensReq{StaticTokens: data})
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "static_tokens"), &setStaticTokensReq{StaticTokens: data})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1622,11 +1516,6 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 // GetLocalClusterName returns local cluster name
 func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
-}
-
-// DeleteClusterConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterConfig() error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteClusterName not implemented: can only be called locally.
@@ -1659,18 +1548,23 @@ func (c *Client) DeleteAllRoles() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ListWindowsDesktops not implemented: can only be called locally.
+func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // DeleteAllUsers not implemented: can only be called locally.
 func (c *Client) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+func (c *Client) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	validateRequestRaw, err := validateRequest.ToRaw()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := c.PostJSON(c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
+	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1698,24 +1592,29 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 	})
 }
 
+// CreateBot creates a bot and associated resources.
+func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	return c.APIClient.CreateBot(ctx, req)
+}
+
+// DeleteBot deletes a certificate renewal bot and associated resources.
+func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	return c.APIClient.DeleteBot(ctx, botName)
+}
+
+// GetBotUsers fetches all bot users.
+func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	return c.APIClient.GetBotUsers(ctx)
+}
+
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	resp, err := c.APIClient.GetAppServers(ctx, namespace)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return resp, nil
+	return c.APIClient.GetAppServers(ctx, namespace)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return resp, nil
+	return c.APIClient.GetDatabaseServers(ctx, namespace)
 }
 
 // UpsertAppSession not implemented: can only be called locally.
@@ -1737,19 +1636,62 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (apieven
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
 
-// GetNetworkRestrictions retrieves the network restrictions (allow/deny lists)
-func (c *Client) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	return c.APIClient.GetNetworkRestrictions(ctx)
+// GetClusterAuditConfig gets cluster audit configuration.
+func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	return c.APIClient.GetClusterAuditConfig(ctx)
 }
 
-// SetNetworkRestrictions updates the network restrictions (allow/deny lists)
-func (c *Client) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
-	return c.APIClient.SetNetworkRestrictions(ctx, nr)
+// GetClusterNetworkingConfig gets cluster networking configuration.
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	return c.APIClient.GetClusterNetworkingConfig(ctx)
 }
 
-// DeleteNetworkRestrictions deletes the network restrictions (allow/deny lists)
-func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
-	return c.APIClient.DeleteNetworkRestrictions(ctx)
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	return c.APIClient.GetSessionRecordingConfig(ctx)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	resp, err := c.APIClient.GenerateCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{Type: caType})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.CRL, nil
+}
+
+// DeleteClusterNetworkingConfig not implemented: can only be called locally.
+func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteSessionRecordingConfig not implemented: can only be called locally.
+func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAuthPreference not implemented: can only be called locally.
+func (c *Client) DeleteAuthPreference(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// SetClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteClusterAuditConfig not implemented: can only be called locally.
+func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAllLocks not implemented: can only be called locally.
+func (c *Client) DeleteAllLocks(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // WebService implements features used by Web UI clients
@@ -1826,12 +1768,6 @@ type IdentityService interface {
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
-	// GetMFAAuthenticateChallenge generates request for user trying to authenticate with U2F token
-	GetMFAAuthenticateChallenge(user string, password []byte) (*MFAAuthenticateChallenge, error)
-
-	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
-	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
-
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
 
@@ -1843,6 +1779,10 @@ type IdentityService interface {
 
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error
+
+	// CompareAndSwapUser updates an existing user in a backend, but fails if
+	// the user in the backend does not match the expected value.
+	CompareAndSwapUser(ctx context.Context, new, expected types.User) error
 
 	// DeleteUser deletes an existng user in a backend by username.
 	DeleteUser(ctx context.Context, user string) error
@@ -1874,7 +1814,7 @@ type IdentityService interface {
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
 	// resulting certificate.
-	GenerateHostCert(key []byte, hostID, nodeName string, principals []string, clusterName string, roles types.SystemRoles, ttl time.Duration) ([]byte, error)
+	GenerateHostCert(key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
 
 	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 	// text format, signs it using User Certificate Authority signing key and
@@ -1896,14 +1836,19 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// ChangePasswordWithToken changes password with token
-	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (types.WebSession, error)
+	// CreateBot creates a new certificate renewal bot and associated resources.
+	CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error)
+	// DeleteBot removes a certificate renewal bot and associated resources.
+	DeleteBot(ctx context.Context, botName string) error
+	// GetBotUsers gets all bot users.
+	GetBotUsers(ctx context.Context) ([]types.User, error)
+
+	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
+	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
-
-	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
-	RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
@@ -1911,6 +1856,42 @@ type IdentityService interface {
 	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
 	// DeleteMFADevice deletes a MFA device for the calling user.
 	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
+	// AddMFADeviceSync adds a new MFA device (nonstream).
+	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
+	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+	DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error
+	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
+	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+	CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
+
+	// MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
+	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
+
+	// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+	// This token is used as part of a URL that will be emailed to the user (not done in this request).
+	// Represents step 1 of the account recovery process.
+	StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error)
+	// VerifyAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+	// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
+	// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
+	VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (types.UserToken, error)
+	// CompleteAccountRecovery sets a new password or adds a new mfa device,
+	// allowing user to regain access to their account using the new credentials.
+	// Represents the last step in the account recovery process after RPC's StartAccountRecovery and VerifyAccountRecovery.
+	CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error
+
+	// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
+	CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error)
+	// GetAccountRecoveryToken returns a user token resource after verifying the token in
+	// request is not expired and is of the correct recovery type.
+	GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error)
+	// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
+	GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error)
+
+	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
+	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
+	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
 }
 
 // ProvisioningService is a service in control
@@ -1934,7 +1915,7 @@ type ProvisioningService interface {
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
-	RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error)
+	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
 
 	// RegisterNewAuthServer is used to register new auth server with token
 	RegisterNewAuthServer(ctx context.Context, token string) error
@@ -1953,11 +1934,13 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
+	services.Apps
 	services.Databases
 	services.WindowsDesktops
 	WebService
 	session.Service
 	services.ClusterConfiguration
+	services.SessionTrackerService
 	types.Events
 
 	types.WebSessionsGetter
@@ -1967,17 +1950,17 @@ type ClientI interface {
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 
 	// RotateCertAuthority starts or restarts certificate authority rotation process.
-	RotateCertAuthority(req RotateRequest) error
+	RotateCertAuthority(ctx context.Context, req RotateRequest) error
 
 	// RotateExternalCertAuthority rotates external certificate authority,
 	// this method is used to update only public keys and certificates of the
 	// the certificate authorities of trusted clusters.
-	RotateExternalCertAuthority(ca types.CertAuthority) error
+	RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error
 
 	// ValidateTrustedCluster validates trusted cluster token with
 	// main cluster, in case if validation is successful, main cluster
 	// adds remote cluster
-	ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
+	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 
 	// GetDomainName returns auth server cluster name
 	GetDomainName() (string, error)
@@ -1986,9 +1969,9 @@ type ClientI interface {
 	// If the cluster has multiple TLS certs, they will all be concatenated.
 	GetClusterCACert() (*LocalCAResponse, error)
 
-	// GenerateServerKeys generates new host private keys and certificates (signed
+	// GenerateHostCerts generates new host certificates (signed
 	// by the host certificate authority) for a node
-	GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
+	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
 	AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error)
@@ -2027,4 +2010,10 @@ type ClientI interface {
 
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
 	ResetSessionRecordingConfig(ctx context.Context) error
+
+	// GenerateWindowsDesktopCert generates client smartcard certificate used
+	// by an RDP client to authenticate with Windows.
+	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
+	// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
 }

@@ -22,13 +22,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/trace"
 )
 
 // Database represents a database proxied by a database server.
 type Database interface {
-	// Resource provides common resource methods.
-	Resource
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
 	// GetNamespace returns the database namespace.
 	GetNamespace() string
 	// GetStaticLabels returns the database static labels.
@@ -39,8 +43,6 @@ type Database interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the database dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// GetAllLabels returns combined static and dynamic labels.
-	GetAllLabels() map[string]string
 	// LabelsString returns all labels as a string.
 	LabelsString() string
 	// String returns string representation of the database.
@@ -51,22 +53,44 @@ type Database interface {
 	GetProtocol() string
 	// GetURI returns the database connection endpoint.
 	GetURI() string
+	// SetURI sets the database connection endpoint.
+	SetURI(string)
 	// GetCA returns the database CA certificate.
 	GetCA() string
-	// SetCA sets the database CA certificate.
-	SetCA(string)
-	// GetAWS returns AWS information for RDS/Aurora databases.
+	// GetTLS returns the database TLS configuration.
+	GetTLS() DatabaseTLS
+	// SetStatusCA sets the database CA certificate in the status field.
+	SetStatusCA(string)
+	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
+	// SetStatusAWS sets the database AWS metadata in the status field.
+	SetStatusAWS(AWS)
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
+	// GetAzure returns Azure database server metadata.
+	GetAzure() Azure
+	// GetAD returns Active Directory database configuration.
+	GetAD() AD
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
+	// GetIAMPolicy returns AWS IAM policy for the database.
+	GetIAMPolicy() string
+	// GetIAMAction returns AWS IAM action needed to connect to the database.
+	GetIAMAction() string
+	// GetIAMResources returns AWS IAM resources that provide access to the database.
+	GetIAMResources() []string
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// IsRedshift returns true if this is a Redshift database.
 	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
 	IsCloudSQL() bool
+	// IsAzure returns true if this is an Azure database.
+	IsAzure() bool
+	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+	IsCloudHosted() bool
+	// Copy returns a copy of this database resource.
+	Copy() *DatabaseV3
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -114,6 +138,16 @@ func (d *DatabaseV3) SetResourceID(id int64) {
 // GetMetadata returns the database resource metadata.
 func (d *DatabaseV3) GetMetadata() Metadata {
 	return d.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (d *DatabaseV3) Origin() string {
+	return d.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (d *DatabaseV3) SetOrigin(origin string) {
+	d.Metadata.SetOrigin(origin)
 }
 
 // GetNamespace returns the database resource namespace.
@@ -189,19 +223,50 @@ func (d *DatabaseV3) GetURI() string {
 	return d.Spec.URI
 }
 
-// GetCA returns the database CA certificate.
+// SetURI sets the database connection address.
+func (d *DatabaseV3) SetURI(uri string) {
+	d.Spec.URI = uri
+}
+
+// GetCA returns the database CA certificate. If more than one CA is set, then
+// the user provided CA is returned first (Spec field).
+// Auto-downloaded CA certificate is returned otherwise.
 func (d *DatabaseV3) GetCA() string {
-	return d.Spec.CACert
+	if d.Spec.TLS.CACert != "" {
+		return d.Spec.TLS.CACert
+	}
+	if d.Spec.CACert != "" {
+		return d.Spec.CACert
+	}
+	return d.Status.CACert
 }
 
-// SetCA sets the database CA certificate.
-func (d *DatabaseV3) SetCA(bytes string) {
-	d.Spec.CACert = bytes
+// GetTLS returns Database TLS configuration.
+func (d *DatabaseV3) GetTLS() DatabaseTLS {
+	return d.Spec.TLS
 }
 
-// GetAWS returns AWS information for RDS/Aurora/Redshift databases.
+// SetStatusCA sets the database CA certificate in the status field.
+func (d *DatabaseV3) SetStatusCA(ca string) {
+	d.Status.CACert = ca
+}
+
+// IsEmpty returns true if AWS metadata is empty.
+func (a AWS) IsEmpty() bool {
+	return cmp.Equal(a, AWS{})
+}
+
+// GetAWS returns the database AWS metadata.
 func (d *DatabaseV3) GetAWS() AWS {
+	if !d.Status.AWS.IsEmpty() {
+		return d.Status.AWS
+	}
 	return d.Spec.AWS
+}
+
+// SetStatusAWS sets the database AWS metadata in the status field.
+func (d *DatabaseV3) SetStatusAWS(aws AWS) {
+	d.Status.AWS = aws
 }
 
 // GetGCP returns GCP information for Cloud SQL databases.
@@ -209,7 +274,17 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 	return d.Spec.GCP
 }
 
-// IsRDS returns true if this is a AWS RDS/Aurora instance.
+// GetAzure returns Azure database server metadata.
+func (d *DatabaseV3) GetAzure() Azure {
+	return d.Spec.Azure
+}
+
+// GetAD returns Active Directory database configuration.
+func (d *DatabaseV3) GetAD() AD {
+	return d.Spec.AD
+}
+
+// IsRDS returns true if this is an AWS RDS/Aurora instance.
 func (d *DatabaseV3) IsRDS() bool {
 	return d.GetType() == DatabaseTypeRDS
 }
@@ -224,16 +299,29 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 	return d.GetType() == DatabaseTypeCloudSQL
 }
 
+// IsAzure returns true if this is Azure hosted database.
+func (d *DatabaseV3) IsAzure() bool {
+	return d.GetType() == DatabaseTypeAzure
+}
+
+// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+func (d *DatabaseV3) IsCloudHosted() bool {
+	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure()
+}
+
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
-	if d.Spec.AWS.Redshift.ClusterID != "" {
+	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
-	if d.Spec.AWS.Region != "" {
+	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
 		return DatabaseTypeRDS
 	}
-	if d.Spec.GCP.ProjectID != "" {
+	if d.GetGCP().ProjectID != "" {
 		return DatabaseTypeCloudSQL
+	}
+	if d.GetAzure().Name != "" {
+		return DatabaseTypeAzure
 	}
 	return DatabaseTypeSelfHosted
 }
@@ -241,7 +329,28 @@ func (d *DatabaseV3) GetType() string {
 // String returns the database string representation.
 func (d *DatabaseV3) String() string {
 	return fmt.Sprintf("Database(Name=%v, Type=%v, Labels=%v)",
-		d.GetName(), d.GetType(), d.GetStaticLabels())
+		d.GetName(), d.GetType(), d.GetAllLabels())
+}
+
+// Copy returns a copy of this database resource.
+func (d *DatabaseV3) Copy() *DatabaseV3 {
+	return proto.Clone(d).(*DatabaseV3)
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (d *DatabaseV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetDescription(), d.GetProtocol(), d.GetType())
+
+	var custom func(string) bool
+	switch d.GetType() {
+	case DatabaseTypeCloudSQL:
+		custom = func(val string) bool {
+			return strings.EqualFold(val, "cloud") || strings.EqualFold(val, "cloud sql")
+		}
+	}
+
+	return MatchSearch(fieldVals, values, custom)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -270,16 +379,19 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
-	case strings.Contains(d.Spec.URI, rdsEndpointSuffix):
-		region, err := parseRDSEndpoint(d.Spec.URI)
+	case awsutils.IsRDSEndpoint(d.Spec.URI):
+		instanceID, region, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if d.Spec.AWS.RDS.InstanceID == "" {
+			d.Spec.AWS.RDS.InstanceID = instanceID
 		}
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
-	case strings.Contains(d.Spec.URI, redshiftEndpointSuffix):
-		clusterID, region, err := parseRedshiftEndpoint(d.Spec.URI)
+	case awsutils.IsRedshiftEndpoint(d.Spec.URI):
+		clusterID, region, err := awsutils.ParseRedshiftEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -289,38 +401,108 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
+	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
+		name, err := parseAzureEndpoint(d.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if d.Spec.Azure.Name == "" {
+			d.Spec.Azure.Name = name
+		}
 	}
 	return nil
 }
 
-// parseRDSEndpoint extracts region from the provided RDS endpoint.
-func parseRDSEndpoint(endpoint string) (region string, err error) {
+// parseAzureEndpoint extracts database server name from Azure endpoint.
+func parseAzureEndpoint(endpoint string) (name string, err error) {
 	host, _, err := net.SplitHostPort(endpoint)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	// RDS/Aurora endpoint looks like this:
-	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	// Azure endpoint looks like this:
+	// name.mysql.database.azure.com
 	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, rdsEndpointSuffix) || len(parts) != 6 {
-		return "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+	if !strings.HasSuffix(host, AzureEndpointSuffix) || len(parts) != 5 {
+		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
 	}
-	return parts[2], nil
+	return parts[0], nil
 }
 
-// parseRedshiftEndpoint extracts cluster ID and region from the provided Redshift endpoint.
-func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error) {
-	host, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		return "", "", trace.Wrap(err)
+// GetIAMPolicy returns AWS IAM policy for this database.
+func (d *DatabaseV3) GetIAMPolicy() string {
+	if d.IsRDS() {
+		return d.getRDSPolicy()
+	} else if d.IsRedshift() {
+		return d.getRedshiftPolicy()
 	}
-	// Redshift endpoint looks like this:
-	// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
-	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, redshiftEndpointSuffix) || len(parts) != 6 {
-		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
+	return ""
+}
+
+// GetIAMAction returns AWS IAM action needed to connect to the database.
+func (d *DatabaseV3) GetIAMAction() string {
+	if d.IsRDS() {
+		return "rds-db:connect"
+	} else if d.IsRedshift() {
+		return "redshift:GetClusterCredentials"
 	}
-	return parts[0], parts[2], nil
+	return ""
+}
+
+// GetIAMResources returns AWS IAM resources that provide access to the database.
+func (d *DatabaseV3) GetIAMResources() []string {
+	aws := d.GetAWS()
+	if d.IsRDS() {
+		return []string{
+			fmt.Sprintf("arn:aws:rds-db:%v:%v:dbuser:%v/*",
+				aws.Region, aws.AccountID, aws.RDS.ResourceID),
+		}
+	} else if d.IsRedshift() {
+		return []string{
+			fmt.Sprintf("arn:aws:redshift:%v:%v:dbuser:%v/*",
+				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+			fmt.Sprintf("arn:aws:redshift:%v:%v:dbname:%v/*",
+				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+			fmt.Sprintf("arn:aws:redshift:%v:%v:dbgroup:%v/*",
+				aws.Region, aws.AccountID, aws.Redshift.ClusterID),
+		}
+	}
+	return nil
+}
+
+// getRDSPolicy returns IAM policy document for this RDS database.
+func (d *DatabaseV3) getRDSPolicy() string {
+	region := d.GetAWS().Region
+	if region == "" {
+		region = "<region>"
+	}
+	accountID := d.GetAWS().AccountID
+	if accountID == "" {
+		accountID = "<account_id>"
+	}
+	resourceID := d.GetAWS().RDS.ResourceID
+	if resourceID == "" {
+		resourceID = "<resource_id>"
+	}
+	return fmt.Sprintf(rdsPolicyTemplate,
+		region, accountID, resourceID)
+}
+
+// getRedshiftPolicy returns IAM policy document for this Redshift database.
+func (d *DatabaseV3) getRedshiftPolicy() string {
+	region := d.GetAWS().Region
+	if region == "" {
+		region = "<region>"
+	}
+	accountID := d.GetAWS().AccountID
+	if accountID == "" {
+		accountID = "<account_id>"
+	}
+	clusterID := d.GetAWS().Redshift.ClusterID
+	if clusterID == "" {
+		clusterID = "<cluster_id>"
+	}
+	return fmt.Sprintf(redshiftPolicyTemplate,
+		region, accountID, clusterID)
 }
 
 const (
@@ -332,6 +514,8 @@ const (
 	DatabaseTypeRedshift = "redshift"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"
+	// DatabaseTypeAzure is Azure-hosted database.
+	DatabaseTypeAzure = "azure"
 )
 
 // DeduplicateDatabases deduplicates databases by name.
@@ -347,9 +531,65 @@ func DeduplicateDatabases(databases []Database) (result []Database) {
 	return result
 }
 
+// Databases is a list of database resources.
+type Databases []Database
+
+// ToMap returns these databases as a map keyed by database name.
+func (d Databases) ToMap() map[string]Database {
+	m := make(map[string]Database)
+	for _, database := range d {
+		m[database.GetName()] = database
+	}
+	return m
+}
+
+// AsResources returns these databases as resources with labels.
+func (d Databases) AsResources() (resources ResourcesWithLabels) {
+	for _, database := range d {
+		resources = append(resources, database)
+	}
+	return resources
+}
+
+// Len returns the slice length.
+func (d Databases) Len() int { return len(d) }
+
+// Less compares databases by name.
+func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() }
+
+// Swap swaps two databases.
+func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+
 const (
-	// rdsEndpointSuffix is the RDS/Aurora endpoint suffix.
-	rdsEndpointSuffix = ".rds.amazonaws.com"
-	// redshiftEndpointSuffix is the Redshift endpoint suffix.
-	redshiftEndpointSuffix = ".redshift.amazonaws.com"
+	// AzureEndpointSuffix is the Azure database endpoint suffix.
+	AzureEndpointSuffix = ".database.azure.com"
+)
+
+var (
+	// rdsPolicyTemplate is the IAM policy template for RDS databases access.
+	rdsPolicyTemplate = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "rds-db:connect",
+      "Resource": "arn:aws:rds-db:%v:%v:dbuser:%v/*"
+    }
+  ]
+}`
+	// redshiftPolicyTemplate is the IAM policy template for Redshift databases access.
+	redshiftPolicyTemplate = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "redshift:GetClusterCredentials",
+      "Resource": [
+        "arn:aws:redshift:%[1]v:%[2]v:dbuser:%[3]v/*",
+        "arn:aws:redshift:%[1]v:%[2]v:dbname:%[3]v/*",
+        "arn:aws:redshift:%[1]v:%[2]v:dbgroup:%[3]v/*"
+      ]
+    }
+  ]
+}`
 )

@@ -50,14 +50,20 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = add(tc, db, clientProfile, profileFile)
+
+	rootClusterName, err := tc.RootClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = add(tc, db, clientProfile, profileFile, rootClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, profileFile profile.ConnectProfileFile) (*profile.ConnectProfile, error) {
+func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, profileFile profile.ConnectProfileFile, rootCluster string) (*profile.ConnectProfile, error) {
 	var host string
 	var port int
 	switch db.Protocol {
@@ -68,22 +74,27 @@ func add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 	default:
 		return nil, trace.BadParameter("unknown database protocol: %q", db)
 	}
-	connectProfile := profile.ConnectProfile{
+	connectProfile := New(tc, db, clientProfile, rootCluster, host, port)
+	err := profileFile.Upsert(*connectProfile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connectProfile, nil
+}
+
+// New makes a new database connection profile.
+func New(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus, rootCluster string, host string, port int) *profile.ConnectProfile {
+	return &profile.ConnectProfile{
 		Name:       profileName(tc.SiteName, db.ServiceName),
 		Host:       host,
 		Port:       port,
 		User:       db.Username,
 		Database:   db.Database,
 		Insecure:   tc.InsecureSkipVerify,
-		CACertPath: clientProfile.CACertPath(),
-		CertPath:   clientProfile.DatabaseCertPath(db.ServiceName),
+		CACertPath: clientProfile.CACertPathForCluster(rootCluster),
+		CertPath:   clientProfile.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
 		KeyPath:    clientProfile.KeyPath(),
 	}
-	err := profileFile.Upsert(connectProfile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &connectProfile, nil
 }
 
 // Env returns environment variables for the specified database profile.

@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 
-	"github.com/pborman/uuid"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -50,9 +50,9 @@ type session struct {
 }
 
 // newSession creates a new session.
-func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *types.App) (*session, error) {
+func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*session, error) {
 	// Create the stream writer that will write this chunk to the audit log.
-	streamWriter, err := s.newStreamWriter(identity)
+	streamWriter, err := s.newStreamWriter(identity, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -61,7 +61,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
 		Username: identity.Username,
 		Roles:    identity.Groups,
-		URI:      app.URI,
+		URI:      app.GetURI(),
 		Expires:  identity.Expires,
 	})
 	if err != nil {
@@ -71,22 +71,20 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(s.closeContext,
 		&transportConfig{
-			w:                  streamWriter,
-			uri:                app.URI,
-			publicAddr:         app.PublicAddr,
-			publicPort:         s.proxyPort,
-			cipherSuites:       s.c.CipherSuites,
-			insecureSkipVerify: app.InsecureSkipVerify,
-			jwt:                jwt,
-			rewrite:            app.Rewrite,
-			traits:             identity.Traits,
-			log:                s.log,
-			user:               identity.Username,
+			w:            streamWriter,
+			app:          app,
+			publicPort:   s.proxyPort,
+			cipherSuites: s.c.CipherSuites,
+			jwt:          jwt,
+			traits:       identity.Traits,
+			log:          s.log,
+			user:         identity.Username,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	fwd, err := forward.New(
+		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.Logger(logrus.StandardLogger()),
 		forward.WebsocketRewriter(transport.ws),
@@ -104,7 +102,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 
 // newStreamWriter creates a streamer that will be used to stream the
 // requests that occur within this session to the audit log.
-func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter, error) {
+func (s *Server) newStreamWriter(identity *tlsca.Identity, app types.Application) (events.StreamWriter, error) {
 	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -118,7 +116,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	// Each chunk has its own ID. Create a new UUID for this chunk which will be
 	// emitted in a new event to the audit log that can be use to aggregate all
 	// chunks for a particular session.
-	chunkID := uuid.New()
+	chunkID := uuid.New().String()
 
 	// Create a sync or async streamer depending on configuration of cluster.
 	streamer, err := s.newStreamer(s.closeContext, chunkID, recConfig)
@@ -133,7 +131,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		Clock:        s.c.Clock,
 		SessionID:    session_pkg.ID(chunkID),
 		Namespace:    apidefaults.Namespace,
-		ServerID:     s.c.Server.GetName(),
+		ServerID:     s.c.HostID,
 		RecordOutput: recConfig.GetMode() != types.RecordOff,
 		Component:    teleport.ComponentApp,
 		ClusterName:  clusterName.GetClusterName(),
@@ -150,16 +148,18 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.c.Server.GetName(),
+			ServerID:        s.c.HostID,
 			ServerNamespace: apidefaults.Namespace,
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,
 			WithMFA:   identity.MFAVerified,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         identity.Username,
-			Impersonator: identity.Impersonator,
+		UserMetadata: identity.GetUserMetadata(),
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        app.GetURI(),
+			AppPublicAddr: app.GetPublicAddr(),
+			AppName:       app.GetName(),
 		},
 		SessionChunkID: chunkID,
 	}

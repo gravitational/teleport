@@ -20,7 +20,6 @@ package client
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"strings"
@@ -69,9 +68,9 @@ func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	c.Assert(ses.NodeClient(), check.Equals, nc)
 	c.Assert(ses.namespace, check.Equals, nc.Namespace)
 	c.Assert(ses.env, check.NotNil)
-	c.Assert(ses.stderr, check.Equals, os.Stderr)
-	c.Assert(ses.stdout, check.Equals, os.Stdout)
-	c.Assert(ses.stdin, check.Equals, os.Stdin)
+	c.Assert(ses.terminal.Stderr(), check.Equals, os.Stderr)
+	c.Assert(ses.terminal.Stdout(), check.Equals, os.Stdout)
+	c.Assert(ses.terminal.Stdin(), check.Equals, os.Stdin)
 
 	// pass environ map
 	env := map[string]string{
@@ -122,7 +121,7 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 	c.Assert(err, check.IsNil)
 	clientErrCh := make(chan error, 3)
 	go func(con net.Conn) {
-		_, err := io.Copy(ioutil.Discard, con)
+		_, err := io.Copy(io.Discard, con)
 		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
 			err = nil
 		}
@@ -156,7 +155,7 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 	localCon, err = net.Dial("tcp", localSrv.Addr().String())
 	c.Assert(err, check.IsNil)
 	go func(con net.Conn) {
-		_, err := io.Copy(ioutil.Discard, con)
+		_, err := io.Copy(io.Discard, con)
 		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
 			err = nil
 		}

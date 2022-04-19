@@ -55,7 +55,7 @@ type Supervisor interface {
 	Wait() error
 
 	// Run starts and waits for the service to complete
-	// it's a combinatioin Start() and Wait()
+	// it's a combination Start() and Wait()
 	Run() error
 
 	// Services returns list of running services
@@ -75,8 +75,12 @@ type Supervisor interface {
 	RegisterEventMapping(EventMapping)
 
 	// ExitContext returns context that will be closed when
-	// TeleportExitEvent is broadcasted.
+	// a hard TeleportExitEvent is broadcasted.
 	ExitContext() context.Context
+
+	// GracefulExitContext returns context that will be closed when
+	// a graceful or hard TeleportExitEvent is broadcast.
+	GracefulExitContext() context.Context
 
 	// ReloadContext returns context that will be closed when
 	// TeleportReloadEvent is broadcasted.
@@ -126,9 +130,13 @@ type LocalSupervisor struct {
 	closeContext context.Context
 	signalClose  context.CancelFunc
 
-	// exitContext is closed when someone emits Exit event
+	// exitContext is closed when someone emits a hard Exit event
 	exitContext context.Context
 	signalExit  context.CancelFunc
+
+	// gracefulExitContext is closed when someone emits a graceful or hard Exit event
+	gracefulExitContext context.Context
+	signalGracefulExit  context.CancelFunc
 
 	reloadContext context.Context
 	signalReload  context.CancelFunc
@@ -142,10 +150,17 @@ type LocalSupervisor struct {
 
 // NewSupervisor returns new instance of initialized supervisor
 func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
-	closeContext, cancel := context.WithCancel(context.TODO())
+	ctx := context.TODO()
 
-	exitContext, signalExit := context.WithCancel(context.TODO())
-	reloadContext, signalReload := context.WithCancel(context.TODO())
+	closeContext, cancel := context.WithCancel(ctx)
+
+	exitContext, signalExit := context.WithCancel(ctx)
+
+	// graceful exit context is a subcontext of exit context since any work that terminates
+	// in the event of graceful exit must also terminate in the event of an immediate exit.
+	gracefulExitContext, signalGracefulExit := context.WithCancel(exitContext)
+
+	reloadContext, signalReload := context.WithCancel(ctx)
 
 	srv := &LocalSupervisor{
 		state:        stateCreated,
@@ -158,8 +173,10 @@ func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
 		closeContext: closeContext,
 		signalClose:  cancel,
 
-		exitContext: exitContext,
-		signalExit:  signalExit,
+		exitContext:         exitContext,
+		signalExit:          signalExit,
+		gracefulExitContext: gracefulExitContext,
+		signalGracefulExit:  signalGracefulExit,
 
 		reloadContext: reloadContext,
 		signalReload:  signalReload,
@@ -301,9 +318,15 @@ func (s *LocalSupervisor) Run() error {
 }
 
 // ExitContext returns context that will be closed when
-// TeleportExitEvent is broadcasted.
+// a hard TeleportExitEvent is broadcasted.
 func (s *LocalSupervisor) ExitContext() context.Context {
 	return s.exitContext
+}
+
+// GracefulExitContext returns context that will be closed when
+// a hard or graceful TeleportExitEvent is broadcasted.
+func (s *LocalSupervisor) GracefulExitContext() context.Context {
+	return s.gracefulExitContext
 }
 
 // ReloadContext returns context that will be closed when
@@ -320,38 +343,45 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 
 	switch event.Name {
 	case TeleportExitEvent:
-		s.signalExit()
+		// if exit event includes a context payload, it is a "graceful" exit, and
+		// we need to hold off closing the supervisor's exit context until after
+		// the graceful context has closed.  If not, it is an immediate exit.
+		if ctx, ok := event.Payload.(context.Context); ok {
+			s.signalGracefulExit()
+			go func() {
+				select {
+				case <-s.exitContext.Done():
+				case <-ctx.Done():
+					s.signalExit()
+				}
+			}()
+		} else {
+			s.signalExit()
+		}
 	case TeleportReloadEvent:
 		s.signalReload()
 	}
 
-	s.events[event.Name] = event
+	sendEvent := func(e Event) {
+		select {
+		case s.eventsC <- e:
+		case <-s.closeContext.Done():
+		}
+	}
 
+	s.events[event.Name] = event
+	go sendEvent(event)
 	// Log all events other than recovered events to prevent the logs from
 	// being flooded.
 	if event.String() != TeleportOKEvent {
 		s.log.WithField("event", event.String()).Debug("Broadcasting event.")
 	}
 
-	go func() {
-		select {
-		case s.eventsC <- event:
-		case <-s.closeContext.Done():
-			return
-		}
-	}()
-
 	for _, m := range s.eventMappings {
 		if m.matches(event.Name, s.events) {
 			mappedEvent := Event{Name: m.Out}
 			s.events[mappedEvent.Name] = mappedEvent
-			go func(e Event) {
-				select {
-				case s.eventsC <- e:
-				case <-s.closeContext.Done():
-					return
-				}
-			}(mappedEvent)
+			go sendEvent(mappedEvent)
 			s.log.WithFields(logrus.Fields{
 				"in":  event.String(),
 				"out": m.String(),
@@ -379,7 +409,7 @@ func (s *LocalSupervisor) WaitForEvent(ctx context.Context, name string, eventC 
 	waiter := &waiter{eventC: eventC, context: ctx}
 	event, ok := s.events[name]
 	if ok {
-		go s.notifyWaiter(waiter, event)
+		go waiter.notify(event)
 		return
 	}
 	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
@@ -395,20 +425,13 @@ func (s *LocalSupervisor) getWaiters(name string) []*waiter {
 	return out
 }
 
-func (s *LocalSupervisor) notifyWaiter(w *waiter, event Event) {
-	select {
-	case w.eventC <- event:
-	case <-w.context.Done():
-	}
-}
-
 func (s *LocalSupervisor) fanOut() {
 	for {
 		select {
 		case event := <-s.eventsC:
 			waiters := s.getWaiters(event.Name)
 			for _, waiter := range waiters {
-				go s.notifyWaiter(waiter, event)
+				go waiter.notify(event)
 			}
 		case <-s.closeContext.Done():
 			return
@@ -419,6 +442,13 @@ func (s *LocalSupervisor) fanOut() {
 type waiter struct {
 	eventC  chan Event
 	context context.Context
+}
+
+func (w *waiter) notify(event Event) {
+	select {
+	case w.eventC <- event:
+	case <-w.context.Done():
+	}
 }
 
 // Service is a running teleport service function

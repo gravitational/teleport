@@ -19,6 +19,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
@@ -37,7 +39,30 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string) (*bytes.Buffer, error) {
+type options struct {
+	CertPool *x509.CertPool
+	Insecure bool
+}
+
+type optionsFunc func(o *options)
+
+func withRootCertPool(pool *x509.CertPool) optionsFunc {
+	return func(o *options) {
+		o.CertPool = pool
+	}
+}
+
+func withInsecure(insecure bool) optionsFunc {
+	return func(o *options) {
+		o.Insecure = insecure
+	}
+}
+
+func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var options options
+	for _, v := range opts {
+		v(&options)
+	}
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
 		stdout: &stdoutBuff,
@@ -52,11 +77,16 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string) (*by
 
 	var ccf GlobalCLIFlags
 	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
+	ccf.Insecure = options.Insecure
 
 	clientConfig, err := applyConfig(&ccf, cfg)
 	require.NoError(t, err)
 
-	client, err := connectToAuthService(context.Background(), cfg, clientConfig)
+	if options.CertPool != nil {
+		clientConfig.TLS.RootCAs = options.CertPool
+	}
+
+	client, err := authclient.Connect(context.Background(), clientConfig)
 	require.NoError(t, err)
 
 	_, err = command.TryRun(selectedCmd, client)

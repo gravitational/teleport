@@ -37,15 +37,40 @@ import (
 	"strings"
 	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"github.com/tstranex/u2f"
 )
+
+// u2fRegistrationFlags is fixed by the U2F standard.
+// https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#registration-response-message-success
+const u2fRegistrationFlags = 0x05
 
 type Key struct {
 	KeyHandle  []byte
 	PrivateKey *ecdsa.PrivateKey
 
-	cert    []byte
+	// Cert is the Key attestation certificate.
+	Cert []byte
+
+	// PreferRPID instructs the Key to use favor using the RPID for Webauthn
+	// ceremonies, even if the U2F App ID extension is present.
+	PreferRPID bool
+	// IgnoreAllowedCredentials allows the Key to sign a Webauthn
+	// CredentialAssertion even it its KeyHandle is not among the allowed
+	// credentials.
+	IgnoreAllowedCredentials bool
+	// SetUV sets the UV (user verification) bit on signatures if true.
+	// SetUV should be paired only with WebAuthn login/registration methods, as
+	// it makes Key mimic a WebAuthn device.
+	SetUV bool
+	// AllowResidentKey allows creation of resident credentials.
+	// There's no actual change in Key's behavior other than allowing such requests
+	// to proceed.
+	// AllowResidentKey should be paired only with WebAuthn registration methods,
+	// as it makes Key mimic a WebAuthn device.
+	AllowResidentKey bool
+
 	counter uint32
 }
 
@@ -113,9 +138,17 @@ func CreateWithKeyHandle(keyHandle []byte) (*Key, error) {
 	return &Key{
 		KeyHandle:  keyHandle,
 		PrivateKey: privatekey,
-		cert:       cert,
+		Cert:       cert,
 		counter:    1,
 	}, nil
+}
+
+// SetPasswordless sets common passwordless options in Key.
+// Options are AllowResidentKey, IgnoreAllowedCredentials and SetUV.
+func (muk *Key) SetPasswordless() {
+	muk.AllowResidentKey = true         // Passwordless keys must be resident.
+	muk.IgnoreAllowedCredentials = true // Empty for passwordless challenges.
+	muk.SetUV = true                    // UV required for passwordless.
 }
 
 func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterResponse, error) {
@@ -132,14 +165,41 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 	}
 	clientDataHash := sha256.Sum256(clientDataJSON)
 
-	marshalledPublickey := elliptic.Marshal(elliptic.P256(), muk.PrivateKey.PublicKey.X, muk.PrivateKey.PublicKey.Y)
+	res, err := muk.signRegister(appIDHash[:], clientDataHash[:])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &u2f.RegisterResponse{
+		RegistrationData: encodeBase64(res.RawResp),
+		ClientData:       encodeBase64(clientDataJSON),
+	}, nil
+}
+
+// RegisterRaw signs low-level U2F registration data.
+// Most callers should use either RegisterResponse or SignCredentialCreation.
+func (muk *Key) RegisterRaw(appHash, challengeHash []byte) ([]byte, error) {
+	res, err := muk.signRegister(appHash, challengeHash)
+	if err != nil {
+		return nil, err
+	}
+	return res.RawResp, nil
+}
+
+type signRegisterResult struct {
+	RawResp   []byte
+	Signature []byte
+}
+
+func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterResult, error) {
+	pubKey := elliptic.Marshal(elliptic.P256(), muk.PrivateKey.PublicKey.X, muk.PrivateKey.PublicKey.Y)
 
 	var dataToSign []byte
 	dataToSign = append(dataToSign[:], 0)
 	dataToSign = append(dataToSign[:], appIDHash[:]...)
 	dataToSign = append(dataToSign[:], clientDataHash[:]...)
 	dataToSign = append(dataToSign[:], muk.KeyHandle[:]...)
-	dataToSign = append(dataToSign[:], marshalledPublickey[:]...)
+	dataToSign = append(dataToSign[:], pubKey[:]...)
 
 	dataHash := sha256.Sum256(dataToSign)
 
@@ -149,17 +209,23 @@ func (muk *Key) RegisterResponse(req *u2f.RegisterRequest) (*u2f.RegisterRespons
 		return nil, trace.Wrap(err)
 	}
 
+	flags := uint8(u2fRegistrationFlags)
+	if muk.SetUV {
+		// Mimic WebAuthn flags if SetUV is true.
+		flags = uint8(protocol.FlagUserPresent | protocol.FlagUserVerified | protocol.FlagAttestedCredentialData)
+	}
+
 	var regData []byte
-	regData = append(regData, 5) // fixed by specification
-	regData = append(regData, marshalledPublickey[:]...)
+	regData = append(regData, flags)
+	regData = append(regData, pubKey[:]...)
 	regData = append(regData, byte(len(muk.KeyHandle)))
 	regData = append(regData, muk.KeyHandle[:]...)
-	regData = append(regData, muk.cert[:]...)
+	regData = append(regData, muk.Cert[:]...)
 	regData = append(regData, sig[:]...)
 
-	return &u2f.RegisterResponse{
-		RegistrationData: encodeBase64(regData),
-		ClientData:       encodeBase64(clientDataJSON),
+	return &signRegisterResult{
+		RawResp:   regData,
+		Signature: sig,
 	}, nil
 }
 
@@ -173,10 +239,6 @@ func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
 	}
 	appIDHash := sha256.Sum256([]byte(req.AppID))
 
-	counterBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(counterBytes, muk.counter)
-	muk.counter++
-
 	clientData := u2f.ClientData{
 		Typ:       "navigator.id.getAssertion",
 		Challenge: req.Challenge,
@@ -188,10 +250,57 @@ func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
 	}
 	clientDataHash := sha256.Sum256(clientDataJSON)
 
+	res, err := muk.signAuthn(appIDHash[:], clientDataHash[:])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &u2f.SignResponse{
+		KeyHandle:     req.KeyHandle,
+		SignatureData: encodeBase64(res.SignData),
+		ClientData:    encodeBase64(clientDataJSON),
+	}, nil
+}
+
+// AuthenticateRaw signs low-level U2F authentication data.
+// Most callers should use either SignResponse or SignAssertion.
+func (muk *Key) AuthenticateRaw(appHash, challengeHash []byte) ([]byte, error) {
+	res, err := muk.signAuthn(appHash, challengeHash)
+	if err != nil {
+		return nil, err
+	}
+	return res.SignData, nil
+}
+
+type signAuthnResult struct {
+	// SignData is the signed data, which is a signature over the concatenation of
+	// AuthData and ClientDataHash.
+	// Includes the user presence bit, counter value and signature.
+	// https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#h3_authentication-response-message-success.
+	SignData []byte
+	// AuthData is the authenticator data generated by signAuthn and included in
+	// the signature.
+	AuthData []byte
+}
+
+// signAuthn signs appIDHash and clientDataHash for authentication purposes.
+func (muk *Key) signAuthn(appIDHash, clientDataHash []byte) (*signAuthnResult, error) {
+	counterBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(counterBytes, muk.counter)
+	muk.counter++
+
+	flags := uint8(protocol.FlagUserPresent)
+	if muk.SetUV {
+		flags |= uint8(protocol.FlagUserVerified)
+	}
+
+	var authData []byte
+	authData = append(authData, appIDHash[:]...)
+	authData = append(authData, flags)
+	authData = append(authData, counterBytes[:]...)
+
 	var dataToSign []byte
-	dataToSign = append(dataToSign, appIDHash[:]...)
-	dataToSign = append(dataToSign, 1) // user presence
-	dataToSign = append(dataToSign, counterBytes[:]...)
+	dataToSign = append(dataToSign, authData[:]...)
 	dataToSign = append(dataToSign, clientDataHash[:]...)
 
 	dataHash := sha256.Sum256(dataToSign)
@@ -203,15 +312,18 @@ func (muk *Key) SignResponse(req *u2f.SignRequest) (*u2f.SignResponse, error) {
 	}
 
 	var signData []byte
-	signData = append(signData, 1) // user presence
+	signData = append(signData, flags)
 	signData = append(signData, counterBytes[:]...)
 	signData = append(signData, sig[:]...)
 
-	return &u2f.SignResponse{
-		KeyHandle:     req.KeyHandle,
-		SignatureData: encodeBase64(signData),
-		ClientData:    encodeBase64(clientDataJSON),
+	return &signAuthnResult{
+		SignData: signData,
+		AuthData: authData,
 	}, nil
+}
+
+func (muk *Key) Counter() uint32 {
+	return muk.counter
 }
 
 func (muk *Key) SetCounter(counter uint32) {

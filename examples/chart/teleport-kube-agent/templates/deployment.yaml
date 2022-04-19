@@ -3,11 +3,7 @@
 # in the statefulset.yaml file.
 #
 {{- if not .Values.storage.enabled }}
-{{- if .Values.teleportVersionOverride }}
-  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
-{{- else }}
-  {{- $_ := set . "teleportVersion" .Chart.Version }}
-{{- end }}
+{{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,7 +16,7 @@ metadata:
     {{- toYaml .Values.annotations.deployment | nindent 4 }}
   {{- end }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ $replicaCount }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -35,9 +31,37 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
-      {{- if .Values.affinity }}
+      {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
-        {{- toYaml .Values.affinity | nindent 8 }}
+        {{- if .Values.affinity }}
+          {{- if .Values.highAvailability.requireAntiAffinity }}
+            {{- fail "Cannot use highAvailability.requireAntiAffinity when affinity is also set in chart values - unset one or the other" }}
+          {{- end }}
+          {{- toYaml .Values.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+        {{- if .Values.highAvailability.requireAntiAffinity }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+        {{- else if gt (int $replicaCount) 1 }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+        {{- end }}
+        {{- end }}
       {{- end }}
       {{- if .Values.tolerations }}
       tolerations:
@@ -81,10 +105,20 @@ spec:
       containers:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
+        {{- if .Values.imagePullPolicy }}
+        imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
+        {{- end }}
+        {{- if .Values.extraEnv }}
+        env:
+          {{- toYaml .Values.extraEnv | nindent 8 }}
+        {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
         - "--insecure"
+        {{- end }}
+        {{- if .Values.extraArgs }}
+          {{- toYaml .Values.extraArgs | nindent 8 }}
         {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
@@ -105,6 +139,7 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to start
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
         readinessProbe:
           httpGet:
             path: /readyz
@@ -112,6 +147,7 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to register
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
 {{- if .Values.resources }}
         resources:
   {{- toYaml .Values.resources | nindent 10 }}

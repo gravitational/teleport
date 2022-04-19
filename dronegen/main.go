@@ -1,22 +1,34 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"gopkg.in/yaml.v2"
 )
 
 func main() {
-	if err := checkDroneCLI(); err != nil {
+	if err := checkTDR(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	var pipelines []pipeline
 
-	pipelines = append(pipelines, testPipelines()...)
 	pipelines = append(pipelines, pushPipelines()...)
 	pipelines = append(pipelines, tagPipelines()...)
 	pipelines = append(pipelines, cronPipelines()...)
@@ -42,7 +54,7 @@ func writePipelines(path string, newPipelines []pipeline) error {
 	// TODO: When all pipelines are migrated, remove this merging logic and
 	// write the file directly. This will be simpler and allow cleanup of
 	// pipelines when they are removed from this generator.
-	existingConfig, err := ioutil.ReadFile(path)
+	existingConfig, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read existing config: %w", err)
 	}
@@ -91,7 +103,7 @@ func writePipelines(path string, newPipelines []pipeline) error {
 	}
 	configData := bytes.Join(pipelinesEnc, []byte("\n---\n"))
 
-	return ioutil.WriteFile(path, configData, 0664)
+	return os.WriteFile(path, configData, 0664)
 }
 
 // parsedPipeline is a single pipeline parsed from .drone.yml along with its

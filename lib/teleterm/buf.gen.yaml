@@ -1,0 +1,26 @@
+version: v1
+plugins:
+  # Generated using an old version of protoc-gen-go - we can't use the latest
+  # plugins because Teleport itself depends on an old google.golang.org/grpc
+  # version.
+  # protoc itself may be the latest one.
+  # $ go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
+  - name: go
+    out: api/protogen/golang
+    opt:
+      - plugins=grpc
+      - paths=source_relative
+
+  - name: js
+    out: api/protogen/js
+    opt:
+      - import_style=commonjs,binary
+
+  - name: grpc
+    out: api/protogen/js
+    opt: grpc_js
+    path: grpc_tools_node_protoc_plugin
+
+  - name: ts
+    out: api/protogen/js
+    opt: "service=grpc-node"

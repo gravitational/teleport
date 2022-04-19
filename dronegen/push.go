@@ -1,3 +1,17 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import "fmt"
@@ -58,7 +72,7 @@ func pushPipelines() []pipeline {
 	}
 
 	// Only amd64 Windows is supported for now.
-	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64"}))
+	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
 
 	ps = append(ps, darwinPushPipeline())
 	return ps
@@ -75,12 +89,12 @@ func pushPipeline(b buildType) pipeline {
 
 	pipelineName := fmt.Sprintf("push-build-%s-%s", b.os, b.arch)
 	pushEnvironment := map[string]value{
-		"UID":     value{raw: "1000"},
-		"GID":     value{raw: "1000"},
-		"GOCACHE": value{raw: "/go/cache"},
-		"GOPATH":  value{raw: "/go"},
-		"OS":      value{raw: b.os},
-		"ARCH":    value{raw: b.arch},
+		"UID":     {raw: "1000"},
+		"GID":     {raw: "1000"},
+		"GOCACHE": {raw: "/go/cache"},
+		"GOPATH":  {raw: "/go"},
+		"OS":      {raw: b.os},
+		"ARCH":    {raw: b.arch},
 	}
 	if b.fips {
 		pipelineName += "-fips"
@@ -89,9 +103,10 @@ func pushPipeline(b buildType) pipeline {
 
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
-		"RUNTIME": goRuntime,
-		"UID":     value{raw: "1000"},
-		"GID":     value{raw: "1000"},
+		"BUILDBOX_VERSION": buildboxVersion,
+		"RUNTIME":          goRuntime,
+		"UID":              {raw: "1000"},
+		"GID":              {raw: "1000"},
 	}
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}
@@ -104,7 +119,7 @@ func pushPipeline(b buildType) pipeline {
 			Name:  "Check out code",
 			Image: "docker:git",
 			Environment: map[string]value{
-				"GITHUB_PRIVATE_KEY": value{fromSecret: "GITHUB_PRIVATE_KEY"},
+				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
 			Commands: pushCheckoutCommands(b.fips),
 		},
@@ -120,7 +135,7 @@ func pushPipeline(b buildType) pipeline {
 			Name:  "Send Slack notification",
 			Image: "plugins/slack",
 			Settings: map[string]value{
-				"webhook": value{fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
+				"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
 			},
 			Template: []string{
 				`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)

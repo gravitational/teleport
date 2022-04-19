@@ -22,39 +22,58 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/net/http2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
 func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
+	priv, pub, err := authServer.GenerateKeyPair("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// If local registration is happening and no remote address was passed in
 	// (which means no advertise IP was set), use localhost.
 	if remoteAddr == "" {
 		remoteAddr = defaults.Localhost
 	}
-	keys, err := authServer.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               id.HostUUID,
-		NodeName:             id.NodeName,
-		Roles:                types.SystemRoles{id.Role},
-		AdditionalPrincipals: additionalPrincipals,
-		RemoteAddr:           remoteAddr,
-		DNSNames:             dnsNames,
-		NoCache:              true,
-	})
+	certs, err := authServer.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               id.HostUUID,
+			NodeName:             id.NodeName,
+			Role:                 id.Role,
+			AdditionalPrincipals: additionalPrincipals,
+			RemoteAddr:           remoteAddr,
+			DNSNames:             dnsNames,
+			NoCache:              true,
+			PublicSSHKey:         pub,
+			PublicTLSKey:         tlsPub,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := ReadIdentityFromKeyPair(keys)
+	identity, err := ReadIdentityFromKeyPair(priv, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,9 +84,6 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 // RegisterParams specifies parameters
 // for first time register operation with auth server
 type RegisterParams struct {
-	// DataDir is the data directory
-	// storing CA certificate
-	DataDir string
 	// Token is a secure token to join the cluster
 	Token string
 	// ID is identity ID
@@ -78,8 +94,6 @@ type RegisterParams struct {
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
 	DNSNames []string
-	// PrivateKey is a PEM encoded private key (not passed to auth servers)
-	PrivateKey []byte
 	// PublicTLSKey is a server's public key to sign
 	PublicTLSKey []byte
 	// PublicSSHKey is a server's public SSH key to sign
@@ -96,6 +110,11 @@ type RegisterParams struct {
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
+	// JoinMethod is the joining method used for this register request.
+	JoinMethod types.JoinMethod
+	// ec2IdentityDocument is used for Simplified Node Joining to prove the
+	// identity of a joining EC2 instance.
+	ec2IdentityDocument []byte
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -107,13 +126,13 @@ func (r *RegisterParams) setDefaults() {
 // CredGetter is an interface for a client that can be used to get host
 // credentials. This interface is needed because lib/client can not be imported
 // in lib/auth due to circular imports.
-type HostCredentials func(context.Context, string, bool, RegisterUsingTokenRequest) (*PackedKeys, error)
+type HostCredentials func(context.Context, string, bool, types.RegisterUsingTokenRequest) (*proto.Certs, error)
 
 // Register is used to generate host keys when a node or proxy are running on
 // different hosts than the auth server. This method requires provisioning
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
-func Register(params RegisterParams) (*Identity, error) {
+func Register(params RegisterParams) (*proto.Certs, error) {
 	params.setDefaults()
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
@@ -122,10 +141,18 @@ func Register(params RegisterParams) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// add EC2 Identity Document to params if required for given join method
+	if params.JoinMethod == types.JoinMethodEC2 {
+		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
 
 	type registerMethod struct {
-		call func(token string, params RegisterParams) (*Identity, error)
+		call func(token string, params RegisterParams) (*proto.Certs, error)
 		desc string
 	}
 	registerThroughAuth := registerMethod{registerThroughAuth, "with auth server"}
@@ -143,14 +170,14 @@ func Register(params RegisterParams) (*Identity, error) {
 	var collectedErrs []error
 	for _, method := range registerMethods {
 		log.Infof("Attempting registration %s.", method.desc)
-		ident, err := method.call(token, params)
+		certs, err := method.call(token, params)
 		if err != nil {
 			collectedErrs = append(collectedErrs, err)
 			log.WithError(err).Debugf("Registration %s failed.", method.desc)
 			continue
 		}
 		log.Infof("Successfully registered %s.", method.desc)
-		return ident, nil
+		return certs, nil
 	}
 	return nil, trace.NewAggregate(collectedErrs...)
 }
@@ -166,34 +193,49 @@ func authServerIsProxy(servers []utils.NetAddr) bool {
 }
 
 // registerThroughProxy is used to register through the proxy server.
-func registerThroughProxy(token string, params RegisterParams) (*Identity, error) {
+func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
 	if len(params.Servers) == 0 {
 		return nil, trace.BadParameter("no auth servers set")
 	}
 
-	keys, err := params.GetHostCredentials(context.Background(),
-		params.Servers[0].String(),
-		lib.IsInsecureDevMode(),
-		RegisterUsingTokenRequest{
-			Token:                token,
-			HostID:               params.ID.HostUUID,
-			NodeName:             params.ID.NodeName,
-			Role:                 params.ID.Role,
-			AdditionalPrincipals: params.AdditionalPrincipals,
-			DNSNames:             params.DNSNames,
-			PublicTLSKey:         params.PublicTLSKey,
-			PublicSSHKey:         params.PublicSSHKey,
-		})
-	if err != nil {
-		return nil, trace.Unwrap(err)
+	var certs *proto.Certs
+	if params.JoinMethod == types.JoinMethodIAM {
+		// IAM join method requires gRPC client
+		client, err := proxyJoinServiceClient(params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs, err = registerUsingIAMMethod(client, token, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// non-IAM join methods use GetHostCredentials function passed through
+		// params to call proxy HTTP endpoint
+		var err error
+		certs, err = params.GetHostCredentials(context.Background(),
+			params.Servers[0].String(),
+			lib.IsInsecureDevMode(),
+			types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
+			})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	keys.Key = params.PrivateKey
-
-	return ReadIdentityFromKeyPair(keys)
+	return certs, nil
 }
 
 // registerThroughAuth is used to register through the auth server.
-func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
+func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, error) {
 	var client *Client
 	var err error
 
@@ -211,23 +253,59 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 	}
 	defer client.Close()
 
-	// Get the SSH and X509 certificates for a node.
-	keys, err := client.RegisterUsingToken(RegisterUsingTokenRequest{
-		Token:                token,
-		HostID:               params.ID.HostUUID,
-		NodeName:             params.ID.NodeName,
-		Role:                 params.ID.Role,
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-	})
+	var certs *proto.Certs
+	if params.JoinMethod == types.JoinMethodIAM {
+		// IAM method uses unique gRPC endpoint
+		certs, err = registerUsingIAMMethod(client, token, params)
+	} else {
+		// non-IAM join methods use HTTP endpoint
+		// Get the SSH and X509 certificates for a node.
+		certs, err = client.RegisterUsingToken(
+			context.Background(),
+			&types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
+			})
+	}
+	return certs, trace.Wrap(err)
+}
+
+// proxyJoinServiceClient attempts to connect to the join service running on the
+// proxy. The Proxy's TLS cert will be verified using the host's root CA pool
+// (PKI) unless the --insecure flag was passed.
+func proxyJoinServiceClient(params RegisterParams) (*client.JoinServiceClient, error) {
+	if len(params.Servers) == 0 {
+		return nil, trace.BadParameter("no auth servers set")
+	}
+
+	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
+	// set NextProtos for TLS routing, the actual protocol will be h2
+	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPC), http2.NextProtoTLS}
+
+	if lib.IsInsecureDevMode() {
+		tlsConfig.InsecureSkipVerify = true
+		log.Warnf("Joining cluster without validating the identity of the Proxy Server.")
+	}
+
+	conn, err := grpc.Dial(
+		params.Servers[0].String(),
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(keys)
+	return client.NewJoinServiceClient(proto.NewJoinServiceClient(conn)), nil
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
@@ -237,7 +315,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 
-	cert, err := readCA(params)
+	cert, err := readCA(params.CAPath)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -275,14 +353,14 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 
 // readCA will read in CA that will be used to validate the certificate that
 // the Auth Server presents.
-func readCA(params RegisterParams) (*x509.Certificate, error) {
-	certBytes, err := utils.ReadPath(params.CAPath)
+func readCA(path string) (*x509.Certificate, error) {
+	certBytes, err := utils.ReadPath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cert, err := tlsca.ParseCertificatePEM(certBytes)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse certificate at %v", params.CAPath)
+		return nil, trace.Wrap(err, "failed to parse certificate at %v", path)
 	}
 	return cert, nil
 }
@@ -361,6 +439,43 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	return authClient, nil
 }
 
+type joinServiceClient interface {
+	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
+}
+
+// registerUsingIAMMethod is used to register using the IAM join method. It is
+// able to register through a proxy or through the auth server directly.
+func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, params RegisterParams) (*proto.Certs, error) {
+	ctx := context.Background()
+
+	// call RegisterUsingIAMMethod with a callback to respond to the challenge
+	// with the join request
+	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+		// create the signed sts:GetCallerIdentity request and include the challenge
+		signedRequest, err := createSignedStsIdentityRequest(challenge)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// send the register request including the challenge response
+		return &proto.RegisterUsingIAMMethodRequest{
+			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+			},
+			StsIdentityRequest: signedRequest,
+		}, nil
+	})
+
+	return certs, trace.Wrap(err)
+}
+
 // ReRegisterParams specifies parameters for re-registering
 // in the cluster (rotating certificates for existing members)
 type ReRegisterParams struct {
@@ -388,35 +503,20 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := params.Client.GenerateServerKeys(GenerateServerKeysRequest{
-		HostID:               hostID,
-		NodeName:             params.ID.NodeName,
-		Roles:                types.SystemRoles{params.ID.Role},
-		AdditionalPrincipals: params.AdditionalPrincipals,
-		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
-		Rotation:             &params.Rotation,
-	})
+	certs, err := params.Client.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
+			HostID:               hostID,
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			Rotation:             &params.Rotation,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys.Key = params.PrivateKey
 
-	return ReadIdentityFromKeyPair(keys)
-}
-
-// PackedKeys is a collection of private key, SSH host certificate
-// and TLS certificate and certificate authority issued the certificate
-type PackedKeys struct {
-	// Key is a private key
-	Key []byte `json:"key"`
-	// Cert is an SSH host cert
-	Cert []byte `json:"cert"`
-	// TLSCert is an X509 certificate
-	TLSCert []byte `json:"tls_cert"`
-	// TLSCACerts is a list of TLS certificate authorities.
-	TLSCACerts [][]byte `json:"tls_ca_certs"`
-	// SSHCACerts is a list of SSH certificate authorities.
-	SSHCACerts [][]byte `json:"ssh_ca_certs"`
+	return ReadIdentityFromKeyPair(params.PrivateKey, certs)
 }

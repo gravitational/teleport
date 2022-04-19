@@ -33,6 +33,10 @@ const (
 	// True holds "true" string value
 	True = "true"
 
+	// HomeEnvVar specifies the home location for tsh configuration
+	// and data
+	HomeEnvVar = "TELEPORT_HOME"
+
 	// KindNamespace is a namespace
 	KindNamespace = "namespace"
 
@@ -112,11 +116,17 @@ const (
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
+	// KindApp is a web app resource.
+	KindApp = "app"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
+
+	// KindKubernetesCluster is a Kubernetes cluster.
+	KindKubernetesCluster = "kube_cluster"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -153,10 +163,10 @@ const (
 	MetaNameSessionRecordingConfig = "session-recording-config"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
+	// Deprecated: This does not correspond to an actual resource anymore but is
+	// still used when checking access to the new configuration resources, as an
+	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
-
-	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
-	MetaNameClusterConfig = "cluster-config"
 
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
@@ -186,6 +196,9 @@ const (
 
 	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
 	MetaNameStaticTokens = "static-tokens"
+
+	// MetaNameSessionTracker is the prefix of resources used to track live sessions.
+	MetaNameSessionTracker = "session-tracker"
 
 	// KindTrustedCluster is a resource that contains trusted cluster configuration.
 	KindTrustedCluster = "trusted_cluster"
@@ -237,6 +250,15 @@ const (
 	// KindWindowsDesktop is a Windows desktop host.
 	KindWindowsDesktop = "windows_desktop"
 
+	// KindRecoveryCodes is a resource that holds users recovery codes.
+	KindRecoveryCodes = "recovery_codes"
+
+	// KindSessionTracker is a resource that tracks a live session.
+	KindSessionTracker = "session_tracker"
+
+	// V5 is the fifth version of resources.
+	V5 = "v5"
+
 	// V4 is the fourth version of resources.
 	V4 = "v4"
 
@@ -279,9 +301,13 @@ const (
 )
 
 const (
+	// TeleportNamespace is used as the namespace prefix for any
+	// labels defined by teleport
+	TeleportNamespace = "teleport.dev"
+
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
-	OriginLabel = "teleport.dev/origin"
+	OriginLabel = TeleportNamespace + "/origin"
 
 	// OriginConfigFile is an origin value indicating that the resource was
 	// constructed as a default value.
@@ -294,10 +320,14 @@ const (
 	// OriginDynamic is an origin value indicating that the resource was
 	// committed as dynamic configuration.
 	OriginDynamic = "dynamic"
+
+	// OriginCloud is an origin value indicating that the resource was
+	// imported from a cloud provider.
+	OriginCloud = "cloud"
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic}
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
@@ -344,3 +374,34 @@ const (
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
 )
+
+const (
+	// ResourceMetadataName refers to a resource metadata field named "name".
+	ResourceMetadataName = "name"
+
+	// ResourceSpecDescription refers to a resource spec field named "description".
+	ResourceSpecDescription = "description"
+
+	// ResourceSpecHostname refers to a resource spec field named "hostname".
+	ResourceSpecHostname = "hostname"
+
+	// ResourceSpecAddr refers to a resource spec field named "address".
+	ResourceSpecAddr = "address"
+
+	// ResourceSpecPublicAddr refers to a resource field named "address".
+	ResourceSpecPublicAddr = "publicAddress"
+
+	// ResourceSpecType refers to a resource field named "type".
+	ResourceSpecType = "type"
+)
+
+const (
+	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
+	BotLabel = "teleport.internal/bot"
+
+	// BotGenerationLabel is a label used to record the certificate generation counter.
+	BotGenerationLabel = "teleport.internal/bot-generation"
+)
+
+// ResourceKinds lists all Teleport resource kinds users can request access to.
+var ResourceKinds = []string{KindNode, KindDatabaseServer, KindAppServer, KindKubeService, KindWindowsDesktop}

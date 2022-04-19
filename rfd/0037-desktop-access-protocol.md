@@ -46,11 +46,9 @@ Typical sequence of messages in a desktop session:
 +--------+                                +--------+
 | client |                                | server |
 +--------+                                +--------+
-     |           1 - client screen spec       |
+     |           7 - client username          |
      |--------------------------------------->|
-     |     7 - username/password required     |
-     |<---------------------------------------|
-     |     8 - username/password response     |
+     |           1 - client screen spec       |
      |--------------------------------------->|
      |             2 - PNG frame              |
      |<---------------------------------------|
@@ -68,6 +66,10 @@ Typical sequence of messages in a desktop session:
      |<---------------------------------------|
      |                ....                    |
 ```
+
+Note that `client username` and `client screen spec` **must** be the first two
+messages sent by the client, in that order. Any other incoming messages will be
+discarded until those two are received.
 
 ### Message encoding
 
@@ -170,22 +172,54 @@ This message contains clipboard data. Sent in either direction.
 When this message is sent from server to client, it's a "copy" action.
 When this message is sent from client to server, it's a "paste" action.
 
-#### 7 - username/password required
+#### 7 - client username
 
 ```
-| message type (7) |
+| message type (7) | username_length uint32 | username []byte
 ```
 
-This message indicates that automatic authentication at the transport layer
-failed and the server requests the client to enter their username/password.
-Sent from server to client, usually when RDP server does not accept Teleport's
-certificate authentication.
+This is the first message of the protocol and contains the username to login as
+on the remote desktop.
 
-#### 8 - username/password response
+#### 8 - mouse wheel scroll
 
 ```
-| message type (8) | user_length uint32 | username []byte | pass_length uint32 | password []byte
+| message type (8) | axis byte | delta int16 |
 ```
 
-This message is a response to message 7, carrying user-provided username and
-password. Sent from client to server.
+This message contains a mouse wheel update. Sent from client to server.
+
+`axis` identifies which axis the scroll happened on:
+- `0` is vertical scroll
+- `1` is horizontal scroll
+
+`delta` is the signed scroll distance in pixels.
+- on vertical axis, positive `delta` is up, negative `delta` is down
+- on horizontal axis, positive `delta` is left, negative `delta` is right
+
+#### 9 - error
+
+```
+| message type (9) | message_length uint32 | message []byte
+```
+
+This message indicates an error has occurred.
+
+#### 10 - MFA
+
+```
+| message type (10) | mfa_type byte | length uint32 | JSON []byte
+```
+
+This message is used to send the MFA challenge to the user when per-session MFA
+is enabled. It is a container for a JSON-encoded MFA payload.
+
+`mfa_type` is one of:
+
+- `n` for Webauthn
+- `u` for U2F
+
+Per-session MFA for desktop access works the same way as it does for SSH
+sessions. A JSON-encoded challenge is sent over websocket to the user's browser.
+The only difference is that SSH sessions wrap the MFA JSON in a protobuf
+encoding, where desktop sessions wrap the MFA JSON in a TDP message.

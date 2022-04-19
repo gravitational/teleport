@@ -1,0 +1,6 @@
+steps:
+  - name: quay.io/gravitational/teleport-buildbox:teleport10
+    id: lint
+    args: ['make', 'lint']
+options:
+  machineType: 'E2_HIGHCPU_32'

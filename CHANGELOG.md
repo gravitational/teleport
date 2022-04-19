@@ -1,12 +1,177 @@
 # Changelog
 
+## 8.0.0
+
+Teleport 8.0 is a major release of Teleport that contains new features, improvements, and bug fixes.
+
+### New Features
+
+#### Windows Desktop Access Preview
+
+Teleport 8.0 includes a preview of the Windows Desktop Access feature, allowing
+users passwordless login to Windows Desktops via any modern web browser.
+
+Teleport users can connect to Active Directory enrolled Windows hosts running
+Windows 10, Windows Server 2012 R2 and newer Windows versions.
+
+To try this feature yourself, check out our
+[Getting Started Guide](https://goteleport.com/docs/ver/8.0/desktop-access/getting-started/).
+
+Review the Desktop Access design in:
+
+- [RFD #33](https://github.com/gravitational/teleport/blob/master/rfd/0033-desktop-access.md)
+- [RFD #34](https://github.com/gravitational/teleport/blob/master/rfd/0034-desktop-access-windows.md)
+- [RFD #35](https://github.com/gravitational/teleport/blob/master/rfd/0035-desktop-access-windows-authn.md)
+- [RFD #37](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md)
+
+#### TLS Routing
+
+In TLS routing mode all client connections are wrapped in TLS and multiplexed on
+a single Teleport proxy port.
+
+TLS routing can be enabled by including the following auth service configuration:
+
+```yaml
+auth_service:
+  proxy_listener_mode: multiplex
+  ...
+```
+
+and setting proxy configuration version to `v2` to prevent legacy listeners from
+being created:
+
+```yaml
+version: v2
+proxy_service:
+  ...
+```
+
+#### AWS CLI
+
+Teleport application access extends AWS console support to CLI . Users are able
+to log into their AWS console using `tsh app login` and use `tsh aws` commands
+to interact with AWS APIs.
+
+See more info in the [documentation](https://goteleport.com/docs/ver/8.0/application-access/guides/aws-console/#step-8-using-aws-cli).
+
+#### Application and Database Dynamic Registration
+
+With dynamic registration users are able to manage applications and databases
+without needing to update static YAML configuration or restart application or
+database agents.
+
+See dynamic registration guides for
+[apps](https://goteleport.com/docs/ver/8.0/application-access/guides/dynamic-registration/)
+and
+[databases](https://goteleport.com/docs/ver/8.0/database-access/guides/dynamic-registration/).
+
+#### RDS Automatic Discovery
+
+With RDS auto discovery Teleport database agents can automatically discover RDS
+instances and Aurora clusters in an AWS account.
+
+See updated
+[RDS guide](https://goteleport.com/docs/ver/8.0/database-access/guides/rds/) for
+more information.
+
+#### WebAuthn
+
+WebAuthn support enables Teleport users to use modern second factor options,
+including Apple FaceID and TouchID.
+
+In addition, the Teleport Web UI includes new second factor management tools,
+enabling users to configure and update their second factor devices via their
+web browser.
+
+Lastly, our UI becomes more secure by requiring an additional second factor
+confirmation for certain privileged actions (editing roles for second factor
+confirmation, for example).
+
+### Improvements
+
+* Added support for [CockroachDB](https://www.cockroachlabs.com) to Database
+  Access. [#8505](https://github.com/gravitational/teleport/pull/8505)
+* Reduced network utilization on large clusters during login.
+  [#8471](https://github.com/gravitational/teleport/pull/8471)
+* Added metrics and added the ability for `tctl top` to show network utilization
+  for resource propagation.
+  [#8338](https://github.com/gravitational/teleport/pull/8338)
+  [#8603](https://github.com/gravitational/teleport/pull/8603)
+  [#8491](https://github.com/gravitational/teleport/pull/8491)
+* Added support for account recovery and cancellation.
+  [#6769](https://github.com/gravitational/teleport/pull/6769)
+* Added per-session MFA support to Database Access.
+  [#8270](https://github.com/gravitational/teleport/pull/8270)
+* Added support for profile specific `kubeconfig`.
+  [#7840](https://github.com/gravitational/teleport/pull/7840)
+
+### Fixes
+
+* Fixed issues with web applications that utilized
+  [EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)
+  with Application Access.
+  [#8359](https://github.com/gravitational/teleport/pull/8359)
+* Fixed issue were interactive sessions would always return exit code 0.
+  [#8081](https://github.com/gravitational/teleport/pull/8081)
+* Fixed issue where JWT signer was omitted from bootstrap logic.
+  [#8119](https://github.com/gravitational/teleport/pull/8119)
+
+### Breaking Changes
+
+#### CentOS 6
+
+CentOS 6 support will be deprecated in Teleport 8 and removed in Teleport 9.
+
+Teleport 8 will continue to receive security patches for about 9 months after
+which it will be EOL. Users are encouraged to upgrade to CentOS 7 in that time
+frame.
+
+#### Updated  dependencies
+
+New run time dependencies have been added to Teleport 8 due to the inclusion of
+Rust in the build chain. Teleport 8 requires `libgcc_s.so` and `libm.so` be
+installed on systems running Teleport.
+
+Users of [distroless](https://github.com/GoogleContainerTools/distroless)
+container images are encouraged to use the
+[gcr.io/distroless/cc-debian11](https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile)
+image to run Teleport.
+
+```
+FROM gcr.io/distroless/cc-debian11
+```
+
+Alpine users are recommended to install the `libgcc` package in addition to any
+glibc compatibility layer they have already been using.
+
+```
+apk --update --no-cache add libgcc
+```
+
+#### Database Access Certificates
+
+With the `GODEBUG=x509ignoreCN=0` flag removed in Go 1.17, Database Access users
+will no longer be able to connect to databases that include their hostname in
+the `CommonName` field of the presented certificate. Users are recommended to
+update their database certificates to include hostname in the
+`Subject Alternative Name` extension instead.
+
+Subscribe to Github issue
+[#7636](https://github.com/gravitational/teleport/issues/7636) which will add
+ability to control level of TLS verification as a workaround.
+
+#### Role Changes
+
+New clusters will no longer have the default `admin` role, it has been replaced
+with 3 smaller scoped roles: `access`, `auditor`, and `editor`.
+
 ## 7.0.0
 
 Teleport 7.0 is a major release of Teleport that contains new features, improvements, and bug fixes.
 
 ### New Features
 
-#### MongoDB 
+#### MongoDB
 
 Added support for [MongoDB](https://www.mongodb.com) to Teleport Database Access. [#6600](https://github.com/gravitational/teleport/issues/6600).
 
@@ -242,7 +407,7 @@ To learn more about configuring role-based access control for Database Access, c
 
 See [Reference](https://goteleport.com/teleport/docs/database-access/reference/) for an overview of Database Access related configuration and CLI commands.
 
-Finally, check out [Frequently Asked Questions](./database-access/faq/).
+Finally, check out [Frequently Asked Questions](./database-access/faq.mdx).
 
 #### OSS RBAC
 
@@ -807,7 +972,7 @@ This release of Teleport contains multiple bug fixes.
 
 ## 4.3.0
 
-This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items. We would love your feedback - please pick a [time slot for a remote UX feedback session](https://calendly.com/benarent-gravitational/teleport-4-3-feedback-session?month=2020-06) if you’re interested.
+This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items.
 
 #### New Features
 
@@ -1016,10 +1181,10 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Improvements
 
-* Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/features/enhanced_session_recording/). [#2948](https://github.com/gravitational/teleport/issues/2948)
-* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/enterprise/#approval-workflows). [#3006](https://github.com/gravitational/teleport/issues/3006)
-* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/gcp_guide/). [#2821](https://github.com/gravitational/teleport/pull/2821)
-* Remote tctl execution is now possible. [Read the docs](https://gravitational.com/teleport/docs/ver/4.2/cli-docs/#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
+* Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
+* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](./enterprise/workflow). [#3006](https://github.com/gravitational/teleport/issues/3006)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](./setup/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Remote tctl execution is now possible. [Read the docs](./setup/reference/cli.mdx#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
 
@@ -1027,8 +1192,8 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](https://gravitational.com/teleport/docs/ver/4.2/trustedclusters/).
-* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](https://gravitational.com/teleport/docs/ver/4.2/enterprise/ssh_fips/).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](./setup/admin/trustedclusters.mdx).
+* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](./enterprise/fedramp.mdx).
 
 ## 4.1.11
 
@@ -1259,7 +1424,7 @@ With this release of Teleport, we have built out the foundation to help Teleport
 
 ### Improvements
 
-* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](https://gravitational.com/teleport/faq/#whats-teleport-scalability-and-hardware-recommendations)
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](./setup/operations/scaling.mdx#hardware-recommendations)
 * Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
 * Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 
@@ -1743,7 +1908,7 @@ available Teleport clusters with ease.
 #### Configuration Changes
 
 * Role templates (depreciated in Teleport 2.3) were fully removed. We recommend
-  migrating to role variables which are documented [here](https://gravitational.com/teleport/docs/ssh_rbac/#roles)
+  migrating to role variables which are documented [here](./access-controls/guides/role-templates.mdx)
 
 * Resource names (like roles, connectors, trusted clusters) can no longer
   contain unicode or other special characters. Update the names of all user

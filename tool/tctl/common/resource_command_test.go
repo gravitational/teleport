@@ -17,8 +17,9 @@ limitations under the License.
 package common
 
 import (
+	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -81,8 +82,7 @@ func TestDatabaseServerResource(t *testing.T) {
 		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 1)
-		require.Len(t, out[0].GetDatabases(), 2)
+		require.Len(t, out, 2)
 	})
 
 	server := fmt.Sprintf("%v/%v", types.KindDatabaseServer, out[0].GetName())
@@ -92,7 +92,6 @@ func TestDatabaseServerResource(t *testing.T) {
 		require.NoError(t, err)
 		mustDecodeJSON(t, buff, &out)
 		require.Len(t, out, 1)
-		require.Len(t, out[0].GetDatabases(), 2)
 	})
 
 	t.Run("remove database server", func(t *testing.T) {
@@ -139,7 +138,8 @@ func TestDatabaseResource(t *testing.T) {
 	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
 
 	dbA, err := types.NewDatabaseV3(types.Metadata{
-		Name: "dbA",
+		Name:   "dbA",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
@@ -147,7 +147,8 @@ func TestDatabaseResource(t *testing.T) {
 	require.NoError(t, err)
 
 	dbB, err := types.NewDatabaseV3(types.Metadata{
-		Name: "dbB",
+		Name:   "dbB",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "localhost:3306",
@@ -164,7 +165,7 @@ func TestDatabaseResource(t *testing.T) {
 
 	// Create the databases.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
-	require.NoError(t, ioutil.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
+	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 	_, err = runResourceCommand(t, fileConfig, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 
@@ -197,6 +198,134 @@ func TestDatabaseResource(t *testing.T) {
 	))
 }
 
+// TestAppResource tests tctl commands that manage application resources.
+func TestAppResource(t *testing.T) {
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Apps: config.Apps{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: mustGetFreeLocalListenerAddr(t),
+			TunAddr: mustGetFreeLocalListenerAddr(t),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+
+	appA, err := types.NewAppV3(types.Metadata{
+		Name:   "appA",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+
+	appB, err := types.NewAppV3(types.Metadata{
+		Name:   "appB",
+		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+	}, types.AppSpecV3{
+		URI: "localhost2",
+	})
+	require.NoError(t, err)
+
+	var out []*types.AppV3
+
+	// Initially there are no apps.
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 0)
+
+	// Create the apps.
+	appYAMLPath := filepath.Join(t.TempDir(), "app.yaml")
+	require.NoError(t, os.WriteFile(appYAMLPath, []byte(appYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", appYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the apps, should have 2.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.AppV3{appA, appB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Fetch specific app.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/appB", types.KindApp), "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.AppV3{appB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+
+	// Remove an app.
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/appA", types.KindApp)})
+	require.NoError(t, err)
+
+	// Fetch all apps again, should have 1.
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &out)
+	require.Empty(t, cmp.Diff([]*types.AppV3{appB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+	))
+}
+
+// TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
+func TestCreateDatabaseInInsecureMode(t *testing.T) {
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Databases: config.Databases{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: mustGetFreeLocalListenerAddr(t),
+			TunAddr: mustGetFreeLocalListenerAddr(t),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+
+	// Create the databases yaml file.
+	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
+	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
+
+	// Reset RootCertPool and run tctl command with --insecure flag.
+	opts := []optionsFunc{
+		withRootCertPool(x509.NewCertPool()),
+		withInsecure(true),
+	}
+	_, err := runResourceCommand(t, fileConfig, []string{"create", dbYAMLPath}, opts...)
+	require.NoError(t, err)
+}
+
 const (
 	dbYAML = `kind: db
 version: v3
@@ -213,4 +342,18 @@ metadata:
 spec:
   protocol: "mysql"
   uri: "localhost:3306"`
+
+	appYAML = `kind: app
+version: v3
+metadata:
+  name: appA
+spec:
+  uri: "localhost1"
+---
+kind: app
+version: v3
+metadata:
+  name: appB
+spec:
+  uri: "localhost2"`
 )

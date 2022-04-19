@@ -129,7 +129,7 @@ administrator on one of a cluster's Auth Servers, the following happens:
 
 This process is repeated twice, once for the node CA and once for the user CA.
 
-Take a look at the [Certificate Guide](../admin-guide.mdx#certificate-rotation) to
+Take a look at the [Certificate Rotation Guide](../setup/operations/ca-rotation.mdx) to
 learn how to do certificate rotation in practice.
 
 ## Auth API
@@ -144,8 +144,7 @@ Clients can also connect to the auth API through the Teleport proxy to use a lim
 
 The Auth service maintains state using a database of users, credentials,
 certificates, and audit logs. The default storage location is
-`/var/lib/teleport` or an [admin-configured storage
-destination](../admin-guide.mdx#high-availability).
+`/var/lib/teleport` or an [admin-configured storage destination](../setup/reference/backends.mdx).
 
 There are three types of data stored by the auth server:
 
@@ -155,7 +154,7 @@ There are three types of data stored by the auth server:
   - List of locally stored users
   - RBAC configuration (roles and permissions).
   - Other dynamic configuration.
-- **Audit Log** When users log into a Teleport cluster, execute remote commands, and log out, that activity is recorded in the audit log. See Audit Log for more details. More on this in the [Audit Log section below](#audit-log).
+- **Audit Log** When users log into a Teleport cluster, execute remote commands, and log out, that activity is recorded in the audit log. See Audit Log for more details. More on this in the [Audit Log section](../setup/reference/audit.mdx).
 - **Recorded Sessions** When Teleport users launch remote shells via `tsh ssh` command, their interactive sessions are recorded and stored by the auth server. Each recorded session is a file that is saved in /var/lib/teleport by default but can also be saved in external storage, like an AWS S3 bucket.
 
 ## Audit log
@@ -179,7 +178,7 @@ events and submits them to the auth server. The events recorded include:
 Only an SSH server can report what's happening to the Teleport auth server.
 The audit log is a JSON file that is by default stored on the auth server's
 filesystem under `/var/lib/teleport/log`. The format of the file is documented
-in the [Admin Manual](../admin-guide.mdx#audit-log).
+in the [Admin Manual](../setup/reference/audit.mdx).
 
 Teleport users are encouraged to export the events into external, long term
 storage.
@@ -191,7 +190,7 @@ storage.
   If multiple Teleport auth servers are used
   to service the same cluster (High Availability mode) a network file system must be used for
   `/var/lib/teleport/log` to allow them to combine all audit events into the
-  same audit log. [Learn how to deploy Teleport in High Availability Mode.](../admin-guide.mdx#high-availability).
+  same audit log. [Learn how to deploy Teleport in High Availability Mode.](../setup/reference/backends.mdx).
 </Admonition>
 
 ## Storage back-ends
@@ -220,7 +219,7 @@ it allows them to run Teleport clusters completely devoid of local state.
   title="NOTE"
 >
   For High Availability in production, a Teleport cluster can be
-  serviced by multiple auth servers running in sync. Check [High Availability configuration](../admin-guide.mdx#high-availability) in the Admin Guide.
+  serviced by multiple auth servers running in sync. Check [High Availability configuration](../setup/reference/backends.mdx) in the Admin Guide.
 </Admonition>
 
 ## More concepts

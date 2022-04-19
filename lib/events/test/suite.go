@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -46,7 +46,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	_, err := handler.Upload(context.TODO(), id, bytes.NewBuffer([]byte(val)))
 	require.Nil(t, err)
 
-	f, err := ioutil.TempFile("", string(id))
+	f, err := os.CreateTemp("", string(id))
 	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -57,7 +57,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	_, err = f.Seek(0, 0)
 	require.Nil(t, err)
 
-	data, err := ioutil.ReadAll(f)
+	data, err := io.ReadAll(f)
 	require.Nil(t, err)
 	require.Equal(t, string(data), val)
 }
@@ -66,7 +66,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
-	f, err := ioutil.TempFile("", string(id))
+	f, err := os.CreateTemp("", string(id))
 	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -90,11 +90,11 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 	names := []string{"bob", "jack", "daisy", "evan"}
 
 	for i, name := range names {
-		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
-			events.LoginMethod:        events.LoginMethodSAML,
-			events.AuthAttemptSuccess: true,
-			events.EventUser:          name,
-			events.EventTime:          baseTime.Add(time.Second * time.Duration(i)),
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: name},
+			Metadata:     apievents.Metadata{Time: baseTime.Add(time.Second * time.Duration(i))},
 		})
 		c.Assert(err, check.IsNil)
 	}
@@ -166,11 +166,11 @@ func (s *EventsSuite) EventPagination(c *check.C) {
 // SessionEventsCRUD covers session events
 func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// Bob has logged in
-	err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
-		events.LoginMethod:        events.LoginMethodSAML,
-		events.AuthAttemptSuccess: true,
-		events.EventUser:          "bob",
-		events.EventTime:          s.Clock.Now().UTC(),
+	err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		Method:       events.LoginMethodSAML,
+		Status:       apievents.Status{Success: true},
+		UserMetadata: apievents.UserMetadata{User: "bob"},
+		Metadata:     apievents.Metadata{Time: s.Clock.Now().UTC()},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -206,7 +206,7 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 				Time:       s.Clock.Now().Add(time.Hour).UTC().UnixNano(),
 				EventIndex: 4,
 				EventType:  events.SessionEndEvent,
-				Data:       marshal(events.EventFields{events.EventLogin: "bob"}),
+				Data:       marshal(events.EventFields{events.EventLogin: "bob", events.SessionParticipants: []string{"bob", "alice"}}),
 			},
 		},
 		Version: events.V2,
@@ -220,13 +220,28 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
 	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "")
-	c.Assert(err, check.IsNil)
-	c.Assert(history, check.HasLen, 2)
-
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "")
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 1)
+
+	withParticipant := func(participant string) *types.WhereExpr {
+		return &types.WhereExpr{Contains: types.WhereExpr2{
+			L: &types.WhereExpr{Field: events.SessionParticipants},
+			R: &types.WhereExpr{Literal: participant},
+		}}
+	}
+
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"))
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 1)
+
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"))
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 0)
+
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil)
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 0)
 }
 
 func marshal(f events.EventFields) []byte {

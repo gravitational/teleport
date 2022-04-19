@@ -54,7 +54,11 @@ func newChConn(conn ssh.Conn, ch ssh.Channel, exclusive bool) *ChConn {
 	//
 	// This goroutine stops when either the SSH channel closes or this
 	// connection is closed e.g. by a http.Server (see Close below).
-	go io.Copy(writer, ch)
+	go func() {
+		io.Copy(writer, ch)
+		// propagate EOF across the pipe to the read half.
+		writer.Close()
+	}()
 	return c
 }
 
@@ -73,12 +77,19 @@ type ChConn struct {
 	reader net.Conn
 	// writer is the part of the pipe that receives data from SSH channel.
 	writer net.Conn
+
+	// closed prevents double-close
+	closed bool
 }
 
 // Close closes channel and if the ChConn is exclusive, connection as well
 func (c *ChConn) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
 	var errors []error
 	if err := c.Channel.Close(); err != nil {
 		errors = append(errors, err)

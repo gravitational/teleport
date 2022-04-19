@@ -11,8 +11,10 @@ import (
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	_ "github.com/golang/protobuf/ptypes/timestamp"
+	github_com_gravitational_teleport_api_types "github.com/gravitational/teleport/api/types"
 	types "github.com/gravitational/teleport/api/types"
 	events "github.com/gravitational/teleport/api/types/events"
+	webauthn "github.com/gravitational/teleport/api/types/webauthn"
 	_ "github.com/gravitational/teleport/api/types/wrappers"
 	github_com_gravitational_teleport_api_types_wrappers "github.com/gravitational/teleport/api/types/wrappers"
 	grpc "google.golang.org/grpc"
@@ -69,6 +71,73 @@ func (Operation) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_ce8bd90b12161215, []int{0}
 }
 
+// DeviceType describes supported MFA device types.
+type DeviceType int32
+
+const (
+	DeviceType_DEVICE_TYPE_UNSPECIFIED DeviceType = 0
+	// TOTP is a Time-based One-Time Password device.
+	DeviceType_DEVICE_TYPE_TOTP DeviceType = 1
+	// Webauthn is a device compatible with the Web Authentication
+	// specification, registered via Webauthn APIs.
+	// Supports various kinds of devices: U2F/CTAP1, CTAP2, platform
+	// authenticators (Touch ID), etc.
+	DeviceType_DEVICE_TYPE_WEBAUTHN DeviceType = 3
+)
+
+var DeviceType_name = map[int32]string{
+	0: "DEVICE_TYPE_UNSPECIFIED",
+	1: "DEVICE_TYPE_TOTP",
+	3: "DEVICE_TYPE_WEBAUTHN",
+}
+
+var DeviceType_value = map[string]int32{
+	"DEVICE_TYPE_UNSPECIFIED": 0,
+	"DEVICE_TYPE_TOTP":        1,
+	"DEVICE_TYPE_WEBAUTHN":    3,
+}
+
+func (x DeviceType) String() string {
+	return proto.EnumName(DeviceType_name, int32(x))
+}
+
+func (DeviceType) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{1}
+}
+
+type DeviceUsage int32
+
+const (
+	DeviceUsage_DEVICE_USAGE_UNSPECIFIED DeviceUsage = 0
+	// Device intended for MFA use, but not for passwordless.
+	// Allows both FIDO and FIDO2 devices.
+	// Resident keys not required.
+	DeviceUsage_DEVICE_USAGE_MFA DeviceUsage = 1
+	// Device intended for both MFA and passwordless.
+	// Requires a FIDO2 device and takes a resident key slot.
+	DeviceUsage_DEVICE_USAGE_PASSWORDLESS DeviceUsage = 2
+)
+
+var DeviceUsage_name = map[int32]string{
+	0: "DEVICE_USAGE_UNSPECIFIED",
+	1: "DEVICE_USAGE_MFA",
+	2: "DEVICE_USAGE_PASSWORDLESS",
+}
+
+var DeviceUsage_value = map[string]int32{
+	"DEVICE_USAGE_UNSPECIFIED":  0,
+	"DEVICE_USAGE_MFA":          1,
+	"DEVICE_USAGE_PASSWORDLESS": 2,
+}
+
+func (x DeviceUsage) String() string {
+	return proto.EnumName(DeviceUsage_name, int32(x))
+}
+
+func (DeviceUsage) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{2}
+}
+
 // Order specifies any ordering of some objects as returned in regards to some aspect
 // of said objects which may be trivially ordered such as a timestamp.
 type Order int32
@@ -93,7 +162,7 @@ func (x Order) String() string {
 }
 
 func (Order) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{1}
+	return fileDescriptor_ce8bd90b12161215, []int{3}
 }
 
 type UserCertsRequest_CertUsage int32
@@ -115,6 +184,9 @@ const (
 	// App means a request for a TLS certificate for access to a specific
 	// web app, as specified by RouteToApp.
 	UserCertsRequest_App UserCertsRequest_CertUsage = 4
+	// WindowsDesktop means a request for a TLS certificate for access to a specific
+	// windows desktop.
+	UserCertsRequest_WindowsDesktop UserCertsRequest_CertUsage = 5
 )
 
 var UserCertsRequest_CertUsage_name = map[int32]string{
@@ -123,14 +195,16 @@ var UserCertsRequest_CertUsage_name = map[int32]string{
 	2: "Kubernetes",
 	3: "Database",
 	4: "App",
+	5: "WindowsDesktop",
 }
 
 var UserCertsRequest_CertUsage_value = map[string]int32{
-	"All":        0,
-	"SSH":        1,
-	"Kubernetes": 2,
-	"Database":   3,
-	"App":        4,
+	"All":            0,
+	"SSH":            1,
+	"Kubernetes":     2,
+	"Database":       3,
+	"App":            4,
+	"WindowsDesktop": 5,
 }
 
 func (x UserCertsRequest_CertUsage) String() string {
@@ -139,31 +213,6 @@ func (x UserCertsRequest_CertUsage) String() string {
 
 func (UserCertsRequest_CertUsage) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_ce8bd90b12161215, []int{4, 0}
-}
-
-type AddMFADeviceRequestInit_DeviceType int32
-
-const (
-	AddMFADeviceRequestInit_TOTP AddMFADeviceRequestInit_DeviceType = 0
-	AddMFADeviceRequestInit_U2F  AddMFADeviceRequestInit_DeviceType = 1
-)
-
-var AddMFADeviceRequestInit_DeviceType_name = map[int32]string{
-	0: "TOTP",
-	1: "U2F",
-}
-
-var AddMFADeviceRequestInit_DeviceType_value = map[string]int32{
-	"TOTP": 0,
-	"U2F":  1,
-}
-
-func (x AddMFADeviceRequestInit_DeviceType) String() string {
-	return proto.EnumName(AddMFADeviceRequestInit_DeviceType_name, int32(x))
-}
-
-func (AddMFADeviceRequestInit_DeviceType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{75, 0}
 }
 
 // Event returns cluster event
@@ -178,7 +227,6 @@ type Event struct {
 	//	*Event_StaticTokens
 	//	*Event_ProvisionToken
 	//	*Event_ClusterName
-	//	*Event_ClusterConfig
 	//	*Event_User
 	//	*Event_Role
 	//	*Event_Namespace
@@ -199,6 +247,9 @@ type Event struct {
 	//	*Event_NetworkRestrictions
 	//	*Event_WindowsDesktopService
 	//	*Event_WindowsDesktop
+	//	*Event_Database
+	//	*Event_AppServer
+	//	*Event_App
 	Resource             isEvent_Resource `protobuf_oneof:"Resource"`
 	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
 	XXX_unrecognized     []byte           `json:"-"`
@@ -259,14 +310,11 @@ type Event_ProvisionToken struct {
 type Event_ClusterName struct {
 	ClusterName *types.ClusterNameV2 `protobuf:"bytes,6,opt,name=ClusterName,proto3,oneof" json:"cluster_name,omitempty"`
 }
-type Event_ClusterConfig struct {
-	ClusterConfig *types.ClusterConfigV3 `protobuf:"bytes,7,opt,name=ClusterConfig,proto3,oneof" json:"cluster_config,omitempty"`
-}
 type Event_User struct {
 	User *types.UserV2 `protobuf:"bytes,8,opt,name=User,proto3,oneof" json:"user,omitempty"`
 }
 type Event_Role struct {
-	Role *types.RoleV4 `protobuf:"bytes,9,opt,name=Role,proto3,oneof" json:"role,omitempty"`
+	Role *types.RoleV5 `protobuf:"bytes,9,opt,name=Role,proto3,oneof" json:"role,omitempty"`
 }
 type Event_Namespace struct {
 	Namespace *types.Namespace `protobuf:"bytes,10,opt,name=Namespace,proto3,oneof" json:"namespace,omitempty"`
@@ -322,13 +370,21 @@ type Event_WindowsDesktopService struct {
 type Event_WindowsDesktop struct {
 	WindowsDesktop *types.WindowsDesktopV3 `protobuf:"bytes,27,opt,name=WindowsDesktop,proto3,oneof" json:"windows_desktop,omitempty"`
 }
+type Event_Database struct {
+	Database *types.DatabaseV3 `protobuf:"bytes,28,opt,name=Database,proto3,oneof" json:"database,omitempty"`
+}
+type Event_AppServer struct {
+	AppServer *types.AppServerV3 `protobuf:"bytes,29,opt,name=AppServer,proto3,oneof" json:"app_server,omitempty"`
+}
+type Event_App struct {
+	App *types.AppV3 `protobuf:"bytes,30,opt,name=App,proto3,oneof" json:"app,omitempty"`
+}
 
 func (*Event_ResourceHeader) isEvent_Resource()          {}
 func (*Event_CertAuthority) isEvent_Resource()           {}
 func (*Event_StaticTokens) isEvent_Resource()            {}
 func (*Event_ProvisionToken) isEvent_Resource()          {}
 func (*Event_ClusterName) isEvent_Resource()             {}
-func (*Event_ClusterConfig) isEvent_Resource()           {}
 func (*Event_User) isEvent_Resource()                    {}
 func (*Event_Role) isEvent_Resource()                    {}
 func (*Event_Namespace) isEvent_Resource()               {}
@@ -349,6 +405,9 @@ func (*Event_Lock) isEvent_Resource()                    {}
 func (*Event_NetworkRestrictions) isEvent_Resource()     {}
 func (*Event_WindowsDesktopService) isEvent_Resource()   {}
 func (*Event_WindowsDesktop) isEvent_Resource()          {}
+func (*Event_Database) isEvent_Resource()                {}
+func (*Event_AppServer) isEvent_Resource()               {}
+func (*Event_App) isEvent_Resource()                     {}
 
 func (m *Event) GetResource() isEvent_Resource {
 	if m != nil {
@@ -399,13 +458,6 @@ func (m *Event) GetClusterName() *types.ClusterNameV2 {
 	return nil
 }
 
-func (m *Event) GetClusterConfig() *types.ClusterConfigV3 {
-	if x, ok := m.GetResource().(*Event_ClusterConfig); ok {
-		return x.ClusterConfig
-	}
-	return nil
-}
-
 func (m *Event) GetUser() *types.UserV2 {
 	if x, ok := m.GetResource().(*Event_User); ok {
 		return x.User
@@ -413,7 +465,7 @@ func (m *Event) GetUser() *types.UserV2 {
 	return nil
 }
 
-func (m *Event) GetRole() *types.RoleV4 {
+func (m *Event) GetRole() *types.RoleV5 {
 	if x, ok := m.GetResource().(*Event_Role); ok {
 		return x.Role
 	}
@@ -546,6 +598,27 @@ func (m *Event) GetWindowsDesktop() *types.WindowsDesktopV3 {
 	return nil
 }
 
+func (m *Event) GetDatabase() *types.DatabaseV3 {
+	if x, ok := m.GetResource().(*Event_Database); ok {
+		return x.Database
+	}
+	return nil
+}
+
+func (m *Event) GetAppServer() *types.AppServerV3 {
+	if x, ok := m.GetResource().(*Event_AppServer); ok {
+		return x.AppServer
+	}
+	return nil
+}
+
+func (m *Event) GetApp() *types.AppV3 {
+	if x, ok := m.GetResource().(*Event_App); ok {
+		return x.App
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*Event) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
@@ -554,7 +627,6 @@ func (*Event) XXX_OneofWrappers() []interface{} {
 		(*Event_StaticTokens)(nil),
 		(*Event_ProvisionToken)(nil),
 		(*Event_ClusterName)(nil),
-		(*Event_ClusterConfig)(nil),
 		(*Event_User)(nil),
 		(*Event_Role)(nil),
 		(*Event_Namespace)(nil),
@@ -575,6 +647,9 @@ func (*Event) XXX_OneofWrappers() []interface{} {
 		(*Event_NetworkRestrictions)(nil),
 		(*Event_WindowsDesktopService)(nil),
 		(*Event_WindowsDesktop)(nil),
+		(*Event_Database)(nil),
+		(*Event_AppServer)(nil),
+		(*Event_App)(nil),
 	}
 }
 
@@ -715,29 +790,52 @@ func (m *WatchKind) GetSubKind() string {
 	return ""
 }
 
-// Set of certificates corresponding to a single public key.
-type Certs struct {
-	// SSH X509 cert (PEM-encoded).
-	SSH []byte `protobuf:"bytes,1,opt,name=SSH,proto3" json:"ssh,omitempty"`
-	// TLS X509 cert (PEM-encoded).
-	TLS                  []byte   `protobuf:"bytes,2,opt,name=TLS,proto3" json:"tls,omitempty"`
+// HostCertsRequest specifies certificate-generation parameters
+// for a server.
+type HostCertsRequest struct {
+	// HostID is a unique ID of the host.
+	HostID string `protobuf:"bytes,1,opt,name=HostID,proto3" json:"host_id"`
+	// NodeName is a user-friendly host name.
+	NodeName string `protobuf:"bytes,2,opt,name=NodeName,proto3" json:"node_name"`
+	// Role is a system role assigned to the host.
+	Role github_com_gravitational_teleport_api_types.SystemRole `protobuf:"bytes,3,opt,name=Role,proto3,casttype=github.com/gravitational/teleport/api/types.SystemRole" json:"role"`
+	// AdditionalPrincipals is a list of additional principals
+	// to include in OpenSSH and X509 certificates
+	AdditionalPrincipals []string `protobuf:"bytes,4,rep,name=AdditionalPrincipals,proto3" json:"additional_principals,omitempty"`
+	// DNSNames is a list of DNS names to include in x509 certificates.
+	DNSNames []string `protobuf:"bytes,5,rep,name=DNSNames,proto3" json:"dns_names,omitempty"`
+	// PublicTLSKey is a PEM encoded public key, which the auth server will use
+	// to create a signed TLS certificate. This field is required.
+	PublicTLSKey []byte `protobuf:"bytes,6,opt,name=PublicTLSKey,proto3" json:"public_tls_key"`
+	// PublicSSHKey is a SSH encoded public key, which the auth server will use
+	// to create a signed SSH certificate. This field is required.
+	PublicSSHKey []byte `protobuf:"bytes,7,opt,name=PublicSSHKey,proto3" json:"public_ssh_key"`
+	// RemoteAddr is the IP address of the remote host requesting a certificate.
+	// RemoteAddr is used to replace 0.0.0.0 in the list of additional principals.
+	RemoteAddr string `protobuf:"bytes,8,opt,name=RemoteAddr,proto3" json:"remote_addr"`
+	// Rotation allows clients to send the certificate authority rotation state
+	// expected by the client so that auth servers can avoid the situation when
+	// clients request certs assuming one state and auth servers issue another.
+	Rotation *types.Rotation `protobuf:"bytes,9,opt,name=Rotation,proto3" json:"rotation,omitempty"`
+	// NoCache is argument that only local callers can supply to bypass cache
+	NoCache              bool     `protobuf:"varint,10,opt,name=NoCache,proto3" json:"-"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *Certs) Reset()         { *m = Certs{} }
-func (m *Certs) String() string { return proto.CompactTextString(m) }
-func (*Certs) ProtoMessage()    {}
-func (*Certs) Descriptor() ([]byte, []int) {
+func (m *HostCertsRequest) Reset()         { *m = HostCertsRequest{} }
+func (m *HostCertsRequest) String() string { return proto.CompactTextString(m) }
+func (*HostCertsRequest) ProtoMessage()    {}
+func (*HostCertsRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_ce8bd90b12161215, []int{3}
 }
-func (m *Certs) XXX_Unmarshal(b []byte) error {
+func (m *HostCertsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *Certs) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *HostCertsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_Certs.Marshal(b, m, deterministic)
+		return xxx_messageInfo_HostCertsRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -747,30 +845,86 @@ func (m *Certs) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *Certs) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Certs.Merge(m, src)
+func (m *HostCertsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_HostCertsRequest.Merge(m, src)
 }
-func (m *Certs) XXX_Size() int {
+func (m *HostCertsRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *Certs) XXX_DiscardUnknown() {
-	xxx_messageInfo_Certs.DiscardUnknown(m)
+func (m *HostCertsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_HostCertsRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Certs proto.InternalMessageInfo
+var xxx_messageInfo_HostCertsRequest proto.InternalMessageInfo
 
-func (m *Certs) GetSSH() []byte {
+func (m *HostCertsRequest) GetHostID() string {
 	if m != nil {
-		return m.SSH
+		return m.HostID
+	}
+	return ""
+}
+
+func (m *HostCertsRequest) GetNodeName() string {
+	if m != nil {
+		return m.NodeName
+	}
+	return ""
+}
+
+func (m *HostCertsRequest) GetRole() github_com_gravitational_teleport_api_types.SystemRole {
+	if m != nil {
+		return m.Role
+	}
+	return ""
+}
+
+func (m *HostCertsRequest) GetAdditionalPrincipals() []string {
+	if m != nil {
+		return m.AdditionalPrincipals
 	}
 	return nil
 }
 
-func (m *Certs) GetTLS() []byte {
+func (m *HostCertsRequest) GetDNSNames() []string {
 	if m != nil {
-		return m.TLS
+		return m.DNSNames
 	}
 	return nil
+}
+
+func (m *HostCertsRequest) GetPublicTLSKey() []byte {
+	if m != nil {
+		return m.PublicTLSKey
+	}
+	return nil
+}
+
+func (m *HostCertsRequest) GetPublicSSHKey() []byte {
+	if m != nil {
+		return m.PublicSSHKey
+	}
+	return nil
+}
+
+func (m *HostCertsRequest) GetRemoteAddr() string {
+	if m != nil {
+		return m.RemoteAddr
+	}
+	return ""
+}
+
+func (m *HostCertsRequest) GetRotation() *types.Rotation {
+	if m != nil {
+		return m.Rotation
+	}
+	return nil
+}
+
+func (m *HostCertsRequest) GetNoCache() bool {
+	if m != nil {
+		return m.NoCache
+	}
+	return false
 }
 
 // UserCertRequest specifies certificate-generation parameters
@@ -807,10 +961,18 @@ type UserCertsRequest struct {
 	// CertUsage limits the resulting user certificate to a single protocol.
 	Usage UserCertsRequest_CertUsage `protobuf:"varint,10,opt,name=Usage,proto3,enum=proto.UserCertsRequest_CertUsage" json:"usage,omitempty"`
 	// RouteToApp specifies application to issue certificate for.
-	RouteToApp           RouteToApp `protobuf:"bytes,11,opt,name=RouteToApp,proto3" json:"route_to_app,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
-	XXX_unrecognized     []byte     `json:"-"`
-	XXX_sizecache        int32      `json:"-"`
+	RouteToApp RouteToApp `protobuf:"bytes,11,opt,name=RouteToApp,proto3" json:"route_to_app,omitempty"`
+	// RoleRequests specify an alternative set of named roles to apply to the
+	// certificate, assuming the requestor is allowed to impersonate said roles
+	// directly. An empty set of requests returns the user's normal set of
+	// roles.
+	RoleRequests []string `protobuf:"bytes,12,rep,name=RoleRequests,proto3" json:"role_requests,omitempty"`
+	// RouteToWindowsDesktop specifies the target windows desktop name to encode into
+	// certificate so windows desktop client requests are routed appropriately.
+	RouteToWindowsDesktop RouteToWindowsDesktop `protobuf:"bytes,13,opt,name=RouteToWindowsDesktop,proto3" json:"route_to_windows_desktop,omitempty"`
+	XXX_NoUnkeyedLiteral  struct{}              `json:"-"`
+	XXX_unrecognized      []byte                `json:"-"`
+	XXX_sizecache         int32                 `json:"-"`
 }
 
 func (m *UserCertsRequest) Reset()         { *m = UserCertsRequest{} }
@@ -923,6 +1085,20 @@ func (m *UserCertsRequest) GetRouteToApp() RouteToApp {
 	return RouteToApp{}
 }
 
+func (m *UserCertsRequest) GetRoleRequests() []string {
+	if m != nil {
+		return m.RoleRequests
+	}
+	return nil
+}
+
+func (m *UserCertsRequest) GetRouteToWindowsDesktop() RouteToWindowsDesktop {
+	if m != nil {
+		return m.RouteToWindowsDesktop
+	}
+	return RouteToWindowsDesktop{}
+}
+
 // RouteToDatabase combines parameters for database service routing information.
 type RouteToDatabase struct {
 	// ServiceName is the Teleport database proxy service name the cert is for.
@@ -999,6 +1175,64 @@ func (m *RouteToDatabase) GetDatabase() string {
 	return ""
 }
 
+// RouteToWindowsDesktop combines parameters for windows desktop routing information.
+type RouteToWindowsDesktop struct {
+	// WindowsDesktop is the Windows Desktop server name to embed.
+	WindowsDesktop string `protobuf:"bytes,1,opt,name=WindowsDesktop,proto3" json:"windows_desktop"`
+	// Login is the Windows desktop user login to embed.
+	Login                string   `protobuf:"bytes,2,opt,name=Login,proto3" json:"login"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RouteToWindowsDesktop) Reset()         { *m = RouteToWindowsDesktop{} }
+func (m *RouteToWindowsDesktop) String() string { return proto.CompactTextString(m) }
+func (*RouteToWindowsDesktop) ProtoMessage()    {}
+func (*RouteToWindowsDesktop) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{6}
+}
+func (m *RouteToWindowsDesktop) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RouteToWindowsDesktop) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RouteToWindowsDesktop.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RouteToWindowsDesktop) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RouteToWindowsDesktop.Merge(m, src)
+}
+func (m *RouteToWindowsDesktop) XXX_Size() int {
+	return m.Size()
+}
+func (m *RouteToWindowsDesktop) XXX_DiscardUnknown() {
+	xxx_messageInfo_RouteToWindowsDesktop.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RouteToWindowsDesktop proto.InternalMessageInfo
+
+func (m *RouteToWindowsDesktop) GetWindowsDesktop() string {
+	if m != nil {
+		return m.WindowsDesktop
+	}
+	return ""
+}
+
+func (m *RouteToWindowsDesktop) GetLogin() string {
+	if m != nil {
+		return m.Login
+	}
+	return ""
+}
+
 // RouteToApp contains parameters for application access certificate requests.
 type RouteToApp struct {
 	// Name is the application name certificate is being requested for.
@@ -1008,7 +1242,9 @@ type RouteToApp struct {
 	// PublicAddr is the application public address.
 	PublicAddr string `protobuf:"bytes,3,opt,name=PublicAddr,proto3" json:"public_addr"`
 	// ClusterName is the cluster where the application resides.
-	ClusterName          string   `protobuf:"bytes,4,opt,name=ClusterName,proto3" json:"cluster_name"`
+	ClusterName string `protobuf:"bytes,4,opt,name=ClusterName,proto3" json:"cluster_name"`
+	// AWSRoleARN is the AWS role to assume when accessing AWS API.
+	AWSRoleARN           string   `protobuf:"bytes,5,opt,name=AWSRoleARN,proto3" json:"aws_role_arn,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1018,7 +1254,7 @@ func (m *RouteToApp) Reset()         { *m = RouteToApp{} }
 func (m *RouteToApp) String() string { return proto.CompactTextString(m) }
 func (*RouteToApp) ProtoMessage()    {}
 func (*RouteToApp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{6}
+	return fileDescriptor_ce8bd90b12161215, []int{7}
 }
 func (m *RouteToApp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1075,6 +1311,13 @@ func (m *RouteToApp) GetClusterName() string {
 	return ""
 }
 
+func (m *RouteToApp) GetAWSRoleARN() string {
+	if m != nil {
+		return m.AWSRoleARN
+	}
+	return ""
+}
+
 // GetUserRequest specifies parameters for the GetUser method.
 type GetUserRequest struct {
 	// Name is the name of the desired user.
@@ -1090,7 +1333,7 @@ func (m *GetUserRequest) Reset()         { *m = GetUserRequest{} }
 func (m *GetUserRequest) String() string { return proto.CompactTextString(m) }
 func (*GetUserRequest) ProtoMessage()    {}
 func (*GetUserRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{7}
+	return fileDescriptor_ce8bd90b12161215, []int{8}
 }
 func (m *GetUserRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1146,7 +1389,7 @@ func (m *GetUsersRequest) Reset()         { *m = GetUsersRequest{} }
 func (m *GetUsersRequest) String() string { return proto.CompactTextString(m) }
 func (*GetUsersRequest) ProtoMessage()    {}
 func (*GetUsersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{8}
+	return fileDescriptor_ce8bd90b12161215, []int{9}
 }
 func (m *GetUsersRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1194,7 +1437,7 @@ func (m *AccessRequests) Reset()         { *m = AccessRequests{} }
 func (m *AccessRequests) String() string { return proto.CompactTextString(m) }
 func (*AccessRequests) ProtoMessage()    {}
 func (*AccessRequests) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{9}
+	return fileDescriptor_ce8bd90b12161215, []int{10}
 }
 func (m *AccessRequests) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1242,7 +1485,7 @@ func (m *PluginDataSeq) Reset()         { *m = PluginDataSeq{} }
 func (m *PluginDataSeq) String() string { return proto.CompactTextString(m) }
 func (*PluginDataSeq) ProtoMessage()    {}
 func (*PluginDataSeq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{10}
+	return fileDescriptor_ce8bd90b12161215, []int{11}
 }
 func (m *PluginDataSeq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1308,7 +1551,7 @@ func (m *RequestStateSetter) Reset()         { *m = RequestStateSetter{} }
 func (m *RequestStateSetter) String() string { return proto.CompactTextString(m) }
 func (*RequestStateSetter) ProtoMessage()    {}
 func (*RequestStateSetter) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{11}
+	return fileDescriptor_ce8bd90b12161215, []int{12}
 }
 func (m *RequestStateSetter) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1384,7 +1627,7 @@ func (m *RequestID) Reset()         { *m = RequestID{} }
 func (m *RequestID) String() string { return proto.CompactTextString(m) }
 func (*RequestID) ProtoMessage()    {}
 func (*RequestID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{12}
+	return fileDescriptor_ce8bd90b12161215, []int{13}
 }
 func (m *RequestID) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1432,7 +1675,7 @@ func (m *RotateUserTokenSecretsRequest) Reset()         { *m = RotateUserTokenSe
 func (m *RotateUserTokenSecretsRequest) String() string { return proto.CompactTextString(m) }
 func (*RotateUserTokenSecretsRequest) ProtoMessage()    {}
 func (*RotateUserTokenSecretsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{13}
+	return fileDescriptor_ce8bd90b12161215, []int{14}
 }
 func (m *RotateUserTokenSecretsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1480,7 +1723,7 @@ func (m *GetResetPasswordTokenRequest) Reset()         { *m = GetResetPasswordTo
 func (m *GetResetPasswordTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*GetResetPasswordTokenRequest) ProtoMessage()    {}
 func (*GetResetPasswordTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{14}
+	return fileDescriptor_ce8bd90b12161215, []int{15}
 }
 func (m *GetResetPasswordTokenRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1533,7 +1776,7 @@ func (m *CreateResetPasswordTokenRequest) Reset()         { *m = CreateResetPass
 func (m *CreateResetPasswordTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateResetPasswordTokenRequest) ProtoMessage()    {}
 func (*CreateResetPasswordTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{15}
+	return fileDescriptor_ce8bd90b12161215, []int{16}
 }
 func (m *CreateResetPasswordTokenRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1583,6 +1826,319 @@ func (m *CreateResetPasswordTokenRequest) GetTTL() Duration {
 	return 0
 }
 
+// RenewableCertsRequest is a request to generate a first set of renewable
+// certificates from a bot join token.
+type RenewableCertsRequest struct {
+	// Token is a bot join token.
+	Token string `protobuf:"bytes,1,opt,name=Token,proto3" json:"token"`
+	// PublicKey is a public key to be signed.
+	PublicKey            []byte   `protobuf:"bytes,2,opt,name=PublicKey,proto3" json:"public_key"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RenewableCertsRequest) Reset()         { *m = RenewableCertsRequest{} }
+func (m *RenewableCertsRequest) String() string { return proto.CompactTextString(m) }
+func (*RenewableCertsRequest) ProtoMessage()    {}
+func (*RenewableCertsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{17}
+}
+func (m *RenewableCertsRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RenewableCertsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RenewableCertsRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RenewableCertsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RenewableCertsRequest.Merge(m, src)
+}
+func (m *RenewableCertsRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *RenewableCertsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RenewableCertsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RenewableCertsRequest proto.InternalMessageInfo
+
+func (m *RenewableCertsRequest) GetToken() string {
+	if m != nil {
+		return m.Token
+	}
+	return ""
+}
+
+func (m *RenewableCertsRequest) GetPublicKey() []byte {
+	if m != nil {
+		return m.PublicKey
+	}
+	return nil
+}
+
+// CreateBotRequest is used to create a bot User and associated resources.
+type CreateBotRequest struct {
+	// Name is the name of the bot, i.e. the unprefixed User name.
+	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
+	// TTL is the desired TTL for the token if one is created. If unset, a
+	// server default is used.
+	TTL Duration `protobuf:"varint,2,opt,name=TTL,proto3,casttype=Duration" json:"ttl"`
+	// TokenID is an optional token name of an EC2/IAM join token should be
+	// used. If unset, a new random token is created and its name returned.
+	TokenID string `protobuf:"bytes,3,opt,name=TokenID,proto3" json:"token_id"`
+	// Roles is a list of roles the created bot should be allowed to assume
+	// via role impersonation.
+	Roles                []string `protobuf:"bytes,4,rep,name=Roles,proto3" json:"roles"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateBotRequest) Reset()         { *m = CreateBotRequest{} }
+func (m *CreateBotRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateBotRequest) ProtoMessage()    {}
+func (*CreateBotRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{18}
+}
+func (m *CreateBotRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateBotRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateBotRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreateBotRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateBotRequest.Merge(m, src)
+}
+func (m *CreateBotRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateBotRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateBotRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateBotRequest proto.InternalMessageInfo
+
+func (m *CreateBotRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *CreateBotRequest) GetTTL() Duration {
+	if m != nil {
+		return m.TTL
+	}
+	return 0
+}
+
+func (m *CreateBotRequest) GetTokenID() string {
+	if m != nil {
+		return m.TokenID
+	}
+	return ""
+}
+
+func (m *CreateBotRequest) GetRoles() []string {
+	if m != nil {
+		return m.Roles
+	}
+	return nil
+}
+
+// CreateBotResponse returns details for bootstrapping a new bot.
+type CreateBotResponse struct {
+	// UserName is the name of the associated bot user.
+	UserName string `protobuf:"bytes,1,opt,name=UserName,proto3" json:"user_name"`
+	// RoleName is the name of the associated bot role.
+	RoleName string `protobuf:"bytes,2,opt,name=RoleName,proto3" json:"role_name"`
+	// TokenID is the name of the join token for the bot.
+	TokenID string `protobuf:"bytes,3,opt,name=TokenID,proto3" json:"token_id"`
+	// TokenTTL is the TTL for the token. If it differs from the requested TTL,
+	// it may have been limited by server policy.
+	TokenTTL Duration `protobuf:"varint,4,opt,name=TokenTTL,proto3,casttype=Duration" json:"ttl"`
+	// JoinMethod is the join method the bot must use to join the cluster.
+	JoinMethod           github_com_gravitational_teleport_api_types.JoinMethod `protobuf:"bytes,5,opt,name=JoinMethod,proto3,casttype=github.com/gravitational/teleport/api/types.JoinMethod" json:"join_method"`
+	XXX_NoUnkeyedLiteral struct{}                                               `json:"-"`
+	XXX_unrecognized     []byte                                                 `json:"-"`
+	XXX_sizecache        int32                                                  `json:"-"`
+}
+
+func (m *CreateBotResponse) Reset()         { *m = CreateBotResponse{} }
+func (m *CreateBotResponse) String() string { return proto.CompactTextString(m) }
+func (*CreateBotResponse) ProtoMessage()    {}
+func (*CreateBotResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{19}
+}
+func (m *CreateBotResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateBotResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateBotResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreateBotResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateBotResponse.Merge(m, src)
+}
+func (m *CreateBotResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateBotResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateBotResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateBotResponse proto.InternalMessageInfo
+
+func (m *CreateBotResponse) GetUserName() string {
+	if m != nil {
+		return m.UserName
+	}
+	return ""
+}
+
+func (m *CreateBotResponse) GetRoleName() string {
+	if m != nil {
+		return m.RoleName
+	}
+	return ""
+}
+
+func (m *CreateBotResponse) GetTokenID() string {
+	if m != nil {
+		return m.TokenID
+	}
+	return ""
+}
+
+func (m *CreateBotResponse) GetTokenTTL() Duration {
+	if m != nil {
+		return m.TokenTTL
+	}
+	return 0
+}
+
+func (m *CreateBotResponse) GetJoinMethod() github_com_gravitational_teleport_api_types.JoinMethod {
+	if m != nil {
+		return m.JoinMethod
+	}
+	return ""
+}
+
+// DeleteBotRequest is a request to delete a bot user
+type DeleteBotRequest struct {
+	// Name is the name of the bot, i.e. the unprefixed User name.
+	Name                 string   `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteBotRequest) Reset()         { *m = DeleteBotRequest{} }
+func (m *DeleteBotRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteBotRequest) ProtoMessage()    {}
+func (*DeleteBotRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{20}
+}
+func (m *DeleteBotRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DeleteBotRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DeleteBotRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DeleteBotRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteBotRequest.Merge(m, src)
+}
+func (m *DeleteBotRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *DeleteBotRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteBotRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteBotRequest proto.InternalMessageInfo
+
+func (m *DeleteBotRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+// GetBotUsersRequest specifies parameters for the GetUsers method.
+type GetBotUsersRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetBotUsersRequest) Reset()         { *m = GetBotUsersRequest{} }
+func (m *GetBotUsersRequest) String() string { return proto.CompactTextString(m) }
+func (*GetBotUsersRequest) ProtoMessage()    {}
+func (*GetBotUsersRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{21}
+}
+func (m *GetBotUsersRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetBotUsersRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetBotUsersRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetBotUsersRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetBotUsersRequest.Merge(m, src)
+}
+func (m *GetBotUsersRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetBotUsersRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetBotUsersRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetBotUsersRequest proto.InternalMessageInfo
+
 // PingRequest is the input value for the Ping method.
 type PingRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -1594,7 +2150,7 @@ func (m *PingRequest) Reset()         { *m = PingRequest{} }
 func (m *PingRequest) String() string { return proto.CompactTextString(m) }
 func (*PingRequest) ProtoMessage()    {}
 func (*PingRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{16}
+	return fileDescriptor_ce8bd90b12161215, []int{22}
 }
 func (m *PingRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1632,7 +2188,9 @@ type PingResponse struct {
 	// ServerFeatures are the features supported by the auth server.
 	ServerFeatures *Features `protobuf:"bytes,3,opt,name=ServerFeatures,proto3" json:"server_features"`
 	// ProxyPublicAddr is the server's public proxy address.
-	ProxyPublicAddr      string   `protobuf:"bytes,4,opt,name=ProxyPublicAddr,proto3" json:"proxy_public_addr"`
+	ProxyPublicAddr string `protobuf:"bytes,4,opt,name=ProxyPublicAddr,proto3" json:"proxy_public_addr"`
+	// IsBoring signals whether or not the server was compiled with BoringCrypto.
+	IsBoring             bool     `protobuf:"varint,5,opt,name=IsBoring,proto3" json:"is_boring"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1642,7 +2200,7 @@ func (m *PingResponse) Reset()         { *m = PingResponse{} }
 func (m *PingResponse) String() string { return proto.CompactTextString(m) }
 func (*PingResponse) ProtoMessage()    {}
 func (*PingResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{17}
+	return fileDescriptor_ce8bd90b12161215, []int{23}
 }
 func (m *PingResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1699,6 +2257,13 @@ func (m *PingResponse) GetProxyPublicAddr() string {
 	return ""
 }
 
+func (m *PingResponse) GetIsBoring() bool {
+	if m != nil {
+		return m.IsBoring
+	}
+	return false
+}
+
 // Features are auth server features.
 type Features struct {
 	// Kubernetes enables Kubernetes Access product
@@ -1716,7 +2281,13 @@ type Features struct {
 	// AdvancedAccessWorkflows enables advanced access workflows
 	AdvancedAccessWorkflows bool `protobuf:"varint,7,opt,name=AdvancedAccessWorkflows,proto3" json:"advanced_access_workflows"`
 	// Cloud enables some cloud-related features
-	Cloud                bool     `protobuf:"varint,8,opt,name=Cloud,proto3" json:"cloud"`
+	Cloud bool `protobuf:"varint,8,opt,name=Cloud,proto3" json:"cloud"`
+	// HSM enables PKCS#11 HSM support
+	HSM bool `protobuf:"varint,9,opt,name=HSM,proto3" json:"hsm"`
+	// Desktop enables desktop access product
+	Desktop bool `protobuf:"varint,10,opt,name=Desktop,proto3" json:"desktop"`
+	// ModeratedSessions enables moderated sessions product
+	ModeratedSessions    bool     `protobuf:"varint,11,opt,name=ModeratedSessions,proto3" json:"moderated_sessions"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1726,7 +2297,7 @@ func (m *Features) Reset()         { *m = Features{} }
 func (m *Features) String() string { return proto.CompactTextString(m) }
 func (*Features) ProtoMessage()    {}
 func (*Features) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{18}
+	return fileDescriptor_ce8bd90b12161215, []int{24}
 }
 func (m *Features) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1811,6 +2382,27 @@ func (m *Features) GetCloud() bool {
 	return false
 }
 
+func (m *Features) GetHSM() bool {
+	if m != nil {
+		return m.HSM
+	}
+	return false
+}
+
+func (m *Features) GetDesktop() bool {
+	if m != nil {
+		return m.Desktop
+	}
+	return false
+}
+
+func (m *Features) GetModeratedSessions() bool {
+	if m != nil {
+		return m.ModeratedSessions
+	}
+	return false
+}
+
 // DeleteUserRequest is the input value for the DeleteUser method.
 type DeleteUserRequest struct {
 	// Name is the user name to delete.
@@ -1824,7 +2416,7 @@ func (m *DeleteUserRequest) Reset()         { *m = DeleteUserRequest{} }
 func (m *DeleteUserRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteUserRequest) ProtoMessage()    {}
 func (*DeleteUserRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{19}
+	return fileDescriptor_ce8bd90b12161215, []int{25}
 }
 func (m *DeleteUserRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1872,7 +2464,7 @@ func (m *Semaphores) Reset()         { *m = Semaphores{} }
 func (m *Semaphores) String() string { return proto.CompactTextString(m) }
 func (*Semaphores) ProtoMessage()    {}
 func (*Semaphores) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{20}
+	return fileDescriptor_ce8bd90b12161215, []int{26}
 }
 func (m *Semaphores) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1929,7 +2521,7 @@ func (m *AuditStreamRequest) Reset()         { *m = AuditStreamRequest{} }
 func (m *AuditStreamRequest) String() string { return proto.CompactTextString(m) }
 func (*AuditStreamRequest) ProtoMessage()    {}
 func (*AuditStreamRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{21}
+	return fileDescriptor_ce8bd90b12161215, []int{27}
 }
 func (m *AuditStreamRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2054,7 +2646,7 @@ func (m *AuditStreamStatus) Reset()         { *m = AuditStreamStatus{} }
 func (m *AuditStreamStatus) String() string { return proto.CompactTextString(m) }
 func (*AuditStreamStatus) ProtoMessage()    {}
 func (*AuditStreamStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{22}
+	return fileDescriptor_ce8bd90b12161215, []int{28}
 }
 func (m *AuditStreamStatus) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2102,7 +2694,7 @@ func (m *CreateStream) Reset()         { *m = CreateStream{} }
 func (m *CreateStream) String() string { return proto.CompactTextString(m) }
 func (*CreateStream) ProtoMessage()    {}
 func (*CreateStream) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{23}
+	return fileDescriptor_ce8bd90b12161215, []int{29}
 }
 func (m *CreateStream) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2153,7 +2745,7 @@ func (m *ResumeStream) Reset()         { *m = ResumeStream{} }
 func (m *ResumeStream) String() string { return proto.CompactTextString(m) }
 func (*ResumeStream) ProtoMessage()    {}
 func (*ResumeStream) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{24}
+	return fileDescriptor_ce8bd90b12161215, []int{30}
 }
 func (m *ResumeStream) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2208,7 +2800,7 @@ func (m *CompleteStream) Reset()         { *m = CompleteStream{} }
 func (m *CompleteStream) String() string { return proto.CompactTextString(m) }
 func (*CompleteStream) ProtoMessage()    {}
 func (*CompleteStream) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{25}
+	return fileDescriptor_ce8bd90b12161215, []int{31}
 }
 func (m *CompleteStream) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2248,7 +2840,7 @@ func (m *FlushAndCloseStream) Reset()         { *m = FlushAndCloseStream{} }
 func (m *FlushAndCloseStream) String() string { return proto.CompactTextString(m) }
 func (*FlushAndCloseStream) ProtoMessage()    {}
 func (*FlushAndCloseStream) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{26}
+	return fileDescriptor_ce8bd90b12161215, []int{32}
 }
 func (m *FlushAndCloseStream) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2277,7 +2869,274 @@ func (m *FlushAndCloseStream) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_FlushAndCloseStream proto.InternalMessageInfo
 
+// GetApplicationServersRequest is a request to fetch all registered apps.
+// DELETE IN 10.0.
+type GetApplicationServersRequest struct {
+	// Namespace is the app servers namespace.
+	Namespace            string   `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"namespace"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetApplicationServersRequest) Reset()         { *m = GetApplicationServersRequest{} }
+func (m *GetApplicationServersRequest) String() string { return proto.CompactTextString(m) }
+func (*GetApplicationServersRequest) ProtoMessage()    {}
+func (*GetApplicationServersRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{33}
+}
+func (m *GetApplicationServersRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetApplicationServersRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetApplicationServersRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetApplicationServersRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetApplicationServersRequest.Merge(m, src)
+}
+func (m *GetApplicationServersRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetApplicationServersRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetApplicationServersRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetApplicationServersRequest proto.InternalMessageInfo
+
+func (m *GetApplicationServersRequest) GetNamespace() string {
+	if m != nil {
+		return m.Namespace
+	}
+	return ""
+}
+
+// GetApplicationServersResponse contains all registered app servers.
+// DELETE IN 10.0.
+type GetApplicationServersResponse struct {
+	// Servers is a list of proxied applications.
+	Servers              []*types.AppServerV3 `protobuf:"bytes,1,rep,name=Servers,proto3" json:"servers"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *GetApplicationServersResponse) Reset()         { *m = GetApplicationServersResponse{} }
+func (m *GetApplicationServersResponse) String() string { return proto.CompactTextString(m) }
+func (*GetApplicationServersResponse) ProtoMessage()    {}
+func (*GetApplicationServersResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{34}
+}
+func (m *GetApplicationServersResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetApplicationServersResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetApplicationServersResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetApplicationServersResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetApplicationServersResponse.Merge(m, src)
+}
+func (m *GetApplicationServersResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetApplicationServersResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetApplicationServersResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetApplicationServersResponse proto.InternalMessageInfo
+
+func (m *GetApplicationServersResponse) GetServers() []*types.AppServerV3 {
+	if m != nil {
+		return m.Servers
+	}
+	return nil
+}
+
+// UpsertApplicationServerRequest upserts an app server.
+type UpsertApplicationServerRequest struct {
+	// Server is an app server resource to register.
+	Server               *types.AppServerV3 `protobuf:"bytes,1,opt,name=Server,proto3" json:"server"`
+	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
+	XXX_unrecognized     []byte             `json:"-"`
+	XXX_sizecache        int32              `json:"-"`
+}
+
+func (m *UpsertApplicationServerRequest) Reset()         { *m = UpsertApplicationServerRequest{} }
+func (m *UpsertApplicationServerRequest) String() string { return proto.CompactTextString(m) }
+func (*UpsertApplicationServerRequest) ProtoMessage()    {}
+func (*UpsertApplicationServerRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{35}
+}
+func (m *UpsertApplicationServerRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UpsertApplicationServerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UpsertApplicationServerRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UpsertApplicationServerRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpsertApplicationServerRequest.Merge(m, src)
+}
+func (m *UpsertApplicationServerRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *UpsertApplicationServerRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpsertApplicationServerRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpsertApplicationServerRequest proto.InternalMessageInfo
+
+func (m *UpsertApplicationServerRequest) GetServer() *types.AppServerV3 {
+	if m != nil {
+		return m.Server
+	}
+	return nil
+}
+
+// DeleteApplicationServerRequest is a request to delete an app server.
+type DeleteApplicationServerRequest struct {
+	// Namespace is the app server namespace.
+	Namespace string `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"namespace"`
+	// HostID is the app server host uuid.
+	HostID string `protobuf:"bytes,2,opt,name=HostID,proto3" json:"host_id"`
+	// Name is the name of the application to delete.
+	Name                 string   `protobuf:"bytes,3,opt,name=Name,proto3" json:"name"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteApplicationServerRequest) Reset()         { *m = DeleteApplicationServerRequest{} }
+func (m *DeleteApplicationServerRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteApplicationServerRequest) ProtoMessage()    {}
+func (*DeleteApplicationServerRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{36}
+}
+func (m *DeleteApplicationServerRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DeleteApplicationServerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DeleteApplicationServerRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DeleteApplicationServerRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteApplicationServerRequest.Merge(m, src)
+}
+func (m *DeleteApplicationServerRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *DeleteApplicationServerRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteApplicationServerRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteApplicationServerRequest proto.InternalMessageInfo
+
+func (m *DeleteApplicationServerRequest) GetNamespace() string {
+	if m != nil {
+		return m.Namespace
+	}
+	return ""
+}
+
+func (m *DeleteApplicationServerRequest) GetHostID() string {
+	if m != nil {
+		return m.HostID
+	}
+	return ""
+}
+
+func (m *DeleteApplicationServerRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+// DeleteAllApplicationServersRequest are the parameters used to remove all applications.
+type DeleteAllApplicationServersRequest struct {
+	// Namespace is the app servers namespace.
+	Namespace            string   `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"namespace"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteAllApplicationServersRequest) Reset()         { *m = DeleteAllApplicationServersRequest{} }
+func (m *DeleteAllApplicationServersRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteAllApplicationServersRequest) ProtoMessage()    {}
+func (*DeleteAllApplicationServersRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{37}
+}
+func (m *DeleteAllApplicationServersRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DeleteAllApplicationServersRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DeleteAllApplicationServersRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DeleteAllApplicationServersRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteAllApplicationServersRequest.Merge(m, src)
+}
+func (m *DeleteAllApplicationServersRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *DeleteAllApplicationServersRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteAllApplicationServersRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteAllApplicationServersRequest proto.InternalMessageInfo
+
+func (m *DeleteAllApplicationServersRequest) GetNamespace() string {
+	if m != nil {
+		return m.Namespace
+	}
+	return ""
+}
+
 // GetAppServersRequest are the parameters used to request application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServersRequest.
 type GetAppServersRequest struct {
 	// Namespace is the namespace for application.
 	Namespace string `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"namespace"`
@@ -2292,7 +3151,7 @@ func (m *GetAppServersRequest) Reset()         { *m = GetAppServersRequest{} }
 func (m *GetAppServersRequest) String() string { return proto.CompactTextString(m) }
 func (*GetAppServersRequest) ProtoMessage()    {}
 func (*GetAppServersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{27}
+	return fileDescriptor_ce8bd90b12161215, []int{38}
 }
 func (m *GetAppServersRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2337,6 +3196,8 @@ func (m *GetAppServersRequest) GetSkipValidation() bool {
 }
 
 // GetAppServersResponse contains all requested application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServersResponse.
 type GetAppServersResponse struct {
 	// Servers is a slice of types.Server that represent applications.
 	Servers              []*types.ServerV2 `protobuf:"bytes,1,rep,name=Servers,proto3" json:"servers"`
@@ -2349,7 +3210,7 @@ func (m *GetAppServersResponse) Reset()         { *m = GetAppServersResponse{} }
 func (m *GetAppServersResponse) String() string { return proto.CompactTextString(m) }
 func (*GetAppServersResponse) ProtoMessage()    {}
 func (*GetAppServersResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{28}
+	return fileDescriptor_ce8bd90b12161215, []int{39}
 }
 func (m *GetAppServersResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2386,6 +3247,8 @@ func (m *GetAppServersResponse) GetServers() []*types.ServerV2 {
 }
 
 // UpsertAppServerRequest are the parameters used to add an application.
+//
+// DELETE IN 9.0. Deprecated, use UpsertApplicationServerRequest.
 type UpsertAppServerRequest struct {
 	Server               *types.ServerV2 `protobuf:"bytes,1,opt,name=Server,proto3" json:"server"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
@@ -2397,7 +3260,7 @@ func (m *UpsertAppServerRequest) Reset()         { *m = UpsertAppServerRequest{}
 func (m *UpsertAppServerRequest) String() string { return proto.CompactTextString(m) }
 func (*UpsertAppServerRequest) ProtoMessage()    {}
 func (*UpsertAppServerRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{29}
+	return fileDescriptor_ce8bd90b12161215, []int{40}
 }
 func (m *UpsertAppServerRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2434,6 +3297,8 @@ func (m *UpsertAppServerRequest) GetServer() *types.ServerV2 {
 }
 
 // DeleteAppServerRequest are the parameters used to remove an application.
+//
+// DELETE IN 9.0. Deprecated, use DeleteApplicationServerRequest.
 type DeleteAppServerRequest struct {
 	// Namespace is the namespace for application.
 	Namespace string `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"namespace"`
@@ -2448,7 +3313,7 @@ func (m *DeleteAppServerRequest) Reset()         { *m = DeleteAppServerRequest{}
 func (m *DeleteAppServerRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteAppServerRequest) ProtoMessage()    {}
 func (*DeleteAppServerRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{30}
+	return fileDescriptor_ce8bd90b12161215, []int{41}
 }
 func (m *DeleteAppServerRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2492,6 +3357,8 @@ func (m *DeleteAppServerRequest) GetName() string {
 }
 
 // DeleteAllAppServersRequest are the parameters used to remove all applications.
+//
+// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServersRequest.
 type DeleteAllAppServersRequest struct {
 	// Namespace is the namespace for application.
 	Namespace            string   `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"namespace"`
@@ -2504,7 +3371,7 @@ func (m *DeleteAllAppServersRequest) Reset()         { *m = DeleteAllAppServersR
 func (m *DeleteAllAppServersRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteAllAppServersRequest) ProtoMessage()    {}
 func (*DeleteAllAppServersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{31}
+	return fileDescriptor_ce8bd90b12161215, []int{42}
 }
 func (m *DeleteAllAppServersRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2560,7 +3427,7 @@ func (m *GenerateAppTokenRequest) Reset()         { *m = GenerateAppTokenRequest
 func (m *GenerateAppTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*GenerateAppTokenRequest) ProtoMessage()    {}
 func (*GenerateAppTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{32}
+	return fileDescriptor_ce8bd90b12161215, []int{43}
 }
 func (m *GenerateAppTokenRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2629,7 +3496,7 @@ func (m *GenerateAppTokenResponse) Reset()         { *m = GenerateAppTokenRespon
 func (m *GenerateAppTokenResponse) String() string { return proto.CompactTextString(m) }
 func (*GenerateAppTokenResponse) ProtoMessage()    {}
 func (*GenerateAppTokenResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{33}
+	return fileDescriptor_ce8bd90b12161215, []int{44}
 }
 func (m *GenerateAppTokenResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2678,7 +3545,7 @@ func (m *GetAppSessionRequest) Reset()         { *m = GetAppSessionRequest{} }
 func (m *GetAppSessionRequest) String() string { return proto.CompactTextString(m) }
 func (*GetAppSessionRequest) ProtoMessage()    {}
 func (*GetAppSessionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{34}
+	return fileDescriptor_ce8bd90b12161215, []int{45}
 }
 func (m *GetAppSessionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2727,7 +3594,7 @@ func (m *GetAppSessionResponse) Reset()         { *m = GetAppSessionResponse{} }
 func (m *GetAppSessionResponse) String() string { return proto.CompactTextString(m) }
 func (*GetAppSessionResponse) ProtoMessage()    {}
 func (*GetAppSessionResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{35}
+	return fileDescriptor_ce8bd90b12161215, []int{46}
 }
 func (m *GetAppSessionResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2776,7 +3643,7 @@ func (m *GetAppSessionsResponse) Reset()         { *m = GetAppSessionsResponse{}
 func (m *GetAppSessionsResponse) String() string { return proto.CompactTextString(m) }
 func (*GetAppSessionsResponse) ProtoMessage()    {}
 func (*GetAppSessionsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{36}
+	return fileDescriptor_ce8bd90b12161215, []int{47}
 }
 func (m *GetAppSessionsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2831,7 +3698,7 @@ func (m *CreateAppSessionRequest) Reset()         { *m = CreateAppSessionRequest
 func (m *CreateAppSessionRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateAppSessionRequest) ProtoMessage()    {}
 func (*CreateAppSessionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{37}
+	return fileDescriptor_ce8bd90b12161215, []int{48}
 }
 func (m *CreateAppSessionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2901,7 +3768,7 @@ func (m *CreateAppSessionResponse) Reset()         { *m = CreateAppSessionRespon
 func (m *CreateAppSessionResponse) String() string { return proto.CompactTextString(m) }
 func (*CreateAppSessionResponse) ProtoMessage()    {}
 func (*CreateAppSessionResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{38}
+	return fileDescriptor_ce8bd90b12161215, []int{49}
 }
 func (m *CreateAppSessionResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2949,7 +3816,7 @@ func (m *DeleteAppSessionRequest) Reset()         { *m = DeleteAppSessionRequest
 func (m *DeleteAppSessionRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteAppSessionRequest) ProtoMessage()    {}
 func (*DeleteAppSessionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{39}
+	return fileDescriptor_ce8bd90b12161215, []int{50}
 }
 func (m *DeleteAppSessionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2985,6 +3852,55 @@ func (m *DeleteAppSessionRequest) GetSessionID() string {
 	return ""
 }
 
+// DeleteUserAppSessionsRequest contains the parameters used to remove the
+// user's application web sessions.
+type DeleteUserAppSessionsRequest struct {
+	Username             string   `protobuf:"bytes,1,opt,name=Username,proto3" json:"username"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteUserAppSessionsRequest) Reset()         { *m = DeleteUserAppSessionsRequest{} }
+func (m *DeleteUserAppSessionsRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteUserAppSessionsRequest) ProtoMessage()    {}
+func (*DeleteUserAppSessionsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{51}
+}
+func (m *DeleteUserAppSessionsRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DeleteUserAppSessionsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DeleteUserAppSessionsRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DeleteUserAppSessionsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteUserAppSessionsRequest.Merge(m, src)
+}
+func (m *DeleteUserAppSessionsRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *DeleteUserAppSessionsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteUserAppSessionsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteUserAppSessionsRequest proto.InternalMessageInfo
+
+func (m *DeleteUserAppSessionsRequest) GetUsername() string {
+	if m != nil {
+		return m.Username
+	}
+	return ""
+}
+
 // GetWebSessionResponse contains the requested web session.
 type GetWebSessionResponse struct {
 	// Session is the web session.
@@ -2998,7 +3914,7 @@ func (m *GetWebSessionResponse) Reset()         { *m = GetWebSessionResponse{} }
 func (m *GetWebSessionResponse) String() string { return proto.CompactTextString(m) }
 func (*GetWebSessionResponse) ProtoMessage()    {}
 func (*GetWebSessionResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{40}
+	return fileDescriptor_ce8bd90b12161215, []int{52}
 }
 func (m *GetWebSessionResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3047,7 +3963,7 @@ func (m *GetWebSessionsResponse) Reset()         { *m = GetWebSessionsResponse{}
 func (m *GetWebSessionsResponse) String() string { return proto.CompactTextString(m) }
 func (*GetWebSessionsResponse) ProtoMessage()    {}
 func (*GetWebSessionsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{41}
+	return fileDescriptor_ce8bd90b12161215, []int{53}
 }
 func (m *GetWebSessionsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3096,7 +4012,7 @@ func (m *GetWebTokenResponse) Reset()         { *m = GetWebTokenResponse{} }
 func (m *GetWebTokenResponse) String() string { return proto.CompactTextString(m) }
 func (*GetWebTokenResponse) ProtoMessage()    {}
 func (*GetWebTokenResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{42}
+	return fileDescriptor_ce8bd90b12161215, []int{54}
 }
 func (m *GetWebTokenResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3145,7 +4061,7 @@ func (m *GetWebTokensResponse) Reset()         { *m = GetWebTokensResponse{} }
 func (m *GetWebTokensResponse) String() string { return proto.CompactTextString(m) }
 func (*GetWebTokensResponse) ProtoMessage()    {}
 func (*GetWebTokensResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{43}
+	return fileDescriptor_ce8bd90b12161215, []int{55}
 }
 func (m *GetWebTokensResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3182,6 +4098,7 @@ func (m *GetWebTokensResponse) GetTokens() []*types.WebTokenV3 {
 }
 
 // GetKubeServicesRequest are the parameters used to request kubernetes services.
+// DELETE IN 10.0
 type GetKubeServicesRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -3192,7 +4109,7 @@ func (m *GetKubeServicesRequest) Reset()         { *m = GetKubeServicesRequest{}
 func (m *GetKubeServicesRequest) String() string { return proto.CompactTextString(m) }
 func (*GetKubeServicesRequest) ProtoMessage()    {}
 func (*GetKubeServicesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{44}
+	return fileDescriptor_ce8bd90b12161215, []int{56}
 }
 func (m *GetKubeServicesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3222,6 +4139,7 @@ func (m *GetKubeServicesRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_GetKubeServicesRequest proto.InternalMessageInfo
 
 // GetKubeServicesResponse contains all requested kubernetes services.
+// DELETE IN 10.0
 type GetKubeServicesResponse struct {
 	// Servers is a slice of types.Server that represent kubernetes
 	// services.
@@ -3235,7 +4153,7 @@ func (m *GetKubeServicesResponse) Reset()         { *m = GetKubeServicesResponse
 func (m *GetKubeServicesResponse) String() string { return proto.CompactTextString(m) }
 func (*GetKubeServicesResponse) ProtoMessage()    {}
 func (*GetKubeServicesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{45}
+	return fileDescriptor_ce8bd90b12161215, []int{57}
 }
 func (m *GetKubeServicesResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3284,7 +4202,7 @@ func (m *UpsertKubeServiceRequest) Reset()         { *m = UpsertKubeServiceReque
 func (m *UpsertKubeServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*UpsertKubeServiceRequest) ProtoMessage()    {}
 func (*UpsertKubeServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{46}
+	return fileDescriptor_ce8bd90b12161215, []int{58}
 }
 func (m *UpsertKubeServiceRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3333,7 +4251,7 @@ func (m *DeleteKubeServiceRequest) Reset()         { *m = DeleteKubeServiceReque
 func (m *DeleteKubeServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteKubeServiceRequest) ProtoMessage()    {}
 func (*DeleteKubeServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{47}
+	return fileDescriptor_ce8bd90b12161215, []int{59}
 }
 func (m *DeleteKubeServiceRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3380,7 +4298,7 @@ func (m *DeleteAllKubeServicesRequest) Reset()         { *m = DeleteAllKubeServi
 func (m *DeleteAllKubeServicesRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteAllKubeServicesRequest) ProtoMessage()    {}
 func (*DeleteAllKubeServicesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{48}
+	return fileDescriptor_ce8bd90b12161215, []int{60}
 }
 func (m *DeleteAllKubeServicesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3410,6 +4328,7 @@ func (m *DeleteAllKubeServicesRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_DeleteAllKubeServicesRequest proto.InternalMessageInfo
 
 // GetDatabaseServersRequest is a request to return all registered database servers.
+// DELETE IN 10.0.
 type GetDatabaseServersRequest struct {
 	// Namespace is the database server namespace.
 	Namespace string `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"namespace"`
@@ -3424,7 +4343,7 @@ func (m *GetDatabaseServersRequest) Reset()         { *m = GetDatabaseServersReq
 func (m *GetDatabaseServersRequest) String() string { return proto.CompactTextString(m) }
 func (*GetDatabaseServersRequest) ProtoMessage()    {}
 func (*GetDatabaseServersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{49}
+	return fileDescriptor_ce8bd90b12161215, []int{61}
 }
 func (m *GetDatabaseServersRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3469,6 +4388,7 @@ func (m *GetDatabaseServersRequest) GetSkipValidation() bool {
 }
 
 // GetDatabaseServersResponse contains all registered database servers.
+// DELETE IN 10.0.
 type GetDatabaseServersResponse struct {
 	// Servers is a list of database proxy servers.
 	Servers              []*types.DatabaseServerV3 `protobuf:"bytes,1,rep,name=Servers,proto3" json:"servers"`
@@ -3481,7 +4401,7 @@ func (m *GetDatabaseServersResponse) Reset()         { *m = GetDatabaseServersRe
 func (m *GetDatabaseServersResponse) String() string { return proto.CompactTextString(m) }
 func (*GetDatabaseServersResponse) ProtoMessage()    {}
 func (*GetDatabaseServersResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{50}
+	return fileDescriptor_ce8bd90b12161215, []int{62}
 }
 func (m *GetDatabaseServersResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3530,7 +4450,7 @@ func (m *UpsertDatabaseServerRequest) Reset()         { *m = UpsertDatabaseServe
 func (m *UpsertDatabaseServerRequest) String() string { return proto.CompactTextString(m) }
 func (*UpsertDatabaseServerRequest) ProtoMessage()    {}
 func (*UpsertDatabaseServerRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{51}
+	return fileDescriptor_ce8bd90b12161215, []int{63}
 }
 func (m *UpsertDatabaseServerRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3583,7 +4503,7 @@ func (m *DeleteDatabaseServerRequest) Reset()         { *m = DeleteDatabaseServe
 func (m *DeleteDatabaseServerRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteDatabaseServerRequest) ProtoMessage()    {}
 func (*DeleteDatabaseServerRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{52}
+	return fileDescriptor_ce8bd90b12161215, []int{64}
 }
 func (m *DeleteDatabaseServerRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3646,7 +4566,7 @@ func (m *DeleteAllDatabaseServersRequest) Reset()         { *m = DeleteAllDataba
 func (m *DeleteAllDatabaseServersRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteAllDatabaseServersRequest) ProtoMessage()    {}
 func (*DeleteAllDatabaseServersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{53}
+	return fileDescriptor_ce8bd90b12161215, []int{65}
 }
 func (m *DeleteAllDatabaseServersRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3688,7 +4608,12 @@ type DatabaseCSRRequest struct {
 	// CSR is the request to sign.
 	CSR []byte `protobuf:"bytes,1,opt,name=CSR,proto3" json:"csr"`
 	// ClusterName is the name of the cluster the request is for.
-	ClusterName          string   `protobuf:"bytes,2,opt,name=ClusterName,proto3" json:"cluster_name"`
+	ClusterName string `protobuf:"bytes,2,opt,name=ClusterName,proto3" json:"cluster_name"`
+	// SignWithDatabaseCA if set to true will use Database CA to sign the created certificate.
+	// This flag was created to enable Database CA for new proxies and don't break old one that
+	// are still using UserCA.
+	// DELETE IN 11.0.
+	SignWithDatabaseCA   bool     `protobuf:"varint,3,opt,name=SignWithDatabaseCA,proto3" json:"sign_with_database_ca"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -3698,7 +4623,7 @@ func (m *DatabaseCSRRequest) Reset()         { *m = DatabaseCSRRequest{} }
 func (m *DatabaseCSRRequest) String() string { return proto.CompactTextString(m) }
 func (*DatabaseCSRRequest) ProtoMessage()    {}
 func (*DatabaseCSRRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{54}
+	return fileDescriptor_ce8bd90b12161215, []int{66}
 }
 func (m *DatabaseCSRRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3741,6 +4666,13 @@ func (m *DatabaseCSRRequest) GetClusterName() string {
 	return ""
 }
 
+func (m *DatabaseCSRRequest) GetSignWithDatabaseCA() bool {
+	if m != nil {
+		return m.SignWithDatabaseCA
+	}
+	return false
+}
+
 // DatabaseCSRResponse contains the signed database certificate.
 type DatabaseCSRResponse struct {
 	// Cert is the signed certificate.
@@ -3756,7 +4688,7 @@ func (m *DatabaseCSRResponse) Reset()         { *m = DatabaseCSRResponse{} }
 func (m *DatabaseCSRResponse) String() string { return proto.CompactTextString(m) }
 func (*DatabaseCSRResponse) ProtoMessage()    {}
 func (*DatabaseCSRResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{55}
+	return fileDescriptor_ce8bd90b12161215, []int{67}
 }
 func (m *DatabaseCSRResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3805,9 +4737,12 @@ type DatabaseCertRequest struct {
 	// CSR is the request to sign.
 	CSR []byte `protobuf:"bytes,1,opt,name=CSR,proto3" json:"csr"`
 	// ServerName is the SAN to include in the certificate.
-	ServerName string `protobuf:"bytes,2,opt,name=ServerName,proto3" json:"server_name"`
+	// DEPRECATED: Replaced by ServerNames.
+	ServerName string `protobuf:"bytes,2,opt,name=ServerName,proto3" json:"server_name"` // Deprecated: Do not use.
 	// TTL is the certificate validity period.
-	TTL                  Duration `protobuf:"varint,3,opt,name=TTL,proto3,casttype=Duration" json:"ttl"`
+	TTL Duration `protobuf:"varint,3,opt,name=TTL,proto3,casttype=Duration" json:"ttl"`
+	// ServerNames are SANs to include in the certificate.
+	ServerNames          []string `protobuf:"bytes,4,rep,name=ServerNames,proto3" json:"server_names"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -3817,7 +4752,7 @@ func (m *DatabaseCertRequest) Reset()         { *m = DatabaseCertRequest{} }
 func (m *DatabaseCertRequest) String() string { return proto.CompactTextString(m) }
 func (*DatabaseCertRequest) ProtoMessage()    {}
 func (*DatabaseCertRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{56}
+	return fileDescriptor_ce8bd90b12161215, []int{68}
 }
 func (m *DatabaseCertRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3853,6 +4788,7 @@ func (m *DatabaseCertRequest) GetCSR() []byte {
 	return nil
 }
 
+// Deprecated: Do not use.
 func (m *DatabaseCertRequest) GetServerName() string {
 	if m != nil {
 		return m.ServerName
@@ -3865,6 +4801,13 @@ func (m *DatabaseCertRequest) GetTTL() Duration {
 		return m.TTL
 	}
 	return 0
+}
+
+func (m *DatabaseCertRequest) GetServerNames() []string {
+	if m != nil {
+		return m.ServerNames
+	}
+	return nil
 }
 
 // DatabaseCertResponse contains the signed certificate.
@@ -3882,7 +4825,7 @@ func (m *DatabaseCertResponse) Reset()         { *m = DatabaseCertResponse{} }
 func (m *DatabaseCertResponse) String() string { return proto.CompactTextString(m) }
 func (*DatabaseCertResponse) ProtoMessage()    {}
 func (*DatabaseCertResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{57}
+	return fileDescriptor_ce8bd90b12161215, []int{69}
 }
 func (m *DatabaseCertResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3938,7 +4881,7 @@ func (m *GetRoleRequest) Reset()         { *m = GetRoleRequest{} }
 func (m *GetRoleRequest) String() string { return proto.CompactTextString(m) }
 func (*GetRoleRequest) ProtoMessage()    {}
 func (*GetRoleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{58}
+	return fileDescriptor_ce8bd90b12161215, []int{70}
 }
 func (m *GetRoleRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3977,7 +4920,7 @@ func (m *GetRoleRequest) GetName() string {
 // GetRolesResponse is a response to querying for all roles.
 type GetRolesResponse struct {
 	// Roles is a list of roles.
-	Roles                []*types.RoleV4 `protobuf:"bytes,1,rep,name=Roles,proto3" json:"Roles,omitempty"`
+	Roles                []*types.RoleV5 `protobuf:"bytes,1,rep,name=Roles,proto3" json:"Roles,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
 	XXX_unrecognized     []byte          `json:"-"`
 	XXX_sizecache        int32           `json:"-"`
@@ -3987,7 +4930,7 @@ func (m *GetRolesResponse) Reset()         { *m = GetRolesResponse{} }
 func (m *GetRolesResponse) String() string { return proto.CompactTextString(m) }
 func (*GetRolesResponse) ProtoMessage()    {}
 func (*GetRolesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{59}
+	return fileDescriptor_ce8bd90b12161215, []int{71}
 }
 func (m *GetRolesResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4016,7 +4959,7 @@ func (m *GetRolesResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_GetRolesResponse proto.InternalMessageInfo
 
-func (m *GetRolesResponse) GetRoles() []*types.RoleV4 {
+func (m *GetRolesResponse) GetRoles() []*types.RoleV5 {
 	if m != nil {
 		return m.Roles
 	}
@@ -4036,7 +4979,7 @@ func (m *DeleteRoleRequest) Reset()         { *m = DeleteRoleRequest{} }
 func (m *DeleteRoleRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteRoleRequest) ProtoMessage()    {}
 func (*DeleteRoleRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{60}
+	return fileDescriptor_ce8bd90b12161215, []int{72}
 }
 func (m *DeleteRoleRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4075,23 +5018,26 @@ func (m *DeleteRoleRequest) GetName() string {
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 type MFAAuthenticateChallenge struct {
-	// U2F contains one U2FChallenge per U2F device registered for a
-	// user. Each challenge is unique.
-	U2F []*U2FChallenge `protobuf:"bytes,1,rep,name=U2F,proto3" json:"U2F,omitempty"`
 	// TOTP is a challenge for all TOTP devices registered for a user. When
 	// this field is set, any TOTP device a user has registered can be used to
 	// respond.
-	TOTP                 *TOTPChallenge `protobuf:"bytes,2,opt,name=TOTP,proto3" json:"TOTP,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
-	XXX_unrecognized     []byte         `json:"-"`
-	XXX_sizecache        int32          `json:"-"`
+	TOTP *TOTPChallenge `protobuf:"bytes,2,opt,name=TOTP,proto3" json:"TOTP,omitempty"`
+	// WebauthnChallenge contains a Webauthn credential assertion used for
+	// login/authentication ceremonies.
+	// Credential assertions hold, among other information, a list of allowed
+	// credentials for the ceremony (one for each U2F or Webauthn device
+	// registered by the user).
+	WebauthnChallenge    *webauthn.CredentialAssertion `protobuf:"bytes,3,opt,name=WebauthnChallenge,proto3" json:"WebauthnChallenge,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                      `json:"-"`
+	XXX_unrecognized     []byte                        `json:"-"`
+	XXX_sizecache        int32                         `json:"-"`
 }
 
 func (m *MFAAuthenticateChallenge) Reset()         { *m = MFAAuthenticateChallenge{} }
 func (m *MFAAuthenticateChallenge) String() string { return proto.CompactTextString(m) }
 func (*MFAAuthenticateChallenge) ProtoMessage()    {}
 func (*MFAAuthenticateChallenge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{61}
+	return fileDescriptor_ce8bd90b12161215, []int{73}
 }
 func (m *MFAAuthenticateChallenge) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4120,16 +5066,16 @@ func (m *MFAAuthenticateChallenge) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MFAAuthenticateChallenge proto.InternalMessageInfo
 
-func (m *MFAAuthenticateChallenge) GetU2F() []*U2FChallenge {
+func (m *MFAAuthenticateChallenge) GetTOTP() *TOTPChallenge {
 	if m != nil {
-		return m.U2F
+		return m.TOTP
 	}
 	return nil
 }
 
-func (m *MFAAuthenticateChallenge) GetTOTP() *TOTPChallenge {
+func (m *MFAAuthenticateChallenge) GetWebauthnChallenge() *webauthn.CredentialAssertion {
 	if m != nil {
-		return m.TOTP
+		return m.WebauthnChallenge
 	}
 	return nil
 }
@@ -4138,8 +5084,8 @@ func (m *MFAAuthenticateChallenge) GetTOTP() *TOTPChallenge {
 // of the MFA devices registered for a user.
 type MFAAuthenticateResponse struct {
 	// Types that are valid to be assigned to Response:
-	//	*MFAAuthenticateResponse_U2F
 	//	*MFAAuthenticateResponse_TOTP
+	//	*MFAAuthenticateResponse_Webauthn
 	Response             isMFAAuthenticateResponse_Response `protobuf_oneof:"Response"`
 	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
 	XXX_unrecognized     []byte                             `json:"-"`
@@ -4150,7 +5096,7 @@ func (m *MFAAuthenticateResponse) Reset()         { *m = MFAAuthenticateResponse
 func (m *MFAAuthenticateResponse) String() string { return proto.CompactTextString(m) }
 func (*MFAAuthenticateResponse) ProtoMessage()    {}
 func (*MFAAuthenticateResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{62}
+	return fileDescriptor_ce8bd90b12161215, []int{74}
 }
 func (m *MFAAuthenticateResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4185,26 +5131,19 @@ type isMFAAuthenticateResponse_Response interface {
 	Size() int
 }
 
-type MFAAuthenticateResponse_U2F struct {
-	U2F *U2FResponse `protobuf:"bytes,1,opt,name=U2F,proto3,oneof" json:"U2F,omitempty"`
-}
 type MFAAuthenticateResponse_TOTP struct {
 	TOTP *TOTPResponse `protobuf:"bytes,2,opt,name=TOTP,proto3,oneof" json:"TOTP,omitempty"`
 }
+type MFAAuthenticateResponse_Webauthn struct {
+	Webauthn *webauthn.CredentialAssertionResponse `protobuf:"bytes,3,opt,name=Webauthn,proto3,oneof" json:"Webauthn,omitempty"`
+}
 
-func (*MFAAuthenticateResponse_U2F) isMFAAuthenticateResponse_Response()  {}
-func (*MFAAuthenticateResponse_TOTP) isMFAAuthenticateResponse_Response() {}
+func (*MFAAuthenticateResponse_TOTP) isMFAAuthenticateResponse_Response()     {}
+func (*MFAAuthenticateResponse_Webauthn) isMFAAuthenticateResponse_Response() {}
 
 func (m *MFAAuthenticateResponse) GetResponse() isMFAAuthenticateResponse_Response {
 	if m != nil {
 		return m.Response
-	}
-	return nil
-}
-
-func (m *MFAAuthenticateResponse) GetU2F() *U2FResponse {
-	if x, ok := m.GetResponse().(*MFAAuthenticateResponse_U2F); ok {
-		return x.U2F
 	}
 	return nil
 }
@@ -4216,148 +5155,19 @@ func (m *MFAAuthenticateResponse) GetTOTP() *TOTPResponse {
 	return nil
 }
 
+func (m *MFAAuthenticateResponse) GetWebauthn() *webauthn.CredentialAssertionResponse {
+	if x, ok := m.GetResponse().(*MFAAuthenticateResponse_Webauthn); ok {
+		return x.Webauthn
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*MFAAuthenticateResponse) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
-		(*MFAAuthenticateResponse_U2F)(nil),
 		(*MFAAuthenticateResponse_TOTP)(nil),
+		(*MFAAuthenticateResponse_Webauthn)(nil),
 	}
-}
-
-// U2FChallenge is a U2F auth challenge.
-type U2FChallenge struct {
-	KeyHandle            string   `protobuf:"bytes,1,opt,name=KeyHandle,proto3" json:"KeyHandle,omitempty"`
-	Challenge            string   `protobuf:"bytes,2,opt,name=Challenge,proto3" json:"Challenge,omitempty"`
-	AppID                string   `protobuf:"bytes,3,opt,name=AppID,proto3" json:"AppID,omitempty"`
-	Version              string   `protobuf:"bytes,4,opt,name=Version,proto3" json:"Version,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *U2FChallenge) Reset()         { *m = U2FChallenge{} }
-func (m *U2FChallenge) String() string { return proto.CompactTextString(m) }
-func (*U2FChallenge) ProtoMessage()    {}
-func (*U2FChallenge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{63}
-}
-func (m *U2FChallenge) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *U2FChallenge) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_U2FChallenge.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *U2FChallenge) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_U2FChallenge.Merge(m, src)
-}
-func (m *U2FChallenge) XXX_Size() int {
-	return m.Size()
-}
-func (m *U2FChallenge) XXX_DiscardUnknown() {
-	xxx_messageInfo_U2FChallenge.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_U2FChallenge proto.InternalMessageInfo
-
-func (m *U2FChallenge) GetKeyHandle() string {
-	if m != nil {
-		return m.KeyHandle
-	}
-	return ""
-}
-
-func (m *U2FChallenge) GetChallenge() string {
-	if m != nil {
-		return m.Challenge
-	}
-	return ""
-}
-
-func (m *U2FChallenge) GetAppID() string {
-	if m != nil {
-		return m.AppID
-	}
-	return ""
-}
-
-func (m *U2FChallenge) GetVersion() string {
-	if m != nil {
-		return m.Version
-	}
-	return ""
-}
-
-// U2FResponse is a U2F auth challenge response.
-type U2FResponse struct {
-	KeyHandle            string   `protobuf:"bytes,1,opt,name=KeyHandle,proto3" json:"KeyHandle,omitempty"`
-	ClientData           string   `protobuf:"bytes,2,opt,name=ClientData,proto3" json:"ClientData,omitempty"`
-	Signature            string   `protobuf:"bytes,3,opt,name=Signature,proto3" json:"Signature,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *U2FResponse) Reset()         { *m = U2FResponse{} }
-func (m *U2FResponse) String() string { return proto.CompactTextString(m) }
-func (*U2FResponse) ProtoMessage()    {}
-func (*U2FResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{64}
-}
-func (m *U2FResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *U2FResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_U2FResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *U2FResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_U2FResponse.Merge(m, src)
-}
-func (m *U2FResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *U2FResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_U2FResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_U2FResponse proto.InternalMessageInfo
-
-func (m *U2FResponse) GetKeyHandle() string {
-	if m != nil {
-		return m.KeyHandle
-	}
-	return ""
-}
-
-func (m *U2FResponse) GetClientData() string {
-	if m != nil {
-		return m.ClientData
-	}
-	return ""
-}
-
-func (m *U2FResponse) GetSignature() string {
-	if m != nil {
-		return m.Signature
-	}
-	return ""
 }
 
 // TOTPChallenge is a challenge for all TOTP devices registered for a user.
@@ -4371,7 +5181,7 @@ func (m *TOTPChallenge) Reset()         { *m = TOTPChallenge{} }
 func (m *TOTPChallenge) String() string { return proto.CompactTextString(m) }
 func (*TOTPChallenge) ProtoMessage()    {}
 func (*TOTPChallenge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{65}
+	return fileDescriptor_ce8bd90b12161215, []int{75}
 }
 func (m *TOTPChallenge) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4412,7 +5222,7 @@ func (m *TOTPResponse) Reset()         { *m = TOTPResponse{} }
 func (m *TOTPResponse) String() string { return proto.CompactTextString(m) }
 func (*TOTPResponse) ProtoMessage()    {}
 func (*TOTPResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{66}
+	return fileDescriptor_ce8bd90b12161215, []int{76}
 }
 func (m *TOTPResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4453,8 +5263,8 @@ type MFARegisterChallenge struct {
 	// Request depends on the type of the MFA device being registered.
 	//
 	// Types that are valid to be assigned to Request:
-	//	*MFARegisterChallenge_U2F
 	//	*MFARegisterChallenge_TOTP
+	//	*MFARegisterChallenge_Webauthn
 	Request              isMFARegisterChallenge_Request `protobuf_oneof:"Request"`
 	XXX_NoUnkeyedLiteral struct{}                       `json:"-"`
 	XXX_unrecognized     []byte                         `json:"-"`
@@ -4465,7 +5275,7 @@ func (m *MFARegisterChallenge) Reset()         { *m = MFARegisterChallenge{} }
 func (m *MFARegisterChallenge) String() string { return proto.CompactTextString(m) }
 func (*MFARegisterChallenge) ProtoMessage()    {}
 func (*MFARegisterChallenge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{67}
+	return fileDescriptor_ce8bd90b12161215, []int{77}
 }
 func (m *MFARegisterChallenge) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4500,26 +5310,19 @@ type isMFARegisterChallenge_Request interface {
 	Size() int
 }
 
-type MFARegisterChallenge_U2F struct {
-	U2F *U2FRegisterChallenge `protobuf:"bytes,1,opt,name=U2F,proto3,oneof" json:"U2F,omitempty"`
-}
 type MFARegisterChallenge_TOTP struct {
 	TOTP *TOTPRegisterChallenge `protobuf:"bytes,2,opt,name=TOTP,proto3,oneof" json:"TOTP,omitempty"`
 }
+type MFARegisterChallenge_Webauthn struct {
+	Webauthn *webauthn.CredentialCreation `protobuf:"bytes,3,opt,name=Webauthn,proto3,oneof" json:"Webauthn,omitempty"`
+}
 
-func (*MFARegisterChallenge_U2F) isMFARegisterChallenge_Request()  {}
-func (*MFARegisterChallenge_TOTP) isMFARegisterChallenge_Request() {}
+func (*MFARegisterChallenge_TOTP) isMFARegisterChallenge_Request()     {}
+func (*MFARegisterChallenge_Webauthn) isMFARegisterChallenge_Request() {}
 
 func (m *MFARegisterChallenge) GetRequest() isMFARegisterChallenge_Request {
 	if m != nil {
 		return m.Request
-	}
-	return nil
-}
-
-func (m *MFARegisterChallenge) GetU2F() *U2FRegisterChallenge {
-	if x, ok := m.GetRequest().(*MFARegisterChallenge_U2F); ok {
-		return x.U2F
 	}
 	return nil
 }
@@ -4531,19 +5334,26 @@ func (m *MFARegisterChallenge) GetTOTP() *TOTPRegisterChallenge {
 	return nil
 }
 
+func (m *MFARegisterChallenge) GetWebauthn() *webauthn.CredentialCreation {
+	if x, ok := m.GetRequest().(*MFARegisterChallenge_Webauthn); ok {
+		return x.Webauthn
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*MFARegisterChallenge) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
-		(*MFARegisterChallenge_U2F)(nil),
 		(*MFARegisterChallenge_TOTP)(nil),
+		(*MFARegisterChallenge_Webauthn)(nil),
 	}
 }
 
 // MFARegisterResponse is a response to MFARegisterChallenge.
 type MFARegisterResponse struct {
 	// Types that are valid to be assigned to Response:
-	//	*MFARegisterResponse_U2F
 	//	*MFARegisterResponse_TOTP
+	//	*MFARegisterResponse_Webauthn
 	Response             isMFARegisterResponse_Response `protobuf_oneof:"Response"`
 	XXX_NoUnkeyedLiteral struct{}                       `json:"-"`
 	XXX_unrecognized     []byte                         `json:"-"`
@@ -4554,7 +5364,7 @@ func (m *MFARegisterResponse) Reset()         { *m = MFARegisterResponse{} }
 func (m *MFARegisterResponse) String() string { return proto.CompactTextString(m) }
 func (*MFARegisterResponse) ProtoMessage()    {}
 func (*MFARegisterResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{68}
+	return fileDescriptor_ce8bd90b12161215, []int{78}
 }
 func (m *MFARegisterResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4589,26 +5399,19 @@ type isMFARegisterResponse_Response interface {
 	Size() int
 }
 
-type MFARegisterResponse_U2F struct {
-	U2F *U2FRegisterResponse `protobuf:"bytes,1,opt,name=U2F,proto3,oneof" json:"U2F,omitempty"`
-}
 type MFARegisterResponse_TOTP struct {
 	TOTP *TOTPRegisterResponse `protobuf:"bytes,2,opt,name=TOTP,proto3,oneof" json:"TOTP,omitempty"`
 }
+type MFARegisterResponse_Webauthn struct {
+	Webauthn *webauthn.CredentialCreationResponse `protobuf:"bytes,3,opt,name=Webauthn,proto3,oneof" json:"Webauthn,omitempty"`
+}
 
-func (*MFARegisterResponse_U2F) isMFARegisterResponse_Response()  {}
-func (*MFARegisterResponse_TOTP) isMFARegisterResponse_Response() {}
+func (*MFARegisterResponse_TOTP) isMFARegisterResponse_Response()     {}
+func (*MFARegisterResponse_Webauthn) isMFARegisterResponse_Response() {}
 
 func (m *MFARegisterResponse) GetResponse() isMFARegisterResponse_Response {
 	if m != nil {
 		return m.Response
-	}
-	return nil
-}
-
-func (m *MFARegisterResponse) GetU2F() *U2FRegisterResponse {
-	if x, ok := m.GetResponse().(*MFARegisterResponse_U2F); ok {
-		return x.U2F
 	}
 	return nil
 }
@@ -4620,132 +5423,19 @@ func (m *MFARegisterResponse) GetTOTP() *TOTPRegisterResponse {
 	return nil
 }
 
+func (m *MFARegisterResponse) GetWebauthn() *webauthn.CredentialCreationResponse {
+	if x, ok := m.GetResponse().(*MFARegisterResponse_Webauthn); ok {
+		return x.Webauthn
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*MFARegisterResponse) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
-		(*MFARegisterResponse_U2F)(nil),
 		(*MFARegisterResponse_TOTP)(nil),
+		(*MFARegisterResponse_Webauthn)(nil),
 	}
-}
-
-// U2FRegisterChallenge is a challenge for registering a new U2F device.
-type U2FRegisterChallenge struct {
-	Challenge            string   `protobuf:"bytes,1,opt,name=Challenge,proto3" json:"Challenge,omitempty"`
-	AppID                string   `protobuf:"bytes,2,opt,name=AppID,proto3" json:"AppID,omitempty"`
-	Version              string   `protobuf:"bytes,3,opt,name=Version,proto3" json:"Version,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *U2FRegisterChallenge) Reset()         { *m = U2FRegisterChallenge{} }
-func (m *U2FRegisterChallenge) String() string { return proto.CompactTextString(m) }
-func (*U2FRegisterChallenge) ProtoMessage()    {}
-func (*U2FRegisterChallenge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{69}
-}
-func (m *U2FRegisterChallenge) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *U2FRegisterChallenge) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_U2FRegisterChallenge.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *U2FRegisterChallenge) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_U2FRegisterChallenge.Merge(m, src)
-}
-func (m *U2FRegisterChallenge) XXX_Size() int {
-	return m.Size()
-}
-func (m *U2FRegisterChallenge) XXX_DiscardUnknown() {
-	xxx_messageInfo_U2FRegisterChallenge.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_U2FRegisterChallenge proto.InternalMessageInfo
-
-func (m *U2FRegisterChallenge) GetChallenge() string {
-	if m != nil {
-		return m.Challenge
-	}
-	return ""
-}
-
-func (m *U2FRegisterChallenge) GetAppID() string {
-	if m != nil {
-		return m.AppID
-	}
-	return ""
-}
-
-func (m *U2FRegisterChallenge) GetVersion() string {
-	if m != nil {
-		return m.Version
-	}
-	return ""
-}
-
-// U2FRegisterResponse is a response to U2FRegisterChallenge.
-type U2FRegisterResponse struct {
-	RegistrationData     string   `protobuf:"bytes,1,opt,name=RegistrationData,proto3" json:"RegistrationData,omitempty"`
-	ClientData           string   `protobuf:"bytes,2,opt,name=ClientData,proto3" json:"ClientData,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *U2FRegisterResponse) Reset()         { *m = U2FRegisterResponse{} }
-func (m *U2FRegisterResponse) String() string { return proto.CompactTextString(m) }
-func (*U2FRegisterResponse) ProtoMessage()    {}
-func (*U2FRegisterResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{70}
-}
-func (m *U2FRegisterResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *U2FRegisterResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_U2FRegisterResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *U2FRegisterResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_U2FRegisterResponse.Merge(m, src)
-}
-func (m *U2FRegisterResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *U2FRegisterResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_U2FRegisterResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_U2FRegisterResponse proto.InternalMessageInfo
-
-func (m *U2FRegisterResponse) GetRegistrationData() string {
-	if m != nil {
-		return m.RegistrationData
-	}
-	return ""
-}
-
-func (m *U2FRegisterResponse) GetClientData() string {
-	if m != nil {
-		return m.ClientData
-	}
-	return ""
 }
 
 // TOTPRegisterChallenge is a challenge for registering a new TOTP device.
@@ -4761,7 +5451,10 @@ type TOTPRegisterChallenge struct {
 	// Digits is the number of digits in the TOTP code.
 	Digits uint32 `protobuf:"varint,5,opt,name=Digits,proto3" json:"Digits,omitempty"`
 	// Account is the account name for this user.
-	Account              string   `protobuf:"bytes,6,opt,name=Account,proto3" json:"Account,omitempty"`
+	Account string `protobuf:"bytes,6,opt,name=Account,proto3" json:"Account,omitempty"`
+	// QRCode is an optional field for the QR code in PNG format. Used to display a QR code
+	// image in the UI.
+	QRCode               []byte   `protobuf:"bytes,7,opt,name=QRCode,proto3" json:"QRCode,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -4771,7 +5464,7 @@ func (m *TOTPRegisterChallenge) Reset()         { *m = TOTPRegisterChallenge{} }
 func (m *TOTPRegisterChallenge) String() string { return proto.CompactTextString(m) }
 func (*TOTPRegisterChallenge) ProtoMessage()    {}
 func (*TOTPRegisterChallenge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{71}
+	return fileDescriptor_ce8bd90b12161215, []int{79}
 }
 func (m *TOTPRegisterChallenge) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4842,6 +5535,13 @@ func (m *TOTPRegisterChallenge) GetAccount() string {
 	return ""
 }
 
+func (m *TOTPRegisterChallenge) GetQRCode() []byte {
+	if m != nil {
+		return m.QRCode
+	}
+	return nil
+}
+
 // TOTPRegisterResponse is a response to TOTPRegisterChallenge.
 type TOTPRegisterResponse struct {
 	Code                 string   `protobuf:"bytes,1,opt,name=Code,proto3" json:"Code,omitempty"`
@@ -4854,7 +5554,7 @@ func (m *TOTPRegisterResponse) Reset()         { *m = TOTPRegisterResponse{} }
 func (m *TOTPRegisterResponse) String() string { return proto.CompactTextString(m) }
 func (*TOTPRegisterResponse) ProtoMessage()    {}
 func (*TOTPRegisterResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{72}
+	return fileDescriptor_ce8bd90b12161215, []int{80}
 }
 func (m *TOTPRegisterResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -4906,7 +5606,7 @@ func (m *AddMFADeviceRequest) Reset()         { *m = AddMFADeviceRequest{} }
 func (m *AddMFADeviceRequest) String() string { return proto.CompactTextString(m) }
 func (*AddMFADeviceRequest) ProtoMessage()    {}
 func (*AddMFADeviceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{73}
+	return fileDescriptor_ce8bd90b12161215, []int{81}
 }
 func (m *AddMFADeviceRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5009,7 +5709,7 @@ func (m *AddMFADeviceResponse) Reset()         { *m = AddMFADeviceResponse{} }
 func (m *AddMFADeviceResponse) String() string { return proto.CompactTextString(m) }
 func (*AddMFADeviceResponse) ProtoMessage()    {}
 func (*AddMFADeviceResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{74}
+	return fileDescriptor_ce8bd90b12161215, []int{82}
 }
 func (m *AddMFADeviceResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5097,18 +5797,21 @@ func (*AddMFADeviceResponse) XXX_OneofWrappers() []interface{} {
 
 // AddMFADeviceRequestInit describes the new MFA device.
 type AddMFADeviceRequestInit struct {
-	DeviceName           string                             `protobuf:"bytes,1,opt,name=DeviceName,proto3" json:"DeviceName,omitempty"`
-	Type                 AddMFADeviceRequestInit_DeviceType `protobuf:"varint,2,opt,name=Type,proto3,enum=proto.AddMFADeviceRequestInit_DeviceType" json:"Type,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
-	XXX_unrecognized     []byte                             `json:"-"`
-	XXX_sizecache        int32                              `json:"-"`
+	DeviceName string     `protobuf:"bytes,1,opt,name=DeviceName,proto3" json:"DeviceName,omitempty"`
+	DeviceType DeviceType `protobuf:"varint,3,opt,name=DeviceType,proto3,enum=proto.DeviceType" json:"DeviceType,omitempty"`
+	// DeviceUsage is the requested usage for the device.
+	// Defaults to DEVICE_USAGE_MFA.
+	DeviceUsage          DeviceUsage `protobuf:"varint,4,opt,name=DeviceUsage,proto3,enum=proto.DeviceUsage" json:"device_usage,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
+	XXX_unrecognized     []byte      `json:"-"`
+	XXX_sizecache        int32       `json:"-"`
 }
 
 func (m *AddMFADeviceRequestInit) Reset()         { *m = AddMFADeviceRequestInit{} }
 func (m *AddMFADeviceRequestInit) String() string { return proto.CompactTextString(m) }
 func (*AddMFADeviceRequestInit) ProtoMessage()    {}
 func (*AddMFADeviceRequestInit) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{75}
+	return fileDescriptor_ce8bd90b12161215, []int{83}
 }
 func (m *AddMFADeviceRequestInit) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5144,11 +5847,18 @@ func (m *AddMFADeviceRequestInit) GetDeviceName() string {
 	return ""
 }
 
-func (m *AddMFADeviceRequestInit) GetType() AddMFADeviceRequestInit_DeviceType {
+func (m *AddMFADeviceRequestInit) GetDeviceType() DeviceType {
 	if m != nil {
-		return m.Type
+		return m.DeviceType
 	}
-	return AddMFADeviceRequestInit_TOTP
+	return DeviceType_DEVICE_TYPE_UNSPECIFIED
+}
+
+func (m *AddMFADeviceRequestInit) GetDeviceUsage() DeviceUsage {
+	if m != nil {
+		return m.DeviceUsage
+	}
+	return DeviceUsage_DEVICE_USAGE_UNSPECIFIED
 }
 
 // AddMFADeviceResponseAck is a confirmation of successful device registration.
@@ -5163,7 +5873,7 @@ func (m *AddMFADeviceResponseAck) Reset()         { *m = AddMFADeviceResponseAck
 func (m *AddMFADeviceResponseAck) String() string { return proto.CompactTextString(m) }
 func (*AddMFADeviceResponseAck) ProtoMessage()    {}
 func (*AddMFADeviceResponseAck) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{76}
+	return fileDescriptor_ce8bd90b12161215, []int{84}
 }
 func (m *AddMFADeviceResponseAck) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5215,7 +5925,7 @@ func (m *DeleteMFADeviceRequest) Reset()         { *m = DeleteMFADeviceRequest{}
 func (m *DeleteMFADeviceRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteMFADeviceRequest) ProtoMessage()    {}
 func (*DeleteMFADeviceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{77}
+	return fileDescriptor_ce8bd90b12161215, []int{85}
 }
 func (m *DeleteMFADeviceRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5303,7 +6013,7 @@ func (m *DeleteMFADeviceResponse) Reset()         { *m = DeleteMFADeviceResponse
 func (m *DeleteMFADeviceResponse) String() string { return proto.CompactTextString(m) }
 func (*DeleteMFADeviceResponse) ProtoMessage()    {}
 func (*DeleteMFADeviceResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{78}
+	return fileDescriptor_ce8bd90b12161215, []int{86}
 }
 func (m *DeleteMFADeviceResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5390,7 +6100,7 @@ func (m *DeleteMFADeviceRequestInit) Reset()         { *m = DeleteMFADeviceReque
 func (m *DeleteMFADeviceRequestInit) String() string { return proto.CompactTextString(m) }
 func (*DeleteMFADeviceRequestInit) ProtoMessage()    {}
 func (*DeleteMFADeviceRequestInit) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{79}
+	return fileDescriptor_ce8bd90b12161215, []int{87}
 }
 func (m *DeleteMFADeviceRequestInit) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5437,7 +6147,7 @@ func (m *DeleteMFADeviceResponseAck) Reset()         { *m = DeleteMFADeviceRespo
 func (m *DeleteMFADeviceResponseAck) String() string { return proto.CompactTextString(m) }
 func (*DeleteMFADeviceResponseAck) ProtoMessage()    {}
 func (*DeleteMFADeviceResponseAck) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{80}
+	return fileDescriptor_ce8bd90b12161215, []int{88}
 }
 func (m *DeleteMFADeviceResponseAck) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5466,8 +6176,194 @@ func (m *DeleteMFADeviceResponseAck) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_DeleteMFADeviceResponseAck proto.InternalMessageInfo
 
+// DeleteMFADeviceSyncRequest is a request to delete a MFA device (nonstream).
+type DeleteMFADeviceSyncRequest struct {
+	// TokenID is the ID of a user token that will be used to verify this request.
+	// Token types accepted are:
+	//   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
+	//   - Privilege token that is obtained with RPC CreatePrivilegeToken
+	TokenID string `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"token_id"`
+	// DeviceName is the name of the device to delete.
+	DeviceName           string   `protobuf:"bytes,2,opt,name=DeviceName,proto3" json:"device_name"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DeleteMFADeviceSyncRequest) Reset()         { *m = DeleteMFADeviceSyncRequest{} }
+func (m *DeleteMFADeviceSyncRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteMFADeviceSyncRequest) ProtoMessage()    {}
+func (*DeleteMFADeviceSyncRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{89}
+}
+func (m *DeleteMFADeviceSyncRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DeleteMFADeviceSyncRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DeleteMFADeviceSyncRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DeleteMFADeviceSyncRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteMFADeviceSyncRequest.Merge(m, src)
+}
+func (m *DeleteMFADeviceSyncRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *DeleteMFADeviceSyncRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteMFADeviceSyncRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DeleteMFADeviceSyncRequest proto.InternalMessageInfo
+
+func (m *DeleteMFADeviceSyncRequest) GetTokenID() string {
+	if m != nil {
+		return m.TokenID
+	}
+	return ""
+}
+
+func (m *DeleteMFADeviceSyncRequest) GetDeviceName() string {
+	if m != nil {
+		return m.DeviceName
+	}
+	return ""
+}
+
+// AddMFADeviceSyncRequest is a request to add a MFA device (nonstream).
+type AddMFADeviceSyncRequest struct {
+	// TokenID is the ID of a user token that will be used to verify this request.
+	// Token types accepted are:
+	//  - Privilege token that is obtained with RPC CreatePrivilegeToken
+	TokenID string `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"token_id"`
+	// NewDeviceName is the name of a new mfa device.
+	NewDeviceName string `protobuf:"bytes,2,opt,name=NewDeviceName,proto3" json:"new_device_name,omitempty"`
+	// NewMFAResponse is a user's new mfa response to a mfa register challenge.
+	NewMFAResponse       *MFARegisterResponse `protobuf:"bytes,3,opt,name=NewMFAResponse,proto3" json:"new_mfa_response,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *AddMFADeviceSyncRequest) Reset()         { *m = AddMFADeviceSyncRequest{} }
+func (m *AddMFADeviceSyncRequest) String() string { return proto.CompactTextString(m) }
+func (*AddMFADeviceSyncRequest) ProtoMessage()    {}
+func (*AddMFADeviceSyncRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{90}
+}
+func (m *AddMFADeviceSyncRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AddMFADeviceSyncRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AddMFADeviceSyncRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *AddMFADeviceSyncRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AddMFADeviceSyncRequest.Merge(m, src)
+}
+func (m *AddMFADeviceSyncRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *AddMFADeviceSyncRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_AddMFADeviceSyncRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AddMFADeviceSyncRequest proto.InternalMessageInfo
+
+func (m *AddMFADeviceSyncRequest) GetTokenID() string {
+	if m != nil {
+		return m.TokenID
+	}
+	return ""
+}
+
+func (m *AddMFADeviceSyncRequest) GetNewDeviceName() string {
+	if m != nil {
+		return m.NewDeviceName
+	}
+	return ""
+}
+
+func (m *AddMFADeviceSyncRequest) GetNewMFAResponse() *MFARegisterResponse {
+	if m != nil {
+		return m.NewMFAResponse
+	}
+	return nil
+}
+
+// AddMFADeviceSyncResponse is a response to AddMFADeviceSyncRequest.
+type AddMFADeviceSyncResponse struct {
+	Device               *types.MFADevice `protobuf:"bytes,1,opt,name=Device,proto3" json:"device"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
+}
+
+func (m *AddMFADeviceSyncResponse) Reset()         { *m = AddMFADeviceSyncResponse{} }
+func (m *AddMFADeviceSyncResponse) String() string { return proto.CompactTextString(m) }
+func (*AddMFADeviceSyncResponse) ProtoMessage()    {}
+func (*AddMFADeviceSyncResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{91}
+}
+func (m *AddMFADeviceSyncResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AddMFADeviceSyncResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AddMFADeviceSyncResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *AddMFADeviceSyncResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AddMFADeviceSyncResponse.Merge(m, src)
+}
+func (m *AddMFADeviceSyncResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *AddMFADeviceSyncResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_AddMFADeviceSyncResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AddMFADeviceSyncResponse proto.InternalMessageInfo
+
+func (m *AddMFADeviceSyncResponse) GetDevice() *types.MFADevice {
+	if m != nil {
+		return m.Device
+	}
+	return nil
+}
+
 // GetMFADeviceRequest is a request for MFA devices for the calling user.
 type GetMFADevicesRequest struct {
+	// TokenID is an optional field for the ID of a user token that will be used to
+	// verify this request. Token is only required if an unauthenticated user wants to view their
+	// list of devices eg: during account recovery process. An empty field implies the logged in
+	// user wants to view their devices.
+	// Token types accepted are:
+	//  - Recovery approved token that is obtained after successful invocation of RPC
+	//  VerifyAccountRecovery
+	TokenID              string   `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"token_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -5477,7 +6373,7 @@ func (m *GetMFADevicesRequest) Reset()         { *m = GetMFADevicesRequest{} }
 func (m *GetMFADevicesRequest) String() string { return proto.CompactTextString(m) }
 func (*GetMFADevicesRequest) ProtoMessage()    {}
 func (*GetMFADevicesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{81}
+	return fileDescriptor_ce8bd90b12161215, []int{92}
 }
 func (m *GetMFADevicesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5506,6 +6402,13 @@ func (m *GetMFADevicesRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_GetMFADevicesRequest proto.InternalMessageInfo
 
+func (m *GetMFADevicesRequest) GetTokenID() string {
+	if m != nil {
+		return m.TokenID
+	}
+	return ""
+}
+
 // GetMFADeviceResponse is a response for GetMFADevices RPC.
 type GetMFADevicesResponse struct {
 	Devices              []*types.MFADevice `protobuf:"bytes,1,rep,name=Devices,proto3" json:"Devices,omitempty"`
@@ -5518,7 +6421,7 @@ func (m *GetMFADevicesResponse) Reset()         { *m = GetMFADevicesResponse{} }
 func (m *GetMFADevicesResponse) String() string { return proto.CompactTextString(m) }
 func (*GetMFADevicesResponse) ProtoMessage()    {}
 func (*GetMFADevicesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{82}
+	return fileDescriptor_ce8bd90b12161215, []int{93}
 }
 func (m *GetMFADevicesResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5569,7 +6472,7 @@ func (m *UserSingleUseCertsRequest) Reset()         { *m = UserSingleUseCertsReq
 func (m *UserSingleUseCertsRequest) String() string { return proto.CompactTextString(m) }
 func (*UserSingleUseCertsRequest) ProtoMessage()    {}
 func (*UserSingleUseCertsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{83}
+	return fileDescriptor_ce8bd90b12161215, []int{94}
 }
 func (m *UserSingleUseCertsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5658,7 +6561,7 @@ func (m *UserSingleUseCertsResponse) Reset()         { *m = UserSingleUseCertsRe
 func (m *UserSingleUseCertsResponse) String() string { return proto.CompactTextString(m) }
 func (*UserSingleUseCertsResponse) ProtoMessage()    {}
 func (*UserSingleUseCertsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{84}
+	return fileDescriptor_ce8bd90b12161215, []int{95}
 }
 func (m *UserSingleUseCertsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5739,6 +6642,7 @@ type IsMFARequiredRequest struct {
 	//	*IsMFARequiredRequest_KubernetesCluster
 	//	*IsMFARequiredRequest_Database
 	//	*IsMFARequiredRequest_Node
+	//	*IsMFARequiredRequest_WindowsDesktop
 	Target               isIsMFARequiredRequest_Target `protobuf_oneof:"Target"`
 	XXX_NoUnkeyedLiteral struct{}                      `json:"-"`
 	XXX_unrecognized     []byte                        `json:"-"`
@@ -5749,7 +6653,7 @@ func (m *IsMFARequiredRequest) Reset()         { *m = IsMFARequiredRequest{} }
 func (m *IsMFARequiredRequest) String() string { return proto.CompactTextString(m) }
 func (*IsMFARequiredRequest) ProtoMessage()    {}
 func (*IsMFARequiredRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{85}
+	return fileDescriptor_ce8bd90b12161215, []int{96}
 }
 func (m *IsMFARequiredRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5793,10 +6697,14 @@ type IsMFARequiredRequest_Database struct {
 type IsMFARequiredRequest_Node struct {
 	Node *NodeLogin `protobuf:"bytes,3,opt,name=Node,proto3,oneof" json:"Node,omitempty"`
 }
+type IsMFARequiredRequest_WindowsDesktop struct {
+	WindowsDesktop *RouteToWindowsDesktop `protobuf:"bytes,4,opt,name=WindowsDesktop,proto3,oneof" json:"WindowsDesktop,omitempty"`
+}
 
 func (*IsMFARequiredRequest_KubernetesCluster) isIsMFARequiredRequest_Target() {}
 func (*IsMFARequiredRequest_Database) isIsMFARequiredRequest_Target()          {}
 func (*IsMFARequiredRequest_Node) isIsMFARequiredRequest_Target()              {}
+func (*IsMFARequiredRequest_WindowsDesktop) isIsMFARequiredRequest_Target()    {}
 
 func (m *IsMFARequiredRequest) GetTarget() isIsMFARequiredRequest_Target {
 	if m != nil {
@@ -5826,12 +6734,20 @@ func (m *IsMFARequiredRequest) GetNode() *NodeLogin {
 	return nil
 }
 
+func (m *IsMFARequiredRequest) GetWindowsDesktop() *RouteToWindowsDesktop {
+	if x, ok := m.GetTarget().(*IsMFARequiredRequest_WindowsDesktop); ok {
+		return x.WindowsDesktop
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*IsMFARequiredRequest) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*IsMFARequiredRequest_KubernetesCluster)(nil),
 		(*IsMFARequiredRequest_Database)(nil),
 		(*IsMFARequiredRequest_Node)(nil),
+		(*IsMFARequiredRequest_WindowsDesktop)(nil),
 	}
 }
 
@@ -5851,7 +6767,7 @@ func (m *StreamSessionEventsRequest) Reset()         { *m = StreamSessionEventsR
 func (m *StreamSessionEventsRequest) String() string { return proto.CompactTextString(m) }
 func (*StreamSessionEventsRequest) ProtoMessage()    {}
 func (*StreamSessionEventsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{86}
+	return fileDescriptor_ce8bd90b12161215, []int{97}
 }
 func (m *StreamSessionEventsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5909,7 +6825,7 @@ func (m *NodeLogin) Reset()         { *m = NodeLogin{} }
 func (m *NodeLogin) String() string { return proto.CompactTextString(m) }
 func (*NodeLogin) ProtoMessage()    {}
 func (*NodeLogin) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{87}
+	return fileDescriptor_ce8bd90b12161215, []int{98}
 }
 func (m *NodeLogin) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -5964,7 +6880,7 @@ func (m *IsMFARequiredResponse) Reset()         { *m = IsMFARequiredResponse{} }
 func (m *IsMFARequiredResponse) String() string { return proto.CompactTextString(m) }
 func (*IsMFARequiredResponse) ProtoMessage()    {}
 func (*IsMFARequiredResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{88}
+	return fileDescriptor_ce8bd90b12161215, []int{99}
 }
 func (m *IsMFARequiredResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6015,7 +6931,7 @@ func (m *SingleUseUserCert) Reset()         { *m = SingleUseUserCert{} }
 func (m *SingleUseUserCert) String() string { return proto.CompactTextString(m) }
 func (*SingleUseUserCert) ProtoMessage()    {}
 func (*SingleUseUserCert) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{89}
+	return fileDescriptor_ce8bd90b12161215, []int{100}
 }
 func (m *SingleUseUserCert) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6116,7 +7032,7 @@ func (m *GetEventsRequest) Reset()         { *m = GetEventsRequest{} }
 func (m *GetEventsRequest) String() string { return proto.CompactTextString(m) }
 func (*GetEventsRequest) ProtoMessage()    {}
 func (*GetEventsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{90}
+	return fileDescriptor_ce8bd90b12161215, []int{101}
 }
 func (m *GetEventsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6217,7 +7133,7 @@ func (m *GetSessionEventsRequest) Reset()         { *m = GetSessionEventsRequest
 func (m *GetSessionEventsRequest) String() string { return proto.CompactTextString(m) }
 func (*GetSessionEventsRequest) ProtoMessage()    {}
 func (*GetSessionEventsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{91}
+	return fileDescriptor_ce8bd90b12161215, []int{102}
 }
 func (m *GetSessionEventsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6297,7 +7213,7 @@ func (m *Events) Reset()         { *m = Events{} }
 func (m *Events) String() string { return proto.CompactTextString(m) }
 func (*Events) ProtoMessage()    {}
 func (*Events) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{92}
+	return fileDescriptor_ce8bd90b12161215, []int{103}
 }
 func (m *Events) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6340,6 +7256,7 @@ func (m *Events) GetLastKey() string {
 	return ""
 }
 
+// DELETE IN 10.0
 type ListNodesRequest struct {
 	// Namespace is the namespace of resources.
 	Namespace string `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"Namespace,omitempty"`
@@ -6347,17 +7264,19 @@ type ListNodesRequest struct {
 	Limit int32 `protobuf:"varint,2,opt,name=Limit,proto3" json:"Limit,omitempty"`
 	// StartKey is used to start listing nodes from a specific spot. This should
 	// be set to the previous NextKey value if using pagination, or left empty.
-	StartKey             string   `protobuf:"bytes,3,opt,name=StartKey,proto3" json:"StartKey,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	StartKey string `protobuf:"bytes,3,opt,name=StartKey,proto3" json:"StartKey,omitempty"`
+	// Labels is a label-based matcher if non-empty.
+	Labels               map[string]string `protobuf:"bytes,4,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
 }
 
 func (m *ListNodesRequest) Reset()         { *m = ListNodesRequest{} }
 func (m *ListNodesRequest) String() string { return proto.CompactTextString(m) }
 func (*ListNodesRequest) ProtoMessage()    {}
 func (*ListNodesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{93}
+	return fileDescriptor_ce8bd90b12161215, []int{104}
 }
 func (m *ListNodesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6407,6 +7326,14 @@ func (m *ListNodesRequest) GetStartKey() string {
 	return ""
 }
 
+func (m *ListNodesRequest) GetLabels() map[string]string {
+	if m != nil {
+		return m.Labels
+	}
+	return nil
+}
+
+// DELETE IN 10.0
 type ListNodesResponse struct {
 	// Servers is a list of servers.
 	Servers []*types.ServerV2 `protobuf:"bytes,1,rep,name=Servers,proto3" json:"Servers,omitempty"`
@@ -6422,7 +7349,7 @@ func (m *ListNodesResponse) Reset()         { *m = ListNodesResponse{} }
 func (m *ListNodesResponse) String() string { return proto.CompactTextString(m) }
 func (*ListNodesResponse) ProtoMessage()    {}
 func (*ListNodesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{94}
+	return fileDescriptor_ce8bd90b12161215, []int{105}
 }
 func (m *ListNodesResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6480,7 +7407,7 @@ func (m *GetLocksRequest) Reset()         { *m = GetLocksRequest{} }
 func (m *GetLocksRequest) String() string { return proto.CompactTextString(m) }
 func (*GetLocksRequest) ProtoMessage()    {}
 func (*GetLocksRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{95}
+	return fileDescriptor_ce8bd90b12161215, []int{106}
 }
 func (m *GetLocksRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6535,7 +7462,7 @@ func (m *GetLocksResponse) Reset()         { *m = GetLocksResponse{} }
 func (m *GetLocksResponse) String() string { return proto.CompactTextString(m) }
 func (*GetLocksResponse) ProtoMessage()    {}
 func (*GetLocksResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{96}
+	return fileDescriptor_ce8bd90b12161215, []int{107}
 }
 func (m *GetLocksResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6583,7 +7510,7 @@ func (m *GetLockRequest) Reset()         { *m = GetLockRequest{} }
 func (m *GetLockRequest) String() string { return proto.CompactTextString(m) }
 func (*GetLockRequest) ProtoMessage()    {}
 func (*GetLockRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{97}
+	return fileDescriptor_ce8bd90b12161215, []int{108}
 }
 func (m *GetLockRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6631,7 +7558,7 @@ func (m *DeleteLockRequest) Reset()         { *m = DeleteLockRequest{} }
 func (m *DeleteLockRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteLockRequest) ProtoMessage()    {}
 func (*DeleteLockRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{98}
+	return fileDescriptor_ce8bd90b12161215, []int{109}
 }
 func (m *DeleteLockRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6681,7 +7608,7 @@ func (m *ReplaceRemoteLocksRequest) Reset()         { *m = ReplaceRemoteLocksReq
 func (m *ReplaceRemoteLocksRequest) String() string { return proto.CompactTextString(m) }
 func (*ReplaceRemoteLocksRequest) ProtoMessage()    {}
 func (*ReplaceRemoteLocksRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{99}
+	return fileDescriptor_ce8bd90b12161215, []int{110}
 }
 func (m *ReplaceRemoteLocksRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6726,7 +7653,7 @@ func (m *ReplaceRemoteLocksRequest) GetLocks() []*types.LockV2 {
 
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
 type GetWindowsDesktopServicesResponse struct {
-	// Servers is a list of Windows desktop services.
+	// Services is a list of Windows desktop services.
 	Services             []*types.WindowsDesktopServiceV3 `protobuf:"bytes,1,rep,name=services,proto3" json:"services"`
 	XXX_NoUnkeyedLiteral struct{}                         `json:"-"`
 	XXX_unrecognized     []byte                           `json:"-"`
@@ -6737,7 +7664,7 @@ func (m *GetWindowsDesktopServicesResponse) Reset()         { *m = GetWindowsDes
 func (m *GetWindowsDesktopServicesResponse) String() string { return proto.CompactTextString(m) }
 func (*GetWindowsDesktopServicesResponse) ProtoMessage()    {}
 func (*GetWindowsDesktopServicesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{100}
+	return fileDescriptor_ce8bd90b12161215, []int{111}
 }
 func (m *GetWindowsDesktopServicesResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6773,6 +7700,104 @@ func (m *GetWindowsDesktopServicesResponse) GetServices() []*types.WindowsDeskto
 	return nil
 }
 
+// GetWindowsDesktopServiceRequest is a request for a specific Windows Desktop Service.
+type GetWindowsDesktopServiceRequest struct {
+	// Name is the name of the Windows Desktop Service to be requested.
+	Name                 string   `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetWindowsDesktopServiceRequest) Reset()         { *m = GetWindowsDesktopServiceRequest{} }
+func (m *GetWindowsDesktopServiceRequest) String() string { return proto.CompactTextString(m) }
+func (*GetWindowsDesktopServiceRequest) ProtoMessage()    {}
+func (*GetWindowsDesktopServiceRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{112}
+}
+func (m *GetWindowsDesktopServiceRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetWindowsDesktopServiceRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetWindowsDesktopServiceRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetWindowsDesktopServiceRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetWindowsDesktopServiceRequest.Merge(m, src)
+}
+func (m *GetWindowsDesktopServiceRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetWindowsDesktopServiceRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetWindowsDesktopServiceRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetWindowsDesktopServiceRequest proto.InternalMessageInfo
+
+func (m *GetWindowsDesktopServiceRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+// GetWindowsDesktopServiceResponse contains the requested WindowsDesktopService
+type GetWindowsDesktopServiceResponse struct {
+	// Service is the requested Windows Desktop Service.
+	Service              *types.WindowsDesktopServiceV3 `protobuf:"bytes,1,opt,name=service,proto3" json:"service"`
+	XXX_NoUnkeyedLiteral struct{}                       `json:"-"`
+	XXX_unrecognized     []byte                         `json:"-"`
+	XXX_sizecache        int32                          `json:"-"`
+}
+
+func (m *GetWindowsDesktopServiceResponse) Reset()         { *m = GetWindowsDesktopServiceResponse{} }
+func (m *GetWindowsDesktopServiceResponse) String() string { return proto.CompactTextString(m) }
+func (*GetWindowsDesktopServiceResponse) ProtoMessage()    {}
+func (*GetWindowsDesktopServiceResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{113}
+}
+func (m *GetWindowsDesktopServiceResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetWindowsDesktopServiceResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetWindowsDesktopServiceResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetWindowsDesktopServiceResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetWindowsDesktopServiceResponse.Merge(m, src)
+}
+func (m *GetWindowsDesktopServiceResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetWindowsDesktopServiceResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetWindowsDesktopServiceResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetWindowsDesktopServiceResponse proto.InternalMessageInfo
+
+func (m *GetWindowsDesktopServiceResponse) GetService() *types.WindowsDesktopServiceV3 {
+	if m != nil {
+		return m.Service
+	}
+	return nil
+}
+
 // DeleteWindowsDesktopServiceRequest is a request to delete a Windows desktop service.
 type DeleteWindowsDesktopServiceRequest struct {
 	// Name is the Windows desktop service name.
@@ -6786,7 +7811,7 @@ func (m *DeleteWindowsDesktopServiceRequest) Reset()         { *m = DeleteWindow
 func (m *DeleteWindowsDesktopServiceRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteWindowsDesktopServiceRequest) ProtoMessage()    {}
 func (*DeleteWindowsDesktopServiceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{101}
+	return fileDescriptor_ce8bd90b12161215, []int{114}
 }
 func (m *DeleteWindowsDesktopServiceRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6835,7 +7860,7 @@ func (m *GetWindowsDesktopsResponse) Reset()         { *m = GetWindowsDesktopsRe
 func (m *GetWindowsDesktopsResponse) String() string { return proto.CompactTextString(m) }
 func (*GetWindowsDesktopsResponse) ProtoMessage()    {}
 func (*GetWindowsDesktopsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{102}
+	return fileDescriptor_ce8bd90b12161215, []int{115}
 }
 func (m *GetWindowsDesktopsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6871,59 +7896,14 @@ func (m *GetWindowsDesktopsResponse) GetDesktops() []*types.WindowsDesktopV3 {
 	return nil
 }
 
-// GetWindowsDesktopRequest is a request for a single Windows desktop host.
-type GetWindowsDesktopRequest struct {
-	// Name is the name of the Windows desktop host.
-	Name                 string   `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *GetWindowsDesktopRequest) Reset()         { *m = GetWindowsDesktopRequest{} }
-func (m *GetWindowsDesktopRequest) String() string { return proto.CompactTextString(m) }
-func (*GetWindowsDesktopRequest) ProtoMessage()    {}
-func (*GetWindowsDesktopRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{103}
-}
-func (m *GetWindowsDesktopRequest) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *GetWindowsDesktopRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_GetWindowsDesktopRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *GetWindowsDesktopRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetWindowsDesktopRequest.Merge(m, src)
-}
-func (m *GetWindowsDesktopRequest) XXX_Size() int {
-	return m.Size()
-}
-func (m *GetWindowsDesktopRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetWindowsDesktopRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetWindowsDesktopRequest proto.InternalMessageInfo
-
-func (m *GetWindowsDesktopRequest) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
-
-// DeleteWindowsDesktopRequest is a request to delete a Windows desktop host.
+// DeleteWindowsDesktopRequest is a request to delete a Windows
+// desktop host. If HostID is not specified, all Windows desktops with
+// specified Name will be deleted
 type DeleteWindowsDesktopRequest struct {
 	// Name is the name of the Windows desktop host.
-	Name                 string   `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
+	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
+	// HostID is the ID of the Windows Desktop Service reporting the desktop.
+	HostID               string   `protobuf:"bytes,2,opt,name=HostID,proto3" json:"host_id"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -6933,7 +7913,7 @@ func (m *DeleteWindowsDesktopRequest) Reset()         { *m = DeleteWindowsDeskto
 func (m *DeleteWindowsDesktopRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteWindowsDesktopRequest) ProtoMessage()    {}
 func (*DeleteWindowsDesktopRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_ce8bd90b12161215, []int{104}
+	return fileDescriptor_ce8bd90b12161215, []int{116}
 }
 func (m *DeleteWindowsDesktopRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6969,18 +7949,2353 @@ func (m *DeleteWindowsDesktopRequest) GetName() string {
 	return ""
 }
 
+func (m *DeleteWindowsDesktopRequest) GetHostID() string {
+	if m != nil {
+		return m.HostID
+	}
+	return ""
+}
+
+// WindowsDesktopCertRequest is a request to generate a client certificate used
+// for Windows RDP authentication.
+type WindowsDesktopCertRequest struct {
+	// CSR is the request to sign in PEM format.
+	CSR []byte `protobuf:"bytes,1,opt,name=CSR,proto3" json:"CSR,omitempty"`
+	// CRLEndpoint is the address of the CRL for this certificate.
+	CRLEndpoint string `protobuf:"bytes,2,opt,name=CRLEndpoint,proto3" json:"CRLEndpoint,omitempty"`
+	// TTL is the certificate validity period.
+	TTL                  Duration `protobuf:"varint,3,opt,name=TTL,proto3,casttype=Duration" json:"TTL,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *WindowsDesktopCertRequest) Reset()         { *m = WindowsDesktopCertRequest{} }
+func (m *WindowsDesktopCertRequest) String() string { return proto.CompactTextString(m) }
+func (*WindowsDesktopCertRequest) ProtoMessage()    {}
+func (*WindowsDesktopCertRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{117}
+}
+func (m *WindowsDesktopCertRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *WindowsDesktopCertRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_WindowsDesktopCertRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *WindowsDesktopCertRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_WindowsDesktopCertRequest.Merge(m, src)
+}
+func (m *WindowsDesktopCertRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *WindowsDesktopCertRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_WindowsDesktopCertRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_WindowsDesktopCertRequest proto.InternalMessageInfo
+
+func (m *WindowsDesktopCertRequest) GetCSR() []byte {
+	if m != nil {
+		return m.CSR
+	}
+	return nil
+}
+
+func (m *WindowsDesktopCertRequest) GetCRLEndpoint() string {
+	if m != nil {
+		return m.CRLEndpoint
+	}
+	return ""
+}
+
+func (m *WindowsDesktopCertRequest) GetTTL() Duration {
+	if m != nil {
+		return m.TTL
+	}
+	return 0
+}
+
+// WindowsDesktopCertResponse contains the signed Windows RDP certificate.
+type WindowsDesktopCertResponse struct {
+	// Cert is the signed certificate in PEM format.
+	Cert                 []byte   `protobuf:"bytes,1,opt,name=Cert,proto3" json:"Cert,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *WindowsDesktopCertResponse) Reset()         { *m = WindowsDesktopCertResponse{} }
+func (m *WindowsDesktopCertResponse) String() string { return proto.CompactTextString(m) }
+func (*WindowsDesktopCertResponse) ProtoMessage()    {}
+func (*WindowsDesktopCertResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{118}
+}
+func (m *WindowsDesktopCertResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *WindowsDesktopCertResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_WindowsDesktopCertResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *WindowsDesktopCertResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_WindowsDesktopCertResponse.Merge(m, src)
+}
+func (m *WindowsDesktopCertResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *WindowsDesktopCertResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_WindowsDesktopCertResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_WindowsDesktopCertResponse proto.InternalMessageInfo
+
+func (m *WindowsDesktopCertResponse) GetCert() []byte {
+	if m != nil {
+		return m.Cert
+	}
+	return nil
+}
+
+// CertAuthorityRequest is a request that identifies a Teleport CA.
+type CertAuthorityRequest struct {
+	// Type is either user or host certificate authority.
+	Type                 github_com_gravitational_teleport_api_types.CertAuthType `protobuf:"bytes,1,opt,name=Type,proto3,casttype=github.com/gravitational/teleport/api/types.CertAuthType" json:"Type,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                                                 `json:"-"`
+	XXX_unrecognized     []byte                                                   `json:"-"`
+	XXX_sizecache        int32                                                    `json:"-"`
+}
+
+func (m *CertAuthorityRequest) Reset()         { *m = CertAuthorityRequest{} }
+func (m *CertAuthorityRequest) String() string { return proto.CompactTextString(m) }
+func (*CertAuthorityRequest) ProtoMessage()    {}
+func (*CertAuthorityRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{119}
+}
+func (m *CertAuthorityRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CertAuthorityRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CertAuthorityRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CertAuthorityRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CertAuthorityRequest.Merge(m, src)
+}
+func (m *CertAuthorityRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *CertAuthorityRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CertAuthorityRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CertAuthorityRequest proto.InternalMessageInfo
+
+func (m *CertAuthorityRequest) GetType() github_com_gravitational_teleport_api_types.CertAuthType {
+	if m != nil {
+		return m.Type
+	}
+	return ""
+}
+
+// CRL is the X.509 Certificate Revocation List.
+type CRL struct {
+	// CRL is the Certificate Revocation List in DER format.
+	CRL                  []byte   `protobuf:"bytes,1,opt,name=CRL,proto3" json:"CRL,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CRL) Reset()         { *m = CRL{} }
+func (m *CRL) String() string { return proto.CompactTextString(m) }
+func (*CRL) ProtoMessage()    {}
+func (*CRL) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{120}
+}
+func (m *CRL) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CRL) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CRL.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CRL) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CRL.Merge(m, src)
+}
+func (m *CRL) XXX_Size() int {
+	return m.Size()
+}
+func (m *CRL) XXX_DiscardUnknown() {
+	xxx_messageInfo_CRL.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CRL proto.InternalMessageInfo
+
+func (m *CRL) GetCRL() []byte {
+	if m != nil {
+		return m.CRL
+	}
+	return nil
+}
+
+// ChangeUserAuthenticationRequest defines a request to change a password and if enabled
+// also adds a new MFA device from a user reset or from a new user invite. After successful changing
+// of authentications a new web session is created. Users may also receive new recovery codes if the
+// user meets the requirement to receive recovery codes. If a user previously had recovery codes,
+// the previous codes become invalid as it is replaced with newly generated ones.
+type ChangeUserAuthenticationRequest struct {
+	// TokenID is the ID of a reset or invite token.
+	// The token allows the user to change their credentials without being logged
+	// in.
+	TokenID string `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"token_id"`
+	// NewPassword is the new password in plain text.
+	NewPassword []byte `protobuf:"bytes,2,opt,name=NewPassword,proto3" json:"new_password"`
+	// NewMFARegisterResponse is a MFA response to a MFA authentication challenge.
+	// This field can be empty which implies that user chose not to add a new device (allowable when
+	// cluster settings enable optional second factor), or cluster settings disabled second factor.
+	NewMFARegisterResponse *MFARegisterResponse `protobuf:"bytes,3,opt,name=NewMFARegisterResponse,proto3" json:"new_mfa_register_response,omitempty"`
+	XXX_NoUnkeyedLiteral   struct{}             `json:"-"`
+	XXX_unrecognized       []byte               `json:"-"`
+	XXX_sizecache          int32                `json:"-"`
+}
+
+func (m *ChangeUserAuthenticationRequest) Reset()         { *m = ChangeUserAuthenticationRequest{} }
+func (m *ChangeUserAuthenticationRequest) String() string { return proto.CompactTextString(m) }
+func (*ChangeUserAuthenticationRequest) ProtoMessage()    {}
+func (*ChangeUserAuthenticationRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{121}
+}
+func (m *ChangeUserAuthenticationRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ChangeUserAuthenticationRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ChangeUserAuthenticationRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ChangeUserAuthenticationRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ChangeUserAuthenticationRequest.Merge(m, src)
+}
+func (m *ChangeUserAuthenticationRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *ChangeUserAuthenticationRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ChangeUserAuthenticationRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ChangeUserAuthenticationRequest proto.InternalMessageInfo
+
+func (m *ChangeUserAuthenticationRequest) GetTokenID() string {
+	if m != nil {
+		return m.TokenID
+	}
+	return ""
+}
+
+func (m *ChangeUserAuthenticationRequest) GetNewPassword() []byte {
+	if m != nil {
+		return m.NewPassword
+	}
+	return nil
+}
+
+func (m *ChangeUserAuthenticationRequest) GetNewMFARegisterResponse() *MFARegisterResponse {
+	if m != nil {
+		return m.NewMFARegisterResponse
+	}
+	return nil
+}
+
+// ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
+type ChangeUserAuthenticationResponse struct {
+	// WebSession is a user's web sesssion created from successful changing of password.
+	WebSession *types.WebSessionV2 `protobuf:"bytes,1,opt,name=WebSession,proto3" json:"web_session"`
+	// Recovery holds user's new recovery related fields. Previous recovery codes become invalid.
+	// This field can be empty if a user does not meet the following
+	// requirements to receive recovery codes:
+	//  - cloud feature is enabled
+	//  - username is in valid email format
+	Recovery             *RecoveryCodes `protobuf:"bytes,2,opt,name=Recovery,proto3" json:"recovery,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
+}
+
+func (m *ChangeUserAuthenticationResponse) Reset()         { *m = ChangeUserAuthenticationResponse{} }
+func (m *ChangeUserAuthenticationResponse) String() string { return proto.CompactTextString(m) }
+func (*ChangeUserAuthenticationResponse) ProtoMessage()    {}
+func (*ChangeUserAuthenticationResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{122}
+}
+func (m *ChangeUserAuthenticationResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ChangeUserAuthenticationResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ChangeUserAuthenticationResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ChangeUserAuthenticationResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ChangeUserAuthenticationResponse.Merge(m, src)
+}
+func (m *ChangeUserAuthenticationResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *ChangeUserAuthenticationResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ChangeUserAuthenticationResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ChangeUserAuthenticationResponse proto.InternalMessageInfo
+
+func (m *ChangeUserAuthenticationResponse) GetWebSession() *types.WebSessionV2 {
+	if m != nil {
+		return m.WebSession
+	}
+	return nil
+}
+
+func (m *ChangeUserAuthenticationResponse) GetRecovery() *RecoveryCodes {
+	if m != nil {
+		return m.Recovery
+	}
+	return nil
+}
+
+// StartAccountRecoveryRequest defines a request to create a recovery start token for a user who is
+// allowed to recover their account. The tokens ID is used as part of a URL that will be emailed to
+// the user (not done in this request). Represents step 1 of the account recovery process, next step
+// is RPC VerifyAccountRecovery.
+type StartAccountRecoveryRequest struct {
+	// Username is the requesting user. The username must meet the following requirements to be
+	// allowed to recover their account:
+	//  - cloud feature is enabled
+	//  - username is in valid email format
+	Username string `protobuf:"bytes,1,opt,name=Username,proto3" json:"username"`
+	// RecoveryCode is one of the user's recovery code in plain text.
+	RecoveryCode []byte `protobuf:"bytes,2,opt,name=RecoveryCode,proto3" json:"recovery_code"`
+	// RecoverType defines what type of authentication user needs to recover.
+	RecoverType          types.UserTokenUsage `protobuf:"varint,3,opt,name=RecoverType,proto3,enum=types.UserTokenUsage" json:"recover_type"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *StartAccountRecoveryRequest) Reset()         { *m = StartAccountRecoveryRequest{} }
+func (m *StartAccountRecoveryRequest) String() string { return proto.CompactTextString(m) }
+func (*StartAccountRecoveryRequest) ProtoMessage()    {}
+func (*StartAccountRecoveryRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{123}
+}
+func (m *StartAccountRecoveryRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *StartAccountRecoveryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_StartAccountRecoveryRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *StartAccountRecoveryRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StartAccountRecoveryRequest.Merge(m, src)
+}
+func (m *StartAccountRecoveryRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *StartAccountRecoveryRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_StartAccountRecoveryRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StartAccountRecoveryRequest proto.InternalMessageInfo
+
+func (m *StartAccountRecoveryRequest) GetUsername() string {
+	if m != nil {
+		return m.Username
+	}
+	return ""
+}
+
+func (m *StartAccountRecoveryRequest) GetRecoveryCode() []byte {
+	if m != nil {
+		return m.RecoveryCode
+	}
+	return nil
+}
+
+func (m *StartAccountRecoveryRequest) GetRecoverType() types.UserTokenUsage {
+	if m != nil {
+		return m.RecoverType
+	}
+	return types.UserTokenUsage_USER_TOKEN_USAGE_UNSPECIFIED
+}
+
+// VerifyAccountRecoveryRequest is a request to create a recovery approved token that allows users
+// to perform protected actions while not logged in. Represents step 2 of the account recovery
+// process after RPC StartAccountRecovery, next step is RPC CompleteAccountRecovery.
+type VerifyAccountRecoveryRequest struct {
+	// RecoveryStartTokenID is the ID of a recovery start token that's required to verify this
+	// request.
+	RecoveryStartTokenID string `protobuf:"bytes,1,opt,name=RecoveryStartTokenID,proto3" json:"recovery_start_token_id"`
+	// Username is the name of the user that the token belongs to, used to verify that this name
+	// is the same as defined in token for use with emails.
+	Username string `protobuf:"bytes,2,opt,name=Username,proto3" json:"username"`
+	// AuthnCred is the authentication cred that needs to be verified.
+	//
+	// Types that are valid to be assigned to AuthnCred:
+	//	*VerifyAccountRecoveryRequest_Password
+	//	*VerifyAccountRecoveryRequest_MFAAuthenticateResponse
+	AuthnCred            isVerifyAccountRecoveryRequest_AuthnCred `protobuf_oneof:"AuthnCred"`
+	XXX_NoUnkeyedLiteral struct{}                                 `json:"-"`
+	XXX_unrecognized     []byte                                   `json:"-"`
+	XXX_sizecache        int32                                    `json:"-"`
+}
+
+func (m *VerifyAccountRecoveryRequest) Reset()         { *m = VerifyAccountRecoveryRequest{} }
+func (m *VerifyAccountRecoveryRequest) String() string { return proto.CompactTextString(m) }
+func (*VerifyAccountRecoveryRequest) ProtoMessage()    {}
+func (*VerifyAccountRecoveryRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{124}
+}
+func (m *VerifyAccountRecoveryRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *VerifyAccountRecoveryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_VerifyAccountRecoveryRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *VerifyAccountRecoveryRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_VerifyAccountRecoveryRequest.Merge(m, src)
+}
+func (m *VerifyAccountRecoveryRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *VerifyAccountRecoveryRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_VerifyAccountRecoveryRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_VerifyAccountRecoveryRequest proto.InternalMessageInfo
+
+type isVerifyAccountRecoveryRequest_AuthnCred interface {
+	isVerifyAccountRecoveryRequest_AuthnCred()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type VerifyAccountRecoveryRequest_Password struct {
+	Password []byte `protobuf:"bytes,3,opt,name=Password,proto3,oneof" json:"password,omitempty"`
+}
+type VerifyAccountRecoveryRequest_MFAAuthenticateResponse struct {
+	MFAAuthenticateResponse *MFAAuthenticateResponse `protobuf:"bytes,4,opt,name=MFAAuthenticateResponse,proto3,oneof" json:"mfa_authenticate_response,omitempty"`
+}
+
+func (*VerifyAccountRecoveryRequest_Password) isVerifyAccountRecoveryRequest_AuthnCred() {}
+func (*VerifyAccountRecoveryRequest_MFAAuthenticateResponse) isVerifyAccountRecoveryRequest_AuthnCred() {
+}
+
+func (m *VerifyAccountRecoveryRequest) GetAuthnCred() isVerifyAccountRecoveryRequest_AuthnCred {
+	if m != nil {
+		return m.AuthnCred
+	}
+	return nil
+}
+
+func (m *VerifyAccountRecoveryRequest) GetRecoveryStartTokenID() string {
+	if m != nil {
+		return m.RecoveryStartTokenID
+	}
+	return ""
+}
+
+func (m *VerifyAccountRecoveryRequest) GetUsername() string {
+	if m != nil {
+		return m.Username
+	}
+	return ""
+}
+
+func (m *VerifyAccountRecoveryRequest) GetPassword() []byte {
+	if x, ok := m.GetAuthnCred().(*VerifyAccountRecoveryRequest_Password); ok {
+		return x.Password
+	}
+	return nil
+}
+
+func (m *VerifyAccountRecoveryRequest) GetMFAAuthenticateResponse() *MFAAuthenticateResponse {
+	if x, ok := m.GetAuthnCred().(*VerifyAccountRecoveryRequest_MFAAuthenticateResponse); ok {
+		return x.MFAAuthenticateResponse
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*VerifyAccountRecoveryRequest) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*VerifyAccountRecoveryRequest_Password)(nil),
+		(*VerifyAccountRecoveryRequest_MFAAuthenticateResponse)(nil),
+	}
+}
+
+// CompleteAccountRecoveryRequest is a request to set either a new password or
+// add a new mfa device, allowing the user to regain access to their account with the new
+// credentials. Represents the last step in the account recovery process after RPC's
+// StartAccountRecovery and VerifyAccountRecovery.
+type CompleteAccountRecoveryRequest struct {
+	// RecoveryApprovedTokenID is the ID of a recovery approved token that's required to verify this
+	// request.
+	RecoveryApprovedTokenID string `protobuf:"bytes,1,opt,name=RecoveryApprovedTokenID,proto3" json:"recovery_approved_token_id"`
+	// NewDeviceName is the name of a new mfa device.
+	// Optional if NewPassword is used.
+	NewDeviceName string `protobuf:"bytes,2,opt,name=NewDeviceName,proto3" json:"new_device_name,omitempty"`
+	// NewAuthnCred contains the new authentication credential.
+	//
+	// Types that are valid to be assigned to NewAuthnCred:
+	//	*CompleteAccountRecoveryRequest_NewPassword
+	//	*CompleteAccountRecoveryRequest_NewMFAResponse
+	NewAuthnCred         isCompleteAccountRecoveryRequest_NewAuthnCred `protobuf_oneof:"NewAuthnCred"`
+	XXX_NoUnkeyedLiteral struct{}                                      `json:"-"`
+	XXX_unrecognized     []byte                                        `json:"-"`
+	XXX_sizecache        int32                                         `json:"-"`
+}
+
+func (m *CompleteAccountRecoveryRequest) Reset()         { *m = CompleteAccountRecoveryRequest{} }
+func (m *CompleteAccountRecoveryRequest) String() string { return proto.CompactTextString(m) }
+func (*CompleteAccountRecoveryRequest) ProtoMessage()    {}
+func (*CompleteAccountRecoveryRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{125}
+}
+func (m *CompleteAccountRecoveryRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CompleteAccountRecoveryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CompleteAccountRecoveryRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CompleteAccountRecoveryRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CompleteAccountRecoveryRequest.Merge(m, src)
+}
+func (m *CompleteAccountRecoveryRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *CompleteAccountRecoveryRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CompleteAccountRecoveryRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CompleteAccountRecoveryRequest proto.InternalMessageInfo
+
+type isCompleteAccountRecoveryRequest_NewAuthnCred interface {
+	isCompleteAccountRecoveryRequest_NewAuthnCred()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type CompleteAccountRecoveryRequest_NewPassword struct {
+	NewPassword []byte `protobuf:"bytes,3,opt,name=NewPassword,proto3,oneof" json:"new_password,omitempty"`
+}
+type CompleteAccountRecoveryRequest_NewMFAResponse struct {
+	NewMFAResponse *MFARegisterResponse `protobuf:"bytes,4,opt,name=NewMFAResponse,proto3,oneof" json:"new_mfa_response,omitempty"`
+}
+
+func (*CompleteAccountRecoveryRequest_NewPassword) isCompleteAccountRecoveryRequest_NewAuthnCred() {}
+func (*CompleteAccountRecoveryRequest_NewMFAResponse) isCompleteAccountRecoveryRequest_NewAuthnCred() {
+}
+
+func (m *CompleteAccountRecoveryRequest) GetNewAuthnCred() isCompleteAccountRecoveryRequest_NewAuthnCred {
+	if m != nil {
+		return m.NewAuthnCred
+	}
+	return nil
+}
+
+func (m *CompleteAccountRecoveryRequest) GetRecoveryApprovedTokenID() string {
+	if m != nil {
+		return m.RecoveryApprovedTokenID
+	}
+	return ""
+}
+
+func (m *CompleteAccountRecoveryRequest) GetNewDeviceName() string {
+	if m != nil {
+		return m.NewDeviceName
+	}
+	return ""
+}
+
+func (m *CompleteAccountRecoveryRequest) GetNewPassword() []byte {
+	if x, ok := m.GetNewAuthnCred().(*CompleteAccountRecoveryRequest_NewPassword); ok {
+		return x.NewPassword
+	}
+	return nil
+}
+
+func (m *CompleteAccountRecoveryRequest) GetNewMFAResponse() *MFARegisterResponse {
+	if x, ok := m.GetNewAuthnCred().(*CompleteAccountRecoveryRequest_NewMFAResponse); ok {
+		return x.NewMFAResponse
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*CompleteAccountRecoveryRequest) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*CompleteAccountRecoveryRequest_NewPassword)(nil),
+		(*CompleteAccountRecoveryRequest_NewMFAResponse)(nil),
+	}
+}
+
+// RecoveryCodes describes account recovery fields. Used as a RPC
+// response or as part of a RPC response that requires any of these fields.
+type RecoveryCodes struct {
+	// Codes holds the list of recovery phrase words.
+	// Field is only used when new recovery codes are generated and returned to user.
+	Codes []string `protobuf:"bytes,1,rep,name=Codes,proto3" json:"codes,omitempty"`
+	// Created is the date the recovery codes were created.
+	Created              time.Time `protobuf:"bytes,2,opt,name=Created,proto3,stdtime" json:"created"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *RecoveryCodes) Reset()         { *m = RecoveryCodes{} }
+func (m *RecoveryCodes) String() string { return proto.CompactTextString(m) }
+func (*RecoveryCodes) ProtoMessage()    {}
+func (*RecoveryCodes) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{126}
+}
+func (m *RecoveryCodes) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RecoveryCodes) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RecoveryCodes.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RecoveryCodes) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RecoveryCodes.Merge(m, src)
+}
+func (m *RecoveryCodes) XXX_Size() int {
+	return m.Size()
+}
+func (m *RecoveryCodes) XXX_DiscardUnknown() {
+	xxx_messageInfo_RecoveryCodes.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RecoveryCodes proto.InternalMessageInfo
+
+func (m *RecoveryCodes) GetCodes() []string {
+	if m != nil {
+		return m.Codes
+	}
+	return nil
+}
+
+func (m *RecoveryCodes) GetCreated() time.Time {
+	if m != nil {
+		return m.Created
+	}
+	return time.Time{}
+}
+
+// CreateAccountRecoveryCodesRequest is a request to create new set of recovery codes for a user,
+// replacing and invalidating any previously existing codes. Recovery codes can only be given to
+// users who meet the following requirements:
+//  - cloud feature is enabled
+//  - username is in valid email format
+type CreateAccountRecoveryCodesRequest struct {
+	// TokenID is the ID of a user token that will be used to verify this request.
+	// Token types accepted are:
+	//   - Recovery approved token that is obtained with RPC VerifyAccountRecovery
+	//   - Privilege token that is obtained with RPC CreatePrivilegeToken
+	TokenID              string   `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"token_id"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateAccountRecoveryCodesRequest) Reset()         { *m = CreateAccountRecoveryCodesRequest{} }
+func (m *CreateAccountRecoveryCodesRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateAccountRecoveryCodesRequest) ProtoMessage()    {}
+func (*CreateAccountRecoveryCodesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{127}
+}
+func (m *CreateAccountRecoveryCodesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateAccountRecoveryCodesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateAccountRecoveryCodesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreateAccountRecoveryCodesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateAccountRecoveryCodesRequest.Merge(m, src)
+}
+func (m *CreateAccountRecoveryCodesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateAccountRecoveryCodesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateAccountRecoveryCodesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateAccountRecoveryCodesRequest proto.InternalMessageInfo
+
+func (m *CreateAccountRecoveryCodesRequest) GetTokenID() string {
+	if m != nil {
+		return m.TokenID
+	}
+	return ""
+}
+
+// GetAccountRecoveryTokenRequest is a request to return a user token resource after verifying that
+// the token in the request is not expired and is of the recovery kind.
+type GetAccountRecoveryTokenRequest struct {
+	// RecoveryTokenID is the ID of a recovery token to verify.
+	// Recovery tokens are obtained with RPC StartAccountRecovery or VerifyAccountRecovery.
+	RecoveryTokenID      string   `protobuf:"bytes,1,opt,name=RecoveryTokenID,proto3" json:"recovery_token_id"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetAccountRecoveryTokenRequest) Reset()         { *m = GetAccountRecoveryTokenRequest{} }
+func (m *GetAccountRecoveryTokenRequest) String() string { return proto.CompactTextString(m) }
+func (*GetAccountRecoveryTokenRequest) ProtoMessage()    {}
+func (*GetAccountRecoveryTokenRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{128}
+}
+func (m *GetAccountRecoveryTokenRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetAccountRecoveryTokenRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetAccountRecoveryTokenRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetAccountRecoveryTokenRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetAccountRecoveryTokenRequest.Merge(m, src)
+}
+func (m *GetAccountRecoveryTokenRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetAccountRecoveryTokenRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetAccountRecoveryTokenRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetAccountRecoveryTokenRequest proto.InternalMessageInfo
+
+func (m *GetAccountRecoveryTokenRequest) GetRecoveryTokenID() string {
+	if m != nil {
+		return m.RecoveryTokenID
+	}
+	return ""
+}
+
+// GetAccountRecoveryCodesRequest is a request to return the user in context their
+// recovery codes. This request will not return any secrets (the values of recovery codes).
+type GetAccountRecoveryCodesRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetAccountRecoveryCodesRequest) Reset()         { *m = GetAccountRecoveryCodesRequest{} }
+func (m *GetAccountRecoveryCodesRequest) String() string { return proto.CompactTextString(m) }
+func (*GetAccountRecoveryCodesRequest) ProtoMessage()    {}
+func (*GetAccountRecoveryCodesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{129}
+}
+func (m *GetAccountRecoveryCodesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetAccountRecoveryCodesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetAccountRecoveryCodesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetAccountRecoveryCodesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetAccountRecoveryCodesRequest.Merge(m, src)
+}
+func (m *GetAccountRecoveryCodesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetAccountRecoveryCodesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetAccountRecoveryCodesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetAccountRecoveryCodesRequest proto.InternalMessageInfo
+
+// UserCredentials describes fields for a user's username and password.
+type UserCredentials struct {
+	Username             string   `protobuf:"bytes,1,opt,name=Username,proto3" json:"username"`
+	Password             []byte   `protobuf:"bytes,2,opt,name=Password,proto3" json:"password"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UserCredentials) Reset()         { *m = UserCredentials{} }
+func (m *UserCredentials) String() string { return proto.CompactTextString(m) }
+func (*UserCredentials) ProtoMessage()    {}
+func (*UserCredentials) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{130}
+}
+func (m *UserCredentials) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UserCredentials) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UserCredentials.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UserCredentials) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UserCredentials.Merge(m, src)
+}
+func (m *UserCredentials) XXX_Size() int {
+	return m.Size()
+}
+func (m *UserCredentials) XXX_DiscardUnknown() {
+	xxx_messageInfo_UserCredentials.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UserCredentials proto.InternalMessageInfo
+
+func (m *UserCredentials) GetUsername() string {
+	if m != nil {
+		return m.Username
+	}
+	return ""
+}
+
+func (m *UserCredentials) GetPassword() []byte {
+	if m != nil {
+		return m.Password
+	}
+	return nil
+}
+
+// ContextUser marks requests that rely in the currently authenticated user.
+type ContextUser struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ContextUser) Reset()         { *m = ContextUser{} }
+func (m *ContextUser) String() string { return proto.CompactTextString(m) }
+func (*ContextUser) ProtoMessage()    {}
+func (*ContextUser) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{131}
+}
+func (m *ContextUser) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ContextUser) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ContextUser.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ContextUser) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ContextUser.Merge(m, src)
+}
+func (m *ContextUser) XXX_Size() int {
+	return m.Size()
+}
+func (m *ContextUser) XXX_DiscardUnknown() {
+	xxx_messageInfo_ContextUser.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ContextUser proto.InternalMessageInfo
+
+// Passwordless marks requests for passwordless challenges.
+type Passwordless struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Passwordless) Reset()         { *m = Passwordless{} }
+func (m *Passwordless) String() string { return proto.CompactTextString(m) }
+func (*Passwordless) ProtoMessage()    {}
+func (*Passwordless) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{132}
+}
+func (m *Passwordless) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Passwordless) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Passwordless.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Passwordless) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Passwordless.Merge(m, src)
+}
+func (m *Passwordless) XXX_Size() int {
+	return m.Size()
+}
+func (m *Passwordless) XXX_DiscardUnknown() {
+	xxx_messageInfo_Passwordless.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Passwordless proto.InternalMessageInfo
+
+// CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
+// users mfa devices.
+type CreateAuthenticateChallengeRequest struct {
+	// Request defines how the request will be verified before creating challenges.
+	// An empty Request is equivalent to context_user being set.
+	//
+	// Types that are valid to be assigned to Request:
+	//	*CreateAuthenticateChallengeRequest_UserCredentials
+	//	*CreateAuthenticateChallengeRequest_RecoveryStartTokenID
+	//	*CreateAuthenticateChallengeRequest_ContextUser
+	//	*CreateAuthenticateChallengeRequest_Passwordless
+	Request              isCreateAuthenticateChallengeRequest_Request `protobuf_oneof:"Request"`
+	XXX_NoUnkeyedLiteral struct{}                                     `json:"-"`
+	XXX_unrecognized     []byte                                       `json:"-"`
+	XXX_sizecache        int32                                        `json:"-"`
+}
+
+func (m *CreateAuthenticateChallengeRequest) Reset()         { *m = CreateAuthenticateChallengeRequest{} }
+func (m *CreateAuthenticateChallengeRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateAuthenticateChallengeRequest) ProtoMessage()    {}
+func (*CreateAuthenticateChallengeRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{133}
+}
+func (m *CreateAuthenticateChallengeRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateAuthenticateChallengeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateAuthenticateChallengeRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreateAuthenticateChallengeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateAuthenticateChallengeRequest.Merge(m, src)
+}
+func (m *CreateAuthenticateChallengeRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateAuthenticateChallengeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateAuthenticateChallengeRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateAuthenticateChallengeRequest proto.InternalMessageInfo
+
+type isCreateAuthenticateChallengeRequest_Request interface {
+	isCreateAuthenticateChallengeRequest_Request()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type CreateAuthenticateChallengeRequest_UserCredentials struct {
+	UserCredentials *UserCredentials `protobuf:"bytes,1,opt,name=UserCredentials,proto3,oneof" json:"user_credentials,omitempty"`
+}
+type CreateAuthenticateChallengeRequest_RecoveryStartTokenID struct {
+	RecoveryStartTokenID string `protobuf:"bytes,2,opt,name=RecoveryStartTokenID,proto3,oneof" json:"recovery_start_token_id,omitempty"`
+}
+type CreateAuthenticateChallengeRequest_ContextUser struct {
+	ContextUser *ContextUser `protobuf:"bytes,3,opt,name=ContextUser,proto3,oneof" json:"context_user,omitempty"`
+}
+type CreateAuthenticateChallengeRequest_Passwordless struct {
+	Passwordless *Passwordless `protobuf:"bytes,4,opt,name=Passwordless,proto3,oneof" json:"passwordless,omitempty"`
+}
+
+func (*CreateAuthenticateChallengeRequest_UserCredentials) isCreateAuthenticateChallengeRequest_Request() {
+}
+func (*CreateAuthenticateChallengeRequest_RecoveryStartTokenID) isCreateAuthenticateChallengeRequest_Request() {
+}
+func (*CreateAuthenticateChallengeRequest_ContextUser) isCreateAuthenticateChallengeRequest_Request() {
+}
+func (*CreateAuthenticateChallengeRequest_Passwordless) isCreateAuthenticateChallengeRequest_Request() {
+}
+
+func (m *CreateAuthenticateChallengeRequest) GetRequest() isCreateAuthenticateChallengeRequest_Request {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+func (m *CreateAuthenticateChallengeRequest) GetUserCredentials() *UserCredentials {
+	if x, ok := m.GetRequest().(*CreateAuthenticateChallengeRequest_UserCredentials); ok {
+		return x.UserCredentials
+	}
+	return nil
+}
+
+func (m *CreateAuthenticateChallengeRequest) GetRecoveryStartTokenID() string {
+	if x, ok := m.GetRequest().(*CreateAuthenticateChallengeRequest_RecoveryStartTokenID); ok {
+		return x.RecoveryStartTokenID
+	}
+	return ""
+}
+
+func (m *CreateAuthenticateChallengeRequest) GetContextUser() *ContextUser {
+	if x, ok := m.GetRequest().(*CreateAuthenticateChallengeRequest_ContextUser); ok {
+		return x.ContextUser
+	}
+	return nil
+}
+
+func (m *CreateAuthenticateChallengeRequest) GetPasswordless() *Passwordless {
+	if x, ok := m.GetRequest().(*CreateAuthenticateChallengeRequest_Passwordless); ok {
+		return x.Passwordless
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*CreateAuthenticateChallengeRequest) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*CreateAuthenticateChallengeRequest_UserCredentials)(nil),
+		(*CreateAuthenticateChallengeRequest_RecoveryStartTokenID)(nil),
+		(*CreateAuthenticateChallengeRequest_ContextUser)(nil),
+		(*CreateAuthenticateChallengeRequest_Passwordless)(nil),
+	}
+}
+
+// CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
+// Only logged in users are allowed to obtain privilege tokens after they have successfully
+// re-authenticated with their second factor.
+type CreatePrivilegeTokenRequest struct {
+	// ExistingMFAResponse is a response to a challenge from the user's existing MFA devices.
+	// This field can be empty to create a UserTokenTypePrivilegeException token that
+	// allows a user to bypass second factor re-authentication eg: allowing a user
+	// with no mfa devices to add a device without re-authenticating.
+	ExistingMFAResponse  *MFAAuthenticateResponse `protobuf:"bytes,1,opt,name=ExistingMFAResponse,proto3" json:"existing_mfa_response,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
+}
+
+func (m *CreatePrivilegeTokenRequest) Reset()         { *m = CreatePrivilegeTokenRequest{} }
+func (m *CreatePrivilegeTokenRequest) String() string { return proto.CompactTextString(m) }
+func (*CreatePrivilegeTokenRequest) ProtoMessage()    {}
+func (*CreatePrivilegeTokenRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{134}
+}
+func (m *CreatePrivilegeTokenRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreatePrivilegeTokenRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreatePrivilegeTokenRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreatePrivilegeTokenRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreatePrivilegeTokenRequest.Merge(m, src)
+}
+func (m *CreatePrivilegeTokenRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreatePrivilegeTokenRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreatePrivilegeTokenRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreatePrivilegeTokenRequest proto.InternalMessageInfo
+
+func (m *CreatePrivilegeTokenRequest) GetExistingMFAResponse() *MFAAuthenticateResponse {
+	if m != nil {
+		return m.ExistingMFAResponse
+	}
+	return nil
+}
+
+// CreateRegisterChallengeRequest is a request for creating MFA register challenge for a
+// new MFA device.
+type CreateRegisterChallengeRequest struct {
+	// TokenID is the ID of a user token that will be used to verify this request.
+	// All user token types are accepted except UserTokenTypeRecoveryStart.
+	TokenID string `protobuf:"bytes,1,opt,name=TokenID,proto3" json:"token_id"`
+	// DeviceType is the type of MFA device to make a register challenge for.
+	DeviceType DeviceType `protobuf:"varint,2,opt,name=DeviceType,proto3,enum=proto.DeviceType" json:"device_type"`
+	// DeviceUsage is the requested usage for the device.
+	// Defaults to DEVICE_USAGE_MFA.
+	DeviceUsage          DeviceUsage `protobuf:"varint,3,opt,name=DeviceUsage,proto3,enum=proto.DeviceUsage" json:"device_usage,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
+	XXX_unrecognized     []byte      `json:"-"`
+	XXX_sizecache        int32       `json:"-"`
+}
+
+func (m *CreateRegisterChallengeRequest) Reset()         { *m = CreateRegisterChallengeRequest{} }
+func (m *CreateRegisterChallengeRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateRegisterChallengeRequest) ProtoMessage()    {}
+func (*CreateRegisterChallengeRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{135}
+}
+func (m *CreateRegisterChallengeRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateRegisterChallengeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateRegisterChallengeRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreateRegisterChallengeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateRegisterChallengeRequest.Merge(m, src)
+}
+func (m *CreateRegisterChallengeRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateRegisterChallengeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateRegisterChallengeRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateRegisterChallengeRequest proto.InternalMessageInfo
+
+func (m *CreateRegisterChallengeRequest) GetTokenID() string {
+	if m != nil {
+		return m.TokenID
+	}
+	return ""
+}
+
+func (m *CreateRegisterChallengeRequest) GetDeviceType() DeviceType {
+	if m != nil {
+		return m.DeviceType
+	}
+	return DeviceType_DEVICE_TYPE_UNSPECIFIED
+}
+
+func (m *CreateRegisterChallengeRequest) GetDeviceUsage() DeviceUsage {
+	if m != nil {
+		return m.DeviceUsage
+	}
+	return DeviceUsage_DEVICE_USAGE_UNSPECIFIED
+}
+
+// PaginatedResource represents one of the supported resources.
+type PaginatedResource struct {
+	// Resource is the resource itself.
+	//
+	// Types that are valid to be assigned to Resource:
+	//	*PaginatedResource_DatabaseServer
+	//	*PaginatedResource_AppServer
+	//	*PaginatedResource_Node
+	//	*PaginatedResource_KubeService
+	//	*PaginatedResource_WindowsDesktop
+	//	*PaginatedResource_KubeCluster
+	Resource             isPaginatedResource_Resource `protobuf_oneof:"resource"`
+	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
+	XXX_unrecognized     []byte                       `json:"-"`
+	XXX_sizecache        int32                        `json:"-"`
+}
+
+func (m *PaginatedResource) Reset()         { *m = PaginatedResource{} }
+func (m *PaginatedResource) String() string { return proto.CompactTextString(m) }
+func (*PaginatedResource) ProtoMessage()    {}
+func (*PaginatedResource) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{136}
+}
+func (m *PaginatedResource) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PaginatedResource) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PaginatedResource.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PaginatedResource) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PaginatedResource.Merge(m, src)
+}
+func (m *PaginatedResource) XXX_Size() int {
+	return m.Size()
+}
+func (m *PaginatedResource) XXX_DiscardUnknown() {
+	xxx_messageInfo_PaginatedResource.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PaginatedResource proto.InternalMessageInfo
+
+type isPaginatedResource_Resource interface {
+	isPaginatedResource_Resource()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type PaginatedResource_DatabaseServer struct {
+	DatabaseServer *types.DatabaseServerV3 `protobuf:"bytes,1,opt,name=DatabaseServer,proto3,oneof" json:"DatabaseServer,omitempty"`
+}
+type PaginatedResource_AppServer struct {
+	AppServer *types.AppServerV3 `protobuf:"bytes,2,opt,name=AppServer,proto3,oneof" json:"AppServer,omitempty"`
+}
+type PaginatedResource_Node struct {
+	Node *types.ServerV2 `protobuf:"bytes,3,opt,name=Node,proto3,oneof" json:"node,omitempty"`
+}
+type PaginatedResource_KubeService struct {
+	KubeService *types.ServerV2 `protobuf:"bytes,4,opt,name=KubeService,proto3,oneof" json:"kube_service,omitempty"`
+}
+type PaginatedResource_WindowsDesktop struct {
+	WindowsDesktop *types.WindowsDesktopV3 `protobuf:"bytes,5,opt,name=WindowsDesktop,proto3,oneof" json:"windows_desktop,omitempty"`
+}
+type PaginatedResource_KubeCluster struct {
+	KubeCluster *types.KubernetesClusterV3 `protobuf:"bytes,6,opt,name=KubeCluster,proto3,oneof" json:"kube_cluster,omitempty"`
+}
+
+func (*PaginatedResource_DatabaseServer) isPaginatedResource_Resource() {}
+func (*PaginatedResource_AppServer) isPaginatedResource_Resource()      {}
+func (*PaginatedResource_Node) isPaginatedResource_Resource()           {}
+func (*PaginatedResource_KubeService) isPaginatedResource_Resource()    {}
+func (*PaginatedResource_WindowsDesktop) isPaginatedResource_Resource() {}
+func (*PaginatedResource_KubeCluster) isPaginatedResource_Resource()    {}
+
+func (m *PaginatedResource) GetResource() isPaginatedResource_Resource {
+	if m != nil {
+		return m.Resource
+	}
+	return nil
+}
+
+func (m *PaginatedResource) GetDatabaseServer() *types.DatabaseServerV3 {
+	if x, ok := m.GetResource().(*PaginatedResource_DatabaseServer); ok {
+		return x.DatabaseServer
+	}
+	return nil
+}
+
+func (m *PaginatedResource) GetAppServer() *types.AppServerV3 {
+	if x, ok := m.GetResource().(*PaginatedResource_AppServer); ok {
+		return x.AppServer
+	}
+	return nil
+}
+
+func (m *PaginatedResource) GetNode() *types.ServerV2 {
+	if x, ok := m.GetResource().(*PaginatedResource_Node); ok {
+		return x.Node
+	}
+	return nil
+}
+
+func (m *PaginatedResource) GetKubeService() *types.ServerV2 {
+	if x, ok := m.GetResource().(*PaginatedResource_KubeService); ok {
+		return x.KubeService
+	}
+	return nil
+}
+
+func (m *PaginatedResource) GetWindowsDesktop() *types.WindowsDesktopV3 {
+	if x, ok := m.GetResource().(*PaginatedResource_WindowsDesktop); ok {
+		return x.WindowsDesktop
+	}
+	return nil
+}
+
+func (m *PaginatedResource) GetKubeCluster() *types.KubernetesClusterV3 {
+	if x, ok := m.GetResource().(*PaginatedResource_KubeCluster); ok {
+		return x.KubeCluster
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*PaginatedResource) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*PaginatedResource_DatabaseServer)(nil),
+		(*PaginatedResource_AppServer)(nil),
+		(*PaginatedResource_Node)(nil),
+		(*PaginatedResource_KubeService)(nil),
+		(*PaginatedResource_WindowsDesktop)(nil),
+		(*PaginatedResource_KubeCluster)(nil),
+	}
+}
+
+// ListResourcesRequest defines a request to retrieve resources paginated. Only
+// one type of resource can be retrieved per request.
+type ListResourcesRequest struct {
+	// ResourceType is the resource that is going to be retrieved.
+	ResourceType string `protobuf:"bytes,1,opt,name=ResourceType,proto3" json:"resource_type,omitempty"`
+	// Namespace is the namespace of resources.
+	Namespace string `protobuf:"bytes,2,opt,name=Namespace,proto3" json:"namespace,omitempty"`
+	// Limit is the maximum amount of resources to retrieve.
+	Limit int32 `protobuf:"varint,3,opt,name=Limit,proto3" json:"limit,omitempty"`
+	// StartKey is used to start listing resources from a specific spot. It
+	// should be set to the previous NextKey value if using pagination, or
+	// left empty.
+	StartKey string `protobuf:"bytes,4,opt,name=StartKey,proto3" json:"start_key,omitempty"`
+	// Labels is a label-based matcher if non-empty.
+	Labels map[string]string `protobuf:"bytes,5,rep,name=Labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// PredicateExpression defines boolean conditions that will be matched against the resource.
+	PredicateExpression string `protobuf:"bytes,6,opt,name=PredicateExpression,proto3" json:"predicate_expression,omitempty"`
+	// SearchKeywords is a list of search keywords to match against resource field values.
+	SearchKeywords []string `protobuf:"bytes,7,rep,name=SearchKeywords,proto3" json:"search_keywords,omitempty"`
+	// SortBy describes which resource field and which direction to sort by.
+	SortBy types.SortBy `protobuf:"bytes,8,opt,name=SortBy,proto3" json:"sort_by,omitempty"`
+	// NeedTotalCount indicates whether or not the caller also wants the total number of resources
+	// after filtering.
+	NeedTotalCount bool `protobuf:"varint,9,opt,name=NeedTotalCount,proto3" json:"need_total_count,omitempty"`
+	// WindowsDesktopFilter specifies windows desktop specific filters.
+	WindowsDesktopFilter types.WindowsDesktopFilter `protobuf:"bytes,10,opt,name=WindowsDesktopFilter,proto3" json:"windows_desktop_filter,omitempty"`
+	// UseSearchAsRoles indicates that the response should include all resources
+	// the caller is able to request access to using search_as_roles
+	UseSearchAsRoles     bool     `protobuf:"varint,11,opt,name=UseSearchAsRoles,proto3" json:"use_search_as_roles,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListResourcesRequest) Reset()         { *m = ListResourcesRequest{} }
+func (m *ListResourcesRequest) String() string { return proto.CompactTextString(m) }
+func (*ListResourcesRequest) ProtoMessage()    {}
+func (*ListResourcesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{137}
+}
+func (m *ListResourcesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ListResourcesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ListResourcesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ListResourcesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListResourcesRequest.Merge(m, src)
+}
+func (m *ListResourcesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *ListResourcesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListResourcesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListResourcesRequest proto.InternalMessageInfo
+
+func (m *ListResourcesRequest) GetResourceType() string {
+	if m != nil {
+		return m.ResourceType
+	}
+	return ""
+}
+
+func (m *ListResourcesRequest) GetNamespace() string {
+	if m != nil {
+		return m.Namespace
+	}
+	return ""
+}
+
+func (m *ListResourcesRequest) GetLimit() int32 {
+	if m != nil {
+		return m.Limit
+	}
+	return 0
+}
+
+func (m *ListResourcesRequest) GetStartKey() string {
+	if m != nil {
+		return m.StartKey
+	}
+	return ""
+}
+
+func (m *ListResourcesRequest) GetLabels() map[string]string {
+	if m != nil {
+		return m.Labels
+	}
+	return nil
+}
+
+func (m *ListResourcesRequest) GetPredicateExpression() string {
+	if m != nil {
+		return m.PredicateExpression
+	}
+	return ""
+}
+
+func (m *ListResourcesRequest) GetSearchKeywords() []string {
+	if m != nil {
+		return m.SearchKeywords
+	}
+	return nil
+}
+
+func (m *ListResourcesRequest) GetSortBy() types.SortBy {
+	if m != nil {
+		return m.SortBy
+	}
+	return types.SortBy{}
+}
+
+func (m *ListResourcesRequest) GetNeedTotalCount() bool {
+	if m != nil {
+		return m.NeedTotalCount
+	}
+	return false
+}
+
+func (m *ListResourcesRequest) GetWindowsDesktopFilter() types.WindowsDesktopFilter {
+	if m != nil {
+		return m.WindowsDesktopFilter
+	}
+	return types.WindowsDesktopFilter{}
+}
+
+func (m *ListResourcesRequest) GetUseSearchAsRoles() bool {
+	if m != nil {
+		return m.UseSearchAsRoles
+	}
+	return false
+}
+
+// ListResourceResponse response of ListResources.
+type ListResourcesResponse struct {
+	// Resources is a list of resource.
+	Resources []*PaginatedResource `protobuf:"bytes,1,rep,name=Resources,proto3" json:"resources,omitempty"`
+	// NextKey is the next Key to use as StartKey in a ListResourcesRequest to
+	// continue retrieving pages of resource. If NextKey is empty, there are no
+	// more pages.
+	NextKey string `protobuf:"bytes,2,opt,name=NextKey,proto3" json:"next_key,omitempty"`
+	// TotalCount is the total number of resources available after filter, if any.
+	TotalCount           int32    `protobuf:"varint,3,opt,name=TotalCount,proto3" json:"total_count,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListResourcesResponse) Reset()         { *m = ListResourcesResponse{} }
+func (m *ListResourcesResponse) String() string { return proto.CompactTextString(m) }
+func (*ListResourcesResponse) ProtoMessage()    {}
+func (*ListResourcesResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{138}
+}
+func (m *ListResourcesResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ListResourcesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ListResourcesResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ListResourcesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListResourcesResponse.Merge(m, src)
+}
+func (m *ListResourcesResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *ListResourcesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListResourcesResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListResourcesResponse proto.InternalMessageInfo
+
+func (m *ListResourcesResponse) GetResources() []*PaginatedResource {
+	if m != nil {
+		return m.Resources
+	}
+	return nil
+}
+
+func (m *ListResourcesResponse) GetNextKey() string {
+	if m != nil {
+		return m.NextKey
+	}
+	return ""
+}
+
+func (m *ListResourcesResponse) GetTotalCount() int32 {
+	if m != nil {
+		return m.TotalCount
+	}
+	return 0
+}
+
+// CreateSessionTrackerRequest is a request to create a new session.
+//
+// This is not specific to any session type. Relevant fields should be set for a given session type.
+type CreateSessionTrackerRequest struct {
+	// Namespace is a session namespace, separating sessions from each other.
+	Namespace string `protobuf:"bytes,1,opt,name=Namespace,proto3" json:"namespace,omitempty"`
+	// Type describes what type of session this is.
+	Type string `protobuf:"bytes,2,opt,name=Type,proto3" json:"type,omitempty"`
+	// Reason is an arbitrary string that may be used to describe the session and/or it's
+	// purpose.
+	Reason string `protobuf:"bytes,3,opt,name=Reason,proto3" json:"reason,omitempty"`
+	// Invited is a list of invited users, this field is interpreted by different
+	// clients on a best-effort basis and used for delivering notifications to invited users.
+	Invited []string `protobuf:"bytes,4,rep,name=Invited,proto3" json:"invited,omitempty"`
+	// Hostname is the address of the target this session is connected to.
+	Hostname string `protobuf:"bytes,5,opt,name=Hostname,proto3" json:"target_hostname,omitempty"`
+	// Address is the address of the target this session is connected to.
+	Address string `protobuf:"bytes,6,opt,name=Address,proto3" json:"target_address,omitempty"`
+	// ClusterName is the name of cluster that this session belongs to.
+	ClusterName string `protobuf:"bytes,7,opt,name=ClusterName,proto3" json:"cluster_name,omitempty"`
+	// Login is the local login/user on the target used by the session.
+	Login string `protobuf:"bytes,8,opt,name=Login,proto3" json:"login,omitempty"`
+	// Initiator is the participant that initiated the session.
+	Initiator *types.Participant `protobuf:"bytes,9,opt,name=Initiator,proto3" json:"initiator,omitempty"`
+	// Expires encodes the time at which this session expires and becomes invalid.
+	Expires time.Time `protobuf:"bytes,10,opt,name=Expires,proto3,stdtime" json:"expires,omitempty"`
+	// The Kubernetes cluster this session belongs to.
+	KubernetesCluster string `protobuf:"bytes,11,opt,name=KubernetesCluster,proto3" json:"kubernetes_cluster,omitempty"`
+	// HostUser is the user regarded as the owner of this session, RBAC checks are performed
+	// against the require policies of this user.
+	HostUser string `protobuf:"bytes,12,opt,name=HostUser,proto3" json:"host_user,omitempty"`
+	// ID is the ID of the session.
+	ID string `protobuf:"bytes,13,opt,name=ID,proto3" json:"id,omitempty"`
+	// HostPolicies is a list of RBAC policy sets held by the host user at the time of session
+	// creation.
+	HostPolicies         []*types.SessionTrackerPolicySet `protobuf:"bytes,14,rep,name=HostPolicies,proto3" json:"host_policies,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                         `json:"-"`
+	XXX_unrecognized     []byte                           `json:"-"`
+	XXX_sizecache        int32                            `json:"-"`
+}
+
+func (m *CreateSessionTrackerRequest) Reset()         { *m = CreateSessionTrackerRequest{} }
+func (m *CreateSessionTrackerRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateSessionTrackerRequest) ProtoMessage()    {}
+func (*CreateSessionTrackerRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{139}
+}
+func (m *CreateSessionTrackerRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateSessionTrackerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateSessionTrackerRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreateSessionTrackerRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateSessionTrackerRequest.Merge(m, src)
+}
+func (m *CreateSessionTrackerRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateSessionTrackerRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateSessionTrackerRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateSessionTrackerRequest proto.InternalMessageInfo
+
+func (m *CreateSessionTrackerRequest) GetNamespace() string {
+	if m != nil {
+		return m.Namespace
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetType() string {
+	if m != nil {
+		return m.Type
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetReason() string {
+	if m != nil {
+		return m.Reason
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetInvited() []string {
+	if m != nil {
+		return m.Invited
+	}
+	return nil
+}
+
+func (m *CreateSessionTrackerRequest) GetHostname() string {
+	if m != nil {
+		return m.Hostname
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetAddress() string {
+	if m != nil {
+		return m.Address
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetClusterName() string {
+	if m != nil {
+		return m.ClusterName
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetLogin() string {
+	if m != nil {
+		return m.Login
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetInitiator() *types.Participant {
+	if m != nil {
+		return m.Initiator
+	}
+	return nil
+}
+
+func (m *CreateSessionTrackerRequest) GetExpires() time.Time {
+	if m != nil {
+		return m.Expires
+	}
+	return time.Time{}
+}
+
+func (m *CreateSessionTrackerRequest) GetKubernetesCluster() string {
+	if m != nil {
+		return m.KubernetesCluster
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetHostUser() string {
+	if m != nil {
+		return m.HostUser
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetID() string {
+	if m != nil {
+		return m.ID
+	}
+	return ""
+}
+
+func (m *CreateSessionTrackerRequest) GetHostPolicies() []*types.SessionTrackerPolicySet {
+	if m != nil {
+		return m.HostPolicies
+	}
+	return nil
+}
+
+// GetSessionTrackerRequest is a request to fetch a session resource.
+type GetSessionTrackerRequest struct {
+	// SessionID is unique identifier of this session.
+	SessionID            string   `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"session_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetSessionTrackerRequest) Reset()         { *m = GetSessionTrackerRequest{} }
+func (m *GetSessionTrackerRequest) String() string { return proto.CompactTextString(m) }
+func (*GetSessionTrackerRequest) ProtoMessage()    {}
+func (*GetSessionTrackerRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{140}
+}
+func (m *GetSessionTrackerRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetSessionTrackerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetSessionTrackerRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetSessionTrackerRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetSessionTrackerRequest.Merge(m, src)
+}
+func (m *GetSessionTrackerRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetSessionTrackerRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetSessionTrackerRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetSessionTrackerRequest proto.InternalMessageInfo
+
+func (m *GetSessionTrackerRequest) GetSessionID() string {
+	if m != nil {
+		return m.SessionID
+	}
+	return ""
+}
+
+// RemoveSessionTrackerRequest is a request to remove a session.
+type RemoveSessionTrackerRequest struct {
+	// SessionID is unique identifier of this session.
+	SessionID            string   `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"session_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RemoveSessionTrackerRequest) Reset()         { *m = RemoveSessionTrackerRequest{} }
+func (m *RemoveSessionTrackerRequest) String() string { return proto.CompactTextString(m) }
+func (*RemoveSessionTrackerRequest) ProtoMessage()    {}
+func (*RemoveSessionTrackerRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{141}
+}
+func (m *RemoveSessionTrackerRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RemoveSessionTrackerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RemoveSessionTrackerRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RemoveSessionTrackerRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RemoveSessionTrackerRequest.Merge(m, src)
+}
+func (m *RemoveSessionTrackerRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *RemoveSessionTrackerRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RemoveSessionTrackerRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RemoveSessionTrackerRequest proto.InternalMessageInfo
+
+func (m *RemoveSessionTrackerRequest) GetSessionID() string {
+	if m != nil {
+		return m.SessionID
+	}
+	return ""
+}
+
+type SessionTrackerUpdateState struct {
+	// State is the new state of the session tracker.
+	State                types.SessionState `protobuf:"varint,2,opt,name=State,proto3,enum=types.SessionState" json:"state,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
+	XXX_unrecognized     []byte             `json:"-"`
+	XXX_sizecache        int32              `json:"-"`
+}
+
+func (m *SessionTrackerUpdateState) Reset()         { *m = SessionTrackerUpdateState{} }
+func (m *SessionTrackerUpdateState) String() string { return proto.CompactTextString(m) }
+func (*SessionTrackerUpdateState) ProtoMessage()    {}
+func (*SessionTrackerUpdateState) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{142}
+}
+func (m *SessionTrackerUpdateState) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SessionTrackerUpdateState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SessionTrackerUpdateState.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SessionTrackerUpdateState) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SessionTrackerUpdateState.Merge(m, src)
+}
+func (m *SessionTrackerUpdateState) XXX_Size() int {
+	return m.Size()
+}
+func (m *SessionTrackerUpdateState) XXX_DiscardUnknown() {
+	xxx_messageInfo_SessionTrackerUpdateState.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SessionTrackerUpdateState proto.InternalMessageInfo
+
+func (m *SessionTrackerUpdateState) GetState() types.SessionState {
+	if m != nil {
+		return m.State
+	}
+	return types.SessionState_SessionStatePending
+}
+
+type SessionTrackerAddParticipant struct {
+	// Participant is the participant to be added to the session.
+	Participant          *types.Participant `protobuf:"bytes,2,opt,name=Participant,proto3" json:"participant,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
+	XXX_unrecognized     []byte             `json:"-"`
+	XXX_sizecache        int32              `json:"-"`
+}
+
+func (m *SessionTrackerAddParticipant) Reset()         { *m = SessionTrackerAddParticipant{} }
+func (m *SessionTrackerAddParticipant) String() string { return proto.CompactTextString(m) }
+func (*SessionTrackerAddParticipant) ProtoMessage()    {}
+func (*SessionTrackerAddParticipant) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{143}
+}
+func (m *SessionTrackerAddParticipant) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SessionTrackerAddParticipant) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SessionTrackerAddParticipant.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SessionTrackerAddParticipant) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SessionTrackerAddParticipant.Merge(m, src)
+}
+func (m *SessionTrackerAddParticipant) XXX_Size() int {
+	return m.Size()
+}
+func (m *SessionTrackerAddParticipant) XXX_DiscardUnknown() {
+	xxx_messageInfo_SessionTrackerAddParticipant.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SessionTrackerAddParticipant proto.InternalMessageInfo
+
+func (m *SessionTrackerAddParticipant) GetParticipant() *types.Participant {
+	if m != nil {
+		return m.Participant
+	}
+	return nil
+}
+
+type SessionTrackerRemoveParticipant struct {
+	// ParticipantID is unique identifier of the participant.
+	ParticipantID        string   `protobuf:"bytes,2,opt,name=ParticipantID,proto3" json:"participant_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SessionTrackerRemoveParticipant) Reset()         { *m = SessionTrackerRemoveParticipant{} }
+func (m *SessionTrackerRemoveParticipant) String() string { return proto.CompactTextString(m) }
+func (*SessionTrackerRemoveParticipant) ProtoMessage()    {}
+func (*SessionTrackerRemoveParticipant) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{144}
+}
+func (m *SessionTrackerRemoveParticipant) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SessionTrackerRemoveParticipant) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SessionTrackerRemoveParticipant.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SessionTrackerRemoveParticipant) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SessionTrackerRemoveParticipant.Merge(m, src)
+}
+func (m *SessionTrackerRemoveParticipant) XXX_Size() int {
+	return m.Size()
+}
+func (m *SessionTrackerRemoveParticipant) XXX_DiscardUnknown() {
+	xxx_messageInfo_SessionTrackerRemoveParticipant.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SessionTrackerRemoveParticipant proto.InternalMessageInfo
+
+func (m *SessionTrackerRemoveParticipant) GetParticipantID() string {
+	if m != nil {
+		return m.ParticipantID
+	}
+	return ""
+}
+
+// SessionTrackerUpdateExpiry is used to update the session tracker expiration time.
+type SessionTrackerUpdateExpiry struct {
+	// Expires is when the session tracker will expire.
+	Expires              *time.Time `protobuf:"bytes,1,opt,name=Expires,proto3,stdtime" json:"expires"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
+}
+
+func (m *SessionTrackerUpdateExpiry) Reset()         { *m = SessionTrackerUpdateExpiry{} }
+func (m *SessionTrackerUpdateExpiry) String() string { return proto.CompactTextString(m) }
+func (*SessionTrackerUpdateExpiry) ProtoMessage()    {}
+func (*SessionTrackerUpdateExpiry) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{145}
+}
+func (m *SessionTrackerUpdateExpiry) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SessionTrackerUpdateExpiry) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SessionTrackerUpdateExpiry.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SessionTrackerUpdateExpiry) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SessionTrackerUpdateExpiry.Merge(m, src)
+}
+func (m *SessionTrackerUpdateExpiry) XXX_Size() int {
+	return m.Size()
+}
+func (m *SessionTrackerUpdateExpiry) XXX_DiscardUnknown() {
+	xxx_messageInfo_SessionTrackerUpdateExpiry.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SessionTrackerUpdateExpiry proto.InternalMessageInfo
+
+func (m *SessionTrackerUpdateExpiry) GetExpires() *time.Time {
+	if m != nil {
+		return m.Expires
+	}
+	return nil
+}
+
+// UpdateSessionTrackerRequest is a request to update some state of a session.
+type UpdateSessionTrackerRequest struct {
+	// SessionID is unique identifier of this session.
+	SessionID string `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"session_id,omitempty"`
+	// Types that are valid to be assigned to Update:
+	//	*UpdateSessionTrackerRequest_UpdateState
+	//	*UpdateSessionTrackerRequest_AddParticipant
+	//	*UpdateSessionTrackerRequest_RemoveParticipant
+	//	*UpdateSessionTrackerRequest_UpdateExpiry
+	Update               isUpdateSessionTrackerRequest_Update `protobuf_oneof:"Update"`
+	XXX_NoUnkeyedLiteral struct{}                             `json:"-"`
+	XXX_unrecognized     []byte                               `json:"-"`
+	XXX_sizecache        int32                                `json:"-"`
+}
+
+func (m *UpdateSessionTrackerRequest) Reset()         { *m = UpdateSessionTrackerRequest{} }
+func (m *UpdateSessionTrackerRequest) String() string { return proto.CompactTextString(m) }
+func (*UpdateSessionTrackerRequest) ProtoMessage()    {}
+func (*UpdateSessionTrackerRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{146}
+}
+func (m *UpdateSessionTrackerRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UpdateSessionTrackerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UpdateSessionTrackerRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UpdateSessionTrackerRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateSessionTrackerRequest.Merge(m, src)
+}
+func (m *UpdateSessionTrackerRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *UpdateSessionTrackerRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateSessionTrackerRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateSessionTrackerRequest proto.InternalMessageInfo
+
+type isUpdateSessionTrackerRequest_Update interface {
+	isUpdateSessionTrackerRequest_Update()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type UpdateSessionTrackerRequest_UpdateState struct {
+	UpdateState *SessionTrackerUpdateState `protobuf:"bytes,2,opt,name=UpdateState,proto3,oneof" json:"update_state,omitempty"`
+}
+type UpdateSessionTrackerRequest_AddParticipant struct {
+	AddParticipant *SessionTrackerAddParticipant `protobuf:"bytes,3,opt,name=AddParticipant,proto3,oneof" json:"add_participant,omitempty"`
+}
+type UpdateSessionTrackerRequest_RemoveParticipant struct {
+	RemoveParticipant *SessionTrackerRemoveParticipant `protobuf:"bytes,4,opt,name=RemoveParticipant,proto3,oneof" json:"remove_participant,omitempty"`
+}
+type UpdateSessionTrackerRequest_UpdateExpiry struct {
+	UpdateExpiry *SessionTrackerUpdateExpiry `protobuf:"bytes,5,opt,name=UpdateExpiry,proto3,oneof" json:"update_expiry,omitempty"`
+}
+
+func (*UpdateSessionTrackerRequest_UpdateState) isUpdateSessionTrackerRequest_Update()       {}
+func (*UpdateSessionTrackerRequest_AddParticipant) isUpdateSessionTrackerRequest_Update()    {}
+func (*UpdateSessionTrackerRequest_RemoveParticipant) isUpdateSessionTrackerRequest_Update() {}
+func (*UpdateSessionTrackerRequest_UpdateExpiry) isUpdateSessionTrackerRequest_Update()      {}
+
+func (m *UpdateSessionTrackerRequest) GetUpdate() isUpdateSessionTrackerRequest_Update {
+	if m != nil {
+		return m.Update
+	}
+	return nil
+}
+
+func (m *UpdateSessionTrackerRequest) GetSessionID() string {
+	if m != nil {
+		return m.SessionID
+	}
+	return ""
+}
+
+func (m *UpdateSessionTrackerRequest) GetUpdateState() *SessionTrackerUpdateState {
+	if x, ok := m.GetUpdate().(*UpdateSessionTrackerRequest_UpdateState); ok {
+		return x.UpdateState
+	}
+	return nil
+}
+
+func (m *UpdateSessionTrackerRequest) GetAddParticipant() *SessionTrackerAddParticipant {
+	if x, ok := m.GetUpdate().(*UpdateSessionTrackerRequest_AddParticipant); ok {
+		return x.AddParticipant
+	}
+	return nil
+}
+
+func (m *UpdateSessionTrackerRequest) GetRemoveParticipant() *SessionTrackerRemoveParticipant {
+	if x, ok := m.GetUpdate().(*UpdateSessionTrackerRequest_RemoveParticipant); ok {
+		return x.RemoveParticipant
+	}
+	return nil
+}
+
+func (m *UpdateSessionTrackerRequest) GetUpdateExpiry() *SessionTrackerUpdateExpiry {
+	if x, ok := m.GetUpdate().(*UpdateSessionTrackerRequest_UpdateExpiry); ok {
+		return x.UpdateExpiry
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*UpdateSessionTrackerRequest) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*UpdateSessionTrackerRequest_UpdateState)(nil),
+		(*UpdateSessionTrackerRequest_AddParticipant)(nil),
+		(*UpdateSessionTrackerRequest_RemoveParticipant)(nil),
+		(*UpdateSessionTrackerRequest_UpdateExpiry)(nil),
+	}
+}
+
+// PresenceMFAChallengeRequest is a request for a presence MFA challenge.
+type PresenceMFAChallengeRequest struct {
+	// SessionID is unique identifier of the session you want to request presence for.
+	SessionID            string   `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"session_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *PresenceMFAChallengeRequest) Reset()         { *m = PresenceMFAChallengeRequest{} }
+func (m *PresenceMFAChallengeRequest) String() string { return proto.CompactTextString(m) }
+func (*PresenceMFAChallengeRequest) ProtoMessage()    {}
+func (*PresenceMFAChallengeRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{147}
+}
+func (m *PresenceMFAChallengeRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PresenceMFAChallengeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PresenceMFAChallengeRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PresenceMFAChallengeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PresenceMFAChallengeRequest.Merge(m, src)
+}
+func (m *PresenceMFAChallengeRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *PresenceMFAChallengeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_PresenceMFAChallengeRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PresenceMFAChallengeRequest proto.InternalMessageInfo
+
+func (m *PresenceMFAChallengeRequest) GetSessionID() string {
+	if m != nil {
+		return m.SessionID
+	}
+	return ""
+}
+
+// PresenceMFAChallengeSend is a presence challenge request or response.
+type PresenceMFAChallengeSend struct {
+	// Types that are valid to be assigned to Request:
+	//	*PresenceMFAChallengeSend_ChallengeRequest
+	//	*PresenceMFAChallengeSend_ChallengeResponse
+	Request              isPresenceMFAChallengeSend_Request `protobuf_oneof:"Request"`
+	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
+	XXX_unrecognized     []byte                             `json:"-"`
+	XXX_sizecache        int32                              `json:"-"`
+}
+
+func (m *PresenceMFAChallengeSend) Reset()         { *m = PresenceMFAChallengeSend{} }
+func (m *PresenceMFAChallengeSend) String() string { return proto.CompactTextString(m) }
+func (*PresenceMFAChallengeSend) ProtoMessage()    {}
+func (*PresenceMFAChallengeSend) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{148}
+}
+func (m *PresenceMFAChallengeSend) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PresenceMFAChallengeSend) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PresenceMFAChallengeSend.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PresenceMFAChallengeSend) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PresenceMFAChallengeSend.Merge(m, src)
+}
+func (m *PresenceMFAChallengeSend) XXX_Size() int {
+	return m.Size()
+}
+func (m *PresenceMFAChallengeSend) XXX_DiscardUnknown() {
+	xxx_messageInfo_PresenceMFAChallengeSend.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PresenceMFAChallengeSend proto.InternalMessageInfo
+
+type isPresenceMFAChallengeSend_Request interface {
+	isPresenceMFAChallengeSend_Request()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type PresenceMFAChallengeSend_ChallengeRequest struct {
+	ChallengeRequest *PresenceMFAChallengeRequest `protobuf:"bytes,1,opt,name=ChallengeRequest,proto3,oneof" json:"ChallengeRequest,omitempty"`
+}
+type PresenceMFAChallengeSend_ChallengeResponse struct {
+	ChallengeResponse *MFAAuthenticateResponse `protobuf:"bytes,2,opt,name=ChallengeResponse,proto3,oneof" json:"ChallengeResponse,omitempty"`
+}
+
+func (*PresenceMFAChallengeSend_ChallengeRequest) isPresenceMFAChallengeSend_Request()  {}
+func (*PresenceMFAChallengeSend_ChallengeResponse) isPresenceMFAChallengeSend_Request() {}
+
+func (m *PresenceMFAChallengeSend) GetRequest() isPresenceMFAChallengeSend_Request {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+func (m *PresenceMFAChallengeSend) GetChallengeRequest() *PresenceMFAChallengeRequest {
+	if x, ok := m.GetRequest().(*PresenceMFAChallengeSend_ChallengeRequest); ok {
+		return x.ChallengeRequest
+	}
+	return nil
+}
+
+func (m *PresenceMFAChallengeSend) GetChallengeResponse() *MFAAuthenticateResponse {
+	if x, ok := m.GetRequest().(*PresenceMFAChallengeSend_ChallengeResponse); ok {
+		return x.ChallengeResponse
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*PresenceMFAChallengeSend) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*PresenceMFAChallengeSend_ChallengeRequest)(nil),
+		(*PresenceMFAChallengeSend_ChallengeResponse)(nil),
+	}
+}
+
 func init() {
 	proto.RegisterEnum("proto.Operation", Operation_name, Operation_value)
+	proto.RegisterEnum("proto.DeviceType", DeviceType_name, DeviceType_value)
+	proto.RegisterEnum("proto.DeviceUsage", DeviceUsage_name, DeviceUsage_value)
 	proto.RegisterEnum("proto.Order", Order_name, Order_value)
 	proto.RegisterEnum("proto.UserCertsRequest_CertUsage", UserCertsRequest_CertUsage_name, UserCertsRequest_CertUsage_value)
-	proto.RegisterEnum("proto.AddMFADeviceRequestInit_DeviceType", AddMFADeviceRequestInit_DeviceType_name, AddMFADeviceRequestInit_DeviceType_value)
 	proto.RegisterType((*Event)(nil), "proto.Event")
 	proto.RegisterType((*Watch)(nil), "proto.Watch")
 	proto.RegisterType((*WatchKind)(nil), "proto.WatchKind")
 	proto.RegisterMapType((map[string]string)(nil), "proto.WatchKind.FilterEntry")
-	proto.RegisterType((*Certs)(nil), "proto.Certs")
+	proto.RegisterType((*HostCertsRequest)(nil), "proto.HostCertsRequest")
 	proto.RegisterType((*UserCertsRequest)(nil), "proto.UserCertsRequest")
 	proto.RegisterType((*RouteToDatabase)(nil), "proto.RouteToDatabase")
+	proto.RegisterType((*RouteToWindowsDesktop)(nil), "proto.RouteToWindowsDesktop")
 	proto.RegisterType((*RouteToApp)(nil), "proto.RouteToApp")
 	proto.RegisterType((*GetUserRequest)(nil), "proto.GetUserRequest")
 	proto.RegisterType((*GetUsersRequest)(nil), "proto.GetUsersRequest")
@@ -6991,6 +10306,11 @@ func init() {
 	proto.RegisterType((*RotateUserTokenSecretsRequest)(nil), "proto.RotateUserTokenSecretsRequest")
 	proto.RegisterType((*GetResetPasswordTokenRequest)(nil), "proto.GetResetPasswordTokenRequest")
 	proto.RegisterType((*CreateResetPasswordTokenRequest)(nil), "proto.CreateResetPasswordTokenRequest")
+	proto.RegisterType((*RenewableCertsRequest)(nil), "proto.RenewableCertsRequest")
+	proto.RegisterType((*CreateBotRequest)(nil), "proto.CreateBotRequest")
+	proto.RegisterType((*CreateBotResponse)(nil), "proto.CreateBotResponse")
+	proto.RegisterType((*DeleteBotRequest)(nil), "proto.DeleteBotRequest")
+	proto.RegisterType((*GetBotUsersRequest)(nil), "proto.GetBotUsersRequest")
 	proto.RegisterType((*PingRequest)(nil), "proto.PingRequest")
 	proto.RegisterType((*PingResponse)(nil), "proto.PingResponse")
 	proto.RegisterType((*Features)(nil), "proto.Features")
@@ -7002,6 +10322,11 @@ func init() {
 	proto.RegisterType((*ResumeStream)(nil), "proto.ResumeStream")
 	proto.RegisterType((*CompleteStream)(nil), "proto.CompleteStream")
 	proto.RegisterType((*FlushAndCloseStream)(nil), "proto.FlushAndCloseStream")
+	proto.RegisterType((*GetApplicationServersRequest)(nil), "proto.GetApplicationServersRequest")
+	proto.RegisterType((*GetApplicationServersResponse)(nil), "proto.GetApplicationServersResponse")
+	proto.RegisterType((*UpsertApplicationServerRequest)(nil), "proto.UpsertApplicationServerRequest")
+	proto.RegisterType((*DeleteApplicationServerRequest)(nil), "proto.DeleteApplicationServerRequest")
+	proto.RegisterType((*DeleteAllApplicationServersRequest)(nil), "proto.DeleteAllApplicationServersRequest")
 	proto.RegisterType((*GetAppServersRequest)(nil), "proto.GetAppServersRequest")
 	proto.RegisterType((*GetAppServersResponse)(nil), "proto.GetAppServersResponse")
 	proto.RegisterType((*UpsertAppServerRequest)(nil), "proto.UpsertAppServerRequest")
@@ -7015,6 +10340,7 @@ func init() {
 	proto.RegisterType((*CreateAppSessionRequest)(nil), "proto.CreateAppSessionRequest")
 	proto.RegisterType((*CreateAppSessionResponse)(nil), "proto.CreateAppSessionResponse")
 	proto.RegisterType((*DeleteAppSessionRequest)(nil), "proto.DeleteAppSessionRequest")
+	proto.RegisterType((*DeleteUserAppSessionsRequest)(nil), "proto.DeleteUserAppSessionsRequest")
 	proto.RegisterType((*GetWebSessionResponse)(nil), "proto.GetWebSessionResponse")
 	proto.RegisterType((*GetWebSessionsResponse)(nil), "proto.GetWebSessionsResponse")
 	proto.RegisterType((*GetWebTokenResponse)(nil), "proto.GetWebTokenResponse")
@@ -7038,14 +10364,10 @@ func init() {
 	proto.RegisterType((*DeleteRoleRequest)(nil), "proto.DeleteRoleRequest")
 	proto.RegisterType((*MFAAuthenticateChallenge)(nil), "proto.MFAAuthenticateChallenge")
 	proto.RegisterType((*MFAAuthenticateResponse)(nil), "proto.MFAAuthenticateResponse")
-	proto.RegisterType((*U2FChallenge)(nil), "proto.U2FChallenge")
-	proto.RegisterType((*U2FResponse)(nil), "proto.U2FResponse")
 	proto.RegisterType((*TOTPChallenge)(nil), "proto.TOTPChallenge")
 	proto.RegisterType((*TOTPResponse)(nil), "proto.TOTPResponse")
 	proto.RegisterType((*MFARegisterChallenge)(nil), "proto.MFARegisterChallenge")
 	proto.RegisterType((*MFARegisterResponse)(nil), "proto.MFARegisterResponse")
-	proto.RegisterType((*U2FRegisterChallenge)(nil), "proto.U2FRegisterChallenge")
-	proto.RegisterType((*U2FRegisterResponse)(nil), "proto.U2FRegisterResponse")
 	proto.RegisterType((*TOTPRegisterChallenge)(nil), "proto.TOTPRegisterChallenge")
 	proto.RegisterType((*TOTPRegisterResponse)(nil), "proto.TOTPRegisterResponse")
 	proto.RegisterType((*AddMFADeviceRequest)(nil), "proto.AddMFADeviceRequest")
@@ -7056,6 +10378,9 @@ func init() {
 	proto.RegisterType((*DeleteMFADeviceResponse)(nil), "proto.DeleteMFADeviceResponse")
 	proto.RegisterType((*DeleteMFADeviceRequestInit)(nil), "proto.DeleteMFADeviceRequestInit")
 	proto.RegisterType((*DeleteMFADeviceResponseAck)(nil), "proto.DeleteMFADeviceResponseAck")
+	proto.RegisterType((*DeleteMFADeviceSyncRequest)(nil), "proto.DeleteMFADeviceSyncRequest")
+	proto.RegisterType((*AddMFADeviceSyncRequest)(nil), "proto.AddMFADeviceSyncRequest")
+	proto.RegisterType((*AddMFADeviceSyncResponse)(nil), "proto.AddMFADeviceSyncResponse")
 	proto.RegisterType((*GetMFADevicesRequest)(nil), "proto.GetMFADevicesRequest")
 	proto.RegisterType((*GetMFADevicesResponse)(nil), "proto.GetMFADevicesResponse")
 	proto.RegisterType((*UserSingleUseCertsRequest)(nil), "proto.UserSingleUseCertsRequest")
@@ -7069,6 +10394,7 @@ func init() {
 	proto.RegisterType((*GetSessionEventsRequest)(nil), "proto.GetSessionEventsRequest")
 	proto.RegisterType((*Events)(nil), "proto.Events")
 	proto.RegisterType((*ListNodesRequest)(nil), "proto.ListNodesRequest")
+	proto.RegisterMapType((map[string]string)(nil), "proto.ListNodesRequest.LabelsEntry")
 	proto.RegisterType((*ListNodesResponse)(nil), "proto.ListNodesResponse")
 	proto.RegisterType((*GetLocksRequest)(nil), "proto.GetLocksRequest")
 	proto.RegisterType((*GetLocksResponse)(nil), "proto.GetLocksResponse")
@@ -7076,418 +10402,651 @@ func init() {
 	proto.RegisterType((*DeleteLockRequest)(nil), "proto.DeleteLockRequest")
 	proto.RegisterType((*ReplaceRemoteLocksRequest)(nil), "proto.ReplaceRemoteLocksRequest")
 	proto.RegisterType((*GetWindowsDesktopServicesResponse)(nil), "proto.GetWindowsDesktopServicesResponse")
+	proto.RegisterType((*GetWindowsDesktopServiceRequest)(nil), "proto.GetWindowsDesktopServiceRequest")
+	proto.RegisterType((*GetWindowsDesktopServiceResponse)(nil), "proto.GetWindowsDesktopServiceResponse")
 	proto.RegisterType((*DeleteWindowsDesktopServiceRequest)(nil), "proto.DeleteWindowsDesktopServiceRequest")
 	proto.RegisterType((*GetWindowsDesktopsResponse)(nil), "proto.GetWindowsDesktopsResponse")
-	proto.RegisterType((*GetWindowsDesktopRequest)(nil), "proto.GetWindowsDesktopRequest")
 	proto.RegisterType((*DeleteWindowsDesktopRequest)(nil), "proto.DeleteWindowsDesktopRequest")
+	proto.RegisterType((*WindowsDesktopCertRequest)(nil), "proto.WindowsDesktopCertRequest")
+	proto.RegisterType((*WindowsDesktopCertResponse)(nil), "proto.WindowsDesktopCertResponse")
+	proto.RegisterType((*CertAuthorityRequest)(nil), "proto.CertAuthorityRequest")
+	proto.RegisterType((*CRL)(nil), "proto.CRL")
+	proto.RegisterType((*ChangeUserAuthenticationRequest)(nil), "proto.ChangeUserAuthenticationRequest")
+	proto.RegisterType((*ChangeUserAuthenticationResponse)(nil), "proto.ChangeUserAuthenticationResponse")
+	proto.RegisterType((*StartAccountRecoveryRequest)(nil), "proto.StartAccountRecoveryRequest")
+	proto.RegisterType((*VerifyAccountRecoveryRequest)(nil), "proto.VerifyAccountRecoveryRequest")
+	proto.RegisterType((*CompleteAccountRecoveryRequest)(nil), "proto.CompleteAccountRecoveryRequest")
+	proto.RegisterType((*RecoveryCodes)(nil), "proto.RecoveryCodes")
+	proto.RegisterType((*CreateAccountRecoveryCodesRequest)(nil), "proto.CreateAccountRecoveryCodesRequest")
+	proto.RegisterType((*GetAccountRecoveryTokenRequest)(nil), "proto.GetAccountRecoveryTokenRequest")
+	proto.RegisterType((*GetAccountRecoveryCodesRequest)(nil), "proto.GetAccountRecoveryCodesRequest")
+	proto.RegisterType((*UserCredentials)(nil), "proto.UserCredentials")
+	proto.RegisterType((*ContextUser)(nil), "proto.ContextUser")
+	proto.RegisterType((*Passwordless)(nil), "proto.Passwordless")
+	proto.RegisterType((*CreateAuthenticateChallengeRequest)(nil), "proto.CreateAuthenticateChallengeRequest")
+	proto.RegisterType((*CreatePrivilegeTokenRequest)(nil), "proto.CreatePrivilegeTokenRequest")
+	proto.RegisterType((*CreateRegisterChallengeRequest)(nil), "proto.CreateRegisterChallengeRequest")
+	proto.RegisterType((*PaginatedResource)(nil), "proto.PaginatedResource")
+	proto.RegisterType((*ListResourcesRequest)(nil), "proto.ListResourcesRequest")
+	proto.RegisterMapType((map[string]string)(nil), "proto.ListResourcesRequest.LabelsEntry")
+	proto.RegisterType((*ListResourcesResponse)(nil), "proto.ListResourcesResponse")
+	proto.RegisterType((*CreateSessionTrackerRequest)(nil), "proto.CreateSessionTrackerRequest")
+	proto.RegisterType((*GetSessionTrackerRequest)(nil), "proto.GetSessionTrackerRequest")
+	proto.RegisterType((*RemoveSessionTrackerRequest)(nil), "proto.RemoveSessionTrackerRequest")
+	proto.RegisterType((*SessionTrackerUpdateState)(nil), "proto.SessionTrackerUpdateState")
+	proto.RegisterType((*SessionTrackerAddParticipant)(nil), "proto.SessionTrackerAddParticipant")
+	proto.RegisterType((*SessionTrackerRemoveParticipant)(nil), "proto.SessionTrackerRemoveParticipant")
+	proto.RegisterType((*SessionTrackerUpdateExpiry)(nil), "proto.SessionTrackerUpdateExpiry")
+	proto.RegisterType((*UpdateSessionTrackerRequest)(nil), "proto.UpdateSessionTrackerRequest")
+	proto.RegisterType((*PresenceMFAChallengeRequest)(nil), "proto.PresenceMFAChallengeRequest")
+	proto.RegisterType((*PresenceMFAChallengeSend)(nil), "proto.PresenceMFAChallengeSend")
 }
 
 func init() { proto.RegisterFile("authservice.proto", fileDescriptor_ce8bd90b12161215) }
 
 var fileDescriptor_ce8bd90b12161215 = []byte{
-	// 6418 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x3c, 0x4b, 0x6c, 0x23, 0x57,
-	0x72, 0x43, 0xea, 0x47, 0x96, 0x3e, 0x43, 0x3d, 0xfd, 0x28, 0x8e, 0x46, 0x1c, 0xf7, 0xec, 0x7a,
-	0xc7, 0x5e, 0x47, 0xf2, 0x52, 0x76, 0xec, 0xf5, 0xac, 0xed, 0x25, 0xa9, 0x1f, 0x3d, 0x1a, 0x8d,
-	0xdc, 0x94, 0x38, 0xbb, 0x1b, 0x07, 0xda, 0x16, 0xf9, 0x46, 0x6a, 0x88, 0x62, 0xd3, 0xdd, 0xcd,
-	0x19, 0x4f, 0x80, 0x00, 0x49, 0xb0, 0xd9, 0x04, 0x09, 0x02, 0xe4, 0x92, 0x43, 0x4e, 0x09, 0x90,
-	0x5b, 0x0e, 0x39, 0x05, 0xc8, 0x69, 0xef, 0x46, 0x80, 0x45, 0x72, 0x0b, 0x90, 0x03, 0xb3, 0xf1,
-	0x91, 0xd7, 0xdc, 0x72, 0x0a, 0xde, 0xb7, 0xdf, 0xeb, 0x0f, 0x29, 0xcd, 0x38, 0xc9, 0x65, 0x46,
-	0x5d, 0xf5, 0xaa, 0x5e, 0x55, 0xbd, 0x7a, 0xf5, 0xea, 0x55, 0x57, 0x13, 0xe6, 0xad, 0x9e, 0x7f,
-	0xe1, 0x61, 0xf7, 0xb9, 0xdd, 0xc4, 0x1b, 0x5d, 0xd7, 0xf1, 0x1d, 0x34, 0x41, 0xff, 0x2b, 0x2c,
-	0x9e, 0x3b, 0xe7, 0x0e, 0xfd, 0x73, 0x93, 0xfc, 0xc5, 0x90, 0x85, 0x3b, 0xe7, 0x8e, 0x73, 0xde,
-	0xc6, 0x9b, 0xf4, 0xe9, 0xac, 0xf7, 0x6c, 0x13, 0x5f, 0x75, 0xfd, 0x97, 0x1c, 0x59, 0x0c, 0x23,
-	0x7d, 0xfb, 0x0a, 0x7b, 0xbe, 0x75, 0xd5, 0xe5, 0x03, 0x3e, 0x38, 0xb7, 0xfd, 0x8b, 0xde, 0xd9,
-	0x46, 0xd3, 0xb9, 0xda, 0x3c, 0x77, 0xad, 0xe7, 0xb6, 0x6f, 0xf9, 0xb6, 0xd3, 0xb1, 0xda, 0x9b,
-	0x3e, 0x6e, 0xe3, 0xae, 0xe3, 0xfa, 0x9b, 0x56, 0xd7, 0xde, 0xf4, 0x5f, 0x76, 0xb1, 0xc7, 0xfe,
-	0xe5, 0x84, 0xd5, 0x9b, 0x10, 0xbe, 0x70, 0xad, 0x6e, 0x17, 0xbb, 0xc1, 0x1f, 0x9c, 0xc9, 0xa7,
-	0x37, 0x61, 0x82, 0x9f, 0xe3, 0x8e, 0x2f, 0xfe, 0x63, 0x0c, 0x8c, 0x7f, 0x5a, 0x80, 0x89, 0x1d,
-	0x02, 0x40, 0x1f, 0xc2, 0xf8, 0xf1, 0xcb, 0x2e, 0xce, 0xa7, 0xee, 0xa5, 0x1e, 0xcc, 0x95, 0x72,
-	0x0c, 0xbf, 0xf1, 0xa4, 0x8b, 0x5d, 0xca, 0xb2, 0x82, 0x06, 0xfd, 0xe2, 0x1c, 0x61, 0xf4, 0x8e,
-	0x73, 0x65, 0xfb, 0xd4, 0x46, 0x26, 0xa5, 0x40, 0x4f, 0x61, 0xce, 0xc4, 0x9e, 0xd3, 0x73, 0x9b,
-	0x78, 0x1f, 0x5b, 0x2d, 0xec, 0xe6, 0xd3, 0xf7, 0x52, 0x0f, 0xa6, 0x4b, 0x4b, 0x1b, 0x4c, 0x5f,
-	0x1d, 0x59, 0x59, 0x1e, 0xf4, 0x8b, 0xc8, 0xe5, 0xb0, 0x80, 0xd9, 0xfe, 0x2d, 0x33, 0xc4, 0x06,
-	0x7d, 0x01, 0xb3, 0x55, 0xec, 0xfa, 0xe5, 0x9e, 0x7f, 0xe1, 0xb8, 0xb6, 0xff, 0x32, 0x3f, 0x46,
-	0xf9, 0x2e, 0x73, 0xbe, 0x1a, 0xae, 0x51, 0xaa, 0xac, 0x0d, 0xfa, 0xc5, 0x7c, 0x13, 0xbb, 0xfe,
-	0xa9, 0x25, 0xa0, 0x1a, 0x7b, 0x9d, 0x19, 0xfa, 0x09, 0xcc, 0xd4, 0x89, 0xb9, 0x9a, 0xc7, 0xce,
-	0x25, 0xee, 0x78, 0xf9, 0x71, 0x4d, 0x68, 0x15, 0xd5, 0x28, 0x55, 0xee, 0x0c, 0xfa, 0xc5, 0x15,
-	0x8f, 0xc2, 0x4e, 0x7d, 0x0a, 0xd4, 0x58, 0x6b, 0x9c, 0xd0, 0xcf, 0x61, 0xee, 0xc8, 0x75, 0x9e,
-	0xdb, 0x9e, 0xed, 0x74, 0x28, 0x28, 0x3f, 0x41, 0x79, 0xaf, 0x70, 0xde, 0x3a, 0xb2, 0x51, 0xaa,
-	0xdc, 0x1d, 0xf4, 0x8b, 0xab, 0x5d, 0x01, 0x65, 0x13, 0xe8, 0x96, 0xd1, 0x49, 0xd0, 0x31, 0x4c,
-	0x57, 0xdb, 0x3d, 0xcf, 0xc7, 0xee, 0xa1, 0x75, 0x85, 0xf3, 0x93, 0x94, 0xfd, 0xa2, 0xb0, 0x4b,
-	0x80, 0x69, 0x94, 0x2a, 0x85, 0x41, 0xbf, 0xb8, 0xdc, 0x64, 0xa0, 0xd3, 0x8e, 0x75, 0xa5, 0x9b,
-	0x5c, 0x65, 0x43, 0xed, 0xcd, 0x1e, 0xab, 0x4e, 0xe7, 0x99, 0x7d, 0x9e, 0x9f, 0xd2, 0xed, 0xad,
-	0xe2, 0x1a, 0x5b, 0xdc, 0xde, 0x9c, 0x73, 0x93, 0x42, 0x43, 0xf6, 0x56, 0x09, 0xd0, 0x07, 0x30,
-	0x7e, 0xe2, 0x61, 0x37, 0x9f, 0xa1, 0x4c, 0x67, 0x39, 0x53, 0x02, 0x6a, 0x94, 0x98, 0x77, 0xf5,
-	0x3c, 0xec, 0x6a, 0x1c, 0x28, 0x01, 0x21, 0x34, 0x9d, 0x36, 0xce, 0x67, 0x35, 0x42, 0x02, 0x6a,
-	0xbc, 0xc7, 0x08, 0x5d, 0xa7, 0xad, 0xab, 0x45, 0x09, 0x50, 0x0d, 0xb2, 0x44, 0x2f, 0xaf, 0x6b,
-	0x35, 0x71, 0x1e, 0x28, 0x75, 0x8e, 0x53, 0x4b, 0x78, 0x65, 0x65, 0xd0, 0x2f, 0x2e, 0x74, 0xc4,
-	0xa3, 0xc6, 0x25, 0xa0, 0x46, 0x9f, 0xc2, 0x64, 0x1d, 0xbb, 0xcf, 0xb1, 0x9b, 0x9f, 0xa6, 0x7c,
-	0x6e, 0x0b, 0x37, 0xa1, 0xc0, 0x46, 0xa9, 0xb2, 0x38, 0xe8, 0x17, 0x73, 0x1e, 0x7d, 0xd2, 0x78,
-	0x70, 0x32, 0x62, 0x5b, 0x13, 0x3f, 0xc7, 0xae, 0x87, 0x8f, 0x7b, 0x9d, 0x0e, 0x6e, 0xe7, 0x67,
-	0x34, 0xdb, 0x6a, 0x38, 0xe1, 0xcb, 0x2e, 0x03, 0x9e, 0xfa, 0x14, 0xaa, 0xdb, 0x56, 0x23, 0x40,
-	0x17, 0x90, 0x63, 0x7f, 0x55, 0x9d, 0x4e, 0x07, 0x37, 0xc9, 0x86, 0xcd, 0xcf, 0xd2, 0x09, 0x56,
-	0xf9, 0x04, 0x61, 0x74, 0xa3, 0x54, 0x29, 0x0e, 0xfa, 0xc5, 0x3b, 0x8c, 0x37, 0x59, 0x3e, 0x8e,
-	0xd0, 0xa6, 0x89, 0x70, 0x25, 0x7a, 0x94, 0x9b, 0x4d, 0xec, 0x79, 0x26, 0xfe, 0xb2, 0x87, 0x3d,
-	0x3f, 0x3f, 0xa7, 0xe9, 0xa1, 0xe1, 0x84, 0x8f, 0x58, 0x14, 0x78, 0xea, 0x32, 0xa8, 0xae, 0x87,
-	0x46, 0x80, 0x8e, 0x00, 0xca, 0xdd, 0x6e, 0x1d, 0x7b, 0xc4, 0xd5, 0xf3, 0xb7, 0x29, 0xeb, 0x05,
-	0xce, 0xfa, 0x29, 0x3e, 0xe3, 0x88, 0x46, 0xa9, 0xb2, 0x3a, 0xe8, 0x17, 0x97, 0xac, 0x6e, 0xf7,
-	0xd4, 0x63, 0x20, 0x8d, 0xa9, 0xc2, 0x83, 0xd9, 0xfd, 0xca, 0xf1, 0x31, 0x77, 0xc6, 0x7c, 0x2e,
-	0x64, 0x77, 0x05, 0x27, 0xe4, 0x75, 0x29, 0xf0, 0x94, 0xbb, 0x76, 0xd8, 0xee, 0x0a, 0x01, 0xd9,
-	0xe9, 0xdb, 0x96, 0x6f, 0x9d, 0x59, 0x1e, 0xe6, 0xee, 0x31, 0xaf, 0xed, 0x74, 0x1d, 0xd9, 0xd8,
-	0x62, 0x3b, 0xbd, 0xc5, 0xa1, 0xa7, 0x31, 0xfe, 0x12, 0xe2, 0x47, 0x2c, 0x12, 0x28, 0x9e, 0x47,
-	0x23, 0x2c, 0xf2, 0x02, 0x9f, 0xc5, 0x5b, 0x24, 0x18, 0x8a, 0xf6, 0x21, 0xf3, 0x14, 0x9f, 0xb1,
-	0xb8, 0xb4, 0x40, 0xf9, 0xcd, 0x07, 0xfc, 0x58, 0x44, 0xda, 0x62, 0xbb, 0x82, 0x70, 0x8b, 0xc6,
-	0x22, 0x49, 0x8d, 0xfe, 0x38, 0x05, 0x2b, 0x22, 0x7e, 0x60, 0xff, 0x85, 0xe3, 0x5e, 0xda, 0x9d,
-	0x73, 0x1e, 0x3a, 0x16, 0x29, 0xe7, 0x7b, 0xa1, 0x90, 0x14, 0x1a, 0xd5, 0x28, 0x55, 0xbe, 0x37,
-	0xe8, 0x17, 0xef, 0xcb, 0xf0, 0x24, 0xf1, 0x71, 0xf1, 0x24, 0x69, 0x2e, 0xf4, 0x87, 0x29, 0x58,
-	0xe6, 0xda, 0x99, 0xb8, 0xe9, 0xb8, 0xad, 0x40, 0x8c, 0x25, 0x2a, 0x46, 0x51, 0xee, 0xd6, 0xb8,
-	0x41, 0x8d, 0x52, 0xe5, 0xcd, 0x41, 0xbf, 0x68, 0x70, 0xc3, 0x9d, 0xba, 0x02, 0x1d, 0x27, 0x44,
-	0xc2, 0x44, 0xc4, 0x13, 0xc8, 0xd1, 0x72, 0xe4, 0xe2, 0x67, 0xd8, 0xc5, 0x9d, 0x26, 0xce, 0x2f,
-	0x6b, 0x9e, 0xa0, 0x23, 0x45, 0xcc, 0x27, 0x07, 0xd5, 0x69, 0x57, 0x82, 0x75, 0x4f, 0xd0, 0x49,
-	0xd0, 0x97, 0x80, 0xb8, 0x01, 0xca, 0xbd, 0x96, 0xed, 0x73, 0x05, 0x57, 0xe8, 0x2c, 0x77, 0x74,
-	0x3b, 0x2b, 0x03, 0x1a, 0xa5, 0x8a, 0x31, 0xe8, 0x17, 0xd7, 0x85, 0x89, 0x2d, 0x82, 0x8a, 0x53,
-	0x2c, 0x86, 0x39, 0x89, 0xbc, 0x07, 0x4e, 0xf3, 0x32, 0x9f, 0xd7, 0x22, 0x2f, 0x01, 0x89, 0x90,
-	0xdd, 0x76, 0x9a, 0x97, 0x7a, 0xe4, 0x25, 0x58, 0xe4, 0xc3, 0x02, 0x5f, 0x25, 0x13, 0x7b, 0xbe,
-	0x6b, 0xd3, 0xd8, 0xe1, 0xe5, 0x57, 0x29, 0x9f, 0x35, 0x11, 0x83, 0xa3, 0x23, 0x1a, 0xef, 0x31,
-	0x69, 0xb9, 0x23, 0x9c, 0xba, 0x0a, 0x4e, 0x9b, 0x26, 0x8e, 0x3d, 0xfa, 0x7d, 0x58, 0x7a, 0x6a,
-	0x77, 0x5a, 0xce, 0x0b, 0x6f, 0x1b, 0x7b, 0x97, 0xbe, 0xd3, 0xad, 0xb3, 0x2c, 0x30, 0x5f, 0xa0,
-	0xf3, 0xae, 0x0b, 0x37, 0x8f, 0x1b, 0xd3, 0xd8, 0xaa, 0x7c, 0x77, 0xd0, 0x2f, 0xbe, 0xf1, 0x82,
-	0x21, 0x4f, 0x5b, 0x0c, 0x7b, 0xca, 0x13, 0x49, 0x6d, 0xf2, 0xf8, 0x59, 0x88, 0x0b, 0xe8, 0x88,
-	0xfc, 0x1d, 0xcd, 0x05, 0x74, 0xa4, 0x08, 0x06, 0xa1, 0x09, 0x75, 0x17, 0xd0, 0x49, 0x2a, 0x00,
-	0x19, 0x91, 0x22, 0x19, 0xfb, 0x30, 0xf1, 0xd4, 0xf2, 0x9b, 0x17, 0xe8, 0x53, 0x98, 0x78, 0x64,
-	0x77, 0x5a, 0x5e, 0x3e, 0x75, 0x6f, 0x8c, 0x9e, 0x70, 0x2c, 0x73, 0xa3, 0x48, 0x82, 0xa8, 0xac,
-	0x7c, 0xdd, 0x2f, 0xde, 0x1a, 0xf4, 0x8b, 0xb7, 0x2f, 0xc9, 0x30, 0x25, 0x7d, 0x63, 0x74, 0xc6,
-	0x3f, 0xa6, 0x21, 0x2b, 0x47, 0xa3, 0x35, 0x18, 0x27, 0xff, 0xd3, 0x3c, 0x30, 0x5b, 0xc9, 0x0c,
-	0xfa, 0xc5, 0x71, 0x42, 0x67, 0x52, 0x28, 0x2a, 0xc1, 0xf4, 0x81, 0x63, 0xb5, 0xea, 0xb8, 0xe9,
-	0x62, 0xdf, 0xa3, 0x89, 0x5e, 0xa6, 0x92, 0x1b, 0xf4, 0x8b, 0x33, 0x6d, 0xc7, 0x6a, 0x9d, 0x7a,
-	0x0c, 0x6e, 0xaa, 0x83, 0x08, 0x47, 0x9a, 0xa5, 0x8c, 0x05, 0x1c, 0xc9, 0x79, 0x6b, 0x52, 0x28,
-	0xfa, 0x0c, 0x26, 0x77, 0xed, 0x36, 0x89, 0xcc, 0xe3, 0x54, 0xfe, 0xb5, 0xb0, 0xfc, 0x1b, 0x0c,
-	0xbd, 0xd3, 0xf1, 0xdd, 0x97, 0xec, 0x98, 0x7d, 0x46, 0x01, 0x8a, 0x22, 0x9c, 0x03, 0x7a, 0x17,
-	0xa6, 0xea, 0xbd, 0x33, 0x2a, 0xfe, 0x04, 0x9d, 0x8c, 0xe6, 0x9a, 0x5e, 0xef, 0xec, 0x94, 0xa8,
-	0xa0, 0x10, 0x88, 0x61, 0x85, 0x1f, 0xc2, 0xb4, 0xc2, 0x1e, 0xe5, 0x60, 0xec, 0x12, 0xbf, 0x64,
-	0xba, 0x9b, 0xe4, 0x4f, 0xb4, 0x08, 0x13, 0xcf, 0xad, 0x76, 0x0f, 0x53, 0x55, 0xb3, 0x26, 0x7b,
-	0xf8, 0x28, 0xfd, 0x61, 0xca, 0xf8, 0x1c, 0x26, 0x48, 0x42, 0xe9, 0xa1, 0xfb, 0x30, 0x56, 0xaf,
-	0xef, 0x53, 0xa2, 0x99, 0xca, 0xfc, 0xa0, 0x5f, 0x9c, 0xf5, 0xbc, 0x0b, 0x65, 0x32, 0x82, 0x25,
-	0x83, 0x8e, 0x0f, 0xea, 0x94, 0x0b, 0x1f, 0xe4, 0xb7, 0xd5, 0xb5, 0x20, 0x58, 0xe3, 0x5f, 0x26,
-	0x21, 0x47, 0x52, 0x1e, 0xca, 0x57, 0x9c, 0x89, 0xef, 0x40, 0xf6, 0xa8, 0x77, 0xd6, 0xb6, 0x9b,
-	0x8f, 0xb8, 0x64, 0x33, 0x95, 0xb9, 0x41, 0xbf, 0x08, 0x5d, 0x0a, 0x3c, 0xbd, 0xc4, 0x2f, 0xcd,
-	0x60, 0x00, 0x7a, 0x00, 0x19, 0xc2, 0x81, 0x18, 0x98, 0x89, 0x5c, 0x99, 0x19, 0xf4, 0x8b, 0x99,
-	0x1e, 0x87, 0x99, 0x12, 0x8b, 0xea, 0x30, 0xb5, 0xf3, 0x55, 0xd7, 0x76, 0xb1, 0xc7, 0xf3, 0xea,
-	0xc2, 0x06, 0xbb, 0xec, 0x6c, 0x88, 0xcb, 0xce, 0xc6, 0xb1, 0xb8, 0xec, 0x54, 0xee, 0x72, 0x1f,
-	0x9a, 0xc7, 0x8c, 0x24, 0x90, 0xfc, 0x2f, 0xff, 0xa3, 0x98, 0x32, 0x05, 0x27, 0xf4, 0x0e, 0x4c,
-	0xee, 0x3a, 0xee, 0x95, 0xe5, 0xd3, 0x74, 0x3a, 0xcb, 0xd7, 0x8b, 0x42, 0xb4, 0xf5, 0xa2, 0x10,
-	0xb4, 0x0b, 0x73, 0xa6, 0xd3, 0xf3, 0xf1, 0xb1, 0x23, 0x4e, 0x67, 0xb6, 0x6c, 0xeb, 0x83, 0x7e,
-	0xb1, 0xe0, 0x12, 0xcc, 0xa9, 0xef, 0x44, 0xcf, 0x61, 0x33, 0x44, 0x85, 0x76, 0x60, 0x4e, 0xcb,
-	0x23, 0xbc, 0xfc, 0xe4, 0xbd, 0xb1, 0x07, 0x59, 0x1e, 0x63, 0xb5, 0xec, 0x43, 0xb5, 0x79, 0x88,
-	0x08, 0x1d, 0xc2, 0xfc, 0xa3, 0xde, 0x19, 0x76, 0x3b, 0xd8, 0xc7, 0x9e, 0x90, 0x68, 0x8a, 0x4a,
-	0x74, 0x6f, 0xd0, 0x2f, 0xae, 0x5d, 0x4a, 0x64, 0x8c, 0x4c, 0x51, 0x52, 0x84, 0xe1, 0x36, 0x17,
-	0x54, 0x1c, 0xea, 0x3c, 0xf9, 0x5d, 0xe6, 0x3e, 0x1e, 0xc2, 0x56, 0xee, 0x73, 0x2b, 0xdf, 0x91,
-	0xba, 0x8b, 0x54, 0x41, 0x99, 0x28, 0xcc, 0x13, 0x6d, 0x41, 0xe6, 0xd0, 0x69, 0x61, 0xba, 0xc7,
-	0xb2, 0x54, 0x5a, 0x96, 0xd3, 0x3a, 0x2d, 0x1c, 0x4a, 0xf8, 0x4d, 0x39, 0x10, 0x1d, 0xc0, 0xc4,
-	0x89, 0x67, 0x9d, 0xb3, 0xbc, 0x78, 0xae, 0xf4, 0x06, 0x97, 0x28, 0xec, 0x7d, 0xf4, 0x92, 0x45,
-	0x07, 0x56, 0x16, 0x48, 0x08, 0xe9, 0x91, 0x3f, 0xd5, 0x10, 0x42, 0x71, 0xe8, 0x73, 0x00, 0x2e,
-	0x55, 0xb9, 0xdb, 0xe5, 0x29, 0xf2, 0xbc, 0xae, 0x64, 0xb9, 0xdb, 0xad, 0xac, 0x73, 0xfd, 0x96,
-	0xa5, 0x7e, 0x56, 0x57, 0x89, 0x78, 0xa6, 0xc2, 0xc4, 0xd8, 0x86, 0xac, 0x9c, 0x1b, 0x4d, 0xc1,
-	0x58, 0xb9, 0xdd, 0xce, 0xdd, 0x22, 0x7f, 0xd4, 0xeb, 0xfb, 0xb9, 0x14, 0x9a, 0x03, 0x08, 0x0c,
-	0x9e, 0x4b, 0xa3, 0x19, 0xc8, 0x08, 0x83, 0xe4, 0xc6, 0xe8, 0xf8, 0x6e, 0x37, 0x37, 0x6e, 0xfc,
-	0x5b, 0x2a, 0xb2, 0x06, 0x24, 0x86, 0xf1, 0x90, 0x4d, 0x4d, 0xc6, 0x02, 0x1d, 0x8d, 0x61, 0x3c,
-	0xd8, 0x53, 0xab, 0x99, 0xea, 0x20, 0xb2, 0xad, 0x8e, 0x88, 0x36, 0x4d, 0xa7, 0xad, 0x6e, 0xab,
-	0x2e, 0x87, 0x99, 0x12, 0x8b, 0x4a, 0xca, 0x06, 0x1c, 0x0b, 0x82, 0x90, 0xd8, 0x80, 0xea, 0x62,
-	0xc8, 0xad, 0x58, 0x0a, 0x84, 0xe7, 0xfb, 0x86, 0xd2, 0xc4, 0x2c, 0xbe, 0x1c, 0x67, 0xfc, 0x2a,
-	0xa5, 0xda, 0x5c, 0x06, 0xd9, 0x54, 0x6c, 0x90, 0x7d, 0x07, 0xb2, 0x3c, 0x6f, 0xa9, 0x6d, 0x73,
-	0xf9, 0x69, 0x0c, 0x11, 0x29, 0x8f, 0xdd, 0x32, 0x83, 0x01, 0x68, 0x13, 0x80, 0x05, 0x94, 0x72,
-	0xab, 0xe5, 0x72, 0x25, 0x6e, 0x0f, 0xfa, 0xc5, 0x69, 0x1e, 0x72, 0xac, 0x56, 0xcb, 0x35, 0x95,
-	0x21, 0xc4, 0xa2, 0xea, 0x75, 0x74, 0x3c, 0xb0, 0xa8, 0x7a, 0xf1, 0xd4, 0x2e, 0x9b, 0x46, 0x1b,
-	0xe6, 0xf6, 0xb0, 0x4f, 0x4c, 0x20, 0x02, 0xdd, 0x70, 0x15, 0x7e, 0x04, 0xd3, 0x4f, 0x6d, 0xff,
-	0x42, 0x3f, 0x79, 0xe8, 0xe5, 0xf6, 0x85, 0xed, 0x5f, 0x88, 0x93, 0x47, 0x31, 0x95, 0x3a, 0xdc,
-	0xd8, 0x81, 0xdb, 0x7c, 0x36, 0x19, 0x57, 0x4b, 0x3a, 0xc3, 0x54, 0x70, 0x94, 0xa9, 0x0c, 0x75,
-	0x36, 0x38, 0x1c, 0x68, 0x50, 0x3d, 0x12, 0x7a, 0xd8, 0x31, 0x9c, 0x74, 0x21, 0xa2, 0xbb, 0x28,
-	0x14, 0x92, 0xc2, 0x81, 0xc8, 0x38, 0x81, 0xd9, 0xa3, 0x76, 0xef, 0xdc, 0xee, 0x90, 0xd5, 0xae,
-	0xe3, 0x2f, 0xd1, 0x36, 0x40, 0x00, 0xe0, 0x33, 0x88, 0x5b, 0x40, 0x80, 0x68, 0x6c, 0xf1, 0x65,
-	0xa2, 0x10, 0x1a, 0x3b, 0x4c, 0x85, 0xce, 0xf8, 0xb3, 0x31, 0x40, 0x7c, 0x8e, 0xba, 0x6f, 0xf9,
-	0xb8, 0x8e, 0x7d, 0x12, 0xa6, 0x96, 0x21, 0x5d, 0xdb, 0xe6, 0x56, 0x9f, 0x1c, 0xf4, 0x8b, 0x69,
-	0xbb, 0x65, 0xa6, 0x6b, 0xdb, 0xe8, 0x3d, 0x98, 0xa0, 0xc3, 0xa8, 0xad, 0xe7, 0xe4, 0x7c, 0x2a,
-	0x87, 0x4a, 0x76, 0xd0, 0x2f, 0x4e, 0x78, 0xe4, 0x4f, 0x93, 0x0d, 0x46, 0xef, 0x43, 0x76, 0x1b,
-	0xb7, 0xf1, 0xb9, 0xe5, 0x3b, 0xc2, 0x77, 0x68, 0x38, 0x6a, 0x09, 0xa0, 0xb2, 0x44, 0xc1, 0x48,
-	0x72, 0x70, 0x98, 0xd8, 0xf2, 0x9c, 0x8e, 0x7a, 0x70, 0xb8, 0x14, 0xa2, 0x1e, 0x1c, 0x6c, 0x0c,
-	0xfa, 0xab, 0x14, 0x4c, 0x97, 0x3b, 0x1d, 0x87, 0x95, 0xbb, 0x3c, 0x5e, 0x5f, 0x59, 0xda, 0x90,
-	0xe5, 0xb1, 0x03, 0xeb, 0x0c, 0xb7, 0x1b, 0xe4, 0xac, 0xf6, 0x2a, 0x5f, 0x90, 0xa8, 0xf3, 0xef,
-	0xfd, 0xe2, 0xc3, 0x57, 0xa9, 0xb8, 0x6d, 0x1c, 0xbb, 0x96, 0xed, 0x7b, 0xf4, 0xba, 0x19, 0x4c,
-	0xa8, 0xba, 0x99, 0x22, 0x07, 0x7a, 0x0b, 0x26, 0x4c, 0xa7, 0x8d, 0xc5, 0xf9, 0x43, 0x17, 0xdb,
-	0x25, 0x00, 0x35, 0x64, 0xd2, 0x11, 0xc6, 0x7d, 0xc8, 0x72, 0x4b, 0xd6, 0xb6, 0x93, 0x96, 0xc0,
-	0xd8, 0x86, 0xbb, 0x26, 0x61, 0x8e, 0x89, 0xe7, 0xd2, 0x4b, 0x17, 0xf7, 0x44, 0xe1, 0xc4, 0xf7,
-	0x61, 0x8a, 0x82, 0x25, 0x35, 0x5d, 0x10, 0x7a, 0x69, 0x33, 0x05, 0xc6, 0xa8, 0xc2, 0xda, 0x1e,
-	0xf6, 0x4d, 0xec, 0x61, 0xff, 0xc8, 0xf2, 0xbc, 0x17, 0x8e, 0xdb, 0xa2, 0xa8, 0x1b, 0x31, 0xf9,
-	0x45, 0x0a, 0x8a, 0x55, 0x17, 0x93, 0x95, 0x4e, 0x64, 0x34, 0x7c, 0x07, 0xaf, 0xf1, 0x0a, 0x63,
-	0x3a, 0xc0, 0x12, 0x5b, 0xf3, 0x2a, 0xe2, 0x77, 0x61, 0xec, 0xf8, 0xf8, 0x80, 0x7a, 0xcc, 0x18,
-	0x35, 0xdc, 0x98, 0xef, 0xb7, 0xff, 0xbb, 0x5f, 0xcc, 0x6c, 0xf7, 0x58, 0x05, 0xd2, 0x24, 0x78,
-	0x63, 0x16, 0xa6, 0x8f, 0xec, 0xce, 0x39, 0x9f, 0xd1, 0xf8, 0xf3, 0x34, 0xcc, 0xb0, 0x67, 0xaf,
-	0xeb, 0x74, 0x58, 0x70, 0x57, 0x43, 0x51, 0xea, 0x1a, 0xa1, 0x08, 0x7d, 0x08, 0xb3, 0xfc, 0x82,
-	0x8e, 0x5d, 0x7a, 0xcd, 0x66, 0x12, 0xd2, 0x0b, 0x0e, 0xbb, 0xa2, 0x9f, 0x3e, 0x67, 0x18, 0x53,
-	0x1f, 0x88, 0x0e, 0x60, 0x8e, 0x01, 0x76, 0xb1, 0xe5, 0xf7, 0x82, 0x54, 0xea, 0x36, 0x3f, 0xfb,
-	0x04, 0x98, 0x79, 0x02, 0xe7, 0xf5, 0x8c, 0x03, 0xcd, 0x10, 0x2d, 0xfa, 0x14, 0x6e, 0x1f, 0xb9,
-	0xce, 0x57, 0x2f, 0x95, 0xe0, 0xcb, 0x36, 0xc3, 0x12, 0xc9, 0xbc, 0xba, 0x04, 0x75, 0xaa, 0x86,
-	0xe0, 0xf0, 0x68, 0xe3, 0x37, 0x69, 0xc8, 0x48, 0x6e, 0x1b, 0xea, 0x09, 0xc9, 0xc3, 0x1b, 0x0d,
-	0xfa, 0x41, 0x1a, 0x63, 0x2a, 0x23, 0xd0, 0x2a, 0x3d, 0x33, 0x79, 0x60, 0x9d, 0x22, 0x0b, 0x60,
-	0x75, 0xbb, 0x26, 0x81, 0x11, 0xf7, 0xdc, 0xae, 0x50, 0xd5, 0x32, 0xcc, 0x3d, 0x5b, 0x67, 0x66,
-	0x7a, 0xbb, 0x42, 0x56, 0xf4, 0x49, 0x6d, 0xbb, 0x4a, 0xa5, 0xcc, 0xb0, 0x15, 0x75, 0xec, 0x56,
-	0xd3, 0xa4, 0x50, 0x82, 0xad, 0x97, 0x1f, 0x1f, 0xd0, 0xcd, 0xc9, 0xb1, 0x9e, 0x75, 0xd5, 0x36,
-	0x29, 0x14, 0x3d, 0x14, 0x81, 0xb3, 0xea, 0x74, 0x7c, 0xd7, 0x69, 0x7b, 0xb4, 0x8a, 0x99, 0xd1,
-	0x02, 0x64, 0x93, 0xa3, 0xcc, 0xd0, 0x50, 0xf4, 0x14, 0x56, 0xca, 0xad, 0xe7, 0x56, 0xa7, 0x89,
-	0x5b, 0x0c, 0xf3, 0xd4, 0x71, 0x2f, 0x9f, 0xb5, 0x9d, 0x17, 0x1e, 0xcd, 0xd7, 0x32, 0x3c, 0xf3,
-	0xe3, 0x43, 0x4e, 0x39, 0xbb, 0x17, 0x62, 0x90, 0x99, 0x44, 0x8d, 0x8a, 0x30, 0x51, 0x6d, 0x3b,
-	0xbd, 0x16, 0x4d, 0xd4, 0x32, 0x6c, 0x23, 0x34, 0x09, 0xc0, 0x64, 0x70, 0xe3, 0x07, 0x30, 0x4f,
-	0x82, 0x16, 0xdb, 0x91, 0xd7, 0xf2, 0x7b, 0xe3, 0x08, 0xa0, 0x8e, 0xaf, 0xac, 0xee, 0x85, 0x43,
-	0x96, 0xa5, 0xa2, 0x3e, 0xf1, 0x50, 0x8e, 0x64, 0x7d, 0x82, 0x23, 0x1a, 0x5b, 0xe2, 0x7c, 0x16,
-	0x23, 0x4d, 0x85, 0xca, 0xf8, 0x75, 0x1a, 0x10, 0xbd, 0xa7, 0xd7, 0x7d, 0x17, 0x5b, 0x57, 0x42,
-	0x8c, 0x1f, 0xc2, 0x0c, 0xdb, 0xa1, 0x0c, 0x4c, 0xc5, 0x21, 0xe7, 0x04, 0xf3, 0x45, 0x15, 0xb5,
-	0x7f, 0xcb, 0xd4, 0x86, 0x12, 0x52, 0x13, 0x7b, 0xbd, 0x2b, 0x41, 0x9a, 0xd6, 0x48, 0x55, 0x14,
-	0x21, 0x55, 0x9f, 0xd1, 0xa7, 0x30, 0x57, 0x75, 0xae, 0xba, 0xc4, 0x26, 0x9c, 0x78, 0x8c, 0x47,
-	0x63, 0x3e, 0xaf, 0x86, 0x24, 0xb7, 0x5a, 0x1d, 0x82, 0x0e, 0x61, 0x61, 0xb7, 0xdd, 0xf3, 0x2e,
-	0xca, 0x9d, 0x56, 0xb5, 0xed, 0x78, 0x82, 0xcb, 0x38, 0xbf, 0x94, 0xf0, 0x9d, 0x14, 0x1d, 0xb1,
-	0x7f, 0xcb, 0x8c, 0x23, 0x44, 0xdf, 0xe5, 0xaf, 0x34, 0xf8, 0xa9, 0x30, 0xbb, 0xc1, 0xdf, 0x78,
-	0x3c, 0xe9, 0xe0, 0x27, 0xcf, 0xf6, 0x6f, 0x99, 0x0c, 0x5b, 0xc9, 0xc2, 0x94, 0x88, 0x22, 0x9b,
-	0x30, 0xaf, 0x98, 0x93, 0x9c, 0x63, 0x3d, 0x0f, 0x15, 0x20, 0x73, 0xd2, 0x25, 0xb7, 0x5a, 0x11,
-	0x16, 0x4d, 0xf9, 0x6c, 0xbc, 0xa3, 0x5b, 0x1a, 0xad, 0xa9, 0xf9, 0x15, 0x1b, 0x1c, 0x00, 0x8c,
-	0x7d, 0xdd, 0xb8, 0xc3, 0x47, 0x6b, 0xf3, 0xa6, 0x43, 0xf3, 0xe6, 0xc2, 0xb6, 0x36, 0x96, 0x62,
-	0x8d, 0x67, 0xfc, 0x51, 0x0a, 0x16, 0xf7, 0xb0, 0x4f, 0x0b, 0xa1, 0x24, 0xc6, 0xc8, 0x03, 0xe3,
-	0xfb, 0x6a, 0x4d, 0x9c, 0xf9, 0xeb, 0xec, 0xa0, 0x5f, 0xcc, 0xca, 0x0a, 0xb8, 0x5a, 0xf5, 0xfe,
-	0x18, 0xe6, 0xea, 0x97, 0x76, 0xb7, 0x61, 0xb5, 0xed, 0x16, 0x8d, 0xc1, 0x3c, 0x3a, 0x2c, 0xd1,
-	0x68, 0x76, 0x69, 0x77, 0x4f, 0x9f, 0x07, 0xa8, 0x94, 0x19, 0x1a, 0x6c, 0x3c, 0x81, 0xa5, 0x90,
-	0x0c, 0x3c, 0x48, 0xff, 0x36, 0x4c, 0x71, 0x10, 0xdf, 0x00, 0x91, 0x72, 0xfa, 0xf4, 0xa0, 0x5f,
-	0x9c, 0xf2, 0x38, 0x99, 0x18, 0x6c, 0x3c, 0x86, 0xe5, 0x93, 0xae, 0x87, 0xdd, 0x80, 0xa7, 0x50,
-	0x6b, 0x4b, 0xd6, 0xe7, 0x53, 0xf1, 0xf5, 0x79, 0x18, 0xf4, 0x8b, 0x93, 0x8c, 0xa1, 0xa8, 0xc9,
-	0x1b, 0x4d, 0x58, 0x66, 0x7b, 0x39, 0xc2, 0xee, 0x46, 0x56, 0x12, 0xbb, 0x3f, 0x1d, 0xbb, 0xfb,
-	0x6b, 0x50, 0xe0, 0x93, 0xb4, 0xdb, 0xaf, 0xb7, 0x1c, 0xc6, 0x3f, 0xa7, 0x60, 0x65, 0x0f, 0x77,
-	0xb0, 0x6b, 0x51, 0x91, 0xb5, 0xa3, 0x57, 0xbd, 0xf7, 0xa7, 0x86, 0xde, 0xfb, 0x8b, 0x22, 0x47,
-	0x49, 0xd3, 0x1c, 0x85, 0x86, 0x38, 0x9a, 0xa3, 0xf0, 0xcc, 0x84, 0x1c, 0x04, 0x27, 0x66, 0x8d,
-	0xe7, 0x6e, 0xf4, 0x20, 0xe8, 0xb9, 0xb6, 0x49, 0x60, 0xa8, 0x16, 0xd4, 0x0c, 0xc6, 0x47, 0xd6,
-	0x0c, 0x16, 0xf8, 0x6d, 0x6f, 0x8a, 0xd7, 0x0c, 0xb4, 0x4a, 0x81, 0xf1, 0x10, 0xf2, 0x51, 0x5d,
-	0xb8, 0x7f, 0x14, 0x61, 0x82, 0xd5, 0xa7, 0x23, 0xe9, 0x08, 0x83, 0x1b, 0xdb, 0x81, 0x77, 0xf3,
-	0x6a, 0xac, 0xac, 0x95, 0x84, 0x76, 0xd6, 0x90, 0x7b, 0x8e, 0x51, 0x0f, 0xfc, 0x93, 0x73, 0xe1,
-	0xf3, 0x7f, 0x44, 0xfc, 0x93, 0x55, 0xdc, 0x53, 0xc9, 0x15, 0x77, 0xee, 0xa3, 0x8c, 0x54, 0x10,
-	0x18, 0x4f, 0x61, 0x59, 0x63, 0x1a, 0x78, 0xfd, 0xc7, 0x90, 0x11, 0xb0, 0x50, 0x0a, 0xaf, 0xb1,
-	0xa5, 0xeb, 0xe6, 0x09, 0x62, 0x49, 0x62, 0xfc, 0x26, 0x05, 0x2b, 0x2c, 0xe8, 0x44, 0xf5, 0xbe,
-	0xfe, 0xea, 0xff, 0x5f, 0xdc, 0xed, 0xd0, 0xbb, 0x00, 0xe5, 0xa7, 0x75, 0xe2, 0x4d, 0x65, 0xf3,
-	0x90, 0xd7, 0x74, 0x28, 0x89, 0xf5, 0xc2, 0x3b, 0x25, 0xbe, 0x76, 0x6a, 0xb9, 0x1d, 0x53, 0x19,
-	0xf3, 0xd9, 0x78, 0x26, 0x9d, 0x1b, 0x33, 0x1a, 0x90, 0x8f, 0x6a, 0xf8, 0x2d, 0xac, 0xc9, 0x1e,
-	0xac, 0x28, 0x1b, 0xfd, 0xb5, 0x3d, 0x26, 0x98, 0xf1, 0x5b, 0xf4, 0x98, 0x60, 0xe0, 0xb7, 0xe6,
-	0x31, 0x35, 0x58, 0x60, 0x8c, 0xf5, 0xdd, 0x55, 0x52, 0x77, 0x57, 0xec, 0xdb, 0x9f, 0xe8, 0x86,
-	0x7b, 0x4c, 0x37, 0x9c, 0x18, 0x12, 0x48, 0xf8, 0x3e, 0x4c, 0xf2, 0xd7, 0xe7, 0x4c, 0xbe, 0x18,
-	0x66, 0x34, 0xf2, 0xb2, 0x77, 0xe6, 0x26, 0x1f, 0x6c, 0xe4, 0xa9, 0xca, 0x24, 0xf9, 0xe4, 0x45,
-	0x16, 0x11, 0x10, 0x8d, 0xcf, 0x49, 0x88, 0x0b, 0x61, 0x5e, 0xf3, 0xd4, 0x78, 0x02, 0x79, 0x76,
-	0x6a, 0x28, 0x5c, 0x5f, 0xeb, 0xdc, 0xf8, 0x10, 0xf2, 0xcc, 0x9d, 0x62, 0x18, 0x0e, 0x3f, 0x0c,
-	0xd6, 0x61, 0x4d, 0x1e, 0x06, 0x71, 0xda, 0xff, 0x49, 0x0a, 0x56, 0xf7, 0xb0, 0xaf, 0xbf, 0x03,
-	0xfc, 0x7f, 0x39, 0xbb, 0xbf, 0x80, 0x42, 0x9c, 0x20, 0x7c, 0x29, 0x3e, 0x09, 0x2f, 0x45, 0xe2,
-	0x0b, 0xcf, 0xf8, 0x25, 0xf9, 0x19, 0xdc, 0x61, 0x4b, 0xa2, 0x8f, 0x17, 0x8a, 0x3e, 0x0c, 0xad,
-	0x4a, 0x22, 0xf7, 0xb8, 0xd5, 0xf9, 0x8b, 0x14, 0xdc, 0x61, 0x46, 0x8e, 0x67, 0x7e, 0x23, 0x2b,
-	0xde, 0x87, 0xc9, 0x7d, 0x87, 0x5c, 0xd1, 0xf9, 0x82, 0x52, 0x75, 0x2e, 0x1c, 0xcf, 0x27, 0x81,
-	0x81, 0xa3, 0x86, 0xbf, 0xe0, 0x30, 0x0e, 0xa1, 0x28, 0xd7, 0xfc, 0x5b, 0x58, 0x58, 0xa3, 0x09,
-	0x48, 0xb0, 0xa9, 0xd6, 0x4d, 0xc1, 0x62, 0x15, 0xc6, 0xaa, 0x75, 0x93, 0xbf, 0x1f, 0xa0, 0x87,
-	0x76, 0xd3, 0x73, 0x4d, 0x02, 0x0b, 0x47, 0xf0, 0xf4, 0x75, 0xaa, 0x73, 0xbf, 0x03, 0x0b, 0xda,
-	0x24, 0x7c, 0xdd, 0xd7, 0x60, 0xbc, 0x8a, 0x5d, 0x9f, 0x4f, 0x43, 0x35, 0x6d, 0x62, 0xd7, 0x37,
-	0x29, 0x14, 0xbd, 0x09, 0x53, 0xd5, 0x32, 0xad, 0x1e, 0xd3, 0xdc, 0x62, 0x86, 0x05, 0xa6, 0xa6,
-	0x75, 0xda, 0xa4, 0x15, 0x65, 0x81, 0x34, 0xfe, 0x34, 0xa5, 0x70, 0x27, 0xe4, 0xa3, 0x75, 0xd8,
-	0x24, 0xb7, 0x26, 0x62, 0x33, 0x45, 0x05, 0x7a, 0x6c, 0xf1, 0x3b, 0x35, 0xd5, 0x40, 0x19, 0x72,
-	0xdd, 0x72, 0xc2, 0x17, 0xb0, 0xa8, 0x4b, 0xf2, 0xad, 0x2a, 0xfa, 0x1d, 0x5a, 0xe3, 0x24, 0x67,
-	0x9c, 0x50, 0x11, 0xa9, 0x37, 0x45, 0xee, 0x20, 0x1f, 0x40, 0x8e, 0x8f, 0x0a, 0x36, 0xd8, 0x7d,
-	0x91, 0xa4, 0xb1, 0xed, 0xa5, 0x37, 0xbd, 0x88, 0x12, 0xd2, 0xf7, 0xc4, 0x5d, 0x74, 0xd4, 0x0c,
-	0x97, 0x90, 0x7f, 0xbc, 0x5b, 0x2e, 0xf7, 0xfc, 0x0b, 0xdc, 0xf1, 0xed, 0xa6, 0xe5, 0xe3, 0xea,
-	0x85, 0xd5, 0x6e, 0xe3, 0xce, 0x39, 0x35, 0xd4, 0x49, 0x69, 0x57, 0x1e, 0x2f, 0xfc, 0x35, 0x40,
-	0x69, 0x57, 0x8e, 0x30, 0x09, 0x1e, 0x3d, 0x80, 0xf1, 0xe3, 0x27, 0xc7, 0x47, 0xfc, 0x62, 0xb8,
-	0xc8, 0xc7, 0x11, 0x50, 0x30, 0x90, 0x8e, 0x30, 0xbe, 0x82, 0x95, 0xd0, 0x64, 0x52, 0xab, 0x37,
-	0xc5, 0x5c, 0x29, 0x7a, 0xe9, 0x95, 0x73, 0x89, 0x01, 0xfb, 0xb7, 0xd8, 0x64, 0x6f, 0x69, 0x93,
-	0x2d, 0x28, 0x93, 0x29, 0x23, 0xe9, 0x10, 0xfe, 0x4a, 0x94, 0xc2, 0x8c, 0xdf, 0x83, 0x19, 0x55,
-	0x70, 0x72, 0xcf, 0x7a, 0x84, 0x5f, 0xee, 0x5b, 0x9d, 0x56, 0x5b, 0xd8, 0x23, 0x00, 0x10, 0xac,
-	0x1c, 0xca, 0x2f, 0x5a, 0x01, 0x00, 0x2d, 0xc2, 0x44, 0xb9, 0xdb, 0xad, 0x6d, 0xb3, 0x4d, 0x6d,
-	0xb2, 0x07, 0x94, 0x87, 0x29, 0x51, 0x23, 0xa2, 0x89, 0x90, 0x29, 0x1e, 0x0d, 0x1b, 0xa6, 0x15,
-	0x45, 0x46, 0x4c, 0xbd, 0x0e, 0x50, 0x6d, 0xdb, 0xb8, 0x43, 0xc3, 0x1f, 0x9f, 0x5b, 0x81, 0xd0,
-	0x0b, 0xa2, 0x7d, 0xde, 0xa1, 0x85, 0x1c, 0x2e, 0x40, 0x00, 0x30, 0x6e, 0xc3, 0xac, 0x66, 0x77,
-	0xc3, 0x80, 0x19, 0xd5, 0x36, 0xc4, 0x05, 0xaa, 0x4e, 0x4b, 0xba, 0x00, 0xf9, 0xdb, 0xf8, 0x65,
-	0x0a, 0x16, 0x1f, 0xef, 0x96, 0x4d, 0x7c, 0x6e, 0xd3, 0x9e, 0x2c, 0xa9, 0xe8, 0xa6, 0xba, 0x26,
-	0x77, 0xd4, 0x35, 0x09, 0x8d, 0x14, 0x8b, 0x53, 0xd2, 0x16, 0x67, 0x4d, 0x5b, 0x9c, 0x28, 0x09,
-	0x5b, 0x25, 0xe5, 0xae, 0xfd, 0x8b, 0x14, 0x2c, 0x28, 0x82, 0x48, 0xa1, 0x37, 0x54, 0x39, 0x0a,
-	0x51, 0x39, 0xc2, 0x3e, 0xf2, 0x03, 0x4d, 0x8c, 0x3b, 0x31, 0x62, 0x0c, 0xf5, 0x95, 0x16, 0x2c,
-	0xc6, 0x29, 0xa9, 0x7b, 0x45, 0x2a, 0xd1, 0x2b, 0xd2, 0x09, 0x5e, 0x31, 0xa6, 0x7b, 0x85, 0x05,
-	0x0b, 0x31, 0x2a, 0xa0, 0xb7, 0x21, 0xc7, 0x60, 0x2c, 0x14, 0xf1, 0xa2, 0x3e, 0xa1, 0x8c, 0xc0,
-	0x47, 0xf9, 0x8a, 0xf1, 0xab, 0x14, 0x2c, 0xc5, 0x1a, 0x1f, 0x2d, 0x93, 0x53, 0xb4, 0xe9, 0x62,
-	0x9f, 0xf3, 0xe6, 0x4f, 0x04, 0x5e, 0xf3, 0xbc, 0x1e, 0xef, 0xd3, 0xcc, 0x9a, 0xfc, 0x09, 0x7d,
-	0x07, 0x66, 0x8f, 0xb0, 0x6b, 0x3b, 0xad, 0x3a, 0x6e, 0x3a, 0x9d, 0x16, 0xab, 0x65, 0xce, 0x9a,
-	0x3a, 0x90, 0x18, 0xa8, 0xdc, 0x3e, 0x77, 0x5c, 0xdb, 0xbf, 0xb8, 0xe2, 0x9b, 0x20, 0x00, 0x10,
-	0xde, 0xdb, 0xf6, 0xb9, 0xed, 0xb3, 0x92, 0xfc, 0xac, 0xc9, 0x9f, 0x88, 0x89, 0xca, 0xcd, 0xa6,
-	0xd3, 0xeb, 0xf8, 0xb4, 0xcc, 0x97, 0x35, 0xc5, 0xa3, 0xf1, 0x36, 0x2c, 0xc6, 0x2d, 0x5a, 0xac,
-	0x13, 0xff, 0x41, 0x1a, 0x16, 0xca, 0xad, 0xd6, 0xe3, 0xdd, 0xf2, 0x36, 0x56, 0x93, 0xae, 0xf7,
-	0x60, 0xbc, 0xd6, 0xb1, 0x7d, 0xee, 0x3c, 0xeb, 0xdc, 0x17, 0x62, 0x46, 0x92, 0x51, 0xc4, 0x1d,
-	0xc8, 0xff, 0xc8, 0x84, 0x85, 0x9d, 0xaf, 0x6c, 0xcf, 0xb7, 0x3b, 0xe7, 0xd4, 0x21, 0xd9, 0xc4,
-	0xdc, 0xa1, 0x04, 0x93, 0x84, 0x50, 0xb6, 0x7f, 0xcb, 0x8c, 0x23, 0x46, 0xc7, 0xb0, 0x7c, 0x88,
-	0x5f, 0xc4, 0xf8, 0xb7, 0x7c, 0xc7, 0x2e, 0xd9, 0xc6, 0xb8, 0x69, 0x02, 0xad, 0xba, 0x7d, 0x7e,
-	0x99, 0x86, 0x45, 0x5d, 0x31, 0x3e, 0xf3, 0x09, 0x2c, 0x2a, 0x02, 0xe9, 0x3e, 0x3c, 0x5d, 0x2a,
-	0xc6, 0xab, 0xa3, 0xee, 0xd4, 0x58, 0x72, 0xf4, 0x14, 0x56, 0x74, 0xa1, 0xf4, 0x98, 0x19, 0xec,
-	0xbc, 0xb8, 0x21, 0xfb, 0xb7, 0xcc, 0x24, 0x6a, 0x54, 0x82, 0xb1, 0x72, 0xf3, 0x92, 0x9b, 0x25,
-	0x7e, 0xc9, 0x98, 0x66, 0xe5, 0xe6, 0x25, 0xd9, 0xf3, 0xe5, 0xe6, 0xa5, 0xb6, 0x81, 0xff, 0x3a,
-	0x05, 0x2b, 0x09, 0x2b, 0x4c, 0xf6, 0x0c, 0x03, 0x2a, 0x27, 0xa1, 0x02, 0x41, 0x1f, 0x2b, 0x6f,
-	0x22, 0xe6, 0x4a, 0x6f, 0x0d, 0xf7, 0x97, 0x0d, 0x06, 0x39, 0x96, 0xaf, 0x2a, 0x8c, 0xa2, 0x60,
-	0x4f, 0x5f, 0x5c, 0x64, 0x58, 0x20, 0x62, 0x2f, 0xa7, 0x4f, 0x4a, 0xbb, 0xb9, 0x94, 0x51, 0x0d,
-	0x8b, 0x26, 0x35, 0x41, 0x0f, 0x60, 0x92, 0x01, 0xf9, 0xc2, 0x88, 0x86, 0xd4, 0x60, 0x30, 0xc7,
-	0x1b, 0x7f, 0x9b, 0x12, 0xe5, 0xa9, 0x88, 0xbf, 0x7f, 0xa0, 0xf9, 0xbb, 0x78, 0x77, 0x1f, 0x3f,
-	0x58, 0x73, 0xf9, 0x0a, 0x4c, 0xbf, 0x8a, 0xab, 0xab, 0x44, 0xaa, 0x33, 0xfe, 0x5d, 0x4a, 0x5c,
-	0xac, 0xa3, 0xfe, 0xb8, 0x03, 0x33, 0xaf, 0xe6, 0x87, 0x1a, 0x19, 0x7a, 0x9f, 0xb9, 0x49, 0x7a,
-	0xb8, 0xa6, 0x43, 0x3d, 0xe5, 0x47, 0xa2, 0x02, 0xf7, 0x2a, 0xbe, 0x62, 0xac, 0xc5, 0x50, 0xcb,
-	0xe9, 0x8c, 0x65, 0x7a, 0x2f, 0x96, 0x28, 0x79, 0x91, 0xab, 0xd2, 0x42, 0x81, 0x0a, 0x97, 0xa1,
-	0x7f, 0x8a, 0x83, 0x64, 0xbf, 0x56, 0xd8, 0x01, 0xc4, 0x00, 0xe2, 0xe2, 0xab, 0x27, 0x1e, 0x76,
-	0xeb, 0x76, 0xe7, 0xbc, 0x8d, 0x4f, 0x58, 0x8a, 0x2a, 0x2f, 0x0d, 0xbf, 0xa5, 0x39, 0xc1, 0x4a,
-	0x42, 0x03, 0xc7, 0xff, 0xd6, 0xd2, 0xff, 0x4d, 0x0a, 0x0a, 0x71, 0xb2, 0x7d, 0xbb, 0xab, 0xbf,
-	0xc1, 0xd3, 0x70, 0x26, 0x6d, 0x9e, 0x93, 0xcb, 0x39, 0x85, 0xb2, 0x44, 0x49, 0xf2, 0xbf, 0xb6,
-	0xec, 0xff, 0x90, 0x82, 0xc5, 0x9a, 0x47, 0xc5, 0xff, 0xb2, 0x67, 0xbb, 0xb8, 0x25, 0x0c, 0xb7,
-	0x11, 0xd7, 0xe6, 0x43, 0x17, 0x7e, 0xff, 0x56, 0x5c, 0x1b, 0xcf, 0x7b, 0x4a, 0x77, 0x46, 0x7a,
-	0x58, 0xff, 0xce, 0xfe, 0xad, 0xa0, 0x3f, 0x03, 0xbd, 0x09, 0xe3, 0x87, 0xe4, 0xfc, 0x1a, 0xe3,
-	0xdb, 0x9c, 0x51, 0x10, 0xd0, 0x81, 0x73, 0x6e, 0x77, 0x88, 0xc8, 0xe4, 0xa1, 0x92, 0x81, 0xc9,
-	0x63, 0xcb, 0x3d, 0xc7, 0xbe, 0xf1, 0x33, 0x28, 0xf0, 0x17, 0x10, 0xac, 0x80, 0x43, 0x5f, 0x53,
-	0x78, 0x41, 0x61, 0x61, 0xd8, 0x4b, 0x83, 0x75, 0x80, 0xba, 0x6f, 0xb9, 0x7e, 0xad, 0xd3, 0xc2,
-	0x5f, 0x51, 0x29, 0x27, 0x4c, 0x05, 0x62, 0xbc, 0x0f, 0x59, 0x39, 0x35, 0xbd, 0x22, 0x28, 0x47,
-	0x2b, 0xf9, 0x9b, 0x64, 0x36, 0x14, 0x29, 0x32, 0x1b, 0xfa, 0x60, 0x6c, 0xc1, 0x52, 0xc8, 0x84,
-	0x7c, 0x7d, 0x0b, 0xc4, 0xd0, 0x0c, 0xc6, 0x5e, 0x2d, 0x9a, 0xf2, 0xd9, 0xa8, 0xc2, 0x7c, 0x64,
-	0x85, 0x10, 0x52, 0x9a, 0xe4, 0xc8, 0x26, 0xad, 0xd7, 0xf7, 0x09, 0x4c, 0xf6, 0xc4, 0x11, 0xd8,
-	0xf1, 0x41, 0xbd, 0x32, 0xc9, 0x56, 0xdc, 0xf8, 0xfb, 0x34, 0xbd, 0x15, 0x45, 0x6c, 0x10, 0xba,
-	0x27, 0xab, 0x77, 0xf5, 0x0a, 0x64, 0xa9, 0xc6, 0xdb, 0xa2, 0x67, 0x61, 0x78, 0x79, 0x3a, 0xf3,
-	0x75, 0xbf, 0x78, 0x8b, 0xd6, 0xa4, 0x03, 0x32, 0xf4, 0x09, 0x4c, 0xed, 0x74, 0x5a, 0x94, 0xc3,
-	0xd8, 0x0d, 0x38, 0x08, 0x22, 0xb2, 0x0e, 0x54, 0x64, 0x72, 0x32, 0x78, 0xb4, 0xa3, 0x31, 0x6b,
-	0x2a, 0x10, 0x6a, 0x66, 0xfb, 0xca, 0x66, 0xef, 0xa6, 0x26, 0x4c, 0xf6, 0x40, 0xac, 0x49, 0x45,
-	0x78, 0x84, 0x5f, 0xf2, 0xf4, 0x48, 0x3e, 0x23, 0x03, 0x26, 0x9e, 0xb8, 0x2d, 0xde, 0x88, 0x36,
-	0x57, 0x9a, 0x11, 0x1f, 0xe6, 0x10, 0x98, 0xc9, 0x50, 0xc6, 0x7f, 0xd1, 0x17, 0x03, 0x7e, 0xac,
-	0xdf, 0x68, 0x56, 0x49, 0xbd, 0xb6, 0x55, 0xd2, 0xaf, 0x62, 0x15, 0xa9, 0xf5, 0x58, 0x92, 0xd6,
-	0xe3, 0x49, 0x5a, 0x4f, 0x24, 0x6b, 0xbd, 0x07, 0x93, 0x4c, 0x55, 0x72, 0x5b, 0xae, 0xf9, 0xf8,
-	0x2a, 0xb8, 0x2d, 0xab, 0x6f, 0xfc, 0x4c, 0x86, 0x23, 0x29, 0xe8, 0x81, 0xe5, 0xd1, 0xd9, 0x98,
-	0x8f, 0x8b, 0x47, 0xe3, 0x0c, 0x72, 0x07, 0xb6, 0xe7, 0x93, 0x7d, 0x70, 0x4d, 0x57, 0x93, 0x0a,
-	0xa5, 0x93, 0x14, 0x1a, 0xd3, 0x15, 0x32, 0x7e, 0x02, 0xf3, 0xca, 0x1c, 0x7c, 0x17, 0xbd, 0x35,
-	0xaa, 0xa2, 0x29, 0x2b, 0x66, 0x44, 0xfa, 0x43, 0xfc, 0x95, 0x2a, 0x3d, 0x7f, 0x34, 0x7e, 0x4e,
-	0x5b, 0x9b, 0x0e, 0x9c, 0xe6, 0xa5, 0x52, 0x4f, 0x9a, 0x62, 0x31, 0x25, 0x5c, 0x96, 0x25, 0xa3,
-	0x18, 0xc6, 0x14, 0x23, 0xd0, 0x3d, 0x98, 0xae, 0x75, 0x76, 0x1d, 0xb7, 0x89, 0x9f, 0x74, 0xda,
-	0x8c, 0x7b, 0xc6, 0x54, 0x41, 0xbc, 0x40, 0xc1, 0x67, 0x08, 0x0a, 0x14, 0x14, 0x10, 0x2a, 0x50,
-	0xb0, 0xde, 0x70, 0x93, 0xe1, 0x78, 0xfd, 0x83, 0xfc, 0x3d, 0xac, 0x3a, 0x21, 0xcb, 0x18, 0xa3,
-	0x06, 0x9e, 0xc1, 0xaa, 0x89, 0xbb, 0x6d, 0x8b, 0x1c, 0xc1, 0x57, 0x0e, 0x1b, 0x2f, 0x75, 0xbe,
-	0x17, 0xd3, 0xf8, 0xa1, 0xbf, 0x95, 0x90, 0x22, 0xa7, 0x87, 0x88, 0x7c, 0x05, 0x6f, 0xec, 0x61,
-	0x3f, 0xb6, 0xc1, 0x3b, 0x50, 0x7e, 0x1f, 0x32, 0xbc, 0x55, 0x50, 0xe8, 0x3f, 0xaa, 0xb7, 0x9c,
-	0x97, 0xe8, 0x39, 0x1f, 0xf9, 0x97, 0x51, 0x01, 0x83, 0xe9, 0x1e, 0x4b, 0x78, 0xbd, 0xfe, 0x82,
-	0x53, 0x5a, 0xaa, 0xd5, 0x19, 0x04, 0xb2, 0x96, 0x21, 0x23, 0x60, 0xa1, 0x5a, 0x6d, 0xa4, 0x1f,
-	0x9d, 0x0a, 0xd9, 0x12, 0x0c, 0x24, 0x99, 0xf1, 0x21, 0xe4, 0x23, 0x13, 0x5c, 0x4f, 0xb4, 0x87,
-	0xa2, 0x14, 0xfb, 0x0a, 0xc4, 0x6f, 0xbf, 0x0d, 0x59, 0xf9, 0xf9, 0x21, 0xc9, 0xb2, 0x6b, 0x87,
-	0xb5, 0x63, 0x96, 0x65, 0x1f, 0x9d, 0x1c, 0xe7, 0x52, 0x08, 0x60, 0x72, 0x7b, 0xe7, 0x60, 0xe7,
-	0x78, 0x27, 0x97, 0x7e, 0xfb, 0x4d, 0x1e, 0x2f, 0xd0, 0x1c, 0xc0, 0xf6, 0x4e, 0xbd, 0xba, 0x73,
-	0xb8, 0x5d, 0x3b, 0xdc, 0xcb, 0xdd, 0x42, 0xb3, 0x90, 0x2d, 0xcb, 0xc7, 0x54, 0xe9, 0xd7, 0x35,
-	0x98, 0x26, 0xa9, 0x87, 0xe8, 0xd9, 0xff, 0x11, 0xcc, 0xd5, 0x71, 0xa7, 0xf5, 0x08, 0xe3, 0x6e,
-	0xb9, 0x6d, 0x3f, 0xc7, 0x1e, 0x12, 0xf9, 0x98, 0x04, 0x15, 0x96, 0x23, 0xc1, 0x6e, 0xe7, 0xaa,
-	0xeb, 0xbf, 0x7c, 0x90, 0x42, 0xdf, 0x87, 0x69, 0xda, 0xa6, 0xce, 0xc3, 0xd0, 0x8c, 0xda, 0xba,
-	0x5e, 0x10, 0x4f, 0x14, 0xf9, 0x6e, 0x0a, 0x7d, 0x0c, 0x53, 0x7b, 0x98, 0x06, 0x00, 0xf4, 0x46,
-	0xe8, 0xcb, 0xc8, 0x5a, 0x47, 0x86, 0x16, 0x6e, 0x9a, 0x42, 0x38, 0x12, 0xa0, 0x2a, 0x64, 0x38,
-	0xb9, 0x87, 0x8c, 0x10, 0xbd, 0x17, 0xc3, 0x60, 0x21, 0xc4, 0x80, 0x44, 0x1f, 0xf4, 0x09, 0x64,
-	0x65, 0x14, 0x42, 0x22, 0x65, 0x0c, 0xc7, 0xbe, 0x42, 0x3e, 0x8a, 0xe0, 0xce, 0xb4, 0x09, 0xc0,
-	0xea, 0xf6, 0x54, 0x8d, 0xb0, 0x8c, 0x85, 0x88, 0xed, 0xd0, 0x1e, 0xc9, 0xae, 0x89, 0x03, 0x5c,
-	0x57, 0xef, 0x04, 0x63, 0xa3, 0x03, 0x98, 0x93, 0x55, 0xf4, 0xeb, 0x1b, 0x21, 0x89, 0xdb, 0x47,
-	0x30, 0x2f, 0x5e, 0x3e, 0xcb, 0x84, 0x19, 0x25, 0xa5, 0xd0, 0x72, 0x25, 0xd9, 0x30, 0x4c, 0xb6,
-	0x5b, 0x40, 0xab, 0x27, 0xc0, 0xe8, 0x9e, 0xc2, 0x24, 0x36, 0x6f, 0x2f, 0xbc, 0x31, 0x64, 0x04,
-	0x33, 0xf3, 0x83, 0xd4, 0xbb, 0x29, 0xf4, 0x19, 0xcc, 0x6a, 0xa9, 0x17, 0x12, 0x17, 0xed, 0xb8,
-	0x9c, 0xb6, 0xb0, 0x16, 0x8f, 0xe4, 0xcb, 0xb6, 0x4b, 0xd4, 0xf5, 0x43, 0x9d, 0xab, 0x85, 0xb8,
-	0x0e, 0x55, 0xf6, 0x31, 0x44, 0x41, 0xf4, 0xee, 0x84, 0x48, 0x76, 0x60, 0x81, 0xbf, 0x9f, 0xd5,
-	0xbe, 0xda, 0x4b, 0xe8, 0x75, 0x4d, 0xb4, 0xfe, 0xa7, 0xb0, 0xc0, 0xd7, 0x52, 0x63, 0x93, 0x93,
-	0xdd, 0x46, 0xbc, 0x2d, 0x32, 0x91, 0xc1, 0x67, 0xb0, 0x54, 0x0f, 0xe9, 0xc3, 0x9a, 0x4f, 0x57,
-	0x75, 0x16, 0x4a, 0x97, 0x6b, 0x22, 0xaf, 0x47, 0x80, 0xea, 0xbd, 0xb3, 0x2b, 0x5b, 0xb2, 0x7b,
-	0x6e, 0xe3, 0x17, 0xe8, 0x6e, 0x48, 0x25, 0x02, 0xa4, 0xc3, 0x68, 0x86, 0x55, 0x48, 0xd0, 0x18,
-	0x1d, 0xb3, 0x8e, 0x02, 0xd6, 0xac, 0x66, 0x75, 0xad, 0x33, 0xbb, 0x6d, 0xfb, 0x36, 0x26, 0x6e,
-	0xa1, 0x12, 0xa8, 0x28, 0xb1, 0x82, 0xab, 0x89, 0x23, 0xd0, 0x27, 0x30, 0xbb, 0x87, 0xfd, 0xa0,
-	0x91, 0x17, 0xad, 0x44, 0x5a, 0x7f, 0xf9, 0xba, 0x89, 0xba, 0xbc, 0xde, 0x3d, 0x5c, 0x83, 0xdc,
-	0x49, 0xb7, 0x65, 0xf9, 0x58, 0x61, 0x71, 0x37, 0xc2, 0x82, 0x0f, 0xb1, 0x5c, 0xeb, 0xca, 0x4b,
-	0xb4, 0xd6, 0x26, 0x8c, 0x1f, 0xd9, 0x9d, 0x73, 0x24, 0x8a, 0xf7, 0x4a, 0x2f, 0x66, 0x61, 0x41,
-	0x83, 0x71, 0xd7, 0x3b, 0x83, 0x22, 0xeb, 0x60, 0x8d, 0x76, 0x8d, 0x8a, 0xef, 0x83, 0xbe, 0x23,
-	0x6f, 0x53, 0x43, 0x3a, 0x5d, 0xa5, 0x7d, 0xc2, 0xf8, 0xc6, 0x16, 0xfa, 0x29, 0x2c, 0xc7, 0xd3,
-	0xbe, 0x3e, 0xeb, 0x23, 0xba, 0xa0, 0x51, 0xd9, 0xd1, 0x7d, 0xce, 0x79, 0x58, 0x63, 0x6d, 0x01,
-	0x85, 0x19, 0x37, 0xb6, 0x90, 0xec, 0x71, 0x88, 0x61, 0xfa, 0xa6, 0xd6, 0xaa, 0x77, 0x33, 0xbe,
-	0x9b, 0xf4, 0x78, 0xa1, 0x1f, 0x4c, 0x2f, 0x05, 0xb2, 0x29, 0x5d, 0x8a, 0x05, 0xfd, 0x93, 0x6b,
-	0xb4, 0x45, 0x0f, 0x14, 0xda, 0x12, 0x8f, 0x96, 0x75, 0x0a, 0x2f, 0x9e, 0xe4, 0xdd, 0x14, 0xda,
-	0x02, 0x60, 0xc2, 0xd1, 0x89, 0x74, 0x74, 0xa2, 0xd3, 0x6c, 0x91, 0x53, 0xa3, 0x75, 0x43, 0xa2,
-	0x4f, 0xc4, 0xc9, 0x41, 0x89, 0xf2, 0x5a, 0xe5, 0x47, 0xd5, 0x2a, 0x89, 0xbe, 0x06, 0xb9, 0x72,
-	0x93, 0xc6, 0x41, 0xd9, 0x38, 0x89, 0xd6, 0xe5, 0x1e, 0xd3, 0x11, 0x82, 0xd7, 0x52, 0xb8, 0x0f,
-	0xf3, 0x00, 0x5b, 0x34, 0xdd, 0x5b, 0x91, 0x27, 0x5a, 0x08, 0x15, 0x4f, 0x91, 0x28, 0xd4, 0x0e,
-	0x2c, 0x56, 0xad, 0x4e, 0x13, 0xb7, 0x5f, 0x8f, 0xcd, 0x47, 0x34, 0x20, 0x28, 0x4d, 0xa5, 0xcb,
-	0x61, 0x7a, 0x1e, 0x0f, 0xc4, 0x37, 0x38, 0xca, 0xd0, 0x32, 0xdc, 0x66, 0x46, 0x0c, 0xcc, 0x92,
-	0x44, 0x9d, 0x34, 0xfd, 0x07, 0x30, 0xb7, 0x43, 0x02, 0x66, 0xaf, 0x65, 0xb3, 0x0b, 0x3a, 0xd2,
-	0x6f, 0x5c, 0x89, 0x84, 0xfb, 0x30, 0xcf, 0xcf, 0x8f, 0xa0, 0xdb, 0x52, 0xc6, 0xec, 0x68, 0x43,
-	0x6b, 0x61, 0x51, 0xb0, 0x55, 0x1b, 0x33, 0xc5, 0xe9, 0xa8, 0xb5, 0x16, 0xca, 0xd3, 0x31, 0xae,
-	0xe9, 0x51, 0x9e, 0x8e, 0xf1, 0xdd, 0x88, 0x15, 0xb8, 0x1d, 0xea, 0x2a, 0x44, 0x77, 0xc5, 0x19,
-	0x1d, 0xdb, 0x6d, 0x18, 0x93, 0xe7, 0xec, 0x0b, 0xab, 0x46, 0x79, 0xc4, 0xb7, 0x18, 0x26, 0xda,
-	0xe8, 0x48, 0x1e, 0x8e, 0x6a, 0xbf, 0x20, 0xd2, 0x4b, 0x9f, 0x71, 0xbd, 0x84, 0x89, 0x1c, 0xeb,
-	0xe4, 0xfa, 0xa6, 0x77, 0xda, 0xa1, 0x75, 0x69, 0x91, 0xd8, 0x76, 0xc2, 0x42, 0x31, 0x11, 0xcf,
-	0x8d, 0xa6, 0x2c, 0x00, 0xfb, 0xac, 0x3c, 0xbc, 0x00, 0x6a, 0x97, 0x55, 0x64, 0x01, 0xf4, 0xe6,
-	0xa9, 0x3d, 0x7a, 0x4d, 0x54, 0x5a, 0xe6, 0x50, 0x82, 0x2a, 0x85, 0xbb, 0x71, 0x7c, 0x82, 0x95,
-	0xac, 0x43, 0x2e, 0xdc, 0x3f, 0x26, 0x35, 0x4d, 0x68, 0x9d, 0x93, 0x9a, 0x26, 0x36, 0x9e, 0x7d,
-	0x06, 0xb9, 0x70, 0xf3, 0x98, 0x64, 0x9a, 0xd0, 0x55, 0x96, 0xb8, 0x14, 0xbb, 0xb0, 0xa8, 0x2f,
-	0xe0, 0x08, 0x7d, 0x93, 0x13, 0xa0, 0x59, 0xad, 0x65, 0x0c, 0x89, 0x0f, 0xc0, 0x43, 0xdd, 0x69,
-	0x11, 0xeb, 0xc7, 0xb4, 0xae, 0x31, 0xeb, 0x2b, 0xed, 0x67, 0xd7, 0xb1, 0x7e, 0x5c, 0xb7, 0x9a,
-	0x34, 0x94, 0x22, 0x97, 0x88, 0xb8, 0x61, 0xc4, 0x4d, 0x0c, 0x75, 0x1d, 0xd1, 0x92, 0xf8, 0x6c,
-	0xc3, 0xb4, 0xd2, 0xb7, 0x86, 0x56, 0x35, 0x33, 0x69, 0x1e, 0x5f, 0xd0, 0x94, 0xd3, 0x9d, 0xbd,
-	0x0a, 0x33, 0x6a, 0xf7, 0x5b, 0xa2, 0x14, 0x77, 0xa2, 0x3c, 0x3c, 0x25, 0x09, 0x9f, 0x93, 0x56,
-	0x60, 0xd2, 0xac, 0x85, 0x8d, 0xa3, 0x09, 0x94, 0xac, 0x12, 0x52, 0x4d, 0x33, 0x42, 0xa4, 0xe4,
-	0x93, 0x68, 0x81, 0x9d, 0xc9, 0xfa, 0x0f, 0x5a, 0x24, 0xfc, 0x2e, 0xc6, 0x90, 0x68, 0x75, 0x3b,
-	0xd4, 0xae, 0x87, 0x14, 0x2f, 0x89, 0x69, 0x71, 0x2b, 0xac, 0x27, 0xa1, 0xb9, 0x99, 0x0e, 0x60,
-	0x3e, 0xd2, 0xad, 0x87, 0x8a, 0x5a, 0x3c, 0x8e, 0xb6, 0xdd, 0x0d, 0xb9, 0x36, 0xce, 0x47, 0x5a,
-	0xf5, 0x24, 0xb7, 0xa4, 0x26, 0xbe, 0x44, 0x6e, 0xc7, 0xb0, 0x14, 0xdb, 0xbe, 0x27, 0xb3, 0xc1,
-	0x61, 0xcd, 0x7d, 0x89, 0x5c, 0x7f, 0x0a, 0x28, 0xda, 0x6a, 0x27, 0x2f, 0x92, 0x89, 0xed, 0x80,
-	0xf2, 0x22, 0x39, 0xa4, 0x4f, 0xef, 0x00, 0x16, 0xe3, 0xfa, 0xec, 0x90, 0xa1, 0xd9, 0x33, 0xb6,
-	0x4f, 0x2e, 0xe6, 0x90, 0x33, 0xc5, 0xa6, 0x4c, 0xe0, 0x36, 0xa4, 0xeb, 0x2e, 0x51, 0xf9, 0x9f,
-	0x89, 0x5e, 0xca, 0x68, 0x77, 0x9c, 0x4c, 0x87, 0x47, 0xb4, 0xcf, 0x0d, 0x49, 0x37, 0x6e, 0xd7,
-	0xed, 0xf3, 0x8e, 0xd2, 0xc8, 0x26, 0x93, 0x8d, 0x68, 0x07, 0x9d, 0x0c, 0x00, 0x71, 0x7d, 0x6f,
-	0x4f, 0x60, 0x51, 0x9c, 0x84, 0x6a, 0xbb, 0x18, 0x8a, 0xd0, 0x04, 0xdd, 0x6c, 0x32, 0x18, 0xc4,
-	0xf6, 0x97, 0xb1, 0x6c, 0x9d, 0xfe, 0x4a, 0x91, 0x92, 0xad, 0x2b, 0x7d, 0x5c, 0x05, 0xbd, 0xe5,
-	0x0b, 0x3d, 0xa4, 0xd9, 0x3a, 0x6b, 0xd0, 0x4f, 0xda, 0xeb, 0x2b, 0x3a, 0xa7, 0xc0, 0x0d, 0xb6,
-	0x44, 0xd9, 0x86, 0x4e, 0xa8, 0x73, 0x1e, 0x9d, 0x80, 0x53, 0x22, 0x3d, 0x01, 0x57, 0x05, 0x4d,
-	0xbe, 0x58, 0xcf, 0xa8, 0x2f, 0xc1, 0xa5, 0xad, 0x62, 0x5e, 0xb3, 0x4b, 0x5b, 0xc5, 0xbd, 0x35,
-	0xa7, 0xf9, 0xde, 0xb1, 0xc8, 0xaf, 0x02, 0x7e, 0x77, 0x87, 0xbe, 0xf6, 0x2e, 0xac, 0x0f, 0x7f,
-	0x57, 0xac, 0x64, 0x91, 0xc1, 0x5b, 0x5a, 0x35, 0x89, 0x89, 0xbc, 0xd3, 0x55, 0x8f, 0xd1, 0x98,
-	0x17, 0xbb, 0x8f, 0x69, 0x91, 0xfc, 0x49, 0x6d, 0xbb, 0xca, 0x7f, 0x2d, 0xc9, 0x71, 0x23, 0xf5,
-	0x2e, 0xe5, 0x53, 0xe2, 0xc0, 0x7a, 0x6c, 0x88, 0x46, 0xd8, 0x28, 0xa1, 0x3a, 0x2d, 0xd9, 0x68,
-	0xd0, 0x98, 0x92, 0x57, 0x0c, 0xc3, 0x42, 0x3c, 0x43, 0x5a, 0xfe, 0xa3, 0x41, 0x9f, 0xf8, 0x81,
-	0x2e, 0x66, 0x82, 0x0c, 0xc3, 0xce, 0x0e, 0x66, 0xd5, 0x78, 0x36, 0x42, 0xba, 0x51, 0x0e, 0xc2,
-	0x2c, 0x56, 0x2f, 0x3f, 0x3e, 0x78, 0x25, 0x8b, 0x69, 0x84, 0xd2, 0x62, 0x1a, 0xf4, 0x66, 0x16,
-	0x0b, 0x31, 0xd4, 0x2d, 0xa6, 0x8b, 0x99, 0x20, 0xc3, 0x68, 0x8b, 0xc5, 0xb3, 0xb9, 0xae, 0xc5,
-	0x3e, 0xa7, 0x27, 0xc5, 0x1e, 0xfd, 0x8c, 0xf9, 0x46, 0x36, 0xcb, 0x8b, 0xbc, 0x47, 0x27, 0x6d,
-	0x6c, 0xa1, 0xa7, 0xf4, 0x1b, 0x81, 0x10, 0xfc, 0x7a, 0x76, 0x5b, 0x4b, 0x62, 0x4a, 0x2d, 0x57,
-	0x83, 0x25, 0x66, 0xb9, 0xb0, 0xb8, 0x89, 0xb2, 0x24, 0xaa, 0xbd, 0x27, 0x8e, 0xdd, 0x30, 0xab,
-	0x9b, 0xda, 0x6f, 0x9b, 0xba, 0xc8, 0xb1, 0x4b, 0xb2, 0x9a, 0x56, 0x34, 0xe5, 0xd1, 0x99, 0x88,
-	0x22, 0x9b, 0x3e, 0xbc, 0x51, 0x42, 0x35, 0xba, 0x0a, 0x3a, 0x78, 0x58, 0x4e, 0x18, 0xcf, 0x86,
-	0x1a, 0x69, 0x5f, 0x9c, 0xcf, 0x21, 0x99, 0x92, 0xe6, 0x4e, 0x16, 0x4a, 0x26, 0xcc, 0xd7, 0xd4,
-	0x2e, 0xc9, 0x44, 0xec, 0x9c, 0x61, 0xf9, 0xe9, 0x28, 0xcb, 0x84, 0x7f, 0xc7, 0x10, 0xfd, 0x18,
-	0xb2, 0x82, 0x78, 0xb4, 0x41, 0xc2, 0xd4, 0xfc, 0x05, 0xc5, 0x34, 0x37, 0x08, 0x95, 0x20, 0x69,
-	0xa6, 0x44, 0xf1, 0x3f, 0x86, 0x69, 0x6e, 0x86, 0xa1, 0x1a, 0x24, 0xa7, 0x8b, 0x4b, 0x7b, 0xd8,
-	0x8f, 0xf9, 0x25, 0xac, 0x51, 0xca, 0xc4, 0xfd, 0xf0, 0x16, 0x6a, 0xd0, 0x17, 0x73, 0x49, 0xbf,
-	0x5a, 0x96, 0xc4, 0x72, 0xe4, 0x6f, 0xa6, 0x11, 0xbe, 0xf5, 0x64, 0xbe, 0x23, 0xe9, 0x13, 0xb5,
-	0x3f, 0x84, 0x35, 0x5a, 0x73, 0xbc, 0xa9, 0xc4, 0xc9, 0xe9, 0xf2, 0x6a, 0xd0, 0x95, 0x10, 0xfe,
-	0xc1, 0xb4, 0x24, 0x66, 0xa3, 0x7e, 0xab, 0x8d, 0x70, 0xad, 0x27, 0x72, 0x1d, 0x45, 0x3d, 0xe4,
-	0x30, 0xba, 0x43, 0x75, 0xbf, 0xa1, 0xb4, 0xc3, 0x23, 0x4d, 0xe8, 0x17, 0xdc, 0x92, 0xf3, 0xb6,
-	0xf8, 0xdf, 0x88, 0x23, 0x5c, 0xea, 0x11, 0x2e, 0x49, 0xa3, 0x87, 0x1d, 0x3e, 0x54, 0xb5, 0x6b,
-	0x4a, 0x93, 0x5c, 0xc5, 0xcd, 0xca, 0x86, 0x1c, 0xa4, 0xa4, 0x9a, 0x5a, 0xbb, 0x49, 0x61, 0x56,
-	0x7d, 0xeb, 0xe9, 0xa1, 0x32, 0x3b, 0xe3, 0xd5, 0xc6, 0x14, 0xa5, 0xf6, 0x14, 0xdb, 0xb1, 0x12,
-	0x66, 0xc1, 0x52, 0x65, 0xfa, 0xb3, 0x72, 0x4a, 0xaa, 0xac, 0xf4, 0x0a, 0x14, 0xf4, 0x37, 0xf9,
-	0x3c, 0x84, 0xd1, 0xd7, 0xf9, 0x6a, 0x61, 0x5b, 0xed, 0x16, 0x50, 0x53, 0x65, 0xbd, 0xaf, 0x41,
-	0xa6, 0xca, 0x74, 0x42, 0x9d, 0xf3, 0xe8, 0x54, 0x99, 0x12, 0xe9, 0xa9, 0xb2, 0x2a, 0x68, 0xf2,
-	0xc6, 0x43, 0xd1, 0xc6, 0x06, 0x79, 0x03, 0x4c, 0xec, 0x79, 0x18, 0x52, 0xfb, 0x5e, 0x88, 0xe9,
-	0x24, 0x93, 0x35, 0xc4, 0xe4, 0x2e, 0xb3, 0x82, 0x5e, 0xc8, 0x7d, 0x37, 0x85, 0x0e, 0xe9, 0x97,
-	0x7a, 0x71, 0xbf, 0xb6, 0x97, 0xe4, 0x3f, 0x43, 0x7f, 0xde, 0x8f, 0xf0, 0xab, 0xc7, 0xf3, 0x1b,
-	0x4a, 0x37, 0xe4, 0x96, 0xb1, 0xca, 0x5f, 0x30, 0xdf, 0x40, 0xc4, 0xe4, 0xd3, 0x63, 0x46, 0xb9,
-	0x4c, 0x27, 0xd3, 0x2f, 0x85, 0xbe, 0x47, 0xe3, 0x29, 0xcf, 0x87, 0xb4, 0xd8, 0x24, 0x3b, 0x00,
-	0x93, 0x0e, 0x9f, 0xf9, 0x08, 0x35, 0x7a, 0x08, 0x73, 0xac, 0xfe, 0x28, 0x89, 0xa3, 0x83, 0x86,
-	0x1c, 0xd9, 0x73, 0xac, 0x94, 0xf3, 0x2a, 0xc4, 0x3f, 0x16, 0x55, 0xa9, 0x91, 0x62, 0x5f, 0xa7,
-	0x1e, 0x35, 0xda, 0x74, 0x49, 0x5c, 0x7e, 0x97, 0x9e, 0x15, 0xf1, 0x7d, 0x37, 0x89, 0xcc, 0x1e,
-	0x28, 0xf5, 0xb6, 0xe1, 0x1d, 0x3b, 0x4f, 0xc4, 0x07, 0x87, 0xf1, 0x3f, 0xdd, 0x38, 0xa2, 0x7d,
-	0x27, 0xa6, 0x16, 0xf2, 0xf3, 0xf8, 0xce, 0x16, 0xc1, 0xf0, 0x2d, 0x2d, 0x06, 0x0c, 0x6b, 0xee,
-	0x19, 0x92, 0xec, 0x07, 0xdf, 0x0d, 0xde, 0xd0, 0x2e, 0x49, 0x2c, 0x9f, 0xd0, 0xcc, 0x35, 0xd4,
-	0x29, 0x94, 0xc8, 0xe5, 0x8d, 0x24, 0xeb, 0xaa, 0x97, 0xde, 0xf9, 0x08, 0x16, 0x15, 0x93, 0xe8,
-	0xc2, 0xf9, 0x63, 0xb8, 0x01, 0x09, 0xed, 0xc1, 0x22, 0xdb, 0x06, 0x21, 0x8e, 0x49, 0x04, 0x43,
-	0x6e, 0x0c, 0x8b, 0x6c, 0x4b, 0xbc, 0x2e, 0x23, 0x59, 0xf2, 0x0a, 0x31, 0x32, 0x86, 0xac, 0xef,
-	0xa8, 0x85, 0xfd, 0x4c, 0x29, 0x79, 0x5d, 0x77, 0x2d, 0x12, 0xe0, 0x95, 0xdc, 0xd7, 0xff, 0xb9,
-	0x9e, 0xfa, 0xfa, 0x9b, 0xf5, 0xd4, 0xbf, 0x7e, 0xb3, 0x9e, 0xfa, 0xcd, 0x37, 0xeb, 0xa9, 0xb3,
-	0x49, 0x3a, 0x62, 0xeb, 0x7f, 0x02, 0x00, 0x00, 0xff, 0xff, 0xf4, 0x17, 0xdb, 0x0f, 0x07, 0x5f,
-	0x00, 0x00,
+	// 9614 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x7d, 0x5b, 0x6c, 0x5c, 0xc9,
+	0xb6, 0x50, 0xba, 0xfd, 0x6a, 0x2f, 0x3f, 0xd2, 0x29, 0xdb, 0x71, 0xa7, 0xe3, 0xb8, 0x93, 0x9d,
+	0x33, 0x73, 0x32, 0x73, 0xcf, 0x4d, 0x32, 0xf6, 0xcc, 0x9c, 0x79, 0xcf, 0xe9, 0x6e, 0x3b, 0xb6,
+	0x27, 0x8e, 0xe3, 0xd9, 0xed, 0x38, 0xc3, 0x9c, 0xb9, 0xf4, 0x6c, 0x77, 0x57, 0xec, 0x8d, 0xdb,
+	0xbd, 0xfb, 0xec, 0xbd, 0x9d, 0x4c, 0x84, 0x40, 0xc0, 0xe5, 0x02, 0x42, 0x42, 0x5c, 0x24, 0xae,
+	0x00, 0xf1, 0xc1, 0x95, 0xe0, 0x0b, 0x04, 0x1f, 0x08, 0xf1, 0xc9, 0x17, 0x12, 0x07, 0x24, 0x04,
+	0x3f, 0x57, 0x48, 0xf7, 0xa3, 0xef, 0xe1, 0x7c, 0x21, 0xff, 0x21, 0x04, 0x12, 0xe7, 0x0b, 0xd5,
+	0xaa, 0xc7, 0xae, 0xda, 0x8f, 0x6e, 0x3b, 0x09, 0xf7, 0xfe, 0x24, 0xde, 0x55, 0xb5, 0x56, 0xad,
+	0x5a, 0xb5, 0x6a, 0xd5, 0xaa, 0x55, 0xab, 0x56, 0xc3, 0x15, 0xe7, 0x34, 0x3c, 0x0a, 0xa8, 0xff,
+	0xdc, 0x6d, 0xd1, 0xbb, 0x3d, 0xdf, 0x0b, 0x3d, 0x32, 0x86, 0xff, 0x95, 0xe7, 0x0f, 0xbd, 0x43,
+	0x0f, 0xff, 0xbc, 0xc7, 0xfe, 0xe2, 0x95, 0xe5, 0xeb, 0x87, 0x9e, 0x77, 0xd8, 0xa1, 0xf7, 0xf0,
+	0xeb, 0xe0, 0xf4, 0xd9, 0x3d, 0x7a, 0xd2, 0x0b, 0x5f, 0x8a, 0xca, 0x4a, 0xbc, 0x32, 0x74, 0x4f,
+	0x68, 0x10, 0x3a, 0x27, 0x3d, 0xd1, 0x60, 0xaa, 0x45, 0xfd, 0x30, 0x10, 0x1f, 0x3f, 0x3d, 0x74,
+	0xc3, 0xa3, 0xd3, 0x83, 0xbb, 0x2d, 0xef, 0xe4, 0xde, 0xa1, 0xef, 0x3c, 0x77, 0x43, 0x27, 0x74,
+	0xbd, 0xae, 0xd3, 0xb9, 0x17, 0xd2, 0x0e, 0xed, 0x79, 0x7e, 0x78, 0xcf, 0xe9, 0xb9, 0xf7, 0xc2,
+	0x97, 0x3d, 0x1a, 0xf0, 0x7f, 0x05, 0x60, 0xfd, 0x22, 0x80, 0x2f, 0xe8, 0x01, 0x1b, 0x62, 0x57,
+	0xfd, 0xf1, 0x4a, 0x48, 0x7c, 0xa7, 0xd7, 0xa3, 0x7e, 0xf4, 0x87, 0x40, 0xf2, 0xe5, 0x45, 0x90,
+	0xd0, 0xe7, 0xb4, 0x1b, 0xca, 0xff, 0x38, 0x02, 0xeb, 0x5f, 0xcc, 0xc3, 0xd8, 0x3a, 0x2b, 0x20,
+	0x1f, 0xc1, 0xe8, 0xde, 0xcb, 0x1e, 0x2d, 0xe5, 0x6e, 0xe6, 0xee, 0xcc, 0xae, 0x14, 0x79, 0xfd,
+	0xdd, 0xc7, 0x3d, 0xea, 0x23, 0xca, 0x1a, 0x39, 0xeb, 0x57, 0x66, 0x19, 0xa2, 0x9f, 0x78, 0x27,
+	0x6e, 0x88, 0x5c, 0xb7, 0x11, 0x82, 0x3c, 0x85, 0x59, 0x9b, 0x06, 0xde, 0xa9, 0xdf, 0xa2, 0x9b,
+	0xd4, 0x69, 0x53, 0xbf, 0x94, 0xbf, 0x99, 0xbb, 0x33, 0xb5, 0xb2, 0x70, 0x97, 0x33, 0xcd, 0xac,
+	0xac, 0x5d, 0x3d, 0xeb, 0x57, 0x88, 0x2f, 0xca, 0x22, 0x64, 0x9b, 0x97, 0xec, 0x18, 0x1a, 0xf2,
+	0x1d, 0xcc, 0xd4, 0xa9, 0x1f, 0x56, 0x4f, 0xc3, 0x23, 0xcf, 0x77, 0xc3, 0x97, 0xa5, 0x11, 0xc4,
+	0x7b, 0x55, 0xe0, 0x35, 0xea, 0xf6, 0x57, 0x6a, 0x4b, 0x67, 0xfd, 0x4a, 0x89, 0x4d, 0x70, 0xd3,
+	0x91, 0xa5, 0x06, 0x7a, 0x13, 0x19, 0xf9, 0x06, 0xa6, 0x1b, 0x8c, 0x5d, 0xad, 0x3d, 0xef, 0x98,
+	0x76, 0x83, 0xd2, 0xa8, 0x41, 0xb4, 0x5e, 0xb5, 0xbf, 0x52, 0xbb, 0x7e, 0xd6, 0xaf, 0x2c, 0x06,
+	0x58, 0xd6, 0x0c, 0xb1, 0xd0, 0x40, 0x6d, 0x60, 0x22, 0xdf, 0xc3, 0xec, 0xae, 0xef, 0x3d, 0x77,
+	0x03, 0xd7, 0xeb, 0x62, 0x51, 0x69, 0x0c, 0x71, 0x2f, 0x0a, 0xdc, 0x66, 0xe5, 0xfe, 0x4a, 0xed,
+	0xc6, 0x59, 0xbf, 0x72, 0xad, 0x27, 0x4b, 0x79, 0x07, 0x26, 0x67, 0x4c, 0x10, 0xb2, 0x07, 0x53,
+	0xf5, 0xce, 0x69, 0x10, 0x52, 0x7f, 0xc7, 0x39, 0xa1, 0xa5, 0x71, 0x44, 0x3f, 0x2f, 0xf9, 0x12,
+	0xd5, 0xec, 0xaf, 0xd4, 0xca, 0x67, 0xfd, 0xca, 0xd5, 0x16, 0x2f, 0x6a, 0x76, 0x9d, 0x13, 0x93,
+	0xe5, 0x3a, 0x1a, 0xf2, 0x53, 0x18, 0x7d, 0x12, 0x50, 0xbf, 0x54, 0x40, 0x74, 0x33, 0x02, 0x1d,
+	0x2b, 0xda, 0x5f, 0xe1, 0xf3, 0x7f, 0x1a, 0x50, 0xdf, 0x80, 0x47, 0x00, 0x06, 0x68, 0x7b, 0x1d,
+	0x5a, 0x9a, 0x34, 0x00, 0x59, 0xd1, 0xfe, 0x07, 0x1c, 0xd0, 0xf7, 0x3a, 0x66, 0xc7, 0x08, 0x40,
+	0xb6, 0x60, 0x92, 0xf5, 0x1c, 0xf4, 0x9c, 0x16, 0x2d, 0x01, 0x42, 0x17, 0x05, 0xb4, 0x2a, 0xaf,
+	0x2d, 0x9e, 0xf5, 0x2b, 0x73, 0x5d, 0xf9, 0x69, 0x60, 0x89, 0xa0, 0xc9, 0x97, 0x30, 0xde, 0xa0,
+	0xfe, 0x73, 0xea, 0x97, 0xa6, 0x10, 0xcf, 0x65, 0x39, 0x91, 0x58, 0xb8, 0xbf, 0x52, 0x9b, 0x3f,
+	0xeb, 0x57, 0x8a, 0x01, 0x7e, 0x19, 0x38, 0x04, 0x18, 0x93, 0x36, 0x9b, 0x3e, 0xa7, 0x7e, 0x40,
+	0xf7, 0x4e, 0xbb, 0x5d, 0xda, 0x29, 0x4d, 0x1b, 0xd2, 0x66, 0xd4, 0x49, 0x69, 0xf3, 0x79, 0x61,
+	0x33, 0xc4, 0x52, 0x53, 0xda, 0x0c, 0x00, 0x72, 0x04, 0x45, 0xfe, 0x57, 0xdd, 0xeb, 0x76, 0x69,
+	0x8b, 0x2d, 0xa9, 0xd2, 0x0c, 0x76, 0x70, 0x4d, 0x74, 0x10, 0xaf, 0xde, 0x5f, 0xa9, 0x55, 0xce,
+	0xfa, 0x95, 0xeb, 0x1c, 0x77, 0xb3, 0xa5, 0x2a, 0x8c, 0x6e, 0x12, 0x58, 0xd9, 0x38, 0xaa, 0xad,
+	0x16, 0x0d, 0x02, 0x9b, 0xfe, 0xe2, 0x94, 0x06, 0x61, 0x69, 0xd6, 0x18, 0x87, 0x51, 0xb7, 0xbf,
+	0xca, 0xc7, 0xe1, 0x60, 0x61, 0xd3, 0xe7, 0xa5, 0xe6, 0x38, 0x0c, 0x00, 0xb2, 0x0b, 0x50, 0xed,
+	0xf5, 0x1a, 0x34, 0x60, 0xc2, 0x58, 0xba, 0x8c, 0xa8, 0xe7, 0x04, 0xea, 0xa7, 0xf4, 0x40, 0x54,
+	0xec, 0xaf, 0xd4, 0xae, 0x9d, 0xf5, 0x2b, 0x0b, 0x4e, 0xaf, 0xd7, 0x0c, 0x78, 0x91, 0x81, 0x54,
+	0xc3, 0xc1, 0xf9, 0x7e, 0xe2, 0x85, 0x54, 0x88, 0x62, 0xa9, 0x18, 0xe3, 0xbb, 0x56, 0x27, 0xe9,
+	0xf5, 0xb1, 0xb0, 0x29, 0xc4, 0x3a, 0xce, 0x77, 0x0d, 0x80, 0xad, 0xc5, 0x35, 0x27, 0x74, 0x0e,
+	0x9c, 0x80, 0x0a, 0xf1, 0xb8, 0x62, 0xac, 0x45, 0xb3, 0x72, 0x7f, 0x95, 0xaf, 0xc5, 0xb6, 0x28,
+	0x6d, 0xa6, 0xc8, 0x4b, 0x0c, 0x1f, 0xe3, 0x48, 0x34, 0xf0, 0x12, 0x19, 0xc2, 0x91, 0x17, 0xf4,
+	0x20, 0x9d, 0x23, 0x51, 0x53, 0xb2, 0x09, 0x85, 0xa7, 0xf4, 0x80, 0x6b, 0x8e, 0x39, 0xc4, 0x77,
+	0x25, 0xc2, 0xc7, 0x75, 0xc6, 0x2a, 0x5f, 0x15, 0x0c, 0x5b, 0x52, 0x5b, 0x28, 0x68, 0xf2, 0x7b,
+	0x39, 0x58, 0x94, 0x2b, 0x9c, 0x86, 0x2f, 0x3c, 0xff, 0xd8, 0xed, 0x1e, 0xd6, 0xbd, 0xee, 0x33,
+	0xf7, 0xb0, 0x34, 0x8f, 0x98, 0x6f, 0xc6, 0x94, 0x46, 0xac, 0xd5, 0xfe, 0x4a, 0xed, 0xc7, 0x67,
+	0xfd, 0xca, 0x6d, 0xa5, 0x40, 0x54, 0x3d, 0x13, 0xc8, 0x67, 0xee, 0xa1, 0xd1, 0x71, 0x56, 0x5f,
+	0xe4, 0xaf, 0xe6, 0xe0, 0xaa, 0x18, 0x9d, 0x4d, 0x5b, 0x9e, 0xdf, 0x8e, 0xc8, 0x58, 0x40, 0x32,
+	0x2a, 0x6a, 0xb5, 0xa6, 0x35, 0xda, 0x5f, 0xa9, 0xbd, 0x7d, 0xd6, 0xaf, 0x58, 0x82, 0x71, 0x4d,
+	0x5f, 0x56, 0xa7, 0x11, 0x91, 0xd1, 0x11, 0x93, 0x04, 0xa6, 0xfc, 0x77, 0x7d, 0xfa, 0x8c, 0xfa,
+	0xb4, 0xdb, 0xa2, 0xa5, 0xab, 0x86, 0x24, 0x98, 0x95, 0x52, 0x2b, 0xb3, 0xad, 0xa4, 0xd9, 0x53,
+	0xc5, 0xa6, 0x24, 0x98, 0x20, 0xe4, 0x17, 0x40, 0x04, 0x03, 0xaa, 0xa7, 0x6d, 0x37, 0x14, 0x03,
+	0x5c, 0xc4, 0x5e, 0xae, 0x9b, 0x7c, 0xd6, 0x1a, 0xec, 0xaf, 0xd4, 0xac, 0xb3, 0x7e, 0x65, 0x59,
+	0xb2, 0xd8, 0x61, 0x55, 0x69, 0x03, 0x4b, 0x41, 0xce, 0x34, 0xef, 0xb6, 0xd7, 0x3a, 0x2e, 0x95,
+	0x0c, 0xcd, 0xcb, 0x8a, 0xa4, 0xca, 0xee, 0x78, 0xad, 0x63, 0x53, 0xf3, 0xb2, 0x5a, 0x12, 0xc2,
+	0x9c, 0x98, 0x25, 0x9b, 0x06, 0xa1, 0xef, 0xa2, 0xee, 0x08, 0x4a, 0xd7, 0x10, 0xcf, 0x92, 0xd4,
+	0xc1, 0xc9, 0x16, 0xfb, 0xef, 0x73, 0x6a, 0x85, 0x20, 0x34, 0x7d, 0xad, 0xce, 0xe8, 0x26, 0x0d,
+	0x3d, 0xf9, 0x4b, 0xb0, 0xf0, 0xd4, 0xed, 0xb6, 0xbd, 0x17, 0xc1, 0x1a, 0x0d, 0x8e, 0x43, 0xaf,
+	0xd7, 0xe0, 0x96, 0x5f, 0xa9, 0x8c, 0xfd, 0x2e, 0x4b, 0x31, 0x4f, 0x6b, 0xb3, 0xbf, 0x5a, 0x7b,
+	0xeb, 0xac, 0x5f, 0xb9, 0xf5, 0x82, 0x57, 0x36, 0xdb, 0xbc, 0xb6, 0x29, 0x8c, 0x47, 0xa3, 0xf3,
+	0xf4, 0x5e, 0x98, 0x08, 0x98, 0x15, 0xa5, 0xeb, 0x86, 0x08, 0x98, 0x95, 0x52, 0x19, 0xc4, 0x3a,
+	0x34, 0x45, 0xc0, 0x04, 0x21, 0x1b, 0x50, 0x90, 0xea, 0xa1, 0xb4, 0x64, 0x2c, 0x5d, 0x59, 0xbc,
+	0xbf, 0xca, 0x2d, 0x20, 0xa9, 0x62, 0xcc, 0x95, 0x2b, 0x5b, 0x91, 0x6d, 0x98, 0x44, 0x1d, 0x89,
+	0x2a, 0xeb, 0x06, 0x62, 0x22, 0x52, 0x50, 0x65, 0xf9, 0xfe, 0x6a, 0xad, 0x74, 0xd6, 0xaf, 0xcc,
+	0x73, 0x2d, 0x9b, 0x50, 0x54, 0x11, 0x02, 0xb2, 0x0a, 0x23, 0xd5, 0x5e, 0xaf, 0xb4, 0x8c, 0x78,
+	0xa6, 0x23, 0x3c, 0xfb, 0xab, 0xb5, 0x2b, 0x67, 0xfd, 0xca, 0x8c, 0xd3, 0x33, 0x87, 0xc5, 0x5a,
+	0xd7, 0x00, 0x0a, 0xd2, 0x20, 0xfb, 0x6a, 0xb4, 0x30, 0x51, 0x2c, 0x58, 0x9b, 0x30, 0xf6, 0xd4,
+	0x09, 0x5b, 0x47, 0xe4, 0x4b, 0x18, 0x7b, 0xe8, 0x76, 0xdb, 0x41, 0x29, 0x77, 0x73, 0x04, 0xf7,
+	0x6c, 0x6e, 0x2d, 0x62, 0x25, 0xab, 0xa8, 0x2d, 0xfe, 0xb2, 0x5f, 0xb9, 0x74, 0xd6, 0xaf, 0x5c,
+	0x3e, 0x66, 0xcd, 0x34, 0x93, 0x91, 0xc3, 0x59, 0xff, 0x26, 0x0f, 0x93, 0xaa, 0x35, 0x59, 0x82,
+	0x51, 0xf6, 0x3f, 0xda, 0x9e, 0x93, 0xb5, 0xc2, 0x59, 0xbf, 0x32, 0xca, 0xe0, 0x6c, 0x2c, 0x25,
+	0x2b, 0x30, 0xb5, 0xed, 0x39, 0xed, 0x06, 0x6d, 0xf9, 0x34, 0x0c, 0xd0, 0xb8, 0x2c, 0xd4, 0x8a,
+	0x67, 0xfd, 0xca, 0x74, 0xc7, 0x73, 0xda, 0xcd, 0x80, 0x97, 0xdb, 0x7a, 0x23, 0x86, 0x11, 0x2d,
+	0xa3, 0x91, 0x08, 0x23, 0xb3, 0x20, 0x6c, 0x2c, 0x25, 0x5f, 0xc1, 0xf8, 0x03, 0xb7, 0xc3, 0xf6,
+	0x9a, 0x51, 0xa4, 0x7f, 0x29, 0x4e, 0xff, 0x5d, 0x5e, 0xbd, 0xde, 0x0d, 0xfd, 0x97, 0xdc, 0x70,
+	0x78, 0x86, 0x05, 0xda, 0x40, 0x04, 0x06, 0x72, 0x1f, 0x26, 0x1a, 0xa7, 0x07, 0x48, 0xfe, 0x18,
+	0x76, 0x86, 0xb3, 0x1b, 0x9c, 0x1e, 0x34, 0xd9, 0x10, 0x34, 0x00, 0xd9, 0xac, 0xfc, 0x31, 0x4c,
+	0x69, 0xe8, 0x49, 0x11, 0x46, 0x8e, 0xe9, 0x4b, 0x3e, 0x76, 0x9b, 0xfd, 0x49, 0xe6, 0x61, 0xec,
+	0xb9, 0xd3, 0x39, 0xa5, 0x38, 0xd4, 0x49, 0x9b, 0x7f, 0x7c, 0x92, 0xff, 0x28, 0x67, 0xfd, 0x97,
+	0x51, 0x28, 0x6e, 0x7a, 0x41, 0xc8, 0x2c, 0x59, 0xb5, 0x25, 0xdf, 0x86, 0x71, 0x56, 0xb6, 0xb5,
+	0x26, 0xf8, 0x37, 0x75, 0xd6, 0xaf, 0x4c, 0x1c, 0x79, 0x41, 0xd8, 0x74, 0xdb, 0xb6, 0xa8, 0x22,
+	0xef, 0x40, 0x61, 0xc7, 0x6b, 0x53, 0x64, 0x0a, 0xa2, 0xad, 0xcd, 0x9c, 0xf5, 0x2b, 0x93, 0x5d,
+	0xaf, 0x4d, 0xd1, 0x2a, 0xb4, 0x55, 0x35, 0xd9, 0x17, 0xd6, 0x1c, 0xe7, 0x5d, 0x8d, 0xf1, 0x8e,
+	0x99, 0x6f, 0xbf, 0xe9, 0x57, 0x3e, 0xbc, 0xc0, 0x71, 0xe3, 0x6e, 0xe3, 0x65, 0x10, 0xd2, 0x13,
+	0x86, 0x49, 0x18, 0x7b, 0x4f, 0x61, 0xbe, 0xda, 0x6e, 0xbb, 0x1c, 0x62, 0xd7, 0x77, 0xbb, 0x2d,
+	0xb7, 0xe7, 0x74, 0x02, 0x9c, 0x83, 0xc9, 0xda, 0xed, 0xb3, 0x7e, 0xa5, 0xe2, 0xa8, 0xfa, 0x66,
+	0x4f, 0x35, 0xd0, 0x78, 0x98, 0x8a, 0x80, 0xac, 0x42, 0x61, 0x6d, 0xa7, 0x81, 0xa6, 0x60, 0x69,
+	0x0c, 0x91, 0xe1, 0xe6, 0xd8, 0xee, 0x06, 0x38, 0x34, 0x1d, 0x81, 0x6a, 0x48, 0x3e, 0x84, 0xe9,
+	0xdd, 0xd3, 0x83, 0x8e, 0xdb, 0xda, 0xdb, 0x6e, 0x3c, 0xa4, 0x2f, 0xd1, 0x86, 0x9e, 0xe6, 0x2a,
+	0xb3, 0x87, 0xe5, 0xcd, 0xb0, 0x13, 0x34, 0x8f, 0xe9, 0x4b, 0xdb, 0x68, 0x17, 0xc1, 0x35, 0x1a,
+	0x9b, 0x0c, 0x6e, 0x22, 0x01, 0x17, 0x04, 0x47, 0x3a, 0x1c, 0x6f, 0x47, 0xee, 0x01, 0x70, 0xcb,
+	0xa4, 0xda, 0x6e, 0x73, 0x13, 0x7b, 0xb2, 0x76, 0xf9, 0xac, 0x5f, 0x99, 0x12, 0xb6, 0x8c, 0xd3,
+	0x6e, 0xfb, 0xb6, 0xd6, 0x84, 0xd4, 0xa1, 0x60, 0x7b, 0x9c, 0xc1, 0xc2, 0xb0, 0xbe, 0xac, 0x0c,
+	0x6b, 0x5e, 0x2c, 0x8e, 0x52, 0xe2, 0x4b, 0x1f, 0xa5, 0x6c, 0x41, 0x2a, 0x30, 0xb1, 0xe3, 0xd5,
+	0x9d, 0xd6, 0x11, 0x37, 0xaf, 0x0b, 0xb5, 0xb1, 0xb3, 0x7e, 0x25, 0xf7, 0xdb, 0xb6, 0x2c, 0xb5,
+	0xfe, 0x59, 0x01, 0x8a, 0xcc, 0x86, 0x37, 0x24, 0xea, 0x27, 0x30, 0xc9, 0x69, 0x7f, 0x28, 0x04,
+	0x73, 0xba, 0x36, 0x7b, 0xd6, 0xaf, 0x80, 0x18, 0x20, 0x1b, 0x5c, 0xd4, 0x80, 0xdc, 0x81, 0x02,
+	0xc3, 0xd0, 0x8d, 0x44, 0x6b, 0xfa, 0xac, 0x5f, 0x29, 0x9c, 0x8a, 0x32, 0x5b, 0xd5, 0x92, 0x06,
+	0x4c, 0xac, 0xff, 0xd0, 0x73, 0x7d, 0x1a, 0x88, 0xa3, 0x5c, 0xf9, 0x2e, 0x3f, 0xb1, 0xdf, 0x95,
+	0x27, 0xf6, 0xbb, 0x7b, 0xf2, 0xc4, 0x5e, 0xbb, 0x21, 0x54, 0xc8, 0x15, 0xca, 0x41, 0xa2, 0xf1,
+	0xfd, 0xfe, 0x9f, 0x54, 0x72, 0xb6, 0xc4, 0x44, 0x7e, 0x02, 0xe3, 0x0f, 0x3c, 0xff, 0xc4, 0x09,
+	0xf1, 0x04, 0x37, 0x29, 0x96, 0x2b, 0x96, 0x18, 0xcb, 0x15, 0x4b, 0xc8, 0x03, 0x98, 0xb5, 0xbd,
+	0xd3, 0x90, 0xee, 0x79, 0xd2, 0xdc, 0xe4, 0xab, 0x76, 0xf9, 0xac, 0x5f, 0x29, 0xfb, 0xac, 0xa6,
+	0x19, 0x7a, 0x49, 0xc3, 0xd2, 0x8e, 0x41, 0x91, 0x75, 0x98, 0x35, 0x0c, 0xe3, 0xa0, 0x34, 0x8e,
+	0x92, 0xc7, 0x8d, 0x06, 0xc3, 0x9c, 0xd6, 0xe5, 0x2f, 0x06, 0x44, 0x76, 0xe0, 0xca, 0xc3, 0xd3,
+	0x03, 0xea, 0x77, 0x69, 0x48, 0x03, 0x49, 0xd1, 0x04, 0x52, 0x74, 0xf3, 0xac, 0x5f, 0x59, 0x3a,
+	0x56, 0x95, 0x29, 0x34, 0x25, 0x41, 0x09, 0x85, 0xcb, 0x82, 0x50, 0xb5, 0x0d, 0x15, 0x84, 0x39,
+	0xcd, 0x55, 0x5c, 0xac, 0xb6, 0x76, 0x5b, 0x70, 0xf9, 0xba, 0x1a, 0x7b, 0x72, 0x63, 0xb2, 0xe3,
+	0x38, 0xd9, 0x8a, 0x53, 0xda, 0x64, 0x12, 0xa9, 0xe5, 0x87, 0x34, 0xa9, 0x4d, 0x74, 0x59, 0x54,
+	0x7a, 0x65, 0x1b, 0xc6, 0x9e, 0x04, 0xce, 0x21, 0x97, 0xc4, 0xd9, 0x95, 0x5b, 0x82, 0xa2, 0xb8,
+	0xf4, 0xe1, 0xb9, 0x1e, 0x1b, 0xd6, 0xe6, 0xd8, 0x0e, 0x72, 0xca, 0xfe, 0xd4, 0x77, 0x10, 0xac,
+	0x23, 0x5f, 0x03, 0x08, 0xaa, 0xd8, 0xce, 0x36, 0x25, 0xf6, 0x5a, 0x63, 0x90, 0x6c, 0x13, 0x5b,
+	0x16, 0xe3, 0xbb, 0xaa, 0xc6, 0x67, 0xec, 0x75, 0xb6, 0x86, 0x84, 0x7c, 0x09, 0xd3, 0xa8, 0xae,
+	0xe4, 0x8c, 0x4e, 0xe3, 0x8c, 0xe2, 0xd1, 0x9f, 0x29, 0xc0, 0xb4, 0xf9, 0x34, 0x00, 0xc8, 0x5f,
+	0x86, 0x05, 0x81, 0x2e, 0x66, 0x66, 0xcc, 0x08, 0xb3, 0xca, 0x20, 0xcf, 0x6c, 0x53, 0x7b, 0x57,
+	0x50, 0x6a, 0x29, 0x4a, 0x33, 0x0d, 0x0f, 0x3b, 0xbd, 0x1b, 0xeb, 0x1b, 0x98, 0x54, 0xcc, 0x23,
+	0x13, 0x30, 0x52, 0xed, 0x74, 0x8a, 0x97, 0xd8, 0x1f, 0x8d, 0xc6, 0x66, 0x31, 0x47, 0x66, 0x01,
+	0x22, 0x89, 0x29, 0xe6, 0xc9, 0x74, 0x64, 0xac, 0x14, 0x47, 0xb0, 0x7d, 0xaf, 0x57, 0x1c, 0x25,
+	0x24, 0x6e, 0x25, 0x15, 0xc7, 0xac, 0xff, 0x96, 0x4b, 0x08, 0x16, 0xdb, 0x97, 0x85, 0x61, 0x85,
+	0x72, 0xc0, 0x37, 0x1f, 0xdc, 0x97, 0x85, 0x49, 0xc6, 0x37, 0x16, 0xbd, 0x11, 0xd3, 0x15, 0xbb,
+	0x8c, 0x07, 0x2d, 0xaf, 0xa3, 0xeb, 0x8a, 0x9e, 0x28, 0xb3, 0x55, 0x2d, 0x59, 0xd1, 0xb4, 0xca,
+	0x48, 0xb4, 0xb1, 0x4a, 0xad, 0xa2, 0x4b, 0x98, 0xd2, 0x2f, 0x2b, 0x9a, 0xf5, 0x35, 0x1a, 0xc1,
+	0xa4, 0x48, 0xb4, 0x6a, 0x67, 0x9d, 0x66, 0xcc, 0x19, 0xf9, 0x34, 0x61, 0x2c, 0xf2, 0x11, 0xa2,
+	0x50, 0xc6, 0xa6, 0x26, 0x61, 0x07, 0x56, 0x60, 0x6c, 0xdb, 0x3b, 0x74, 0xbb, 0x62, 0x90, 0x93,
+	0x67, 0xfd, 0xca, 0x58, 0x87, 0x15, 0xd8, 0xbc, 0xdc, 0xfa, 0xbf, 0x39, 0x5d, 0x7e, 0x95, 0xbd,
+	0x92, 0x4b, 0xb5, 0x57, 0x7e, 0x02, 0x93, 0xe2, 0x50, 0xb3, 0xb5, 0x26, 0x30, 0xa2, 0x3e, 0x96,
+	0xe7, 0x21, 0xb7, 0x6d, 0x47, 0x0d, 0xd8, 0x4e, 0xc3, 0x95, 0x33, 0xee, 0x34, 0x23, 0xd1, 0x4e,
+	0x23, 0xd4, 0x37, 0xdf, 0x69, 0xa2, 0x26, 0x6c, 0x22, 0x75, 0x6f, 0xd2, 0x68, 0x34, 0x91, 0xba,
+	0xdf, 0xc8, 0xf4, 0x15, 0x7d, 0x02, 0x50, 0x7d, 0xda, 0x60, 0xd2, 0x5f, 0xb5, 0x77, 0x84, 0x0e,
+	0x45, 0x57, 0x93, 0xf3, 0x22, 0x68, 0xe2, 0x6a, 0x71, 0x7c, 0x7d, 0x4b, 0xd2, 0x5a, 0x5b, 0x1d,
+	0x98, 0xdd, 0xa0, 0x21, 0x9b, 0x35, 0xb9, 0xe1, 0x0c, 0x1e, 0xfe, 0x67, 0x30, 0xf5, 0xd4, 0x0d,
+	0x8f, 0x4c, 0x03, 0x10, 0x3b, 0x7b, 0xe1, 0x86, 0x47, 0xd2, 0x00, 0xd4, 0x3a, 0xd3, 0x9b, 0x5b,
+	0xeb, 0x70, 0x59, 0xf4, 0xa6, 0xf6, 0xb7, 0x15, 0x13, 0x61, 0x2e, 0xb2, 0x28, 0x75, 0x84, 0x26,
+	0x1a, 0x1a, 0x57, 0xf8, 0xa4, 0x91, 0xd8, 0x02, 0xb8, 0x35, 0x9c, 0xe5, 0x69, 0x41, 0xc1, 0x89,
+	0x6d, 0x0d, 0xf1, 0x0d, 0xc1, 0x7a, 0x02, 0x33, 0xbb, 0x9d, 0xd3, 0x43, 0xb7, 0xcb, 0x04, 0xb4,
+	0x41, 0x7f, 0x41, 0xd6, 0x00, 0xa2, 0x02, 0xd1, 0x83, 0x74, 0x2f, 0x44, 0x15, 0xfb, 0xab, 0x62,
+	0x8a, 0xb1, 0x04, 0x75, 0xb8, 0xad, 0xc1, 0x59, 0x7f, 0x7b, 0x04, 0x88, 0xe8, 0xa3, 0x11, 0x3a,
+	0x21, 0x6d, 0xd0, 0x90, 0x6d, 0x17, 0x57, 0x21, 0xaf, 0xcc, 0xc6, 0xf1, 0xb3, 0x7e, 0x25, 0xef,
+	0xb6, 0xed, 0xfc, 0xd6, 0x1a, 0x79, 0x1f, 0xc6, 0xb0, 0x19, 0xf2, 0x7a, 0x56, 0xf5, 0xa7, 0x63,
+	0xe0, 0x32, 0x1d, 0xb0, 0x3f, 0x6d, 0xde, 0x98, 0x7c, 0x00, 0x93, 0x6b, 0xb4, 0x43, 0x0f, 0x9d,
+	0xd0, 0x93, 0x72, 0xc7, 0x0d, 0x31, 0x59, 0xa8, 0x4d, 0x51, 0xd4, 0x92, 0x6d, 0xe0, 0x36, 0x75,
+	0x02, 0xaf, 0xab, 0x6f, 0xe0, 0x3e, 0x96, 0xe8, 0x1b, 0x38, 0x6f, 0x43, 0xfe, 0x20, 0x07, 0x53,
+	0xd5, 0x6e, 0x57, 0x18, 0x38, 0x81, 0x70, 0xad, 0x2e, 0xdc, 0x55, 0x9e, 0xf1, 0x6d, 0xe7, 0x80,
+	0x76, 0xf6, 0x99, 0xc9, 0x1c, 0xd4, 0xbe, 0x63, 0x3a, 0xf5, 0x8f, 0xfb, 0x95, 0x4f, 0x5f, 0xc5,
+	0xd9, 0x7e, 0x77, 0xcf, 0x77, 0xdc, 0x30, 0x40, 0x3f, 0x56, 0xd4, 0xa1, 0x2e, 0x66, 0x1a, 0x1d,
+	0xe4, 0x1d, 0x18, 0x63, 0xf2, 0x2d, 0xed, 0x00, 0x9c, 0x6c, 0xb6, 0x0e, 0x8c, 0xc3, 0x0f, 0xb6,
+	0xb0, 0x6e, 0xc3, 0xa4, 0xe0, 0xe4, 0xd6, 0x5a, 0xd6, 0x14, 0x58, 0x6b, 0x70, 0x03, 0xad, 0x38,
+	0xca, 0x24, 0x17, 0xbd, 0x39, 0x42, 0x12, 0x23, 0xb3, 0x7f, 0x02, 0x8b, 0x15, 0x34, 0x4e, 0x08,
+	0x7a, 0x83, 0x6c, 0x59, 0x63, 0xd5, 0x61, 0x69, 0x83, 0x86, 0x36, 0x0d, 0x68, 0xb8, 0xeb, 0x04,
+	0xc1, 0x0b, 0xcf, 0x6f, 0x63, 0xd5, 0x85, 0x90, 0xfc, 0xf5, 0x1c, 0x54, 0xea, 0x3e, 0x65, 0x33,
+	0x9d, 0x89, 0x68, 0xf0, 0x0a, 0x5e, 0x12, 0x97, 0x0b, 0xf9, 0xa8, 0x96, 0xf1, 0x5a, 0x5c, 0x20,
+	0xbc, 0x05, 0x23, 0x7b, 0x7b, 0xdb, 0x28, 0x31, 0x23, 0xc8, 0xb8, 0x91, 0x30, 0xec, 0xfc, 0xa6,
+	0x5f, 0x29, 0xac, 0x9d, 0xf2, 0xcb, 0x07, 0x9b, 0xd5, 0x5b, 0xcf, 0x60, 0xc1, 0xa6, 0x5d, 0xfa,
+	0xc2, 0x39, 0xe8, 0x50, 0xc3, 0x5c, 0xad, 0xc0, 0x18, 0x77, 0x96, 0x25, 0x86, 0xc0, 0xcb, 0x4d,
+	0x7b, 0x36, 0x3f, 0xc4, 0x9e, 0xb5, 0xfe, 0x30, 0x07, 0x45, 0x3e, 0xdc, 0x9a, 0x17, 0x9e, 0x6f,
+	0x7c, 0x62, 0x04, 0xf9, 0xc1, 0x23, 0x20, 0x6f, 0x47, 0xdc, 0x1e, 0x89, 0x36, 0x3f, 0x24, 0x95,
+	0xe9, 0x70, 0x59, 0xc9, 0x06, 0xc4, 0x65, 0x89, 0x1f, 0x8d, 0x70, 0x40, 0x28, 0x4b, 0x52, 0x82,
+	0xfe, 0x65, 0x1e, 0xae, 0x68, 0x24, 0x06, 0x3d, 0xaf, 0x1b, 0x50, 0x76, 0xc6, 0x63, 0xc2, 0xa2,
+	0xd1, 0x89, 0x67, 0x3c, 0xb6, 0x65, 0x36, 0x23, 0x4b, 0x1c, 0x09, 0x7e, 0x87, 0x1d, 0x2e, 0x3a,
+	0x89, 0xe3, 0x20, 0x2a, 0x6e, 0xde, 0x54, 0x56, 0x9f, 0x9b, 0xe8, 0x7b, 0x50, 0xc0, 0x3f, 0x19,
+	0x23, 0x46, 0xb3, 0x19, 0xa1, 0x1a, 0x11, 0x17, 0xe0, 0x2b, 0xcf, 0xed, 0x3e, 0xa2, 0xe1, 0x91,
+	0x27, 0x0f, 0xcf, 0x5b, 0x4c, 0x89, 0xfd, 0x05, 0xcf, 0xed, 0x36, 0x4f, 0xb0, 0xf8, 0xa2, 0x87,
+	0xce, 0x08, 0xa1, 0xad, 0x21, 0xb7, 0xee, 0x43, 0x91, 0xe9, 0x9b, 0xf3, 0xcf, 0xa8, 0x35, 0x0f,
+	0x64, 0x83, 0x86, 0x35, 0xcf, 0xd8, 0x38, 0xac, 0x19, 0x98, 0xda, 0x75, 0xbb, 0x87, 0xf2, 0xf3,
+	0xdf, 0xe6, 0x61, 0x9a, 0x7f, 0x8b, 0x19, 0x88, 0xed, 0xa4, 0xb9, 0xf3, 0xec, 0xa4, 0x1f, 0xc1,
+	0x8c, 0x70, 0xe7, 0x50, 0x1f, 0x5d, 0xc8, 0x7c, 0x3e, 0xf0, 0x44, 0xc9, 0xbd, 0x3a, 0xcd, 0xe7,
+	0xbc, 0xc6, 0x36, 0x1b, 0x92, 0x6d, 0x98, 0xe5, 0x05, 0x0f, 0xa8, 0x13, 0x9e, 0x46, 0xa7, 0xaa,
+	0xcb, 0xc2, 0xce, 0x94, 0xc5, 0x5c, 0x19, 0x09, 0x5c, 0xcf, 0x44, 0xa1, 0x1d, 0x83, 0x25, 0x5f,
+	0xc2, 0xe5, 0x5d, 0xdf, 0xfb, 0xe1, 0xa5, 0x66, 0x3b, 0x70, 0x7d, 0xbc, 0xc0, 0x0e, 0x61, 0x3d,
+	0x56, 0xd5, 0xd4, 0x2d, 0x88, 0x78, 0x6b, 0x26, 0x53, 0x5b, 0x41, 0xcd, 0xf3, 0xdd, 0xee, 0x21,
+	0xce, 0x66, 0x81, 0xcb, 0x94, 0x1b, 0x34, 0x0f, 0xb0, 0xd0, 0x56, 0xd5, 0xd6, 0xff, 0x18, 0x81,
+	0x82, 0xea, 0xf8, 0xae, 0x6e, 0x96, 0x8a, 0xcd, 0x18, 0x97, 0x67, 0x74, 0xf8, 0xb1, 0xb5, 0x16,
+	0xe4, 0x1a, 0x77, 0x66, 0x71, 0x33, 0x60, 0x82, 0xc9, 0x98, 0xd3, 0xeb, 0xa1, 0xcb, 0x8a, 0x29,
+	0xd3, 0xb5, 0x1a, 0x72, 0xa1, 0xc0, 0x95, 0x69, 0xfb, 0xc0, 0xce, 0xaf, 0xd5, 0xd8, 0x5c, 0x3f,
+	0xde, 0x5a, 0xab, 0xe3, 0x80, 0x0a, 0x7c, 0xae, 0x3d, 0xb7, 0xdd, 0xb2, 0xb1, 0x94, 0xd5, 0x36,
+	0xaa, 0x8f, 0xb6, 0x05, 0xd1, 0x58, 0x1b, 0x38, 0x27, 0x1d, 0x1b, 0x4b, 0x99, 0x1d, 0xc8, 0xf7,
+	0xe8, 0xba, 0xd7, 0x0d, 0x7d, 0xaf, 0x13, 0xa0, 0xab, 0xa0, 0x60, 0x6c, 0xe7, 0x2d, 0x51, 0x65,
+	0xc7, 0x9a, 0x92, 0xa7, 0xb0, 0x58, 0x6d, 0x3f, 0x77, 0xba, 0x2d, 0xda, 0xe6, 0x35, 0x4f, 0x3d,
+	0xff, 0xf8, 0x59, 0xc7, 0x7b, 0x11, 0xe0, 0x29, 0xaf, 0x20, 0xce, 0x8b, 0xa2, 0x49, 0x53, 0xa0,
+	0x7b, 0x21, 0x1b, 0xd9, 0x59, 0xd0, 0x4c, 0x45, 0xd4, 0x3b, 0xde, 0x69, 0x1b, 0x8f, 0x77, 0x05,
+	0xae, 0x22, 0x5a, 0xac, 0xc0, 0xe6, 0xe5, 0x8c, 0x4b, 0x9b, 0x8d, 0x47, 0x78, 0x3a, 0x13, 0x5c,
+	0x3a, 0x0a, 0x4e, 0x6c, 0x56, 0x46, 0xde, 0x82, 0x09, 0x69, 0xd2, 0x72, 0xa7, 0x00, 0x7a, 0x8c,
+	0xa4, 0x29, 0x2b, 0xeb, 0xc8, 0x1a, 0x5c, 0x79, 0xe4, 0xb5, 0xa9, 0xef, 0x84, 0xb4, 0x2d, 0xac,
+	0xcb, 0x00, 0x0f, 0x5a, 0x05, 0x6e, 0x56, 0x9f, 0xc8, 0x4a, 0x79, 0xa1, 0x11, 0xd8, 0x49, 0x00,
+	0xeb, 0x3d, 0xb8, 0xc2, 0x97, 0xde, 0xb9, 0xed, 0x3d, 0x6b, 0x17, 0xa0, 0x41, 0x4f, 0x9c, 0xde,
+	0x91, 0xc7, 0xc4, 0xa3, 0xa6, 0x7f, 0x09, 0x03, 0x88, 0xa8, 0xeb, 0x02, 0x51, 0xb1, 0xbf, 0x2a,
+	0x2d, 0x62, 0xd9, 0xd2, 0xd6, 0xa0, 0xac, 0xff, 0x9c, 0x07, 0x82, 0x6e, 0xf3, 0x46, 0xe8, 0x53,
+	0xe7, 0x44, 0x92, 0xf1, 0x31, 0x4c, 0x73, 0x2d, 0xca, 0x8b, 0x91, 0x1c, 0x66, 0x5d, 0xf1, 0xe5,
+	0xa3, 0x57, 0x6d, 0x5e, 0xb2, 0x8d, 0xa6, 0x0c, 0xd4, 0xa6, 0xc1, 0xe9, 0x89, 0x04, 0xcd, 0x1b,
+	0xa0, 0x7a, 0x15, 0x03, 0xd5, 0xbf, 0xc9, 0x97, 0x30, 0x5b, 0xf7, 0x4e, 0x7a, 0x8c, 0x27, 0x02,
+	0x78, 0x44, 0xd8, 0x30, 0xa2, 0x5f, 0xa3, 0x72, 0xf3, 0x92, 0x1d, 0x6b, 0x4e, 0x76, 0x60, 0xee,
+	0x41, 0xe7, 0x34, 0x38, 0xaa, 0x76, 0xdb, 0xf5, 0x8e, 0x17, 0x48, 0x2c, 0xa3, 0xc2, 0xa5, 0x22,
+	0x16, 0x7f, 0xb2, 0xc5, 0xe6, 0x25, 0x3b, 0x0d, 0x90, 0xbc, 0x25, 0x62, 0x00, 0x84, 0x2d, 0x35,
+	0x73, 0x57, 0x84, 0x08, 0x3c, 0xee, 0xd2, 0xc7, 0xcf, 0x36, 0x2f, 0xd9, 0xbc, 0xb6, 0x36, 0x09,
+	0x13, 0x52, 0xf1, 0xdd, 0x83, 0x2b, 0x1a, 0x3b, 0x99, 0xf5, 0x77, 0x1a, 0x90, 0x32, 0x14, 0x9e,
+	0xf4, 0x3a, 0x9e, 0xd3, 0x96, 0xc6, 0x84, 0xad, 0xbe, 0xad, 0x9f, 0x98, 0x9c, 0x26, 0x4b, 0xfa,
+	0x89, 0x86, 0x37, 0x8e, 0x0a, 0xac, 0x4d, 0x93, 0xb9, 0x83, 0x5b, 0x1b, 0xfd, 0xe6, 0x63, 0xfd,
+	0x16, 0xe3, 0xbc, 0xb6, 0x16, 0x52, 0x99, 0x67, 0x3d, 0x44, 0x43, 0xa9, 0xda, 0xeb, 0x75, 0xdc,
+	0x16, 0xee, 0x2f, 0x5c, 0x3b, 0x2a, 0x1b, 0xe3, 0xb7, 0xf4, 0x9b, 0x6a, 0x6d, 0x73, 0x55, 0xf7,
+	0xd2, 0xda, 0x5d, 0xb4, 0xf5, 0x2d, 0xdc, 0xc8, 0x40, 0x26, 0xf6, 0x89, 0x8f, 0x61, 0x42, 0x14,
+	0xc5, 0x04, 0x5a, 0xf7, 0xed, 0xe3, 0xaa, 0x0c, 0x04, 0xa4, 0x6c, 0x6f, 0x7d, 0x03, 0xcb, 0x4f,
+	0x7a, 0x01, 0xf5, 0x93, 0xe8, 0x25, 0xa9, 0x1f, 0xaa, 0x9b, 0xf0, 0x5c, 0xe6, 0xbd, 0x01, 0x9c,
+	0xf5, 0x2b, 0xe3, 0x1c, 0xb7, 0xbc, 0x00, 0xb7, 0x7e, 0x3f, 0x07, 0xcb, 0x7c, 0xa9, 0x66, 0xa2,
+	0xbe, 0x08, 0x17, 0x34, 0xbf, 0x74, 0x3e, 0xdb, 0x2f, 0x3d, 0xd0, 0x51, 0x6f, 0x7d, 0x0d, 0x96,
+	0xa0, 0xa8, 0xd3, 0x79, 0x43, 0x73, 0xf3, 0xd7, 0x72, 0x30, 0xcf, 0x27, 0xe7, 0x35, 0xb0, 0x90,
+	0xcf, 0x61, 0xb6, 0x71, 0xec, 0xf6, 0xf6, 0x9d, 0x8e, 0xdb, 0xe6, 0x2e, 0x5a, 0xbe, 0x1d, 0x2d,
+	0xe0, 0x4e, 0x7b, 0xec, 0xf6, 0x9a, 0xcf, 0xa3, 0xaa, 0x9c, 0x1d, 0x6b, 0x6c, 0x3d, 0x86, 0x85,
+	0x18, 0x0d, 0x42, 0x30, 0x3e, 0x8c, 0x0b, 0x46, 0x22, 0x8c, 0x21, 0x5d, 0x2a, 0x1e, 0xc1, 0x55,
+	0x25, 0x15, 0xe6, 0x94, 0xad, 0xc6, 0xa4, 0x21, 0x81, 0x30, 0x4d, 0x14, 0x5a, 0x70, 0x55, 0x49,
+	0xc2, 0x6b, 0x48, 0x80, 0x9c, 0xdc, 0x7c, 0xea, 0xe4, 0x6e, 0x41, 0x59, 0x9f, 0xdc, 0xd7, 0x99,
+	0xd4, 0xff, 0x94, 0x83, 0xc5, 0x0d, 0xda, 0xc5, 0xad, 0xa7, 0xda, 0xeb, 0x19, 0x27, 0x13, 0xdd,
+	0x3d, 0x9d, 0x1b, 0xe8, 0x9e, 0x56, 0x66, 0x77, 0x3e, 0xdd, 0xec, 0x66, 0x7b, 0xea, 0x13, 0x7b,
+	0x4b, 0xc8, 0x2a, 0xee, 0xa9, 0xa7, 0xbe, 0x6b, 0xb3, 0x32, 0xb2, 0x15, 0xb9, 0xb6, 0x47, 0x87,
+	0xba, 0xb6, 0xe7, 0x84, 0xab, 0x6f, 0x42, 0xb8, 0xb6, 0x0d, 0x87, 0xb6, 0xf5, 0x29, 0x94, 0x92,
+	0x63, 0x11, 0xf2, 0x31, 0xec, 0xa8, 0x63, 0xad, 0x45, 0xd2, 0x2d, 0x6e, 0xc1, 0x95, 0x4b, 0x3f,
+	0xa6, 0x42, 0x07, 0xb8, 0x90, 0xac, 0x46, 0x24, 0x9f, 0x02, 0x8b, 0xe8, 0xff, 0x13, 0x26, 0x9f,
+	0x3c, 0xd2, 0x21, 0x97, 0x1d, 0xe9, 0x20, 0x64, 0x94, 0x83, 0x4a, 0x00, 0xeb, 0x29, 0x5c, 0x35,
+	0x90, 0x46, 0x52, 0xff, 0x39, 0x14, 0x94, 0x81, 0x61, 0x7a, 0x38, 0x0c, 0xb4, 0x38, 0x6f, 0xca,
+	0xd6, 0x50, 0x20, 0xd6, 0xaf, 0x72, 0xb0, 0xc8, 0x77, 0x97, 0xe4, 0xb8, 0xcf, 0x3f, 0xfb, 0x7f,
+	0x2a, 0x6e, 0xb3, 0xfb, 0x29, 0x6e, 0x33, 0x04, 0xd1, 0xdd, 0x66, 0xba, 0xb3, 0xec, 0xab, 0xd1,
+	0x42, 0xbe, 0x38, 0x62, 0xed, 0x43, 0x29, 0x39, 0xc2, 0x37, 0x30, 0x27, 0x1b, 0xb0, 0xa8, 0x2d,
+	0xf4, 0xd7, 0x90, 0x98, 0x4d, 0x58, 0x8a, 0xcc, 0x3c, 0x63, 0x8e, 0x2f, 0x38, 0x0f, 0x42, 0xf6,
+	0x22, 0xda, 0xdf, 0xa0, 0xec, 0x45, 0x0d, 0xdf, 0x98, 0xec, 0x6d, 0xc1, 0x1c, 0x47, 0x6c, 0xae,
+	0xd3, 0x15, 0x7d, 0x9d, 0xa6, 0xc6, 0xef, 0x24, 0x97, 0xee, 0x23, 0x5c, 0xba, 0xb2, 0x49, 0x44,
+	0xe1, 0x07, 0x30, 0x2e, 0x42, 0x14, 0x39, 0x7d, 0x29, 0xc8, 0x50, 0x87, 0xf3, 0xb8, 0x44, 0x5b,
+	0x34, 0xb6, 0x4a, 0x38, 0x64, 0x76, 0x6e, 0x12, 0x0e, 0x78, 0x75, 0x8a, 0xfd, 0x9a, 0x29, 0xcb,
+	0x58, 0xcd, 0x6b, 0xee, 0x3f, 0x8f, 0xa1, 0xc4, 0xf7, 0x1f, 0x0d, 0xeb, 0x6b, 0xed, 0x40, 0x1f,
+	0x41, 0x89, 0xcb, 0x53, 0x0a, 0xc2, 0xc1, 0xdb, 0xca, 0xb2, 0x94, 0xc4, 0x6a, 0xa7, 0x93, 0x36,
+	0xfa, 0xbf, 0x99, 0x83, 0x6b, 0x1b, 0x34, 0x34, 0xa3, 0xb8, 0xfe, 0x4c, 0xac, 0x80, 0xef, 0xa0,
+	0x9c, 0x46, 0x88, 0x98, 0x8a, 0x2f, 0xe2, 0x53, 0x91, 0x19, 0xb2, 0x96, 0x3e, 0x25, 0xdf, 0xc2,
+	0x75, 0x3e, 0x25, 0x66, 0x7b, 0x39, 0xd0, 0x4f, 0x63, 0xb3, 0x92, 0x89, 0x3d, 0x6d, 0x76, 0xfe,
+	0x4e, 0x0e, 0xae, 0x73, 0x26, 0xa7, 0x23, 0xff, 0xd3, 0xb6, 0x13, 0x77, 0xa0, 0xa2, 0xe6, 0xfc,
+	0x0d, 0x4c, 0xac, 0xf5, 0xaf, 0x72, 0x40, 0x24, 0x9e, 0x7a, 0xc3, 0x96, 0x38, 0xae, 0xc1, 0x48,
+	0xbd, 0x61, 0x8b, 0x1b, 0x71, 0xdc, 0xff, 0x5b, 0x81, 0x6f, 0xb3, 0xb2, 0xf8, 0x66, 0x90, 0x3f,
+	0xcf, 0x66, 0xb0, 0x05, 0xa4, 0xe1, 0x1e, 0x76, 0x9f, 0xba, 0xe1, 0x91, 0xea, 0xac, 0x2a, 0xbc,
+	0x17, 0x18, 0x2c, 0x18, 0xb8, 0x87, 0xdd, 0x26, 0x5e, 0x49, 0xa8, 0x80, 0xc4, 0x96, 0x63, 0xa7,
+	0x00, 0x59, 0x3f, 0x87, 0x39, 0x83, 0x5e, 0x21, 0x43, 0x4b, 0x30, 0x5a, 0xa7, 0x7e, 0x28, 0x28,
+	0x46, 0xae, 0xb5, 0xa8, 0x1f, 0xda, 0x58, 0x4a, 0xde, 0x86, 0x89, 0x7a, 0x15, 0x3d, 0xa9, 0x68,
+	0xf1, 0x4c, 0x73, 0x25, 0xd7, 0x72, 0x9a, 0x18, 0x25, 0x6f, 0xcb, 0x4a, 0xeb, 0xdf, 0xe5, 0x34,
+	0xec, 0x0c, 0x7c, 0x38, 0x3b, 0xde, 0x63, 0x87, 0x76, 0xc6, 0x7f, 0x8d, 0x1b, 0x57, 0xd8, 0x66,
+	0x2a, 0xbc, 0x50, 0x7c, 0x1f, 0xb0, 0xb5, 0x46, 0xe7, 0xf4, 0x02, 0xcb, 0x5b, 0x47, 0x0e, 0x24,
+	0x3d, 0xa4, 0xea, 0xd6, 0x51, 0xa0, 0x0e, 0x6c, 0xbd, 0x91, 0xf5, 0x1d, 0xcc, 0x9b, 0xf4, 0xbf,
+	0x51, 0xf6, 0xfc, 0x08, 0xaf, 0xb3, 0xb4, 0x8b, 0x60, 0x42, 0x74, 0xf7, 0x86, 0x10, 0xd1, 0x9f,
+	0x42, 0x51, 0xb4, 0x8a, 0x96, 0xf8, 0x6d, 0x69, 0x70, 0xf2, 0x05, 0x6e, 0x06, 0x4e, 0x4b, 0x5f,
+	0xef, 0x8f, 0xa5, 0x03, 0x65, 0x58, 0x0f, 0xff, 0x20, 0x07, 0xa5, 0x47, 0x0f, 0xaa, 0xd5, 0xd3,
+	0xf0, 0x88, 0x76, 0x43, 0x76, 0x54, 0xa2, 0xf5, 0x23, 0xa7, 0xd3, 0xa1, 0xdd, 0x43, 0x4a, 0xee,
+	0xc0, 0xe8, 0xde, 0xe3, 0xbd, 0x5d, 0xe1, 0xa7, 0x98, 0x17, 0x4e, 0x02, 0x56, 0xa4, 0xda, 0xd8,
+	0xd8, 0x82, 0x3c, 0x84, 0x2b, 0x4f, 0xc5, 0x53, 0x05, 0x55, 0x25, 0x3c, 0x14, 0x37, 0xee, 0xaa,
+	0x47, 0x0c, 0x75, 0x9f, 0xb6, 0x59, 0x2f, 0x4e, 0xa7, 0x1a, 0x30, 0x25, 0xc3, 0xe6, 0x27, 0x09,
+	0xf7, 0xd5, 0x68, 0x21, 0x57, 0xcc, 0x5b, 0x7f, 0x90, 0x83, 0xc5, 0x18, 0x65, 0x9a, 0xd3, 0x5a,
+	0x27, 0x6c, 0x4e, 0x23, 0x4c, 0x36, 0xd9, 0xbc, 0x24, 0x28, 0xab, 0x63, 0x5c, 0x2c, 0xf6, 0x20,
+	0x08, 0x7a, 0x6b, 0x30, 0x41, 0x11, 0x02, 0x05, 0x28, 0xa2, 0xda, 0xb0, 0xdc, 0xba, 0x0c, 0x33,
+	0x06, 0x07, 0x2c, 0x0b, 0xa6, 0xf5, 0x9e, 0x19, 0x9b, 0xeb, 0x5e, 0x5b, 0xb1, 0x99, 0xfd, 0x6d,
+	0xfd, 0xbd, 0x1c, 0xcc, 0x3f, 0x7a, 0x50, 0xb5, 0xe9, 0xa1, 0xcb, 0x56, 0x72, 0xc4, 0xe2, 0x15,
+	0x63, 0x24, 0x4b, 0xc6, 0x48, 0x62, 0x6d, 0xd5, 0x90, 0x3e, 0x49, 0x0c, 0x69, 0x29, 0x6d, 0x48,
+	0x68, 0xfb, 0xb9, 0x5e, 0xd7, 0x18, 0x89, 0xe6, 0x8f, 0xf9, 0x87, 0x39, 0x98, 0xd3, 0x68, 0x52,
+	0xf4, 0xbf, 0x67, 0x90, 0x74, 0x3d, 0x85, 0xa4, 0x04, 0x93, 0x6b, 0x09, 0x8a, 0x7e, 0x34, 0x88,
+	0xa2, 0xa1, 0x3c, 0xfe, 0xa3, 0x1c, 0x2c, 0xa4, 0xf2, 0x80, 0x5c, 0x65, 0x3b, 0x50, 0xcb, 0xa7,
+	0xa1, 0x60, 0xaf, 0xf8, 0x62, 0xe5, 0x5b, 0x41, 0x70, 0x2a, 0xde, 0x91, 0x4c, 0xda, 0xe2, 0x8b,
+	0xfc, 0x08, 0x66, 0x76, 0xa9, 0xef, 0x7a, 0xed, 0x06, 0x6d, 0x79, 0xdd, 0x36, 0xf7, 0x76, 0xcf,
+	0xd8, 0x66, 0x21, 0x59, 0x82, 0xc9, 0x6a, 0xe7, 0xd0, 0xf3, 0xdd, 0xf0, 0x88, 0xbb, 0xc4, 0x26,
+	0xed, 0xa8, 0x80, 0xe1, 0x5e, 0x73, 0x0f, 0xdd, 0x90, 0xdf, 0x1b, 0xce, 0xd8, 0xe2, 0x8b, 0x94,
+	0x60, 0xa2, 0xda, 0x6a, 0x79, 0xa7, 0xdd, 0x10, 0xbd, 0xbb, 0x93, 0xb6, 0xfc, 0x64, 0x10, 0x5f,
+	0xdb, 0x28, 0x04, 0x18, 0xe9, 0x65, 0x8b, 0x2f, 0xeb, 0x5d, 0x98, 0x4f, 0xe3, 0x63, 0xaa, 0xc8,
+	0xfc, 0x95, 0x3c, 0xcc, 0x55, 0xdb, 0xed, 0x47, 0x0f, 0xaa, 0x6b, 0x54, 0x37, 0x64, 0xde, 0x87,
+	0xd1, 0xad, 0xae, 0x1b, 0x8a, 0x1d, 0x78, 0x59, 0x4c, 0x4f, 0x4a, 0x4b, 0xd6, 0x8a, 0xcd, 0x10,
+	0xfb, 0x9f, 0xd8, 0x30, 0xb7, 0xfe, 0x83, 0x1b, 0x84, 0x6e, 0xf7, 0x10, 0xe7, 0x9c, 0x77, 0x2c,
+	0xe6, 0x58, 0x22, 0xc9, 0x58, 0x6e, 0x9b, 0x97, 0xec, 0x34, 0x60, 0xb2, 0x07, 0x57, 0x77, 0xe8,
+	0x8b, 0x14, 0x11, 0x52, 0x81, 0x5a, 0x0a, 0x6d, 0x8a, 0xe4, 0x64, 0xc0, 0xea, 0x12, 0xfa, 0x37,
+	0xf2, 0x18, 0xfd, 0xa7, 0x0d, 0x4c, 0xf4, 0xfc, 0x04, 0xe6, 0x35, 0x82, 0x22, 0x8d, 0x93, 0x13,
+	0x71, 0xe1, 0xa9, 0xc3, 0xd1, 0x17, 0x52, 0x2a, 0x38, 0x79, 0x0a, 0x8b, 0x26, 0x51, 0x11, 0x66,
+	0x73, 0x31, 0xa4, 0x35, 0xd9, 0xbc, 0x64, 0x67, 0x41, 0x93, 0x15, 0x18, 0xa9, 0xb6, 0x8e, 0x05,
+	0x5b, 0xd2, 0xa7, 0x8c, 0x8f, 0xac, 0xda, 0x3a, 0xc6, 0x48, 0xda, 0xd6, 0xb1, 0xb1, 0x1e, 0xfe,
+	0x7d, 0x0e, 0x16, 0x33, 0x66, 0x98, 0x2c, 0x03, 0xf0, 0x42, 0x4d, 0xb7, 0x6b, 0x25, 0x6c, 0x57,
+	0xe5, 0x5f, 0x78, 0x99, 0x3a, 0x82, 0x77, 0xf3, 0x32, 0xe6, 0x29, 0xaa, 0xb0, 0xb5, 0x46, 0x64,
+	0x17, 0xa6, 0xf8, 0x17, 0x0f, 0xbd, 0x1a, 0x45, 0x18, 0x62, 0xc0, 0xf0, 0x58, 0x2b, 0x8c, 0xa7,
+	0x68, 0x63, 0x41, 0x33, 0x1e, 0x72, 0xa5, 0xa3, 0x10, 0x07, 0xd2, 0x7a, 0x7c, 0x14, 0x6a, 0xd0,
+	0xe4, 0x0e, 0x8c, 0xf3, 0x42, 0x31, 0x87, 0xf2, 0x45, 0x4f, 0xd4, 0x58, 0xd4, 0x5b, 0x7f, 0x98,
+	0x93, 0x7e, 0xa6, 0xc4, 0xd2, 0xf8, 0xa9, 0xb1, 0x34, 0x6e, 0x29, 0x82, 0xd3, 0x1a, 0x1b, 0xab,
+	0xa3, 0x06, 0x53, 0xaf, 0xb2, 0x2a, 0x74, 0x20, 0x5d, 0x6e, 0xff, 0x69, 0x4e, 0x9e, 0x90, 0x93,
+	0xa2, 0xbb, 0x0e, 0xd3, 0xaf, 0x26, 0xb2, 0x06, 0x18, 0xf9, 0x80, 0x4b, 0x54, 0x7e, 0xf0, 0x48,
+	0x07, 0x0a, 0xd5, 0x67, 0xd2, 0x95, 0xf6, 0x2a, 0x62, 0x65, 0x2d, 0xa5, 0x40, 0xab, 0xee, 0xac,
+	0xd3, 0x44, 0x6d, 0xe3, 0x65, 0xb7, 0x25, 0xe7, 0xe9, 0xed, 0x78, 0x00, 0x41, 0xe6, 0xed, 0xb0,
+	0x4e, 0x43, 0x3e, 0xf2, 0xae, 0x08, 0x91, 0x43, 0xeb, 0x58, 0x27, 0xea, 0x2c, 0xb6, 0x4e, 0x5e,
+	0xa5, 0xd3, 0x3a, 0xcc, 0xec, 0xd0, 0x17, 0x89, 0x7e, 0xf1, 0xce, 0xad, 0x4b, 0x5f, 0x34, 0xb5,
+	0xbe, 0x35, 0x69, 0x37, 0x61, 0xc8, 0x01, 0xcc, 0x4a, 0x5d, 0x70, 0x5e, 0x95, 0xc8, 0xa3, 0x49,
+	0x59, 0x0f, 0x27, 0xcf, 0x9c, 0xa6, 0x2f, 0x4a, 0xf5, 0x30, 0x50, 0x13, 0xa3, 0xb5, 0x0b, 0xa5,
+	0xe4, 0x58, 0x85, 0x94, 0xbd, 0x3f, 0x6c, 0x39, 0xf1, 0x13, 0x5a, 0xdb, 0x5c, 0x5a, 0x9b, 0xe8,
+	0x4c, 0x50, 0x6d, 0xd4, 0x31, 0xe8, 0x7e, 0x9c, 0x75, 0x78, 0x95, 0x27, 0x59, 0xa7, 0x87, 0xab,
+	0x47, 0x21, 0x24, 0x0b, 0x31, 0x4c, 0x82, 0xb0, 0x77, 0x61, 0x42, 0x14, 0xa9, 0x67, 0x00, 0xf1,
+	0x85, 0x2e, 0x1b, 0x58, 0xff, 0x28, 0x07, 0xd7, 0x9e, 0x04, 0xd4, 0x6f, 0xb8, 0xdd, 0xc3, 0x0e,
+	0x7d, 0x12, 0x98, 0x01, 0x1c, 0xbf, 0x6d, 0x2c, 0xf6, 0xc5, 0x8c, 0xc0, 0xd0, 0xff, 0x5f, 0x4b,
+	0xfc, 0x9f, 0xe4, 0xa0, 0x9c, 0x46, 0xdb, 0x9b, 0x5d, 0xe5, 0x77, 0xc5, 0x59, 0x83, 0x53, 0x5b,
+	0x12, 0xe0, 0xaa, 0x4f, 0x39, 0x58, 0x36, 0x48, 0xf6, 0xbf, 0xb1, 0xbc, 0xff, 0x4f, 0x0e, 0xe6,
+	0xb7, 0x02, 0x24, 0xff, 0x17, 0xa7, 0xae, 0x4f, 0xdb, 0x92, 0x71, 0x77, 0xd3, 0xc2, 0x87, 0x71,
+	0x5e, 0x37, 0x2f, 0xa5, 0x85, 0x07, 0xbf, 0xaf, 0x05, 0x48, 0xe6, 0x07, 0xc5, 0x05, 0x1b, 0x6f,
+	0x51, 0xde, 0x86, 0xd1, 0x1d, 0x66, 0xd2, 0x8c, 0x08, 0xf9, 0xe3, 0x10, 0xac, 0x08, 0x63, 0x19,
+	0x19, 0xc9, 0xec, 0x83, 0x3c, 0x48, 0x44, 0x4c, 0x8e, 0x0e, 0x8f, 0x7b, 0x4d, 0x3e, 0xa2, 0xa9,
+	0x15, 0x60, 0x7c, 0xcf, 0xf1, 0x0f, 0x69, 0x68, 0x7d, 0x0b, 0x65, 0x71, 0xc5, 0xc8, 0xfd, 0x6d,
+	0x78, 0x11, 0x19, 0x44, 0x7e, 0xa0, 0x41, 0xd7, 0x82, 0xcb, 0x00, 0x8d, 0xd0, 0xf1, 0xc3, 0xad,
+	0x6e, 0x9b, 0xfe, 0x80, 0xa3, 0x1d, 0xb3, 0xb5, 0x12, 0xeb, 0x03, 0x98, 0x54, 0x43, 0xc0, 0xf3,
+	0x94, 0x66, 0xb5, 0xe1, 0x70, 0xe6, 0x8d, 0x18, 0x4e, 0x19, 0xb8, 0xb9, 0x0a, 0x0b, 0xb1, 0xa9,
+	0x10, 0x72, 0x52, 0x66, 0x13, 0xc6, 0xcb, 0x78, 0x10, 0x83, 0xad, 0xbe, 0xad, 0x3a, 0x5c, 0x49,
+	0xcc, 0x34, 0x21, 0x18, 0x97, 0xcb, 0x0f, 0x9f, 0x4c, 0xa9, 0x37, 0x1a, 0x9b, 0xac, 0x6c, 0x6f,
+	0xbb, 0xc1, 0x63, 0x94, 0x58, 0xd9, 0xde, 0x76, 0xa3, 0x36, 0xce, 0x25, 0xc7, 0xfa, 0xe7, 0x79,
+	0x3c, 0x42, 0x26, 0x78, 0x10, 0x73, 0x6b, 0xe8, 0xae, 0x95, 0x1a, 0x4c, 0xe2, 0x88, 0xd7, 0x64,
+	0x2c, 0xdf, 0xe0, 0x7b, 0x89, 0xc2, 0x2f, 0xfb, 0x95, 0x4b, 0x78, 0x19, 0x11, 0x81, 0x91, 0x2f,
+	0x60, 0x62, 0xbd, 0xdb, 0x46, 0x0c, 0x23, 0x17, 0xc0, 0x20, 0x81, 0xd8, 0x3c, 0x20, 0xc9, 0xcc,
+	0x1c, 0x11, 0xe7, 0x75, 0x5b, 0x2b, 0x41, 0x36, 0xbb, 0x27, 0x2e, 0xbf, 0x7d, 0x1e, 0xb3, 0xf9,
+	0x07, 0xe3, 0x26, 0x92, 0x20, 0x9f, 0x66, 0x4c, 0xda, 0xea, 0x9b, 0x58, 0x30, 0xf6, 0xd8, 0x6f,
+	0x8b, 0x40, 0xf9, 0xd9, 0x95, 0x69, 0xf9, 0x56, 0x9d, 0x95, 0xd9, 0xbc, 0xca, 0xfa, 0x5f, 0x78,
+	0x23, 0x14, 0xa6, 0xca, 0x8d, 0xc1, 0x95, 0xdc, 0x6b, 0x73, 0x25, 0xff, 0x2a, 0x5c, 0x51, 0xa3,
+	0x1e, 0xc9, 0x1a, 0xf5, 0x68, 0xd6, 0xa8, 0xc7, 0xb2, 0x47, 0xbd, 0x01, 0xe3, 0x7c, 0xa8, 0xe4,
+	0x36, 0x8c, 0x6d, 0x85, 0xf4, 0x24, 0x72, 0x2d, 0xe8, 0x77, 0xfa, 0x36, 0xaf, 0x63, 0xa7, 0x9e,
+	0x6d, 0x27, 0x08, 0x65, 0x54, 0xdc, 0xa4, 0x2d, 0x3f, 0xad, 0x3f, 0xce, 0x41, 0x71, 0xdb, 0x0d,
+	0x42, 0xb6, 0x10, 0xce, 0x29, 0x6b, 0x6a, 0x44, 0xf9, 0xac, 0x11, 0x8d, 0xc4, 0x46, 0xf4, 0x29,
+	0x8c, 0x63, 0xb0, 0x66, 0x20, 0x9e, 0x61, 0xdd, 0x16, 0x43, 0x8a, 0x77, 0xcc, 0x43, 0x3a, 0x03,
+	0x7c, 0x2e, 0x65, 0x0b, 0x90, 0xf2, 0xc7, 0x30, 0xa5, 0x15, 0x5f, 0xe8, 0x15, 0xd5, 0x37, 0x70,
+	0x45, 0xeb, 0x42, 0xf9, 0x21, 0x86, 0x78, 0xbe, 0x95, 0x67, 0x95, 0xb1, 0x6d, 0x87, 0xfe, 0xa0,
+	0xb3, 0x4d, 0x7c, 0x5a, 0xdf, 0x63, 0xac, 0xf1, 0xb6, 0xd7, 0x3a, 0xd6, 0xfc, 0x8e, 0x13, 0x5c,
+	0x99, 0xc5, 0xdd, 0xf7, 0xac, 0x15, 0xaf, 0xb1, 0x65, 0x0b, 0x72, 0x13, 0xa6, 0xb6, 0xba, 0x0f,
+	0x3c, 0xbf, 0x45, 0x1f, 0x77, 0x3b, 0x1c, 0x7b, 0xc1, 0xd6, 0x8b, 0x84, 0x1b, 0x49, 0xf4, 0x10,
+	0xb9, 0x91, 0xb0, 0x20, 0xe6, 0x46, 0xe2, 0xaf, 0x40, 0x6d, 0x5e, 0x27, 0xbc, 0x54, 0xec, 0xef,
+	0x41, 0x3e, 0x24, 0xe5, 0x6c, 0x1a, 0xd6, 0xf0, 0x00, 0xae, 0xd9, 0xb4, 0xd7, 0x71, 0x98, 0xad,
+	0x78, 0xe2, 0xf1, 0xf6, 0x6a, 0xcc, 0x37, 0x53, 0xc2, 0xe0, 0x4c, 0xd7, 0xa7, 0x22, 0x39, 0x3f,
+	0x80, 0xe4, 0x13, 0xb8, 0xb5, 0x41, 0xc3, 0xd4, 0xa7, 0x9c, 0xd1, 0xe0, 0x37, 0xa1, 0x20, 0x9e,
+	0x1b, 0xc8, 0xf1, 0x0f, 0x7b, 0x45, 0x2a, 0xae, 0x72, 0x04, 0x1e, 0xf5, 0x97, 0xf5, 0x25, 0x54,
+	0xb2, 0xba, 0x3b, 0x5f, 0xdc, 0x92, 0x0b, 0x37, 0xb3, 0x11, 0x28, 0x6b, 0x62, 0x42, 0x74, 0xa8,
+	0x4e, 0xfd, 0x83, 0xa9, 0x55, 0xce, 0x7d, 0xb4, 0xa7, 0xc4, 0x1f, 0x56, 0x4d, 0x06, 0x46, 0xbc,
+	0x06, 0xb9, 0x4d, 0xbc, 0x7e, 0x30, 0x11, 0x44, 0x7c, 0xad, 0x42, 0x41, 0x96, 0xc5, 0xee, 0x1f,
+	0x12, 0xaf, 0x64, 0x91, 0xa1, 0x6d, 0x89, 0x40, 0x81, 0x59, 0xdf, 0xcb, 0x4b, 0x02, 0x13, 0xe2,
+	0x7c, 0x21, 0xb5, 0xe7, 0xb9, 0x15, 0xb0, 0x3c, 0xb8, 0x66, 0xe2, 0xd6, 0xdd, 0xd3, 0x45, 0xcd,
+	0x3d, 0xcd, 0xbd, 0xd2, 0x4c, 0x2e, 0xed, 0xed, 0xf5, 0x6e, 0xbb, 0xe7, 0xb9, 0xdd, 0x50, 0x2c,
+	0x5e, 0xbd, 0x88, 0x2c, 0xeb, 0x4e, 0xe8, 0xe9, 0x64, 0x0c, 0xf2, 0x7d, 0x28, 0xa7, 0x75, 0xa8,
+	0xf9, 0x7e, 0x94, 0x3f, 0x99, 0xdb, 0x71, 0xd6, 0x11, 0xcc, 0x1b, 0x79, 0x47, 0xa2, 0x44, 0x0a,
+	0x51, 0xbe, 0x95, 0xc9, 0xda, 0x67, 0xbf, 0xe9, 0x57, 0x3e, 0xba, 0x48, 0xa0, 0xab, 0xc4, 0xb9,
+	0xa7, 0xc2, 0xa8, 0xad, 0x45, 0x18, 0xa9, 0xdb, 0xdb, 0x38, 0x6c, 0x7b, 0x5b, 0x0d, 0xdb, 0xde,
+	0xb6, 0x7e, 0x93, 0x83, 0x4a, 0xfd, 0xc8, 0xe9, 0x1e, 0xf2, 0xcb, 0xd9, 0xc8, 0x5c, 0xd5, 0x6e,
+	0x7b, 0xcf, 0x7b, 0xa4, 0x5a, 0x81, 0xa9, 0x1d, 0xfa, 0x42, 0x86, 0x80, 0x8b, 0x60, 0x6a, 0x74,
+	0xbf, 0xb3, 0xe3, 0x4e, 0x4f, 0x94, 0xdb, 0x7a, 0x23, 0xf2, 0x17, 0x5f, 0xdd, 0xb9, 0xc4, 0xb3,
+	0x0f, 0x44, 0x27, 0x29, 0x5e, 0x9b, 0x76, 0xa4, 0xca, 0xe8, 0xc2, 0xfa, 0xd7, 0x39, 0xb8, 0x99,
+	0x3d, 0x78, 0x31, 0x71, 0x6b, 0x46, 0x0e, 0x87, 0x01, 0xb7, 0xcb, 0x78, 0x64, 0xd5, 0x72, 0x38,
+	0xc4, 0xf3, 0x36, 0xd8, 0xb4, 0xe5, 0x3d, 0xa7, 0xfe, 0xcb, 0x98, 0x9f, 0x5d, 0x16, 0xd7, 0xd9,
+	0x96, 0x23, 0x33, 0xe0, 0xf0, 0x22, 0xe3, 0xd9, 0xa6, 0x28, 0xb3, 0xfe, 0x63, 0x0e, 0xae, 0xe3,
+	0x36, 0x29, 0xbc, 0x90, 0xb2, 0xe2, 0xe2, 0x51, 0x0d, 0x1f, 0xc0, 0xb4, 0xde, 0xb9, 0x98, 0x30,
+	0x7c, 0xf4, 0x2d, 0x29, 0x68, 0xb6, 0xbc, 0x36, 0xb5, 0x8d, 0x66, 0x64, 0x0b, 0xa6, 0xc4, 0xb7,
+	0xe6, 0x6a, 0x5a, 0xd0, 0x32, 0xc2, 0xa0, 0x3c, 0x70, 0xcf, 0x11, 0xce, 0xbe, 0x40, 0xd6, 0xc4,
+	0xb0, 0x7e, 0x1d, 0xd6, 0xfa, 0x75, 0x1e, 0x96, 0xf6, 0xa9, 0xef, 0x3e, 0x7b, 0x99, 0x31, 0x98,
+	0xc7, 0x30, 0x2f, 0x8b, 0x70, 0xcc, 0xa6, 0x1c, 0xf2, 0xe7, 0x77, 0x92, 0xd4, 0x80, 0x35, 0x68,
+	0x2a, 0xb1, 0x4c, 0x05, 0xbc, 0xc0, 0x83, 0xd4, 0xf7, 0xa1, 0xa0, 0x44, 0x79, 0x04, 0x39, 0x83,
+	0x73, 0x23, 0xc5, 0xd8, 0x7c, 0x9b, 0xaf, 0xe4, 0xf9, 0x77, 0xb3, 0xaf, 0x33, 0xc4, 0x89, 0x67,
+	0xc8, 0x61, 0x94, 0x4b, 0x35, 0x93, 0x68, 0x47, 0xab, 0x4d, 0x91, 0xea, 0xcd, 0x4b, 0x76, 0x56,
+	0x4f, 0xb5, 0x29, 0x98, 0xac, 0xe2, 0x65, 0x0b, 0x3b, 0x60, 0xfc, 0xef, 0x3c, 0x2c, 0xcb, 0x40,
+	0xc7, 0x0c, 0x36, 0x7f, 0x03, 0x8b, 0xb2, 0xa8, 0xda, 0xeb, 0xf9, 0xde, 0x73, 0xda, 0x36, 0x39,
+	0xcd, 0x9f, 0xc0, 0x4a, 0x4e, 0x3b, 0xa2, 0x4d, 0xc4, 0xec, 0x2c, 0xf0, 0x37, 0xe3, 0x66, 0xf9,
+	0xc2, 0x54, 0x2c, 0x7c, 0x36, 0xd0, 0x29, 0xa9, 0x2b, 0x16, 0x33, 0x79, 0x91, 0xae, 0x64, 0xda,
+	0x09, 0x37, 0xcd, 0xe8, 0xeb, 0xba, 0x69, 0xd8, 0xd1, 0xd4, 0xc4, 0x59, 0x9b, 0x85, 0xe9, 0x1d,
+	0xfa, 0x22, 0xe2, 0xfb, 0xef, 0xe5, 0x60, 0xc6, 0x58, 0xdc, 0xe4, 0x1d, 0x18, 0xc3, 0x3f, 0x70,
+	0xd3, 0x14, 0xef, 0x80, 0xd8, 0x02, 0x33, 0xde, 0x01, 0xf1, 0xa6, 0x5b, 0x30, 0xc1, 0x83, 0x7a,
+	0xda, 0xe7, 0x38, 0x43, 0xa8, 0x98, 0xb1, 0x16, 0x07, 0xe1, 0xc7, 0x09, 0x01, 0x6f, 0x3d, 0x84,
+	0x5b, 0x22, 0x3e, 0xc8, 0x9c, 0xfc, 0xba, 0x6e, 0xbf, 0x9f, 0x53, 0xc7, 0x5b, 0x0e, 0x2c, 0x6f,
+	0xd0, 0xb8, 0xea, 0x31, 0x62, 0xea, 0xbe, 0x84, 0xcb, 0x46, 0xb9, 0xc2, 0x88, 0x6f, 0x05, 0x94,
+	0x0c, 0x29, 0xd4, 0xf1, 0xd6, 0xd6, 0xcd, 0xb4, 0x2e, 0x74, 0x62, 0x2d, 0x0a, 0x97, 0xf1, 0xa4,
+	0xac, 0x6e, 0x9c, 0x82, 0x0b, 0x68, 0xbd, 0x3b, 0xda, 0xba, 0xe6, 0x1a, 0x8f, 0x3f, 0x33, 0x95,
+	0xdb, 0x93, 0xaa, 0xb5, 0x66, 0x60, 0xaa, 0xee, 0x75, 0x43, 0xfa, 0x03, 0x3e, 0xf4, 0xb0, 0x66,
+	0x61, 0x5a, 0x56, 0x75, 0x68, 0x10, 0x58, 0xff, 0x78, 0x04, 0x2c, 0xc1, 0xd8, 0x34, 0x2f, 0x8f,
+	0xe4, 0xc7, 0x41, 0x82, 0x58, 0xb1, 0x89, 0x5c, 0xd5, 0x7d, 0x59, 0x51, 0x2d, 0x97, 0x3c, 0x7c,
+	0x98, 0xd3, 0x8a, 0x4a, 0x0d, 0xc9, 0x4b, 0x8c, 0xfe, 0xe7, 0x19, 0x6a, 0x92, 0x2f, 0x36, 0x4c,
+	0x8d, 0x92, 0xa1, 0x26, 0x0d, 0xbc, 0xe9, 0x2a, 0xd3, 0x36, 0xd8, 0x20, 0xf6, 0x65, 0xa2, 0x02,
+	0xd2, 0x55, 0x8d, 0x48, 0x27, 0xc6, 0x0b, 0x9a, 0x89, 0x74, 0x60, 0x3a, 0x12, 0xf2, 0xc4, 0xe4,
+	0xa5, 0x58, 0x8f, 0xf2, 0x86, 0x57, 0xaf, 0xe2, 0x58, 0x7b, 0x5a, 0x89, 0x99, 0x5d, 0xcd, 0x68,
+	0xab, 0x79, 0xee, 0xfe, 0x7e, 0x0e, 0xae, 0xf3, 0xd9, 0xd9, 0xf5, 0xdd, 0xe7, 0x6e, 0x87, 0x1e,
+	0x52, 0x43, 0x4c, 0x4f, 0xd3, 0x6f, 0xca, 0x72, 0xe7, 0xd2, 0xd1, 0x98, 0x90, 0x82, 0x0a, 0xf0,
+	0x2c, 0x47, 0x6e, 0x1a, 0x7e, 0xab, 0x9f, 0x83, 0x65, 0xf9, 0x5e, 0x2e, 0x76, 0x7d, 0x74, 0x51,
+	0x73, 0xab, 0x66, 0xdc, 0xf8, 0xe4, 0x33, 0x6e, 0x7c, 0x0c, 0x4f, 0x7a, 0x38, 0xe4, 0x0a, 0x68,
+	0xe4, 0xb5, 0xaf, 0x80, 0xac, 0x5f, 0x8d, 0xc0, 0x95, 0x5d, 0xe7, 0xd0, 0xed, 0x32, 0xdd, 0x23,
+	0x73, 0xc4, 0x90, 0x6a, 0x22, 0xd5, 0xd6, 0xe0, 0xc8, 0xa2, 0x94, 0x5c, 0x5a, 0x2b, 0x7a, 0xd6,
+	0x9b, 0x7c, 0x56, 0xf4, 0xba, 0x99, 0xdb, 0xe6, 0x63, 0xc3, 0x3b, 0x99, 0x08, 0x2e, 0xc3, 0x77,
+	0x54, 0x5d, 0xaf, 0x1d, 0x4b, 0x3f, 0x87, 0x1e, 0xbe, 0xc7, 0x30, 0xa5, 0x45, 0x88, 0x09, 0x01,
+	0x4d, 0x60, 0x40, 0xb6, 0x1c, 0x9f, 0x1e, 0xd0, 0xd4, 0x54, 0x43, 0x3a, 0x86, 0x94, 0x04, 0x43,
+	0x63, 0x6f, 0x38, 0xc1, 0xd0, 0xb7, 0x9c, 0x64, 0xe9, 0xeb, 0x1d, 0x17, 0xfb, 0x06, 0x47, 0x9f,
+	0x70, 0xf8, 0xee, 0xaf, 0x6a, 0xd4, 0xa7, 0x65, 0x4b, 0xd3, 0x91, 0xd5, 0x00, 0x0a, 0x32, 0x2f,
+	0xa3, 0xf5, 0x3f, 0xc7, 0x61, 0x7e, 0xdb, 0x0d, 0x42, 0x39, 0xbb, 0x41, 0xa4, 0xfa, 0xa7, 0x65,
+	0x99, 0x76, 0x7e, 0x11, 0x56, 0x1a, 0x2f, 0x6f, 0xc6, 0xd2, 0x44, 0x1a, 0x00, 0xe4, 0x03, 0xdd,
+	0x8b, 0x94, 0xd7, 0x92, 0x47, 0x24, 0x33, 0xfc, 0xe9, 0xee, 0xa5, 0x77, 0x0c, 0x87, 0x19, 0xdf,
+	0x57, 0x3b, 0xac, 0x40, 0xdf, 0x57, 0xb9, 0xcf, 0x69, 0x35, 0xee, 0x45, 0xe3, 0x1d, 0x70, 0xa5,
+	0x78, 0x4c, 0x0d, 0x93, 0x5b, 0x39, 0xa3, 0x9e, 0x28, 0x67, 0xd4, 0x18, 0x9e, 0x76, 0x7f, 0xac,
+	0x39, 0xa3, 0xe2, 0x4c, 0xd0, 0x1d, 0x52, 0xfc, 0xb9, 0x72, 0x07, 0x0b, 0xf4, 0xe7, 0xca, 0xbc,
+	0x09, 0xd9, 0x83, 0xb9, 0x5d, 0x9f, 0xb6, 0x51, 0xb5, 0xac, 0xff, 0xd0, 0xf3, 0xc5, 0x11, 0x03,
+	0x5d, 0x9a, 0x3c, 0x93, 0x56, 0x4f, 0x56, 0x37, 0xa9, 0xaa, 0xd7, 0x35, 0x4c, 0x0a, 0x38, 0x59,
+	0x87, 0xd9, 0x06, 0x75, 0xfc, 0xd6, 0xd1, 0x43, 0xfa, 0x92, 0x29, 0xc6, 0xa0, 0x34, 0x11, 0x65,
+	0x1f, 0x09, 0xb0, 0x86, 0x0d, 0x14, 0xab, 0xf4, 0x6b, 0x27, 0x13, 0x88, 0xfc, 0x0c, 0xc6, 0x1b,
+	0x9e, 0x1f, 0xd6, 0x5e, 0xc6, 0x52, 0x3e, 0xf2, 0xc2, 0xda, 0x35, 0x99, 0x81, 0x25, 0xf0, 0xfc,
+	0xb0, 0x79, 0xa0, 0xf3, 0x4d, 0xc0, 0x91, 0x07, 0xcc, 0xea, 0x62, 0x96, 0x60, 0xe8, 0x74, 0xea,
+	0x18, 0x3e, 0xc1, 0x1f, 0x9c, 0x09, 0xcb, 0x0a, 0xcd, 0xc7, 0xd0, 0xe9, 0x34, 0x71, 0x9f, 0x37,
+	0x2f, 0xc0, 0x74, 0x28, 0xf2, 0x12, 0xe6, 0x4d, 0x41, 0x17, 0xf9, 0x99, 0xc0, 0x48, 0x9e, 0x96,
+	0xd6, 0xa4, 0x76, 0x47, 0x50, 0x79, 0x33, 0x9e, 0x18, 0x2c, 0x91, 0xb2, 0x29, 0xb5, 0x0b, 0xf2,
+	0x08, 0x13, 0xe0, 0x70, 0xce, 0x54, 0x03, 0x1e, 0x8f, 0xc5, 0x5f, 0xb9, 0xdd, 0x3a, 0xeb, 0x57,
+	0x6e, 0x9c, 0x62, 0x16, 0x40, 0xe4, 0xa8, 0xc3, 0x43, 0xb4, 0x75, 0x8e, 0x26, 0x40, 0x5f, 0xc7,
+	0x2f, 0xf9, 0x47, 0x39, 0x58, 0x88, 0x89, 0x9b, 0x38, 0x9f, 0x3e, 0x86, 0x49, 0x55, 0x28, 0xbc,
+	0x31, 0x25, 0xb5, 0x8f, 0xc6, 0xf4, 0x30, 0x17, 0x76, 0xb9, 0x16, 0x75, 0x62, 0x23, 0x1c, 0xe4,
+	0x7e, 0xcc, 0x85, 0xc9, 0xcf, 0x3d, 0x5d, 0xb6, 0xa9, 0x9b, 0x0b, 0x44, 0x36, 0x23, 0x1f, 0x03,
+	0x68, 0xb3, 0xcc, 0x17, 0x21, 0x06, 0x29, 0xa6, 0x4f, 0xb0, 0xd6, 0xd8, 0xfa, 0x93, 0x71, 0xb9,
+	0x4d, 0x8b, 0x93, 0xf2, 0x9e, 0xef, 0xb4, 0x8e, 0xa3, 0x68, 0xd1, 0x0f, 0x92, 0xa1, 0x99, 0xe7,
+	0xd1, 0x08, 0x6f, 0x1b, 0x8f, 0xca, 0xb3, 0xf3, 0xd3, 0x46, 0xf9, 0x05, 0x46, 0xce, 0x91, 0x5f,
+	0xe0, 0x1e, 0x4c, 0x6c, 0x75, 0x9f, 0xbb, 0xcc, 0x28, 0xe7, 0xb1, 0x85, 0x68, 0xd2, 0xba, 0xbc,
+	0x48, 0x67, 0x8c, 0x68, 0x45, 0x3e, 0x86, 0xc2, 0xa6, 0x17, 0x84, 0x68, 0x95, 0x8e, 0x45, 0x07,
+	0x9f, 0x10, 0x5d, 0xba, 0xcd, 0x23, 0x51, 0xa5, 0xeb, 0x1c, 0xd9, 0x9c, 0x7c, 0x08, 0x13, 0xd5,
+	0x76, 0x9b, 0x2d, 0x6a, 0xa1, 0x10, 0x30, 0xb9, 0xa5, 0x80, 0x74, 0x78, 0x8d, 0xde, 0xa5, 0x68,
+	0x4c, 0x3e, 0x33, 0xfd, 0xab, 0x13, 0x51, 0xf6, 0x8d, 0xf4, 0x44, 0xaf, 0xa6, 0xef, 0xf5, 0x1d,
+	0x79, 0xaf, 0x55, 0x88, 0xf2, 0x99, 0x60, 0x6e, 0x12, 0x43, 0x93, 0xe2, 0xb5, 0xd8, 0x16, 0x4c,
+	0x6e, 0x75, 0xdd, 0xd0, 0xc5, 0x8c, 0x0e, 0x93, 0xc6, 0x7e, 0xbc, 0xeb, 0xf8, 0xa1, 0xdb, 0x72,
+	0x7b, 0x4e, 0x37, 0xe4, 0xb3, 0xe5, 0xca, 0x86, 0xfa, 0x6c, 0x29, 0x68, 0x3d, 0xf7, 0x13, 0xbc,
+	0xb1, 0xdc, 0x4f, 0xa9, 0xe9, 0x93, 0xa6, 0x5e, 0x3d, 0x7d, 0xd2, 0x2a, 0x9f, 0x4b, 0xb4, 0x81,
+	0xa7, 0x23, 0x41, 0x44, 0xb7, 0xa3, 0x69, 0xec, 0xda, 0xaa, 0x21, 0xb9, 0x89, 0x19, 0x1c, 0x66,
+	0xa2, 0x88, 0x5f, 0xe3, 0x1e, 0x3d, 0xbf, 0xb5, 0x46, 0x9a, 0x30, 0xcd, 0x5a, 0xef, 0x7a, 0x1d,
+	0xb7, 0xe5, 0xd2, 0xa0, 0x34, 0x6b, 0xf8, 0xa9, 0xcd, 0x45, 0x81, 0x8d, 0x5e, 0x36, 0x68, 0xc8,
+	0xf7, 0x54, 0xec, 0xba, 0x27, 0x00, 0xf5, 0x3d, 0x55, 0x47, 0x68, 0xd9, 0x50, 0x8a, 0x2e, 0xbb,
+	0x62, 0xab, 0xeb, 0xc3, 0xe4, 0x3b, 0x0e, 0xcc, 0x1a, 0x18, 0xbd, 0xe3, 0xd0, 0x27, 0x2c, 0x7a,
+	0xd1, 0xf1, 0x04, 0xae, 0xdb, 0xf4, 0xc4, 0x7b, 0x4e, 0xdf, 0x2c, 0xda, 0x9f, 0xc3, 0x35, 0x13,
+	0xe1, 0x93, 0x5e, 0x1b, 0xdf, 0x85, 0xf2, 0x5b, 0xb5, 0xd4, 0xbc, 0x23, 0x02, 0x80, 0xe7, 0x1d,
+	0xe1, 0x8f, 0xd9, 0xd9, 0x9f, 0xba, 0xbc, 0x62, 0x9d, 0xe5, 0xc1, 0x92, 0x89, 0xbc, 0xda, 0x6e,
+	0x6b, 0x82, 0xca, 0x0c, 0x3e, 0xed, 0x33, 0x66, 0x61, 0xea, 0x12, 0x8d, 0x9a, 0xad, 0x17, 0x15,
+	0xe8, 0x6b, 0x49, 0x6b, 0x67, 0x51, 0xa8, 0xc4, 0xd9, 0xc3, 0x58, 0xa6, 0xf7, 0x59, 0x83, 0x19,
+	0xed, 0x53, 0x1d, 0xd8, 0x70, 0xa9, 0x6b, 0x3d, 0x98, 0x0c, 0x33, 0x41, 0xac, 0x16, 0x94, 0xd3,
+	0x98, 0x86, 0xcb, 0xe0, 0x25, 0x59, 0x8f, 0x96, 0xd6, 0xf0, 0xdb, 0xcc, 0xcb, 0x99, 0xef, 0xce,
+	0xfe, 0xee, 0x28, 0x5c, 0x17, 0x93, 0xf1, 0x26, 0x67, 0x9c, 0x7c, 0x0f, 0x53, 0xda, 0x1c, 0x0b,
+	0xa6, 0xdf, 0x94, 0x01, 0x10, 0x59, 0xb2, 0xc0, 0xf5, 0xd9, 0x29, 0x16, 0x34, 0x63, 0xd3, 0xcd,
+	0x0c, 0x57, 0x5d, 0x6c, 0x3a, 0x30, 0x6b, 0x4e, 0xb4, 0x38, 0x0c, 0xdc, 0x4e, 0xed, 0xc4, 0x6c,
+	0x2a, 0x5f, 0xe0, 0xb7, 0x9b, 0xa9, 0xd3, 0x8d, 0x69, 0x5e, 0x4d, 0x21, 0xfa, 0x01, 0xae, 0x24,
+	0x66, 0x59, 0x9c, 0x1d, 0xde, 0x4e, 0xed, 0x30, 0xd1, 0x9a, 0x2b, 0x27, 0x1f, 0x8b, 0x33, 0xbb,
+	0x4d, 0x76, 0x42, 0xda, 0x30, 0xad, 0x4f, 0xbc, 0x38, 0x5c, 0xdc, 0x1a, 0xc0, 0x4a, 0xde, 0x90,
+	0xab, 0x12, 0xc1, 0x4b, 0x9c, 0x7b, 0x33, 0x33, 0xba, 0x81, 0xb5, 0x56, 0x80, 0x71, 0xfe, 0xcd,
+	0x54, 0xc0, 0xae, 0x4f, 0x03, 0xda, 0x6d, 0x51, 0x3d, 0x96, 0xe5, 0x75, 0x55, 0xc0, 0x7f, 0xc8,
+	0x41, 0x29, 0x0d, 0x6f, 0x83, 0x76, 0xdb, 0x64, 0x17, 0x8a, 0xf1, 0x8e, 0x84, 0x54, 0x5b, 0xd2,
+	0xe2, 0xc9, 0x26, 0x69, 0xf3, 0x92, 0x9d, 0x80, 0x66, 0x9b, 0x84, 0x56, 0x76, 0xc1, 0xa0, 0xa1,
+	0x24, 0xa8, 0xe6, 0x80, 0x78, 0xf7, 0x5d, 0x98, 0x54, 0x19, 0xf2, 0x49, 0x01, 0x46, 0xb7, 0x76,
+	0xb6, 0xf6, 0x78, 0xc6, 0xb5, 0xdd, 0x27, 0x7b, 0xc5, 0x1c, 0x01, 0x18, 0x5f, 0x5b, 0xdf, 0x5e,
+	0xdf, 0x5b, 0x2f, 0xe6, 0xdf, 0x6d, 0xea, 0x47, 0x79, 0x72, 0x1d, 0x16, 0xd7, 0xd6, 0xf7, 0xb7,
+	0xea, 0xeb, 0xcd, 0xbd, 0x3f, 0xb7, 0xbb, 0xde, 0x7c, 0xb2, 0xd3, 0xd8, 0x5d, 0xaf, 0x6f, 0x3d,
+	0xd8, 0x5a, 0x5f, 0x2b, 0x5e, 0x22, 0xf3, 0x50, 0xd4, 0x2b, 0xf7, 0x1e, 0xef, 0xed, 0x16, 0x73,
+	0xa4, 0x04, 0xf3, 0x7a, 0xe9, 0xd3, 0xf5, 0x5a, 0xf5, 0xc9, 0xde, 0xe6, 0x4e, 0x71, 0xc4, 0x1a,
+	0x2d, 0xe4, 0x8b, 0xf9, 0x77, 0xbf, 0x37, 0xce, 0xf9, 0x64, 0x09, 0x4a, 0xa2, 0xf9, 0x93, 0x46,
+	0x75, 0x23, 0xbb, 0x0b, 0x5e, 0xfb, 0xe8, 0x41, 0xb5, 0x98, 0x23, 0x37, 0xe0, 0x9a, 0x51, 0xba,
+	0x5b, 0x6d, 0x34, 0x9e, 0x3e, 0xb6, 0xd7, 0xb6, 0xd7, 0x1b, 0x8d, 0x62, 0xfe, 0xdd, 0xb7, 0x45,
+	0x08, 0x02, 0x99, 0x05, 0x58, 0x5b, 0x6f, 0xd4, 0xd7, 0x77, 0xd6, 0xb6, 0x76, 0x36, 0x8a, 0x97,
+	0xc8, 0x0c, 0x4c, 0x56, 0xd5, 0x67, 0x6e, 0xe5, 0x77, 0x1d, 0x98, 0x62, 0xfc, 0x94, 0xc7, 0xe2,
+	0x26, 0x2c, 0x3e, 0x72, 0xdc, 0x6e, 0xe8, 0xb8, 0x5d, 0x21, 0x05, 0x72, 0x0e, 0x49, 0x65, 0xc0,
+	0xa4, 0x32, 0x79, 0x28, 0x0f, 0x0b, 0xb4, 0xba, 0x93, 0xbb, 0x9f, 0x23, 0x0d, 0x98, 0x4f, 0x33,
+	0x30, 0x89, 0x65, 0xa6, 0x72, 0x48, 0x53, 0x6b, 0xe5, 0xc5, 0xd4, 0x6d, 0x78, 0xff, 0x3d, 0xf2,
+	0x08, 0xae, 0x24, 0x36, 0x55, 0x45, 0x6f, 0xd6, 0x76, 0x3b, 0x08, 0x5d, 0x09, 0x5d, 0x9e, 0xa1,
+	0x1b, 0xdf, 0x52, 0x03, 0x72, 0x35, 0xa1, 0xb0, 0xd7, 0xd9, 0xa2, 0xc9, 0x44, 0x76, 0x3f, 0x47,
+	0x6c, 0x98, 0x4f, 0xdb, 0x9e, 0xd5, 0x90, 0x07, 0xec, 0xdd, 0xe5, 0x8c, 0xee, 0x18, 0xce, 0xb4,
+	0x0d, 0x40, 0xe1, 0x1c, 0xb0, 0x3b, 0x64, 0xe2, 0xfc, 0x8c, 0x1d, 0x55, 0xbb, 0xed, 0x87, 0x94,
+	0xf6, 0xaa, 0x1d, 0xf7, 0x39, 0x0d, 0x88, 0x0c, 0x13, 0x54, 0x45, 0x59, 0xb0, 0x77, 0x72, 0xe4,
+	0xb7, 0x60, 0x0a, 0x93, 0xf2, 0x8a, 0xa8, 0x96, 0x69, 0x3d, 0x51, 0x6f, 0x59, 0x7e, 0x61, 0xe5,
+	0xfd, 0x1c, 0xf9, 0x1c, 0x26, 0x36, 0x28, 0x86, 0x75, 0x90, 0x5b, 0xb1, 0xdf, 0x9e, 0xd8, 0xea,
+	0xaa, 0x73, 0x83, 0x24, 0x38, 0xee, 0xe7, 0x21, 0x75, 0x28, 0x08, 0xf0, 0x80, 0x58, 0x31, 0xf8,
+	0x20, 0x05, 0xc1, 0x5c, 0x0c, 0x01, 0x3b, 0xba, 0x91, 0x3a, 0x4c, 0xaa, 0xd8, 0x12, 0xb2, 0x98,
+	0x11, 0xd0, 0x52, 0x2e, 0x25, 0x2b, 0x84, 0xef, 0x70, 0xe4, 0x6f, 0xe5, 0x73, 0xe4, 0x1e, 0x00,
+	0x7f, 0xba, 0x87, 0x63, 0x89, 0x13, 0x5a, 0x4e, 0x30, 0x90, 0x6c, 0x30, 0xdd, 0xd2, 0xa1, 0x21,
+	0x3d, 0xef, 0xe0, 0xb3, 0x66, 0x6b, 0x1b, 0x66, 0xd5, 0x43, 0xba, 0xf3, 0x73, 0x22, 0x0b, 0xdb,
+	0x27, 0x6c, 0x05, 0xf1, 0x97, 0xec, 0x2a, 0x98, 0x93, 0x64, 0x85, 0x77, 0xaa, 0xe9, 0xe4, 0xcd,
+	0x34, 0x58, 0x95, 0xf1, 0x58, 0xc1, 0xc6, 0x73, 0x20, 0xc7, 0x60, 0x29, 0x94, 0xf5, 0x7e, 0xcd,
+	0xc0, 0x4e, 0x72, 0x53, 0x23, 0x20, 0x35, 0x1e, 0xb5, 0x7c, 0x6b, 0x40, 0x0b, 0x3e, 0x4f, 0xa8,
+	0x75, 0xbe, 0x82, 0x19, 0x23, 0x14, 0x90, 0xc8, 0x37, 0x05, 0x69, 0xb1, 0x9a, 0xe5, 0xa5, 0xf4,
+	0x4a, 0x71, 0xc2, 0x7f, 0x80, 0xca, 0x26, 0x96, 0x61, 0xb0, 0x9c, 0x96, 0x49, 0x90, 0xbb, 0x2d,
+	0xca, 0x32, 0x5b, 0x4c, 0x0c, 0x64, 0x1d, 0xe6, 0xd4, 0x45, 0x90, 0xf6, 0xb3, 0x0d, 0x19, 0x39,
+	0x09, 0x33, 0x67, 0xee, 0x4b, 0x98, 0x13, 0x72, 0x60, 0xa0, 0x29, 0x2a, 0xe5, 0x22, 0xd2, 0xd7,
+	0x65, 0x22, 0xf8, 0x0a, 0x16, 0x1a, 0xb1, 0xf1, 0x70, 0x5b, 0xed, 0x9a, 0x89, 0x42, 0xcb, 0x46,
+	0x98, 0x89, 0xeb, 0x21, 0x90, 0xc6, 0xe9, 0xc1, 0x89, 0xab, 0xd0, 0x3d, 0x77, 0xe9, 0x0b, 0x72,
+	0x23, 0x36, 0x24, 0x56, 0x88, 0xcd, 0x50, 0x3b, 0x95, 0x33, 0x46, 0x4c, 0xf6, 0x78, 0x6a, 0x03,
+	0x9e, 0xa6, 0xc9, 0xe9, 0x39, 0x07, 0x6e, 0xc7, 0x0d, 0x5d, 0xca, 0xc4, 0x42, 0x07, 0xd0, 0xab,
+	0xe4, 0x0c, 0x5e, 0xcb, 0x6c, 0x41, 0xbe, 0x80, 0x99, 0x0d, 0x1a, 0x46, 0x09, 0x17, 0xc9, 0x62,
+	0x22, 0x45, 0xa3, 0x98, 0x37, 0x19, 0x12, 0x60, 0x66, 0x79, 0xdc, 0x82, 0x22, 0x57, 0xae, 0x1a,
+	0x8a, 0x1b, 0x09, 0x14, 0xa2, 0x89, 0xe3, 0x3b, 0x27, 0x41, 0x26, 0xb7, 0xee, 0xc1, 0xe8, 0xae,
+	0xdb, 0x3d, 0x24, 0xd2, 0xc3, 0xaf, 0x25, 0x2c, 0x2b, 0xcf, 0x19, 0x65, 0x42, 0xf4, 0x0e, 0xa0,
+	0xc2, 0x33, 0x0d, 0x26, 0xb3, 0xfb, 0xc9, 0x74, 0xea, 0x3f, 0x52, 0x11, 0xbc, 0x03, 0x32, 0x12,
+	0x2a, 0xfe, 0xc4, 0xeb, 0xf7, 0x57, 0xc9, 0x2e, 0x72, 0x3d, 0xd9, 0x01, 0xb9, 0x1d, 0xed, 0xa7,
+	0x99, 0xc9, 0x05, 0xcb, 0x24, 0x8e, 0x78, 0x7f, 0x95, 0xa8, 0x8c, 0x08, 0x29, 0x48, 0xdf, 0x36,
+	0xb6, 0xfd, 0x8b, 0xe1, 0xfd, 0x02, 0x26, 0x55, 0x66, 0x3d, 0xa5, 0x6f, 0xe2, 0xe9, 0x00, 0x95,
+	0x02, 0x4f, 0x26, 0xe1, 0xfb, 0x8c, 0x27, 0xc1, 0x34, 0xe1, 0xe3, 0xc9, 0xe7, 0x32, 0x27, 0xef,
+	0x63, 0x98, 0xd2, 0xd2, 0xce, 0xa9, 0xc5, 0x92, 0x4c, 0x45, 0x57, 0x36, 0x7f, 0x9e, 0xe7, 0x3e,
+	0xdb, 0x34, 0x26, 0x44, 0x9e, 0x53, 0xb2, 0x10, 0x81, 0x69, 0x59, 0xb7, 0x62, 0x20, 0x64, 0x15,
+	0xf7, 0x3b, 0xde, 0xd1, 0x55, 0x13, 0x22, 0xbb, 0x97, 0x55, 0x00, 0x3e, 0x66, 0xec, 0xc8, 0xac,
+	0xce, 0x1c, 0xd5, 0x2a, 0xdb, 0xcf, 0xda, 0x17, 0x04, 0xfa, 0x42, 0xee, 0x69, 0x08, 0x54, 0x32,
+	0x38, 0xa9, 0x8f, 0x2a, 0x0b, 0x7e, 0x0b, 0x8a, 0xd5, 0x16, 0x6a, 0x59, 0x95, 0x08, 0x8c, 0x2c,
+	0xab, 0x15, 0x6c, 0x56, 0x48, 0x5c, 0x0b, 0xf1, 0xbc, 0x62, 0xdb, 0xd4, 0xc1, 0x18, 0xc3, 0x45,
+	0xb5, 0xd7, 0xc6, 0xaa, 0xd2, 0x21, 0x32, 0x89, 0x5a, 0x87, 0xf9, 0xba, 0xd3, 0x6d, 0xd1, 0xce,
+	0xeb, 0xa1, 0xf9, 0x04, 0xd5, 0x8d, 0x96, 0x24, 0xed, 0x6a, 0x1c, 0x5e, 0x68, 0x9b, 0x2b, 0xea,
+	0x6c, 0xa8, 0x9a, 0x56, 0xe1, 0x32, 0x67, 0x62, 0xc4, 0x96, 0x2c, 0xe8, 0xac, 0xee, 0x7f, 0x0a,
+	0xb3, 0xeb, 0x4c, 0x1d, 0x9f, 0xb6, 0x5d, 0x1e, 0x8e, 0x4e, 0xcc, 0xf8, 0xe2, 0x4c, 0xc0, 0x4d,
+	0x99, 0xb6, 0x52, 0xcb, 0x1e, 0xa6, 0x84, 0x3c, 0x99, 0xa0, 0xad, 0x3c, 0x2f, 0xd1, 0xea, 0x89,
+	0xc6, 0x70, 0xef, 0x3d, 0x94, 0x19, 0x6a, 0x62, 0x39, 0xa1, 0x74, 0x85, 0x92, 0x99, 0x31, 0xaa,
+	0xfc, 0xa3, 0xc1, 0x8d, 0x74, 0x5b, 0xcc, 0x86, 0xc5, 0x8c, 0x7c, 0x5b, 0xe4, 0x2d, 0x65, 0x16,
+	0x0f, 0xca, 0xc7, 0x95, 0x62, 0xae, 0x7d, 0xa3, 0x65, 0x5d, 0xc9, 0xc0, 0x39, 0x38, 0x11, 0x57,
+	0x26, 0x83, 0x55, 0xc8, 0x65, 0x6a, 0xc2, 0x2c, 0xf2, 0x8e, 0x89, 0x7d, 0x40, 0x52, 0xad, 0xcc,
+	0x1e, 0x1e, 0xa3, 0xe8, 0x45, 0xf9, 0x9a, 0x94, 0xd1, 0x93, 0x96, 0x54, 0x4b, 0x19, 0x3d, 0xa9,
+	0xd9, 0xae, 0x38, 0x83, 0x37, 0xe0, 0x72, 0x2c, 0x75, 0x15, 0xb9, 0x11, 0x67, 0xec, 0x10, 0x86,
+	0x72, 0x44, 0x8f, 0xa4, 0x60, 0x27, 0x11, 0xa5, 0x27, 0xb3, 0xca, 0x1a, 0x23, 0x47, 0xf7, 0x44,
+	0x99, 0x40, 0x7a, 0x7a, 0x2a, 0x72, 0x2b, 0x85, 0x85, 0xe7, 0x63, 0x1d, 0x47, 0xdb, 0x80, 0x62,
+	0x3c, 0xbb, 0x13, 0x59, 0x56, 0x5c, 0x4a, 0x4d, 0x61, 0x55, 0xae, 0x64, 0xd6, 0x8b, 0x4d, 0xe7,
+	0xab, 0x68, 0x52, 0xf8, 0x05, 0x61, 0x7c, 0x52, 0xf4, 0xcc, 0x3e, 0x89, 0x49, 0x31, 0xd3, 0xec,
+	0x6c, 0x60, 0xa0, 0xb8, 0x96, 0xc2, 0x27, 0xf3, 0x74, 0x7a, 0x23, 0x0d, 0x4f, 0x74, 0x69, 0xd5,
+	0x90, 0x69, 0x74, 0x35, 0xba, 0x96, 0x8d, 0x7d, 0x33, 0x49, 0x5a, 0x25, 0xb3, 0x5e, 0x8d, 0xb4,
+	0x18, 0x4f, 0x58, 0xa4, 0x90, 0x66, 0x64, 0x32, 0xca, 0x14, 0xe5, 0x07, 0x30, 0x6f, 0xce, 0xe2,
+	0x90, 0xf1, 0x66, 0xe1, 0xd9, 0x83, 0x85, 0xd4, 0xdc, 0x47, 0x4a, 0x17, 0x0d, 0xca, 0x8c, 0x34,
+	0xc0, 0x82, 0x9e, 0x31, 0x52, 0x16, 0x11, 0x79, 0x0b, 0x1a, 0xcb, 0x8e, 0x94, 0x98, 0xd3, 0x94,
+	0xd4, 0x49, 0x7c, 0x4e, 0xb5, 0xf4, 0x47, 0xe7, 0x99, 0xd3, 0xb4, 0x6c, 0x49, 0x8a, 0xfd, 0x1a,
+	0x5d, 0x72, 0x53, 0x8d, 0x57, 0x5c, 0x84, 0xfd, 0xe7, 0x21, 0x2d, 0x0b, 0xcf, 0x1a, 0xda, 0x4c,
+	0xea, 0x37, 0xcf, 0xae, 0x19, 0x6c, 0x32, 0xd6, 0x51, 0xd9, 0x18, 0x9c, 0xb9, 0x84, 0xea, 0x30,
+	0xad, 0x67, 0x5f, 0xca, 0xa4, 0xe2, 0x7a, 0x12, 0x47, 0xa0, 0x9d, 0xe2, 0x66, 0x15, 0x17, 0x38,
+	0x35, 0x4b, 0x71, 0xe6, 0x18, 0x04, 0x65, 0x0f, 0x89, 0xe8, 0xac, 0x19, 0x42, 0x52, 0xb6, 0xb1,
+	0x31, 0xc7, 0xcd, 0x2e, 0xf3, 0x27, 0xf1, 0x32, 0x7e, 0x59, 0x2f, 0x13, 0xcd, 0x13, 0x7c, 0xd4,
+	0xa2, 0xa7, 0x52, 0x22, 0x9a, 0x94, 0xa4, 0xa4, 0x58, 0x2a, 0x2f, 0x67, 0x55, 0xeb, 0x7a, 0xff,
+	0x6b, 0xb8, 0x92, 0x48, 0x19, 0xa5, 0xdc, 0x6b, 0x59, 0xc9, 0xa4, 0x06, 0xeb, 0xd6, 0x4d, 0x36,
+	0xe0, 0x18, 0xe0, 0xfe, 0xca, 0x70, 0xa4, 0xc9, 0x1d, 0x7a, 0x5b, 0xbe, 0x83, 0x49, 0x23, 0x2e,
+	0x2b, 0x31, 0xd5, 0x70, 0x05, 0x11, 0x4b, 0x49, 0x15, 0x53, 0x10, 0xe9, 0x09, 0xab, 0x32, 0xb1,
+	0xfe, 0x79, 0x4c, 0x51, 0x1d, 0x4b, 0x77, 0xa4, 0xbc, 0x1b, 0x99, 0x29, 0xae, 0x94, 0x77, 0x23,
+	0x3b, 0xf7, 0x14, 0xe7, 0xe6, 0x36, 0xcc, 0xa7, 0x25, 0x90, 0xd2, 0xbc, 0x81, 0x99, 0xd9, 0xa5,
+	0x52, 0x38, 0x6a, 0xcb, 0xd5, 0x9e, 0x81, 0x6d, 0x40, 0x3a, 0xa9, 0x4c, 0x0e, 0x7c, 0x2b, 0x93,
+	0x84, 0x25, 0xd3, 0x3e, 0xa9, 0x33, 0xe0, 0x90, 0xbc, 0x50, 0x03, 0x4c, 0xd5, 0xcb, 0x0d, 0xf7,
+	0xb0, 0xab, 0x65, 0x55, 0x52, 0x86, 0x6a, 0x32, 0x33, 0x94, 0xd2, 0x2c, 0x69, 0x49, 0x98, 0x1e,
+	0xc3, 0xbc, 0xdc, 0xb8, 0xf5, 0x2c, 0x44, 0x24, 0x01, 0x13, 0xbd, 0x5d, 0x51, 0x5a, 0x26, 0x35,
+	0x6d, 0x11, 0x3f, 0xe9, 0xe1, 0x6f, 0x6a, 0x69, 0x27, 0x3d, 0x2d, 0x3d, 0x50, 0xd9, 0xcc, 0x24,
+	0x44, 0x3e, 0xc5, 0x93, 0x1e, 0xcf, 0x61, 0x99, 0xed, 0x6a, 0x36, 0x30, 0x45, 0x3a, 0x6d, 0x55,
+	0x3a, 0x23, 0xb1, 0x43, 0x13, 0xf3, 0xf0, 0xc3, 0x1b, 0x02, 0x99, 0x87, 0x37, 0x9d, 0xd0, 0x6c,
+	0x97, 0xcf, 0xb4, 0xfe, 0x20, 0x5e, 0xf1, 0x2a, 0x25, 0x73, 0x86, 0xe2, 0x55, 0x5a, 0x3e, 0x0a,
+	0x3c, 0x2b, 0xec, 0x49, 0xc3, 0x30, 0xc2, 0x77, 0x63, 0x60, 0x42, 0x89, 0xf2, 0xf2, 0xe0, 0x2c,
+	0x0c, 0xe2, 0xce, 0xa1, 0x18, 0x7f, 0xb3, 0x4f, 0xd2, 0xf2, 0x81, 0x68, 0x89, 0x0b, 0x94, 0x79,
+	0x93, 0xf9, 0xd8, 0x7f, 0x57, 0x1a, 0x9d, 0x26, 0xde, 0x8c, 0xac, 0x10, 0x3a, 0xea, 0xc1, 0x66,
+	0x44, 0xf4, 0x7c, 0x5f, 0x37, 0x0d, 0x13, 0xe9, 0x01, 0x74, 0x33, 0x22, 0xe5, 0xc5, 0xbf, 0x2b,
+	0xe3, 0x78, 0xd2, 0x73, 0x4c, 0xbd, 0x63, 0x1a, 0x6f, 0x03, 0x02, 0xa6, 0x87, 0xde, 0xea, 0x90,
+	0xdf, 0x91, 0x29, 0x3d, 0x93, 0x19, 0x58, 0xde, 0x8a, 0x79, 0x77, 0xd2, 0x43, 0x6c, 0xcb, 0x83,
+	0x12, 0xbc, 0x90, 0x47, 0xf8, 0x8c, 0xf2, 0xf1, 0xd6, 0x5a, 0x5d, 0xfc, 0x72, 0xae, 0xe7, 0x27,
+	0xdc, 0xe6, 0xda, 0xaf, 0xbf, 0x44, 0x4c, 0xe6, 0x4d, 0x0c, 0xc0, 0xfd, 0x55, 0xd2, 0x40, 0xef,
+	0xad, 0x51, 0x9a, 0xe2, 0x39, 0x4f, 0x41, 0x58, 0x4e, 0x47, 0x88, 0x57, 0x09, 0xeb, 0x72, 0x37,
+	0x33, 0xc9, 0xcc, 0xa0, 0x61, 0x90, 0x15, 0xc0, 0xc5, 0x26, 0x1d, 0x8d, 0xa4, 0x6e, 0x98, 0x1c,
+	0x71, 0x8e, 0x35, 0xaa, 0x8f, 0xb6, 0x5f, 0x89, 0x63, 0x06, 0xe0, 0xfe, 0x8a, 0xe0, 0x98, 0x51,
+	0x7a, 0x31, 0x8e, 0xc5, 0x10, 0x9a, 0x1c, 0x33, 0xc9, 0xcc, 0xa0, 0x61, 0x38, 0xc7, 0xd2, 0xd1,
+	0x9c, 0x97, 0x63, 0x5f, 0xe3, 0xfe, 0xbc, 0x81, 0x8f, 0xfa, 0x2e, 0xc4, 0xb3, 0x92, 0xb4, 0x60,
+	0x4d, 0xd0, 0xfd, 0x55, 0xf2, 0x14, 0xb3, 0x8d, 0xc6, 0xca, 0xcf, 0xc7, 0xb7, 0xa5, 0x2c, 0xa4,
+	0xc8, 0xb9, 0x2d, 0x58, 0xe0, 0x9c, 0x8b, 0x93, 0x9b, 0x49, 0x4b, 0xe6, 0xb0, 0x37, 0xa4, 0xb1,
+	0x13, 0x47, 0x75, 0x51, 0xfe, 0xad, 0xa1, 0x88, 0xec, 0xf9, 0xcc, 0x3e, 0x6d, 0x27, 0x8d, 0x57,
+	0x13, 0x89, 0xf4, 0xb7, 0x9b, 0xcd, 0xf7, 0x57, 0xc8, 0x16, 0xce, 0x82, 0x59, 0x3c, 0xc8, 0xba,
+	0x4f, 0x47, 0x83, 0x4c, 0xda, 0x94, 0x06, 0x51, 0x8c, 0xa6, 0xac, 0xbe, 0xb3, 0x89, 0x52, 0x47,
+	0x9f, 0x73, 0x8e, 0x2e, 0x8b, 0x45, 0x7c, 0x63, 0xe7, 0x27, 0x8d, 0x61, 0x9c, 0x89, 0xff, 0xea,
+	0x3c, 0xf9, 0x19, 0x4c, 0x4a, 0xe0, 0xe1, 0x0c, 0x89, 0x43, 0x23, 0x43, 0xbe, 0x80, 0x29, 0xc1,
+	0x10, 0xa4, 0x20, 0xab, 0xa7, 0x4c, 0xf2, 0x3f, 0x87, 0x29, 0xc1, 0x86, 0x81, 0x23, 0xc8, 0xbe,
+	0xac, 0x5c, 0xd8, 0xa0, 0x61, 0xca, 0xaf, 0x22, 0x0f, 0x1b, 0x4c, 0xda, 0x8f, 0x30, 0x93, 0x7d,
+	0x7c, 0x0e, 0x9d, 0xf5, 0x0b, 0xd6, 0x59, 0x28, 0x87, 0xfe, 0x7e, 0x36, 0xc3, 0xdb, 0xc8, 0xc6,
+	0x3b, 0x14, 0x3e, 0x73, 0xf4, 0x3b, 0xb0, 0x84, 0x37, 0x1b, 0x17, 0xa5, 0x38, 0xfb, 0x90, 0x72,
+	0x2d, 0x0a, 0x6a, 0x88, 0xff, 0x78, 0x76, 0x16, 0xb2, 0x61, 0xbf, 0xdb, 0xcd, 0xb0, 0x36, 0x32,
+	0xb1, 0x0e, 0x83, 0x1e, 0xb0, 0x19, 0x5d, 0xc7, 0xb1, 0x5f, 0x90, 0xda, 0xc1, 0x9a, 0x26, 0xf6,
+	0x6b, 0xde, 0xc3, 0x62, 0x32, 0xe2, 0xbf, 0x17, 0xce, 0xb0, 0x34, 0x12, 0x58, 0xb2, 0x5a, 0x0f,
+	0xda, 0x7c, 0x70, 0x68, 0xe7, 0xa4, 0x26, 0xfb, 0xca, 0x65, 0x52, 0xe5, 0x8a, 0x21, 0x9a, 0x6d,
+	0x6f, 0x64, 0x42, 0x29, 0xcf, 0xe8, 0x11, 0x14, 0x01, 0xa9, 0xf2, 0x3d, 0x5e, 0xcf, 0x99, 0xa2,
+	0xf9, 0x26, 0x53, 0x93, 0xa9, 0xc4, 0x51, 0xf0, 0xb3, 0x09, 0xfe, 0xc4, 0xb8, 0x76, 0x36, 0xd1,
+	0xb2, 0x49, 0x94, 0xcd, 0x5c, 0x0f, 0x42, 0x85, 0x61, 0xc2, 0x07, 0xfd, 0x16, 0x4a, 0xcf, 0x27,
+	0xa1, 0x9f, 0x4d, 0xcc, 0xcc, 0x17, 0xea, 0x6c, 0x82, 0x1d, 0x9a, 0x98, 0x87, 0x9f, 0x4d, 0x10,
+	0xc8, 0x3c, 0x9b, 0xe8, 0x84, 0x66, 0x2f, 0x3c, 0x92, 0x4c, 0x7d, 0xa1, 0xce, 0xdd, 0x99, 0x59,
+	0x31, 0x06, 0x5c, 0x54, 0xcd, 0xa5, 0x24, 0x39, 0x52, 0x36, 0x7f, 0x76, 0x02, 0xa4, 0xb2, 0x79,
+	0xeb, 0x72, 0x3f, 0x47, 0x76, 0x30, 0xe7, 0x77, 0xda, 0x2f, 0xaf, 0x67, 0xc9, 0xcf, 0xc0, 0x9f,
+	0x7a, 0x67, 0xf8, 0x1a, 0xe9, 0xf8, 0x06, 0xc2, 0x0d, 0x38, 0xd6, 0x5d, 0x13, 0x71, 0x2a, 0x17,
+	0x20, 0x31, 0x5b, 0xc4, 0x27, 0xb8, 0xe7, 0x39, 0x1b, 0xb4, 0xa8, 0xff, 0xd4, 0x39, 0x6e, 0x59,
+	0x77, 0x61, 0x9c, 0x03, 0x65, 0xee, 0x36, 0xc6, 0xcf, 0xa3, 0x93, 0xf7, 0xe4, 0x75, 0x30, 0x03,
+	0x31, 0xaa, 0x32, 0xe9, 0x7a, 0x0f, 0x26, 0xb9, 0xdb, 0xed, 0xfc, 0x20, 0x9f, 0xca, 0x4b, 0xe3,
+	0x41, 0x84, 0x65, 0xc7, 0x6a, 0xcc, 0xe8, 0x6e, 0xec, 0x8b, 0x33, 0xf2, 0x73, 0x74, 0x7d, 0x4a,
+	0x57, 0x43, 0x36, 0xfc, 0x42, 0xe2, 0xa7, 0xec, 0x91, 0xa5, 0x1f, 0xa1, 0xff, 0x55, 0x65, 0x0b,
+	0xcb, 0x22, 0x3f, 0xf9, 0x43, 0xf8, 0xe4, 0x53, 0x98, 0xe5, 0xcc, 0x55, 0xc0, 0xc9, 0x46, 0x03,
+	0x78, 0x36, 0xcb, 0xd9, 0xfc, 0x2a, 0xc0, 0x3f, 0x93, 0x8e, 0xda, 0xa1, 0x64, 0x9f, 0xc7, 0x45,
+	0x3b, 0x9c, 0x75, 0x59, 0x58, 0x7e, 0x07, 0x37, 0xdd, 0xf4, 0x14, 0x37, 0x99, 0xc8, 0xee, 0x68,
+	0x2e, 0xe8, 0xc1, 0xc9, 0x71, 0x8e, 0x31, 0xe6, 0x30, 0xb5, 0x91, 0x72, 0x90, 0x0d, 0xc9, 0x79,
+	0x53, 0xfe, 0xf1, 0xd0, 0x76, 0xca, 0xcf, 0x25, 0x12, 0xce, 0xa7, 0xf7, 0x37, 0x24, 0xd1, 0x4d,
+	0x8a, 0xcb, 0x30, 0x23, 0x7f, 0x8c, 0x44, 0x68, 0x5e, 0x66, 0x0e, 0x1c, 0x43, 0xf6, 0x11, 0x2d,
+	0xca, 0x1b, 0x7f, 0xc1, 0x49, 0xc8, 0x36, 0xa3, 0x48, 0x32, 0xab, 0x0e, 0x19, 0xf4, 0x82, 0x4d,
+	0x77, 0xc8, 0x66, 0x65, 0xe3, 0xd9, 0x90, 0x01, 0xae, 0xb1, 0xe7, 0xa0, 0x59, 0x0f, 0x4b, 0x07,
+	0x9c, 0xce, 0x44, 0x88, 0xe7, 0x1b, 0x41, 0x94, 0x9c, 0xed, 0x8b, 0x23, 0x52, 0x8e, 0xe1, 0x18,
+	0x22, 0x6b, 0xc0, 0xf4, 0x0e, 0x77, 0x7a, 0x95, 0x32, 0xe6, 0xf5, 0xe2, 0x13, 0xea, 0x44, 0xc1,
+	0x84, 0xc9, 0xd4, 0x3f, 0x6a, 0xdb, 0xcf, 0x4c, 0x43, 0xa4, 0x66, 0x77, 0x40, 0xde, 0xa0, 0x7a,
+	0xf4, 0x8b, 0x3f, 0x46, 0xae, 0xa0, 0xba, 0xbd, 0xad, 0xdc, 0x75, 0x69, 0x49, 0x84, 0xca, 0x20,
+	0x2b, 0xed, 0x6d, 0xb6, 0xd6, 0xb3, 0xf2, 0xdc, 0x44, 0x01, 0x51, 0x83, 0xb3, 0x00, 0xa9, 0xb5,
+	0x3e, 0x34, 0x61, 0xce, 0x0e, 0xcc, 0xa7, 0xe5, 0xa7, 0x51, 0x93, 0x36, 0x20, 0x79, 0x4d, 0x6a,
+	0xd4, 0xd5, 0x2e, 0x2c, 0xa4, 0xe6, 0x88, 0x51, 0x37, 0x24, 0x83, 0x32, 0xc8, 0xa4, 0x62, 0xfc,
+	0x06, 0x16, 0x33, 0x12, 0xa2, 0x44, 0x0e, 0xc4, 0x81, 0x09, 0x53, 0x32, 0x05, 0xe2, 0x3b, 0x28,
+	0x67, 0xe7, 0xda, 0x20, 0x77, 0x4c, 0x27, 0x68, 0x76, 0x86, 0x8b, 0x72, 0x6a, 0x72, 0x20, 0xb2,
+	0x87, 0x79, 0x0b, 0xd3, 0x92, 0x6f, 0x28, 0xba, 0x07, 0x27, 0xe7, 0xc8, 0x88, 0x96, 0x5b, 0xcc,
+	0xc8, 0xb7, 0x31, 0x00, 0xeb, 0x39, 0xa8, 0xdd, 0x91, 0x7a, 0xc9, 0x4c, 0xc0, 0x10, 0x0b, 0xbc,
+	0x4f, 0xcd, 0xce, 0x90, 0x4a, 0xe7, 0x57, 0x30, 0x63, 0xbc, 0x80, 0x55, 0xe2, 0x9f, 0xf6, 0x0c,
+	0x5b, 0x79, 0xab, 0x53, 0x1f, 0xcd, 0xd6, 0x8a, 0xbf, 0xfc, 0xef, 0xcb, 0xb9, 0x5f, 0xfe, 0x7a,
+	0x39, 0xf7, 0x5f, 0x7f, 0xbd, 0x9c, 0xfb, 0xd5, 0xaf, 0x97, 0x73, 0x07, 0xe3, 0xd8, 0x7c, 0xf5,
+	0xff, 0x05, 0x00, 0x00, 0xff, 0xff, 0x0e, 0x72, 0x46, 0x8d, 0x75, 0x92, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -7502,6 +11061,19 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type AuthServiceClient interface {
+	// MaintainSessionPresence establishes a channel used to continously verify the presence for a
+	// session.
+	MaintainSessionPresence(ctx context.Context, opts ...grpc.CallOption) (AuthService_MaintainSessionPresenceClient, error)
+	// CreateSessionTracker creates a new session tracker resource.
+	CreateSessionTracker(ctx context.Context, in *CreateSessionTrackerRequest, opts ...grpc.CallOption) (*types.SessionTrackerV1, error)
+	// GetSessionTracker fetches a session tracker resource.
+	GetSessionTracker(ctx context.Context, in *GetSessionTrackerRequest, opts ...grpc.CallOption) (*types.SessionTrackerV1, error)
+	// GetActiveSessionTrackers returns a list of active sessions.
+	GetActiveSessionTrackers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error)
+	// RemoveSessionTracker removes a session tracker resource.
+	RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// UpdateSessionTracker updates some state of a session tracker.
+	UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// SendKeepAlives allows node to send a stream of keep alive requests
 	SendKeepAlives(ctx context.Context, opts ...grpc.CallOption) (AuthService_SendKeepAlivesClient, error)
 	// WatchEvents returns a new stream of cluster events
@@ -7512,6 +11084,7 @@ type AuthServiceClient interface {
 	// DELETE IN 8.0.0 in favor of ListNodes
 	GetNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*types.ServerV2List, error)
 	// ListNodes retrieves a paginated list of nodes.
+	// DELETE IN 10.0. Deprecated, use ListResources.
 	ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error)
 	// UpsertNode upserts a node in a backend.
 	UpsertNode(ctx context.Context, in *types.ServerV2, opts ...grpc.CallOption) (*types.KeepAlive, error)
@@ -7521,6 +11094,8 @@ type AuthServiceClient interface {
 	DeleteAllNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GenerateUserCerts generates a set of user certificates.
 	GenerateUserCerts(ctx context.Context, in *UserCertsRequest, opts ...grpc.CallOption) (*Certs, error)
+	// GenerateHostCerts generates a set of host certificates.
+	GenerateHostCerts(ctx context.Context, in *HostCertsRequest, opts ...grpc.CallOption) (*Certs, error)
 	// GenerateUserSingleUseCerts generates a set of single-use user
 	// certificates.
 	GenerateUserSingleUseCerts(ctx context.Context, opts ...grpc.CallOption) (AuthService_GenerateUserSingleUseCertsClient, error)
@@ -7548,15 +11123,19 @@ type AuthServiceClient interface {
 	// clients for verification or configuration on startup.
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-	// DELETE IN: 9.0.0 in favor of RotateUserTokenSecrets.
+	// DELETE IN: 9.0.0 in favor of CreateRegisterChallenge.
 	RotateResetPasswordTokenSecrets(ctx context.Context, in *RotateUserTokenSecretsRequest, opts ...grpc.CallOption) (*types.UserTokenSecretsV3, error)
-	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
-	RotateUserTokenSecrets(ctx context.Context, in *RotateUserTokenSecretsRequest, opts ...grpc.CallOption) (*types.UserTokenSecretsV3, error)
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, in *GetResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 	// CreateResetPasswordToken resets users current password and second factors and creates a reset
 	// password token.
 	CreateResetPasswordToken(ctx context.Context, in *CreateResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
+	// CreateBot creates a new bot user.
+	CreateBot(ctx context.Context, in *CreateBotRequest, opts ...grpc.CallOption) (*CreateBotResponse, error)
+	// DeleteBot deletes a bot user.
+	DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// GetBotUsers gets all users with bot labels.
+	GetBotUsers(ctx context.Context, in *GetBotUsersRequest, opts ...grpc.CallOption) (AuthService_GetBotUsersClient, error)
 	// GetUser gets a user resource by name.
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*types.UserV2, error)
 	// GetUsers gets all current user resources.
@@ -7581,13 +11160,30 @@ type AuthServiceClient interface {
 	EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*empty.Empty, error)
 	// CreateAuditStream creates or resumes audit events streams
 	CreateAuditStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_CreateAuditStreamClient, error)
+	// GetApplicationServers gets all application servers.
+	// DELETE IN 10.0. Deprecated, use ListResources.
+	GetApplicationServers(ctx context.Context, in *GetApplicationServersRequest, opts ...grpc.CallOption) (*GetApplicationServersResponse, error)
+	// UpsertApplicationServer adds an application server.
+	UpsertApplicationServer(ctx context.Context, in *UpsertApplicationServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
+	// DeleteApplicationServer removes an application server.
+	DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// DeleteAllApplicationServers removes all application servers.
+	DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetAppServers gets all application servers.
+	//
+	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 	GetAppServers(ctx context.Context, in *GetAppServersRequest, opts ...grpc.CallOption) (*GetAppServersResponse, error)
 	// UpsertAppServer adds an application server.
+	//
+	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
 	UpsertAppServer(ctx context.Context, in *UpsertAppServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteAppServer removes an application server.
+	//
+	// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
 	DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllAppServers removes all application servers.
+	//
+	// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
 	DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GenerateAppToken will generate a JWT token for application access.
 	GenerateAppToken(ctx context.Context, in *GenerateAppTokenRequest, opts ...grpc.CallOption) (*GenerateAppTokenResponse, error)
@@ -7602,6 +11198,8 @@ type AuthServiceClient interface {
 	DeleteAppSession(ctx context.Context, in *DeleteAppSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	// DeleteUserAppSessions deletes all user’s application sessions.
+	DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(ctx context.Context, in *types.GetWebSessionRequest, opts ...grpc.CallOption) (*GetWebSessionResponse, error)
 	// GetWebSessions gets all web sessions.
@@ -7621,14 +11219,19 @@ type AuthServiceClient interface {
 	// UpdateRemoteCluster updates remote cluster
 	UpdateRemoteCluster(ctx context.Context, in *types.RemoteClusterV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetKubeServices gets all kubernetes services.
+	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetKubeServices(ctx context.Context, in *GetKubeServicesRequest, opts ...grpc.CallOption) (*GetKubeServicesResponse, error)
 	// UpsertKubeService adds or updates a kubernetes service.
+	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// UpsertKubeServiceV2 adds or updates a kubernetes service.
+	UpsertKubeServiceV2(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteKubeService removes a kubernetes service.
 	DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllKubeServices removes all kubernetes services.
 	DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetDatabaseServers returns all registered database proxy servers.
+	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetDatabaseServers(ctx context.Context, in *GetDatabaseServersRequest, opts ...grpc.CallOption) (*GetDatabaseServersResponse, error)
 	// UpsertDatabaseServer registers a new database proxy server.
 	UpsertDatabaseServer(ctx context.Context, in *UpsertDatabaseServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
@@ -7643,11 +11246,11 @@ type AuthServiceClient interface {
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(ctx context.Context, in *DatabaseCertRequest, opts ...grpc.CallOption) (*DatabaseCertResponse, error)
 	// GetRole retrieves a role described by the given request.
-	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV4, error)
+	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV5, error)
 	// GetRole retrieves all roles.
 	GetRoles(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error)
 	// UpsertRole upserts a role in a backend.
-	UpsertRole(ctx context.Context, in *types.RoleV4, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
 	DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// AddMFADevice adds an MFA device for the user calling this RPC.
@@ -7670,15 +11273,24 @@ type AuthServiceClient interface {
 	// -> MFAResponse
 	// <- Ack
 	DeleteMFADevice(ctx context.Context, opts ...grpc.CallOption) (AuthService_DeleteMFADeviceClient, error)
+	// AddMFADeviceSync adds a new MFA device (nonstream).
+	AddMFADeviceSync(ctx context.Context, in *AddMFADeviceSyncRequest, opts ...grpc.CallOption) (*AddMFADeviceSyncResponse, error)
+	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+	DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetMFADevices returns all MFA devices registered for the user calling
 	// this RPC.
 	GetMFADevices(ctx context.Context, in *GetMFADevicesRequest, opts ...grpc.CallOption) (*GetMFADevicesResponse, error)
+	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA
+	// devices.
+	CreateAuthenticateChallenge(ctx context.Context, in *CreateAuthenticateChallengeRequest, opts ...grpc.CallOption) (*MFAAuthenticateChallenge, error)
+	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+	CreateRegisterChallenge(ctx context.Context, in *CreateRegisterChallengeRequest, opts ...grpc.CallOption) (*MFARegisterChallenge, error)
 	// GetOIDCConnector gets an OIDC connector resource by name.
-	GetOIDCConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV2, error)
+	GetOIDCConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error)
 	// GetOIDCConnectors gets all current OIDC connector resources.
-	GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV2List, error)
+	GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error)
 	// UpsertOIDCConnector upserts an OIDC connector in a backend.
-	UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV2, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
 	DeleteOIDCConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
@@ -7733,9 +11345,9 @@ type AuthServiceClient interface {
 	SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	// Out-of-session request for audit events.
+	// GetEvents gets events from the audit log.
 	GetEvents(ctx context.Context, in *GetEventsRequest, opts ...grpc.CallOption) (*Events, error)
-	// In-session request for audit events.
+	// GetSessionEvents gets completed session events from the audit log.
 	GetSessionEvents(ctx context.Context, in *GetSessionEventsRequest, opts ...grpc.CallOption) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(ctx context.Context, in *GetLockRequest, opts ...grpc.CallOption) (*types.LockV2, error)
@@ -7755,6 +11367,18 @@ type AuthServiceClient interface {
 	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	// GetApps returns all registered applications.
+	GetApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
+	// GetApp returns an application by name.
+	GetApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.AppV3, error)
+	// CreateApp creates a new application resource.
+	CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	// UpdateApp updates existing application resource.
+	UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	// DeleteApp removes specified application resource.
+	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// DeleteAllApps removes all application resources.
+	DeleteAllApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetDatabases returns all registered databases.
 	GetDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
 	// GetDatabase returns a database by name.
@@ -7769,24 +11393,96 @@ type AuthServiceClient interface {
 	DeleteAllDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error)
+	GetWindowsDesktopService(ctx context.Context, in *GetWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*GetWindowsDesktopServiceResponse, error)
 	// UpsertWindowsDesktopService registers a new Windows desktop service.
 	UpsertWindowsDesktopService(ctx context.Context, in *types.WindowsDesktopServiceV3, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteWindowsDesktopService removes the specified Windows desktop service.
 	DeleteWindowsDesktopService(ctx context.Context, in *DeleteWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
 	DeleteAllWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
-	// GetWindowsDesktops returns all registered Windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopsResponse, error)
-	// GetWindowsDesktop returns a registered Windows desktop host.
-	GetWindowsDesktop(ctx context.Context, in *GetWindowsDesktopRequest, opts ...grpc.CallOption) (*types.WindowsDesktopV3, error)
+	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
+	GetWindowsDesktops(ctx context.Context, in *types.WindowsDesktopFilter, opts ...grpc.CallOption) (*GetWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
 	CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
 	UpdateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	// UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
+	UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteWindowsDesktop removes the specified Windows desktop host.
+	// Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
+	// To delete all desktops, use DeleteAllWindowsDesktops.
 	DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
 	DeleteAllWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	// GenerateWindowsDesktopCert generates client smartcard certificate used
+	// by an RDP client to authenticate with Windows.
+	GenerateWindowsDesktopCert(ctx context.Context, in *WindowsDesktopCertRequest, opts ...grpc.CallOption) (*WindowsDesktopCertResponse, error)
+	// GenerateCertAuthorityCRL creates an empty CRL for the specified CA.
+	GenerateCertAuthorityCRL(ctx context.Context, in *CertAuthorityRequest, opts ...grpc.CallOption) (*CRL, error)
+	// ChangeUserAuthentication allows a user to change their password and if enabled,
+	// also adds a new MFA device. After successful invocation, a new web session is created as well
+	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
+	// any existing codes the user previously had.
+	ChangeUserAuthentication(ctx context.Context, in *ChangeUserAuthenticationRequest, opts ...grpc.CallOption) (*ChangeUserAuthenticationResponse, error)
+	// StartAccountRecovery (exclusive to cloud users) is the first out of two step user
+	// verification needed to allow a user to recover their account. The first form of verification
+	// is a user's username and a recovery code. After successful verification, a recovery start
+	// token is created for the user which its ID will be used as part of a URL that will be emailed
+	// to the user (not done in this request). The user will be able to finish their second form of
+	// verification by clicking on this URL and following the prompts.
+	//
+	// If a valid user fails to provide correct recovery code for MaxAccountRecoveryAttempts,
+	// user account gets temporarily locked from further recovery attempts and from logging in.
+	//
+	// Start tokens last RecoveryStartTokenTTL.
+	StartAccountRecovery(ctx context.Context, in *StartAccountRecoveryRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
+	// VerifyAccountRecovery (exclusive to cloud users) is the second step of the two step
+	// verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
+	// The second form of verification is a user's password or their second factor (depending on
+	// what authentication they needed to recover). After successful verification, a recovery
+	// approved token is created which allows a user to request protected actions while not logged
+	// in e.g: setting a new password or a mfa device, viewing their MFA devices, deleting their MFA
+	// devices, and generating new recovery codes.
+	//
+	// The recovery start token to verify this request becomes deleted before
+	// creating a recovery approved token, which invalidates the recovery link users received
+	// to finish their verification.
+	//
+	// If user fails to verify themselves for MaxAccountRecoveryAttempts
+	// (combined attempts with RPC StartAccountRecovery), users account will be temporarily locked
+	// from logging in. If users still have unused recovery codes left, they still have
+	// opportunities to recover their account. To allow this, users recovery attempts are also
+	// deleted along with all user tokens which will force the user to restart the recovery process
+	// from step 1 (RPC StartAccountRecovery).
+	//
+	// Recovery approved tokens last RecoveryApprovedTokenTTL.
+	VerifyAccountRecovery(ctx context.Context, in *VerifyAccountRecoveryRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
+	// CompleteAccountRecovery (exclusive to cloud users) is the last step in account
+	// recovery, after RPC's StartAccountRecovery and VerifyAccountRecovery. This step sets a new
+	// password or adds a new mfa device, allowing the user to regain access to their account with
+	// the new credentials. When the new authentication is successfully set, any user lock is
+	// removed so the user can login immediately afterwards.
+	CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
+	// user, replacing and invalidating any previously owned codes. Users can only get recovery
+	// codes if their username is in a valid email format.
+	CreateAccountRecoveryCodes(ctx context.Context, in *CreateAccountRecoveryCodesRequest, opts ...grpc.CallOption) (*RecoveryCodes, error)
+	// GetAccountRecoveryToken (exclusive to cloud users) returns a user token resource after
+	// verifying that the token requested has not expired and is of the correct recovery kind.
+	// Besides checking for validity of a token ID, it is also used to get basic information from
+	// the token e.g: username, state of recovery (started or approved) and the type of recovery
+	// requested (password or second factor).
+	GetAccountRecoveryToken(ctx context.Context, in *GetAccountRecoveryTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
+	// GetAccountRecoveryCodes (exclusive to cloud users) is a request to return the user in context
+	// their recovery codes. This request will not return any secrets (the values of recovery
+	// codes), but instead returns non-sensitive data eg. when the recovery codes were created.
+	GetAccountRecoveryCodes(ctx context.Context, in *GetAccountRecoveryCodesRequest, opts ...grpc.CallOption) (*RecoveryCodes, error)
+	// CreatePrivilegeToken returns a new privilege token after a logged in user successfully
+	// re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
+	// is used to gain access to privileged actions eg: deleting/adding a MFA device.
+	CreatePrivilegeToken(ctx context.Context, in *CreatePrivilegeTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
+	// ListResources retrieves a paginated list of resources.
+	ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error)
 }
 
 type authServiceClient struct {
@@ -7797,8 +11493,107 @@ func NewAuthServiceClient(cc *grpc.ClientConn) AuthServiceClient {
 	return &authServiceClient{cc}
 }
 
+func (c *authServiceClient) MaintainSessionPresence(ctx context.Context, opts ...grpc.CallOption) (AuthService_MaintainSessionPresenceClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[0], "/proto.AuthService/MaintainSessionPresence", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &authServiceMaintainSessionPresenceClient{stream}
+	return x, nil
+}
+
+type AuthService_MaintainSessionPresenceClient interface {
+	Send(*PresenceMFAChallengeSend) error
+	Recv() (*MFAAuthenticateChallenge, error)
+	grpc.ClientStream
+}
+
+type authServiceMaintainSessionPresenceClient struct {
+	grpc.ClientStream
+}
+
+func (x *authServiceMaintainSessionPresenceClient) Send(m *PresenceMFAChallengeSend) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *authServiceMaintainSessionPresenceClient) Recv() (*MFAAuthenticateChallenge, error) {
+	m := new(MFAAuthenticateChallenge)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *authServiceClient) CreateSessionTracker(ctx context.Context, in *CreateSessionTrackerRequest, opts ...grpc.CallOption) (*types.SessionTrackerV1, error) {
+	out := new(types.SessionTrackerV1)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateSessionTracker", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetSessionTracker(ctx context.Context, in *GetSessionTrackerRequest, opts ...grpc.CallOption) (*types.SessionTrackerV1, error) {
+	out := new(types.SessionTrackerV1)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetSessionTracker", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetActiveSessionTrackers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[1], "/proto.AuthService/GetActiveSessionTrackers", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &authServiceGetActiveSessionTrackersClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type AuthService_GetActiveSessionTrackersClient interface {
+	Recv() (*types.SessionTrackerV1, error)
+	grpc.ClientStream
+}
+
+type authServiceGetActiveSessionTrackersClient struct {
+	grpc.ClientStream
+}
+
+func (x *authServiceGetActiveSessionTrackersClient) Recv() (*types.SessionTrackerV1, error) {
+	m := new(types.SessionTrackerV1)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *authServiceClient) RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/RemoveSessionTracker", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateSessionTracker", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) SendKeepAlives(ctx context.Context, opts ...grpc.CallOption) (AuthService_SendKeepAlivesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[0], "/proto.AuthService/SendKeepAlives", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[2], "/proto.AuthService/SendKeepAlives", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -7832,7 +11627,7 @@ func (x *authServiceSendKeepAlivesClient) CloseAndRecv() (*empty.Empty, error) {
 }
 
 func (c *authServiceClient) WatchEvents(ctx context.Context, in *Watch, opts ...grpc.CallOption) (AuthService_WatchEventsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[1], "/proto.AuthService/WatchEvents", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[3], "/proto.AuthService/WatchEvents", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -7881,6 +11676,7 @@ func (c *authServiceClient) GetNodes(ctx context.Context, in *types.ResourcesInN
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error) {
 	out := new(ListNodesResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/ListNodes", in, out, opts...)
@@ -7926,8 +11722,17 @@ func (c *authServiceClient) GenerateUserCerts(ctx context.Context, in *UserCerts
 	return out, nil
 }
 
+func (c *authServiceClient) GenerateHostCerts(ctx context.Context, in *HostCertsRequest, opts ...grpc.CallOption) (*Certs, error) {
+	out := new(Certs)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GenerateHostCerts", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GenerateUserSingleUseCerts(ctx context.Context, opts ...grpc.CallOption) (AuthService_GenerateUserSingleUseCertsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[2], "/proto.AuthService/GenerateUserSingleUseCerts", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[4], "/proto.AuthService/GenerateUserSingleUseCerts", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -8056,15 +11861,6 @@ func (c *authServiceClient) RotateResetPasswordTokenSecrets(ctx context.Context,
 	return out, nil
 }
 
-func (c *authServiceClient) RotateUserTokenSecrets(ctx context.Context, in *RotateUserTokenSecretsRequest, opts ...grpc.CallOption) (*types.UserTokenSecretsV3, error) {
-	out := new(types.UserTokenSecretsV3)
-	err := c.cc.Invoke(ctx, "/proto.AuthService/RotateUserTokenSecrets", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *authServiceClient) GetResetPasswordToken(ctx context.Context, in *GetResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error) {
 	out := new(types.UserTokenV3)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetResetPasswordToken", in, out, opts...)
@@ -8083,6 +11879,56 @@ func (c *authServiceClient) CreateResetPasswordToken(ctx context.Context, in *Cr
 	return out, nil
 }
 
+func (c *authServiceClient) CreateBot(ctx context.Context, in *CreateBotRequest, opts ...grpc.CallOption) (*CreateBotResponse, error) {
+	out := new(CreateBotResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateBot", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteBot", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetBotUsers(ctx context.Context, in *GetBotUsersRequest, opts ...grpc.CallOption) (AuthService_GetBotUsersClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[5], "/proto.AuthService/GetBotUsers", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &authServiceGetBotUsersClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type AuthService_GetBotUsersClient interface {
+	Recv() (*types.UserV2, error)
+	grpc.ClientStream
+}
+
+type authServiceGetBotUsersClient struct {
+	grpc.ClientStream
+}
+
+func (x *authServiceGetBotUsersClient) Recv() (*types.UserV2, error) {
+	m := new(types.UserV2)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *authServiceClient) GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*types.UserV2, error) {
 	out := new(types.UserV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetUser", in, out, opts...)
@@ -8093,7 +11939,7 @@ func (c *authServiceClient) GetUser(ctx context.Context, in *GetUserRequest, opt
 }
 
 func (c *authServiceClient) GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (AuthService_GetUsersClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[3], "/proto.AuthService/GetUsers", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[6], "/proto.AuthService/GetUsers", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -8206,7 +12052,7 @@ func (c *authServiceClient) EmitAuditEvent(ctx context.Context, in *events.OneOf
 }
 
 func (c *authServiceClient) CreateAuditStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_CreateAuditStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[4], "/proto.AuthService/CreateAuditStream", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[7], "/proto.AuthService/CreateAuditStream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -8236,6 +12082,44 @@ func (x *authServiceCreateAuditStreamClient) Recv() (*events.StreamStatus, error
 	return m, nil
 }
 
+// Deprecated: Do not use.
+func (c *authServiceClient) GetApplicationServers(ctx context.Context, in *GetApplicationServersRequest, opts ...grpc.CallOption) (*GetApplicationServersResponse, error) {
+	out := new(GetApplicationServersResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetApplicationServers", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) UpsertApplicationServer(ctx context.Context, in *UpsertApplicationServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error) {
+	out := new(types.KeepAlive)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertApplicationServer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteApplicationServer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllApplicationServers", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
 func (c *authServiceClient) GetAppServers(ctx context.Context, in *GetAppServersRequest, opts ...grpc.CallOption) (*GetAppServersResponse, error) {
 	out := new(GetAppServersResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetAppServers", in, out, opts...)
@@ -8245,6 +12129,7 @@ func (c *authServiceClient) GetAppServers(ctx context.Context, in *GetAppServers
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) UpsertAppServer(ctx context.Context, in *UpsertAppServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error) {
 	out := new(types.KeepAlive)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertAppServer", in, out, opts...)
@@ -8254,6 +12139,7 @@ func (c *authServiceClient) UpsertAppServer(ctx context.Context, in *UpsertAppSe
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAppServer", in, out, opts...)
@@ -8263,6 +12149,7 @@ func (c *authServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppSe
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllAppServers", in, out, opts...)
@@ -8320,6 +12207,15 @@ func (c *authServiceClient) DeleteAppSession(ctx context.Context, in *DeleteAppS
 func (c *authServiceClient) DeleteAllAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllAppSessions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteUserAppSessions", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -8407,6 +12303,7 @@ func (c *authServiceClient) UpdateRemoteCluster(ctx context.Context, in *types.R
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetKubeServices(ctx context.Context, in *GetKubeServicesRequest, opts ...grpc.CallOption) (*GetKubeServicesResponse, error) {
 	out := new(GetKubeServicesResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetKubeServices", in, out, opts...)
@@ -8416,9 +12313,19 @@ func (c *authServiceClient) GetKubeServices(ctx context.Context, in *GetKubeServ
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertKubeService", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) UpsertKubeServiceV2(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*types.KeepAlive, error) {
+	out := new(types.KeepAlive)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertKubeServiceV2", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -8443,6 +12350,7 @@ func (c *authServiceClient) DeleteAllKubeServices(ctx context.Context, in *Delet
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetDatabaseServers(ctx context.Context, in *GetDatabaseServersRequest, opts ...grpc.CallOption) (*GetDatabaseServersResponse, error) {
 	out := new(GetDatabaseServersResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetDatabaseServers", in, out, opts...)
@@ -8497,8 +12405,8 @@ func (c *authServiceClient) GenerateDatabaseCert(ctx context.Context, in *Databa
 	return out, nil
 }
 
-func (c *authServiceClient) GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV4, error) {
-	out := new(types.RoleV4)
+func (c *authServiceClient) GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV5, error) {
+	out := new(types.RoleV5)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetRole", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -8515,7 +12423,7 @@ func (c *authServiceClient) GetRoles(ctx context.Context, in *empty.Empty, opts 
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV4, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertRole", in, out, opts...)
 	if err != nil {
@@ -8534,7 +12442,7 @@ func (c *authServiceClient) DeleteRole(ctx context.Context, in *DeleteRoleReques
 }
 
 func (c *authServiceClient) AddMFADevice(ctx context.Context, opts ...grpc.CallOption) (AuthService_AddMFADeviceClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[5], "/proto.AuthService/AddMFADevice", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[8], "/proto.AuthService/AddMFADevice", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -8565,7 +12473,7 @@ func (x *authServiceAddMFADeviceClient) Recv() (*AddMFADeviceResponse, error) {
 }
 
 func (c *authServiceClient) DeleteMFADevice(ctx context.Context, opts ...grpc.CallOption) (AuthService_DeleteMFADeviceClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[6], "/proto.AuthService/DeleteMFADevice", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[9], "/proto.AuthService/DeleteMFADevice", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -8595,6 +12503,24 @@ func (x *authServiceDeleteMFADeviceClient) Recv() (*DeleteMFADeviceResponse, err
 	return m, nil
 }
 
+func (c *authServiceClient) AddMFADeviceSync(ctx context.Context, in *AddMFADeviceSyncRequest, opts ...grpc.CallOption) (*AddMFADeviceSyncResponse, error) {
+	out := new(AddMFADeviceSyncResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/AddMFADeviceSync", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteMFADeviceSync", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetMFADevices(ctx context.Context, in *GetMFADevicesRequest, opts ...grpc.CallOption) (*GetMFADevicesResponse, error) {
 	out := new(GetMFADevicesResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetMFADevices", in, out, opts...)
@@ -8604,8 +12530,26 @@ func (c *authServiceClient) GetMFADevices(ctx context.Context, in *GetMFADevices
 	return out, nil
 }
 
-func (c *authServiceClient) GetOIDCConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV2, error) {
-	out := new(types.OIDCConnectorV2)
+func (c *authServiceClient) CreateAuthenticateChallenge(ctx context.Context, in *CreateAuthenticateChallengeRequest, opts ...grpc.CallOption) (*MFAAuthenticateChallenge, error) {
+	out := new(MFAAuthenticateChallenge)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateAuthenticateChallenge", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateRegisterChallenge(ctx context.Context, in *CreateRegisterChallengeRequest, opts ...grpc.CallOption) (*MFARegisterChallenge, error) {
+	out := new(MFARegisterChallenge)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateRegisterChallenge", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetOIDCConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error) {
+	out := new(types.OIDCConnectorV3)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetOIDCConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -8613,8 +12557,8 @@ func (c *authServiceClient) GetOIDCConnector(ctx context.Context, in *types.Reso
 	return out, nil
 }
 
-func (c *authServiceClient) GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV2List, error) {
-	out := new(types.OIDCConnectorV2List)
+func (c *authServiceClient) GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error) {
+	out := new(types.OIDCConnectorV3List)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetOIDCConnectors", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -8622,7 +12566,7 @@ func (c *authServiceClient) GetOIDCConnectors(ctx context.Context, in *types.Res
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV2, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *authServiceClient) UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertOIDCConnector", in, out, opts...)
 	if err != nil {
@@ -8938,7 +12882,7 @@ func (c *authServiceClient) ReplaceRemoteLocks(ctx context.Context, in *ReplaceR
 }
 
 func (c *authServiceClient) StreamSessionEvents(ctx context.Context, in *StreamSessionEventsRequest, opts ...grpc.CallOption) (AuthService_StreamSessionEventsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[7], "/proto.AuthService/StreamSessionEvents", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[10], "/proto.AuthService/StreamSessionEvents", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -8990,6 +12934,60 @@ func (c *authServiceClient) SetNetworkRestrictions(ctx context.Context, in *type
 func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteNetworkRestrictions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
+	out := new(types.AppV3List)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetApps", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.AppV3, error) {
+	out := new(types.AppV3)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetApp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateApp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateApp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteApp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllApps", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -9059,6 +13057,15 @@ func (c *authServiceClient) GetWindowsDesktopServices(ctx context.Context, in *e
 	return out, nil
 }
 
+func (c *authServiceClient) GetWindowsDesktopService(ctx context.Context, in *GetWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*GetWindowsDesktopServiceResponse, error) {
+	out := new(GetWindowsDesktopServiceResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetWindowsDesktopService", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) UpsertWindowsDesktopService(ctx context.Context, in *types.WindowsDesktopServiceV3, opts ...grpc.CallOption) (*types.KeepAlive, error) {
 	out := new(types.KeepAlive)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertWindowsDesktopService", in, out, opts...)
@@ -9086,18 +13093,9 @@ func (c *authServiceClient) DeleteAllWindowsDesktopServices(ctx context.Context,
 	return out, nil
 }
 
-func (c *authServiceClient) GetWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopsResponse, error) {
+func (c *authServiceClient) GetWindowsDesktops(ctx context.Context, in *types.WindowsDesktopFilter, opts ...grpc.CallOption) (*GetWindowsDesktopsResponse, error) {
 	out := new(GetWindowsDesktopsResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetWindowsDesktops", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *authServiceClient) GetWindowsDesktop(ctx context.Context, in *GetWindowsDesktopRequest, opts ...grpc.CallOption) (*types.WindowsDesktopV3, error) {
-	out := new(types.WindowsDesktopV3)
-	err := c.cc.Invoke(ctx, "/proto.AuthService/GetWindowsDesktop", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -9122,6 +13120,15 @@ func (c *authServiceClient) UpdateWindowsDesktop(ctx context.Context, in *types.
 	return out, nil
 }
 
+func (c *authServiceClient) UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertWindowsDesktop", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteWindowsDesktop", in, out, opts...)
@@ -9140,8 +13147,120 @@ func (c *authServiceClient) DeleteAllWindowsDesktops(ctx context.Context, in *em
 	return out, nil
 }
 
+func (c *authServiceClient) GenerateWindowsDesktopCert(ctx context.Context, in *WindowsDesktopCertRequest, opts ...grpc.CallOption) (*WindowsDesktopCertResponse, error) {
+	out := new(WindowsDesktopCertResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GenerateWindowsDesktopCert", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GenerateCertAuthorityCRL(ctx context.Context, in *CertAuthorityRequest, opts ...grpc.CallOption) (*CRL, error) {
+	out := new(CRL)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GenerateCertAuthorityCRL", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ChangeUserAuthentication(ctx context.Context, in *ChangeUserAuthenticationRequest, opts ...grpc.CallOption) (*ChangeUserAuthenticationResponse, error) {
+	out := new(ChangeUserAuthenticationResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/ChangeUserAuthentication", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) StartAccountRecovery(ctx context.Context, in *StartAccountRecoveryRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error) {
+	out := new(types.UserTokenV3)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/StartAccountRecovery", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) VerifyAccountRecovery(ctx context.Context, in *VerifyAccountRecoveryRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error) {
+	out := new(types.UserTokenV3)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/VerifyAccountRecovery", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CompleteAccountRecovery", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateAccountRecoveryCodes(ctx context.Context, in *CreateAccountRecoveryCodesRequest, opts ...grpc.CallOption) (*RecoveryCodes, error) {
+	out := new(RecoveryCodes)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateAccountRecoveryCodes", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetAccountRecoveryToken(ctx context.Context, in *GetAccountRecoveryTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error) {
+	out := new(types.UserTokenV3)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetAccountRecoveryToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetAccountRecoveryCodes(ctx context.Context, in *GetAccountRecoveryCodesRequest, opts ...grpc.CallOption) (*RecoveryCodes, error) {
+	out := new(RecoveryCodes)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetAccountRecoveryCodes", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreatePrivilegeToken(ctx context.Context, in *CreatePrivilegeTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error) {
+	out := new(types.UserTokenV3)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreatePrivilegeToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error) {
+	out := new(ListResourcesResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/ListResources", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 type AuthServiceServer interface {
+	// MaintainSessionPresence establishes a channel used to continously verify the presence for a
+	// session.
+	MaintainSessionPresence(AuthService_MaintainSessionPresenceServer) error
+	// CreateSessionTracker creates a new session tracker resource.
+	CreateSessionTracker(context.Context, *CreateSessionTrackerRequest) (*types.SessionTrackerV1, error)
+	// GetSessionTracker fetches a session tracker resource.
+	GetSessionTracker(context.Context, *GetSessionTrackerRequest) (*types.SessionTrackerV1, error)
+	// GetActiveSessionTrackers returns a list of active sessions.
+	GetActiveSessionTrackers(*empty.Empty, AuthService_GetActiveSessionTrackersServer) error
+	// RemoveSessionTracker removes a session tracker resource.
+	RemoveSessionTracker(context.Context, *RemoveSessionTrackerRequest) (*empty.Empty, error)
+	// UpdateSessionTracker updates some state of a session tracker.
+	UpdateSessionTracker(context.Context, *UpdateSessionTrackerRequest) (*empty.Empty, error)
 	// SendKeepAlives allows node to send a stream of keep alive requests
 	SendKeepAlives(AuthService_SendKeepAlivesServer) error
 	// WatchEvents returns a new stream of cluster events
@@ -9152,6 +13271,7 @@ type AuthServiceServer interface {
 	// DELETE IN 8.0.0 in favor of ListNodes
 	GetNodes(context.Context, *types.ResourcesInNamespaceRequest) (*types.ServerV2List, error)
 	// ListNodes retrieves a paginated list of nodes.
+	// DELETE IN 10.0. Deprecated, use ListResources.
 	ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error)
 	// UpsertNode upserts a node in a backend.
 	UpsertNode(context.Context, *types.ServerV2) (*types.KeepAlive, error)
@@ -9161,6 +13281,8 @@ type AuthServiceServer interface {
 	DeleteAllNodes(context.Context, *types.ResourcesInNamespaceRequest) (*empty.Empty, error)
 	// GenerateUserCerts generates a set of user certificates.
 	GenerateUserCerts(context.Context, *UserCertsRequest) (*Certs, error)
+	// GenerateHostCerts generates a set of host certificates.
+	GenerateHostCerts(context.Context, *HostCertsRequest) (*Certs, error)
 	// GenerateUserSingleUseCerts generates a set of single-use user
 	// certificates.
 	GenerateUserSingleUseCerts(AuthService_GenerateUserSingleUseCertsServer) error
@@ -9188,15 +13310,19 @@ type AuthServiceServer interface {
 	// clients for verification or configuration on startup.
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
-	// DELETE IN: 9.0.0 in favor of RotateUserTokenSecrets.
+	// DELETE IN: 9.0.0 in favor of CreateRegisterChallenge.
 	RotateResetPasswordTokenSecrets(context.Context, *RotateUserTokenSecretsRequest) (*types.UserTokenSecretsV3, error)
-	// RotateUserTokenSecrets rotates token secrets for a given tokenID.
-	RotateUserTokenSecrets(context.Context, *RotateUserTokenSecretsRequest) (*types.UserTokenSecretsV3, error)
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(context.Context, *GetResetPasswordTokenRequest) (*types.UserTokenV3, error)
 	// CreateResetPasswordToken resets users current password and second factors and creates a reset
 	// password token.
 	CreateResetPasswordToken(context.Context, *CreateResetPasswordTokenRequest) (*types.UserTokenV3, error)
+	// CreateBot creates a new bot user.
+	CreateBot(context.Context, *CreateBotRequest) (*CreateBotResponse, error)
+	// DeleteBot deletes a bot user.
+	DeleteBot(context.Context, *DeleteBotRequest) (*empty.Empty, error)
+	// GetBotUsers gets all users with bot labels.
+	GetBotUsers(*GetBotUsersRequest, AuthService_GetBotUsersServer) error
 	// GetUser gets a user resource by name.
 	GetUser(context.Context, *GetUserRequest) (*types.UserV2, error)
 	// GetUsers gets all current user resources.
@@ -9221,13 +13347,30 @@ type AuthServiceServer interface {
 	EmitAuditEvent(context.Context, *events.OneOf) (*empty.Empty, error)
 	// CreateAuditStream creates or resumes audit events streams
 	CreateAuditStream(AuthService_CreateAuditStreamServer) error
+	// GetApplicationServers gets all application servers.
+	// DELETE IN 10.0. Deprecated, use ListResources.
+	GetApplicationServers(context.Context, *GetApplicationServersRequest) (*GetApplicationServersResponse, error)
+	// UpsertApplicationServer adds an application server.
+	UpsertApplicationServer(context.Context, *UpsertApplicationServerRequest) (*types.KeepAlive, error)
+	// DeleteApplicationServer removes an application server.
+	DeleteApplicationServer(context.Context, *DeleteApplicationServerRequest) (*empty.Empty, error)
+	// DeleteAllApplicationServers removes all application servers.
+	DeleteAllApplicationServers(context.Context, *DeleteAllApplicationServersRequest) (*empty.Empty, error)
 	// GetAppServers gets all application servers.
+	//
+	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 	GetAppServers(context.Context, *GetAppServersRequest) (*GetAppServersResponse, error)
 	// UpsertAppServer adds an application server.
+	//
+	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
 	UpsertAppServer(context.Context, *UpsertAppServerRequest) (*types.KeepAlive, error)
 	// DeleteAppServer removes an application server.
+	//
+	// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
 	DeleteAppServer(context.Context, *DeleteAppServerRequest) (*empty.Empty, error)
 	// DeleteAllAppServers removes all application servers.
+	//
+	// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
 	DeleteAllAppServers(context.Context, *DeleteAllAppServersRequest) (*empty.Empty, error)
 	// GenerateAppToken will generate a JWT token for application access.
 	GenerateAppToken(context.Context, *GenerateAppTokenRequest) (*GenerateAppTokenResponse, error)
@@ -9242,6 +13385,8 @@ type AuthServiceServer interface {
 	DeleteAppSession(context.Context, *DeleteAppSessionRequest) (*empty.Empty, error)
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context, *empty.Empty) (*empty.Empty, error)
+	// DeleteUserAppSessions deletes all user’s application sessions.
+	DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*empty.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error)
 	// GetWebSessions gets all web sessions.
@@ -9261,14 +13406,19 @@ type AuthServiceServer interface {
 	// UpdateRemoteCluster updates remote cluster
 	UpdateRemoteCluster(context.Context, *types.RemoteClusterV3) (*empty.Empty, error)
 	// GetKubeServices gets all kubernetes services.
+	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetKubeServices(context.Context, *GetKubeServicesRequest) (*GetKubeServicesResponse, error)
 	// UpsertKubeService adds or updates a kubernetes service.
+	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(context.Context, *UpsertKubeServiceRequest) (*empty.Empty, error)
+	// UpsertKubeServiceV2 adds or updates a kubernetes service.
+	UpsertKubeServiceV2(context.Context, *UpsertKubeServiceRequest) (*types.KeepAlive, error)
 	// DeleteKubeService removes a kubernetes service.
 	DeleteKubeService(context.Context, *DeleteKubeServiceRequest) (*empty.Empty, error)
 	// DeleteAllKubeServices removes all kubernetes services.
 	DeleteAllKubeServices(context.Context, *DeleteAllKubeServicesRequest) (*empty.Empty, error)
 	// GetDatabaseServers returns all registered database proxy servers.
+	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetDatabaseServers(context.Context, *GetDatabaseServersRequest) (*GetDatabaseServersResponse, error)
 	// UpsertDatabaseServer registers a new database proxy server.
 	UpsertDatabaseServer(context.Context, *UpsertDatabaseServerRequest) (*types.KeepAlive, error)
@@ -9283,11 +13433,11 @@ type AuthServiceServer interface {
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *DatabaseCertRequest) (*DatabaseCertResponse, error)
 	// GetRole retrieves a role described by the given request.
-	GetRole(context.Context, *GetRoleRequest) (*types.RoleV4, error)
+	GetRole(context.Context, *GetRoleRequest) (*types.RoleV5, error)
 	// GetRole retrieves all roles.
 	GetRoles(context.Context, *empty.Empty) (*GetRolesResponse, error)
 	// UpsertRole upserts a role in a backend.
-	UpsertRole(context.Context, *types.RoleV4) (*empty.Empty, error)
+	UpsertRole(context.Context, *types.RoleV5) (*empty.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
 	DeleteRole(context.Context, *DeleteRoleRequest) (*empty.Empty, error)
 	// AddMFADevice adds an MFA device for the user calling this RPC.
@@ -9310,15 +13460,24 @@ type AuthServiceServer interface {
 	// -> MFAResponse
 	// <- Ack
 	DeleteMFADevice(AuthService_DeleteMFADeviceServer) error
+	// AddMFADeviceSync adds a new MFA device (nonstream).
+	AddMFADeviceSync(context.Context, *AddMFADeviceSyncRequest) (*AddMFADeviceSyncResponse, error)
+	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+	DeleteMFADeviceSync(context.Context, *DeleteMFADeviceSyncRequest) (*empty.Empty, error)
 	// GetMFADevices returns all MFA devices registered for the user calling
 	// this RPC.
 	GetMFADevices(context.Context, *GetMFADevicesRequest) (*GetMFADevicesResponse, error)
+	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA
+	// devices.
+	CreateAuthenticateChallenge(context.Context, *CreateAuthenticateChallengeRequest) (*MFAAuthenticateChallenge, error)
+	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+	CreateRegisterChallenge(context.Context, *CreateRegisterChallengeRequest) (*MFARegisterChallenge, error)
 	// GetOIDCConnector gets an OIDC connector resource by name.
-	GetOIDCConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV2, error)
+	GetOIDCConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error)
 	// GetOIDCConnectors gets all current OIDC connector resources.
-	GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV2List, error)
+	GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error)
 	// UpsertOIDCConnector upserts an OIDC connector in a backend.
-	UpsertOIDCConnector(context.Context, *types.OIDCConnectorV2) (*empty.Empty, error)
+	UpsertOIDCConnector(context.Context, *types.OIDCConnectorV3) (*empty.Empty, error)
 	// DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
 	DeleteOIDCConnector(context.Context, *types.ResourceRequest) (*empty.Empty, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
@@ -9373,9 +13532,9 @@ type AuthServiceServer interface {
 	SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*empty.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(context.Context, *empty.Empty) (*empty.Empty, error)
-	// Out-of-session request for audit events.
+	// GetEvents gets events from the audit log.
 	GetEvents(context.Context, *GetEventsRequest) (*Events, error)
-	// In-session request for audit events.
+	// GetSessionEvents gets completed session events from the audit log.
 	GetSessionEvents(context.Context, *GetSessionEventsRequest) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(context.Context, *GetLockRequest) (*types.LockV2, error)
@@ -9395,6 +13554,18 @@ type AuthServiceServer interface {
 	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*empty.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(context.Context, *empty.Empty) (*empty.Empty, error)
+	// GetApps returns all registered applications.
+	GetApps(context.Context, *empty.Empty) (*types.AppV3List, error)
+	// GetApp returns an application by name.
+	GetApp(context.Context, *types.ResourceRequest) (*types.AppV3, error)
+	// CreateApp creates a new application resource.
+	CreateApp(context.Context, *types.AppV3) (*empty.Empty, error)
+	// UpdateApp updates existing application resource.
+	UpdateApp(context.Context, *types.AppV3) (*empty.Empty, error)
+	// DeleteApp removes specified application resource.
+	DeleteApp(context.Context, *types.ResourceRequest) (*empty.Empty, error)
+	// DeleteAllApps removes all application resources.
+	DeleteAllApps(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetDatabases returns all registered databases.
 	GetDatabases(context.Context, *empty.Empty) (*types.DatabaseV3List, error)
 	// GetDatabase returns a database by name.
@@ -9409,30 +13580,120 @@ type AuthServiceServer interface {
 	DeleteAllDatabases(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(context.Context, *empty.Empty) (*GetWindowsDesktopServicesResponse, error)
+	GetWindowsDesktopService(context.Context, *GetWindowsDesktopServiceRequest) (*GetWindowsDesktopServiceResponse, error)
 	// UpsertWindowsDesktopService registers a new Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, *types.WindowsDesktopServiceV3) (*types.KeepAlive, error)
 	// DeleteWindowsDesktopService removes the specified Windows desktop service.
 	DeleteWindowsDesktopService(context.Context, *DeleteWindowsDesktopServiceRequest) (*empty.Empty, error)
 	// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
 	DeleteAllWindowsDesktopServices(context.Context, *empty.Empty) (*empty.Empty, error)
-	// GetWindowsDesktops returns all registered Windows desktop hosts.
-	GetWindowsDesktops(context.Context, *empty.Empty) (*GetWindowsDesktopsResponse, error)
-	// GetWindowsDesktop returns a registered Windows desktop host.
-	GetWindowsDesktop(context.Context, *GetWindowsDesktopRequest) (*types.WindowsDesktopV3, error)
+	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
+	GetWindowsDesktops(context.Context, *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
 	CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
 	UpdateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
+	// UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
+	UpsertWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
 	// DeleteWindowsDesktop removes the specified Windows desktop host.
+	// Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
+	// To delete all desktops, use DeleteAllWindowsDesktops.
 	DeleteWindowsDesktop(context.Context, *DeleteWindowsDesktopRequest) (*empty.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
 	DeleteAllWindowsDesktops(context.Context, *empty.Empty) (*empty.Empty, error)
+	// GenerateWindowsDesktopCert generates client smartcard certificate used
+	// by an RDP client to authenticate with Windows.
+	GenerateWindowsDesktopCert(context.Context, *WindowsDesktopCertRequest) (*WindowsDesktopCertResponse, error)
+	// GenerateCertAuthorityCRL creates an empty CRL for the specified CA.
+	GenerateCertAuthorityCRL(context.Context, *CertAuthorityRequest) (*CRL, error)
+	// ChangeUserAuthentication allows a user to change their password and if enabled,
+	// also adds a new MFA device. After successful invocation, a new web session is created as well
+	// as a new set of recovery codes (if user meets the requirements to receive them), invalidating
+	// any existing codes the user previously had.
+	ChangeUserAuthentication(context.Context, *ChangeUserAuthenticationRequest) (*ChangeUserAuthenticationResponse, error)
+	// StartAccountRecovery (exclusive to cloud users) is the first out of two step user
+	// verification needed to allow a user to recover their account. The first form of verification
+	// is a user's username and a recovery code. After successful verification, a recovery start
+	// token is created for the user which its ID will be used as part of a URL that will be emailed
+	// to the user (not done in this request). The user will be able to finish their second form of
+	// verification by clicking on this URL and following the prompts.
+	//
+	// If a valid user fails to provide correct recovery code for MaxAccountRecoveryAttempts,
+	// user account gets temporarily locked from further recovery attempts and from logging in.
+	//
+	// Start tokens last RecoveryStartTokenTTL.
+	StartAccountRecovery(context.Context, *StartAccountRecoveryRequest) (*types.UserTokenV3, error)
+	// VerifyAccountRecovery (exclusive to cloud users) is the second step of the two step
+	// verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
+	// The second form of verification is a user's password or their second factor (depending on
+	// what authentication they needed to recover). After successful verification, a recovery
+	// approved token is created which allows a user to request protected actions while not logged
+	// in e.g: setting a new password or a mfa device, viewing their MFA devices, deleting their MFA
+	// devices, and generating new recovery codes.
+	//
+	// The recovery start token to verify this request becomes deleted before
+	// creating a recovery approved token, which invalidates the recovery link users received
+	// to finish their verification.
+	//
+	// If user fails to verify themselves for MaxAccountRecoveryAttempts
+	// (combined attempts with RPC StartAccountRecovery), users account will be temporarily locked
+	// from logging in. If users still have unused recovery codes left, they still have
+	// opportunities to recover their account. To allow this, users recovery attempts are also
+	// deleted along with all user tokens which will force the user to restart the recovery process
+	// from step 1 (RPC StartAccountRecovery).
+	//
+	// Recovery approved tokens last RecoveryApprovedTokenTTL.
+	VerifyAccountRecovery(context.Context, *VerifyAccountRecoveryRequest) (*types.UserTokenV3, error)
+	// CompleteAccountRecovery (exclusive to cloud users) is the last step in account
+	// recovery, after RPC's StartAccountRecovery and VerifyAccountRecovery. This step sets a new
+	// password or adds a new mfa device, allowing the user to regain access to their account with
+	// the new credentials. When the new authentication is successfully set, any user lock is
+	// removed so the user can login immediately afterwards.
+	CompleteAccountRecovery(context.Context, *CompleteAccountRecoveryRequest) (*empty.Empty, error)
+	// CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
+	// user, replacing and invalidating any previously owned codes. Users can only get recovery
+	// codes if their username is in a valid email format.
+	CreateAccountRecoveryCodes(context.Context, *CreateAccountRecoveryCodesRequest) (*RecoveryCodes, error)
+	// GetAccountRecoveryToken (exclusive to cloud users) returns a user token resource after
+	// verifying that the token requested has not expired and is of the correct recovery kind.
+	// Besides checking for validity of a token ID, it is also used to get basic information from
+	// the token e.g: username, state of recovery (started or approved) and the type of recovery
+	// requested (password or second factor).
+	GetAccountRecoveryToken(context.Context, *GetAccountRecoveryTokenRequest) (*types.UserTokenV3, error)
+	// GetAccountRecoveryCodes (exclusive to cloud users) is a request to return the user in context
+	// their recovery codes. This request will not return any secrets (the values of recovery
+	// codes), but instead returns non-sensitive data eg. when the recovery codes were created.
+	GetAccountRecoveryCodes(context.Context, *GetAccountRecoveryCodesRequest) (*RecoveryCodes, error)
+	// CreatePrivilegeToken returns a new privilege token after a logged in user successfully
+	// re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
+	// is used to gain access to privileged actions eg: deleting/adding a MFA device.
+	CreatePrivilegeToken(context.Context, *CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
+	// ListResources retrieves a paginated list of resources.
+	ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error)
 }
 
 // UnimplementedAuthServiceServer can be embedded to have forward compatible implementations.
 type UnimplementedAuthServiceServer struct {
 }
 
+func (*UnimplementedAuthServiceServer) MaintainSessionPresence(srv AuthService_MaintainSessionPresenceServer) error {
+	return status.Errorf(codes.Unimplemented, "method MaintainSessionPresence not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreateSessionTracker(ctx context.Context, req *CreateSessionTrackerRequest) (*types.SessionTrackerV1, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateSessionTracker not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetSessionTracker(ctx context.Context, req *GetSessionTrackerRequest) (*types.SessionTrackerV1, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSessionTracker not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetActiveSessionTrackers(req *empty.Empty, srv AuthService_GetActiveSessionTrackersServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetActiveSessionTrackers not implemented")
+}
+func (*UnimplementedAuthServiceServer) RemoveSessionTracker(ctx context.Context, req *RemoveSessionTrackerRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveSessionTracker not implemented")
+}
+func (*UnimplementedAuthServiceServer) UpdateSessionTracker(ctx context.Context, req *UpdateSessionTrackerRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateSessionTracker not implemented")
+}
 func (*UnimplementedAuthServiceServer) SendKeepAlives(srv AuthService_SendKeepAlivesServer) error {
 	return status.Errorf(codes.Unimplemented, "method SendKeepAlives not implemented")
 }
@@ -9459,6 +13720,9 @@ func (*UnimplementedAuthServiceServer) DeleteAllNodes(ctx context.Context, req *
 }
 func (*UnimplementedAuthServiceServer) GenerateUserCerts(ctx context.Context, req *UserCertsRequest) (*Certs, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateUserCerts not implemented")
+}
+func (*UnimplementedAuthServiceServer) GenerateHostCerts(ctx context.Context, req *HostCertsRequest) (*Certs, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateHostCerts not implemented")
 }
 func (*UnimplementedAuthServiceServer) GenerateUserSingleUseCerts(srv AuthService_GenerateUserSingleUseCertsServer) error {
 	return status.Errorf(codes.Unimplemented, "method GenerateUserSingleUseCerts not implemented")
@@ -9496,14 +13760,20 @@ func (*UnimplementedAuthServiceServer) Ping(ctx context.Context, req *PingReques
 func (*UnimplementedAuthServiceServer) RotateResetPasswordTokenSecrets(ctx context.Context, req *RotateUserTokenSecretsRequest) (*types.UserTokenSecretsV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RotateResetPasswordTokenSecrets not implemented")
 }
-func (*UnimplementedAuthServiceServer) RotateUserTokenSecrets(ctx context.Context, req *RotateUserTokenSecretsRequest) (*types.UserTokenSecretsV3, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RotateUserTokenSecrets not implemented")
-}
 func (*UnimplementedAuthServiceServer) GetResetPasswordToken(ctx context.Context, req *GetResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetResetPasswordToken not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateResetPasswordToken(ctx context.Context, req *CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateResetPasswordToken not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreateBot(ctx context.Context, req *CreateBotRequest) (*CreateBotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateBot not implemented")
+}
+func (*UnimplementedAuthServiceServer) DeleteBot(ctx context.Context, req *DeleteBotRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteBot not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetBotUsers(req *GetBotUsersRequest, srv AuthService_GetBotUsersServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetBotUsers not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetUser(ctx context.Context, req *GetUserRequest) (*types.UserV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
@@ -9541,6 +13811,18 @@ func (*UnimplementedAuthServiceServer) EmitAuditEvent(ctx context.Context, req *
 func (*UnimplementedAuthServiceServer) CreateAuditStream(srv AuthService_CreateAuditStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method CreateAuditStream not implemented")
 }
+func (*UnimplementedAuthServiceServer) GetApplicationServers(ctx context.Context, req *GetApplicationServersRequest) (*GetApplicationServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetApplicationServers not implemented")
+}
+func (*UnimplementedAuthServiceServer) UpsertApplicationServer(ctx context.Context, req *UpsertApplicationServerRequest) (*types.KeepAlive, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertApplicationServer not implemented")
+}
+func (*UnimplementedAuthServiceServer) DeleteApplicationServer(ctx context.Context, req *DeleteApplicationServerRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteApplicationServer not implemented")
+}
+func (*UnimplementedAuthServiceServer) DeleteAllApplicationServers(ctx context.Context, req *DeleteAllApplicationServersRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllApplicationServers not implemented")
+}
 func (*UnimplementedAuthServiceServer) GetAppServers(ctx context.Context, req *GetAppServersRequest) (*GetAppServersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAppServers not implemented")
 }
@@ -9570,6 +13852,9 @@ func (*UnimplementedAuthServiceServer) DeleteAppSession(ctx context.Context, req
 }
 func (*UnimplementedAuthServiceServer) DeleteAllAppSessions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllAppSessions not implemented")
+}
+func (*UnimplementedAuthServiceServer) DeleteUserAppSessions(ctx context.Context, req *DeleteUserAppSessionsRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserAppSessions not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetWebSession(ctx context.Context, req *types.GetWebSessionRequest) (*GetWebSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebSession not implemented")
@@ -9604,6 +13889,9 @@ func (*UnimplementedAuthServiceServer) GetKubeServices(ctx context.Context, req 
 func (*UnimplementedAuthServiceServer) UpsertKubeService(ctx context.Context, req *UpsertKubeServiceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertKubeService not implemented")
 }
+func (*UnimplementedAuthServiceServer) UpsertKubeServiceV2(ctx context.Context, req *UpsertKubeServiceRequest) (*types.KeepAlive, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertKubeServiceV2 not implemented")
+}
 func (*UnimplementedAuthServiceServer) DeleteKubeService(ctx context.Context, req *DeleteKubeServiceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteKubeService not implemented")
 }
@@ -9628,13 +13916,13 @@ func (*UnimplementedAuthServiceServer) SignDatabaseCSR(ctx context.Context, req 
 func (*UnimplementedAuthServiceServer) GenerateDatabaseCert(ctx context.Context, req *DatabaseCertRequest) (*DatabaseCertResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateDatabaseCert not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetRole(ctx context.Context, req *GetRoleRequest) (*types.RoleV4, error) {
+func (*UnimplementedAuthServiceServer) GetRole(ctx context.Context, req *GetRoleRequest) (*types.RoleV5, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRole not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetRoles(ctx context.Context, req *empty.Empty) (*GetRolesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRoles not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertRole(ctx context.Context, req *types.RoleV4) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertRole(ctx context.Context, req *types.RoleV5) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertRole not implemented")
 }
 func (*UnimplementedAuthServiceServer) DeleteRole(ctx context.Context, req *DeleteRoleRequest) (*empty.Empty, error) {
@@ -9646,16 +13934,28 @@ func (*UnimplementedAuthServiceServer) AddMFADevice(srv AuthService_AddMFADevice
 func (*UnimplementedAuthServiceServer) DeleteMFADevice(srv AuthService_DeleteMFADeviceServer) error {
 	return status.Errorf(codes.Unimplemented, "method DeleteMFADevice not implemented")
 }
+func (*UnimplementedAuthServiceServer) AddMFADeviceSync(ctx context.Context, req *AddMFADeviceSyncRequest) (*AddMFADeviceSyncResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddMFADeviceSync not implemented")
+}
+func (*UnimplementedAuthServiceServer) DeleteMFADeviceSync(ctx context.Context, req *DeleteMFADeviceSyncRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteMFADeviceSync not implemented")
+}
 func (*UnimplementedAuthServiceServer) GetMFADevices(ctx context.Context, req *GetMFADevicesRequest) (*GetMFADevicesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMFADevices not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV2, error) {
+func (*UnimplementedAuthServiceServer) CreateAuthenticateChallenge(ctx context.Context, req *CreateAuthenticateChallengeRequest) (*MFAAuthenticateChallenge, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAuthenticateChallenge not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreateRegisterChallenge(ctx context.Context, req *CreateRegisterChallengeRequest) (*MFARegisterChallenge, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateRegisterChallenge not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOIDCConnector not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV2List, error) {
+func (*UnimplementedAuthServiceServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOIDCConnectors not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertOIDCConnector(ctx context.Context, req *types.OIDCConnectorV2) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertOIDCConnector(ctx context.Context, req *types.OIDCConnectorV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertOIDCConnector not implemented")
 }
 func (*UnimplementedAuthServiceServer) DeleteOIDCConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
@@ -9772,6 +14072,24 @@ func (*UnimplementedAuthServiceServer) SetNetworkRestrictions(ctx context.Contex
 func (*UnimplementedAuthServiceServer) DeleteNetworkRestrictions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteNetworkRestrictions not implemented")
 }
+func (*UnimplementedAuthServiceServer) GetApps(ctx context.Context, req *empty.Empty) (*types.AppV3List, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetApp(ctx context.Context, req *types.ResourceRequest) (*types.AppV3, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreateApp(ctx context.Context, req *types.AppV3) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateApp not implemented")
+}
+func (*UnimplementedAuthServiceServer) UpdateApp(ctx context.Context, req *types.AppV3) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateApp not implemented")
+}
+func (*UnimplementedAuthServiceServer) DeleteApp(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteApp not implemented")
+}
+func (*UnimplementedAuthServiceServer) DeleteAllApps(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllApps not implemented")
+}
 func (*UnimplementedAuthServiceServer) GetDatabases(ctx context.Context, req *empty.Empty) (*types.DatabaseV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
 }
@@ -9793,6 +14111,9 @@ func (*UnimplementedAuthServiceServer) DeleteAllDatabases(ctx context.Context, r
 func (*UnimplementedAuthServiceServer) GetWindowsDesktopServices(ctx context.Context, req *empty.Empty) (*GetWindowsDesktopServicesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktopServices not implemented")
 }
+func (*UnimplementedAuthServiceServer) GetWindowsDesktopService(ctx context.Context, req *GetWindowsDesktopServiceRequest) (*GetWindowsDesktopServiceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktopService not implemented")
+}
 func (*UnimplementedAuthServiceServer) UpsertWindowsDesktopService(ctx context.Context, req *types.WindowsDesktopServiceV3) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertWindowsDesktopService not implemented")
 }
@@ -9802,11 +14123,8 @@ func (*UnimplementedAuthServiceServer) DeleteWindowsDesktopService(ctx context.C
 func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktopServices(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWindowsDesktopServices not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetWindowsDesktops(ctx context.Context, req *empty.Empty) (*GetWindowsDesktopsResponse, error) {
+func (*UnimplementedAuthServiceServer) GetWindowsDesktops(ctx context.Context, req *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktops not implemented")
-}
-func (*UnimplementedAuthServiceServer) GetWindowsDesktop(ctx context.Context, req *GetWindowsDesktopRequest) (*types.WindowsDesktopV3, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktop not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateWindowsDesktop not implemented")
@@ -9814,15 +14132,170 @@ func (*UnimplementedAuthServiceServer) CreateWindowsDesktop(ctx context.Context,
 func (*UnimplementedAuthServiceServer) UpdateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateWindowsDesktop not implemented")
 }
+func (*UnimplementedAuthServiceServer) UpsertWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertWindowsDesktop not implemented")
+}
 func (*UnimplementedAuthServiceServer) DeleteWindowsDesktop(ctx context.Context, req *DeleteWindowsDesktopRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWindowsDesktop not implemented")
 }
 func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktops(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWindowsDesktops not implemented")
 }
+func (*UnimplementedAuthServiceServer) GenerateWindowsDesktopCert(ctx context.Context, req *WindowsDesktopCertRequest) (*WindowsDesktopCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateWindowsDesktopCert not implemented")
+}
+func (*UnimplementedAuthServiceServer) GenerateCertAuthorityCRL(ctx context.Context, req *CertAuthorityRequest) (*CRL, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateCertAuthorityCRL not implemented")
+}
+func (*UnimplementedAuthServiceServer) ChangeUserAuthentication(ctx context.Context, req *ChangeUserAuthenticationRequest) (*ChangeUserAuthenticationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ChangeUserAuthentication not implemented")
+}
+func (*UnimplementedAuthServiceServer) StartAccountRecovery(ctx context.Context, req *StartAccountRecoveryRequest) (*types.UserTokenV3, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartAccountRecovery not implemented")
+}
+func (*UnimplementedAuthServiceServer) VerifyAccountRecovery(ctx context.Context, req *VerifyAccountRecoveryRequest) (*types.UserTokenV3, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VerifyAccountRecovery not implemented")
+}
+func (*UnimplementedAuthServiceServer) CompleteAccountRecovery(ctx context.Context, req *CompleteAccountRecoveryRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CompleteAccountRecovery not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreateAccountRecoveryCodes(ctx context.Context, req *CreateAccountRecoveryCodesRequest) (*RecoveryCodes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAccountRecoveryCodes not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetAccountRecoveryToken(ctx context.Context, req *GetAccountRecoveryTokenRequest) (*types.UserTokenV3, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccountRecoveryToken not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetAccountRecoveryCodes(ctx context.Context, req *GetAccountRecoveryCodesRequest) (*RecoveryCodes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccountRecoveryCodes not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreatePrivilegeToken(ctx context.Context, req *CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreatePrivilegeToken not implemented")
+}
+func (*UnimplementedAuthServiceServer) ListResources(ctx context.Context, req *ListResourcesRequest) (*ListResourcesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListResources not implemented")
+}
 
 func RegisterAuthServiceServer(s *grpc.Server, srv AuthServiceServer) {
 	s.RegisterService(&_AuthService_serviceDesc, srv)
+}
+
+func _AuthService_MaintainSessionPresence_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AuthServiceServer).MaintainSessionPresence(&authServiceMaintainSessionPresenceServer{stream})
+}
+
+type AuthService_MaintainSessionPresenceServer interface {
+	Send(*MFAAuthenticateChallenge) error
+	Recv() (*PresenceMFAChallengeSend, error)
+	grpc.ServerStream
+}
+
+type authServiceMaintainSessionPresenceServer struct {
+	grpc.ServerStream
+}
+
+func (x *authServiceMaintainSessionPresenceServer) Send(m *MFAAuthenticateChallenge) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *authServiceMaintainSessionPresenceServer) Recv() (*PresenceMFAChallengeSend, error) {
+	m := new(PresenceMFAChallengeSend)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _AuthService_CreateSessionTracker_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateSessionTrackerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateSessionTracker(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateSessionTracker",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateSessionTracker(ctx, req.(*CreateSessionTrackerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetSessionTracker_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSessionTrackerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetSessionTracker(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetSessionTracker",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetSessionTracker(ctx, req.(*GetSessionTrackerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetActiveSessionTrackers_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(empty.Empty)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AuthServiceServer).GetActiveSessionTrackers(m, &authServiceGetActiveSessionTrackersServer{stream})
+}
+
+type AuthService_GetActiveSessionTrackersServer interface {
+	Send(*types.SessionTrackerV1) error
+	grpc.ServerStream
+}
+
+type authServiceGetActiveSessionTrackersServer struct {
+	grpc.ServerStream
+}
+
+func (x *authServiceGetActiveSessionTrackersServer) Send(m *types.SessionTrackerV1) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _AuthService_RemoveSessionTracker_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveSessionTrackerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).RemoveSessionTracker(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/RemoveSessionTracker",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).RemoveSessionTracker(ctx, req.(*RemoveSessionTrackerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_UpdateSessionTracker_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateSessionTrackerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).UpdateSessionTracker(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/UpdateSessionTracker",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).UpdateSessionTracker(ctx, req.(*UpdateSessionTrackerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_SendKeepAlives_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -9994,6 +14467,24 @@ func _AuthService_GenerateUserCerts_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GenerateUserCerts(ctx, req.(*UserCertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GenerateHostCerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HostCertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GenerateHostCerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GenerateHostCerts",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GenerateHostCerts(ctx, req.(*HostCertsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10222,24 +14713,6 @@ func _AuthService_RotateResetPasswordTokenSecrets_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_RotateUserTokenSecrets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RotateUserTokenSecretsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).RotateUserTokenSecrets(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/proto.AuthService/RotateUserTokenSecrets",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).RotateUserTokenSecrets(ctx, req.(*RotateUserTokenSecretsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _AuthService_GetResetPasswordToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetResetPasswordTokenRequest)
 	if err := dec(in); err != nil {
@@ -10274,6 +14747,63 @@ func _AuthService_CreateResetPasswordToken_Handler(srv interface{}, ctx context.
 		return srv.(AuthServiceServer).CreateResetPasswordToken(ctx, req.(*CreateResetPasswordTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreateBot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateBotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateBot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateBot",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateBot(ctx, req.(*CreateBotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteBot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteBotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteBot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/DeleteBot",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteBot(ctx, req.(*DeleteBotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetBotUsers_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetBotUsersRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AuthServiceServer).GetBotUsers(m, &authServiceGetBotUsersServer{stream})
+}
+
+type AuthService_GetBotUsersServer interface {
+	Send(*types.UserV2) error
+	grpc.ServerStream
+}
+
+type authServiceGetBotUsersServer struct {
+	grpc.ServerStream
+}
+
+func (x *authServiceGetBotUsersServer) Send(m *types.UserV2) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _AuthService_GetUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -10503,6 +15033,78 @@ func (x *authServiceCreateAuditStreamServer) Recv() (*AuditStreamRequest, error)
 	return m, nil
 }
 
+func _AuthService_GetApplicationServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetApplicationServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetApplicationServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetApplicationServers",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetApplicationServers(ctx, req.(*GetApplicationServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_UpsertApplicationServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertApplicationServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).UpsertApplicationServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/UpsertApplicationServer",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).UpsertApplicationServer(ctx, req.(*UpsertApplicationServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteApplicationServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteApplicationServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteApplicationServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/DeleteApplicationServer",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteApplicationServer(ctx, req.(*DeleteApplicationServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteAllApplicationServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAllApplicationServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteAllApplicationServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/DeleteAllApplicationServers",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteAllApplicationServers(ctx, req.(*DeleteAllApplicationServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetAppServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAppServersRequest)
 	if err := dec(in); err != nil {
@@ -10679,6 +15281,24 @@ func _AuthService_DeleteAllAppSessions_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).DeleteAllAppSessions(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteUserAppSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserAppSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteUserAppSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/DeleteUserAppSessions",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteUserAppSessions(ctx, req.(*DeleteUserAppSessionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10881,6 +15501,24 @@ func _AuthService_UpsertKubeService_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_UpsertKubeServiceV2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertKubeServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).UpsertKubeServiceV2(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/UpsertKubeServiceV2",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).UpsertKubeServiceV2(ctx, req.(*UpsertKubeServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_DeleteKubeService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteKubeServiceRequest)
 	if err := dec(in); err != nil {
@@ -11062,7 +15700,7 @@ func _AuthService_GetRoles_Handler(srv interface{}, ctx context.Context, dec fun
 }
 
 func _AuthService_UpsertRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(types.RoleV4)
+	in := new(types.RoleV5)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -11074,7 +15712,7 @@ func _AuthService_UpsertRole_Handler(srv interface{}, ctx context.Context, dec f
 		FullMethod: "/proto.AuthService/UpsertRole",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).UpsertRole(ctx, req.(*types.RoleV4))
+		return srv.(AuthServiceServer).UpsertRole(ctx, req.(*types.RoleV5))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -11149,6 +15787,42 @@ func (x *authServiceDeleteMFADeviceServer) Recv() (*DeleteMFADeviceRequest, erro
 	return m, nil
 }
 
+func _AuthService_AddMFADeviceSync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddMFADeviceSyncRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).AddMFADeviceSync(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/AddMFADeviceSync",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).AddMFADeviceSync(ctx, req.(*AddMFADeviceSyncRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteMFADeviceSync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMFADeviceSyncRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteMFADeviceSync(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/DeleteMFADeviceSync",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteMFADeviceSync(ctx, req.(*DeleteMFADeviceSyncRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetMFADevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetMFADevicesRequest)
 	if err := dec(in); err != nil {
@@ -11163,6 +15837,42 @@ func _AuthService_GetMFADevices_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetMFADevices(ctx, req.(*GetMFADevicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreateAuthenticateChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAuthenticateChallengeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateAuthenticateChallenge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateAuthenticateChallenge",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateAuthenticateChallenge(ctx, req.(*CreateAuthenticateChallengeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreateRegisterChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateRegisterChallengeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateRegisterChallenge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateRegisterChallenge",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateRegisterChallenge(ctx, req.(*CreateRegisterChallengeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -11204,7 +15914,7 @@ func _AuthService_GetOIDCConnectors_Handler(srv interface{}, ctx context.Context
 }
 
 func _AuthService_UpsertOIDCConnector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(types.OIDCConnectorV2)
+	in := new(types.OIDCConnectorV3)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -11216,7 +15926,7 @@ func _AuthService_UpsertOIDCConnector_Handler(srv interface{}, ctx context.Conte
 		FullMethod: "/proto.AuthService/UpsertOIDCConnector",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).UpsertOIDCConnector(ctx, req.(*types.OIDCConnectorV2))
+		return srv.(AuthServiceServer).UpsertOIDCConnector(ctx, req.(*types.OIDCConnectorV3))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -11908,6 +16618,114 @@ func _AuthService_DeleteNetworkRestrictions_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetApps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetApps",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetApps(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.ResourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetApp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetApp(ctx, req.(*types.ResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreateApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.AppV3)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateApp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateApp(ctx, req.(*types.AppV3))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_UpdateApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.AppV3)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).UpdateApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/UpdateApp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).UpdateApp(ctx, req.(*types.AppV3))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.ResourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/DeleteApp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteApp(ctx, req.(*types.ResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteAllApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteAllApps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/DeleteAllApps",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteAllApps(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(empty.Empty)
 	if err := dec(in); err != nil {
@@ -12034,6 +16852,24 @@ func _AuthService_GetWindowsDesktopServices_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetWindowsDesktopService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWindowsDesktopServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetWindowsDesktopService(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetWindowsDesktopService",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetWindowsDesktopService(ctx, req.(*GetWindowsDesktopServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_UpsertWindowsDesktopService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.WindowsDesktopServiceV3)
 	if err := dec(in); err != nil {
@@ -12089,7 +16925,7 @@ func _AuthService_DeleteAllWindowsDesktopServices_Handler(srv interface{}, ctx c
 }
 
 func _AuthService_GetWindowsDesktops_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(types.WindowsDesktopFilter)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -12101,25 +16937,7 @@ func _AuthService_GetWindowsDesktops_Handler(srv interface{}, ctx context.Contex
 		FullMethod: "/proto.AuthService/GetWindowsDesktops",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWindowsDesktops(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_GetWindowsDesktop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetWindowsDesktopRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).GetWindowsDesktop(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/proto.AuthService/GetWindowsDesktop",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWindowsDesktop(ctx, req.(*GetWindowsDesktopRequest))
+		return srv.(AuthServiceServer).GetWindowsDesktops(ctx, req.(*types.WindowsDesktopFilter))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -12160,6 +16978,24 @@ func _AuthService_UpdateWindowsDesktop_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_UpsertWindowsDesktop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.WindowsDesktopV3)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).UpsertWindowsDesktop(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/UpsertWindowsDesktop",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).UpsertWindowsDesktop(ctx, req.(*types.WindowsDesktopV3))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_DeleteWindowsDesktop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteWindowsDesktopRequest)
 	if err := dec(in); err != nil {
@@ -12196,10 +17032,224 @@ func _AuthService_DeleteAllWindowsDesktops_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GenerateWindowsDesktopCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WindowsDesktopCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GenerateWindowsDesktopCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GenerateWindowsDesktopCert",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GenerateWindowsDesktopCert(ctx, req.(*WindowsDesktopCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GenerateCertAuthorityCRL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CertAuthorityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GenerateCertAuthorityCRL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GenerateCertAuthorityCRL",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GenerateCertAuthorityCRL(ctx, req.(*CertAuthorityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ChangeUserAuthentication_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeUserAuthenticationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ChangeUserAuthentication(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/ChangeUserAuthentication",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ChangeUserAuthentication(ctx, req.(*ChangeUserAuthenticationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_StartAccountRecovery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartAccountRecoveryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).StartAccountRecovery(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/StartAccountRecovery",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).StartAccountRecovery(ctx, req.(*StartAccountRecoveryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_VerifyAccountRecovery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyAccountRecoveryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).VerifyAccountRecovery(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/VerifyAccountRecovery",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).VerifyAccountRecovery(ctx, req.(*VerifyAccountRecoveryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CompleteAccountRecovery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteAccountRecoveryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CompleteAccountRecovery(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CompleteAccountRecovery",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CompleteAccountRecovery(ctx, req.(*CompleteAccountRecoveryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreateAccountRecoveryCodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAccountRecoveryCodesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateAccountRecoveryCodes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateAccountRecoveryCodes",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateAccountRecoveryCodes(ctx, req.(*CreateAccountRecoveryCodesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetAccountRecoveryToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAccountRecoveryTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetAccountRecoveryToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetAccountRecoveryToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetAccountRecoveryToken(ctx, req.(*GetAccountRecoveryTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetAccountRecoveryCodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAccountRecoveryCodesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetAccountRecoveryCodes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetAccountRecoveryCodes",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetAccountRecoveryCodes(ctx, req.(*GetAccountRecoveryCodesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreatePrivilegeToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreatePrivilegeTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreatePrivilegeToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreatePrivilegeToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreatePrivilegeToken(ctx, req.(*CreatePrivilegeTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListResources_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListResourcesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListResources(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/ListResources",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListResources(ctx, req.(*ListResourcesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _AuthService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.AuthService",
 	HandlerType: (*AuthServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateSessionTracker",
+			Handler:    _AuthService_CreateSessionTracker_Handler,
+		},
+		{
+			MethodName: "GetSessionTracker",
+			Handler:    _AuthService_GetSessionTracker_Handler,
+		},
+		{
+			MethodName: "RemoveSessionTracker",
+			Handler:    _AuthService_RemoveSessionTracker_Handler,
+		},
+		{
+			MethodName: "UpdateSessionTracker",
+			Handler:    _AuthService_UpdateSessionTracker_Handler,
+		},
 		{
 			MethodName: "GetNode",
 			Handler:    _AuthService_GetNode_Handler,
@@ -12227,6 +17277,10 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateUserCerts",
 			Handler:    _AuthService_GenerateUserCerts_Handler,
+		},
+		{
+			MethodName: "GenerateHostCerts",
+			Handler:    _AuthService_GenerateHostCerts_Handler,
 		},
 		{
 			MethodName: "IsMFARequired",
@@ -12273,16 +17327,20 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_RotateResetPasswordTokenSecrets_Handler,
 		},
 		{
-			MethodName: "RotateUserTokenSecrets",
-			Handler:    _AuthService_RotateUserTokenSecrets_Handler,
-		},
-		{
 			MethodName: "GetResetPasswordToken",
 			Handler:    _AuthService_GetResetPasswordToken_Handler,
 		},
 		{
 			MethodName: "CreateResetPasswordToken",
 			Handler:    _AuthService_CreateResetPasswordToken_Handler,
+		},
+		{
+			MethodName: "CreateBot",
+			Handler:    _AuthService_CreateBot_Handler,
+		},
+		{
+			MethodName: "DeleteBot",
+			Handler:    _AuthService_DeleteBot_Handler,
 		},
 		{
 			MethodName: "GetUser",
@@ -12325,6 +17383,22 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_EmitAuditEvent_Handler,
 		},
 		{
+			MethodName: "GetApplicationServers",
+			Handler:    _AuthService_GetApplicationServers_Handler,
+		},
+		{
+			MethodName: "UpsertApplicationServer",
+			Handler:    _AuthService_UpsertApplicationServer_Handler,
+		},
+		{
+			MethodName: "DeleteApplicationServer",
+			Handler:    _AuthService_DeleteApplicationServer_Handler,
+		},
+		{
+			MethodName: "DeleteAllApplicationServers",
+			Handler:    _AuthService_DeleteAllApplicationServers_Handler,
+		},
+		{
 			MethodName: "GetAppServers",
 			Handler:    _AuthService_GetAppServers_Handler,
 		},
@@ -12363,6 +17437,10 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAllAppSessions",
 			Handler:    _AuthService_DeleteAllAppSessions_Handler,
+		},
+		{
+			MethodName: "DeleteUserAppSessions",
+			Handler:    _AuthService_DeleteUserAppSessions_Handler,
 		},
 		{
 			MethodName: "GetWebSession",
@@ -12407,6 +17485,10 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertKubeService",
 			Handler:    _AuthService_UpsertKubeService_Handler,
+		},
+		{
+			MethodName: "UpsertKubeServiceV2",
+			Handler:    _AuthService_UpsertKubeServiceV2_Handler,
 		},
 		{
 			MethodName: "DeleteKubeService",
@@ -12457,8 +17539,24 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_DeleteRole_Handler,
 		},
 		{
+			MethodName: "AddMFADeviceSync",
+			Handler:    _AuthService_AddMFADeviceSync_Handler,
+		},
+		{
+			MethodName: "DeleteMFADeviceSync",
+			Handler:    _AuthService_DeleteMFADeviceSync_Handler,
+		},
+		{
 			MethodName: "GetMFADevices",
 			Handler:    _AuthService_GetMFADevices_Handler,
+		},
+		{
+			MethodName: "CreateAuthenticateChallenge",
+			Handler:    _AuthService_CreateAuthenticateChallenge_Handler,
+		},
+		{
+			MethodName: "CreateRegisterChallenge",
+			Handler:    _AuthService_CreateRegisterChallenge_Handler,
 		},
 		{
 			MethodName: "GetOIDCConnector",
@@ -12621,6 +17719,30 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_DeleteNetworkRestrictions_Handler,
 		},
 		{
+			MethodName: "GetApps",
+			Handler:    _AuthService_GetApps_Handler,
+		},
+		{
+			MethodName: "GetApp",
+			Handler:    _AuthService_GetApp_Handler,
+		},
+		{
+			MethodName: "CreateApp",
+			Handler:    _AuthService_CreateApp_Handler,
+		},
+		{
+			MethodName: "UpdateApp",
+			Handler:    _AuthService_UpdateApp_Handler,
+		},
+		{
+			MethodName: "DeleteApp",
+			Handler:    _AuthService_DeleteApp_Handler,
+		},
+		{
+			MethodName: "DeleteAllApps",
+			Handler:    _AuthService_DeleteAllApps_Handler,
+		},
+		{
 			MethodName: "GetDatabases",
 			Handler:    _AuthService_GetDatabases_Handler,
 		},
@@ -12649,6 +17771,10 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetWindowsDesktopServices_Handler,
 		},
 		{
+			MethodName: "GetWindowsDesktopService",
+			Handler:    _AuthService_GetWindowsDesktopService_Handler,
+		},
+		{
 			MethodName: "UpsertWindowsDesktopService",
 			Handler:    _AuthService_UpsertWindowsDesktopService_Handler,
 		},
@@ -12665,16 +17791,16 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetWindowsDesktops_Handler,
 		},
 		{
-			MethodName: "GetWindowsDesktop",
-			Handler:    _AuthService_GetWindowsDesktop_Handler,
-		},
-		{
 			MethodName: "CreateWindowsDesktop",
 			Handler:    _AuthService_CreateWindowsDesktop_Handler,
 		},
 		{
 			MethodName: "UpdateWindowsDesktop",
 			Handler:    _AuthService_UpdateWindowsDesktop_Handler,
+		},
+		{
+			MethodName: "UpsertWindowsDesktop",
+			Handler:    _AuthService_UpsertWindowsDesktop_Handler,
 		},
 		{
 			MethodName: "DeleteWindowsDesktop",
@@ -12684,8 +17810,63 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteAllWindowsDesktops",
 			Handler:    _AuthService_DeleteAllWindowsDesktops_Handler,
 		},
+		{
+			MethodName: "GenerateWindowsDesktopCert",
+			Handler:    _AuthService_GenerateWindowsDesktopCert_Handler,
+		},
+		{
+			MethodName: "GenerateCertAuthorityCRL",
+			Handler:    _AuthService_GenerateCertAuthorityCRL_Handler,
+		},
+		{
+			MethodName: "ChangeUserAuthentication",
+			Handler:    _AuthService_ChangeUserAuthentication_Handler,
+		},
+		{
+			MethodName: "StartAccountRecovery",
+			Handler:    _AuthService_StartAccountRecovery_Handler,
+		},
+		{
+			MethodName: "VerifyAccountRecovery",
+			Handler:    _AuthService_VerifyAccountRecovery_Handler,
+		},
+		{
+			MethodName: "CompleteAccountRecovery",
+			Handler:    _AuthService_CompleteAccountRecovery_Handler,
+		},
+		{
+			MethodName: "CreateAccountRecoveryCodes",
+			Handler:    _AuthService_CreateAccountRecoveryCodes_Handler,
+		},
+		{
+			MethodName: "GetAccountRecoveryToken",
+			Handler:    _AuthService_GetAccountRecoveryToken_Handler,
+		},
+		{
+			MethodName: "GetAccountRecoveryCodes",
+			Handler:    _AuthService_GetAccountRecoveryCodes_Handler,
+		},
+		{
+			MethodName: "CreatePrivilegeToken",
+			Handler:    _AuthService_CreatePrivilegeToken_Handler,
+		},
+		{
+			MethodName: "ListResources",
+			Handler:    _AuthService_ListResources_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "MaintainSessionPresence",
+			Handler:       _AuthService_MaintainSessionPresence_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "GetActiveSessionTrackers",
+			Handler:       _AuthService_GetActiveSessionTrackers_Handler,
+			ServerStreams: true,
+		},
 		{
 			StreamName:    "SendKeepAlives",
 			Handler:       _AuthService_SendKeepAlives_Handler,
@@ -12701,6 +17882,11 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:       _AuthService_GenerateUserSingleUseCerts_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "GetBotUsers",
+			Handler:       _AuthService_GetBotUsers_Handler,
+			ServerStreams: true,
 		},
 		{
 			StreamName:    "GetUsers",
@@ -12877,27 +18063,6 @@ func (m *Event_ClusterName) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		}
 		i--
 		dAtA[i] = 0x32
-	}
-	return len(dAtA) - i, nil
-}
-func (m *Event_ClusterConfig) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Event_ClusterConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.ClusterConfig != nil {
-		{
-			size, err := m.ClusterConfig.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintAuthservice(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x3a
 	}
 	return len(dAtA) - i, nil
 }
@@ -13345,6 +18510,75 @@ func (m *Event_WindowsDesktop) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	return len(dAtA) - i, nil
 }
+func (m *Event_Database) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Event_Database) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Database != nil {
+		{
+			size, err := m.Database.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xe2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *Event_AppServer) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Event_AppServer) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.AppServer != nil {
+		{
+			size, err := m.AppServer.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xea
+	}
+	return len(dAtA) - i, nil
+}
+func (m *Event_App) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Event_App) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.App != nil {
+		{
+			size, err := m.App.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xf2
+	}
+	return len(dAtA) - i, nil
+}
 func (m *Watch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -13463,7 +18697,7 @@ func (m *WatchKind) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *Certs) Marshal() (dAtA []byte, err error) {
+func (m *HostCertsRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -13473,12 +18707,12 @@ func (m *Certs) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Certs) MarshalTo(dAtA []byte) (int, error) {
+func (m *HostCertsRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Certs) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *HostCertsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -13487,17 +18721,85 @@ func (m *Certs) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.TLS) > 0 {
-		i -= len(m.TLS)
-		copy(dAtA[i:], m.TLS)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.TLS)))
+	if m.NoCache {
+		i--
+		if m.NoCache {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x50
+	}
+	if m.Rotation != nil {
+		{
+			size, err := m.Rotation.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4a
+	}
+	if len(m.RemoteAddr) > 0 {
+		i -= len(m.RemoteAddr)
+		copy(dAtA[i:], m.RemoteAddr)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.RemoteAddr)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.PublicSSHKey) > 0 {
+		i -= len(m.PublicSSHKey)
+		copy(dAtA[i:], m.PublicSSHKey)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.PublicSSHKey)))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if len(m.PublicTLSKey) > 0 {
+		i -= len(m.PublicTLSKey)
+		copy(dAtA[i:], m.PublicTLSKey)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.PublicTLSKey)))
+		i--
+		dAtA[i] = 0x32
+	}
+	if len(m.DNSNames) > 0 {
+		for iNdEx := len(m.DNSNames) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.DNSNames[iNdEx])
+			copy(dAtA[i:], m.DNSNames[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.DNSNames[iNdEx])))
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	if len(m.AdditionalPrincipals) > 0 {
+		for iNdEx := len(m.AdditionalPrincipals) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.AdditionalPrincipals[iNdEx])
+			copy(dAtA[i:], m.AdditionalPrincipals[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.AdditionalPrincipals[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if len(m.Role) > 0 {
+		i -= len(m.Role)
+		copy(dAtA[i:], m.Role)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Role)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.NodeName) > 0 {
+		i -= len(m.NodeName)
+		copy(dAtA[i:], m.NodeName)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.NodeName)))
 		i--
 		dAtA[i] = 0x12
 	}
-	if len(m.SSH) > 0 {
-		i -= len(m.SSH)
-		copy(dAtA[i:], m.SSH)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SSH)))
+	if len(m.HostID) > 0 {
+		i -= len(m.HostID)
+		copy(dAtA[i:], m.HostID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.HostID)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -13527,6 +18829,25 @@ func (m *UserCertsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	{
+		size, err := m.RouteToWindowsDesktop.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintAuthservice(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x6a
+	if len(m.RoleRequests) > 0 {
+		for iNdEx := len(m.RoleRequests) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.RoleRequests[iNdEx])
+			copy(dAtA[i:], m.RoleRequests[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.RoleRequests[iNdEx])))
+			i--
+			dAtA[i] = 0x62
+		}
 	}
 	{
 		size, err := m.RouteToApp.MarshalToSizedBuffer(dAtA[:i])
@@ -13590,12 +18911,12 @@ func (m *UserCertsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x22
 	}
-	n29, err29 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err29 != nil {
-		return 0, err29
+	n33, err33 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err33 != nil {
+		return 0, err33
 	}
-	i -= n29
-	i = encodeVarintAuthservice(dAtA, i, uint64(n29))
+	i -= n33
+	i = encodeVarintAuthservice(dAtA, i, uint64(n33))
 	i--
 	dAtA[i] = 0x1a
 	if len(m.Username) > 0 {
@@ -13670,6 +18991,47 @@ func (m *RouteToDatabase) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *RouteToWindowsDesktop) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RouteToWindowsDesktop) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RouteToWindowsDesktop) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Login) > 0 {
+		i -= len(m.Login)
+		copy(dAtA[i:], m.Login)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Login)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.WindowsDesktop) > 0 {
+		i -= len(m.WindowsDesktop)
+		copy(dAtA[i:], m.WindowsDesktop)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.WindowsDesktop)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *RouteToApp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -13693,6 +19055,13 @@ func (m *RouteToApp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.AWSRoleARN) > 0 {
+		i -= len(m.AWSRoleARN)
+		copy(dAtA[i:], m.AWSRoleARN)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.AWSRoleARN)))
+		i--
+		dAtA[i] = 0x2a
 	}
 	if len(m.ClusterName) > 0 {
 		i -= len(m.ClusterName)
@@ -14108,6 +19477,223 @@ func (m *CreateResetPasswordTokenRequest) MarshalToSizedBuffer(dAtA []byte) (int
 	return len(dAtA) - i, nil
 }
 
+func (m *RenewableCertsRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RenewableCertsRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RenewableCertsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.PublicKey) > 0 {
+		i -= len(m.PublicKey)
+		copy(dAtA[i:], m.PublicKey)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.PublicKey)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Token) > 0 {
+		i -= len(m.Token)
+		copy(dAtA[i:], m.Token)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Token)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CreateBotRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateBotRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateBotRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Roles) > 0 {
+		for iNdEx := len(m.Roles) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Roles[iNdEx])
+			copy(dAtA[i:], m.Roles[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Roles[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if len(m.TokenID) > 0 {
+		i -= len(m.TokenID)
+		copy(dAtA[i:], m.TokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.TokenID)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.TTL != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.TTL))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CreateBotResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateBotResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateBotResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.JoinMethod) > 0 {
+		i -= len(m.JoinMethod)
+		copy(dAtA[i:], m.JoinMethod)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.JoinMethod)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.TokenTTL != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.TokenTTL))
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.TokenID) > 0 {
+		i -= len(m.TokenID)
+		copy(dAtA[i:], m.TokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.TokenID)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.RoleName) > 0 {
+		i -= len(m.RoleName)
+		copy(dAtA[i:], m.RoleName)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.RoleName)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.UserName) > 0 {
+		i -= len(m.UserName)
+		copy(dAtA[i:], m.UserName)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.UserName)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DeleteBotRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DeleteBotRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DeleteBotRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetBotUsersRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetBotUsersRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetBotUsersRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *PingRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -14158,6 +19744,16 @@ func (m *PingResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.IsBoring {
+		i--
+		if m.IsBoring {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x28
 	}
 	if len(m.ProxyPublicAddr) > 0 {
 		i -= len(m.ProxyPublicAddr)
@@ -14218,6 +19814,36 @@ func (m *Features) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ModeratedSessions {
+		i--
+		if m.ModeratedSessions {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x58
+	}
+	if m.Desktop {
+		i--
+		if m.Desktop {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x50
+	}
+	if m.HSM {
+		i--
+		if m.HSM {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x48
 	}
 	if m.Cloud {
 		i--
@@ -14681,6 +20307,202 @@ func (m *FlushAndCloseStream) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *GetApplicationServersRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetApplicationServersRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetApplicationServersRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Namespace) > 0 {
+		i -= len(m.Namespace)
+		copy(dAtA[i:], m.Namespace)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Namespace)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetApplicationServersResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetApplicationServersResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetApplicationServersResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Servers) > 0 {
+		for iNdEx := len(m.Servers) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Servers[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintAuthservice(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UpsertApplicationServerRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UpsertApplicationServerRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpsertApplicationServerRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Server != nil {
+		{
+			size, err := m.Server.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DeleteApplicationServerRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DeleteApplicationServerRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DeleteApplicationServerRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.HostID) > 0 {
+		i -= len(m.HostID)
+		copy(dAtA[i:], m.HostID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.HostID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Namespace) > 0 {
+		i -= len(m.Namespace)
+		copy(dAtA[i:], m.Namespace)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Namespace)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DeleteAllApplicationServersRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DeleteAllApplicationServersRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DeleteAllApplicationServersRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Namespace) > 0 {
+		i -= len(m.Namespace)
+		copy(dAtA[i:], m.Namespace)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Namespace)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *GetAppServersRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -14904,12 +20726,12 @@ func (m *GenerateAppTokenRequest) MarshalToSizedBuffer(dAtA []byte) (int, error)
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n38, err38 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err38 != nil {
-		return 0, err38
+	n43, err43 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err43 != nil {
+		return 0, err43
 	}
-	i -= n38
-	i = encodeVarintAuthservice(dAtA, i, uint64(n38))
+	i -= n43
+	i = encodeVarintAuthservice(dAtA, i, uint64(n43))
 	i--
 	dAtA[i] = 0x22
 	if len(m.URI) > 0 {
@@ -15208,6 +21030,40 @@ func (m *DeleteAppSessionRequest) MarshalToSizedBuffer(dAtA []byte) (int, error)
 		i -= len(m.SessionID)
 		copy(dAtA[i:], m.SessionID)
 		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SessionID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DeleteUserAppSessionsRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DeleteUserAppSessionsRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DeleteUserAppSessionsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Username) > 0 {
+		i -= len(m.Username)
+		copy(dAtA[i:], m.Username)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Username)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -15772,6 +21628,16 @@ func (m *DatabaseCSRRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if m.SignWithDatabaseCA {
+		i--
+		if m.SignWithDatabaseCA {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x18
+	}
 	if len(m.ClusterName) > 0 {
 		i -= len(m.ClusterName)
 		copy(dAtA[i:], m.ClusterName)
@@ -15855,6 +21721,15 @@ func (m *DatabaseCertRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.ServerNames) > 0 {
+		for iNdEx := len(m.ServerNames) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ServerNames[iNdEx])
+			copy(dAtA[i:], m.ServerNames[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ServerNames[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
 	}
 	if m.TTL != 0 {
 		i = encodeVarintAuthservice(dAtA, i, uint64(m.TTL))
@@ -16054,6 +21929,18 @@ func (m *MFAAuthenticateChallenge) MarshalToSizedBuffer(dAtA []byte) (int, error
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if m.WebauthnChallenge != nil {
+		{
+			size, err := m.WebauthnChallenge.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
 	if m.TOTP != nil {
 		{
 			size, err := m.TOTP.MarshalToSizedBuffer(dAtA[:i])
@@ -16065,20 +21952,6 @@ func (m *MFAAuthenticateChallenge) MarshalToSizedBuffer(dAtA []byte) (int, error
 		}
 		i--
 		dAtA[i] = 0x12
-	}
-	if len(m.U2F) > 0 {
-		for iNdEx := len(m.U2F) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.U2F[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintAuthservice(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0xa
-		}
 	}
 	return len(dAtA) - i, nil
 }
@@ -16119,27 +21992,6 @@ func (m *MFAAuthenticateResponse) MarshalToSizedBuffer(dAtA []byte) (int, error)
 	return len(dAtA) - i, nil
 }
 
-func (m *MFAAuthenticateResponse_U2F) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MFAAuthenticateResponse_U2F) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.U2F != nil {
-		{
-			size, err := m.U2F.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintAuthservice(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
 func (m *MFAAuthenticateResponse_TOTP) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
@@ -16161,109 +22013,27 @@ func (m *MFAAuthenticateResponse_TOTP) MarshalToSizedBuffer(dAtA []byte) (int, e
 	}
 	return len(dAtA) - i, nil
 }
-func (m *U2FChallenge) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *U2FChallenge) MarshalTo(dAtA []byte) (int, error) {
+func (m *MFAAuthenticateResponse_Webauthn) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *U2FChallenge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *MFAAuthenticateResponse_Webauthn) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Version) > 0 {
-		i -= len(m.Version)
-		copy(dAtA[i:], m.Version)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Version)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.AppID) > 0 {
-		i -= len(m.AppID)
-		copy(dAtA[i:], m.AppID)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.AppID)))
+	if m.Webauthn != nil {
+		{
+			size, err := m.Webauthn.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
-	if len(m.Challenge) > 0 {
-		i -= len(m.Challenge)
-		copy(dAtA[i:], m.Challenge)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Challenge)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.KeyHandle) > 0 {
-		i -= len(m.KeyHandle)
-		copy(dAtA[i:], m.KeyHandle)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.KeyHandle)))
-		i--
-		dAtA[i] = 0xa
-	}
 	return len(dAtA) - i, nil
 }
-
-func (m *U2FResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *U2FResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *U2FResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Signature) > 0 {
-		i -= len(m.Signature)
-		copy(dAtA[i:], m.Signature)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Signature)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.ClientData) > 0 {
-		i -= len(m.ClientData)
-		copy(dAtA[i:], m.ClientData)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ClientData)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.KeyHandle) > 0 {
-		i -= len(m.KeyHandle)
-		copy(dAtA[i:], m.KeyHandle)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.KeyHandle)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *TOTPChallenge) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -16361,27 +22131,6 @@ func (m *MFARegisterChallenge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *MFARegisterChallenge_U2F) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MFARegisterChallenge_U2F) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.U2F != nil {
-		{
-			size, err := m.U2F.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintAuthservice(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
 func (m *MFARegisterChallenge_TOTP) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
@@ -16400,6 +22149,27 @@ func (m *MFARegisterChallenge_TOTP) MarshalToSizedBuffer(dAtA []byte) (int, erro
 		}
 		i--
 		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *MFARegisterChallenge_Webauthn) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MFARegisterChallenge_Webauthn) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Webauthn != nil {
+		{
+			size, err := m.Webauthn.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
 	}
 	return len(dAtA) - i, nil
 }
@@ -16439,27 +22209,6 @@ func (m *MFARegisterResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *MFARegisterResponse_U2F) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MFARegisterResponse_U2F) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.U2F != nil {
-		{
-			size, err := m.U2F.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintAuthservice(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
 func (m *MFARegisterResponse_TOTP) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
@@ -16481,95 +22230,27 @@ func (m *MFARegisterResponse_TOTP) MarshalToSizedBuffer(dAtA []byte) (int, error
 	}
 	return len(dAtA) - i, nil
 }
-func (m *U2FRegisterChallenge) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *U2FRegisterChallenge) MarshalTo(dAtA []byte) (int, error) {
+func (m *MFARegisterResponse_Webauthn) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *U2FRegisterChallenge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *MFARegisterResponse_Webauthn) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Version) > 0 {
-		i -= len(m.Version)
-		copy(dAtA[i:], m.Version)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Version)))
+	if m.Webauthn != nil {
+		{
+			size, err := m.Webauthn.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
-	if len(m.AppID) > 0 {
-		i -= len(m.AppID)
-		copy(dAtA[i:], m.AppID)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.AppID)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.Challenge) > 0 {
-		i -= len(m.Challenge)
-		copy(dAtA[i:], m.Challenge)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Challenge)))
-		i--
-		dAtA[i] = 0xa
-	}
 	return len(dAtA) - i, nil
 }
-
-func (m *U2FRegisterResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *U2FRegisterResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *U2FRegisterResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.ClientData) > 0 {
-		i -= len(m.ClientData)
-		copy(dAtA[i:], m.ClientData)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ClientData)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.RegistrationData) > 0 {
-		i -= len(m.RegistrationData)
-		copy(dAtA[i:], m.RegistrationData)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.RegistrationData)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *TOTPRegisterChallenge) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -16593,6 +22274,13 @@ func (m *TOTPRegisterChallenge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.QRCode) > 0 {
+		i -= len(m.QRCode)
+		copy(dAtA[i:], m.QRCode)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.QRCode)))
+		i--
+		dAtA[i] = 0x3a
 	}
 	if len(m.Account) > 0 {
 		i -= len(m.Account)
@@ -16891,10 +22579,15 @@ func (m *AddMFADeviceRequestInit) MarshalToSizedBuffer(dAtA []byte) (int, error)
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.Type != 0 {
-		i = encodeVarintAuthservice(dAtA, i, uint64(m.Type))
+	if m.DeviceUsage != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.DeviceUsage))
 		i--
-		dAtA[i] = 0x10
+		dAtA[i] = 0x20
+	}
+	if m.DeviceType != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.DeviceType))
+		i--
+		dAtA[i] = 0x18
 	}
 	if len(m.DeviceName) > 0 {
 		i -= len(m.DeviceName)
@@ -17162,6 +22855,139 @@ func (m *DeleteMFADeviceResponseAck) MarshalToSizedBuffer(dAtA []byte) (int, err
 	return len(dAtA) - i, nil
 }
 
+func (m *DeleteMFADeviceSyncRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DeleteMFADeviceSyncRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DeleteMFADeviceSyncRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.DeviceName) > 0 {
+		i -= len(m.DeviceName)
+		copy(dAtA[i:], m.DeviceName)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.DeviceName)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.TokenID) > 0 {
+		i -= len(m.TokenID)
+		copy(dAtA[i:], m.TokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.TokenID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *AddMFADeviceSyncRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AddMFADeviceSyncRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AddMFADeviceSyncRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.NewMFAResponse != nil {
+		{
+			size, err := m.NewMFAResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.NewDeviceName) > 0 {
+		i -= len(m.NewDeviceName)
+		copy(dAtA[i:], m.NewDeviceName)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.NewDeviceName)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.TokenID) > 0 {
+		i -= len(m.TokenID)
+		copy(dAtA[i:], m.TokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.TokenID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *AddMFADeviceSyncResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AddMFADeviceSyncResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AddMFADeviceSyncResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Device != nil {
+		{
+			size, err := m.Device.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *GetMFADevicesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -17185,6 +23011,13 @@ func (m *GetMFADevicesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.TokenID) > 0 {
+		i -= len(m.TokenID)
+		copy(dAtA[i:], m.TokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.TokenID)))
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -17478,6 +23311,27 @@ func (m *IsMFARequiredRequest_Node) MarshalToSizedBuffer(dAtA []byte) (int, erro
 	}
 	return len(dAtA) - i, nil
 }
+func (m *IsMFARequiredRequest_WindowsDesktop) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *IsMFARequiredRequest_WindowsDesktop) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.WindowsDesktop != nil {
+		{
+			size, err := m.WindowsDesktop.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	return len(dAtA) - i, nil
+}
 func (m *StreamSessionEventsRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -17713,20 +23567,20 @@ func (m *GetEventsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA[i] = 0x22
 		}
 	}
-	n69, err69 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndDate):])
-	if err69 != nil {
-		return 0, err69
+	n78, err78 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndDate):])
+	if err78 != nil {
+		return 0, err78
 	}
-	i -= n69
-	i = encodeVarintAuthservice(dAtA, i, uint64(n69))
+	i -= n78
+	i = encodeVarintAuthservice(dAtA, i, uint64(n78))
 	i--
 	dAtA[i] = 0x1a
-	n70, err70 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartDate):])
-	if err70 != nil {
-		return 0, err70
+	n79, err79 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartDate):])
+	if err79 != nil {
+		return 0, err79
 	}
-	i -= n70
-	i = encodeVarintAuthservice(dAtA, i, uint64(n70))
+	i -= n79
+	i = encodeVarintAuthservice(dAtA, i, uint64(n79))
 	i--
 	dAtA[i] = 0x12
 	if len(m.Namespace) > 0 {
@@ -17780,20 +23634,20 @@ func (m *GetSessionEventsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error)
 		i--
 		dAtA[i] = 0x18
 	}
-	n71, err71 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndDate):])
-	if err71 != nil {
-		return 0, err71
+	n80, err80 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndDate):])
+	if err80 != nil {
+		return 0, err80
 	}
-	i -= n71
-	i = encodeVarintAuthservice(dAtA, i, uint64(n71))
+	i -= n80
+	i = encodeVarintAuthservice(dAtA, i, uint64(n80))
 	i--
 	dAtA[i] = 0x12
-	n72, err72 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartDate):])
-	if err72 != nil {
-		return 0, err72
+	n81, err81 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartDate):])
+	if err81 != nil {
+		return 0, err81
 	}
-	i -= n72
-	i = encodeVarintAuthservice(dAtA, i, uint64(n72))
+	i -= n81
+	i = encodeVarintAuthservice(dAtA, i, uint64(n81))
 	i--
 	dAtA[i] = 0xa
 	return len(dAtA) - i, nil
@@ -17870,6 +23724,25 @@ func (m *ListNodesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Labels) > 0 {
+		for k := range m.Labels {
+			v := m.Labels[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(v)))
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintAuthservice(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x22
+		}
 	}
 	if len(m.StartKey) > 0 {
 		i -= len(m.StartKey)
@@ -18190,6 +24063,79 @@ func (m *GetWindowsDesktopServicesResponse) MarshalToSizedBuffer(dAtA []byte) (i
 	return len(dAtA) - i, nil
 }
 
+func (m *GetWindowsDesktopServiceRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetWindowsDesktopServiceRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetWindowsDesktopServiceRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetWindowsDesktopServiceResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetWindowsDesktopServiceResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetWindowsDesktopServiceResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Service != nil {
+		{
+			size, err := m.Service.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *DeleteWindowsDesktopServiceRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -18265,40 +24211,6 @@ func (m *GetWindowsDesktopsResponse) MarshalToSizedBuffer(dAtA []byte) (int, err
 	return len(dAtA) - i, nil
 }
 
-func (m *GetWindowsDesktopRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetWindowsDesktopRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *GetWindowsDesktopRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Name) > 0 {
-		i -= len(m.Name)
-		copy(dAtA[i:], m.Name)
-		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Name)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *DeleteWindowsDesktopRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -18323,6 +24235,13 @@ func (m *DeleteWindowsDesktopRequest) MarshalToSizedBuffer(dAtA []byte) (int, er
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if len(m.HostID) > 0 {
+		i -= len(m.HostID)
+		copy(dAtA[i:], m.HostID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.HostID)))
+		i--
+		dAtA[i] = 0x12
+	}
 	if len(m.Name) > 0 {
 		i -= len(m.Name)
 		copy(dAtA[i:], m.Name)
@@ -18333,6 +24252,1840 @@ func (m *DeleteWindowsDesktopRequest) MarshalToSizedBuffer(dAtA []byte) (int, er
 	return len(dAtA) - i, nil
 }
 
+func (m *WindowsDesktopCertRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *WindowsDesktopCertRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *WindowsDesktopCertRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.TTL != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.TTL))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.CRLEndpoint) > 0 {
+		i -= len(m.CRLEndpoint)
+		copy(dAtA[i:], m.CRLEndpoint)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.CRLEndpoint)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.CSR) > 0 {
+		i -= len(m.CSR)
+		copy(dAtA[i:], m.CSR)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.CSR)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *WindowsDesktopCertResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *WindowsDesktopCertResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *WindowsDesktopCertResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Cert) > 0 {
+		i -= len(m.Cert)
+		copy(dAtA[i:], m.Cert)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Cert)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CertAuthorityRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CertAuthorityRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CertAuthorityRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Type) > 0 {
+		i -= len(m.Type)
+		copy(dAtA[i:], m.Type)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Type)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CRL) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CRL) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CRL) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.CRL) > 0 {
+		i -= len(m.CRL)
+		copy(dAtA[i:], m.CRL)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.CRL)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ChangeUserAuthenticationRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ChangeUserAuthenticationRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ChangeUserAuthenticationRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.NewMFARegisterResponse != nil {
+		{
+			size, err := m.NewMFARegisterResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.NewPassword) > 0 {
+		i -= len(m.NewPassword)
+		copy(dAtA[i:], m.NewPassword)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.NewPassword)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.TokenID) > 0 {
+		i -= len(m.TokenID)
+		copy(dAtA[i:], m.TokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.TokenID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ChangeUserAuthenticationResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ChangeUserAuthenticationResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ChangeUserAuthenticationResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Recovery != nil {
+		{
+			size, err := m.Recovery.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.WebSession != nil {
+		{
+			size, err := m.WebSession.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *StartAccountRecoveryRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *StartAccountRecoveryRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StartAccountRecoveryRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.RecoverType != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.RecoverType))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.RecoveryCode) > 0 {
+		i -= len(m.RecoveryCode)
+		copy(dAtA[i:], m.RecoveryCode)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.RecoveryCode)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Username) > 0 {
+		i -= len(m.Username)
+		copy(dAtA[i:], m.Username)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Username)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *VerifyAccountRecoveryRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *VerifyAccountRecoveryRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *VerifyAccountRecoveryRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.AuthnCred != nil {
+		{
+			size := m.AuthnCred.Size()
+			i -= size
+			if _, err := m.AuthnCred.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if len(m.Username) > 0 {
+		i -= len(m.Username)
+		copy(dAtA[i:], m.Username)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Username)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.RecoveryStartTokenID) > 0 {
+		i -= len(m.RecoveryStartTokenID)
+		copy(dAtA[i:], m.RecoveryStartTokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.RecoveryStartTokenID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *VerifyAccountRecoveryRequest_Password) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *VerifyAccountRecoveryRequest_Password) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Password != nil {
+		i -= len(m.Password)
+		copy(dAtA[i:], m.Password)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Password)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *VerifyAccountRecoveryRequest_MFAAuthenticateResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *VerifyAccountRecoveryRequest_MFAAuthenticateResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MFAAuthenticateResponse != nil {
+		{
+			size, err := m.MFAAuthenticateResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	return len(dAtA) - i, nil
+}
+func (m *CompleteAccountRecoveryRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CompleteAccountRecoveryRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CompleteAccountRecoveryRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.NewAuthnCred != nil {
+		{
+			size := m.NewAuthnCred.Size()
+			i -= size
+			if _, err := m.NewAuthnCred.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if len(m.NewDeviceName) > 0 {
+		i -= len(m.NewDeviceName)
+		copy(dAtA[i:], m.NewDeviceName)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.NewDeviceName)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.RecoveryApprovedTokenID) > 0 {
+		i -= len(m.RecoveryApprovedTokenID)
+		copy(dAtA[i:], m.RecoveryApprovedTokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.RecoveryApprovedTokenID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CompleteAccountRecoveryRequest_NewPassword) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CompleteAccountRecoveryRequest_NewPassword) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.NewPassword != nil {
+		i -= len(m.NewPassword)
+		copy(dAtA[i:], m.NewPassword)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.NewPassword)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *CompleteAccountRecoveryRequest_NewMFAResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CompleteAccountRecoveryRequest_NewMFAResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.NewMFAResponse != nil {
+		{
+			size, err := m.NewMFAResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	return len(dAtA) - i, nil
+}
+func (m *RecoveryCodes) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RecoveryCodes) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RecoveryCodes) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	n88, err88 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err88 != nil {
+		return 0, err88
+	}
+	i -= n88
+	i = encodeVarintAuthservice(dAtA, i, uint64(n88))
+	i--
+	dAtA[i] = 0x12
+	if len(m.Codes) > 0 {
+		for iNdEx := len(m.Codes) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Codes[iNdEx])
+			copy(dAtA[i:], m.Codes[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Codes[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CreateAccountRecoveryCodesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateAccountRecoveryCodesRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateAccountRecoveryCodesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.TokenID) > 0 {
+		i -= len(m.TokenID)
+		copy(dAtA[i:], m.TokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.TokenID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetAccountRecoveryTokenRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetAccountRecoveryTokenRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetAccountRecoveryTokenRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.RecoveryTokenID) > 0 {
+		i -= len(m.RecoveryTokenID)
+		copy(dAtA[i:], m.RecoveryTokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.RecoveryTokenID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetAccountRecoveryCodesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetAccountRecoveryCodesRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetAccountRecoveryCodesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UserCredentials) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UserCredentials) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UserCredentials) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Password) > 0 {
+		i -= len(m.Password)
+		copy(dAtA[i:], m.Password)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Password)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Username) > 0 {
+		i -= len(m.Username)
+		copy(dAtA[i:], m.Username)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Username)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ContextUser) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ContextUser) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ContextUser) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *Passwordless) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Passwordless) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Passwordless) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CreateAuthenticateChallengeRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateAuthenticateChallengeRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateAuthenticateChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Request != nil {
+		{
+			size := m.Request.Size()
+			i -= size
+			if _, err := m.Request.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CreateAuthenticateChallengeRequest_UserCredentials) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateAuthenticateChallengeRequest_UserCredentials) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UserCredentials != nil {
+		{
+			size, err := m.UserCredentials.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *CreateAuthenticateChallengeRequest_RecoveryStartTokenID) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateAuthenticateChallengeRequest_RecoveryStartTokenID) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.RecoveryStartTokenID)
+	copy(dAtA[i:], m.RecoveryStartTokenID)
+	i = encodeVarintAuthservice(dAtA, i, uint64(len(m.RecoveryStartTokenID)))
+	i--
+	dAtA[i] = 0x12
+	return len(dAtA) - i, nil
+}
+func (m *CreateAuthenticateChallengeRequest_ContextUser) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateAuthenticateChallengeRequest_ContextUser) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.ContextUser != nil {
+		{
+			size, err := m.ContextUser.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *CreateAuthenticateChallengeRequest_Passwordless) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateAuthenticateChallengeRequest_Passwordless) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Passwordless != nil {
+		{
+			size, err := m.Passwordless.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	return len(dAtA) - i, nil
+}
+func (m *CreatePrivilegeTokenRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreatePrivilegeTokenRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreatePrivilegeTokenRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ExistingMFAResponse != nil {
+		{
+			size, err := m.ExistingMFAResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CreateRegisterChallengeRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateRegisterChallengeRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateRegisterChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.DeviceUsage != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.DeviceUsage))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.DeviceType != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.DeviceType))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.TokenID) > 0 {
+		i -= len(m.TokenID)
+		copy(dAtA[i:], m.TokenID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.TokenID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *PaginatedResource) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PaginatedResource) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PaginatedResource) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Resource != nil {
+		{
+			size := m.Resource.Size()
+			i -= size
+			if _, err := m.Resource.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *PaginatedResource_DatabaseServer) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PaginatedResource_DatabaseServer) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.DatabaseServer != nil {
+		{
+			size, err := m.DatabaseServer.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *PaginatedResource_AppServer) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PaginatedResource_AppServer) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.AppServer != nil {
+		{
+			size, err := m.AppServer.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *PaginatedResource_Node) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PaginatedResource_Node) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Node != nil {
+		{
+			size, err := m.Node.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *PaginatedResource_KubeService) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PaginatedResource_KubeService) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.KubeService != nil {
+		{
+			size, err := m.KubeService.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	return len(dAtA) - i, nil
+}
+func (m *PaginatedResource_WindowsDesktop) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PaginatedResource_WindowsDesktop) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.WindowsDesktop != nil {
+		{
+			size, err := m.WindowsDesktop.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *PaginatedResource_KubeCluster) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PaginatedResource_KubeCluster) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.KubeCluster != nil {
+		{
+			size, err := m.KubeCluster.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x32
+	}
+	return len(dAtA) - i, nil
+}
+func (m *ListResourcesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ListResourcesRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListResourcesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.UseSearchAsRoles {
+		i--
+		if m.UseSearchAsRoles {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x58
+	}
+	{
+		size, err := m.WindowsDesktopFilter.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintAuthservice(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x52
+	if m.NeedTotalCount {
+		i--
+		if m.NeedTotalCount {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x48
+	}
+	{
+		size, err := m.SortBy.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintAuthservice(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x42
+	if len(m.SearchKeywords) > 0 {
+		for iNdEx := len(m.SearchKeywords) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.SearchKeywords[iNdEx])
+			copy(dAtA[i:], m.SearchKeywords[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SearchKeywords[iNdEx])))
+			i--
+			dAtA[i] = 0x3a
+		}
+	}
+	if len(m.PredicateExpression) > 0 {
+		i -= len(m.PredicateExpression)
+		copy(dAtA[i:], m.PredicateExpression)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.PredicateExpression)))
+		i--
+		dAtA[i] = 0x32
+	}
+	if len(m.Labels) > 0 {
+		for k := range m.Labels {
+			v := m.Labels[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(v)))
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintAuthservice(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	if len(m.StartKey) > 0 {
+		i -= len(m.StartKey)
+		copy(dAtA[i:], m.StartKey)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.StartKey)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.Limit != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.Limit))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.Namespace) > 0 {
+		i -= len(m.Namespace)
+		copy(dAtA[i:], m.Namespace)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Namespace)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ResourceType) > 0 {
+		i -= len(m.ResourceType)
+		copy(dAtA[i:], m.ResourceType)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ResourceType)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ListResourcesResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ListResourcesResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListResourcesResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.TotalCount != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.TotalCount))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.NextKey) > 0 {
+		i -= len(m.NextKey)
+		copy(dAtA[i:], m.NextKey)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.NextKey)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Resources) > 0 {
+		for iNdEx := len(m.Resources) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Resources[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintAuthservice(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CreateSessionTrackerRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateSessionTrackerRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateSessionTrackerRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.HostPolicies) > 0 {
+		for iNdEx := len(m.HostPolicies) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.HostPolicies[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintAuthservice(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x72
+		}
+	}
+	if len(m.ID) > 0 {
+		i -= len(m.ID)
+		copy(dAtA[i:], m.ID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ID)))
+		i--
+		dAtA[i] = 0x6a
+	}
+	if len(m.HostUser) > 0 {
+		i -= len(m.HostUser)
+		copy(dAtA[i:], m.HostUser)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.HostUser)))
+		i--
+		dAtA[i] = 0x62
+	}
+	if len(m.KubernetesCluster) > 0 {
+		i -= len(m.KubernetesCluster)
+		copy(dAtA[i:], m.KubernetesCluster)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.KubernetesCluster)))
+		i--
+		dAtA[i] = 0x5a
+	}
+	n101, err101 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err101 != nil {
+		return 0, err101
+	}
+	i -= n101
+	i = encodeVarintAuthservice(dAtA, i, uint64(n101))
+	i--
+	dAtA[i] = 0x52
+	if m.Initiator != nil {
+		{
+			size, err := m.Initiator.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4a
+	}
+	if len(m.Login) > 0 {
+		i -= len(m.Login)
+		copy(dAtA[i:], m.Login)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Login)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.ClusterName) > 0 {
+		i -= len(m.ClusterName)
+		copy(dAtA[i:], m.ClusterName)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ClusterName)))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if len(m.Address) > 0 {
+		i -= len(m.Address)
+		copy(dAtA[i:], m.Address)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Address)))
+		i--
+		dAtA[i] = 0x32
+	}
+	if len(m.Hostname) > 0 {
+		i -= len(m.Hostname)
+		copy(dAtA[i:], m.Hostname)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Hostname)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if len(m.Invited) > 0 {
+		for iNdEx := len(m.Invited) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Invited[iNdEx])
+			copy(dAtA[i:], m.Invited[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Invited[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if len(m.Reason) > 0 {
+		i -= len(m.Reason)
+		copy(dAtA[i:], m.Reason)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Reason)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Type) > 0 {
+		i -= len(m.Type)
+		copy(dAtA[i:], m.Type)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Type)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Namespace) > 0 {
+		i -= len(m.Namespace)
+		copy(dAtA[i:], m.Namespace)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Namespace)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetSessionTrackerRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetSessionTrackerRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetSessionTrackerRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SessionID) > 0 {
+		i -= len(m.SessionID)
+		copy(dAtA[i:], m.SessionID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SessionID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RemoveSessionTrackerRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RemoveSessionTrackerRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RemoveSessionTrackerRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SessionID) > 0 {
+		i -= len(m.SessionID)
+		copy(dAtA[i:], m.SessionID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SessionID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SessionTrackerUpdateState) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SessionTrackerUpdateState) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SessionTrackerUpdateState) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.State != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.State))
+		i--
+		dAtA[i] = 0x10
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SessionTrackerAddParticipant) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SessionTrackerAddParticipant) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SessionTrackerAddParticipant) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Participant != nil {
+		{
+			size, err := m.Participant.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SessionTrackerRemoveParticipant) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SessionTrackerRemoveParticipant) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SessionTrackerRemoveParticipant) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.ParticipantID) > 0 {
+		i -= len(m.ParticipantID)
+		copy(dAtA[i:], m.ParticipantID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ParticipantID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SessionTrackerUpdateExpiry) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SessionTrackerUpdateExpiry) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SessionTrackerUpdateExpiry) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Expires != nil {
+		n104, err104 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires):])
+		if err104 != nil {
+			return 0, err104
+		}
+		i -= n104
+		i = encodeVarintAuthservice(dAtA, i, uint64(n104))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UpdateSessionTrackerRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UpdateSessionTrackerRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateSessionTrackerRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Update != nil {
+		{
+			size := m.Update.Size()
+			i -= size
+			if _, err := m.Update.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if len(m.SessionID) > 0 {
+		i -= len(m.SessionID)
+		copy(dAtA[i:], m.SessionID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SessionID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UpdateSessionTrackerRequest_UpdateState) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateSessionTrackerRequest_UpdateState) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UpdateState != nil {
+		{
+			size, err := m.UpdateState.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UpdateSessionTrackerRequest_AddParticipant) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateSessionTrackerRequest_AddParticipant) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.AddParticipant != nil {
+		{
+			size, err := m.AddParticipant.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UpdateSessionTrackerRequest_RemoveParticipant) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateSessionTrackerRequest_RemoveParticipant) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.RemoveParticipant != nil {
+		{
+			size, err := m.RemoveParticipant.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UpdateSessionTrackerRequest_UpdateExpiry) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateSessionTrackerRequest_UpdateExpiry) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UpdateExpiry != nil {
+		{
+			size, err := m.UpdateExpiry.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *PresenceMFAChallengeRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PresenceMFAChallengeRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PresenceMFAChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SessionID) > 0 {
+		i -= len(m.SessionID)
+		copy(dAtA[i:], m.SessionID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SessionID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *PresenceMFAChallengeSend) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PresenceMFAChallengeSend) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PresenceMFAChallengeSend) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Request != nil {
+		{
+			size := m.Request.Size()
+			i -= size
+			if _, err := m.Request.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *PresenceMFAChallengeSend_ChallengeRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PresenceMFAChallengeSend_ChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.ChallengeRequest != nil {
+		{
+			size, err := m.ChallengeRequest.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *PresenceMFAChallengeSend_ChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PresenceMFAChallengeSend_ChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.ChallengeResponse != nil {
+		{
+			size, err := m.ChallengeResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
 func encodeVarintAuthservice(dAtA []byte, offset int, v uint64) int {
 	offset -= sovAuthservice(v)
 	base := offset
@@ -18418,18 +26171,6 @@ func (m *Event_ClusterName) Size() (n int) {
 	_ = l
 	if m.ClusterName != nil {
 		l = m.ClusterName.Size()
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	return n
-}
-func (m *Event_ClusterConfig) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.ClusterConfig != nil {
-		l = m.ClusterConfig.Size()
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
 	return n
@@ -18674,6 +26415,42 @@ func (m *Event_WindowsDesktop) Size() (n int) {
 	}
 	return n
 }
+func (m *Event_Database) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Database != nil {
+		l = m.Database.Size()
+		n += 2 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *Event_AppServer) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.AppServer != nil {
+		l = m.AppServer.Size()
+		n += 2 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *Event_App) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.App != nil {
+		l = m.App.Size()
+		n += 2 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
 func (m *Watch) Size() (n int) {
 	if m == nil {
 		return 0
@@ -18727,19 +26504,54 @@ func (m *WatchKind) Size() (n int) {
 	return n
 }
 
-func (m *Certs) Size() (n int) {
+func (m *HostCertsRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.SSH)
+	l = len(m.HostID)
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
-	l = len(m.TLS)
+	l = len(m.NodeName)
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Role)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if len(m.AdditionalPrincipals) > 0 {
+		for _, s := range m.AdditionalPrincipals {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	if len(m.DNSNames) > 0 {
+		for _, s := range m.DNSNames {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	l = len(m.PublicTLSKey)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.PublicSSHKey)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.RemoteAddr)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.Rotation != nil {
+		l = m.Rotation.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.NoCache {
+		n += 2
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -18792,6 +26604,14 @@ func (m *UserCertsRequest) Size() (n int) {
 	}
 	l = m.RouteToApp.Size()
 	n += 1 + l + sovAuthservice(uint64(l))
+	if len(m.RoleRequests) > 0 {
+		for _, s := range m.RoleRequests {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	l = m.RouteToWindowsDesktop.Size()
+	n += 1 + l + sovAuthservice(uint64(l))
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -18826,6 +26646,26 @@ func (m *RouteToDatabase) Size() (n int) {
 	return n
 }
 
+func (m *RouteToWindowsDesktop) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.WindowsDesktop)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Login)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *RouteToApp) Size() (n int) {
 	if m == nil {
 		return 0
@@ -18845,6 +26685,10 @@ func (m *RouteToApp) Size() (n int) {
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
 	l = len(m.ClusterName)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.AWSRoleARN)
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
@@ -19030,6 +26874,114 @@ func (m *CreateResetPasswordTokenRequest) Size() (n int) {
 	return n
 }
 
+func (m *RenewableCertsRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Token)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.PublicKey)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CreateBotRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.TTL != 0 {
+		n += 1 + sovAuthservice(uint64(m.TTL))
+	}
+	l = len(m.TokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if len(m.Roles) > 0 {
+		for _, s := range m.Roles {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CreateBotResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.UserName)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.RoleName)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.TokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.TokenTTL != 0 {
+		n += 1 + sovAuthservice(uint64(m.TokenTTL))
+	}
+	l = len(m.JoinMethod)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DeleteBotRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetBotUsersRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *PingRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -19063,6 +27015,9 @@ func (m *PingResponse) Size() (n int) {
 	l = len(m.ProxyPublicAddr)
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.IsBoring {
+		n += 2
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -19098,6 +27053,15 @@ func (m *Features) Size() (n int) {
 		n += 2
 	}
 	if m.Cloud {
+		n += 2
+	}
+	if m.HSM {
+		n += 2
+	}
+	if m.Desktop {
+		n += 2
+	}
+	if m.ModeratedSessions {
 		n += 2
 	}
 	if m.XXX_unrecognized != nil {
@@ -19285,6 +27249,96 @@ func (m *FlushAndCloseStream) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetApplicationServersRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Namespace)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetApplicationServersResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Servers) > 0 {
+		for _, e := range m.Servers {
+			l = e.Size()
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UpsertApplicationServerRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Server != nil {
+		l = m.Server.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DeleteApplicationServerRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Namespace)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.HostID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DeleteAllApplicationServersRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Namespace)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -19525,6 +27579,22 @@ func (m *DeleteAppSessionRequest) Size() (n int) {
 	var l int
 	_ = l
 	l = len(m.SessionID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DeleteUserAppSessionsRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Username)
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
@@ -19783,6 +27853,9 @@ func (m *DatabaseCSRRequest) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
+	if m.SignWithDatabaseCA {
+		n += 2
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -19827,6 +27900,12 @@ func (m *DatabaseCertRequest) Size() (n int) {
 	}
 	if m.TTL != 0 {
 		n += 1 + sovAuthservice(uint64(m.TTL))
+	}
+	if len(m.ServerNames) > 0 {
+		for _, s := range m.ServerNames {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -19912,14 +27991,12 @@ func (m *MFAAuthenticateChallenge) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if len(m.U2F) > 0 {
-		for _, e := range m.U2F {
-			l = e.Size()
-			n += 1 + l + sovAuthservice(uint64(l))
-		}
-	}
 	if m.TOTP != nil {
 		l = m.TOTP.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.WebauthnChallenge != nil {
+		l = m.WebauthnChallenge.Size()
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
@@ -19943,18 +28020,6 @@ func (m *MFAAuthenticateResponse) Size() (n int) {
 	return n
 }
 
-func (m *MFAAuthenticateResponse_U2F) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.U2F != nil {
-		l = m.U2F.Size()
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	return n
-}
 func (m *MFAAuthenticateResponse_TOTP) Size() (n int) {
 	if m == nil {
 		return 0
@@ -19967,58 +28032,18 @@ func (m *MFAAuthenticateResponse_TOTP) Size() (n int) {
 	}
 	return n
 }
-func (m *U2FChallenge) Size() (n int) {
+func (m *MFAAuthenticateResponse_Webauthn) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.KeyHandle)
-	if l > 0 {
+	if m.Webauthn != nil {
+		l = m.Webauthn.Size()
 		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	l = len(m.Challenge)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	l = len(m.AppID)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	l = len(m.Version)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
-
-func (m *U2FResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.KeyHandle)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	l = len(m.ClientData)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	l = len(m.Signature)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
 func (m *TOTPChallenge) Size() (n int) {
 	if m == nil {
 		return 0
@@ -20062,18 +28087,6 @@ func (m *MFARegisterChallenge) Size() (n int) {
 	return n
 }
 
-func (m *MFARegisterChallenge_U2F) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.U2F != nil {
-		l = m.U2F.Size()
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	return n
-}
 func (m *MFARegisterChallenge_TOTP) Size() (n int) {
 	if m == nil {
 		return 0
@@ -20082,6 +28095,18 @@ func (m *MFARegisterChallenge_TOTP) Size() (n int) {
 	_ = l
 	if m.TOTP != nil {
 		l = m.TOTP.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *MFARegisterChallenge_Webauthn) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Webauthn != nil {
+		l = m.Webauthn.Size()
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
 	return n
@@ -20101,18 +28126,6 @@ func (m *MFARegisterResponse) Size() (n int) {
 	return n
 }
 
-func (m *MFARegisterResponse_U2F) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.U2F != nil {
-		l = m.U2F.Size()
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	return n
-}
 func (m *MFARegisterResponse_TOTP) Size() (n int) {
 	if m == nil {
 		return 0
@@ -20125,50 +28138,18 @@ func (m *MFARegisterResponse_TOTP) Size() (n int) {
 	}
 	return n
 }
-func (m *U2FRegisterChallenge) Size() (n int) {
+func (m *MFARegisterResponse_Webauthn) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.Challenge)
-	if l > 0 {
+	if m.Webauthn != nil {
+		l = m.Webauthn.Size()
 		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	l = len(m.AppID)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	l = len(m.Version)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
-
-func (m *U2FRegisterResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.RegistrationData)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	l = len(m.ClientData)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
 func (m *TOTPRegisterChallenge) Size() (n int) {
 	if m == nil {
 		return 0
@@ -20194,6 +28175,10 @@ func (m *TOTPRegisterChallenge) Size() (n int) {
 		n += 1 + sovAuthservice(uint64(m.Digits))
 	}
 	l = len(m.Account)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.QRCode)
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
@@ -20331,8 +28316,11 @@ func (m *AddMFADeviceRequestInit) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
-	if m.Type != 0 {
-		n += 1 + sovAuthservice(uint64(m.Type))
+	if m.DeviceType != 0 {
+		n += 1 + sovAuthservice(uint64(m.DeviceType))
+	}
+	if m.DeviceUsage != 0 {
+		n += 1 + sovAuthservice(uint64(m.DeviceUsage))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -20462,12 +28450,76 @@ func (m *DeleteMFADeviceResponseAck) Size() (n int) {
 	return n
 }
 
+func (m *DeleteMFADeviceSyncRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.DeviceName)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AddMFADeviceSyncRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.NewDeviceName)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.NewMFAResponse != nil {
+		l = m.NewMFAResponse.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AddMFADeviceSyncResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Device != nil {
+		l = m.Device.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *GetMFADevicesRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
+	l = len(m.TokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -20615,6 +28667,18 @@ func (m *IsMFARequiredRequest_Node) Size() (n int) {
 	_ = l
 	if m.Node != nil {
 		l = m.Node.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *IsMFARequiredRequest_WindowsDesktop) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.WindowsDesktop != nil {
+		l = m.WindowsDesktop.Size()
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
 	return n
@@ -20813,6 +28877,14 @@ func (m *ListNodesRequest) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
+	if len(m.Labels) > 0 {
+		for k, v := range m.Labels {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovAuthservice(uint64(len(k))) + 1 + len(v) + sovAuthservice(uint64(len(v)))
+			n += mapEntrySize + 1 + sovAuthservice(uint64(mapEntrySize))
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -20952,6 +29024,38 @@ func (m *GetWindowsDesktopServicesResponse) Size() (n int) {
 	return n
 }
 
+func (m *GetWindowsDesktopServiceRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetWindowsDesktopServiceResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Service != nil {
+		l = m.Service.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *DeleteWindowsDesktopServiceRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -20986,22 +29090,6 @@ func (m *GetWindowsDesktopsResponse) Size() (n int) {
 	return n
 }
 
-func (m *GetWindowsDesktopRequest) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Name)
-	if l > 0 {
-		n += 1 + l + sovAuthservice(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
 func (m *DeleteWindowsDesktopRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -21012,8 +29100,906 @@ func (m *DeleteWindowsDesktopRequest) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovAuthservice(uint64(l))
 	}
+	l = len(m.HostID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *WindowsDesktopCertRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.CSR)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.CRLEndpoint)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.TTL != 0 {
+		n += 1 + sovAuthservice(uint64(m.TTL))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *WindowsDesktopCertResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Cert)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CertAuthorityRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Type)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CRL) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.CRL)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ChangeUserAuthenticationRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.NewPassword)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.NewMFARegisterResponse != nil {
+		l = m.NewMFARegisterResponse.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ChangeUserAuthenticationResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.WebSession != nil {
+		l = m.WebSession.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.Recovery != nil {
+		l = m.Recovery.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *StartAccountRecoveryRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Username)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.RecoveryCode)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.RecoverType != 0 {
+		n += 1 + sovAuthservice(uint64(m.RecoverType))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *VerifyAccountRecoveryRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.RecoveryStartTokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Username)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.AuthnCred != nil {
+		n += m.AuthnCred.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *VerifyAccountRecoveryRequest_Password) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Password != nil {
+		l = len(m.Password)
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *VerifyAccountRecoveryRequest_MFAAuthenticateResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MFAAuthenticateResponse != nil {
+		l = m.MFAAuthenticateResponse.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *CompleteAccountRecoveryRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.RecoveryApprovedTokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.NewDeviceName)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.NewAuthnCred != nil {
+		n += m.NewAuthnCred.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CompleteAccountRecoveryRequest_NewPassword) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.NewPassword != nil {
+		l = len(m.NewPassword)
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *CompleteAccountRecoveryRequest_NewMFAResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.NewMFAResponse != nil {
+		l = m.NewMFAResponse.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *RecoveryCodes) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Codes) > 0 {
+		for _, s := range m.Codes {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)
+	n += 1 + l + sovAuthservice(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CreateAccountRecoveryCodesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetAccountRecoveryTokenRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.RecoveryTokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetAccountRecoveryCodesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UserCredentials) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Username)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Password)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ContextUser) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Passwordless) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CreateAuthenticateChallengeRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Request != nil {
+		n += m.Request.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CreateAuthenticateChallengeRequest_UserCredentials) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UserCredentials != nil {
+		l = m.UserCredentials.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *CreateAuthenticateChallengeRequest_RecoveryStartTokenID) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.RecoveryStartTokenID)
+	n += 1 + l + sovAuthservice(uint64(l))
+	return n
+}
+func (m *CreateAuthenticateChallengeRequest_ContextUser) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ContextUser != nil {
+		l = m.ContextUser.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *CreateAuthenticateChallengeRequest_Passwordless) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Passwordless != nil {
+		l = m.Passwordless.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *CreatePrivilegeTokenRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ExistingMFAResponse != nil {
+		l = m.ExistingMFAResponse.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CreateRegisterChallengeRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TokenID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.DeviceType != 0 {
+		n += 1 + sovAuthservice(uint64(m.DeviceType))
+	}
+	if m.DeviceUsage != 0 {
+		n += 1 + sovAuthservice(uint64(m.DeviceUsage))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *PaginatedResource) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Resource != nil {
+		n += m.Resource.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *PaginatedResource_DatabaseServer) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.DatabaseServer != nil {
+		l = m.DatabaseServer.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *PaginatedResource_AppServer) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.AppServer != nil {
+		l = m.AppServer.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *PaginatedResource_Node) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Node != nil {
+		l = m.Node.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *PaginatedResource_KubeService) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.KubeService != nil {
+		l = m.KubeService.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *PaginatedResource_WindowsDesktop) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.WindowsDesktop != nil {
+		l = m.WindowsDesktop.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *PaginatedResource_KubeCluster) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.KubeCluster != nil {
+		l = m.KubeCluster.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *ListResourcesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ResourceType)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Namespace)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.Limit != 0 {
+		n += 1 + sovAuthservice(uint64(m.Limit))
+	}
+	l = len(m.StartKey)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if len(m.Labels) > 0 {
+		for k, v := range m.Labels {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovAuthservice(uint64(len(k))) + 1 + len(v) + sovAuthservice(uint64(len(v)))
+			n += mapEntrySize + 1 + sovAuthservice(uint64(mapEntrySize))
+		}
+	}
+	l = len(m.PredicateExpression)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if len(m.SearchKeywords) > 0 {
+		for _, s := range m.SearchKeywords {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	l = m.SortBy.Size()
+	n += 1 + l + sovAuthservice(uint64(l))
+	if m.NeedTotalCount {
+		n += 2
+	}
+	l = m.WindowsDesktopFilter.Size()
+	n += 1 + l + sovAuthservice(uint64(l))
+	if m.UseSearchAsRoles {
+		n += 2
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ListResourcesResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Resources) > 0 {
+		for _, e := range m.Resources {
+			l = e.Size()
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	l = len(m.NextKey)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.TotalCount != 0 {
+		n += 1 + sovAuthservice(uint64(m.TotalCount))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CreateSessionTrackerRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Namespace)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Type)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Reason)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if len(m.Invited) > 0 {
+		for _, s := range m.Invited {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	l = len(m.Hostname)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Address)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.ClusterName)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.Login)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.Initiator != nil {
+		l = m.Initiator.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires)
+	n += 1 + l + sovAuthservice(uint64(l))
+	l = len(m.KubernetesCluster)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.HostUser)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.ID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if len(m.HostPolicies) > 0 {
+		for _, e := range m.HostPolicies {
+			l = e.Size()
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetSessionTrackerRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.SessionID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RemoveSessionTrackerRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.SessionID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SessionTrackerUpdateState) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.State != 0 {
+		n += 1 + sovAuthservice(uint64(m.State))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SessionTrackerAddParticipant) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Participant != nil {
+		l = m.Participant.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SessionTrackerRemoveParticipant) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ParticipantID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SessionTrackerUpdateExpiry) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Expires != nil {
+		l = github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires)
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UpdateSessionTrackerRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.SessionID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.Update != nil {
+		n += m.Update.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UpdateSessionTrackerRequest_UpdateState) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UpdateState != nil {
+		l = m.UpdateState.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *UpdateSessionTrackerRequest_AddParticipant) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.AddParticipant != nil {
+		l = m.AddParticipant.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *UpdateSessionTrackerRequest_RemoveParticipant) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.RemoveParticipant != nil {
+		l = m.RemoveParticipant.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *UpdateSessionTrackerRequest_UpdateExpiry) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UpdateExpiry != nil {
+		l = m.UpdateExpiry.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *PresenceMFAChallengeRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.SessionID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *PresenceMFAChallengeSend) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Request != nil {
+		n += m.Request.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *PresenceMFAChallengeSend_ChallengeRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ChallengeRequest != nil {
+		l = m.ChallengeRequest.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *PresenceMFAChallengeSend_ChallengeResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ChallengeResponse != nil {
+		l = m.ChallengeResponse.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
 	}
 	return n
 }
@@ -21247,41 +30233,6 @@ func (m *Event) Unmarshal(dAtA []byte) error {
 			}
 			m.Resource = &Event_ClusterName{v}
 			iNdEx = postIndex
-		case 7:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ClusterConfig", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &types.ClusterConfigV3{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Resource = &Event_ClusterConfig{v}
-			iNdEx = postIndex
 		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field User", wireType)
@@ -21346,7 +30297,7 @@ func (m *Event) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			v := &types.RoleV4{}
+			v := &types.RoleV5{}
 			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -21982,6 +30933,111 @@ func (m *Event) Unmarshal(dAtA []byte) error {
 			}
 			m.Resource = &Event_WindowsDesktop{v}
 			iNdEx = postIndex
+		case 28:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Database", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.DatabaseV3{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &Event_Database{v}
+			iNdEx = postIndex
+		case 29:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AppServer", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.AppServerV3{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &Event_AppServer{v}
+			iNdEx = postIndex
+		case 30:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field App", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.AppV3{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &Event_App{v}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -22383,7 +31439,7 @@ func (m *WatchKind) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *Certs) Unmarshal(dAtA []byte) error {
+func (m *HostCertsRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -22406,17 +31462,17 @@ func (m *Certs) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Certs: wiretype end group for non-group")
+			return fmt.Errorf("proto: HostCertsRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Certs: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: HostCertsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SSH", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field HostID", wireType)
 			}
-			var byteLen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowAuthservice
@@ -22426,29 +31482,155 @@ func (m *Certs) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if byteLen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return ErrInvalidLengthAuthservice
 			}
-			postIndex := iNdEx + byteLen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return ErrInvalidLengthAuthservice
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.SSH = append(m.SSH[:0], dAtA[iNdEx:postIndex]...)
-			if m.SSH == nil {
-				m.SSH = []byte{}
-			}
+			m.HostID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TLS", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NodeName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Role", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Role = github_com_gravitational_teleport_api_types.SystemRole(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AdditionalPrincipals", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AdditionalPrincipals = append(m.AdditionalPrincipals, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DNSNames", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DNSNames = append(m.DNSNames, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PublicTLSKey", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -22475,11 +31657,133 @@ func (m *Certs) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.TLS = append(m.TLS[:0], dAtA[iNdEx:postIndex]...)
-			if m.TLS == nil {
-				m.TLS = []byte{}
+			m.PublicTLSKey = append(m.PublicTLSKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.PublicTLSKey == nil {
+				m.PublicTLSKey = []byte{}
 			}
 			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PublicSSHKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PublicSSHKey = append(m.PublicSSHKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.PublicSSHKey == nil {
+				m.PublicSSHKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RemoteAddr", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RemoteAddr = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Rotation", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Rotation == nil {
+				m.Rotation = &types.Rotation{}
+			}
+			if err := m.Rotation.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 10:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NoCache", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.NoCache = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -22875,6 +32179,71 @@ func (m *UserCertsRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RoleRequests", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RoleRequests = append(m.RoleRequests, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RouteToWindowsDesktop", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.RouteToWindowsDesktop.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -23076,6 +32445,121 @@ func (m *RouteToDatabase) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *RouteToWindowsDesktop) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RouteToWindowsDesktop: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RouteToWindowsDesktop: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WindowsDesktop", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.WindowsDesktop = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Login", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Login = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *RouteToApp) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -23232,6 +32716,38 @@ func (m *RouteToApp) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.ClusterName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AWSRoleARN", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AWSRoleARN = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -24213,6 +33729,621 @@ func (m *CreateResetPasswordTokenRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *RenewableCertsRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RenewableCertsRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RenewableCertsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Token", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Token = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PublicKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PublicKey = append(m.PublicKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.PublicKey == nil {
+				m.PublicKey = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateBotRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateBotRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateBotRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TTL", wireType)
+			}
+			m.TTL = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TTL |= Duration(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Roles", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Roles = append(m.Roles, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateBotResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateBotResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateBotResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.UserName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RoleName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RoleName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenTTL", wireType)
+			}
+			m.TokenTTL = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TokenTTL |= Duration(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JoinMethod", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JoinMethod = github_com_gravitational_teleport_api_types.JoinMethod(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DeleteBotRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DeleteBotRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DeleteBotRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetBotUsersRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetBotUsersRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetBotUsersRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *PingRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -24425,6 +34556,26 @@ func (m *PingResponse) Unmarshal(dAtA []byte) error {
 			}
 			m.ProxyPublicAddr = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IsBoring", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.IsBoring = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -24636,6 +34787,66 @@ func (m *Features) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.Cloud = bool(v != 0)
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HSM", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.HSM = bool(v != 0)
+		case 10:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Desktop", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Desktop = bool(v != 0)
+		case 11:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ModeratedSessions", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ModeratedSessions = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -25413,6 +35624,491 @@ func (m *FlushAndCloseStream) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: FlushAndCloseStream: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetApplicationServersRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetApplicationServersRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetApplicationServersRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Namespace", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Namespace = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetApplicationServersResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetApplicationServersResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetApplicationServersResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Servers", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Servers = append(m.Servers, &types.AppServerV3{})
+			if err := m.Servers[len(m.Servers)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UpsertApplicationServerRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UpsertApplicationServerRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UpsertApplicationServerRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Server", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Server == nil {
+				m.Server = &types.AppServerV3{}
+			}
+			if err := m.Server.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DeleteApplicationServerRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DeleteApplicationServerRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DeleteApplicationServerRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Namespace", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Namespace = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HostID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.HostID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DeleteAllApplicationServersRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DeleteAllApplicationServersRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DeleteAllApplicationServersRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Namespace", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Namespace = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -26775,6 +37471,89 @@ func (m *DeleteAppSessionRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *DeleteUserAppSessionsRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DeleteUserAppSessionsRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DeleteUserAppSessionsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Username", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Username = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *GetWebSessionResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -28076,6 +38855,26 @@ func (m *DatabaseCSRRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.ClusterName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SignWithDatabaseCA", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.SignWithDatabaseCA = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -28329,6 +39128,38 @@ func (m *DatabaseCertRequest) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerNames", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerNames = append(m.ServerNames, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -28609,7 +39440,7 @@ func (m *GetRolesResponse) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Roles = append(m.Roles, &types.RoleV4{})
+			m.Roles = append(m.Roles, &types.RoleV5{})
 			if err := m.Roles[len(m.Roles)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -28748,40 +39579,6 @@ func (m *MFAAuthenticateChallenge) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: MFAAuthenticateChallenge: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field U2F", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.U2F = append(m.U2F, &U2FChallenge{})
-			if err := m.U2F[len(m.U2F)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TOTP", wireType)
@@ -28815,6 +39612,42 @@ func (m *MFAAuthenticateChallenge) Unmarshal(dAtA []byte) error {
 				m.TOTP = &TOTPChallenge{}
 			}
 			if err := m.TOTP.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WebauthnChallenge", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.WebauthnChallenge == nil {
+				m.WebauthnChallenge = &webauthn.CredentialAssertion{}
+			}
+			if err := m.WebauthnChallenge.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -28869,41 +39702,6 @@ func (m *MFAAuthenticateResponse) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: MFAAuthenticateResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field U2F", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &U2FResponse{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &MFAAuthenticateResponse_U2F{v}
-			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TOTP", wireType)
@@ -28939,126 +39737,11 @@ func (m *MFAAuthenticateResponse) Unmarshal(dAtA []byte) error {
 			}
 			m.Response = &MFAAuthenticateResponse_TOTP{v}
 			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipAuthservice(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *U2FChallenge) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowAuthservice
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: U2FChallenge: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: U2FChallenge: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field KeyHandle", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.KeyHandle = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Challenge", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Challenge = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AppID", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Webauthn", wireType)
 			}
-			var stringLen uint64
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowAuthservice
@@ -29068,202 +39751,26 @@ func (m *U2FChallenge) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if msglen < 0 {
 				return ErrInvalidLengthAuthservice
 			}
-			postIndex := iNdEx + intStringLen
+			postIndex := iNdEx + msglen
 			if postIndex < 0 {
 				return ErrInvalidLengthAuthservice
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.AppID = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Version = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipAuthservice(dAtA[iNdEx:])
-			if err != nil {
+			v := &webauthn.CredentialAssertionResponse{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *U2FResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowAuthservice
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: U2FResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: U2FResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field KeyHandle", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.KeyHandle = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ClientData", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ClientData = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Signature", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Signature = string(dAtA[iNdEx:postIndex])
+			m.Response = &MFAAuthenticateResponse_Webauthn{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -29450,41 +39957,6 @@ func (m *MFARegisterChallenge) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: MFARegisterChallenge: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field U2F", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &U2FRegisterChallenge{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Request = &MFARegisterChallenge_U2F{v}
-			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TOTP", wireType)
@@ -29519,6 +39991,41 @@ func (m *MFARegisterChallenge) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Request = &MFARegisterChallenge_TOTP{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Webauthn", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &webauthn.CredentialCreation{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &MFARegisterChallenge_Webauthn{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -29571,41 +40078,6 @@ func (m *MFARegisterResponse) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: MFARegisterResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field U2F", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &U2FRegisterResponse{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &MFARegisterResponse_U2F{v}
-			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TOTP", wireType)
@@ -29641,126 +40113,11 @@ func (m *MFARegisterResponse) Unmarshal(dAtA []byte) error {
 			}
 			m.Response = &MFARegisterResponse_TOTP{v}
 			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipAuthservice(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *U2FRegisterChallenge) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowAuthservice
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: U2FRegisterChallenge: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: U2FRegisterChallenge: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Challenge", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Challenge = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AppID", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.AppID = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Webauthn", wireType)
 			}
-			var stringLen uint64
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowAuthservice
@@ -29770,138 +40127,26 @@ func (m *U2FRegisterChallenge) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if msglen < 0 {
 				return ErrInvalidLengthAuthservice
 			}
-			postIndex := iNdEx + intStringLen
+			postIndex := iNdEx + msglen
 			if postIndex < 0 {
 				return ErrInvalidLengthAuthservice
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Version = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipAuthservice(dAtA[iNdEx:])
-			if err != nil {
+			v := &webauthn.CredentialCreationResponse{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *U2FRegisterResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowAuthservice
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: U2FRegisterResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: U2FRegisterResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RegistrationData", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.RegistrationData = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ClientData", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ClientData = string(dAtA[iNdEx:postIndex])
+			m.Response = &MFARegisterResponse_Webauthn{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -30119,6 +40364,40 @@ func (m *TOTPRegisterChallenge) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Account = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field QRCode", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.QRCode = append(m.QRCode[:0], dAtA[iNdEx:postIndex]...)
+			if m.QRCode == nil {
+				m.QRCode = []byte{}
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -30598,11 +40877,11 @@ func (m *AddMFADeviceRequestInit) Unmarshal(dAtA []byte) error {
 			}
 			m.DeviceName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 2:
+		case 3:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field DeviceType", wireType)
 			}
-			m.Type = 0
+			m.DeviceType = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowAuthservice
@@ -30612,7 +40891,26 @@ func (m *AddMFADeviceRequestInit) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Type |= AddMFADeviceRequestInit_DeviceType(b&0x7F) << shift
+				m.DeviceType |= DeviceType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeviceUsage", wireType)
+			}
+			m.DeviceUsage = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DeviceUsage |= DeviceUsage(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -31102,6 +41400,359 @@ func (m *DeleteMFADeviceResponseAck) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *DeleteMFADeviceSyncRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DeleteMFADeviceSyncRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DeleteMFADeviceSyncRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeviceName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DeviceName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AddMFADeviceSyncRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AddMFADeviceSyncRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AddMFADeviceSyncRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewDeviceName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NewDeviceName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewMFAResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.NewMFAResponse == nil {
+				m.NewMFAResponse = &MFARegisterResponse{}
+			}
+			if err := m.NewMFAResponse.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AddMFADeviceSyncResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AddMFADeviceSyncResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AddMFADeviceSyncResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Device", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Device == nil {
+				m.Device = &types.MFADevice{}
+			}
+			if err := m.Device.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *GetMFADevicesRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -31131,6 +41782,38 @@ func (m *GetMFADevicesRequest) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: GetMFADevicesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -31610,6 +42293,41 @@ func (m *IsMFARequiredRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Target = &IsMFARequiredRequest_Node{v}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WindowsDesktop", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &RouteToWindowsDesktop{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Target = &IsMFARequiredRequest_WindowsDesktop{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -32705,6 +43423,133 @@ func (m *ListNodesRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.StartKey = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Labels", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Labels == nil {
+				m.Labels = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowAuthservice
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowAuthservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowAuthservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipAuthservice(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Labels[mapkey] = mapvalue
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -33402,6 +44247,176 @@ func (m *GetWindowsDesktopServicesResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *GetWindowsDesktopServiceRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetWindowsDesktopServiceRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetWindowsDesktopServiceRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetWindowsDesktopServiceResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetWindowsDesktopServiceResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetWindowsDesktopServiceResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Service", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Service == nil {
+				m.Service = &types.WindowsDesktopServiceV3{}
+			}
+			if err := m.Service.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *DeleteWindowsDesktopServiceRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -33570,89 +44585,6 @@ func (m *GetWindowsDesktopsResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetWindowsDesktopRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowAuthservice
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetWindowsDesktopRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetWindowsDesktopRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowAuthservice
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Name = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipAuthservice(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthAuthservice
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *DeleteWindowsDesktopRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -33713,6 +44645,4439 @@ func (m *DeleteWindowsDesktopRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HostID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.HostID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *WindowsDesktopCertRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: WindowsDesktopCertRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: WindowsDesktopCertRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CSR", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CSR = append(m.CSR[:0], dAtA[iNdEx:postIndex]...)
+			if m.CSR == nil {
+				m.CSR = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CRLEndpoint", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CRLEndpoint = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TTL", wireType)
+			}
+			m.TTL = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TTL |= Duration(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *WindowsDesktopCertResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: WindowsDesktopCertResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: WindowsDesktopCertResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cert", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Cert = append(m.Cert[:0], dAtA[iNdEx:postIndex]...)
+			if m.Cert == nil {
+				m.Cert = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CertAuthorityRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CertAuthorityRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CertAuthorityRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Type = github_com_gravitational_teleport_api_types.CertAuthType(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CRL) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CRL: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CRL: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CRL", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CRL = append(m.CRL[:0], dAtA[iNdEx:postIndex]...)
+			if m.CRL == nil {
+				m.CRL = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ChangeUserAuthenticationRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ChangeUserAuthenticationRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ChangeUserAuthenticationRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewPassword", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NewPassword = append(m.NewPassword[:0], dAtA[iNdEx:postIndex]...)
+			if m.NewPassword == nil {
+				m.NewPassword = []byte{}
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewMFARegisterResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.NewMFARegisterResponse == nil {
+				m.NewMFARegisterResponse = &MFARegisterResponse{}
+			}
+			if err := m.NewMFARegisterResponse.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ChangeUserAuthenticationResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ChangeUserAuthenticationResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ChangeUserAuthenticationResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WebSession", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.WebSession == nil {
+				m.WebSession = &types.WebSessionV2{}
+			}
+			if err := m.WebSession.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Recovery", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Recovery == nil {
+				m.Recovery = &RecoveryCodes{}
+			}
+			if err := m.Recovery.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *StartAccountRecoveryRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: StartAccountRecoveryRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: StartAccountRecoveryRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Username", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Username = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RecoveryCode", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RecoveryCode = append(m.RecoveryCode[:0], dAtA[iNdEx:postIndex]...)
+			if m.RecoveryCode == nil {
+				m.RecoveryCode = []byte{}
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RecoverType", wireType)
+			}
+			m.RecoverType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RecoverType |= types.UserTokenUsage(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *VerifyAccountRecoveryRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: VerifyAccountRecoveryRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: VerifyAccountRecoveryRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RecoveryStartTokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RecoveryStartTokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Username", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Username = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Password", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := make([]byte, postIndex-iNdEx)
+			copy(v, dAtA[iNdEx:postIndex])
+			m.AuthnCred = &VerifyAccountRecoveryRequest_Password{v}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MFAAuthenticateResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MFAAuthenticateResponse{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.AuthnCred = &VerifyAccountRecoveryRequest_MFAAuthenticateResponse{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CompleteAccountRecoveryRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CompleteAccountRecoveryRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CompleteAccountRecoveryRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RecoveryApprovedTokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RecoveryApprovedTokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewDeviceName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NewDeviceName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewPassword", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := make([]byte, postIndex-iNdEx)
+			copy(v, dAtA[iNdEx:postIndex])
+			m.NewAuthnCred = &CompleteAccountRecoveryRequest_NewPassword{v}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewMFAResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MFARegisterResponse{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.NewAuthnCred = &CompleteAccountRecoveryRequest_NewMFAResponse{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RecoveryCodes) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RecoveryCodes: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RecoveryCodes: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Codes", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Codes = append(m.Codes, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Created", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Created, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateAccountRecoveryCodesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateAccountRecoveryCodesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateAccountRecoveryCodesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetAccountRecoveryTokenRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetAccountRecoveryTokenRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetAccountRecoveryTokenRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RecoveryTokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RecoveryTokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetAccountRecoveryCodesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetAccountRecoveryCodesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetAccountRecoveryCodesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UserCredentials) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UserCredentials: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UserCredentials: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Username", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Username = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Password", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Password = append(m.Password[:0], dAtA[iNdEx:postIndex]...)
+			if m.Password == nil {
+				m.Password = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ContextUser) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ContextUser: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ContextUser: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Passwordless) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Passwordless: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Passwordless: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateAuthenticateChallengeRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateAuthenticateChallengeRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateAuthenticateChallengeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserCredentials", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UserCredentials{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &CreateAuthenticateChallengeRequest_UserCredentials{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RecoveryStartTokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Request = &CreateAuthenticateChallengeRequest_RecoveryStartTokenID{string(dAtA[iNdEx:postIndex])}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ContextUser", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &ContextUser{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &CreateAuthenticateChallengeRequest_ContextUser{v}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Passwordless", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &Passwordless{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &CreateAuthenticateChallengeRequest_Passwordless{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreatePrivilegeTokenRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreatePrivilegeTokenRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreatePrivilegeTokenRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExistingMFAResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ExistingMFAResponse == nil {
+				m.ExistingMFAResponse = &MFAAuthenticateResponse{}
+			}
+			if err := m.ExistingMFAResponse.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateRegisterChallengeRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateRegisterChallengeRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateRegisterChallengeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TokenID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TokenID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeviceType", wireType)
+			}
+			m.DeviceType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DeviceType |= DeviceType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeviceUsage", wireType)
+			}
+			m.DeviceUsage = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DeviceUsage |= DeviceUsage(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PaginatedResource) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PaginatedResource: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PaginatedResource: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseServer", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.DatabaseServerV3{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &PaginatedResource_DatabaseServer{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AppServer", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.AppServerV3{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &PaginatedResource_AppServer{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Node", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.ServerV2{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &PaginatedResource_Node{v}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KubeService", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.ServerV2{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &PaginatedResource_KubeService{v}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WindowsDesktop", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.WindowsDesktopV3{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &PaginatedResource_WindowsDesktop{v}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KubeCluster", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.KubernetesClusterV3{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &PaginatedResource_KubeCluster{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ListResourcesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ListResourcesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ListResourcesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceType", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResourceType = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Namespace", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Namespace = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Limit", wireType)
+			}
+			m.Limit = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Limit |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartKey", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StartKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Labels", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Labels == nil {
+				m.Labels = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowAuthservice
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowAuthservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowAuthservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipAuthservice(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Labels[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PredicateExpression", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PredicateExpression = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SearchKeywords", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SearchKeywords = append(m.SearchKeywords, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SortBy", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.SortBy.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NeedTotalCount", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.NeedTotalCount = bool(v != 0)
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WindowsDesktopFilter", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.WindowsDesktopFilter.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 11:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UseSearchAsRoles", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.UseSearchAsRoles = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ListResourcesResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ListResourcesResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ListResourcesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Resources", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Resources = append(m.Resources, &PaginatedResource{})
+			if err := m.Resources[len(m.Resources)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NextKey", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NextKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TotalCount", wireType)
+			}
+			m.TotalCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TotalCount |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateSessionTrackerRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateSessionTrackerRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateSessionTrackerRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Namespace", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Namespace = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Type = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Reason", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Reason = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Invited", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Invited = append(m.Invited, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hostname", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Hostname = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Address", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Address = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ClusterName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ClusterName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Login", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Login = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Initiator", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Initiator == nil {
+				m.Initiator = &types.Participant{}
+			}
+			if err := m.Initiator.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Expires", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Expires, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KubernetesCluster", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.KubernetesCluster = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HostUser", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.HostUser = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 14:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HostPolicies", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.HostPolicies = append(m.HostPolicies, &types.SessionTrackerPolicySet{})
+			if err := m.HostPolicies[len(m.HostPolicies)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetSessionTrackerRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetSessionTrackerRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetSessionTrackerRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SessionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RemoveSessionTrackerRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RemoveSessionTrackerRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RemoveSessionTrackerRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SessionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SessionTrackerUpdateState) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SessionTrackerUpdateState: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SessionTrackerUpdateState: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field State", wireType)
+			}
+			m.State = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.State |= types.SessionState(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SessionTrackerAddParticipant) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SessionTrackerAddParticipant: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SessionTrackerAddParticipant: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Participant", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Participant == nil {
+				m.Participant = &types.Participant{}
+			}
+			if err := m.Participant.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SessionTrackerRemoveParticipant) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SessionTrackerRemoveParticipant: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SessionTrackerRemoveParticipant: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ParticipantID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ParticipantID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SessionTrackerUpdateExpiry) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SessionTrackerUpdateExpiry: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SessionTrackerUpdateExpiry: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Expires", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Expires == nil {
+				m.Expires = new(time.Time)
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(m.Expires, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UpdateSessionTrackerRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UpdateSessionTrackerRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UpdateSessionTrackerRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SessionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UpdateState", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &SessionTrackerUpdateState{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Update = &UpdateSessionTrackerRequest_UpdateState{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AddParticipant", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &SessionTrackerAddParticipant{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Update = &UpdateSessionTrackerRequest_AddParticipant{v}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RemoveParticipant", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &SessionTrackerRemoveParticipant{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Update = &UpdateSessionTrackerRequest_RemoveParticipant{v}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UpdateExpiry", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &SessionTrackerUpdateExpiry{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Update = &UpdateSessionTrackerRequest_UpdateExpiry{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PresenceMFAChallengeRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PresenceMFAChallengeRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PresenceMFAChallengeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SessionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PresenceMFAChallengeSend) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PresenceMFAChallengeSend: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PresenceMFAChallengeSend: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ChallengeRequest", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &PresenceMFAChallengeRequest{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &PresenceMFAChallengeSend_ChallengeRequest{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ChallengeResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &MFAAuthenticateResponse{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &PresenceMFAChallengeSend_ChallengeResponse{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

@@ -114,7 +114,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 		inHostID           string
 		inNodeName         string
 		inClusterName      string
-		inRoles            types.SystemRoles
+		inRole             types.SystemRole
 		outValidPrincipals []string
 	}{
 		{
@@ -122,7 +122,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			inHostID:           "00000000-0000-0000-0000-000000000000",
 			inNodeName:         "auth",
 			inClusterName:      "example.com",
-			inRoles:            types.SystemRoles{types.RoleAdmin},
+			inRole:             types.RoleAdmin,
 			outValidPrincipals: []string{"00000000-0000-0000-0000-000000000000"},
 		},
 		{
@@ -130,7 +130,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			inHostID:      "11111111-1111-1111-1111-111111111111",
 			inNodeName:    "",
 			inClusterName: "example.com",
-			inRoles:       types.SystemRoles{types.RoleNode},
+			inRole:        types.RoleNode,
 			outValidPrincipals: []string{
 				"11111111-1111-1111-1111-111111111111.example.com",
 				"11111111-1111-1111-1111-111111111111",
@@ -144,7 +144,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			inHostID:      "22222222-2222-2222-2222-222222222222",
 			inNodeName:    "proxy",
 			inClusterName: "example.com",
-			inRoles:       types.SystemRoles{types.RoleProxy},
+			inRole:        types.RoleProxy,
 			outValidPrincipals: []string{
 				"22222222-2222-2222-2222-222222222222.example.com",
 				"22222222-2222-2222-2222-222222222222",
@@ -160,7 +160,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 			inHostID:      "33333333-3333-3333-3333-333333333333",
 			inNodeName:    "33333333-3333-3333-3333-333333333333",
 			inClusterName: "example.com",
-			inRoles:       types.SystemRoles{types.RoleProxy},
+			inRole:        types.RoleProxy,
 			outValidPrincipals: []string{
 				"33333333-3333-3333-3333-333333333333.example.com",
 				"33333333-3333-3333-3333-333333333333",
@@ -182,7 +182,7 @@ func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
 				HostID:        tt.inHostID,
 				NodeName:      tt.inNodeName,
 				ClusterName:   tt.inClusterName,
-				Roles:         tt.inRoles,
+				Role:          tt.inRole,
 				TTL:           time.Hour,
 			})
 		c.Assert(err, check.IsNil)
@@ -224,13 +224,20 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 		comment := check.Commentf("Test %v", i)
 
 		userCertificateBytes, err := s.suite.A.GenerateUserCert(services.UserCertParams{
-			CASigner:              caSigner,
-			CASigningAlg:          defaults.CASignatureAlgorithm,
-			PublicUserKey:         pub,
-			Username:              "user",
-			AllowedLogins:         []string{"centos", "root"},
-			TTL:                   time.Hour,
-			Roles:                 []string{"foo"},
+			CASigner:      caSigner,
+			CASigningAlg:  defaults.CASignatureAlgorithm,
+			PublicUserKey: pub,
+			Username:      "user",
+			AllowedLogins: []string{"centos", "root"},
+			TTL:           time.Hour,
+			Roles:         []string{"foo"},
+			CertificateExtensions: []*types.CertExtension{{
+				Type:  types.CertExtensionType_SSH,
+				Mode:  types.CertExtensionMode_EXTENSION,
+				Name:  "login@github.com",
+				Value: "hello",
+			},
+			},
 			CertificateFormat:     tt.inCompatibility,
 			PermitAgentForwarding: true,
 			PermitPortForwarding:  true,
@@ -244,5 +251,8 @@ func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
 		// check if we added the roles extension
 		_, ok := userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
 		c.Assert(ok, check.Equals, tt.outHasRoles, comment)
+		// check if users custom extension was added
+		extVal := userCertificate.Extensions["login@github.com"]
+		c.Assert(extVal, check.Equals, "hello")
 	}
 }

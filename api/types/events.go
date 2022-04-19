@@ -111,6 +111,8 @@ type WatchKind struct {
 	// if specified, only the events with the given resource
 	// name will be sent
 	Name string
+	// Version optionally specifies the resource version to watch.
+	Version string
 	// LoadSecrets specifies whether to load secrets
 	LoadSecrets bool
 	// Filter supplies custom event filter parameters that differ by
@@ -150,11 +152,20 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 				return false, trace.Wrap(err)
 			}
 			return target.Match(res), nil
+		case CertAuthority:
+			var filter CertAuthorityFilter
+			filter.FromMap(kind.Filter)
+			return filter.Match(res), nil
 		default:
-			return false, trace.BadParameter("unfilterable resource type %T", e.Resource)
+			// we don't know about this filter, let the event through
 		}
 	}
 	return true, nil
+}
+
+// IsTrivial returns true iff the WatchKind only specifies a Kind but no other field.
+func (kind WatchKind) IsTrivial() bool {
+	return kind.SubKind == "" && kind.Name == "" && kind.Version == "" && !kind.LoadSecrets && len(kind.Filter) == 0
 }
 
 // Events returns new events interface

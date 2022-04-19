@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -195,7 +196,7 @@ func TestAuditWriter(t *testing.T) {
 		require.Equal(t, 1, int(streamCreated.Load()), "Stream created once.")
 	})
 
-	// Backoff looses the events on emitter hang, but does not lock
+	// Backoff loses the events on emitter hang, but does not lock
 	t.Run("Backoff", func(t *testing.T) {
 		streamCreated := atomic.NewUint64(0)
 		terminateConnection := atomic.NewUint64(1)
@@ -285,7 +286,24 @@ func TestAuditWriter(t *testing.T) {
 			require.Equal(t, event.GetClusterName(), "cluster")
 		}
 	})
+}
 
+func TestBytesToSessionPrintEvents(t *testing.T) {
+	b := make([]byte, MaxProtoMessageSizeBytes+1)
+	_, err := rand.Read(b)
+	require.NoError(t, err)
+
+	events := bytesToSessionPrintEvents(b)
+	require.Len(t, events, 2)
+
+	event0, ok := events[0].(*apievents.SessionPrint)
+	require.True(t, ok)
+
+	event1, ok := events[1].(*apievents.SessionPrint)
+	require.True(t, ok)
+
+	allBytes := append(event0.Data, event1.Data...)
+	require.Equal(t, b, allBytes)
 }
 
 type auditWriterTest struct {

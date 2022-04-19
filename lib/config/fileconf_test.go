@@ -18,11 +18,14 @@ package config
 
 import (
 	"bytes"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -171,7 +174,7 @@ func TestAuthenticationSection(t *testing.T) {
 		expected    *AuthenticationConfig
 	}{
 		{
-			desc: "local auth with OTP",
+			desc: "Local auth with OTP",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
@@ -184,7 +187,7 @@ func TestAuthenticationSection(t *testing.T) {
 				SecondFactor: "otp",
 			},
 		}, {
-			desc: "local auth without OTP",
+			desc: "Local auth without OTP",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
@@ -227,10 +230,95 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				},
 			},
+		}, {
+			desc: "Local auth with Webauthn",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "webauthn",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+						"attestation_allowed_cas": []interface{}{
+							"testdata/u2f_attestation_ca.pam",
+							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
+						},
+						"attestation_denied_cas": []interface{}{
+							"-----BEGIN CERTIFICATE-----\nfake certificate2\n-----END CERTIFICATE-----",
+							"testdata/u2f_attestation_ca.pam",
+						},
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "webauthn",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+					AttestationAllowedCAs: []string{
+						"testdata/u2f_attestation_ca.pam",
+						"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
+					},
+					AttestationDeniedCAs: []string{
+						"-----BEGIN CERTIFICATE-----\nfake certificate2\n-----END CERTIFICATE-----",
+						"testdata/u2f_attestation_ca.pam",
+					},
+				},
+			},
+		}, {
+			desc: "Local auth with disabled Webauthn",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "on",
+					"u2f": cfgMap{
+						"app_id": "https://example.com",
+						"facets": []interface{}{
+							"https://example.com",
+						},
+					},
+					"webauthn": cfgMap{
+						"disabled": true, // Kept for backwards compatibility, has no effect.
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "on",
+				U2F: &UniversalSecondFactor{
+					AppID:  "https://example.com",
+					Facets: []string{"https://example.com"},
+				},
+				Webauthn: &Webauthn{
+					Disabled: true,
+				},
+			},
+		}, {
+			desc: "Local auth with passwordless connector",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "on",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"passwordless":   "true",
+					"connector_name": "passwordless",
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "on",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				Passwordless:  types.NewBoolOption(true),
+				ConnectorName: "passwordless",
+			},
 		},
 	}
-
-	// run tests
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			text := bytes.NewBuffer(editConfig(t, tt.mutate))
@@ -241,6 +329,33 @@ func TestAuthenticationSection(t *testing.T) {
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
 		})
 	}
+}
+
+func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
+	// An absent U2F section should be reflected as a nil U2F object.
+	// The config below is a valid config without U2F, but other than that we
+	// don't care about its specifics for this test.
+	text := editConfig(t, func(cfg cfgMap) {
+		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			"type":          "local",
+			"second_factor": "on",
+			"webauthn": cfgMap{
+				"rp_id": "localhost",
+			},
+		}
+	})
+	cfg, err := ReadConfig(bytes.NewBuffer(text))
+	require.NoError(t, err)
+
+	cap, err := cfg.Auth.Authentication.Parse()
+	require.NoError(t, err, "failed parsing cap")
+
+	_, u2fErr := cap.GetU2F()
+	require.Error(t, u2fErr, "U2F configuration present")
+	require.True(t, trace.IsNotFound(u2fErr), "uxpected U2F error")
+
+	_, webErr := cap.GetWebauthn()
+	require.NoError(t, webErr, "unexpected webauthn error")
 }
 
 // TestSSHSection tests the config parser for the SSH config block
@@ -315,6 +430,149 @@ func TestSSHSection(t *testing.T) {
 			if testCase.expectAllowsTCPForwarding != nil {
 				testCase.expectAllowsTCPForwarding(t, cfg.SSH.AllowTCPForwarding())
 			}
+		})
+	}
+
+}
+
+func TestX11Config(t *testing.T) {
+	testCases := []struct {
+		desc              string
+		mutate            func(cfgMap)
+		expectReadError   require.ErrorAssertionFunc
+		expectConfigError require.ErrorAssertionFunc
+		expectX11Config   *x11.ServerConfig
+	}{
+		{
+			desc:            "default",
+			mutate:          func(cfg cfgMap) {},
+			expectX11Config: &x11.ServerConfig{},
+		},
+		// Test x11 enabled
+		{
+			desc: "x11 disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled": "no",
+				}
+			},
+			expectX11Config: &x11.ServerConfig{},
+		}, {
+			desc: "x11 enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled": "yes",
+				}
+			},
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    x11.DefaultDisplayOffset + x11.DefaultMaxDisplays,
+			},
+		},
+		// Test display offset
+		{
+			desc: "display offset set",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "yes",
+					"display_offset": 100,
+				}
+			},
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: 100,
+				MaxDisplay:    100 + x11.DefaultMaxDisplays,
+			},
+		}, {
+			desc: "display offset value capped",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "yes",
+					"display_offset": math.MaxUint32,
+				}
+			},
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.MaxDisplayNumber,
+				MaxDisplay:    x11.MaxDisplayNumber,
+			},
+		},
+		// Test max display
+		{
+			desc: "max display set",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":     "yes",
+					"max_display": 100,
+				}
+			},
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    100,
+			},
+		}, {
+			// DELETE IN 10.0.0 (Joerger): yaml typo, use max_display.
+			desc: "max displays set",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":      "yes",
+					"max_displays": 100,
+				}
+			},
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    100,
+			},
+		}, {
+			desc: "max display value capped",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":     "yes",
+					"max_display": math.MaxUint32,
+				}
+			},
+			expectX11Config: &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    x11.MaxDisplayNumber,
+			},
+		}, {
+			desc: "max display smaller than display offset",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "maybe",
+					"display_offset": 1000,
+					"max_display":    100,
+				}
+			},
+			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tc.mutate))
+
+			cfg, err := ReadConfig(text)
+			if tc.expectReadError != nil {
+				tc.expectReadError(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			serverCfg, err := cfg.SSH.X11ServerConfig()
+			if tc.expectConfigError != nil {
+				tc.expectConfigError(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expectX11Config, serverCfg)
 		})
 	}
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -49,6 +50,9 @@ const (
 	EventProtocolSSH = "ssh"
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
 	EventProtocolKube = "kube"
+	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
+	// as a type of captured protocol
+	EventProtocolTDP = "tdp"
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
@@ -195,6 +199,11 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
+	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
+	AccessRequestDeleteEvent = "access_request.delete"
+	// AccessRequestResourceSearch is emitted when a user searches for
+	// resources as part of a search-based access request.
+	AccessRequestResourceSearch = "access_request.search"
 	// AccessRequestDelegator is used by teleport plugins to indicate the identity
 	// which caused them to update state.
 	AccessRequestDelegator = "delegator"
@@ -217,10 +226,16 @@ const (
 	//  - updating a user record
 	UpdatedBy = "updated_by"
 
+	// RecoveryTokenCreateEvent is emitted when a new recovery token is created.
+	RecoveryTokenCreateEvent = "recovery_token.create"
 	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
 	ResetPasswordTokenCreateEvent = "reset_password_token.create"
+	// BotTokenCreateEvent is emitted when a new bot join user token is created
+	BotTokenCreateEvent = "bot_token.create"
 	// ResetPasswordTokenTTL is TTL of reset password token.
 	ResetPasswordTokenTTL = "ttl"
+	// PrivilegeTokenCreateEvent is emitted when a new user privilege token is created.
+	PrivilegeTokenCreateEvent = "privilege_token.create"
 
 	// FieldName contains name, e.g. resource name, etc.
 	FieldName = "name"
@@ -282,7 +297,7 @@ const (
 	// SessionDiskEvent is emitted when a file is opened within an session.
 	SessionDiskEvent = "session.disk"
 
-	// SessionNetworkEvent is emitted when a network connection is initated with a
+	// SessionNetworkEvent is emitted when a network connection is initiated with a
 	// session.
 	SessionNetworkEvent = "session.network"
 
@@ -353,6 +368,16 @@ const (
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
+	// SessionConnect is emitted when any ssh connection is made
+	SessionConnectEvent = "session.connect"
+
+	// AppCreateEvent is emitted when an application resource is created.
+	AppCreateEvent = "app.create"
+	// AppUpdateEvent is emitted when an application resource is updated.
+	AppUpdateEvent = "app.update"
+	// AppDeleteEvent is emitted when an application resource is deleted.
+	AppDeleteEvent = "app.delete"
+
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
 
@@ -363,6 +388,13 @@ const (
 
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
+
+	// DatabaseCreateEvent is emitted when a database resource is created.
+	DatabaseCreateEvent = "db.create"
+	// DatabaseUpdateEvent is emitted when a database resource is updated.
+	DatabaseUpdateEvent = "db.update"
+	// DatabaseDeleteEvent is emitted when a database resource is deleted.
+	DatabaseDeleteEvent = "db.delete"
 
 	// DatabaseSessionStartEvent is emitted when a database client attempts
 	// to connect to a database.
@@ -376,6 +408,69 @@ const (
 	// DatabaseSessionQueryFailedEvent is emitted when database client's request
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
+
+	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
+	// creates a prepared statement using extended query protocol.
+	DatabaseSessionPostgresParseEvent = "db.session.postgres.statements.parse"
+	// DatabaseSessionPostgresBindEvent is emitted when a Postgres client
+	// readies a prepared statement for execution and binds it to parameters.
+	DatabaseSessionPostgresBindEvent = "db.session.postgres.statements.bind"
+	// DatabaseSessionPostgresExecuteEvent is emitted when a Postgres client
+	// executes a previously bound prepared statement.
+	DatabaseSessionPostgresExecuteEvent = "db.session.postgres.statements.execute"
+	// DatabaseSessionPostgresCloseEvent is emitted when a Postgres client
+	// closes an existing prepared statement.
+	DatabaseSessionPostgresCloseEvent = "db.session.postgres.statements.close"
+	// DatabaseSessionPostgresFunctionEvent is emitted when a Postgres client
+	// calls an internal function.
+	DatabaseSessionPostgresFunctionEvent = "db.session.postgres.function"
+
+	// DatabaseSessionMySQLStatementPrepareEvent is emitted when a MySQL client
+	// creates a prepared statement using the prepared statement protocol.
+	DatabaseSessionMySQLStatementPrepareEvent = "db.session.mysql.statements.prepare"
+	// DatabaseSessionMySQLStatementExecuteEvent is emitted when a MySQL client
+	// executes a prepared statement using the prepared statement protocol.
+	DatabaseSessionMySQLStatementExecuteEvent = "db.session.mysql.statements.execute"
+	// DatabaseSessionMySQLStatementSendLongDataEvent is emitted when a MySQL
+	// client sends long bytes stream using the prepared statement protocol.
+	DatabaseSessionMySQLStatementSendLongDataEvent = "db.session.mysql.statements.send_long_data"
+	// DatabaseSessionMySQLStatementCloseEvent is emitted when a MySQL client
+	// deallocates a prepared statement using the prepared statement protocol.
+	DatabaseSessionMySQLStatementCloseEvent = "db.session.mysql.statements.close"
+	// DatabaseSessionMySQLStatementResetEvent is emitted when a MySQL client
+	// resets the data of a prepared statement using the prepared statement
+	// protocol.
+	DatabaseSessionMySQLStatementResetEvent = "db.session.mysql.statements.reset"
+	// DatabaseSessionMySQLStatementFetchEvent is emitted when a MySQL client
+	// fetches rows from a prepared statement using the prepared statement
+	// protocol.
+	DatabaseSessionMySQLStatementFetchEvent = "db.session.mysql.statements.fetch"
+	// DatabaseSessionMySQLStatementBulkExecuteEvent is emitted when a MySQL
+	// client executes a bulk insert of a prepared statement using the prepared
+	// statement protocol.
+	DatabaseSessionMySQLStatementBulkExecuteEvent = "db.session.mysql.statements.bulk_execute"
+
+	// DatabaseSessionMySQLInitDBEvent is emitted when a MySQL client changes
+	// the default schema for the connection.
+	DatabaseSessionMySQLInitDBEvent = "db.session.mysql.init_db"
+	// DatabaseSessionMySQLCreateDBEvent is emitted when a MySQL client creates
+	// a schema.
+	DatabaseSessionMySQLCreateDBEvent = "db.session.mysql.create_db"
+	// DatabaseSessionMySQLDropDBEvent is emitted when a MySQL client drops a
+	// schema.
+	DatabaseSessionMySQLDropDBEvent = "db.session.mysql.drop_db"
+	// DatabaseSessionMySQLShutDownEvent is emitted when a MySQL client asks
+	// the server to shut down.
+	DatabaseSessionMySQLShutDownEvent = "db.session.mysql.shut_down"
+	// DatabaseSessionMySQLProcessKillEvent is emitted when a MySQL client asks
+	// the server to terminate a connection.
+	DatabaseSessionMySQLProcessKillEvent = "db.session.mysql.process_kill"
+	// DatabaseSessionMySQLDebugEvent is emitted when a MySQL client asks the
+	// server to dump internal debug info to stdout.
+	DatabaseSessionMySQLDebugEvent = "db.session.mysql.debug"
+	// DatabaseSessionMySQLRefreshEvent is emitted when a MySQL client sends
+	// refresh commands.
+	DatabaseSessionMySQLRefreshEvent = "db.session.mysql.refresh"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
@@ -401,6 +496,40 @@ const (
 	LockCreatedEvent = "lock.created"
 	// LockDeletedEvent fires when a lock is deleted.
 	LockDeletedEvent = "lock.deleted"
+
+	// RecoveryCodeGeneratedEvent is an event type for generating a user's recovery tokens.
+	RecoveryCodeGeneratedEvent = "recovery_code.generated"
+	// RecoveryCodeUsedEvent is an event type when a recovery token was used.
+	RecoveryCodeUsedEvent = "recovery_code.used"
+
+	// WindowsDesktopSessionStartEvent is emitted when a user attempts
+	// to connect to a desktop.
+	WindowsDesktopSessionStartEvent = "windows.desktop.session.start"
+	// WindowsDesktopSessionEndEvent is emitted when a user disconnects
+	// from a desktop.
+	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
+
+	// CertificateCreateEvent is emitted when a certificate is issued.
+	CertificateCreateEvent = "cert.create"
+
+	// RenewableCertificateGenerationMismatchEvent is emitted when a renewable
+	// certificate's generation counter is invalid.
+	RenewableCertificateGenerationMismatchEvent = "cert.generation_mismatch"
+
+	// CertificateTypeUser is the CertificateType for certificate events pertaining to user certificates.
+	CertificateTypeUser = "user"
+
+	// DesktopRecordingEvent is emitted as a desktop access session is recorded.
+	DesktopRecordingEvent = "desktop.recording"
+	// DesktopClipboardReceiveEvent is emitted when Teleport receives
+	// clipboard data from a remote desktop.
+	DesktopClipboardReceiveEvent = "desktop.clipboard.receive"
+	// DesktopClipboardSendEvent is emitted when local clipboard data
+	// is sent to Teleport.
+	DesktopClipboardSendEvent = "desktop.clipboard.send"
+
+	// UnknownEvent is any event received that isn't recognized as any other event type.
+	UnknownEvent = apievents.UnknownEvent
 )
 
 const (
@@ -462,12 +591,6 @@ type SessionMetadataSetter interface {
 	SetClusterName(string)
 }
 
-// SetCode is a shortcut that sets code for the audit event
-func SetCode(event apievents.AuditEvent, code string) apievents.AuditEvent {
-	event.SetCode(code)
-	return event
-}
-
 // Streamer creates and resumes event streams for session IDs
 type Streamer interface {
 	// CreateAuditStream creates event stream
@@ -491,14 +614,11 @@ type StreamUpload struct {
 	ID string
 	// SessionID is a session ID of the upload
 	SessionID session.ID
-	// Initiated contains the timestamp of when the upload
-	// was initiated, not always initialized
-	Initiated time.Time
 }
 
 // String returns user friendly representation of the upload
 func (u StreamUpload) String() string {
-	return fmt.Sprintf("Upload(session=%v, id=%v, initiated=%v)", u.SessionID, u.ID, u.Initiated)
+	return fmt.Sprintf("Upload(session=%v, id=%v)", u.SessionID, u.ID)
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -607,27 +727,27 @@ type IAuditLog interface {
 	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
 
 	// SearchSessionEvents is a flexible way to find session events.
-	// Only session events are returned by this function.
-	// This is used to find completed session.
+	// Only session.end events are returned by this function.
+	// This is used to find completed sessions.
 	//
 	// Event types to filter can be specified and pagination is handled by an iterator key that allows
 	// a query to be resumed.
 	//
 	// This function may never return more than 1 MiB of event data.
-	SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
+	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error)
 
 	// WaitForDelivery waits for resources to be released and outstanding requests to
 	// complete after calling Close method
 	WaitForDelivery(context.Context) error
 
 	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-	// channel if one is encountered. Otherwise it is simply closed when the stream ends.
+	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 	// The event channel is not closed on error to prevent race conditions in downstream select statements.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
 // EventFields instance is attached to every logged event
-type EventFields map[string]interface{}
+type EventFields utils.Fields
 
 // String returns a string representation of an event structure
 func (f EventFields) AsString() string {
@@ -636,6 +756,7 @@ func (f EventFields) AsString() string {
 		f.GetString(EventLogin),
 		f.GetInt(EventCursor),
 		f.GetInt(SessionPrintEventBytes))
+
 }
 
 // GetType returns the type (string) of the event
@@ -660,46 +781,25 @@ func (f EventFields) GetTimestamp() time.Time {
 
 // GetString returns a string representation of a logged field
 func (f EventFields) GetString(key string) string {
-	val, found := f[key]
-	if !found {
-		return ""
-	}
-	v, _ := val.(string)
-	return v
+	return utils.Fields(f).GetString(key)
+}
+
+// GetString returns a slice-of-strings representation of a logged field.
+func (f EventFields) GetStrings(key string) []string {
+	return utils.Fields(f).GetStrings(key)
 }
 
 // GetInt returns an int representation of a logged field
 func (f EventFields) GetInt(key string) int {
-	val, found := f[key]
-	if !found {
-		return 0
-	}
-	v, ok := val.(int)
-	if !ok {
-		f, ok := val.(float64)
-		if ok {
-			v = int(f)
-		}
-	}
-	return v
+	return utils.Fields(f).GetInt(key)
 }
 
-// GetTime returns an int representation of a logged field
+// GetTime returns a time.Time representation of a logged field
 func (f EventFields) GetTime(key string) time.Time {
-	val, found := f[key]
-	if !found {
-		return time.Time{}
-	}
-	v, ok := val.(time.Time)
-	if !ok {
-		s := f.GetString(key)
-		v, _ = time.Parse(time.RFC3339, s)
-	}
-	return v
+	return utils.Fields(f).GetTime(key)
 }
 
 // HasField returns true if the field exists in the event.
 func (f EventFields) HasField(key string) bool {
-	_, ok := f[key]
-	return ok
+	return utils.Fields(f).HasField(key)
 }

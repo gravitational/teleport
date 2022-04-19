@@ -18,7 +18,7 @@ package web
 
 import (
 	"compress/gzip"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -30,7 +30,7 @@ import (
 // internal buffers to avoid too many objects on the heap
 var writerPool = sync.Pool{
 	New: func() interface{} {
-		gz := gzip.NewWriter(ioutil.Discard)
+		gz := gzip.NewWriter(io.Discard)
 		return gz
 	},
 }

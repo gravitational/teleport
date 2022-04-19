@@ -22,7 +22,9 @@ const (
 	// objects.
 	DefaultImplicitRole = "default-implicit-role"
 
-	// APIDomain is a default domain name for Auth server API
+	// APIDomain is a default domain name for Auth server API. It is often
+	// used as an SNI to pass TLS handshakes regardless of the server address
+	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
 
 	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
@@ -39,6 +41,13 @@ const (
 	// EnhancedRecordingNetwork is a role option that implies network events
 	// are captured.
 	EnhancedRecordingNetwork = "network"
+
+	// LocalConnector is the authenticator connector for local logins.
+	LocalConnector = "local"
+
+	// PasswordlessConnector is the authenticator connector for
+	// local/passwordless logins.
+	PasswordlessConnector = "passwordless"
 
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
@@ -87,6 +96,9 @@ const (
 	// desktop service.
 	KeepAliveWindowsDesktopService = "windows_desktop_service"
 
+	// KeepAliveKube is the keep alive type for Kubernetes server
+	KeepAliveKube = "kube"
+
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
 
@@ -102,11 +114,30 @@ const (
 	// TODO(r0mant): See if we can use net.ErrClosed and errors.Is() instead.
 	UseOfClosedNetworkConnection = "use of closed network connection"
 
+	// FailedToSendCloseNotify is an error message from Go net package
+	// indicating that the connection was closed by the server.
+	FailedToSendCloseNotify = "tls: failed to send closeNotify alert (but connection was closed anyway)"
+
 	// AWSConsoleURL is the URL of AWS management console.
 	AWSConsoleURL = "https://console.aws.amazon.com"
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
+
+	// RSAKeySize is the size of the RSA key.
+	RSAKeySize = 2048
+
+	// NoLoginPrefix is the prefix used for nologin certificate principals.
+	NoLoginPrefix = "-teleport-nologin-"
+
+	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
+	DatabaseCAMinVersion = "10.0.0"
 )
+
+// SystemConnectors lists the names of the system-reserved connectors.
+var SystemConnectors = []string{
+	LocalConnector,
+	PasswordlessConnector,
+}
 
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
@@ -119,7 +150,11 @@ const (
 	SecondFactorOTP = SecondFactorType("otp")
 	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
 	// required for all users.
+	// U2F is marked for removal. It currently works as an alias for "webauthn".
 	SecondFactorU2F = SecondFactorType("u2f")
+	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA
+	// is required for all users.
+	SecondFactorWebauthn = SecondFactorType("webauthn")
 	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
 	// required for all users.
 	SecondFactorOn = SecondFactorType("on")
@@ -156,4 +191,29 @@ const (
 	// RemoteAuthServer is a special non-resolvable address that indicates client
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
+
+	// ALPNSNIAuthProtocol allows dialing local/remote auth service based on SNI cluster name value.
+	ALPNSNIAuthProtocol = "teleport-auth@"
+	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
+	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
+)
+
+const (
+	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
+	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	KubeSNIPrefix = "kube."
+	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
+	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
+)
+
+const (
+	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
+	HTTPSProxy = "HTTPS_PROXY"
+
+	// HTTPProxy is an environment variable pointing to a HTTP proxy.
+	HTTPProxy = "HTTP_PROXY"
+
+	// NoProxy is an environment variable matching the cases
+	// when HTTPS_PROXY or HTTP_PROXY is ignored
+	NoProxy = "NO_PROXY"
 )

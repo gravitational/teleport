@@ -22,18 +22,21 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
-	"net"
 	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -68,7 +71,7 @@ type AgentConfig struct {
 	// Client is a client to the local auth servers
 	Client auth.ClientI
 	// AccessPoint is a caching access point to the local auth servers
-	AccessPoint auth.AccessPoint
+	AccessPoint auth.AccessCache
 	// Context is a parent context
 	Context context.Context
 	// Username is the name of this client used to authenticate on SSH
@@ -98,6 +101,14 @@ type AgentConfig struct {
 	Lease track.Lease
 	// Log optionally specifies the logger
 	Log log.FieldLogger
+	// FIPS indicates if Teleport was started in FIPS mode.
+	FIPS bool
+	// reverseTunnelDetails cacheable details about the Addr endpoint used to reduce proxy ping calls in order to prevent
+	// proxy endpoint stagnation where even numbers of proxy are hidden behind RoundRobbin Load Balancer.
+	// For instance in a situation where only two proxies [A, B] are configured behind RoundRobbin Load Balancer
+	// due to sequential Ping, Dial method order and sequential backend picking by RoundRobbing Load Balancer
+	// the Ping call will always reach Proxy A and the Dial call will always be forwarded by the LB to Proxy B.
+	reverseTunnelDetails *reverseTunnelDetails
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -163,6 +174,13 @@ type Agent struct {
 	principals []string
 }
 
+// ReverseTunnelDetails contains catchable details about the reverse tunnel.
+type reverseTunnelDetails struct {
+	// TLSRoutingEnabled indicates that remote address listener supports ALPN SNI Listener and
+	// the client needs to dial the remote proxy with proper TLS ALPN protocol.
+	TLSRoutingEnabled bool
+}
+
 // NewAgent returns a new reverse tunnel agent
 func NewAgent(cfg AgentConfig) (*Agent, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -226,38 +244,73 @@ func (a *Agent) getPrincipalsList() []string {
 	return out
 }
 
-func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.PublicKey) error {
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return trace.BadParameter("expected certificate")
-	}
-	cas, err := a.AccessPoint.GetCertAuthorities(types.HostCA, false)
+func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
+	cas, err := a.AccessPoint.GetCertAuthorities(context.TODO(), types.HostCA, false)
 	if err != nil {
-		return trace.Wrap(err, "failed to fetch remote certs")
+		return nil, trace.Wrap(err)
 	}
+	var keys []ssh.PublicKey
 	for _, ca := range cas {
 		checkers, err := sshutils.GetCheckers(ca)
 		if err != nil {
-			return trace.BadParameter("error parsing key: %v", err)
+			return nil, trace.Wrap(err)
 		}
-		for _, checker := range checkers {
-			if apisshutils.KeysEqual(checker, cert.SignatureKey) {
-				a.setPrincipals(cert.ValidPrincipals)
-				return nil
-			}
-		}
+		keys = append(keys, checkers...)
 	}
-	return trace.NotFound(
-		"no matching keys found when checking server's host signature")
+	return keys, nil
+}
+
+// getReverseTunnelDetails pings the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
+// If this is Web Service port check if proxy support ALPN SNI Listener.
+func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
+	pd := reverseTunnelDetails{TLSRoutingEnabled: false}
+	resp, err := webclient.Find(
+		&webclient.Config{Context: a.ctx, ProxyAddr: a.Addr.Addr, Insecure: lib.IsInsecureDevMode(), IgnoreHTTPProxy: true})
+
+	if err != nil {
+		// If TLS Routing is disabled the address is the proxy reverse tunnel
+		// address the ping call will always fail.
+		a.log.Infof("Failed to ping web proxy %q addr: %v", a.Addr.Addr, err)
+	} else {
+		pd.TLSRoutingEnabled = resp.Proxy.TLSRoutingEnabled
+	}
+	return &pd
 }
 
 func (a *Agent) connect() (conn *ssh.Client, err error) {
+	if a.reverseTunnelDetails == nil {
+		a.reverseTunnelDetails = a.getReverseTunnelDetails()
+	}
+
+	opts := []proxy.DialerOptionFunc{
+		proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode()),
+	}
+
+	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.TLSRoutingEnabled {
+		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
+			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		}))
+	}
+
 	for _, authMethod := range a.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
-		dialer := proxy.DialerFromEnvironment(a.Addr.Addr)
+		dialer := proxy.DialerFromEnvironment(a.Addr.Addr, opts...)
 		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
 		if err != nil {
-			a.log.Debugf("Dial to %v failed: %v.", a.Addr.Addr, err)
+			a.log.WithError(err).Debugf("Dial to %v failed.", a.Addr.Addr)
+			continue
+		}
+
+		callback, err := apisshutils.NewHostKeyCallback(
+			apisshutils.HostKeyCallbackConfig{
+				GetHostCheckers: a.getHostCheckers,
+				OnCheckCert: func(cert *ssh.Certificate) {
+					a.setPrincipals(cert.ValidPrincipals)
+				},
+				FIPS: a.FIPS,
+			})
+		if err != nil {
+			a.log.Debugf("Failed to create host key callback for %v: %v.", a.Addr.Addr, err)
 			continue
 		}
 
@@ -266,11 +319,11 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: a.checkHostSignature,
+			HostKeyCallback: callback,
 			Timeout:         apidefaults.DefaultDialTimeout,
 		})
 		if err != nil {
-			a.log.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
+			a.log.WithError(err).Debugf("Failed to create client to %v.", a.Addr.Addr)
 			continue
 		}
 
@@ -340,12 +393,19 @@ func (a *Agent) run() {
 		a.log.Warningf("Failed to create remote tunnel: %v, conn: %v.", err, conn)
 		return
 	}
-	defer conn.Close()
+
+	local := conn.LocalAddr().String()
+	remote := conn.RemoteAddr().String()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			a.log.Warnf("Failed to close remote tunnel: %v, local addr: %s remote addr: %s", err, local, remote)
+		}
+	}()
 
 	// Successfully connected to remote cluster.
 	a.log.WithFields(log.Fields{
-		"addr":        conn.LocalAddr().String(),
-		"remote-addr": conn.RemoteAddr().String(),
+		"addr":        local,
+		"remote-addr": remote,
 	}).Info("Connected.")
 
 	// wrap up remaining business logic in closure for easy
@@ -370,14 +430,14 @@ func (a *Agent) run() {
 		// or permanent loss of a proxy.
 		err = a.processRequests(conn)
 		if err != nil {
-			a.log.Warnf("Unable to continue processesing requests: %v.", err)
+			a.log.Warnf("Unable to continue processioning requests: %v.", err)
 			return
 		}
 	}
 	// if Tracker was provided, then the agent shouldn't continue unless
 	// no other agents hold a claim.
 	if a.Tracker != nil {
-		if !a.Tracker.WithProxy(doWork, a.Lease, a.getPrincipalsList()...) {
+		if !a.Tracker.WithProxy(doWork, a.getPrincipalsList()...) {
 			a.log.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
 		}
 	} else {
@@ -455,6 +515,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				component:           a.Component,
 				reverseTunnelServer: a.ReverseTunnelServer,
 				localClusterName:    a.LocalClusterName,
+				emitter:             a.Client,
 			}
 			go t.start()
 		// new discovery request channel
@@ -473,7 +534,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 	}
 }
 
-// handleDisovery receives discovery requests from the reverse tunnel
+// handleDiscovery receives discovery requests from the reverse tunnel
 // server, that informs agent about proxies registered in the remote
 // cluster and the reverse tunnels already established
 //
@@ -481,7 +542,11 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 // reqC : request payload
 func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	a.log.Debugf("handleDiscovery requests channel.")
-	defer ch.Close()
+	defer func() {
+		if err := ch.Close(); err != nil {
+			a.log.Warnf("Failed to close discovery channel:: %v", err)
+		}
+	}()
 
 	for {
 		var req *ssh.Request
@@ -502,7 +567,7 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			if a.Tracker != nil {
 				// Notify tracker of all known proxies.
 				for _, p := range r.Proxies {
-					a.Tracker.TrackExpected(a.Lease, p.GetName())
+					a.Tracker.TrackExpected(p.GetName())
 				}
 			}
 		}
@@ -525,10 +590,10 @@ const (
 	// LocalKubernetes is a special non-resolvable address that indicates that clients
 	// requests a connection to the kubernetes endpoint of the local proxy.
 	// This has to be a valid domain name, so it lacks @
-	LocalKubernetes = "remote.kube.proxy.teleport.cluster.local"
+	LocalKubernetes = "remote.kube.proxy." + constants.APIDomain
 	// LocalWindowsDesktop is a special non-resolvable address that indicates
 	// that clients requests a connection to the windows service endpoint of
 	// the local proxy.
 	// This has to be a valid domain name, so it lacks @
-	LocalWindowsDesktop = "remote.windows_desktop.proxy.teleport.cluster.local"
+	LocalWindowsDesktop = "remote.windows_desktop.proxy." + constants.APIDomain
 )

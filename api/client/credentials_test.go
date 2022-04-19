@@ -19,13 +19,13 @@ package client
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -97,6 +97,52 @@ func TestLoadIdentityFile(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestLoadIdentityFileFromString(t *testing.T) {
+	t.Parallel()
+
+	// Load expected tls.Config and ssh.ClientConfig.
+	expectedTLSConfig := getExpectedTLSConfig(t)
+	expectedSSHConfig := getExpectedSSHConfig(t)
+
+	// Write identity file to disk.
+	path := filepath.Join(t.TempDir(), "file")
+	idFile := &identityfile.IdentityFile{
+		PrivateKey: keyPEM,
+		Certs: identityfile.Certs{
+			TLS: tlsCert,
+			SSH: sshCert,
+		},
+		CACerts: identityfile.CACerts{
+			TLS: [][]byte{tlsCACert},
+			SSH: [][]byte{sshCACert},
+		},
+	}
+	err := identityfile.Write(idFile, path)
+	require.NoError(t, err)
+
+	b, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	// Load identity file from disk.
+	creds := LoadIdentityFileFromString(string(b))
+	// Build tls.Config and compare to expected tls.Config.
+	tlsConfig, err := creds.TLSConfig()
+	require.NoError(t, err)
+	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
+
+	// Build ssh.ClientConfig and compare to expected ssh.ClientConfig.
+	sshConfig, err := creds.SSHClientConfig()
+	require.NoError(t, err)
+	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
+
+	// Load invalid identity.
+	creds = LoadIdentityFileFromString("invalid_creds")
+	_, err = creds.TLSConfig()
+	require.Error(t, err)
+	_, err = creds.SSHClientConfig()
+	require.Error(t, err)
+}
+
 func TestLoadKeyPair(t *testing.T) {
 	t.Parallel()
 
@@ -106,11 +152,11 @@ func TestLoadKeyPair(t *testing.T) {
 	// Write key pair and CAs files from bytes.
 	path := t.TempDir() + "username"
 	certPath, keyPath, caPath := path+".crt", path+".key", path+".cas"
-	err := ioutil.WriteFile(certPath, tlsCert, 0600)
+	err := os.WriteFile(certPath, tlsCert, 0600)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(keyPath, keyPEM, 0600)
+	err = os.WriteFile(keyPath, keyPEM, 0600)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(caPath, tlsCACert, 0600)
+	err = os.WriteFile(caPath, tlsCACert, 0600)
 	require.NoError(t, err)
 
 	// Load key pair from disk.
@@ -138,20 +184,7 @@ func TestLoadProfile(t *testing.T) {
 			SiteName:     "example.com",
 			Username:     "testUser",
 			Dir:          dir,
-		}, false)
-		testProfileContents(t, dir, profileName)
-	})
-
-	// DELETE IN 8.0.0
-	t.Run("old profile", func(t *testing.T) {
-		t.Parallel()
-		dir := t.TempDir()
-		writeProfile(t, &profile.Profile{
-			WebProxyAddr: profileName + ":3080",
-			SiteName:     "example.com",
-			Username:     "testUser",
-			Dir:          dir,
-		}, true)
+		})
 		testProfileContents(t, dir, profileName)
 	})
 
@@ -189,23 +222,18 @@ func testProfileContents(t *testing.T, dir, name string) {
 	require.NoError(t, err)
 }
 
-func writeProfile(t *testing.T, p *profile.Profile, oldSSHPath bool) {
+func writeProfile(t *testing.T, p *profile.Profile) {
 	// Save profile and keys to disk.
 	require.NoError(t, p.SaveToDir(p.Dir, true))
 	require.NoError(t, os.MkdirAll(p.KeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.ProxyKeyDir(), 0700))
-	require.NoError(t, ioutil.WriteFile(p.UserKeyPath(), keyPEM, 0600))
-	require.NoError(t, ioutil.WriteFile(p.TLSCertPath(), tlsCert, 0600))
-	require.NoError(t, ioutil.WriteFile(p.TLSCAsPath(), tlsCACert, 0600))
-	require.NoError(t, ioutil.WriteFile(p.KnownHostsPath(), sshCACert, 0600))
-	// If oldSSHPath is specified, write the sshCert to the old ssh cert path.
-	// DELETE IN 8.0.0
-	if oldSSHPath {
-		require.NoError(t, ioutil.WriteFile(p.OldSSHCertPath(), sshCert, 0600))
-		return
-	}
+	require.NoError(t, os.MkdirAll(p.TLSClusterCASDir(), 0700))
+	require.NoError(t, os.WriteFile(p.UserKeyPath(), keyPEM, 0600))
+	require.NoError(t, os.WriteFile(p.TLSCertPath(), tlsCert, 0600))
+	require.NoError(t, os.WriteFile(p.TLSCAPathCluster(p.SiteName), tlsCACert, 0600))
+	require.NoError(t, os.WriteFile(p.KnownHostsPath(), sshCACert, 0600))
 	require.NoError(t, os.MkdirAll(p.SSHDir(), 0700))
-	require.NoError(t, ioutil.WriteFile(p.SSHCertPath(), sshCert, 0600))
+	require.NoError(t, os.WriteFile(p.SSHCertPath(), sshCert, 0600))
 }
 
 func getExpectedTLSConfig(t *testing.T) *tls.Config {

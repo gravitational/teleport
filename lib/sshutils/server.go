@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
@@ -76,8 +77,8 @@ type Server struct {
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 
-	// conns tracks amount of current active connections
-	conns int32
+	// userConns tracks amount of current active connections with user certificates.
+	userConns int32
 	// shutdownPollPeriod sets polling period for shutdown
 	shutdownPollPeriod time.Duration
 
@@ -322,7 +323,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// close listener to stop receiving new connections
 	err := s.Close()
 	s.Wait(ctx)
-	activeConnections := s.trackConnections(0)
+	activeConnections := s.trackUserConnections(0)
 	if activeConnections == 0 {
 		return err
 	}
@@ -333,7 +334,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	for {
 		select {
 		case <-ticker.C:
-			activeConnections = s.trackConnections(0)
+			activeConnections = s.trackUserConnections(0)
 			if activeConnections == 0 {
 				return err
 			}
@@ -399,8 +400,8 @@ func (s *Server) acceptConnections() {
 	}
 }
 
-func (s *Server) trackConnections(delta int32) int32 {
-	return atomic.AddInt32(&s.conns, delta)
+func (s *Server) trackUserConnections(delta int32) int32 {
+	return atomic.AddInt32(&s.userConns, delta)
 }
 
 // HandleConnection is called every time an SSH server accepts a new
@@ -410,8 +411,6 @@ func (s *Server) trackConnections(delta int32) int32 {
 // and proxies, proxies and servers, servers and auth, etc).
 //
 func (s *Server) HandleConnection(conn net.Conn) {
-	s.trackConnections(1)
-	defer s.trackConnections(-1)
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this
 	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
@@ -446,6 +445,16 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 
+	certType := "unknown"
+	if sconn.Permissions != nil {
+		certType = sconn.Permissions.Extensions[utils.ExtIntCertType]
+	}
+
+	if certType == utils.ExtIntCertTypeUser {
+		s.trackUserConnections(1)
+		defer s.trackUserConnections(-1)
+	}
+
 	user := sconn.User()
 	if err := s.limiter.RegisterRequest(user); err != nil {
 		log.Errorf(err.Error())
@@ -454,8 +463,8 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 	// Connection successfully initiated
-	s.log.Debugf("Incoming connection %v -> %v version: %v.",
-		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
+	s.log.Debugf("Incoming connection %v -> %v version: %v, certtype: %q",
+		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()), certType)
 
 	// will be called when the connection is closed
 	connClosed := func() {
@@ -602,7 +611,7 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 		return trace.BadParameter("at least one valid principal is required in host certificate")
 	}
 
-	certChecker := utils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		FIPS: fips,
 	}
 	err := certChecker.CheckCert(cert.ValidPrincipals[0], cert)

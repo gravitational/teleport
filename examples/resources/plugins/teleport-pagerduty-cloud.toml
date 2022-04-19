@@ -1,0 +1,26 @@
+# example teleport-pagerduty configuration TOML file
+[teleport]
+auth_server = "myinstance.teleport.sh:443"                  # Teleport Cloud proxy HTTPS address
+identity = "/var/lib/teleport/plugins/pagerduty/auth.pem"   # Identity file path
+
+[pagerduty]
+api_key = "key"               # PagerDuty API Key
+user_email = "me@example.com" # PagerDuty bot user email (Could be admin email)
+service_id = "PIJ90N7"        # PagerDuty service id
+
+[http]
+public_addr = "example.com" # URL on which callback server is accessible externally, e.g. [https://]teleport-pagerduty.example.com
+# listen_addr = ":8081" # Network address in format [addr]:port on which callback server listens, e.g. 0.0.0.0:443
+https_key_file = "/var/lib/teleport/plugins/pagerduty/server.key"  # TLS private key
+https_cert_file = "/var/lib/teleport/plugins/pagerduty/server.crt" # TLS certificate
+
+[http.tls]
+verify_client_cert = true # The preferred way to authenticate webhooks on Pagerduty. See more: https://developer.pagerduty.com/docs/webhooks/webhooks-mutual-tls
+
+[http.basic_auth]
+user = "user"
+password = "password" # If you prefer to use basic auth for Pagerduty Webhooks authentication, use this section to store user and password
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/pagerduty.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

@@ -24,8 +24,11 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
+	apiproxy "github.com/gravitational/teleport/api/client/proxy"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -35,12 +38,14 @@ func NewInsecureWebClient() *http.Client {
 	// Because Teleport clients can't be configured (yet), they take the default
 	// list of cipher suites from Go.
 	tlsConfig := utils.TLSConfig(nil)
-	tlsConfig.InsecureSkipVerify = true
-
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
+	transport := http.Transport{
+		TLSClientConfig: tlsConfig,
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 		},
+	}
+	return &http.Client{
+		Transport: apiproxy.NewHTTPFallbackRoundTripper(&transport, true /* insecure */),
 	}
 }
 
@@ -53,6 +58,9 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
+			Proxy: func(req *http.Request) (*url.URL, error) {
+				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+			},
 		},
 	}
 }
@@ -72,6 +80,45 @@ type WebClient struct {
 	*roundtrip.Client
 }
 
+// PostJSONWithFallback serializes an object to JSON and attempts to execute a POST
+// using HTTPS, and then fall back to plain HTTP under certain, very specific circumstances.
+//  * The caller must specifically allow it via the allowHTTPFallback parameter, and
+//  * The target host must resolve to the loopback address.
+// If these conditions are not met, then the plain-HTTP fallback is not allowed,
+// and a the HTTPS failure will be considered final.
+//
+func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, val interface{}, allowHTTPFallback bool) (*roundtrip.Response, error) {
+	// First try HTTPS and see how that goes
+	log.Debugf("Attempting %s", endpoint)
+	resp, httpsErr := w.Client.PostJSON(ctx, endpoint, val)
+	if httpsErr == nil {
+		// If all went well, then we don't need to do anything else - just return
+		// that response
+		return httplib.ConvertResponse(resp, httpsErr)
+	}
+
+	// Parse out the endpoint into its constituent parts. We will need the
+	// hostname to decide if we're allowed to fall back to HTTPS, and we will
+	// re-use this for re-writing the endpoint URL later on anyway.
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
+	// Note that we're only allowed to try plain HTTP on the loopback address, even
+	// if the caller says its OK
+	if !(allowHTTPFallback && apiutils.IsLoopback(u.Host)) {
+		return nil, trace.Wrap(httpsErr)
+	}
+
+	// re-write the endpoint to try HTTP
+	u.Scheme = "http"
+	endpoint = u.String()
+	log.Warnf("Request for %s/%s falling back to PLAIN HTTP", u.Host, u.Path)
+	return httplib.ConvertResponse(w.Client.PostJSON(ctx, endpoint, val))
+}
+
 func (w *WebClient) PostJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.PostJSON(ctx, endpoint, val))
 }
@@ -86,4 +133,8 @@ func (w *WebClient) Get(ctx context.Context, endpoint string, val url.Values) (*
 
 func (w *WebClient) Delete(ctx context.Context, endpoint string) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.Delete(ctx, endpoint))
+}
+
+func (w *WebClient) DeleteWithParams(ctx context.Context, endpoint string, val url.Values) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(w.Client.DeleteWithParams(ctx, endpoint, val))
 }

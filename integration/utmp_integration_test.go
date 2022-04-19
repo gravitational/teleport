@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -38,8 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -200,22 +201,32 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			ClusterName: "localhost",
 			Dir:         tempdir,
 			Clock:       s.clock,
-		}})
-	require.NoError(t, err)
-
-	// set up host private key and certificate
-	certs, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
-		NodeName: s.server.ClusterName(),
-		Roles:    types.SystemRoles{types.RoleNode},
+		},
 	})
 	require.NoError(t, err)
 
-	// set up user CA and set up a user that has access to the server
-	s.signer, err = sshutils.NewSigner(certs.Key, certs.Cert)
+	// set up host private key and certificate
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
-	s.nodeID = uuid.New()
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	certs, err := s.server.Auth().GenerateHostCerts(ctx,
+		&proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     s.server.ClusterName(),
+			Role:         types.RoleNode,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
+		})
+	require.NoError(t, err)
+
+	// set up user CA and set up a user that has access to the server
+	s.signer, err = sshutils.NewSigner(priv, certs.SSH)
+	require.NoError(t, err)
+
+	s.nodeID = uuid.New().String()
 	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
 		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
@@ -251,6 +262,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		nodeDir,
 		"",
 		utils.NetAddr{},
+		nil,
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
@@ -262,7 +274,8 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
 					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"}},
+					Command: []string{"expr", "1", "+", "3"},
+				},
 			},
 		),
 		regular.SetBPF(&bpf.NOP{}),
@@ -289,14 +302,14 @@ func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []s
 		return nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	rules := role.GetRules(services.Allow)
+	rules := role.GetRules(types.Allow)
 	rules = append(rules, types.NewRule(types.Wildcard, services.RW()))
-	role.SetRules(services.Allow, rules)
+	role.SetRules(types.Allow, rules)
 	opts := role.GetOptions()
 	opts.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(opts)
-	role.SetLogins(services.Allow, allowedLogins)
-	role.SetNodeLabels(services.Allow, allowedLabels)
+	role.SetLogins(types.Allow, allowedLogins)
+	role.SetNodeLabels(types.Allow, allowedLabels)
 	err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)

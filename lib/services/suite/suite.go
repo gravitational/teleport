@@ -18,34 +18,27 @@ package suite
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/rsa"
-	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/base64"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
-	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
@@ -282,15 +275,16 @@ func (s *ServicesTestSuite) LoginAttempts(c *check.C) {
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
+	ctx := context.Background()
 	ca := NewTestCA(types.UserCA, "example.com")
 	c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
-	out, err := s.CAS.GetCertAuthority(ca.GetID(), true)
+	out, err := s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	c.Assert(err, check.IsNil)
 	ca.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, out, ca)
 
-	cas, err := s.CAS.GetCertAuthorities(types.UserCA, false)
+	cas, err := s.CAS.GetCertAuthorities(ctx, types.UserCA, false)
 	c.Assert(err, check.IsNil)
 	ca2 := ca.Clone().(*types.CertAuthorityV2)
 	ca2.Spec.ActiveKeys.SSH[0].PrivateKey = nil
@@ -301,11 +295,11 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	ca2.Spec.JWTKeyPairs[0].PrivateKey = nil
 	fixtures.DeepCompare(c, cas[0], ca2)
 
-	cas, err = s.CAS.GetCertAuthorities(types.UserCA, true)
+	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, cas[0], ca)
 
-	cas, err = s.CAS.GetCertAuthorities(types.UserCA, true)
+	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
 	c.Assert(err, check.IsNil)
 	fixtures.DeepCompare(c, cas[0], ca)
 
@@ -329,7 +323,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	err = s.CAS.CompareAndSwapCertAuthority(&newCA, ca)
 	c.Assert(err, check.IsNil)
 
-	out, err = s.CAS.GetCertAuthority(ca.GetID(), true)
+	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	c.Assert(err, check.IsNil)
 	newCA.SetResourceID(out.GetResourceID())
 	fixtures.DeepCompare(c, &newCA, out)
@@ -421,9 +415,11 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(len(out), check.Equals, 0)
 
 	kube1 := NewServer(types.KindKubeService, "kube1", "10.0.0.1:3026", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube1), check.IsNil)
+	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube1)
+	c.Assert(err, check.IsNil)
 	kube2 := NewServer(types.KindKubeService, "kube2", "10.0.0.2:3026", apidefaults.Namespace)
-	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube2), check.IsNil)
+	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube2)
+	c.Assert(err, check.IsNil)
 
 	out, err = s.PresenceS.GetKubeServices(ctx)
 	c.Assert(err, check.IsNil)
@@ -450,7 +446,7 @@ func NewAppServer(name string, internalAddr string, publicAddr string) *types.Se
 		Kind:    types.KindAppServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      uuid.New(),
+			Name:      uuid.New().String(),
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ServerSpecV2{
@@ -486,7 +482,7 @@ func (s *ServicesTestSuite) AppServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
 	server.SetResourceID(out[0].GetResourceID())
-	fixtures.DeepCompare(c, out, []types.Server{server})
+	fixtures.DeepCompare(c, []types.Server{server}, out)
 
 	// Remove the application.
 	err = s.PresenceS.DeleteAppServer(ctx, server.Metadata.Namespace, server.GetName())
@@ -687,14 +683,14 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	role := types.RoleV4{
+	role := types.RoleV5{
 		Kind:    types.KindRole,
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      "role1",
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
 				MaxSessionTTL:     types.Duration(time.Hour),
 				PortForwarding:    types.NewBoolOption(true),
@@ -764,77 +760,6 @@ func (s *ServicesTestSuite) NamespacesCRUD(c *check.C) {
 
 	_, err = s.PresenceS.GetNamespace(ns.Metadata.Name)
 	fixtures.ExpectNotFound(c, err)
-}
-
-func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
-	token := "tok1"
-	appID := "https://localhost"
-	user1 := "user1"
-
-	challenge, err := u2f.NewChallenge(appID, []string{appID})
-	c.Assert(err, check.IsNil)
-
-	err = s.WebS.UpsertU2FRegisterChallenge(token, challenge)
-	c.Assert(err, check.IsNil)
-
-	challengeOut, err := s.WebS.GetU2FRegisterChallenge(token)
-	c.Assert(err, check.IsNil)
-	c.Assert(challenge.Challenge, check.DeepEquals, challengeOut.Challenge)
-	c.Assert(challenge.Timestamp.Unix(), check.Equals, challengeOut.Timestamp.Unix())
-	c.Assert(challenge.AppID, check.Equals, challengeOut.AppID)
-	c.Assert(challenge.TrustedFacets, check.DeepEquals, challengeOut.TrustedFacets)
-
-	err = s.WebS.UpsertU2FSignChallenge(user1, challenge)
-	c.Assert(err, check.IsNil)
-
-	challengeOut, err = s.WebS.GetU2FSignChallenge(user1)
-	c.Assert(err, check.IsNil)
-	c.Assert(challenge.Challenge, check.DeepEquals, challengeOut.Challenge)
-	c.Assert(challenge.Timestamp.Unix(), check.Equals, challengeOut.Timestamp.Unix())
-	c.Assert(challenge.AppID, check.Equals, challengeOut.AppID)
-	c.Assert(challenge.TrustedFacets, check.DeepEquals, challengeOut.TrustedFacets)
-
-	derKey, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGOi54Eun0r3Xrj8PjyOGYzJObENYI/t/Lr9g9PsHTHnp1qI2ysIhsdMPd7x/vpsL6cr+2EPVik7921OSsVjEMw==")
-	c.Assert(err, check.IsNil)
-	pubkeyInterface, err := x509.ParsePKIXPublicKey(derKey)
-	c.Assert(err, check.IsNil)
-
-	pubkey, ok := pubkeyInterface.(*ecdsa.PublicKey)
-	c.Assert(ok, check.Equals, true)
-
-	registration := u2f.Registration{
-		Raw:       []byte("BQQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzQIJ+PVFsYjEa0Xgnx+siQaxdlku+U+J2W55U5NrN1iGIc0Amh+0HwhbV2W90G79cxIYS2SVIFAdqTTDXvPXJbeAwggE8MIHkoAMCAQICChWIR0AwlYJZQHcwCgYIKoZIzj0EAwIwFzEVMBMGA1UEAxMMRlQgRklETyAwMTAwMB4XDTE0MDgxNDE4MjkzMloXDTI0MDgxNDE4MjkzMlowMTEvMC0GA1UEAxMmUGlsb3RHbnViYnktMC40LjEtMTU4ODQ3NDAzMDk1ODI1OTQwNzcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQY6LngS6fSvdeuPw+PI4ZjMk5sQ1gj+38uv2D0+wdMeenWojbKwiGx0w93vH++mwvpyv7YQ9WKTv3bU5KxWMQzMAoGCCqGSM49BAMCA0cAMEQCIIbmYKu6I2L4pgZCBms9NIo9yo5EO9f2irp0ahvLlZudAiC8RN/N+WHAFdq8Z+CBBOMsRBFDDJy3l5EDR83B5GAfrjBEAiBl6R6gAmlbudVpW2jSn3gfjmA8EcWq0JsGZX9oFM/RJwIgb9b01avBY5jBeVIqw5KzClLzbRDMY4K+Ds6uprHyA1Y="),
-		KeyHandle: []byte("gn49UWxiMRrReCfH6yJBrF2WS75T4nZbnlTk2s3WIYhzQCaH7QfCFtXZb3Qbv1zEhhLZJUgUB2pNMNe89clt4A=="),
-		PubKey:    *pubkey,
-	}
-	dev, err := u2f.NewDevice("u2f", &registration, s.Clock.Now())
-	c.Assert(err, check.IsNil)
-	ctx := context.Background()
-	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
-	c.Assert(err, check.IsNil)
-
-	devs, err := s.WebS.GetMFADevices(ctx, user1)
-	c.Assert(err, check.IsNil)
-	c.Assert(devs, check.HasLen, 1)
-	// Raw registration output is not stored - it's not used for
-	// authentication.
-	registration.Raw = nil
-	registrationOut, err := u2f.DeviceToRegistration(devs[0].GetU2F())
-	c.Assert(err, check.IsNil)
-	c.Assert(&registration, check.DeepEquals, registrationOut)
-
-	// Attempt to upsert the same device name with a different ID.
-	dev.Id = uuid.New()
-	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
-	c.Assert(trace.IsAlreadyExists(err), check.Equals, true)
-
-	// Attempt to upsert a new device with different name and ID.
-	dev.Metadata.Name = "u2f-2"
-	err = s.WebS.UpsertMFADevice(ctx, user1, dev)
-	c.Assert(err, check.IsNil)
-	devs, err = s.WebS.GetMFADevices(ctx, user1)
-	c.Assert(err, check.IsNil)
-	c.Assert(devs, check.HasLen, 2)
 }
 
 func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
@@ -1156,44 +1081,6 @@ func CollectOptions(opts ...Option) Options {
 	return suiteOpts
 }
 
-// ClusterConfig tests cluster configuration.
-// DELETE IN 8.0.0: Remove ClusterConfig and related tests
-// and test only the individual resources.
-func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
-	ctx := context.Background()
-
-	clusterName, err := s.ConfigS.GetClusterName()
-	c.Assert(err, check.IsNil)
-	clusterID := clusterName.GetClusterID()
-
-	auditConfig, err := s.ConfigS.GetClusterAuditConfig(ctx)
-	c.Assert(err, check.IsNil)
-
-	netConfig, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
-	c.Assert(err, check.IsNil)
-
-	recConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
-	c.Assert(err, check.IsNil)
-
-	authPref, err := s.ConfigS.GetAuthPreference(ctx)
-	c.Assert(err, check.IsNil)
-
-	config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
-	c.Assert(err, check.IsNil)
-	err = s.ConfigS.SetClusterConfig(config)
-	c.Assert(err, check.IsNil)
-
-	gotConfig, err := s.ConfigS.GetClusterConfig()
-	c.Assert(err, check.IsNil)
-	config.SetResourceID(gotConfig.GetResourceID())
-	config.SetLegacyClusterID(clusterID)
-	config.SetAuditConfig(auditConfig)
-	config.SetNetworkingFields(netConfig)
-	config.SetSessionRecordingFields(recConfig)
-	config.SetAuthFields(authPref)
-	fixtures.DeepCompare(c, config, gotConfig)
-}
-
 // ClusterName tests cluster name.
 func (s *ServicesTestSuite) ClusterName(c *check.C, opts ...Option) {
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -1462,7 +1349,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				ca := NewTestCA(types.UserCA, "example.com")
 				c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
-				out, err := s.CAS.GetCertAuthority(*ca.ID(), true)
+				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), true)
 				c.Assert(err, check.IsNil)
 
 				c.Assert(s.CAS.DeleteCertAuthority(*ca.ID()), check.IsNil)
@@ -1483,7 +1370,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				ca := NewTestCA(types.UserCA, "example.com")
 				c.Assert(s.CAS.UpsertCertAuthority(ca), check.IsNil)
 
-				out, err := s.CAS.GetCertAuthority(*ca.ID(), false)
+				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), false)
 				c.Assert(err, check.IsNil)
 
 				c.Assert(s.CAS.DeleteCertAuthority(*ca.ID()), check.IsNil)
@@ -1575,7 +1462,7 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				Kind: types.KindRole,
 			},
 			crud: func(context.Context) types.Resource {
-				role, err := types.NewRole("role1", types.RoleSpecV4{
+				role, err := types.NewRoleV3("role1", types.RoleSpecV5{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
@@ -1758,62 +1645,6 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 // EventsClusterConfig tests cluster config resource events
 func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 	testCases := []eventTest{
-		{
-			name: "Cluster config",
-			kind: types.WatchKind{
-				Kind: types.KindClusterConfig,
-			},
-			crud: func(ctx context.Context) types.Resource {
-				// DELETE IN 8.0.0
-				clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-					ClusterName: "example.com",
-				})
-				c.Assert(err, check.IsNil)
-				err = s.ConfigS.SetClusterName(clusterName)
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
-				c.Assert(err, check.IsNil)
-
-				// DELETE IN 8.0.0
-				err = s.ConfigS.SetAuthPreference(ctx, types.DefaultAuthPreference())
-				c.Assert(err, check.IsNil)
-
-				config, err := types.NewClusterConfig(types.ClusterConfigSpecV3{})
-				c.Assert(err, check.IsNil)
-
-				err = s.ConfigS.SetClusterConfig(config)
-				c.Assert(err, check.IsNil)
-
-				out, err := s.ConfigS.GetClusterConfig()
-				c.Assert(err, check.IsNil)
-
-				// To ensure backward compatibility the ClusterConfig resource is not
-				// emitted in the same form as it is put into the backend, but instead
-				// the event handler performs an additional get of ClusterConfig from
-				// the backend.  Therefore, do not delete the resource immediately but
-				// wait until the event has been actually emitted.  DELETE IN 8.0.0
-				w, err := s.EventsS.NewWatcher(ctx, types.Watch{
-					Kinds: []types.WatchKind{{Kind: types.KindClusterConfig}},
-				})
-				c.Assert(err, check.IsNil)
-				defer w.Close()
-				ExpectResource(c, w, time.Second, out)
-
-				err = s.ConfigS.DeleteClusterConfig()
-				c.Assert(err, check.IsNil)
-				return out
-			},
-		},
 		{
 			name: "Cluster name",
 			kind: types.WatchKind{

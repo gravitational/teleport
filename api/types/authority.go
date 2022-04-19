@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -111,25 +112,7 @@ func (ca *CertAuthorityV2) SetSubKind(s string) {
 
 // Clone returns a copy of the cert authority object.
 func (ca *CertAuthorityV2) Clone() CertAuthority {
-	out := *ca
-	out.Spec.CheckingKeys = utils.CopyByteSlices(ca.Spec.CheckingKeys)
-	out.Spec.SigningKeys = utils.CopyByteSlices(ca.Spec.SigningKeys)
-	if len(ca.Spec.TLSKeyPairs) > 0 {
-		out.Spec.TLSKeyPairs = make([]TLSKeyPair, len(ca.Spec.TLSKeyPairs))
-		for i, kp := range ca.Spec.TLSKeyPairs {
-			out.Spec.TLSKeyPairs[i] = *kp.Clone()
-		}
-	}
-	if len(ca.Spec.JWTKeyPairs) > 0 {
-		out.Spec.JWTKeyPairs = make([]JWTKeyPair, len(ca.Spec.JWTKeyPairs))
-		for i, kp := range ca.Spec.JWTKeyPairs {
-			out.Spec.JWTKeyPairs[i] = *kp.Clone()
-		}
-	}
-	out.Spec.Roles = utils.CopyStrings(ca.Spec.Roles)
-	out.Spec.ActiveKeys = ca.Spec.ActiveKeys.Clone()
-	out.Spec.AdditionalTrustedKeys = ca.Spec.AdditionalTrustedKeys.Clone()
-	return &out
+	return proto.Clone(ca).(*CertAuthorityV2)
 }
 
 // GetRotation returns rotation state.
@@ -419,10 +402,8 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	switch ca.GetType() {
-	case UserCA, HostCA, JWTSigner:
-	default:
-		return trace.BadParameter("invalid CA type %q", ca.GetType())
+	if err := ca.GetType().Check(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -739,4 +720,47 @@ func (k *JWTKeyPair) CheckAndSetDefaults() error {
 		return trace.BadParameter("JWT key pair missing public key")
 	}
 	return nil
+}
+
+type CertAuthorityFilter map[CertAuthType]string
+
+func (f CertAuthorityFilter) IsEmpty() bool {
+	return len(f) == 0
+}
+
+// Match checks if a given CA matches this filter.
+func (f CertAuthorityFilter) Match(ca CertAuthority) bool {
+	if len(f) == 0 {
+		return true
+	}
+
+	return f[ca.GetType()] == Wildcard || f[ca.GetType()] == ca.GetClusterName()
+}
+
+// IntoMap makes this filter into a map for use as the Filter in a WatchKind.
+func (f CertAuthorityFilter) IntoMap() map[string]string {
+	if len(f) == 0 {
+		return nil
+	}
+
+	m := make(map[string]string, len(f))
+	for caType, name := range f {
+		m[string(caType)] = name
+	}
+	return m
+}
+
+// FromMap converts the provided map into this filter.
+func (f *CertAuthorityFilter) FromMap(m map[string]string) {
+	if len(m) == 0 {
+		*f = nil
+		return
+	}
+
+	*f = make(CertAuthorityFilter, len(m))
+	// there's not a lot of value in rejecting unknown values from the filter
+	for key, val := range m {
+		(*f)[CertAuthType(key)] = val
+	}
+
 }

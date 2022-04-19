@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -34,7 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 
-	"github.com/pborman/uuid"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
@@ -70,14 +70,14 @@ func TestConnAndSessLimits(t *testing.T) {
 		cmt := fmt.Sprintf("test case %d: %s", ti, tt.desc)
 		var set RoleSet
 		for i, val := range tt.vals {
-			role := &types.RoleV4{
+			role := &types.RoleV5{
 				Kind:    types.KindRole,
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      fmt.Sprintf("role-%d", i),
 					Namespace: apidefaults.Namespace,
 				},
-				Spec: types.RoleSpecV4{
+				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						MaxConnections: val,
 						MaxSessions:    val,
@@ -96,101 +96,103 @@ func TestRoleParse(t *testing.T) {
 	testCases := []struct {
 		name         string
 		in           string
-		role         types.RoleV4
+		role         types.RoleV5
 		error        error
 		matchMessage string
 	}{
 		{
 			name:  "no input, should not parse",
 			in:    ``,
-			role:  types.RoleV4{},
+			role:  types.RoleV5{},
 			error: trace.BadParameter("empty input"),
 		},
 		{
 			name:  "validation error, no name",
 			in:    `{}`,
-			role:  types.RoleV4{},
+			role:  types.RoleV5{},
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
 		{
 			name:  "validation error, no name",
 			in:    `{"kind": "role"}`,
-			role:  types.RoleV4{},
+			role:  types.RoleV5{},
 			error: trace.BadParameter("failed to validate: name: name is required"),
 		},
 
 		{
 			name: "validation error, missing resources",
 			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "verbs": ["read", "list"]
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
+					"kind": "role",
+					"version": "v3",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+							"node_labels": {"a": "b"},
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"verbs": ["read", "list"]
+								}
+							]
+						}
+					}
+				}`,
 			error:        trace.BadParameter(""),
 			matchMessage: "missing resources",
 		},
 		{
 			name: "validation error, missing verbs",
 			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "resources": ["role"]
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
+					"kind": "role",
+					"version": "v3",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+							"node_labels": {"a": "b"},
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"resources": ["role"]
+								}
+							]
+						}
+					}
+				}`,
 			error:        trace.BadParameter(""),
 			matchMessage: "missing verbs",
 		},
 		{
 			name:         "validation error, no version",
 			in:           `{"kind": "role", "metadata": {"name": "defrole"}, "spec": {}}`,
-			role:         types.RoleV4{},
+			role:         types.RoleV5{},
 			error:        trace.BadParameter(""),
 			matchMessage: `role version "" is not supported`,
 		},
 		{
 			name:         "validation error, bad version",
 			in:           `{"kind": "role", "version": "v2", "metadata": {"name": "defrole"}, "spec": {}}`,
-			role:         types.RoleV4{},
+			role:         types.RoleV5{},
 			error:        trace.BadParameter(""),
 			matchMessage: `role version "v2" is not supported`,
 		},
 		{
 			name: "v3 role with no spec gets v3 defaults",
 			in:   `{"kind": "role", "version": "v3", "metadata": {"name": "defrole"}, "spec": {}}`,
-			role: types.RoleV4{
+			role: types.RoleV5{
 				Kind:    types.KindRole,
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "defrole",
 					Namespace: apidefaults.Namespace,
 				},
-				Spec: types.RoleSpecV4{
+				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
+						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:               apidefaults.EnhancedEvents(),
+						DesktopClipboard:  types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -209,25 +211,27 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "v4 role gets v4 defaults",
 			in:   `{"kind": "role", "version": "v4", "metadata": {"name": "defrole"}, "spec": {}}`,
-			role: types.RoleV4{
+			role: types.RoleV5{
 				Kind:    types.KindRole,
 				Version: types.V4,
 				Metadata: types.Metadata{
 					Name:      "defrole",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
-				Spec: types.RoleSpecV4{
+				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CertificateFormat: constants.CertificateFormatStandard,
-						MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 						PortForwarding:    types.NewBoolOption(true),
-						BPF:               defaults.EnhancedEvents(),
+						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						BPF:               apidefaults.EnhancedEvents(),
+						DesktopClipboard:  types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 					},
 					Deny: types.RoleConditions{
-						Namespaces: []string{defaults.Namespace},
+						Namespaces: []string{apidefaults.Namespace},
 					},
 				},
 			},
@@ -236,43 +240,44 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "full valid role",
 			in: `{
-					   		      "kind": "role",
-					   		      "version": "v3",
-					   		      "metadata": {"name": "name1", "labels": {"a-b": "c"}},
-					   		      "spec": {
-					                    "options": {
-					                      "cert_format": "standard",
-					                      "max_session_ttl": "20h",
-					                      "port_forwarding": true,
-					                      "client_idle_timeout": "17m",
-					                      "disconnect_expired_cert": "yes",
-			                              "enhanced_recording": ["command", "network"]
-					                    },
-					                    "allow": {
-					                      "node_labels": {"a": "b", "c-d": "e"},
-					                      "app_labels": {"a": "b", "c-d": "e"},
-					                      "kubernetes_labels": {"a": "b", "c-d": "e"},
-										  "db_labels": {"a": "b", "c-d": "e"},
-										  "db_names": ["postgres"],
-										  "db_users": ["postgres"],
-					                      "namespaces": ["default"],
-					                      "rules": [
-					                        {
-					                          "resources": ["role"],
-					                          "verbs": ["read", "list"],
-					                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-					                          "actions": [
-					                             "log(\"info\", \"log entry\")"
-					                          ]
-					                        }
-					                      ]
-					                    },
-					                    "deny": {
-					                      "logins": ["c"]
-					                    }
-					   		      }
-					   		    }`,
-			role: types.RoleV4{
+					"kind": "role",
+					"version": "v3",
+					"metadata": {"name": "name1", "labels": {"a-b": "c"}},
+					"spec": {
+						"options": {
+							"cert_format": "standard",
+							"max_session_ttl": "20h",
+							"port_forwarding": true,
+							"client_idle_timeout": "17m",
+							"disconnect_expired_cert": "yes",
+							"enhanced_recording": ["command", "network"],
+							"desktop_clipboard": true
+						},
+						"allow": {
+							"node_labels": {"a": "b", "c-d": "e"},
+							"app_labels": {"a": "b", "c-d": "e"},
+							"kubernetes_labels": {"a": "b", "c-d": "e"},
+							"db_labels": {"a": "b", "c-d": "e"},
+							"db_names": ["postgres"],
+							"db_users": ["postgres"],
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"resources": ["role"],
+									"verbs": ["read", "list"],
+									"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+									"actions": [
+										"log(\"info\", \"log entry\")"
+									]
+								}
+							]
+						},
+						"deny": {
+							"logins": ["c"]
+						}
+					}
+				}`,
+			role: types.RoleV5{
 				Kind:    types.KindRole,
 				Version: types.V3,
 				Metadata: types.Metadata{
@@ -280,14 +285,16 @@ func TestRoleParse(t *testing.T) {
 					Namespace: apidefaults.Namespace,
 					Labels:    map[string]string{"a-b": "c"},
 				},
-				Spec: types.RoleSpecV4{
+				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CertificateFormat:     constants.CertificateFormatStandard,
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(17 * time.Minute),
 						DisconnectExpiredCert: types.NewBool(true),
 						BPF:                   apidefaults.EnhancedEvents(),
+						DesktopClipboard:      types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -319,57 +326,60 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "alternative options form",
 			in: `{
-		   		      "kind": "role",
-		   		      "version": "v3",
-		   		      "metadata": {"name": "name1"},
-		   		      "spec": {
-		                    "options": {
-		                      "cert_format": "standard",
-		                      "max_session_ttl": "20h",
-		                      "port_forwarding": "yes",
-		                      "forward_agent": "yes",
-		                      "client_idle_timeout": "never",
-		                      "disconnect_expired_cert": "no",
-		                      "enhanced_recording": ["command", "network"]
-		                    },
-		                    "allow": {
-		                      "node_labels": {"a": "b"},
-		                      "app_labels": {"a": "b"},
-		                      "kubernetes_labels": {"c": "d"},
-		                      "db_labels": {"e": "f"},
-		                      "namespaces": ["default"],
-		                      "rules": [
-		                        {
-		                          "resources": ["role"],
-		                          "verbs": ["read", "list"],
-		                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-		                          "actions": [
-		                             "log(\"info\", \"log entry\")"
-		                          ]
-		                        }
-		                      ]
-		                    },
-		                    "deny": {
-		                      "logins": ["c"]
-		                    }
-		   		      }
-		   		    }`,
-			role: types.RoleV4{
+		   			  "kind": "role",
+		   			  "version": "v3",
+		   			  "metadata": {"name": "name1"},
+		   			  "spec": {
+							"options": {
+							  "cert_format": "standard",
+							  "max_session_ttl": "20h",
+							  "port_forwarding": "yes",
+							  "forward_agent": "yes",
+							  "client_idle_timeout": "never",
+							  "disconnect_expired_cert": "no",
+							  "enhanced_recording": ["command", "network"],
+							  "desktop_clipboard": true
+							},
+							"allow": {
+							  "node_labels": {"a": "b"},
+							  "app_labels": {"a": "b"},
+							  "kubernetes_labels": {"c": "d"},
+							  "db_labels": {"e": "f"},
+							  "namespaces": ["default"],
+							  "rules": [
+								{
+								  "resources": ["role"],
+								  "verbs": ["read", "list"],
+								  "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+								  "actions": [
+									 "log(\"info\", \"log entry\")"
+								  ]
+								}
+							  ]
+							},
+							"deny": {
+							  "logins": ["c"]
+							}
+		   			  }
+		   			}`,
+			role: types.RoleV5{
 				Kind:    types.KindRole,
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
 				},
-				Spec: types.RoleSpecV4{
+				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CertificateFormat:     constants.CertificateFormatStandard,
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
+						DesktopClipboard:      types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -399,46 +409,49 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "non-scalar and scalar values of labels",
 			in: `{
-		   		      "kind": "role",
-		   		      "version": "v3",
-		   		      "metadata": {"name": "name1"},
-		   		      "spec": {
-		                    "options": {
-		                      "cert_format": "standard",
-		                      "max_session_ttl": "20h",
-		                      "port_forwarding": "yes",
-		                      "forward_agent": "yes",
-		                      "client_idle_timeout": "never",
-		                      "disconnect_expired_cert": "no",
-		                      "enhanced_recording": ["command", "network"]
-		                    },
-		                    "allow": {
-		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "db_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
-		                    },
-		                    "deny": {
-		                      "logins": ["c"]
-		                    }
-		   		      }
-		   		    }`,
-			role: types.RoleV4{
+		   			  "kind": "role",
+		   			  "version": "v3",
+		   			  "metadata": {"name": "name1"},
+		   			  "spec": {
+							"options": {
+							  "cert_format": "standard",
+							  "max_session_ttl": "20h",
+							  "port_forwarding": "yes",
+							  "forward_agent": "yes",
+							  "client_idle_timeout": "never",
+							  "disconnect_expired_cert": "no",
+							  "enhanced_recording": ["command", "network"],
+							  "desktop_clipboard": true
+							},
+							"allow": {
+							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+							  "db_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
+							},
+							"deny": {
+							  "logins": ["c"]
+							}
+		   			  }
+		   			}`,
+			role: types.RoleV5{
 				Kind:    types.KindRole,
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
 				},
-				Spec: types.RoleSpecV4{
+				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CertificateFormat:     constants.CertificateFormatStandard,
 						ForwardAgent:          types.NewBool(true),
 						MaxSessionTTL:         types.NewDuration(20 * time.Hour),
 						PortForwarding:        types.NewBoolOption(true),
+						RecordSession:         &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						ClientIdleTimeout:     types.NewDuration(0),
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
+						DesktopClipboard:      types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
@@ -482,7 +495,7 @@ func TestRoleParse(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, role, &tc.role)
+				require.Equal(t, &tc.role, role)
 
 				err := ValidateRole(role)
 				require.NoError(t, err)
@@ -501,13 +514,13 @@ func TestRoleParse(t *testing.T) {
 func TestValidateRole(t *testing.T) {
 	var tests = []struct {
 		name         string
-		spec         types.RoleSpecV4
+		spec         types.RoleSpecV5
 		err          error
 		matchMessage string
 	}{
 		{
 			name: "valid syntax",
-			spec: types.RoleSpecV4{
+			spec: types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Logins: []string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
 				},
@@ -515,7 +528,7 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "invalid role condition login syntax",
-			spec: types.RoleSpecV4{
+			spec: types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Logins: []string{"{{foo"},
 				},
@@ -525,7 +538,7 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "unsupported function in actions",
-			spec: types.RoleSpecV4{
+			spec: types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Logins: []string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
 					Rules: []types.Rule{
@@ -542,7 +555,7 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "unsupported function in where",
-			spec: types.RoleSpecV4{
+			spec: types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Logins: []string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
 					Rules: []types.Rule{
@@ -561,7 +574,7 @@ func TestValidateRole(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		err := ValidateRole(&types.RoleV4{
+		err := ValidateRole(&types.RoleV5{
 			Metadata: types.Metadata{
 				Name:      "name1",
 				Namespace: apidefaults.Namespace,
@@ -569,6 +582,40 @@ func TestValidateRole(t *testing.T) {
 			Version: types.V3,
 			Spec:    tc.spec,
 		})
+		if tc.err != nil {
+			require.Error(t, err, tc.name)
+			if tc.matchMessage != "" {
+				require.Contains(t, err.Error(), tc.matchMessage)
+			}
+		} else {
+			require.NoError(t, err, tc.name)
+		}
+	}
+}
+
+func TestValidateRoleName(t *testing.T) {
+	var tests = []struct {
+		name         string
+		roleName     string
+		err          error
+		matchMessage string
+	}{
+		{
+			name:         "reserved role name proxy",
+			roleName:     string(types.RoleProxy),
+			err:          trace.BadParameter(""),
+			matchMessage: fmt.Sprintf("reserved role: %s", types.RoleProxy),
+		},
+		{
+			name:     "valid role name test-1",
+			roleName: "test-1",
+		},
+	}
+
+	for _, tc := range tests {
+		err := ValidateRoleName(&types.RoleV5{Metadata: types.Metadata{
+			Name: tc.roleName,
+		}})
 		if tc.err != nil {
 			require.Error(t, err, tc.name)
 			if tc.matchMessage != "" {
@@ -596,6 +643,27 @@ func TestLabelCompatibility(t *testing.T) {
 	require.Equal(t, map[string]string{"key": "val"}, out)
 }
 
+func newRole(mut func(*types.RoleV5)) types.RoleV5 {
+	r := types.RoleV5{
+		Metadata: types.Metadata{
+			Name:      "name",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV5{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(20 * time.Hour),
+			},
+			Allow: types.RoleConditions{
+				NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+				WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Namespaces:           []string{types.Wildcard},
+			},
+		},
+	}
+	mut(&r)
+	return r
+}
+
 func TestCheckAccessToServer(t *testing.T) {
 	type check struct {
 		server    types.Server
@@ -603,11 +671,13 @@ func TestCheckAccessToServer(t *testing.T) {
 		login     string
 	}
 	serverNoLabels := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name: "a",
 		},
 	}
 	serverWorker := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "b",
 			Namespace: apidefaults.Namespace,
@@ -616,6 +686,7 @@ func TestCheckAccessToServer(t *testing.T) {
 	}
 	namespaceC := "namespace-c"
 	serverDB := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "c",
 			Namespace: namespaceC,
@@ -623,40 +694,22 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 	}
 	serverDBWithSuffix := &types.ServerV2{
+		Kind: types.KindNode,
 		Metadata: types.Metadata{
 			Name:      "c2",
 			Namespace: namespaceC,
 			Labels:    map[string]string{"role": "db01", "status": "follower01"},
 		},
 	}
-	newRole := func(mut func(*types.RoleV4)) types.RoleV4 {
-		r := types.RoleV4{
-			Metadata: types.Metadata{
-				Name:      "name",
-				Namespace: apidefaults.Namespace,
-			},
-			Spec: types.RoleSpecV4{
-				Options: types.RoleOptions{
-					MaxSessionTTL: types.Duration(20 * time.Hour),
-				},
-				Allow: types.RoleConditions{
-					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Namespaces: []string{types.Wildcard},
-				},
-			},
-		}
-		mut(&r)
-		return r
-	}
 	testCases := []struct {
 		name      string
-		roles     []types.RoleV4
+		roles     []types.RoleV5
 		checks    []check
 		mfaParams AccessMFAParams
 	}{
 		{
 			name:  "empty role set has access to nothing",
-			roles: []types.RoleV4{},
+			roles: []types.RoleV5{},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
 				{server: serverWorker, login: "root", hasAccess: false},
@@ -665,8 +718,8 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "role is limited to default namespace",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.Namespaces = []string{apidefaults.Namespace}
 				}),
@@ -682,8 +735,8 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "role is limited to labels in default namespace",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 				}),
@@ -699,8 +752,8 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "role matches any label out of multiple labels",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker2", "worker"}}
 				}),
@@ -716,8 +769,8 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "node_labels with empty list value matches nothing",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{}}
 				}),
@@ -733,13 +786,13 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "one role is more permissive than another",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
-					r.Spec.Allow.Namespaces = []string{defaults.Namespace}
+					r.Spec.Allow.Namespaces = []string{apidefaults.Namespace}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 				}),
-				newRole(func(r *types.RoleV4) {
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root", "admin"}
 				}),
 			},
@@ -754,8 +807,8 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "one role needs to access servers sharing the partially same label value",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}}
 					r.Spec.Allow.Namespaces = []string{namespaceC}
@@ -774,8 +827,8 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "no logins means no access",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = nil
 				}),
 			},
@@ -790,13 +843,13 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "one role requires MFA but MFA was not verified",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 					r.Spec.Options.RequireSessionMFA = true
 				}),
-				newRole(func(r *types.RoleV4) {
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Options.RequireSessionMFA = false
 				}),
@@ -810,13 +863,13 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "one role requires MFA and MFA was verified",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
 					r.Spec.Options.RequireSessionMFA = true
 				}),
-				newRole(func(r *types.RoleV4) {
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Options.RequireSessionMFA = false
 				}),
@@ -830,8 +883,8 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "cluster requires MFA but MFA was not verified",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
@@ -844,8 +897,8 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "cluster requires MFA and MFA was verified",
-			roles: []types.RoleV4{
-				newRole(func(r *types.RoleV4) {
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
@@ -857,21 +910,25 @@ func TestCheckAccessToServer(t *testing.T) {
 			},
 		},
 	}
-	for i, tc := range testCases {
-
-		var set RoleSet
-		for i := range tc.roles {
-			set = append(set, &tc.roles[i])
-		}
-		for j, check := range tc.checks {
-			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToServer(check.login, check.server, tc.mfaParams)
-			if check.hasAccess {
-				require.NoError(t, result, comment)
-			} else {
-				require.True(t, trace.IsAccessDenied(result), comment)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for i := range tc.roles {
+				set = append(set, &tc.roles[i])
 			}
-		}
+			for j, check := range tc.checks {
+				comment := fmt.Sprintf("check %v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
+				err := set.CheckAccess(
+					check.server,
+					tc.mfaParams,
+					NewLoginMatcher(check.login))
+				if check.hasAccess {
+					require.NoError(t, err, comment)
+				} else {
+					require.True(t, trace.IsAccessDenied(err), comment)
+				}
+			}
+		})
 	}
 }
 
@@ -899,12 +956,12 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 	}
 	testCases := []struct {
 		name   string
-		roles  []types.RoleV4
+		roles  []types.RoleV5
 		checks []check
 	}{
 		{
 			name:  "empty role set has access to nothing",
-			roles: []types.RoleV4{},
+			roles: []types.RoleV5{},
 			checks: []check{
 				{rc: rcA, hasAccess: false},
 				{rc: rcB, hasAccess: false},
@@ -913,20 +970,20 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		},
 		{
 			name: "role matches any label out of multiple labels",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
 						Allow: types.RoleConditions{
 							Logins:        []string{"admin"},
 							ClusterLabels: types.Labels{"role": []string{"worker2", "worker"}},
-							Namespaces:    []string{defaults.Namespace},
+							Namespaces:    []string{apidefaults.Namespace},
 						},
 					},
 				},
@@ -939,13 +996,13 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		},
 		{
 			name: "wildcard matches anything",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
@@ -965,13 +1022,13 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		},
 		{
 			name: "role with no labels will match clusters with no labels, but no others",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
@@ -989,13 +1046,13 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		},
 		{
 			name: "any role in the set with labels in the set makes the set to match labels",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
@@ -1010,7 +1067,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						Name:      "name2",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
@@ -1028,13 +1085,13 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		},
 		{
 			name: "cluster_labels with empty list value matches nothing",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
@@ -1054,13 +1111,13 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		},
 		{
 			name: "one role is more permissive than another",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
@@ -1076,7 +1133,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						Name:      "name2",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
@@ -1096,13 +1153,13 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		},
 		{
 			name: "regexp label match",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							MaxSessionTTL: types.Duration(20 * time.Hour),
 						},
@@ -1162,25 +1219,25 @@ func TestCheckRuleAccess(t *testing.T) {
 	}
 	testCases := []struct {
 		name   string
-		roles  []types.RoleV4
+		roles  []types.RoleV5
 		checks []check
 	}{
 		{
 			name:  "0 - empty role set has access to nothing",
-			roles: []types.RoleV4{},
+			roles: []types.RoleV5{},
 			checks: []check{
-				{rule: types.KindUser, verb: types.ActionWrite, namespace: defaults.Namespace, hasAccess: false},
+				{rule: types.KindUser, verb: types.ActionWrite, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
 			name: "1 - user can read session but can't list in default namespace",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Allow: types.RoleConditions{
 							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
@@ -1197,13 +1254,13 @@ func TestCheckRuleAccess(t *testing.T) {
 		},
 		{
 			name: "2 - user can read sessions in system namespace and create stuff in default namespace",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Allow: types.RoleConditions{
 							Namespaces: []string{"system"},
 							Rules: []types.Rule{
@@ -1217,7 +1274,7 @@ func TestCheckRuleAccess(t *testing.T) {
 						Name:      "name2",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Allow: types.RoleConditions{
 							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
@@ -1236,13 +1293,13 @@ func TestCheckRuleAccess(t *testing.T) {
 		},
 		{
 			name: "3 - deny rules override allow rules",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Deny: types.RoleConditions{
 							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
@@ -1264,13 +1321,13 @@ func TestCheckRuleAccess(t *testing.T) {
 		},
 		{
 			name: "4 - user can read sessions if trait matches",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Allow: types.RoleConditions{
 							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
@@ -1333,13 +1390,13 @@ func TestCheckRuleAccess(t *testing.T) {
 		},
 		{
 			name: "5 - user can read role if role has label",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Allow: types.RoleConditions{
 							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
@@ -1363,7 +1420,7 @@ func TestCheckRuleAccess(t *testing.T) {
 					context: testContext{
 						buffer: &bytes.Buffer{},
 						Context: Context{
-							Resource: &types.RoleV4{
+							Resource: &types.RoleV5{
 								Metadata: types.Metadata{
 									Labels: map[string]string{"team": "dev"},
 								},
@@ -1379,13 +1436,13 @@ func TestCheckRuleAccess(t *testing.T) {
 		},
 		{
 			name: "More specific rule wins",
-			roles: []types.RoleV4{
+			roles: []types.RoleV5{
 				{
 					Metadata: types.Metadata{
 						Name:      "name1",
 						Namespace: apidefaults.Namespace,
 					},
-					Spec: types.RoleSpecV4{
+					Spec: types.RoleSpecV5{
 						Allow: types.RoleConditions{
 							Namespaces: []string{apidefaults.Namespace},
 							Rules: []types.Rule{
@@ -1411,7 +1468,7 @@ func TestCheckRuleAccess(t *testing.T) {
 					context: testContext{
 						buffer: &bytes.Buffer{},
 						Context: Context{
-							Resource: &types.RoleV4{
+							Resource: &types.RoleV5{
 								Metadata: types.Metadata{
 									Labels: map[string]string{"team": "dev"},
 								},
@@ -1444,6 +1501,204 @@ func TestCheckRuleAccess(t *testing.T) {
 				require.Contains(t, check.context.buffer.String(), check.matchBuffer, comment)
 			}
 		}
+	}
+}
+
+func TestGuessIfAccessIsPossible(t *testing.T) {
+	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
+	ownSessions, err := types.NewRoleV3("own-sessions", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "contains(session.participants, user.metadata.name)",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	ownSSHSessions, err := types.NewRoleV3("own-ssh-sessions", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+					Where:     "!contains(ssh_session.participants, user.metadata.name)",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Simple, all-or-nothing roles.
+	readAllSessions, err := types.NewRoleV3("all-sessions", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	allowSSHSessions, err := types.NewRoleV3("all-ssh-sessions", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	denySSHSessions, err := types.NewRoleV3("deny-ssh-sessions", types.RoleSpecV5{
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSSHSession},
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	type checkAccessParams struct {
+		ctx       Context
+		namespace string
+		resource  string
+		verbs     []string
+	}
+
+	tests := []struct {
+		name   string
+		roles  RoleSet
+		params *checkAccessParams
+		// wantRuleAccess fully evaluates where conditions, used to determine access
+		// to specific resources.
+		wantRuleAccess bool
+		// wantGuessAccess doesn't evaluate where conditions, used to determine
+		// access to a category of resources.
+		wantGuessAccess bool
+	}{
+		{
+			name:  "global session list/read allowed",
+			roles: RoleSet{readAllSessions},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:  true,
+			wantGuessAccess: true,
+		},
+		{
+			name:  "own session list/read allowed",
+			roles: RoleSet{ownSessions}, // allowed despite "where" clause in allow rules
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:  false, // where condition needs specific resource
+			wantGuessAccess: true,
+		},
+		{
+			name:  "session list/read denied",
+			roles: RoleSet{allowSSHSessions, denySSHSessions}, // none mention "session"
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+		},
+		{
+			name: "session write denied",
+			roles: RoleSet{
+				readAllSessions,                   // readonly
+				allowSSHSessions, denySSHSessions, // none mention "session"
+			},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbUpdate, types.VerbDelete},
+			},
+		},
+		{
+			name:  "global SSH session list/read allowed",
+			roles: RoleSet{allowSSHSessions},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:  true,
+			wantGuessAccess: true,
+		},
+		{
+			name:  "own SSH session list/read allowed",
+			roles: RoleSet{ownSSHSessions}, // allowed despite "where" clause in deny rules
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
+			},
+			wantRuleAccess:  false, // where condition needs specific resource
+			wantGuessAccess: true,
+		},
+		{
+			name: "SSH session list/read denied",
+			roles: RoleSet{
+				allowSSHSessions, ownSSHSessions,
+				denySSHSessions, // unconditional deny, takes precedence
+			},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+			},
+		},
+		{
+			name: "SSH session list/read denied - different role ordering",
+			roles: RoleSet{
+				allowSSHSessions,
+				denySSHSessions, // unconditional deny, takes precedence
+				ownSSHSessions,
+			},
+			params: &checkAccessParams{
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			params := test.params
+			const silent = true
+			for _, verb := range params.verbs {
+				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb, silent)
+				if gotAccess, wantAccess := err == nil, test.wantRuleAccess; gotAccess != wantAccess {
+					t.Errorf("CheckAccessToRule(verb=%q) returned err = %v=q, wantAccess = %v", verb, err, wantAccess)
+				}
+
+				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb, silent)
+				if gotAccess, wantAccess := err == nil, test.wantGuessAccess; gotAccess != wantAccess {
+					t.Errorf("GuessIfAccessIsPossible(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
+				}
+			}
+		})
 	}
 }
 
@@ -1543,28 +1798,30 @@ func TestCheckRuleSorting(t *testing.T) {
 
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
-		inLogins       []string
-		outLogins      []string
-		inRoleARNs     []string
-		outRoleARNs    []string
-		inLabels       types.Labels
-		outLabels      types.Labels
-		inKubeLabels   types.Labels
-		outKubeLabels  types.Labels
-		inKubeGroups   []string
-		outKubeGroups  []string
-		inKubeUsers    []string
-		outKubeUsers   []string
-		inAppLabels    types.Labels
-		outAppLabels   types.Labels
-		inDBLabels     types.Labels
-		outDBLabels    types.Labels
-		inDBNames      []string
-		outDBNames     []string
-		inDBUsers      []string
-		outDBUsers     []string
-		inImpersonate  types.ImpersonateConditions
-		outImpersonate types.ImpersonateConditions
+		inLogins         []string
+		outLogins        []string
+		inWindowsLogins  []string
+		outWindowsLogins []string
+		inRoleARNs       []string
+		outRoleARNs      []string
+		inLabels         types.Labels
+		outLabels        types.Labels
+		inKubeLabels     types.Labels
+		outKubeLabels    types.Labels
+		inKubeGroups     []string
+		outKubeGroups    []string
+		inKubeUsers      []string
+		outKubeUsers     []string
+		inAppLabels      types.Labels
+		outAppLabels     types.Labels
+		inDBLabels       types.Labels
+		outDBLabels      types.Labels
+		inDBNames        []string
+		outDBNames       []string
+		inDBUsers        []string
+		outDBUsers       []string
+		inImpersonate    types.ImpersonateConditions
+		outImpersonate   types.ImpersonateConditions
 	}
 	var tests = []struct {
 		comment  string
@@ -1610,6 +1867,31 @@ func TestApplyTraits(t *testing.T) {
 			deny: rule{
 				inLogins:  []string{`{{external.foo}}`},
 				outLogins: []string{"bar"},
+			},
+		},
+		{
+			comment: "windows logins substitute",
+			inTraits: map[string][]string{
+				"windows_logins": {"user"},
+				"foo":            {"bar"},
+			},
+			allow: rule{
+				inWindowsLogins:  []string{"{{internal.windows_logins}}"},
+				outWindowsLogins: []string{"user"},
+			},
+			deny: rule{
+				inWindowsLogins:  []string{"{{external.foo}}"},
+				outWindowsLogins: []string{"bar"},
+			},
+		},
+		{
+			comment: "invalid windows login",
+			inTraits: map[string][]string{
+				"windows_logins": {"test;"},
+			},
+			allow: rule{
+				inWindowsLogins:  []string{"Administrator", "{{internal.windows_logins}}"},
+				outWindowsLogins: []string{"Administrator"},
 			},
 		},
 		{
@@ -1958,39 +2240,41 @@ func TestApplyTraits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			role := &types.RoleV4{
+			role := &types.RoleV5{
 				Kind:    types.KindRole,
 				Version: types.V3,
 				Metadata: types.Metadata{
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
 				},
-				Spec: types.RoleSpecV4{
+				Spec: types.RoleSpecV5{
 					Allow: types.RoleConditions{
-						Logins:           tt.allow.inLogins,
-						NodeLabels:       tt.allow.inLabels,
-						ClusterLabels:    tt.allow.inLabels,
-						KubernetesLabels: tt.allow.inKubeLabels,
-						KubeGroups:       tt.allow.inKubeGroups,
-						KubeUsers:        tt.allow.inKubeUsers,
-						AppLabels:        tt.allow.inAppLabels,
-						DatabaseLabels:   tt.allow.inDBLabels,
-						DatabaseNames:    tt.allow.inDBNames,
-						DatabaseUsers:    tt.allow.inDBUsers,
-						Impersonate:      &tt.allow.inImpersonate,
+						Logins:               tt.allow.inLogins,
+						WindowsDesktopLogins: tt.allow.inWindowsLogins,
+						NodeLabels:           tt.allow.inLabels,
+						ClusterLabels:        tt.allow.inLabels,
+						KubernetesLabels:     tt.allow.inKubeLabels,
+						KubeGroups:           tt.allow.inKubeGroups,
+						KubeUsers:            tt.allow.inKubeUsers,
+						AppLabels:            tt.allow.inAppLabels,
+						DatabaseLabels:       tt.allow.inDBLabels,
+						DatabaseNames:        tt.allow.inDBNames,
+						DatabaseUsers:        tt.allow.inDBUsers,
+						Impersonate:          &tt.allow.inImpersonate,
 					},
 					Deny: types.RoleConditions{
-						Logins:           tt.deny.inLogins,
-						NodeLabels:       tt.deny.inLabels,
-						ClusterLabels:    tt.deny.inLabels,
-						KubernetesLabels: tt.deny.inKubeLabels,
-						KubeGroups:       tt.deny.inKubeGroups,
-						KubeUsers:        tt.deny.inKubeUsers,
-						AppLabels:        tt.deny.inAppLabels,
-						DatabaseLabels:   tt.deny.inDBLabels,
-						DatabaseNames:    tt.deny.inDBNames,
-						DatabaseUsers:    tt.deny.inDBUsers,
-						Impersonate:      &tt.deny.inImpersonate,
+						Logins:               tt.deny.inLogins,
+						WindowsDesktopLogins: tt.deny.inWindowsLogins,
+						NodeLabels:           tt.deny.inLabels,
+						ClusterLabels:        tt.deny.inLabels,
+						KubernetesLabels:     tt.deny.inKubeLabels,
+						KubeGroups:           tt.deny.inKubeGroups,
+						KubeUsers:            tt.deny.inKubeUsers,
+						AppLabels:            tt.deny.inAppLabels,
+						DatabaseLabels:       tt.deny.inDBLabels,
+						DatabaseNames:        tt.deny.inDBNames,
+						DatabaseUsers:        tt.deny.inDBUsers,
+						Impersonate:          &tt.deny.inImpersonate,
 					},
 				},
 			}
@@ -2000,21 +2284,22 @@ func TestApplyTraits(t *testing.T) {
 				condition types.RoleConditionType
 				spec      *rule
 			}{
-				{Allow, &tt.allow},
-				{Deny, &tt.deny},
+				{types.Allow, &tt.allow},
+				{types.Deny, &tt.deny},
 			}
 			for _, rule := range rules {
-				require.Equal(t, outRole.GetLogins(rule.condition), rule.spec.outLogins)
-				require.Equal(t, outRole.GetNodeLabels(rule.condition), rule.spec.outLabels)
-				require.Equal(t, outRole.GetClusterLabels(rule.condition), rule.spec.outLabels)
-				require.Equal(t, outRole.GetKubernetesLabels(rule.condition), rule.spec.outKubeLabels)
-				require.Equal(t, outRole.GetKubeGroups(rule.condition), rule.spec.outKubeGroups)
-				require.Equal(t, outRole.GetKubeUsers(rule.condition), rule.spec.outKubeUsers)
-				require.Equal(t, outRole.GetAppLabels(rule.condition), rule.spec.outAppLabels)
-				require.Equal(t, outRole.GetDatabaseLabels(rule.condition), rule.spec.outDBLabels)
-				require.Equal(t, outRole.GetDatabaseNames(rule.condition), rule.spec.outDBNames)
-				require.Equal(t, outRole.GetDatabaseUsers(rule.condition), rule.spec.outDBUsers)
-				require.Equal(t, outRole.GetImpersonateConditions(rule.condition), rule.spec.outImpersonate)
+				require.Equal(t, rule.spec.outLogins, outRole.GetLogins(rule.condition))
+				require.Equal(t, rule.spec.outWindowsLogins, outRole.GetWindowsLogins(rule.condition))
+				require.Equal(t, rule.spec.outLabels, outRole.GetNodeLabels(rule.condition))
+				require.Equal(t, rule.spec.outLabels, outRole.GetClusterLabels(rule.condition))
+				require.Equal(t, rule.spec.outKubeLabels, outRole.GetKubernetesLabels(rule.condition))
+				require.Equal(t, rule.spec.outKubeGroups, outRole.GetKubeGroups(rule.condition))
+				require.Equal(t, rule.spec.outKubeUsers, outRole.GetKubeUsers(rule.condition))
+				require.Equal(t, rule.spec.outAppLabels, outRole.GetAppLabels(rule.condition))
+				require.Equal(t, rule.spec.outDBLabels, outRole.GetDatabaseLabels(rule.condition))
+				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
+				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
+				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
 			}
 		})
 	}
@@ -2041,10 +2326,7 @@ func TestExtractFrom(t *testing.T) {
 
 	// At this point, services.User and the certificate/identity are still in
 	// sync. The roles and traits returned should be the same as the original.
-	roles, traits, err := ExtractFromCertificate(&userGetter{
-		roles:  origRoles,
-		traits: origTraits,
-	}, cert)
+	roles, traits, err := ExtractFromCertificate(cert)
 	require.NoError(t, err)
 	require.Equal(t, roles, origRoles)
 	require.Equal(t, traits, origTraits)
@@ -2060,12 +2342,7 @@ func TestExtractFrom(t *testing.T) {
 	// The backend now returns new roles and traits, however because the roles
 	// and traits are extracted from the certificate/identity, the original
 	// roles and traits will be returned.
-	roles, traits, err = ExtractFromCertificate(&userGetter{
-		roles: []string{"intern"},
-		traits: wrappers.Traits(map[string][]string{
-			"login": {"bar"},
-		}),
-	}, cert)
+	roles, traits, err = ExtractFromCertificate(cert)
 	require.NoError(t, err)
 	require.Equal(t, roles, origRoles)
 	require.Equal(t, traits, origTraits)
@@ -2077,114 +2354,72 @@ func TestExtractFrom(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, roles, origRoles)
 	require.Equal(t, traits, origTraits)
-}
-
-// TestExtractFromLegacy verifies that roles and traits are fetched
-// from services.User for SSH certificates is the legacy format and TLS
-// certificates that don't contain traits.
-func TestExtractFromLegacy(t *testing.T) {
-	origRoles := []string{"admin"}
-	origTraits := wrappers.Traits(map[string][]string{
-		"login": {"foo"},
-	})
-
-	// Create a SSH certificate in the legacy format.
-	cert, err := sshutils.ParseCertificate([]byte(fixtures.UserCertificateLegacy))
-	require.NoError(t, err)
-
-	// Create a TLS identity with only roles.
-	identity := &tlsca.Identity{
-		Username: "foo",
-		Groups:   origRoles,
-	}
-
-	// At this point, services.User and the certificate/identity are still in
-	// sync. The roles and traits returned should be the same as the original.
-	roles, traits, err := ExtractFromCertificate(&userGetter{
-		roles:  origRoles,
-		traits: origTraits,
-	}, cert)
-	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
-	roles, traits, err = ExtractFromIdentity(&userGetter{
-		roles:  origRoles,
-		traits: origTraits,
-	}, *identity)
-	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
-
-	// The backend now returns new roles and traits, because the SSH certificate
-	// is in the old standard format and the TLS identity is missing traits.
-	newRoles := []string{"intern"}
-	newTraits := wrappers.Traits(map[string][]string{
-		"login": {"bar"},
-	})
-	roles, traits, err = ExtractFromCertificate(&userGetter{
-		roles:  newRoles,
-		traits: newTraits,
-	}, cert)
-	require.NoError(t, err)
-	require.Equal(t, roles, newRoles)
-	require.Equal(t, traits, newTraits)
-	roles, traits, err = ExtractFromIdentity(&userGetter{
-		roles:  newRoles,
-		traits: newTraits,
-	}, *identity)
-	require.NoError(t, err)
-	require.Equal(t, roles, newRoles)
-	require.Equal(t, traits, newTraits)
 }
 
 // TestBoolOptions makes sure that bool options (like agent forwarding and
 // port forwarding) can be disabled in a role.
 func TestBoolOptions(t *testing.T) {
 	var tests = []struct {
-		inOptions           types.RoleOptions
-		outCanPortForward   bool
-		outCanForwardAgents bool
+		inOptions                types.RoleOptions
+		outCanPortForward        bool
+		outCanForwardAgents      bool
+		outRecordDesktopSessions bool
+		outDesktopClipboard      bool
 	}{
 		// Setting options explicitly off should remain off.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:   types.NewBool(false),
-				PortForwarding: types.NewBoolOption(false),
+				ForwardAgent:     types.NewBool(false),
+				PortForwarding:   types.NewBoolOption(false),
+				RecordSession:    &types.RecordSession{Desktop: types.NewBoolOption(false)},
+				DesktopClipboard: types.NewBoolOption(false),
 			},
-			outCanPortForward:   false,
-			outCanForwardAgents: false,
+			outCanPortForward:        false,
+			outCanForwardAgents:      false,
+			outRecordDesktopSessions: false,
+			outDesktopClipboard:      false,
 		},
-		// Not setting options should set port forwarding to true (default enabled)
-		// and agent forwarding false (default disabled).
+		// Not setting options should set port forwarding to true (default enabled),
+		// agent forwarding false (default disabled),
+		// desktop session recording to true (default enabled),
+		// and desktop clipboard sharing to true (default enabled).
 		{
-			inOptions:           types.RoleOptions{},
-			outCanPortForward:   true,
-			outCanForwardAgents: false,
+			inOptions:                types.RoleOptions{},
+			outCanPortForward:        true,
+			outCanForwardAgents:      false,
+			outRecordDesktopSessions: true,
+			outDesktopClipboard:      true,
 		},
 		// Explicitly enabling should enable them.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:   types.NewBool(true),
-				PortForwarding: types.NewBoolOption(true),
+				ForwardAgent:     types.NewBool(true),
+				PortForwarding:   types.NewBoolOption(true),
+				RecordSession:    &types.RecordSession{Desktop: types.NewBoolOption(true)},
+				DesktopClipboard: types.NewBoolOption(true),
 			},
-			outCanPortForward:   true,
-			outCanForwardAgents: true,
+			outCanPortForward:        true,
+			outCanForwardAgents:      true,
+			outRecordDesktopSessions: true,
+			outDesktopClipboard:      true,
 		},
 	}
 	for _, tt := range tests {
-		set := NewRoleSet(&types.RoleV4{
+		set := NewRoleSet(&types.RoleV5{
 			Kind:    types.KindRole,
 			Version: types.V3,
 			Metadata: types.Metadata{
 				Name:      "role-name",
 				Namespace: apidefaults.Namespace,
 			},
-			Spec: types.RoleSpecV4{
+			Spec: types.RoleSpecV5{
 				Options: tt.inOptions,
 			},
 		})
 		require.Equal(t, tt.outCanPortForward, set.CanPortForward())
 		require.Equal(t, tt.outCanForwardAgents, set.CanForwardAgents())
+		require.Equal(t, tt.outRecordDesktopSessions, set.RecordDesktopSession())
+		require.Equal(t, tt.outDesktopClipboard, set.DesktopClipboard())
 	}
 }
 
@@ -2205,27 +2440,27 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		URI:      "uri",
 	})
 	require.NoError(t, err)
-	roleDevStage := &types.RoleV4{
-		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
+	roleDevStage := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseNames:  []string{types.Wildcard},
 				DatabaseUsers:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseNames: []string{"supersecret"},
 			},
 		},
 	}
 	require.NoError(t, roleDevStage.CheckAndSetDefaults())
-	roleDevProd := &types.RoleV4{
+	roleDevProd := &types.RoleV5{
 		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
@@ -2235,10 +2470,10 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		},
 	}
 	require.NoError(t, roleDevProd.CheckAndSetDefaults())
-	roleDevProdWithMFA := &types.RoleV4{
+	roleDevProdWithMFA := &types.RoleV5{
 		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
 				RequireSessionMFA: true,
 			},
@@ -2253,10 +2488,10 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	require.NoError(t, roleDevProdWithMFA.CheckAndSetDefaults())
 	// Database labels are not set in allow/deny rules on purpose to test
 	// that they're set during check and set defaults below.
-	roleDeny := &types.RoleV4{
+	roleDeny := &types.RoleV5{
 		Metadata: types.Metadata{Name: "deny", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseNames: []string{types.Wildcard},
@@ -2347,8 +2582,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccessToDatabase(access.server, tc.mfaParams,
-					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
+				err := tc.roles.CheckAccess(access.server, tc.mfaParams,
 					&DatabaseUserMatcher{User: access.dbUser},
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -2379,23 +2613,23 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		URI:      "uri",
 	})
 	require.NoError(t, err)
-	roleDevStage := &types.RoleV4{
-		Metadata: types.Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
-		Spec: types.RoleSpecV4{
+	roleDevStage := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{defaults.Namespace},
+				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseUsers:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
-				Namespaces:    []string{defaults.Namespace},
+				Namespaces:    []string{apidefaults.Namespace},
 				DatabaseUsers: []string{"superuser"},
 			},
 		},
 	}
-	roleDevProd := &types.RoleV4{
+	roleDevProd := &types.RoleV5{
 		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
@@ -2434,9 +2668,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccessToDatabase(access.server, AccessMFAParams{},
-					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()},
-					&DatabaseUserMatcher{User: access.dbUser})
+				err := tc.roles.CheckAccess(access.server, AccessMFAParams{}, &DatabaseUserMatcher{User: access.dbUser})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2448,19 +2680,141 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	}
 }
 
+func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
+	dbStage, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "stage",
+		Labels: map[string]string{"env": "stage"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	dbProd, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	roleDevStage := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+	roleDevProd := &types.RoleV5{
+		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+
+	roleNoDBAccess := &types.RoleV5{
+		Metadata: types.Metadata{Name: "no_db_access", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"*"},
+				DatabaseNames: []string{"*"},
+			},
+		},
+	}
+
+	roleAllowDenySame := &types.RoleV5{
+		Metadata: types.Metadata{Name: "allow_deny_same", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+			Deny: types.RoleConditions{
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"superuser"},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name       string
+		roles      RoleSet
+		server     types.Database
+		enumResult EnumerationResult
+	}{
+		{
+			name:   "deny overrides allow",
+			roles:  RoleSet{roleAllowDenySame},
+			server: dbStage,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "developer allowed any username in stage database except superuser",
+			roles:  RoleSet{roleDevStage, roleDevProd},
+			server: dbStage,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				wildcardAllowed:  true,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "developer allowed only specific username/database in prod database",
+			roles:  RoleSet{roleDevStage, roleDevProd},
+			server: dbProd,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "there may be users disallowed from all users",
+			roles:  RoleSet{roleDevStage, roleDevProd, roleNoDBAccess},
+			server: dbProd,
+			enumResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": false, "superuser": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   true,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			enumResult := tc.roles.EnumerateDatabaseUsers(tc.server)
+			require.Equal(t, tc.enumResult, enumResult)
+		})
+	}
+}
+
 func TestCheckDatabaseNamesAndUsers(t *testing.T) {
-	roleEmpty := &types.RoleV4{
+	roleEmpty := &types.RoleV5{
 		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
 	}
-	roleA := &types.RoleV4{
+	roleA := &types.RoleV5{
 		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{MaxSessionTTL: types.Duration(2 * time.Hour)},
 			Allow: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
@@ -2469,9 +2823,9 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 			},
 		},
 	}
-	roleB := &types.RoleV4{
+	roleB := &types.RoleV5{
 		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
 			Allow: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
@@ -2574,18 +2928,18 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		URI:      "uri",
 	})
 	require.NoError(t, err)
-	roleAdmin := &types.RoleV4{
+	roleAdmin := &types.RoleV5{
 		Metadata: types.Metadata{Name: "admin", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	}
-	roleDev := &types.RoleV4{
+	roleDev := &types.RoleV5{
 		Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
@@ -2596,9 +2950,9 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 			},
 		},
 	}
-	roleIntern := &types.RoleV4{
+	roleIntern := &types.RoleV5{
 		Metadata: types.Metadata{Name: "intern", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 			},
@@ -2657,8 +3011,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.CheckAccessToDatabase(access.server, AccessMFAParams{},
-					&DatabaseLabelsMatcher{Labels: access.server.GetAllLabels()})
+				err := tc.roles.CheckAccess(access.server, AccessMFAParams{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -2672,46 +3025,48 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 
 // TestCheckAccessToAWSConsole verifies AWS role ARNs access checker.
 func TestCheckAccessToAWSConsole(t *testing.T) {
-	app := &types.App{
+	app, err := types.NewAppV3(types.Metadata{
 		Name: "awsconsole",
-		URI:  constants.AWSConsoleURL,
-	}
+	}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
+	})
+	require.NoError(t, err)
 	readOnlyARN := "readonly"
 	fullAccessARN := "fullaccess"
-	roleNoAccess := &types.RoleV4{
+	roleNoAccess := &types.RoleV5{
 		Metadata: types.Metadata{
 			Name:      "noaccess",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{defaults.Namespace},
+				Namespaces:  []string{apidefaults.Namespace},
 				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AWSRoleARNs: []string{},
 			},
 		},
 	}
-	roleReadOnly := &types.RoleV4{
+	roleReadOnly := &types.RoleV5{
 		Metadata: types.Metadata{
 			Name:      "readonly",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{defaults.Namespace},
+				Namespaces:  []string{apidefaults.Namespace},
 				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AWSRoleARNs: []string{readOnlyARN},
 			},
 		},
 	}
-	roleFullAccess := &types.RoleV4{
+	roleFullAccess := &types.RoleV5{
 		Metadata: types.Metadata{
 			Name:      "fullaccess",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{defaults.Namespace},
+				Namespaces:  []string{apidefaults.Namespace},
 				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				AWSRoleARNs: []string{readOnlyARN, fullAccessARN},
 			},
@@ -2762,7 +3117,9 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for _, access := range test.access {
-				err := test.roles.CheckAccessToApp(defaults.Namespace, app, AccessMFAParams{},
+				err := test.roles.CheckAccess(
+					app,
+					AccessMFAParams{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
 				if access.hasAccess {
 					require.NoError(t, err)
@@ -2784,24 +3141,24 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		StaticLabels:  map[string]string{"foo": "bar"},
 		DynamicLabels: map[string]types.CommandLabelV2{"baz": {Result: "qux"}},
 	}
-	wildcardRole := &types.RoleV4{
+	wildcardRole := &types.RoleV5{
 		Metadata: types.Metadata{
 			Name:      "wildcard-labels",
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Namespaces:       []string{defaults.Namespace},
+				Namespaces:       []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	}
-	matchingLabelsRole := &types.RoleV4{
+	matchingLabelsRole := &types.RoleV5{
 		Metadata: types.Metadata{
 			Name:      "matching-labels",
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{
@@ -2811,12 +3168,12 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			},
 		},
 	}
-	matchingLabelsRoleWithMFA := &types.RoleV4{
+	matchingLabelsRoleWithMFA := &types.RoleV5{
 		Metadata: types.Metadata{
 			Name:      "matching-labels",
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
 				RequireSessionMFA: true,
 			},
@@ -2829,23 +3186,23 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			},
 		},
 	}
-	noLabelsRole := &types.RoleV4{
+	noLabelsRole := &types.RoleV5{
 		Metadata: types.Metadata{
 			Name:      "no-labels",
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
 	}
-	mismatchingLabelsRole := &types.RoleV4{
+	mismatchingLabelsRole := &types.RoleV5{
 		Metadata: types.Metadata{
 			Name:      "mismatching-labels",
 			Namespace: apidefaults.Namespace,
 		},
-		Spec: types.RoleSpecV4{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 				KubernetesLabels: types.Labels{
@@ -2857,7 +3214,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	}
 	testCases := []struct {
 		name      string
-		roles     []*types.RoleV4
+		roles     []*types.RoleV5
 		cluster   *types.KubernetesCluster
 		mfaParams AccessMFAParams
 		hasAccess bool
@@ -2870,70 +3227,70 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		},
 		{
 			name:      "role with no labels has access to nothing",
-			roles:     []*types.RoleV4{noLabelsRole},
+			roles:     []*types.RoleV5{noLabelsRole},
 			cluster:   clusterNoLabels,
 			hasAccess: false,
 		},
 		{
 			name:      "role with wildcard labels matches cluster without labels",
-			roles:     []*types.RoleV4{wildcardRole},
+			roles:     []*types.RoleV5{wildcardRole},
 			cluster:   clusterNoLabels,
 			hasAccess: true,
 		},
 		{
 			name:      "role with wildcard labels matches cluster with labels",
-			roles:     []*types.RoleV4{wildcardRole},
+			roles:     []*types.RoleV5{wildcardRole},
 			cluster:   clusterWithLabels,
 			hasAccess: true,
 		},
 		{
 			name:      "role with labels does not match cluster with no labels",
-			roles:     []*types.RoleV4{matchingLabelsRole},
+			roles:     []*types.RoleV5{matchingLabelsRole},
 			cluster:   clusterNoLabels,
 			hasAccess: false,
 		},
 		{
 			name:      "role with labels matches cluster with labels",
-			roles:     []*types.RoleV4{matchingLabelsRole},
+			roles:     []*types.RoleV5{matchingLabelsRole},
 			cluster:   clusterWithLabels,
 			hasAccess: true,
 		},
 		{
 			name:      "role with mismatched labels does not match cluster with labels",
-			roles:     []*types.RoleV4{mismatchingLabelsRole},
+			roles:     []*types.RoleV5{mismatchingLabelsRole},
 			cluster:   clusterWithLabels,
 			hasAccess: false,
 		},
 		{
 			name:      "one role in the roleset matches",
-			roles:     []*types.RoleV4{mismatchingLabelsRole, noLabelsRole, matchingLabelsRole},
+			roles:     []*types.RoleV5{mismatchingLabelsRole, noLabelsRole, matchingLabelsRole},
 			cluster:   clusterWithLabels,
 			hasAccess: true,
 		},
 		{
 			name:      "role requires MFA but MFA not verified",
-			roles:     []*types.RoleV4{matchingLabelsRole, matchingLabelsRoleWithMFA},
+			roles:     []*types.RoleV5{matchingLabelsRole, matchingLabelsRoleWithMFA},
 			cluster:   clusterWithLabels,
 			mfaParams: AccessMFAParams{Verified: false},
 			hasAccess: false,
 		},
 		{
 			name:      "role requires MFA and MFA verified",
-			roles:     []*types.RoleV4{matchingLabelsRole, matchingLabelsRoleWithMFA},
+			roles:     []*types.RoleV5{matchingLabelsRole, matchingLabelsRoleWithMFA},
 			cluster:   clusterWithLabels,
 			mfaParams: AccessMFAParams{Verified: true},
 			hasAccess: true,
 		},
 		{
 			name:      "cluster requires MFA but MFA not verified",
-			roles:     []*types.RoleV4{matchingLabelsRole},
+			roles:     []*types.RoleV5{matchingLabelsRole},
 			cluster:   clusterWithLabels,
 			mfaParams: AccessMFAParams{Verified: false, AlwaysRequired: true},
 			hasAccess: false,
 		},
 		{
 			name:      "role requires MFA and MFA verified",
-			roles:     []*types.RoleV4{matchingLabelsRole},
+			roles:     []*types.RoleV5{matchingLabelsRole},
 			cluster:   clusterWithLabels,
 			mfaParams: AccessMFAParams{Verified: true, AlwaysRequired: true},
 			hasAccess: true,
@@ -2945,7 +3302,10 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			for _, r := range tc.roles {
 				set = append(set, r)
 			}
-			err := set.CheckAccessToKubernetes(apidefaults.Namespace, tc.cluster, tc.mfaParams)
+			k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, tc.cluster)
+			require.NoError(t, err)
+
+			err = set.CheckAccess(k8sV3, tc.mfaParams)
 			if tc.hasAccess {
 				require.NoError(t, err)
 			} else {
@@ -2956,8 +3316,233 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	}
 }
 
+func TestDesktopRecordingEnabled(t *testing.T) {
+	for _, test := range []struct {
+		desc         string
+		roles        []types.RoleV5
+		shouldRecord bool
+	}{
+		{
+			desc: "single role recording disabled",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.SetName("no-record")
+					r.SetOptions(types.RoleOptions{
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
+					})
+				}),
+			},
+			shouldRecord: false,
+		},
+		{
+			desc: "multiple roles, one requires recording",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.SetOptions(types.RoleOptions{
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
+					})
+				}),
+				newRole(func(r *types.RoleV5) {
+					r.SetOptions(types.RoleOptions{
+						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
+					})
+				}),
+				// recording defaults to true, so a default role should force recording
+				newRole(func(r *types.RoleV5) {}),
+			},
+			shouldRecord: true,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			var roles []types.Role
+			for _, r := range test.roles {
+				roles = append(roles, &r)
+			}
+			rs := NewRoleSet(roles...)
+			require.Equal(t, test.shouldRecord, rs.RecordDesktopSession())
+		})
+	}
+}
+
+func TestDesktopClipboard(t *testing.T) {
+	for _, test := range []struct {
+		desc         string
+		roles        []types.RoleV5
+		hasClipboard bool
+	}{
+		{
+			desc:         "single role, unspecified, defaults true",
+			roles:        []types.RoleV5{newRole(func(r *types.RoleV5) {})},
+			hasClipboard: true,
+		},
+		{
+			desc: "single role, explicitly disabled",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.SetOptions(types.RoleOptions{
+						DesktopClipboard: types.NewBoolOption(false),
+					})
+				}),
+			},
+			hasClipboard: false,
+		},
+		{
+			desc: "multiple conflicting roles, disable wins",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {}),
+				newRole(func(r *types.RoleV5) {
+					r.SetOptions(types.RoleOptions{
+						DesktopClipboard: types.NewBoolOption(false),
+					})
+				}),
+			},
+			hasClipboard: false,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			var roles []types.Role
+			for _, r := range test.roles {
+				roles = append(roles, &r)
+			}
+			rs := NewRoleSet(roles...)
+			require.Equal(t, test.hasClipboard, rs.DesktopClipboard())
+		})
+	}
+}
+
+func TestCheckAccessToWindowsDesktop(t *testing.T) {
+	desktopNoLabels := &types.WindowsDesktopV3{
+		ResourceHeader: types.ResourceHeader{
+			Kind:     types.KindWindowsDesktop,
+			Metadata: types.Metadata{Name: "no-labels"},
+		},
+	}
+	desktop2012 := &types.WindowsDesktopV3{
+		ResourceHeader: types.ResourceHeader{
+			Kind: types.KindWindowsDesktop,
+			Metadata: types.Metadata{
+				Name:   "win2012",
+				Labels: map[string]string{"win_version": "2012"},
+			},
+		},
+	}
+
+	type check struct {
+		desktop   *types.WindowsDesktopV3
+		login     string
+		hasAccess bool
+	}
+
+	for _, test := range []struct {
+		name      string
+		roles     []types.RoleV5
+		mfaParams AccessMFAParams
+		checks    []check
+	}{
+		{
+			name:  "no roles, no access",
+			roles: []types.RoleV5{},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
+				{desktop: desktop2012, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "empty label, no access",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"role": []string{}}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
+				{desktop: desktop2012, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "single role allows a single login",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+				{desktop: desktopNoLabels, login: "foo", hasAccess: false},
+				{desktop: desktop2012, login: "foo", hasAccess: false},
+			},
+		},
+		{
+			name: "single role with allowed labels",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+			},
+		},
+		{
+			name: "single role with deny labels",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Deny.Namespaces = []string{apidefaults.Namespace}
+					r.Spec.Deny.WindowsDesktopLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: false},
+			},
+		},
+		{
+			name: "one role more permissive than another",
+			roles: []types.RoleV5{
+				newRole(func(r *types.RoleV5) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+				newRole(func(r *types.RoleV5) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"root", "admin"}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "root", hasAccess: true},
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "root", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var set RoleSet
+			for _, r := range test.roles {
+				set = append(set, &r)
+			}
+
+			for i, check := range test.checks {
+				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
+					i, check.login, check.desktop.GetName(), check.hasAccess)
+				err := set.CheckAccess(check.desktop, test.mfaParams, NewWindowsLoginMatcher(check.login))
+				if check.hasAccess {
+					require.NoError(t, err, msg)
+				} else {
+					require.Error(t, err, msg)
+					require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+				}
+			}
+		})
+	}
+}
+
 // BenchmarkCheckAccessToServer tests how long it takes to run
-// CheckAccessToServer across 4,000 nodes for 5 roles each with 5 logins each.
+// CheckAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
 //
 // To run benchmark:
 //
@@ -2982,7 +3567,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 
 	// Create 4,000 servers with random IDs.
 	for i := 0; i < 4000; i++ {
-		hostname := uuid.NewUUID().String()
+		hostname := uuid.New().String()
 		servers = append(servers, &types.ServerV2{
 			Kind:    types.KindNode,
 			Version: types.V2,
@@ -2997,19 +3582,18 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 		})
 	}
 
-	// Create RoleSet with five roles: one admin role and four generic roles
-	// that have five logins each and only have access to the foo:bar label.
+	// Create RoleSet with four generic roles that have five logins
+	// each and only have access to the a:b label.
 	var set RoleSet
-	set = append(set, NewAdminRole())
 	for i := 0; i < 4; i++ {
-		set = append(set, &types.RoleV4{
+		set = append(set, &types.RoleV5{
 			Kind:    types.KindRole,
 			Version: types.V3,
 			Metadata: types.Metadata{
 				Name:      strconv.Itoa(i),
 				Namespace: apidefaults.Namespace,
 			},
-			Spec: types.RoleSpecV4{
+			Spec: types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Logins:     []string{"admin", "one", "two", "three", "four"},
 					NodeLabels: types.Labels{"a": []string{"b"}},
@@ -3024,7 +3608,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	// Build a map of all allowed logins.
 	allowLogins := map[string]bool{}
 	for _, role := range set {
-		for _, login := range role.GetLogins(Allow) {
+		for _, login := range role.GetLogins(types.Allow) {
 			allowLogins[login] = true
 		}
 	}
@@ -3033,9 +3617,13 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < 4000; i++ {
 			for login := range allowLogins {
-				if err := set.CheckAccessToServer(login, servers[i], AccessMFAParams{}); err != nil {
-					b.Error(err)
-				}
+				// note: we don't check the error here because this benchmark
+				// is testing the performance of failed RBAC checks
+				_ = set.CheckAccess(
+					servers[i],
+					AccessMFAParams{},
+					NewLoginMatcher(login),
+				)
 			}
 		}
 	}
@@ -3070,7 +3658,7 @@ func TestRoleSetLockingMode(t *testing.T) {
 
 	missingMode := constants.LockingMode("")
 	newRoleWithLockingMode := func(t *testing.T, mode constants.LockingMode) types.Role {
-		role, err := types.NewRole(uuid.New(), types.RoleSpecV4{Options: types.RoleOptions{Lock: mode}})
+		role, err := types.NewRoleV3(uuid.New().String(), types.RoleSpecV5{Options: types.RoleOptions{Lock: mode}})
 		require.NoError(t, err)
 		return role
 	}
@@ -3100,4 +3688,428 @@ func TestRoleSetLockingMode(t *testing.T) {
 			require.Equal(t, mode, set.LockingMode(mode))
 		}
 	})
+}
+
+func TestExtractConditionForIdentifier(t *testing.T) {
+	t.Parallel()
+	set := RoleSet{}
+	_, err := set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+
+	allowWhere := func(where string) types.Role {
+		role, err := types.NewRoleV3(uuid.New().String(), types.RoleSpecV5{Allow: types.RoleConditions{
+			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
+		}})
+		require.NoError(t, err)
+		return role
+	}
+	denyWhere := func(where string) types.Role {
+		role, err := types.NewRoleV3(uuid.New().String(), types.RoleSpecV5{Deny: types.RoleConditions{
+			Rules: []types.Rule{{Resources: []string{types.KindSession}, Verbs: []string{types.VerbList}, Where: where}},
+		}})
+		require.NoError(t, err)
+		return role
+	}
+
+	user, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	user2, err := types.NewUser("test-user2")
+	require.NoError(t, err)
+	user2Meta := user2.GetMetadata()
+	user2Meta.Labels = map[string]string{"can-audit-guest": "yes"}
+	user2.SetMetadata(user2Meta)
+
+	// Add a role allowing access to guest session recordings if the user has a set label.
+	role := allowWhere(`contains(session.participants, "guest") && equals(user.metadata.labels["can-audit-guest"], "yes")`)
+	guestParticipantCond := &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "guest"}}}
+	set = append(set, role)
+
+	_, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+	cond, err := set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, guestParticipantCond))
+
+	// Add a role allowing access to the user's own session recordings.
+	role = allowWhere(`contains(session.participants, user.metadata.name)`)
+	userParticipantCond := func(user types.User) *types.WhereExpr {
+		return &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: user.GetName()}}}
+	}
+	set = append(set, role)
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, userParticipantCond(emptyUser)))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, userParticipantCond(user)))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}))
+
+	// Add a role denying access to sessions with root login.
+	role = denyWhere(`equals(session.login, "root")`)
+	noRootLoginCond := &types.WhereExpr{Not: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}}}
+	set = append(set, role)
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: &types.WhereExpr{Or: types.WhereExpr2{L: guestParticipantCond, R: userParticipantCond(user2)}}}}))
+
+	// Add a role denying access for user2.
+	role = denyWhere(fmt.Sprintf(`equals(user.metadata.name, "%s")`, user2.GetName()))
+	set = append(set, role)
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(emptyUser)}}))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, &types.WhereExpr{And: types.WhereExpr2{L: noRootLoginCond, R: userParticipantCond(user)}}))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Add a role allowing access to all sessions.
+	// This should cause all the other allow rules' conditions to be dropped.
+	role = allowWhere(``)
+	set = append(set, role)
+
+	cond, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, noRootLoginCond))
+	cond, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(cond, noRootLoginCond))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Add a role denying access to all sessions.
+	// This should make all calls return an AccessDenied.
+	role = denyWhere(``)
+	set = append(set, role)
+
+	_, err = set.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+	_, err = set.ExtractConditionForIdentifier(&Context{User: user2}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestCheckKubeGroupsAndUsers(t *testing.T) {
+	roleA := &types.RoleV5{
+		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"system:masters"},
+				KubeUsers:  []string{"dev-user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"dev"},
+				},
+			},
+		},
+	}
+	roleB := &types.RoleV5{
+		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"limited"},
+				KubeUsers:  []string{"limited-user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"prod"},
+				},
+			},
+		},
+	}
+	roleC := &types.RoleV5{
+		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubeGroups: []string{"system:masters", "groupB"},
+				KubeUsers:  []string{"user"},
+				KubernetesLabels: map[string]apiutils.Strings{
+					"env": []string{"dev", "prod"},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		kubeResLabels map[string]string
+		roles         RoleSet
+		wantUsers     []string
+		wantGroups    []string
+		errorFunc     func(t *testing.T, err error)
+	}{
+		{
+			name: "empty kube labels should returns all kube users/groups",
+			roles: RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role-dev", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"dev-user"},
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "role-prod", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							KubeUsers:  []string{"limited-user"},
+							KubeGroups: []string{"limited"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"*": []string{"*"},
+							},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user", "limited-user"},
+			wantGroups: []string{"limited", "system:masters"},
+		},
+		{
+			name:  "dev accesses should allow system:masters roles",
+			roles: RoleSet{roleA, roleB},
+			kubeResLabels: map[string]string{
+				"env": "dev",
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"system:masters"},
+		},
+		{
+			name:  "prod limited access",
+			roles: RoleSet{roleA, roleB},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"limited-user"},
+			wantGroups: []string{"limited"},
+		},
+		{
+			name:  "combine kube users/groups for different roles",
+			roles: RoleSet{roleA, roleB, roleC},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"limited-user", "user"},
+			wantGroups: []string{"groupB", "limited", "system:masters"},
+		},
+		{
+			name:  "all prod group",
+			roles: RoleSet{roleC},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"user"},
+			wantGroups: []string{"system:masters", "groupB"},
+		},
+		{
+			name: "deny system:masters prod kube group",
+			roles: RoleSet{
+				roleC,
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "roleD", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env": []string{"prod", "dev"},
+							},
+						},
+					},
+				},
+			},
+			kubeResLabels: map[string]string{
+				"env": "prod",
+			},
+			wantUsers:  []string{"user"},
+			wantGroups: []string{"groupB"},
+		},
+		{
+			name: "deny access with system:masters kube group",
+			kubeResLabels: map[string]string{
+				"env":     "prod",
+				"release": "test",
+			},
+			roles: RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							KubeGroups: []string{"system:masters", "groupA"},
+							KubeUsers:  []string{"dev-user"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env":     []string{"prod"},
+								"release": []string{"test"},
+							},
+						},
+					},
+				},
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "deny", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubernetesLabels: map[string]apiutils.Strings{
+								"env": []string{"prod"},
+							},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"groupA"},
+		},
+		{
+			name:          "v5 role empty deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV5{
+					Version:  types.V5,
+					Metadata: types.Metadata{Name: "roleV5A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubeUsers:  []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v5 role with wildcard deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV5{
+					Version:  types.V5,
+					Metadata: types.Metadata{Name: "roleV5A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v3 role with empty deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV5{
+					Version:  types.V3,
+					Metadata: types.Metadata{Name: "roleV3A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubeGroups: []string{"system:masters"},
+							KubeUsers:  []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v3 with wildcard deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV5{
+					Version:  types.V3,
+					Metadata: types.Metadata{Name: "roleV3A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+					},
+				},
+			},
+			errorFunc: func(t *testing.T, err error) {
+				require.IsType(t, trace.AccessDenied(""), err)
+			},
+		},
+		{
+			name:          "v3 role with custom deny.kubernetes_labels",
+			kubeResLabels: nil,
+			roles: RoleSet{
+				&types.RoleV5{
+					Version:  types.V3,
+					Metadata: types.Metadata{Name: "roleV3A", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Allow: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+						Deny: types.RoleConditions{
+							KubernetesLabels: map[string]apiutils.Strings{"env": []string{"env"}},
+							KubeGroups:       []string{"system:masters"},
+							KubeUsers:        []string{"dev-user"},
+						},
+					},
+				},
+			},
+			wantUsers:  []string{"dev-user"},
+			wantGroups: []string{"system:masters"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels)
+			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
+			if tc.errorFunc == nil {
+				require.NoError(t, err)
+			} else {
+				tc.errorFunc(t, err)
+			}
+
+			require.ElementsMatch(t, tc.wantUsers, gotUsers)
+			require.ElementsMatch(t, tc.wantGroups, gotGroups)
+		})
+	}
 }

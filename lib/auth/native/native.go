@@ -150,7 +150,7 @@ func (k *Keygen) precomputeKeys() {
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
 // execute.
 func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -198,7 +198,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
-	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
+	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, types.SystemRoles{c.Role})
 	principals = append(principals, c.Principals...)
 	if len(principals) == 0 {
 		return nil, trace.BadParameter("no principals provided: %v, %v, %v",
@@ -220,7 +220,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		CertType:        ssh.HostCert,
 	}
 	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Roles.String()
+	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Role.String()
 	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
 
 	// sign host certificate with private signing key of certificate authority
@@ -229,7 +229,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	}
 
 	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
-		c.Roles, principals)
+		c.Role, principals)
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
@@ -284,6 +284,24 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	}
 	if c.Impersonator != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionImpersonator] = c.Impersonator
+	}
+	if c.DisallowReissue {
+		cert.Permissions.Extensions[teleport.CertExtensionDisallowReissue] = ""
+	}
+	if c.Renewable {
+		cert.Permissions.Extensions[teleport.CertExtensionRenewable] = ""
+	}
+	if c.Generation > 0 {
+		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = fmt.Sprint(c.Generation)
+	}
+
+	for _, extension := range c.CertificateExtensions {
+		// TODO(lxea): update behavior when non ssh, non extensions are supported.
+		if extension.Mode != types.CertExtensionMode_EXTENSION ||
+			extension.Type != types.CertExtensionType_SSH {
+			continue
+		}
+		cert.Extensions[extension.Name] = extension.Value
 	}
 
 	// Add roles, traits, and route to cluster in the certificate extensions if

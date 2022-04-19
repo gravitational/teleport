@@ -23,48 +23,16 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
-
-// DELETE IN 7.0
-
-// GetRoles returns a list of roles
-func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
-	if resp, err := c.APIClient.GetRoles(ctx); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	out, err := c.Get(c.Endpoint("roles"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roles := make([]types.Role, len(items))
-	for i, roleBytes := range items {
-		role, err := services.UnmarshalRole(roleBytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles[i] = role
-	}
-	return roles, nil
-}
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
@@ -80,7 +48,7 @@ func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("roles"), &upsertRoleRawReq{Role: data})
+	_, err = c.PostJSON(ctx, c.Endpoint("roles"), &upsertRoleRawReq{Role: data})
 	return trace.Wrap(err)
 }
 
@@ -97,7 +65,7 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
 	}
-	out, err := c.Get(c.Endpoint("roles", name), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("roles", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,31 +89,8 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing name")
 	}
-	_, err := c.Delete(c.Endpoint("roles", name))
+	_, err := c.Delete(ctx, c.Endpoint("roles", name))
 	return trace.Wrap(err)
-}
-
-// DELETE IN 8.0
-
-// UpsertToken adds provisioning tokens for the auth server
-func (c *Client) UpsertToken(ctx context.Context, tok types.ProvisionToken) error {
-	if err := c.APIClient.UpsertToken(ctx, tok); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	_, err := c.PostJSON(c.Endpoint("tokens"), GenerateTokenRequest{
-		Token: tok.GetName(),
-		Roles: tok.GetRoles(),
-		TTL:   backend.TTL(clockwork.NewRealClock(), tok.Expiry()),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // GetTokens returns a list of active invitation tokens for nodes and users
@@ -158,7 +103,7 @@ func (c *Client) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("tokens"), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("tokens"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,7 +124,7 @@ func (c *Client) GetToken(ctx context.Context, token string) (types.ProvisionTok
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("tokens", token), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("tokens", token), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -197,7 +142,7 @@ func (c *Client) DeleteToken(ctx context.Context, token string) error {
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("tokens", token))
+	_, err := c.Delete(ctx, c.Endpoint("tokens", token))
 	return trace.Wrap(err)
 }
 
@@ -215,7 +160,7 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(c.Endpoint("oidc", "connectors"), &upsertOIDCConnectorRawReq{
+	_, err = c.PostJSON(ctx, c.Endpoint("oidc", "connectors"), &upsertOIDCConnectorRawReq{
 		Connector: data,
 	})
 	if err != nil {
@@ -237,7 +182,7 @@ func (c *Client) GetOIDCConnector(ctx context.Context, id string, withSecrets bo
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
-	out, err := c.Get(c.Endpoint("oidc", "connectors", id),
+	out, err := c.Get(ctx, c.Endpoint("oidc", "connectors", id),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
 		return nil, err
@@ -255,7 +200,7 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("oidc", "connectors"),
+	out, err := c.Get(ctx, c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
 		return nil, err
@@ -288,7 +233,7 @@ func (c *Client) DeleteOIDCConnector(ctx context.Context, connectorID string) er
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
-	_, err := c.Delete(c.Endpoint("oidc", "connectors", connectorID))
+	_, err := c.Delete(ctx, c.Endpoint("oidc", "connectors", connectorID))
 	return trace.Wrap(err)
 }
 
@@ -306,7 +251,7 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PutJSON(c.Endpoint("saml", "connectors"), &upsertSAMLConnectorRawReq{
+	_, err = c.PutJSON(ctx, c.Endpoint("saml", "connectors"), &upsertSAMLConnectorRawReq{
 		Connector: data,
 	})
 	if err != nil {
@@ -328,7 +273,7 @@ func (c *Client) GetSAMLConnector(ctx context.Context, id string, withSecrets bo
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
 	}
-	out, err := c.Get(c.Endpoint("saml", "connectors", id),
+	out, err := c.Get(ctx, c.Endpoint("saml", "connectors", id),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -346,7 +291,7 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]typ
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("saml", "connectors"),
+	out, err := c.Get(ctx, c.Endpoint("saml", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
 	if err != nil {
 		return nil, err
@@ -379,7 +324,7 @@ func (c *Client) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
-	_, err := c.Delete(c.Endpoint("saml", "connectors", connectorID))
+	_, err := c.Delete(ctx, c.Endpoint("saml", "connectors", connectorID))
 	return trace.Wrap(err)
 }
 
@@ -397,7 +342,7 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.Gith
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PutJSON(c.Endpoint("github", "connectors"), &upsertGithubConnectorRawReq{
+	_, err = c.PutJSON(ctx, c.Endpoint("github", "connectors"), &upsertGithubConnectorRawReq{
 		Connector: bytes,
 	})
 	if err != nil {
@@ -416,7 +361,7 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]t
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("github", "connectors"), url.Values{
+	out, err := c.Get(ctx, c.Endpoint("github", "connectors"), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
 	if err != nil {
@@ -447,7 +392,7 @@ func (c *Client) GetGithubConnector(ctx context.Context, id string, withSecrets 
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("github", "connectors", id), url.Values{
+	out, err := c.Get(ctx, c.Endpoint("github", "connectors", id), url.Values{
 		"with_secrets": []string{strconv.FormatBool(withSecrets)},
 	})
 	if err != nil {
@@ -466,7 +411,7 @@ func (c *Client) DeleteGithubConnector(ctx context.Context, id string) error {
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("github", "connectors", id))
+	_, err := c.Delete(ctx, c.Endpoint("github", "connectors", id))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -482,7 +427,7 @@ func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.Trus
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("trustedclusters", name), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("trustedclusters", name), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -504,7 +449,7 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("trustedclusters"), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("trustedclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -539,7 +484,7 @@ func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.PostJSON(c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
+	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters"), &upsertTrustedClusterReq{
 		TrustedCluster: trustedClusterBytes,
 	})
 	if err != nil {
@@ -558,7 +503,7 @@ func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("trustedclusters", name))
+	_, err := c.Delete(ctx, c.Endpoint("trustedclusters", name))
 	return trace.Wrap(err)
 }
 
@@ -572,7 +517,7 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("namespaces", namespace, "nodes"))
+	_, err := c.Delete(ctx, c.Endpoint("namespaces", namespace, "nodes"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -589,14 +534,50 @@ func (c *Client) DeleteNode(ctx context.Context, namespace string, name string) 
 		return nil
 	}
 
-	_, err := c.Delete(c.Endpoint("namespaces", namespace, "nodes", name))
+	_, err := c.Delete(ctx, c.Endpoint("namespaces", namespace, "nodes", name))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
+type nodeClient interface {
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+}
+
+// GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  This is essentially
+// a wrapper around client.GetNodesWithLabels that performs fallback on NotImplemented errors.
+//
+// DELETE IN 11.0.0, this function is only called by lib/client/client.go (*ProxyClient).FindServersByLabels
+// which is also marked for deletion (replaced by FindNodesByFilters).
+func GetNodesWithLabels(ctx context.Context, clt nodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
+	nodes, err := client.GetNodesWithLabels(ctx, clt, namespace, labels)
+	if err == nil || !trace.IsNotImplemented(err) {
+		return nodes, trace.Wrap(err)
+	}
+
+	nodes, err = clt.GetNodes(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var filtered []types.Server
+
+	// we had to fallback to a method that does not perform server-side filtering,
+	// so filter here instead.
+	for _, node := range nodes {
+		if node.MatchAgainst(labels) {
+			filtered = append(filtered, node)
+		}
+	}
+
+	return filtered, nil
+}
+
 // GetNodes returns the list of servers registered in the cluster.
+//
+// DELETE IN 11.0.0, replaced by GetResourcesWithFilters
 func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	if resp, err := c.APIClient.GetNodes(ctx, namespace); err != nil {
 		if !trace.IsNotImplemented(err) {
@@ -606,7 +587,7 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 		return resp, nil
 	}
 
-	out, err := c.Get(c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("namespaces", namespace, "nodes"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -628,123 +609,4 @@ func (c *Client) GetNodes(ctx context.Context, namespace string, opts ...service
 	}
 
 	return re, nil
-}
-
-// GetAuthPreference gets cluster auth preference.
-func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	authPref, err := c.APIClient.GetAuthPreference(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-		out, err := c.Get(c.Endpoint("authentication", "preference"), url.Values{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		authPref, err = services.UnmarshalAuthPreference(out.Bytes())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	resp, err := c.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// AuthPreference was updated in 7.0.0 to hold legacy cluster config fields. If the
-	// server version is < 7.0.0, we must update the AuthPreference with the legacy fields.
-	if err := utils.CheckVersion(resp.ServerVersion, utils.VersionBeforeAlpha("7.0.0")); err != nil {
-		if !trace.IsBadParameter(err) {
-			return nil, trace.Wrap(err)
-		}
-		legacyConfig, err := c.GetClusterConfig()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := services.UpdateAuthPreferenceWithLegacyClusterConfig(legacyConfig, authPref); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return authPref, nil
-}
-
-// SetAuthPreference sets cluster auth preference.
-func (c *Client) SetAuthPreference(ctx context.Context, cap types.AuthPreference) error {
-	if err := c.APIClient.SetAuthPreference(ctx, cap); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-	data, err := services.MarshalAuthPreference(cap)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(c.Endpoint("authentication", "preference"), &setClusterAuthPreferenceReq{ClusterAuthPreference: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetClusterAuditConfig gets cluster audit configuration.
-func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
-	auditConfig, err := c.APIClient.GetClusterAuditConfig(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return auditConfig, nil
-	}
-
-	cfg, err := c.GetClusterConfig(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg.GetClusterAuditConfig()
-}
-
-// GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
-	netConfig, err := c.APIClient.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return netConfig, nil
-	}
-
-	cfg, err := c.GetClusterConfig(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg.GetClusterNetworkingConfig()
-}
-
-// GetSessionRecordingConfig gets session recording configuration.
-func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
-	recConfig, err := c.APIClient.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return recConfig, nil
-	}
-
-	cfg, err := c.GetClusterConfig(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg.GetSessionRecordingConfig()
 }

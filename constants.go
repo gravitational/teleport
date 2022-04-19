@@ -62,18 +62,6 @@ const (
 )
 
 const (
-	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
-	HTTPSProxy = "HTTPS_PROXY"
-
-	// HTTPProxy is an environment variable pointing to a HTTP proxy.
-	HTTPProxy = "HTTP_PROXY"
-
-	// NoProxy is an environment variable matching the cases
-	// when HTTPS_PROXY or HTTP_PROXY is ignored
-	NoProxy = "NO_PROXY"
-)
-
-const (
 	// TOTPValidityPeriod is the number of seconds a TOTP token is valid.
 	TOTPValidityPeriod uint = 30
 
@@ -224,6 +212,9 @@ const (
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
+	// ComponentTBot is the "tbot" binary
+	ComponentTBot = "tbot"
+
 	// ComponentKubeClient is the Kubernetes client.
 	ComponentKubeClient = "client:kube"
 
@@ -349,6 +340,12 @@ const (
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 
+	// ACL is the canned ACL to send to S3
+	ACL = "acl"
+
+	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
+	SSEKMSKey = "sse_kms_key"
+
 	// SchemeFile is a local disk file storage
 	SchemeFile = "file"
 
@@ -437,6 +434,15 @@ const (
 	// CertExtensionImpersonator is set when one user has requested certificates
 	// for another user
 	CertExtensionImpersonator = "impersonator"
+	// CertExtensionDisallowReissue is set when a certificate should not be allowed
+	// to request future certificates.
+	CertExtensionDisallowReissue = "disallow-reissue"
+	// CertExtensionRenewable is a flag to indicate the certificate may be
+	// renewed.
+	CertExtensionRenewable = "renewable"
+	// CertExtensionGeneration counts the number of times a certificate has
+	// been renewed.
+	CertExtensionGeneration = "generation"
 )
 
 const (
@@ -447,6 +453,10 @@ const (
 	// Ping is the common backend for all Ping Identity-branded identity
 	// providers (including PingOne, PingFederate, etc).
 	Ping = "ping"
+	// Okta should be used for Okta OIDC providers.
+	Okta = "okta"
+	// JumpCloud is an identity provider.
+	JumpCloud = "jumpcloud"
 )
 
 const (
@@ -455,6 +465,9 @@ const (
 	// RemoteCommandFailure is returned when a command has failed to execute and
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
+	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
+	// find the user's home directory.
+	HomeDirNotFound = 254
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
@@ -492,9 +505,13 @@ const (
 	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
 	TraitExternalPrefix = "external"
 
-	// TraitLogins is the name the role variable used to store
+	// TraitLogins is the name of the role variable used to store
 	// allowed logins.
 	TraitLogins = "logins"
+
+	// TraitWindowsLogins is the name of the role variable used
+	// to store allowed Windows logins.
+	TraitWindowsLogins = "windows_logins"
 
 	// TraitKubeGroups is the name the role variable used to store
 	// allowed kubernetes groups
@@ -512,9 +529,17 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitTeams is the name of the role variable use to store team
+	// membership information
+	TraitTeams = "github_teams"
+
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
+
+	// TraitInternalWindowsLoginsVariable is the variable used to store
+	// allowed Windows Desktop logins for local accounts.
+	TraitInternalWindowsLoginsVariable = "{{internal.windows_logins}}"
 
 	// TraitInternalKubeGroupsVariable is the variable used to store allowed
 	// kubernetes groups for local accounts.
@@ -533,22 +558,14 @@ const (
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
 )
 
-const (
-	// GSuiteIssuerURL is issuer URL used for GSuite provider
-	GSuiteIssuerURL = "https://accounts.google.com"
-	// GSuiteGroupsEndpoint is gsuite API endpoint
-	GSuiteGroupsEndpoint = "https://www.googleapis.com/admin/directory/v1/groups"
-	// GSuiteGroupsScope is a scope to get access to admin groups API
-	GSuiteGroupsScope = "https://www.googleapis.com/auth/admin.directory.group.readonly"
-	// GSuiteDomainClaim is the domain name claim for GSuite
-	GSuiteDomainClaim = "hd"
-)
-
 // SCP is Secure Copy.
 const SCP = "scp"
 
 // Root is *nix system administrator account name.
 const Root = "root"
+
+// Administrator is the Windows system administrator account name.
+const Administrator = "Administrator"
 
 // AdminRoleName is the name of the default admin role for all local users if
 // another role is not explicitly assigned
@@ -567,9 +584,6 @@ const (
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
 )
-
-// OSSMigratedV6 is a label to mark migrated OSS users and resources
-const OSSMigratedV6 = "migrate-v6.0"
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
@@ -606,6 +620,25 @@ const (
 	// VersionRequest is sent by clients to server requesting the Teleport
 	// version they are running.
 	VersionRequest = "x-teleport-version"
+
+	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
+	ForceTerminateRequest = "x-teleport-force-terminate"
+
+	// MFAPresenceRequest is an SSH request to notify clients that MFA presence is required for a session.
+	MFAPresenceRequest = "x-teleport-mfa-presence"
+
+	// EnvSSHJoinMode is the SSH environment variable that contains the requested participant mode.
+	EnvSSHJoinMode = "TELEPORT_SSH_JOIN_MODE"
+
+	// EnvSSHSessionReason is a reason attached to started sessions meant to describe their intent.
+	EnvSSHSessionReason = "TELEPORT_SESSION_REASON"
+
+	// EnvSSHSessionInvited is an environment variable listning people invited to a session.
+	EnvSSHSessionInvited = "TELEPORT_SESSION_JOIN_MODE"
+
+	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
+	// requirement information should be printed.
+	EnvSSHSessionDisplayParticipantRequirements = "TELEPORT_SESSION_PARTICIPANT_REQUIREMENTS"
 )
 
 const (
@@ -686,6 +719,10 @@ const (
 	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
 	// for port forwarding.
 	ForwardSubCommand = "forward"
+
+	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
+	// to check if the user's home directory exists.
+	CheckHomeDirSubCommand = "checkhomedir"
 )
 
 const (
@@ -695,9 +732,6 @@ const (
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
 )
-
-// RSAKeySize is the size of the RSA key.
-const RSAKeySize = 2048
 
 // A principal name for use in SSH certificates.
 type Principal string
@@ -734,3 +768,6 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+// StandardRDPPort is the default port used for RDP.
+const StandardRDPPort = 3389

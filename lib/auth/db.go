@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -42,14 +43,24 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hostCA, err := s.GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
+	databaseCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			// Database CA doesn't exist. Fallback to Host CA.
+			// https://github.com/gravitational/teleport/issues/5029
+			databaseCA, err = s.GetCertAuthority(ctx, types.CertAuthID{
+				Type:       types.HostCA,
+				DomainName: clusterName.GetClusterName(),
+			}, true)
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(hostCA)
+	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(databaseCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -62,12 +73,10 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		PublicKey: csr.PublicKey,
 		Subject:   csr.Subject,
 		NotAfter:  s.clock.Now().UTC().Add(req.TTL.Get()),
-	}
-	// Include provided server name as a SAN in the certificate, CommonName
-	// has been deprecated since Go 1.15:
-	//   https://golang.org/doc/go1.15#commonname
-	if req.ServerName != "" {
-		certReq.DNSNames = []string{req.ServerName}
+		// Include provided server names as SANs in the certificate, CommonName
+		// has been deprecated since Go 1.15:
+		//   https://golang.org/doc/go1.15#commonname
+		DNSNames: getServerNames(req),
 	}
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {
@@ -75,8 +84,17 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	}
 	return &proto.DatabaseCertResponse{
 		Cert:    cert,
-		CACerts: services.GetTLSCerts(hostCA),
+		CACerts: services.GetTLSCerts(databaseCA),
 	}, nil
+}
+
+// getServerNames returns deduplicated list of server names from signing request.
+func getServerNames(req *proto.DatabaseCertRequest) []string {
+	serverNames := req.ServerNames
+	if req.ServerName != "" { // Include legacy ServerName field for compatibility.
+		serverNames = append(serverNames, req.ServerName)
+	}
+	return utils.Deduplicate(serverNames)
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking
@@ -94,7 +112,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	hostCA, err := s.GetCertAuthority(types.CertAuthID{
+	hostCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: req.ClusterName,
 	}, false)
@@ -135,16 +153,24 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	// Get the correct cert TTL based on roles.
 	ttl := roles.AdjustSessionTTL(apidefaults.CertDuration)
 
+	caType := types.UserCA
+	if req.SignWithDatabaseCA {
+		// Field SignWithDatabaseCA was added in Teleport 10 when DatabaseCA was introduced.
+		// Previous Teleport versions used UserCA, and we still need to sign certificates with UserCA
+		// for compatibility reason. Teleport 10+ expects request signed with DatabaseCA.
+		caType = types.DatabaseCA
+	}
+
 	// Generate the TLS certificate.
-	userCA, err := s.Trust.GetCertAuthority(types.CertAuthID{
-		Type:       types.UserCA,
+	ca, err := s.Trust.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

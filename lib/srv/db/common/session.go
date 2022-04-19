@@ -32,8 +32,8 @@ type Session struct {
 	ID string
 	// ClusterName is the cluster the database service is a part of.
 	ClusterName string
-	// Server is the database server handling the connection.
-	Server types.DatabaseServer
+	// HostID is the id of this database server host.
+	HostID string
 	// Database is the database user is connecting to.
 	Database types.Database
 	// Identity is the identity of the connecting Teleport user.
@@ -48,8 +48,6 @@ type Session struct {
 	StartupParameters map[string]string
 	// Log is the logger with session specific fields.
 	Log logrus.FieldLogger
-	// Statements is the session's prepared statements cache.
-	Statements *StatementsCache
 	// LockTargets is a list of lock targets applicable to this session.
 	LockTargets []types.LockTarget
 }

@@ -16,6 +16,8 @@ limitations under the License.
 
 package events
 
+import apievents "github.com/gravitational/teleport/api/types/events"
+
 // Event describes an audit log event.
 type Event struct {
 	// Name is the event name.
@@ -23,246 +25,6 @@ type Event struct {
 	// Code is the unique event code.
 	Code string
 }
-
-var (
-	// UserLocalLoginE is emitted when a local user successfully logs in.
-	UserLocalLoginE = Event{
-		Name: UserLoginEvent,
-		Code: UserLocalLoginCode,
-	}
-	// UserLocalLoginFailureE is emitted when a local user login attempt fails.
-	UserLocalLoginFailureE = Event{
-		Name: UserLoginEvent,
-		Code: UserLocalLoginFailureCode,
-	}
-	// UserSSOLoginE is emitted when an SSO user successfully logs in.
-	UserSSOLoginE = Event{
-		Name: UserLoginEvent,
-		Code: UserSSOLoginCode,
-	}
-	// UserSSOLoginFailureE is emitted when an SSO user login attempt fails.
-	UserSSOLoginFailureE = Event{
-		Name: UserLoginEvent,
-		Code: UserSSOLoginFailureCode,
-	}
-	// UserUpdateE is emitted when a user is updated.
-	UserUpdateE = Event{
-		Name: UserUpdatedEvent,
-		Code: UserUpdateCode,
-	}
-	// UserDeleteE is emitted when a user is deleted.
-	UserDeleteE = Event{
-		Name: UserDeleteEvent,
-		Code: UserDeleteCode,
-	}
-	// UserCreateE is emitted when a user is created.
-	UserCreateE = Event{
-		Name: UserCreateEvent,
-		Code: UserCreateCode,
-	}
-	// UserPasswordChangeE is emitted when a user changes their own password.
-	UserPasswordChangeE = Event{
-		Name: UserPasswordChangeEvent,
-		Code: UserPasswordChangeCode,
-	}
-	// SessionStartE is emitted when a user starts a new session.
-	SessionStartE = Event{
-		Name: SessionStartEvent,
-		Code: SessionStartCode,
-	}
-	// SessionJoinE is emitted when a user joins the session.
-	SessionJoinE = Event{
-		Name: SessionJoinEvent,
-		Code: SessionJoinCode,
-	}
-	// TerminalResizeE is emitted when a user resizes the terminal.
-	TerminalResizeE = Event{
-		Name: ResizeEvent,
-		Code: TerminalResizeCode,
-	}
-	// SessionLeaveE is emitted when a user leaves the session.
-	SessionLeaveE = Event{
-		Name: SessionLeaveEvent,
-		Code: SessionLeaveCode,
-	}
-	// SessionEndE is emitted when a user ends the session.
-	SessionEndE = Event{
-		Name: SessionEndEvent,
-		Code: SessionEndCode,
-	}
-	// SessionUploadE is emitted after a session recording has been uploaded.
-	SessionUploadE = Event{
-		Name: SessionUploadEvent,
-		Code: SessionUploadCode,
-	}
-	// SessionDataE is emitted to report session data usage.
-	SessionDataE = Event{
-		Name: SessionDataEvent,
-		Code: SessionDataCode,
-	}
-	// SubsystemE is emitted when a user requests a new subsystem.
-	SubsystemE = Event{
-		Name: SubsystemEvent,
-		Code: SubsystemCode,
-	}
-	// SubsystemFailureE is emitted when a user subsystem request fails.
-	SubsystemFailureE = Event{
-		Name: SubsystemEvent,
-		Code: SubsystemFailureCode,
-	}
-	// ExecE is emitted when a user executes a command on a node.
-	ExecE = Event{
-		Name: ExecEvent,
-		Code: ExecCode,
-	}
-	// ExecFailureE is emitted when a user command execution fails.
-	ExecFailureE = Event{
-		Name: ExecEvent,
-		Code: ExecFailureCode,
-	}
-	// X11ForwardE is emitted when a user requests X11 forwarding.
-	X11ForwardE = Event{
-		Name: X11ForwardEvent,
-		Code: X11ForwardCode,
-	}
-	// X11ForwardFailureE is emitted when an X11 forwarding request fails.
-	X11ForwardFailureE = Event{
-		Name: X11ForwardEvent,
-		Code: X11ForwardFailureCode,
-	}
-	// PortForwardE is emitted when a user requests port forwarding.
-	PortForwardE = Event{
-		Name: PortForwardEvent,
-		Code: PortForwardCode,
-	}
-	// PortForwardFailureE is emitted when a port forward request fails.
-	PortForwardFailureE = Event{
-		Name: PortForwardEvent,
-		Code: PortForwardFailureCode,
-	}
-	// SCPDownloadE is emitted when a user downloads a file.
-	SCPDownloadE = Event{
-		Name: SCPEvent,
-		Code: SCPDownloadCode,
-	}
-	// SCPDownloadFailureE is emitted when a file download fails.
-	SCPDownloadFailureE = Event{
-		Name: SCPEvent,
-		Code: SCPDownloadFailureCode,
-	}
-	// SCPUploadE is emitted when a user uploads a file.
-	SCPUploadE = Event{
-		Name: SCPEvent,
-		Code: SCPUploadCode,
-	}
-	// SCPUploadFailureE is emitted when a file upload fails.
-	SCPUploadFailureE = Event{
-		Name: SCPEvent,
-		Code: SCPUploadFailureCode,
-	}
-	// ClientDisconnectE is emitted when a user session is disconnected.
-	ClientDisconnectE = Event{
-		Name: ClientDisconnectEvent,
-		Code: ClientDisconnectCode,
-	}
-	// AuthAttemptFailureE is emitted upon a failed authentication attempt.
-	AuthAttemptFailureE = Event{
-		Name: AuthAttemptEvent,
-		Code: AuthAttemptFailureCode,
-	}
-	// AccessRequestCreatedE is emitted when an access request is created.
-	AccessRequestCreatedE = Event{
-		Name: AccessRequestCreateEvent,
-		Code: AccessRequestCreateCode,
-	}
-	AccessRequestUpdatedE = Event{
-		Name: AccessRequestUpdateEvent,
-		Code: AccessRequestUpdateCode,
-	}
-	// SessionCommandE is emitted upon execution of a command when using enhanced
-	// session recording.
-	SessionCommandE = Event{
-		Name: SessionCommandEvent,
-		Code: SessionCommandCode,
-	}
-	// SessionDiskE is emitted upon open of a file when using enhanced session recording.
-	SessionDiskE = Event{
-		Name: SessionDiskEvent,
-		Code: SessionDiskCode,
-	}
-	// SessionNetworkE is emitted when a network request is issued when
-	// using enhanced session recording.
-	SessionNetworkE = Event{
-		Name: SessionNetworkEvent,
-		Code: SessionNetworkCode,
-	}
-	// ResetPasswordTokenCreatedE is emitted when a password reset token is created.
-	ResetPasswordTokenCreatedE = Event{
-		Name: ResetPasswordTokenCreateEvent,
-		Code: ResetPasswordTokenCreateCode,
-	}
-	// RoleCreatedE is emitted when a role is created/updated.
-	RoleCreatedE = Event{
-		Name: RoleCreatedEvent,
-		Code: RoleCreatedCode,
-	}
-	// RoleDeletedE is emitted when a role is deleted.
-	RoleDeletedE = Event{
-		Name: RoleDeletedEvent,
-		Code: RoleDeletedCode,
-	}
-	// TrustedClusterCreateE is emitted when a trusted cluster relationship is created.
-	TrustedClusterCreateE = Event{
-		Name: TrustedClusterCreateEvent,
-		Code: TrustedClusterCreateCode,
-	}
-	// TrustedClusterDeleteE is emitted when a trusted cluster is removed from the root cluster.
-	TrustedClusterDeleteE = Event{
-		Name: TrustedClusterDeleteEvent,
-		Code: TrustedClusterDeleteCode,
-	}
-	// TrustedClusterTokenCreateE is emitted when a new join
-	// token for trusted cluster is created.
-	TrustedClusterTokenCreateE = Event{
-		Name: TrustedClusterTokenCreateEvent,
-		Code: TrustedClusterTokenCreateCode,
-	}
-	// GithubConnectorCreatedE is emitted when a Github connector is created/updated.
-	GithubConnectorCreatedE = Event{
-		Name: GithubConnectorCreatedEvent,
-		Code: GithubConnectorCreatedCode,
-	}
-	// GithubConnectorDeletedE is emitted when a Github connector is deleted.
-	GithubConnectorDeletedE = Event{
-		Name: GithubConnectorDeletedEvent,
-		Code: GithubConnectorDeletedCode,
-	}
-	// OIDCConnectorCreatedE is emitted when an OIDC connector is created/updated.
-	OIDCConnectorCreatedE = Event{
-		Name: OIDCConnectorCreatedEvent,
-		Code: OIDCConnectorCreatedCode,
-	}
-	// OIDCConnectorDeletedE is emitted when an OIDC connector is deleted.
-	OIDCConnectorDeletedE = Event{
-		Name: OIDCConnectorDeletedEvent,
-		Code: OIDCConnectorDeletedCode,
-	}
-	// SAMLConnectorCreatedE is emitted when a SAML connector is created/updated.
-	SAMLConnectorCreatedE = Event{
-		Name: SAMLConnectorCreatedEvent,
-		Code: SAMLConnectorCreatedCode,
-	}
-	// SAMLConnectorDeletedE is emitted when a SAML connector is deleted.
-	SAMLConnectorDeletedE = Event{
-		Name: SAMLConnectorDeletedEvent,
-		Code: SAMLConnectorDeletedCode,
-	}
-	// SessionRejectedE is emitted when a user hits `max_connections`.
-	SessionRejectedE = Event{
-		Name: SessionRejectedEvent,
-		Code: SessionRejectedCode,
-	}
-)
 
 // There is no strict algorithm for picking an event code, however existing
 // event codes are currently loosely categorized as follows:
@@ -294,6 +56,14 @@ const (
 	MFADeviceAddEventCode = "T1006I"
 	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
 	MFADeviceDeleteEventCode = "T1007I"
+	// RecoveryCodesGenerateCode is an event code for generation of recovery codes.
+	RecoveryCodesGenerateCode = "T1008I"
+	// RecoveryCodeUseSuccessCode is an event code for when a
+	// recovery code was used successfully.
+	RecoveryCodeUseSuccessCode = "T1009I"
+	// RecoveryCodeUseFailureCode is an event code for when a
+	// recovery code was not used successfully.
+	RecoveryCodeUseFailureCode = "T1009W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
@@ -323,6 +93,13 @@ const (
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
 
+	// AppCreateCode is the app.create event code.
+	AppCreateCode = "TAP03I"
+	// AppUpdateCode is the app.update event code.
+	AppUpdateCode = "TAP04I"
+	// AppDeleteCode is the app.delete event code.
+	AppDeleteCode = "TAP05I"
+
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
 	// AppSessionChunkCode is the application session chunk create code.
@@ -330,7 +107,10 @@ const (
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
 
-	// DatabaseSessioStartCode is the database session start event code.
+	// SessionConnectCode is the session connect event code.
+	SessionConnectCode = "T2010I"
+
+	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
 	// DatabaseSessionStartFailureCode is the database session start failure event code.
 	DatabaseSessionStartFailureCode = "TDB00W"
@@ -340,6 +120,65 @@ const (
 	DatabaseSessionQueryCode = "TDB02I"
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
+
+	// PostgresParseCode is the db.session.postgres.statements.parse event code.
+	PostgresParseCode = "TPG00I"
+	// PostgresBindCode is the db.session.postgres.statements.bind event code.
+	PostgresBindCode = "TPG01I"
+	// PostgresExecuteCode is the db.session.postgres.statements.execute event code.
+	PostgresExecuteCode = "TPG02I"
+	// PostgresCloseCode is the db.session.postgres.statements.close event code.
+	PostgresCloseCode = "TPG03I"
+	// PostgresFunctionCallCode is the db.session.postgres.function event code.
+	PostgresFunctionCallCode = "TPG04I"
+
+	// MySQLStatementPrepareCode is the db.session.mysql.statements.prepare event code.
+	MySQLStatementPrepareCode = "TMY00I"
+	// MySQLStatementExecuteCode is the db.session.mysql.statements.execute event code.
+	MySQLStatementExecuteCode = "TMY01I"
+	// MySQLStatementSendLongDataCode is the db.session.mysql.statements.send_long_data event code.
+	MySQLStatementSendLongDataCode = "TMY02I"
+	// MySQLStatementCloseCode is the db.session.mysql.statements.close event code.
+	MySQLStatementCloseCode = "TMY03I"
+	// MySQLStatementResetCode is the db.session.mysql.statements.reset event code.
+	MySQLStatementResetCode = "TMY04I"
+	// MySQLStatementFetchCode is the db.session.mysql.statements.fetch event code.
+	MySQLStatementFetchCode = "TMY05I"
+	// MySQLStatementBulkExecuteCode is the db.session.mysql.statements.bulk_execute event code.
+	MySQLStatementBulkExecuteCode = "TMY06I"
+	// MySQLInitDBCode is the db.session.mysql.init_db event code.
+	MySQLInitDBCode = "TMY07I"
+	// MySQLCreateDBCode is the db.session.mysql.create_db event code.
+	MySQLCreateDBCode = "TMY08I"
+	// MySQLDropDBCode is the db.session.mysql.drop_db event code.
+	MySQLDropDBCode = "TMY09I"
+	// MySQLShutDownCode is the db.session.mysql.shut_down event code.
+	MySQLShutDownCode = "TMY10I"
+	// MySQLProcessKillCode is the db.session.mysql.process_kill event code.
+	MySQLProcessKillCode = "TMY11I"
+	// MySQLDebugCode is the db.session.mysql.debug event code.
+	MySQLDebugCode = "TMY12I"
+	// MySQLRefreshCode is the db.session.mysql.refresh event code.
+	MySQLRefreshCode = "TMY13I"
+
+	// DatabaseCreateCode is the db.create event code.
+	DatabaseCreateCode = "TDB03I"
+	// DatabaseUpdateCode is the db.update event code.
+	DatabaseUpdateCode = "TDB04I"
+	// DatabaseDeleteCode is the db.delete event code.
+	DatabaseDeleteCode = "TDB05I"
+
+	// DesktopSessionStartCode is the desktop session start event code.
+	DesktopSessionStartCode = "TDP00I"
+	// DesktopSessionStartFailureCode is event code for desktop sessions
+	// that failed to start.
+	DesktopSessionStartFailureCode = "TDP00W"
+	// DesktopSessionEndCode is the desktop session end event code.
+	DesktopSessionEndCode = "TDP01I"
+	// DesktopClipboardSendCode is the desktop clipboard send code.
+	DesktopClipboardSendCode = "TDP02I"
+	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
+	DesktopClipboardReceiveCode = "TDP03I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -388,9 +227,17 @@ const (
 	AccessRequestUpdateCode = "T5001I"
 	// AccessRequestReviewCode is the access review application code.
 	AccessRequestReviewCode = "T5002I"
+	// AccessRequestDeleteCode is the access request deleted code.
+	AccessRequestDeleteCode = "T5003I"
+	// AccessRequestResourceSearchCode is the access request resource search code.
+	AccessRequestResourceSearchCode = "T5004I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
+	// RecoveryTokenCreateCode is the recovery token create event code.
+	RecoveryTokenCreateCode = "T6001I"
+	// PrivilegeTokenCreateCode is the privilege token create event code.
+	PrivilegeTokenCreateCode = "T6002I"
 
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
 	TrustedClusterCreateCode = "T7000I"
@@ -424,4 +271,14 @@ const (
 	LockCreatedCode = "TLK00I"
 	// LockDeletedCode is the lock deleted event code.
 	LockDeletedCode = "TLK01I"
+
+	// CertificateCreateCode is the certificate issuance event code.
+	CertificateCreateCode = "TC000I"
+
+	// RenewableCertificateGenerationMismatchCode is the renewable cert
+	// generation mismatch code.
+	RenewableCertificateGenerationMismatchCode = "TCB00W"
+
+	// UnknownCode is used when an event of unknown type is encountered.
+	UnknownCode = apievents.UnknownCode
 )

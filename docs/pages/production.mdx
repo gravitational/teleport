@@ -1,6 +1,6 @@
 ---
 title: Teleport Production Guide
-description: How to configure SSH and Kubernetes access with SSO on AWS, GCE, and your own infrastructure.
+description: How to configure secure access with SSO on AWS, GCE, and your own infrastructure.
 h1: Production Guide
 ---
 
@@ -44,12 +44,16 @@ Teleport services listen on several ports. This table shows the default port num
 | `3026` | Kubernetes | Port used for `kubectl` to access Teleport | {/* TODO */} | {/* TODO */} |
 
 {
-  /* TODO: Add several diagrams of firewall config examples */
+  /* TODO: Add several diagrams of firewall config examples. TODO Update for single port */
 }
 
 ## Installation
 
-We have a detailed [installation guide](installation.mdx) which shows how to install all available binaries or [install from source](installation.mdx#installing-from-source). Reference that guide to learn the best way to install Teleport for your system, then return to finish your production install.
+We have a detailed [installation guide](installation.mdx) which shows how to
+install all available binaries or
+[install from source](installation.mdx#building-from-source). Reference that
+guide to learn the best way to install Teleport for your system, then return to
+finish your production install.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -74,38 +78,38 @@ In production, we recommend starting teleport daemon via an init system like `sy
 
 There are a couple of important things to notice about this file:
 
-1. The start command in the unit file specifies `--config` as a file and there are very few flags passed to the `teleport` binary. Most of the configuration for Teleport should be done in the [configuration file](admin-guide.mdx#configuration).
-2. The **ExecReload** command allows admins to run `systemctl reload teleport`. This will attempt to perform a graceful restart of Teleport **but it only works if network-based backend storage like [DynamoDB](admin-guide.mdx#using-dynamodb) or [etc 3.3](admin-guide.mdx#using-etcd) is configured**. Graceful Restarts will fork a new process to handle new incoming requests and leave the old daemon process running until existing clients disconnect.
+1. The start command in the unit file specifies `--config` as a file and there are very few flags passed to the `teleport` binary. Most of the configuration for Teleport should be done in the [configuration file](./setup/reference/config.mdx).
+2. The **ExecReload** command allows admins to run `systemctl reload teleport`. This will attempt to perform a graceful restart of Teleport **but it only works if network-based backend storage like [DynamoDB](./setup/reference/backends.mdx#dynamodb) or [etcd](./setup/reference/backends.mdx#etcd) is configured**. Graceful Restarts will fork a new process to handle new incoming requests and leave the old daemon process running until existing clients disconnect.
 
 ### Start the Teleport service
 
 You can start Teleport via systemd unit by enabling the `.service` file
 with the `systemctl` tool.
 
-```bash
+```code
 # sudo cp teleport/examples/systemd/teleport.service /etc/systemd/system
-cd /etc/systemd/system
+$ cd /etc/systemd/system
 
 # Use your text editor of choice to create the .service file
 # Here we use vim
-vi teleport.service
+$ vi teleport.service
 
 # Use the file linked above as is or customize as needed
 # save the file
-systemctl enable teleport
-systemctl start teleport
+$ systemctl enable teleport
+$ systemctl start teleport
 
 # Show the status of the unit
-systemctl status teleport
+$ systemctl status teleport
 
 # Follow the tail of service logs
-journalctl -fu teleport
+$ journalctl -fu teleport
 
 # If you modify teleport.service later you will need to
 # reload the systemctl daemon and reload teleport
 # to apply your changes
-systemctl daemon-reload
-systemctl reload teleport
+$ systemctl daemon-reload
+$ systemctl reload teleport
 ```
 
 You can also perform restarts or upgrades by sending `kill` signals
@@ -121,7 +125,7 @@ to a Teleport daemon manually.
 ### Adding Nodes to the cluster
 
 We've written a dedicated guide on [Adding Nodes to your
-Cluster](admin-guide.mdx#adding-nodes-to-the-cluster) which shows how to generate or set join tokens and
+Cluster](./setup/admin/adding-nodes.mdx) which shows how to generate or set join tokens and
 use them to add nodes.
 
 ## Security considerations
@@ -192,12 +196,6 @@ setting up the proxy nodes start Teleport with:
 
 `teleport start --insecure --roles=proxy --config=/etc/teleport.yaml`
 
-See [Teleport Proxy High Availability](admin-guide.mdx#teleport-proxy-high-availability) for more info.
-
-{
-  /* TODO SSL for Webproxy & Auth Section */
-}
-
 ### CA pinning
 
 Teleport nodes use the HTTPS protocol to offer the join tokens to the auth
@@ -211,24 +209,22 @@ is a hashed value of its private key, i.e. it cannot be forged by an attacker.
 
 To get the current CA pin run the following code on the auth server:
 
-```bash
+```code
 tctl status
 
-# Output
-Cluster  staging.example.com
-User CA  never updated
-Host CA  never updated
-CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
+# Cluster  staging.example.com
+# User CA  never updated
+# Host CA  never updated
+# CA pin   sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
 ```
-{/* Convert to new UI component https://github.com/gravitational/next/issues/275 */}
 
 The CA pin at the bottom needs to be passed to the new nodes when they're starting
 for the first time, i.e. when they join a cluster:
 
 Via CLI:
 
-```bash
-sudo teleport start \
+```code
+$ sudo teleport start \
    --roles=node \
    --token=/path/to/token.file \
    --ca-pin=sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1 \
@@ -269,16 +265,16 @@ unauthorized access to this directory. Make sure that regular/non-admin users
 do not have access to this folder, particularly on the `auth` server. Change
 the ownership of the directory with [`chown`](https://linuxize.com/post/linux-chown-command/)
 
-```bash
-sudo teleport start
+```code
+$ sudo teleport start
 ```
 
 If you are logged in as `root` you may want to create a new OS-level user first.
 On Linux, create a new user called `<username>` with the following commands:
 
-```bash
-adduser <username>
-su <username>
+```code
+$ adduser <username>
+$ su <username>
 ```
 
 {

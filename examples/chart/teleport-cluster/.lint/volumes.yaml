@@ -1,7 +1,7 @@
 clusterName: helm-lint
 extraVolumeMounts:
 - name: "my-mount"
-  path: "/path/to/mount"
+  mountPath: "/path/to/mount"
 extraVolumes:
 - name: "my-mount"
   secret:

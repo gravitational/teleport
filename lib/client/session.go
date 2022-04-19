@@ -1,5 +1,3 @@
-// +build !windows
-
 /*
 Copyright 2016 Gravitational, Inc.
 
@@ -26,22 +24,29 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/moby/term"
-
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/escape"
+	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+)
+
+const (
+	ctrlCharC byte = 0x03
+	ctrlCharZ byte = 0x26
 )
 
 type NodeSession struct {
@@ -59,18 +64,33 @@ type NodeSession struct {
 	// SSH node
 	nodeClient *NodeClient
 
-	// Standard input/outputs for this session
-	stdin  io.Reader
-	stdout io.Writer
-	stderr io.Writer
-
 	// closer is used to simultaneously close all goroutines created by
-	// this session. It's also used to wait for everyone to close
+	// this session.
 	closer *utils.CloseBroadcaster
+
+	// closeWait is used to wait for cleanup-related goroutines created by
+	// this session to close.
+	closeWait *sync.WaitGroup
 
 	ExitMsg string
 
 	enableEscapeSequences bool
+
+	terminal *terminal.Terminal
+
+	// shouldClearOnExit marks whether or not the terminal should be cleared
+	// when the session ends.
+	shouldClearOnExit bool
+	// clientXAuthEntry contains xauth data which provides
+	// access to the client's local XServer.
+	clientXAuthEntry *x11.XAuthEntry
+	// spoofedXAuthEntry is a copy of the client's xauth data with a
+	// spoofed cookie. This cookie will be used to authenticate server
+	// requests without exposing the client's cookie.
+	spoofedXAuthEntry *x11.XAuthEntry
+	// x11RefuseTime is an optional time at which X11 channel
+	// requests using the xauth cookie will be rejected.
+	x11RefuseTime time.Time
 }
 
 // newSession creates a new Teleport session with the given remote node
@@ -85,30 +105,26 @@ func newSession(client *NodeClient,
 	legacyID bool,
 	enableEscapeSequences bool,
 ) (*NodeSession, error) {
+	// Initialize the terminal. Note that at this point, we don't know if this
+	// will be an interactive session, so we don't yet enable either raw mode
+	// or raw input.
+	term, err := terminal.New(stdin, stdout, stderr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	if stdout == nil {
-		stdout = os.Stdout
-	}
-	if stderr == nil {
-		stderr = os.Stderr
-	}
 	if env == nil {
 		env = make(map[string]string)
 	}
 
-	var err error
 	ns := &NodeSession{
 		env:                   env,
 		nodeClient:            client,
-		stdin:                 stdin,
-		stdout:                stdout,
-		stderr:                stderr,
 		namespace:             client.Namespace,
 		closer:                utils.NewCloseBroadcaster(),
+		closeWait:             &sync.WaitGroup{},
 		enableEscapeSequences: enableEscapeSequences,
+		terminal:              term,
 	}
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
@@ -116,12 +132,13 @@ func newSession(client *NodeClient,
 		ns.id = joinSession.ID
 		ns.namespace = joinSession.Namespace
 		tsize := joinSession.TerminalParams.Winsize()
-		if ns.isTerminalAttached() {
-			err = term.SetWinsize(0, tsize)
+
+		if ns.terminal.IsAttached() {
+			err = ns.terminal.Resize(int16(tsize.Width), int16(tsize.Height))
 			if err != nil {
 				log.Error(err)
 			}
-			os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", tsize.Height, tsize.Width)))
+
 		}
 		// new session!
 	} else {
@@ -139,7 +156,34 @@ func newSession(client *NodeClient,
 		}
 		ns.id = session.ID(sid)
 	}
+
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
+
+	// Determine if terminal should clear on exit.
+	ns.shouldClearOnExit = isFIPS()
+	if client.Proxy != nil {
+		boring, err := client.Proxy.isAuthBoring(context.TODO())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ns.shouldClearOnExit = ns.shouldClearOnExit || boring
+	}
+
+	// Close the Terminal when finished.
+	ns.closeWait.Add(1)
+	go func() {
+		defer ns.closeWait.Done()
+
+		<-ns.closer.C
+
+		if ns.shouldClearOnExit {
+			if err := ns.terminal.Clear(); err != nil {
+				log.Warnf("Failed to clear screen: %v.", err)
+			}
+		}
+		ns.terminal.Close()
+	}()
+
 	return ns, nil
 }
 
@@ -147,24 +191,32 @@ func (ns *NodeSession) NodeClient() *NodeClient {
 	return ns.nodeClient
 }
 
-func (ns *NodeSession) regularSession(callback func(s *ssh.Session) error) error {
-	session, err := ns.createServerSession()
+func (ns *NodeSession) regularSession(ctx context.Context, callback func(s *ssh.Session) error) error {
+	session, err := ns.createServerSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	session.Stdout = ns.stdout
-	session.Stderr = ns.stderr
-	session.Stdin = ns.stdin
+	session.Stdout = ns.terminal.Stdout()
+	session.Stderr = ns.terminal.Stderr()
+	session.Stdin = ns.terminal.Stdin()
 	return trace.Wrap(callback(session))
 }
 
 type interactiveCallback func(serverSession *ssh.Session, shell io.ReadWriteCloser) error
 
-func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
+func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, error) {
 	sess, err := ns.nodeClient.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// If X11 forwading is requested and the server accepts,
+	// X11 channel requests from the server will be accepted.
+	// Otherwise, all X11 channel requests must be rejected.
+	if err := ns.handleX11Forwarding(ctx, sess); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// pass language info into the remote session.
 	evarsToPass := []string{"LANG", "LANGUAGE"}
 	for _, evar := range evarsToPass {
@@ -221,14 +273,14 @@ func selectKeyAgent(tc *TeleportClient) agent.Agent {
 
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
+func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.SessionParticipantMode, callback interactiveCallback) error {
 	// determine what kind of a terminal we need
 	termType := os.Getenv("TERM")
 	if termType == "" {
 		termType = teleport.SafeTerminalType
 	}
 	// create the server-side session:
-	sess, err := ns.createServerSession()
+	sess, err := ns.createServerSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -245,47 +297,48 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 		return trace.Wrap(err)
 	}
 
-	// Catch term signals, but only if we're attached to a real terminal
-	if ns.isTerminalAttached() {
+	if ns.terminal.IsAttached() {
+		// Put the terminal into raw mode. Note that this must be done before
+		// pipeInOut() as it may replace streams.
+		ns.terminal.InitRaw(true)
+
+		// Catch term signals, but only if we're attached to a real terminal
 		ns.watchSignals(remoteTerm)
 	}
 
 	// start piping input into the remote shell and pipe the output from
 	// the remote shell into stdout:
-	ns.pipeInOut(remoteTerm)
+	ns.pipeInOut(remoteTerm, mode, sess)
 
-	// switch the terminal to raw mode (and switch back on exit!)
-	if ns.isTerminalAttached() {
-		ts, err := term.SetRawTerminal(0)
-		if err != nil {
-			log.Warn(err)
-		} else {
-			defer term.RestoreTerminal(0, ts)
-		}
-	}
 	// wait for the session to end
 	<-ns.closer.C
-	return nil
+
+	// Wait for any cleanup tasks (particularly terminal reset on Windows).
+	ns.closeWait.Wait()
+	return sess.Wait()
 }
 
 // allocateTerminal creates (allocates) a server-side terminal for this session.
 func (ns *NodeSession) allocateTerminal(termType string, s *ssh.Session) (io.ReadWriteCloser, error) {
 	var err error
+
 	// read the size of the terminal window:
-	tsize := &term.Winsize{
-		Width:  teleport.DefaultTerminalWidth,
-		Height: teleport.DefaultTerminalHeight,
-	}
-	if ns.isTerminalAttached() {
-		tsize, err = term.GetWinsize(0)
+	width := teleport.DefaultTerminalWidth
+	height := teleport.DefaultTerminalHeight
+	if ns.terminal.IsAttached() {
+		realWidth, realHeight, err := ns.terminal.Size()
 		if err != nil {
 			log.Error(err)
+		} else {
+			width = int(realWidth)
+			height = int(realHeight)
 		}
 	}
+
 	// ... and request a server-side terminal of the same size:
 	err = s.RequestPty(termType,
-		int(tsize.Height),
-		int(tsize.Width),
+		height,
+		width,
 		ssh.TerminalModes{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -302,7 +355,7 @@ func (ns *NodeSession) allocateTerminal(termType string, s *ssh.Session) (io.Rea
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if ns.isTerminalAttached() {
+	if ns.terminal.IsAttached() {
 		go ns.updateTerminalSize(s)
 	}
 	go func() {
@@ -320,12 +373,9 @@ func (ns *NodeSession) allocateTerminal(termType string, s *ssh.Session) (io.Rea
 }
 
 func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
-	// SIGWINCH is sent to the process when the window size of the terminal has
-	// changed.
-	sigwinchCh := make(chan os.Signal, 1)
-	signal.Notify(sigwinchCh, syscall.SIGWINCH)
+	terminalEvents := ns.terminal.Subscribe()
 
-	lastSize, err := term.GetWinsize(0)
+	lastWidth, lastHeight, err := ns.terminal.Size()
 	if err != nil {
 		log.Errorf("Unable to get window size: %v", err)
 		return
@@ -340,19 +390,24 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 		select {
 		// The client updated the size of the local PTY. This change needs to occur
 		// on the server side PTY as well.
-		case sigwinch := <-sigwinchCh:
-			if sigwinch == nil {
+		case event, ok := <-terminalEvents:
+			if !ok {
 				return
 			}
 
-			currSize, err := term.GetWinsize(0)
+			// Make sure this is a resize event.
+			if _, ok := event.(terminal.ResizeEvent); !ok {
+				continue
+			}
+
+			currWidth, currHeight, err := ns.terminal.Size()
 			if err != nil {
 				log.Warnf("Unable to get window size: %v.", err)
 				continue
 			}
 
 			// Terminal size has not changed, don't do anything.
-			if currSize.Height == lastSize.Height && currSize.Width == lastSize.Width {
+			if currHeight == lastHeight && currWidth == lastWidth {
 				continue
 			}
 
@@ -361,17 +416,17 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 				sshutils.WindowChangeRequest,
 				false,
 				ssh.Marshal(sshutils.WinChangeReqParams{
-					W: uint32(currSize.Width),
-					H: uint32(currSize.Height),
+					W: uint32(currWidth),
+					H: uint32(currHeight),
 				}))
 			if err != nil {
 				log.Warnf("Unable to send %v reqest: %v.", sshutils.WindowChangeRequest, err)
 				continue
 			}
 
-			log.Debugf("Updated window size from %v to %v due to SIGWINCH.", lastSize, currSize)
+			log.Debugf("Updated window size from (%d, %d) to (%d, %d) due to SIGWINCH.", lastWidth, lastHeight, currWidth, currHeight)
 
-			lastSize = currSize
+			lastWidth, lastHeight = currWidth, currHeight
 
 		// Extract "resize" events in the stream and store the last window size.
 		case event := <-ns.nodeClient.TC.EventsChannel():
@@ -386,53 +441,48 @@ func (ns *NodeSession) updateTerminalSize(s *ssh.Session) {
 				continue
 			}
 
-			lastSize = terminalParams.Winsize()
+			lastSize := terminalParams.Winsize()
+			lastWidth = int16(lastSize.Width)
+			lastHeight = int16(lastSize.Height)
 			log.Debugf("Recevied window size %v from node in session %v.", lastSize, event.GetString(events.SessionEventID))
 
 		// Update size of local terminal with the last size received from remote server.
 		case <-tickerCh.C:
 			// Get the current size of the terminal and the last size report that was
 			// received.
-			currSize, err := term.GetWinsize(0)
+			currWidth, currHeight, err := ns.terminal.Size()
 			if err != nil {
 				log.Warnf("Unable to get current terminal size: %v.", err)
 				continue
 			}
 
 			// Terminal size has not changed, don't do anything.
-			if currSize.Width == lastSize.Width && currSize.Height == lastSize.Height {
+			if currWidth == lastWidth && currHeight == lastHeight {
 				continue
 			}
 
 			// This changes the size of the local PTY. This will re-draw what's within
 			// the window.
-			err = term.SetWinsize(0, lastSize)
+			err = ns.terminal.Resize(lastWidth, lastHeight)
 			if err != nil {
 				log.Warnf("Unable to update terminal size: %v.", err)
 				continue
 			}
 
-			// This is what we use to resize the physical terminal window itself.
-			os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", lastSize.Height, lastSize.Width)))
-
-			log.Debugf("Updated window size from %v to %v due to remote window change.", currSize, lastSize)
+			log.Debugf("Updated window size from (%d, %d) to (%d, %d) due to remote window change.", currWidth, currHeight, lastWidth, lastHeight)
 		case <-ns.closer.C:
 			return
 		}
 	}
 }
 
-// isTerminalAttached returns true when this session is be controlled by
-// a real terminal.
-// It will return False for sessions initiated by the Web client or
-// for non-interactive sessions (commands)
-func (ns *NodeSession) isTerminalAttached() bool {
-	return ns.stdin == os.Stdin && term.IsTerminal(os.Stdin.Fd())
-}
-
 // runShell executes user's shell on the remote node under an interactive session
-func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
-	return ns.interactiveSession(func(s *ssh.Session, shell io.ReadWriteCloser) error {
+func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, beforeStart func(io.Writer), callback ShellCreatedCallback) error {
+	return ns.interactiveSession(ctx, mode, func(s *ssh.Session, shell io.ReadWriteCloser) error {
+		if beforeStart != nil {
+			beforeStart(s.Stdout)
+		}
+
 		// start the shell on the server:
 		if err := s.Shell(); err != nil {
 			return trace.Wrap(err)
@@ -450,10 +500,10 @@ func (ns *NodeSession) runShell(callback ShellCreatedCallback) error {
 
 // runCommand executes a "exec" request either in interactive mode (with a
 // TTY attached) or non-intractive mode (no TTY).
-func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback ShellCreatedCallback, interactive bool) error {
+func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionParticipantMode, cmd []string, callback ShellCreatedCallback, interactive bool) error {
 	// If stdin is not a terminal, refuse to allocate terminal on the server and
 	// fallback to non-interactive mode
-	if interactive && ns.stdin == os.Stdin && !term.IsTerminal(os.Stdin.Fd()) {
+	if interactive && !ns.terminal.IsAttached() {
 		interactive = false
 		fmt.Fprintf(os.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
 	}
@@ -464,7 +514,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback Sh
 	// keyboard based signals will be propogated to the TTY on the server which is
 	// where all signal handling will occur.
 	if interactive {
-		return ns.interactiveSession(func(s *ssh.Session, term io.ReadWriteCloser) error {
+		return ns.interactiveSession(ctx, mode, func(s *ssh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(strings.Join(cmd, " "))
 			if err != nil {
 				return trace.Wrap(err)
@@ -491,10 +541,10 @@ func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback Sh
 	// Unfortunately at the moment the Go SSH library Teleport uses does not
 	// support sending SSH_MSG_DISCONNECT. Instead we close the SSH channel and
 	// SSH client, and try and exit as gracefully as possible.
-	return ns.regularSession(func(s *ssh.Session) error {
+	return ns.regularSession(ctx, func(s *ssh.Session) error {
 		var err error
 
-		runContext, cancel := context.WithCancel(context.Background())
+		runContext, cancel := context.WithCancel(ctx)
 		go func() {
 			defer cancel()
 			err = s.Run(strings.Join(cmd, " "))
@@ -523,90 +573,144 @@ func (ns *NodeSession) runCommand(ctx context.Context, cmd []string, callback Sh
 // watchSignals register UNIX signal handlers and properly terminates a remote shell session
 // must be called as a goroutine right after a remote shell is created
 func (ns *NodeSession) watchSignals(shell io.Writer) {
+	// First, watch for standard cross platform signals (SIGTERM, SIGINT).
+
+	// Catch SIGTERM and close the session.
 	exitSignals := make(chan os.Signal, 1)
-	// catch SIGTERM
 	signal.Notify(exitSignals, syscall.SIGTERM)
 	go func() {
 		defer ns.closer.Close()
-		<-exitSignals
+
+		select {
+		case <-exitSignals:
+			return
+		case <-ns.closer.C:
+			return
+		}
 	}()
-	// Catch Ctrl-C signal
+
+	// Catch Ctrl-C/SIGINT.
 	ctrlCSignal := make(chan os.Signal, 1)
 	signal.Notify(ctrlCSignal, syscall.SIGINT)
 	go func() {
 		for {
-			<-ctrlCSignal
-			_, err := shell.Write([]byte{3})
-			if err != nil {
-				log.Errorf(err.Error())
+			select {
+			case <-ctrlCSignal:
+				_, err := shell.Write([]byte{ctrlCharC})
+				if err != nil {
+					log.Errorf(err.Error())
+				}
+			case <-ns.closer.C:
+				return
 			}
 		}
 	}()
-	// Catch Ctrl-Z signal
-	ctrlZSignal := make(chan os.Signal, 1)
-	signal.Notify(ctrlZSignal, syscall.SIGTSTP)
+
+	// Then, use Terminal events for SIGTSTP, which is not supported on
+	// Windows. (Windows emits the Ctrl+Z sequence directly.)
+	events := ns.terminal.Subscribe()
 	go func() {
-		for {
-			<-ctrlZSignal
-			_, err := shell.Write([]byte{26})
-			if err != nil {
-				log.Errorf(err.Error())
+		for event := range events {
+			if _, ok := event.(terminal.StopEvent); ok {
+				_, err := shell.Write([]byte{ctrlCharZ})
+				if err != nil {
+					log.Errorf(err.Error())
+				}
 			}
 		}
 	}()
 }
 
+func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Terminal, forceTerminate func()) {
+	for {
+		buf := make([]byte, 1)
+		_, err := term.Stdin().Read(buf)
+		if err == io.EOF {
+			return
+		}
+
+		// Ctrl-C
+		if buf[0] == '\x03' {
+			fmt.Print("\n\rLeft session\n\r")
+			return
+		}
+
+		// t
+		if buf[0] == 't' && mode == types.SessionModeratorMode {
+			fmt.Print("\n\rForcefully terminating session\n\r")
+			forceTerminate()
+			break
+		}
+	}
+}
+
+// handlePeerControls streams the terminal input to the remote shell's standard input.
+// Escape sequences for stopping the stream on the client side are supported via `escape.NewReader`.
+func handlePeerControls(term *terminal.Terminal, remoteStdin io.Writer) {
+	stdin := term.Stdin()
+	if term.IsAttached() {
+		// escape.NewReader is used to enable manual disconnect sequences as those supported
+		// by tsh. These can be used to force a client disconnect since CTRL-C is merely passed
+		// to the other end and not interpreted as an exit request locally
+		stdin = escape.NewReader(stdin, term.Stderr(), func(err error) {
+			log.Debugf("escape.NewReader error: %v", err)
+
+			switch err {
+			case escape.ErrDisconnect:
+				fmt.Fprint(term.Stderr(), "\r\nDisconnected\r\n")
+			case escape.ErrTooMuchBufferedData:
+				fmt.Fprint(term.Stderr(), "\r\nRemote peer may be unreachable, check your connectivity\r\n")
+			default:
+				fmt.Fprintf(term.Stderr(), "\r\nunknown error: %v\r\n", err.Error())
+			}
+		})
+	}
+
+	_, err := io.Copy(remoteStdin, stdin)
+	if err != nil {
+		log.Debugf("Error copying data to remote peer: %v", err)
+		fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
+	}
+}
+
 // pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
 // and another to pipe the output of the remote shell into the local output
-func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
+func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, mode types.SessionParticipantMode, sess *ssh.Session) {
 	// copy from the remote shell to the local output
 	go func() {
 		defer ns.closer.Close()
-		_, err := io.Copy(ns.stdout, shell)
+		_, err := io.Copy(ns.terminal.Stdout(), shell)
 		if err != nil {
 			log.Errorf(err.Error())
 		}
 	}()
-	// copy from the local input to the remote shell:
-	go func() {
-		defer ns.closer.Close()
-		buf := make([]byte, 128)
 
-		stdin := ns.stdin
-		if ns.isTerminalAttached() && ns.enableEscapeSequences {
-			stdin = escape.NewReader(stdin, ns.stderr, func(err error) {
-				switch err {
-				case escape.ErrDisconnect:
-					fmt.Fprintf(ns.stderr, "\r\n%v\r\n", err)
-				case escape.ErrTooMuchBufferedData:
-					fmt.Fprintf(ns.stderr, "\r\nerror: %v\r\nremote peer may be unreachable, check your connectivity\r\n", trace.Wrap(err))
-				default:
-					fmt.Fprintf(ns.stderr, "\r\nerror: %v\r\n", trace.Wrap(err))
-				}
-				ns.closer.Close()
-			})
-		}
-		for {
-			n, err := stdin.Read(buf)
-			if err != nil {
-				fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
-				return
-			}
+	switch mode {
+	case types.SessionObserverMode, types.SessionModeratorMode:
+		go func() {
+			defer ns.closer.Close()
 
-			if n > 0 {
-				_, err = shell.Write(buf[:n])
+			handleNonPeerControls(mode, ns.terminal, func() {
+				_, err := sess.SendRequest(teleport.ForceTerminateRequest, true, nil)
 				if err != nil {
-					ns.ExitMsg = err.Error()
-					return
+					fmt.Printf("\n\rError while sending force termination request: %v\n\r", err.Error())
 				}
-			}
-		}
-	}()
+			})
+		}()
+	case types.SessionPeerMode:
+		// copy from the local input to the remote shell:
+		go func() {
+			handlePeerControls(ns.terminal, shell)
+		}()
+	}
 }
 
 func (ns *NodeSession) Close() error {
 	if ns.closer != nil {
 		ns.closer.Close()
+	}
+	if ns.closeWait != nil {
+		ns.closeWait.Wait()
 	}
 	return nil
 }

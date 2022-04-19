@@ -1,10 +1,23 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package teleagent
 
 import (
 	"io"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -84,11 +97,11 @@ func (a *AgentServer) Serve() error {
 			if !ok {
 				return trace.Wrap(err, "unknown error")
 			}
-			if !neterr.Temporary() {
-				if strings.Contains(neterr.Error(), "use of closed network connection") {
-					return nil
-				}
-				log.WithError(err).Error("Got permanent error.")
+			if utils.IsUseOfClosedNetworkError(neterr) {
+				return nil
+			}
+			if !neterr.Timeout() {
+				log.WithError(err).Error("Got non-timeout error.")
 				return trace.Wrap(err)
 			}
 			if tempDelay == 0 {
@@ -99,7 +112,7 @@ func (a *AgentServer) Serve() error {
 			if max := 1 * time.Second; tempDelay > max {
 				tempDelay = max
 			}
-			log.WithError(err).Errorf("Got temporary error (will sleep %v).", tempDelay)
+			log.WithError(err).Errorf("Got timeout error (will sleep %v).", tempDelay)
 			time.Sleep(tempDelay)
 			continue
 		}

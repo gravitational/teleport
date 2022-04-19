@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/google/go-cmp/cmp"
@@ -38,7 +39,7 @@ func TestPrincipals(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	hostnames := []string{"localhost", "example.com"}
@@ -65,13 +66,51 @@ func TestPrincipals(t *testing.T) {
 	require.ElementsMatch(t, certIPs, ips)
 }
 
+func TestRenewableIdentity(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	expires := clock.Now().Add(1 * time.Hour)
+
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	require.NoError(t, err)
+
+	identity := Identity{
+		Username:  "alice@example.com",
+		Groups:    []string{"admin"},
+		Expires:   expires,
+		Renewable: true,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+	require.NotNil(t, subj)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+
+	parsed, err := FromSubject(cert.Subject, expires)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	require.True(t, parsed.Renewable)
+}
+
 // TestKubeExtensions test ASN1 subject kubernetes extensions
 func TestKubeExtensions(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	expires := clock.Now().Add(time.Hour)
@@ -112,5 +151,6 @@ func TestKubeExtensions(t *testing.T) {
 	require.NoError(t, err)
 	out, err := FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
+	require.False(t, out.Renewable)
 	require.Empty(t, cmp.Diff(out, &identity))
 }

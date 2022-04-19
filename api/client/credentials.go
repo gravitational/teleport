@@ -19,11 +19,12 @@ package client
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
+	"os"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -114,7 +115,7 @@ func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cas, err := ioutil.ReadFile(c.caFile)
+	cas, err := os.ReadFile(c.caFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -148,24 +149,24 @@ func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 //
 // See the example below for usage.
 func LoadIdentityFile(path string) Credentials {
-	return &identityCreds{
+	return &identityCredsFile{
 		path: path,
 	}
 }
 
-// identityCreds use an identity file to provide client credentials.
-type identityCreds struct {
-	path         string
+// identityCredsFile use an identity file to provide client credentials.
+type identityCredsFile struct {
 	identityFile *identityfile.IdentityFile
+	path         string
 }
 
 // Dialer is used to dial a connection to an Auth server.
-func (c *identityCreds) Dialer(cfg Config) (ContextDialer, error) {
+func (c *identityCredsFile) Dialer(cfg Config) (ContextDialer, error) {
 	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
-func (c *identityCreds) TLSConfig() (*tls.Config, error) {
+func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,7 +180,7 @@ func (c *identityCreds) TLSConfig() (*tls.Config, error) {
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *identityCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (c *identityCredsFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,12 +195,81 @@ func (c *identityCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 
 // load is used to lazy load the identity file from persistent storage.
 // This allows LoadIdentity to avoid possible errors for UX purposes.
-func (c *identityCreds) load() error {
+func (c *identityCredsFile) load() error {
 	if c.identityFile != nil {
 		return nil
 	}
 	var err error
-	if c.identityFile, err = identityfile.Read(c.path); err != nil {
+	if c.identityFile, err = identityfile.ReadFile(c.path); err != nil {
+		return trace.BadParameter("identity file could not be decoded: %v", err)
+	}
+	return nil
+}
+
+// LoadIdentityFileFromString is used to load Credentials from a string containing identity file contents.
+//
+// Identity Credentials can be used to connect to an auth server directly
+// or through a reverse tunnel.
+//
+// A new identity file can be generated with tsh or tctl.
+//  $ tsh login --user=api-user --out=identity-file-path
+//  $ tctl auth sign --user=api-user --out=identity-file-path
+//
+// The identity file's time to live can be specified with --ttl.
+//
+// See the example below for usage.
+func LoadIdentityFileFromString(content string) Credentials {
+	return &identityCredsString{
+		content: content,
+	}
+}
+
+// identityCredsString use an identity file loaded to string to provide client credentials.
+type identityCredsString struct {
+	identityFile *identityfile.IdentityFile
+	content      string
+}
+
+// Dialer is used to dial a connection to an Auth server.
+func (c *identityCredsString) Dialer(cfg Config) (ContextDialer, error) {
+	return nil, trace.NotImplemented("no dialer")
+}
+
+// TLSConfig returns TLS configuration.
+func (c *identityCredsString) TLSConfig() (*tls.Config, error) {
+	if err := c.load(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig, err := c.identityFile.TLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return configureTLS(tlsConfig), nil
+}
+
+// SSHClientConfig returns SSH configuration.
+func (c *identityCredsString) SSHClientConfig() (*ssh.ClientConfig, error) {
+	if err := c.load(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfig, err := c.identityFile.SSHClientConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sshConfig, nil
+}
+
+// load is used to lazy load the identity file from a string.
+func (c *identityCredsString) load() error {
+	if c.identityFile != nil {
+		return nil
+	}
+	var err error
+	if c.identityFile, err = identityfile.FromString(c.content); err != nil {
 		return trace.BadParameter("identity file could not be decoded: %v", err)
 	}
 	return nil
@@ -292,9 +362,11 @@ func (c *profileCreds) load() error {
 
 func configureTLS(c *tls.Config) *tls.Config {
 	tlsConfig := c.Clone()
+	tlsConfig.NextProtos = utils.Deduplicate(append(tlsConfig.NextProtos, http2.NextProtoTLS))
 
-	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
-
+	// If SNI isn't set, set it to the default name that can be found
+	// on all Teleport issued certificates. This is needed because we
+	// don't always know which host we will be connecting to.
 	if tlsConfig.ServerName == "" {
 		tlsConfig.ServerName = constants.APIDomain
 	}

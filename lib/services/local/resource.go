@@ -423,7 +423,7 @@ func userFromUserItems(name string, items userItems) (types.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if items.Len() < 2 {
+	if !items.hasLocalAuthItems() {
 		return user, nil
 	}
 	auth, err := itemToLocalAuthSecrets(items)
@@ -446,39 +446,14 @@ func itemToLocalAuthSecrets(items userItems) (*types.LocalAuthSecrets, error) {
 		}
 		auth.MFA = append(auth.MFA, &d)
 	}
-
-	// DELETE IN 7.0: these items are migrated to items.mfa on 6.0 first
-	// startup.
-	//
-	// Delete starts here...
-	if items.totp != nil {
-		auth.TOTPKey = string(items.totp.Value)
-	}
-	if items.u2fRegistration != nil {
-		var raw struct {
-			Raw              []byte `json:"raw"`
-			KeyHandle        []byte `json:"keyhandle"`
-			MarshalledPubKey []byte `json:"marshalled_pubkey"`
-		}
-		if err := json.Unmarshal(items.u2fRegistration.Value, &raw); err != nil {
+	if items.webauthnLocalAuth != nil {
+		wal := &types.WebauthnLocalAuth{}
+		err := json.Unmarshal(items.webauthnLocalAuth.Value, wal)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		auth.U2FRegistration = &types.U2FRegistrationData{
-			Raw:       raw.Raw,
-			KeyHandle: raw.KeyHandle,
-			PubKey:    raw.MarshalledPubKey,
-		}
+		auth.Webauthn = wal
 	}
-	if items.u2fCounter != nil {
-		var raw struct {
-			Counter uint32 `json:"counter"`
-		}
-		if err := json.Unmarshal(items.u2fCounter.Value, &raw); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		auth.U2FCounter = raw.Counter
-	}
-	// ... delete ends here.
 	if err := services.ValidateLocalAuthSecrets(&auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -514,7 +489,7 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 // has order N cost.
 
 // fullUsersPrefix is the entire string preceding the name of a user in a key
-var fullUsersPrefix string = string(backend.Key(webPrefix, usersPrefix)) + "/"
+var fullUsersPrefix = string(backend.Key(webPrefix, usersPrefix)) + "/"
 
 // splitUsernameAndSuffix is a helper for extracting usernames and suffixes from
 // backend key values.
@@ -568,14 +543,10 @@ func collectUserItems(items []backend.Item) (users map[string]userItems, rem []b
 
 // userItems is a collector for item types related to a single user resource.
 type userItems struct {
-	params *backend.Item
-	pwd    *backend.Item
-	mfa    []*backend.Item
-
-	// Deprecated fields, only used for migration on auth server startup.
-	totp            *backend.Item
-	u2fRegistration *backend.Item
-	u2fCounter      *backend.Item
+	params            *backend.Item
+	pwd               *backend.Item
+	mfa               []*backend.Item
+	webauthnLocalAuth *backend.Item
 }
 
 // Set attempts to set a field by suffix.
@@ -585,19 +556,8 @@ func (u *userItems) Set(suffix string, item backend.Item) (ok bool) {
 		u.params = &item
 	case pwdPrefix:
 		u.pwd = &item
-
-	// DELETE IN 7.0: these items are migrated to mfaDevicePrefix on 6.0 first
-	// startup.
-	//
-	// Delete starts here...
-	case totpPrefix:
-		u.totp = &item
-	case u2fRegistrationPrefix:
-		u.u2fRegistration = &item
-	case u2fRegistrationCounterPrefix:
-		u.u2fCounter = &item
-	// ... delete ends here.
-
+	case webauthnLocalAuthPrefix:
+		u.webauthnLocalAuth = &item
 	default:
 		if strings.HasPrefix(suffix, mfaDevicePrefix) {
 			u.mfa = append(u.mfa, &item)
@@ -608,20 +568,12 @@ func (u *userItems) Set(suffix string, item backend.Item) (ok bool) {
 	return true
 }
 
-func (u *userItems) Len() int {
-	var l int
-	if u.params != nil {
-		l++
-	}
-	if u.pwd != nil {
-		l++
-	}
-	l += len(u.mfa)
-	return l
-}
-
 // complete checks whether userItems is complete enough to be parsed by
 // userFromUserItems.
 func (u *userItems) complete() bool {
 	return u.params != nil
+}
+
+func (u *userItems) hasLocalAuthItems() bool {
+	return u.pwd != nil || u.webauthnLocalAuth != nil || len(u.mfa) > 0
 }

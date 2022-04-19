@@ -23,24 +23,25 @@ import (
 	"go.uber.org/atomic"
 )
 
-// Pool manages a collection of work groups by key and is the primary means
-// by which groups are managed.  Each work group has an adjustable target value
+// Pool manages a collection of work group by key and is the primary means
+// by which group are managed.  Each work group has an adjustable target value
 // which is the number of target leases which should be active for the given
 // group.
 type Pool struct {
 	mu       sync.Mutex
 	leaseIDs *atomic.Uint64
-	groups   map[interface{}]*group
-	grantC   chan Lease
-	ctx      context.Context
-	cancel   context.CancelFunc
+	group    *group
+	// grantC is an unbuffered channel that funnels available leases from the
+	// workgroups to the outside world
+	grantC chan Lease
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewPool(ctx context.Context) *Pool {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Pool{
 		leaseIDs: atomic.NewUint64(0),
-		groups:   make(map[interface{}]*group),
 		grantC:   make(chan Lease),
 		ctx:      ctx,
 		cancel:   cancel,
@@ -50,6 +51,9 @@ func NewPool(ctx context.Context) *Pool {
 // Acquire is the channel which must be received on to acquire
 // new leases.  Each lease acquired in this way *must* have its
 // Release method called when the lease is no longer needed.
+// Note this channel will deliver leases from all active work
+// group. It's up to the receiver to differentiate what group
+// the lease refers to and act accordingly.
 func (p *Pool) Acquire() <-chan Lease {
 	return p.grantC
 }
@@ -60,34 +64,37 @@ func (p *Pool) Done() <-chan struct{} {
 }
 
 // Get gets the current counts for the specified key.
-func (p *Pool) Get(key interface{}) Counts {
+func (p *Pool) Get() Counts {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if g, ok := p.groups[key]; ok {
-		return g.loadCounts()
+
+	if p.group == nil {
+		return Counts{}
 	}
-	return Counts{}
+
+	return p.group.loadCounts()
 }
 
 // Set sets the target for the specified key.
-func (p *Pool) Set(key interface{}, target uint64) {
+func (p *Pool) Set(target uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if target < 1 {
-		p.del(key)
+		p.del()
 		return
 	}
-	g, ok := p.groups[key]
-	if !ok {
-		p.start(key, target)
+
+	if p.group == nil {
+		p.start(target)
 		return
 	}
-	g.setTarget(target)
+
+	p.group.setTarget(target)
 }
 
 // Start starts a new work group with the specified initial target.
 // If Start returns false, the group already exists.
-func (p *Pool) start(key interface{}, target uint64) {
+func (p *Pool) start(target uint64) {
 	ctx, cancel := context.WithCancel(p.ctx)
 	notifyC := make(chan struct{}, 1)
 	g := &group{
@@ -96,27 +103,30 @@ func (p *Pool) start(key interface{}, target uint64) {
 			Target: target,
 		},
 		leaseIDs: p.leaseIDs,
-		key:      key,
 		grantC:   p.grantC,
 		notifyC:  notifyC,
 		ctx:      ctx,
 		cancel:   cancel,
 	}
-	p.groups[key] = g
+	p.group = g
+
+	// Start a routine to monitor the group's lease acquisition
+	// and handle notifications when a lease is returned to the
+	// pool
 	go g.run()
 }
 
-func (p *Pool) del(key interface{}) (ok bool) {
-	group, ok := p.groups[key]
-	if !ok {
+func (p *Pool) del() (ok bool) {
+	if p.group == nil {
 		return false
 	}
-	group.cancel()
-	delete(p.groups, key)
+
+	p.group.cancel()
+	p.group = nil
 	return true
 }
 
-// Stop permanently halts all associated groups.
+// Stop permanently halts all associated group.
 func (p *Pool) Stop() {
 	p.cancel()
 }
@@ -137,7 +147,6 @@ type group struct {
 	cmu      sync.Mutex
 	counts   Counts
 	leaseIDs *atomic.Uint64
-	key      interface{}
 	grantC   chan Lease
 	notifyC  chan struct{}
 	ctx      context.Context
@@ -192,32 +201,44 @@ func (g *group) setTarget(target uint64) {
 	g.notify()
 }
 
+// run manages the issuing of leases and handling their return to the pool for
+// a given work group.
 func (g *group) run() {
 	var counts Counts
 	var nextLease Lease
 	var grant chan Lease
 	for {
+		// Are we able to grant new leases? We are only allowed to grant a lease
+		// while the number of outstanding leases is less than the target value.
+		// If anyone else wants one after that, they will have to wait until a
+		// lease is returned to the pool.
 		counts = g.loadCounts()
 		if counts.Active < counts.Target {
-			// we are in a "granting" state; ensure that the
-			// grant channel is non-nil, and initialize `nextLease`
-			// if it hasn't been already.
+			// We are in a "granting" state; prepare to issue the lease to the
+			// next person who asks.
 			grant = g.grantC
 			if nextLease.id == 0 {
 				nextLease = newLease(g)
 			}
 		} else {
-			// we are not in a "granting" state, ensure that the
-			// grant channel is nil (prevents sends).
+			// we are in a non-"granting" state; prepare to block until a new
+			// event wakes the routine.
 			grant = nil
 		}
-		// if grant is nil, this select statement blocks until
-		// notify() is called, or the context is canceled.
+
+		// Remembering that writes to a `nil` channel block indefinitely,
+		// if we're in a non-granting state this select blocks until `notify()`
+		// is called (usually by a lease being returned), or the context is
+		// canceled.
+		//
+		// Otherwise, we post the lease to the outside world and block on
+		// someone picking it up (or cancellation)
 		select {
 		case grant <- nextLease:
 			g.incrActive()
 			nextLease = Lease{}
 		case <-g.notifyC:
+			// some event has woken the dispatch routine. Go back around.
 		case <-g.ctx.Done():
 			return
 		}
@@ -246,18 +267,13 @@ func (l Lease) ID() uint64 {
 	return l.id
 }
 
-// Key returns the key that this lease is associated with.
-func (l Lease) Key() interface{} {
-	return l.key
-}
-
 // IsZero checks if this is the zero value of Lease.
 func (l Lease) IsZero() bool {
 	return l == Lease{}
 }
 
-// Release relenquishes this lease.  Each lease is unique,
-// so double-calling Release on the same Lease has no effect.
+// Release relinquishes this lease. Each lease is unique,
+// so double-calling Release() on the same Lease has no effect.
 func (l Lease) Release() {
 	if l.IsZero() {
 		return

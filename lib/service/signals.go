@@ -96,7 +96,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				// That was not quite enough. With pipelines diagnostics could come from any of several programs running simultaneously.
 				// Diagnostics needed to identify themselves.
 				// - Doug McIllroy, "A Research UNIX Reader: Annotated Excerpts from the Programmer’s Manual, 1971-1986"
-				process.log.Infof("Got signal %q, logging diagostic info to stderr.", signal)
+				process.log.Infof("Got signal %q, logging diagnostic info to stderr.", signal)
 				writeDebugInfo(os.Stderr)
 			case syscall.SIGUSR2:
 				process.log.Infof("Got signal %q, forking a new process.", signal)
@@ -153,7 +153,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 }
 
 // ErrTeleportReloading is returned when signal waiter exits
-// because the teleport process has initiaded shutdown
+// because the teleport process has initiated shutdown
 var ErrTeleportReloading = &trace.CompareFailedError{Message: "teleport process is reloading"}
 
 // ErrTeleportExited means that teleport has exited

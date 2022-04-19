@@ -41,7 +41,9 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeKubes(h.auth.clusterName, kubeServers), nil
+	return listResourcesGetResponse{
+		Items: ui.MakeKubes(h.auth.clusterName, kubeServers),
+	}, nil
 }
 
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
@@ -60,8 +62,51 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	// Make a list of all proxied databases.
 	var databases []types.Database
 	for _, server := range servers {
-		databases = append(databases, server.GetDatabases()...)
+		databases = append(databases, server.GetDatabase())
 	}
 
-	return ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)), nil
+	return listResourcesGetResponse{
+		Items: ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
+	}, nil
+}
+
+// clusterDesktopsGet returns a list of desktops in a form the UI can present.
+func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	windowsDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
+
+	return listResourcesGetResponse{
+		Items: ui.MakeDesktops(windowsDesktops),
+	}, nil
+}
+
+// getDesktopHandle returns a desktop.
+func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	desktopName := p.ByName("desktopName")
+
+	windowsDesktops, err := clt.GetWindowsDesktops(r.Context(),
+		types.WindowsDesktopFilter{Name: desktopName})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(windowsDesktops) == 0 {
+		return nil, trace.NotFound("expected at least one desktop, got 0")
+	}
+	// windowsDesktops may contain the same desktop multiple times
+	// if multiple Windows Desktop Services are in use. We only need
+	// to see the desktop once in the UI, so just take the first one.
+	return ui.MakeDesktop(windowsDesktops[0]), nil
 }

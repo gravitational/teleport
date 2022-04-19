@@ -79,7 +79,7 @@ func (p *clusterPeers) removePeer(connInfo types.TunnelConnection) {
 	delete(p.peers, connInfo.GetName())
 }
 
-func (p *clusterPeers) CachingAccessPoint() (auth.AccessPoint, error) {
+func (p *clusterPeers) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -137,6 +137,9 @@ func (p *clusterPeers) DialTCP(params DialParams) (conn net.Conn, err error) {
 // IsClosed always returns false because clusterPeers is never closed.
 func (p *clusterPeers) IsClosed() bool { return false }
 
+// Close always returns nil because a clusterPeers isn't closed.
+func (p *clusterPeers) Close() error { return nil }
+
 // newClusterPeer returns new cluster peer
 func newClusterPeer(srv *server, connInfo types.TunnelConnection, offlineThreshold time.Duration) (*clusterPeer, error) {
 	clusterPeer := &clusterPeer{
@@ -184,7 +187,7 @@ func (s *clusterPeer) setConnInfo(ci types.TunnelConnection) {
 	s.connInfo = ci
 }
 
-func (s *clusterPeer) CachingAccessPoint() (auth.AccessPoint, error) {
+func (s *clusterPeer) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
 }
 

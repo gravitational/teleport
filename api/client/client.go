@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -70,6 +71,9 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc proto.AuthServiceClient
+	// JoinServiceClient is a client for the JoinService, which runs on both the
+	// auth and proxy.
+	*JoinServiceClient
 	// closedFlag is set to indicate that the connnection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
@@ -106,7 +110,7 @@ func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client 
 	return &Client{
 		c:          cfg,
 		dialer:     dialer,
-		tlsConfig:  tlsConfig,
+		tlsConfig:  ConfigureALPN(tlsConfig, cfg.ALPNSNIAuthDialClusterName),
 		closedFlag: new(int32),
 	}
 }
@@ -215,7 +219,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				})
 			}
 
-			// Attempt to connect to each address as Auth, Proxy, and Tunnel
+			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
 			for _, addr := range cfg.Addrs {
 				syncConnect(ctx, authConnect, connectParams{
 					cfg:       cfg,
@@ -223,18 +227,14 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					addr:      addr,
 				})
 				if sshConfig != nil {
-					syncConnect(ctx, proxyConnect, connectParams{
-						cfg:       cfg,
-						tlsConfig: tlsConfig,
-						sshConfig: sshConfig,
-						addr:      addr,
-					})
-					syncConnect(ctx, tunnelConnect, connectParams{
-						cfg:       cfg,
-						tlsConfig: tlsConfig,
-						sshConfig: sshConfig,
-						addr:      addr,
-					})
+					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect} {
+						syncConnect(ctx, cf, connectParams{
+							cfg:       cfg,
+							tlsConfig: tlsConfig,
+							sshConfig: sshConfig,
+							addr:      addr,
+						})
+					}
 				}
 			}
 		}
@@ -275,17 +275,20 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}
 }
 
-type connectFunc func(ctx context.Context, params connectParams) (*Client, error)
-type connectParams struct {
-	cfg       Config
-	addr      string
-	tlsConfig *tls.Config
-	dialer    ContextDialer
-	sshConfig *ssh.ClientConfig
-}
+type (
+	connectFunc   func(ctx context.Context, params connectParams) (*Client, error)
+	connectParams struct {
+		cfg       Config
+		addr      string
+		tlsConfig *tls.Config
+		dialer    ContextDialer
+		sshConfig *ssh.ClientConfig
+	}
+)
 
+// authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -293,6 +296,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
 func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
@@ -305,6 +309,7 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// proxyConnect connects to the Teleport Auth Server through the proxy.
 func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
@@ -317,6 +322,21 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+// tlsRoutingConnect connects to the Teleport Auth Server through the proxy using TLS Routing.
+func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
+	}
+	return clt, nil
+}
+
+// dialerConnect connects to the Teleport Auth Server through a custom dialer.
+// The dialer must provide the address in a custom ContextDialerFunc function.
 func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.dialer == nil {
 		if params.cfg.Dialer == nil {
@@ -325,20 +345,20 @@ func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 		params.dialer = params.cfg.Dialer
 	}
 	clt := newClient(params.cfg, params.dialer, params.tlsConfig)
+	// Since the client uses a custom dialer to connect to the server and SNI
+	// is used for the TLS handshake, the address dialed here is arbitrary.
 	if err := clt.dialGRPC(ctx, constants.APIDomain); err != nil {
 		return nil, trace.Wrap(err, "failed to connect using pre-defined dialer")
 	}
 	return clt, nil
 }
 
-// dialGRPC dials a connection between server and client. If withBlock is true,
-// the dial will block until the connection is up, rather than returning
-// immediately and connecting to the server in the background.
+// dialGRPC dials a connection between server and client.
 func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
-	dialOpts := append([]grpc.DialOption{}, c.c.DialOpts...)
+	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
@@ -348,14 +368,32 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if c.tlsConfig != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 	}
+	// must come last, otherwise provided opts may get clobbered by defaults above
+	dialOpts = append(dialOpts, c.c.DialOpts...)
 
 	var err error
 	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
 		return trace.Wrap(err)
 	}
 	c.grpc = proto.NewAuthServiceClient(c.conn)
+	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
 	return nil
+}
+
+// ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
+// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
+func ConfigureALPN(tlsConfig *tls.Config, clusterName string) *tls.Config {
+	if tlsConfig == nil {
+		return nil
+	}
+	if clusterName == "" {
+		return tlsConfig
+	}
+	out := tlsConfig.Clone()
+	routeInfo := fmt.Sprintf("%s%s", constants.ALPNSNIAuthProtocol, utils.EncodeClusterName(clusterName))
+	out.NextProtos = append([]string{routeInfo}, out.NextProtos...)
+	return out
 }
 
 // grpcDialer wraps the client's dialer with a grpcDialer.
@@ -400,7 +438,8 @@ type Config struct {
 	// Credentials are a list of credentials to use when attempting
 	// to connect to the server.
 	Credentials []Credentials
-	// Dialer is a custom dialer used to dial a server. If set, Dialer
+	// Dialer is a custom dialer used to dial a server. The Dialer should
+	// have custom logic to provide an address to the dialer. If set, Dialer
 	// takes precedence over all other connection options.
 	Dialer ContextDialer
 	// DialOpts define options for dialing the client connection.
@@ -420,6 +459,9 @@ type Config struct {
 	// requires this field to be set. If the web proxy was provided with
 	// signed TLS certificates, this field should not be set.
 	InsecureAddressDiscovery bool
+	// ALPNSNIAuthDialClusterName if present the client will include ALPN SNI routing information in TLS Hello message
+	// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
+	ALPNSNIAuthDialClusterName string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -429,7 +471,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.KeepAlivePeriod == 0 {
-		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL()
 	}
 	if c.KeepAliveCount == 0 {
 		c.KeepAliveCount = defaults.KeepAliveCountMax
@@ -588,6 +630,18 @@ func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsReque
 	return certs, nil
 }
 
+// GenerateHostCerts generates host certificates.
+func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := c.grpc.GenerateHostCerts(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return certs, nil
+}
+
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
@@ -607,16 +661,6 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
 func (c *Client) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	if secrets, err := c.grpc.RotateUserTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
-		TokenID: tokenID,
-	}, c.callOpts...); err != nil {
-		if !trace.IsNotImplemented(trail.FromGRPC(err)) {
-			return nil, trail.FromGRPC(err)
-		}
-	} else {
-		return secrets, nil
-	}
-
 	secrets, err := c.grpc.RotateResetPasswordTokenSecrets(ctx, &proto.RotateUserTokenSecretsRequest{
 		TokenID: tokenID,
 	}, c.callOpts...)
@@ -647,6 +691,40 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	}
 
 	return token, nil
+}
+
+// CreateBot creates a new bot from the specified descriptor.
+func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	response, err := c.grpc.CreateBot(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return response, nil
+}
+
+// DeleteBot deletes a bot and associated resources.
+func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	_, err := c.grpc.DeleteBot(ctx, &proto.DeleteBotRequest{
+		Name: botName,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetBotUsers fetches all bot users.
+func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	var users []types.User
+	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		users = append(users, user)
+	}
+	return users, nil
 }
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
@@ -784,22 +862,183 @@ func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
 	return trace.Wrap(err)
 }
 
+// UpsertKubeServiceV2 is used by kubernetes services to report their presence
+// to other auth servers in form of hearbeat expiring after ttl period.
+func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	server, ok := s.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T, expected *types.ServerV2", server)
+	}
+	keepAlive, err := c.grpc.UpsertKubeServiceV2(ctx, &proto.UpsertKubeServiceRequest{Server: server}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
 func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		ResourceType: types.KindKubeService,
+	})
+	if err != nil {
+		// Underlying ListResources for kube service was not available, use fallback.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			return c.getKubeServicesFallback(ctx)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
+}
+
+// getKubeServicesFallback previous implementation of `GetKubeServices` function
+// using `GetKubeServices` RPC call.
+// DELETE IN 10.0
+func (c *Client) getKubeServicesFallback(ctx context.Context) ([]types.Server, error) {
 	resp, err := c.grpc.GetKubeServices(ctx, &proto.GetKubeServicesRequest{}, c.callOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var servers []types.Server
+	servers := make([]types.Server, len(resp.GetServers()))
+	for i, server := range resp.GetServers() {
+		servers[i] = server
+	}
+
+	return servers, nil
+}
+
+// GetApplicationServers returns all registered application servers.
+func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		Namespace:    namespace,
+		ResourceType: types.KindAppServer,
+	})
+	if err != nil {
+		// Underlying ListResources for app server was not available, use fallback.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			servers, err := c.getApplicationServersFallback(ctx, namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return servers, nil
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsAppServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// In addition, we need to fetch legacy application servers.
+	//
+	// DELETE IN 9.0.
+	legacyServers, err := c.getAppServersFallback(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(servers, legacyServers...), nil
+}
+
+// getAppServersFallback fetches app servers using deprecated API call
+// `GetApplicationServers`.
+//
+// DELETE IN 10.0
+func (c *Client) getApplicationServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	resp, err := c.grpc.GetApplicationServers(ctx, &proto.GetApplicationServersRequest{
+		Namespace: namespace,
+	}, c.callOpts...)
+	if err != nil {
+		if trace.IsNotImplemented(trail.FromGRPC(err)) {
+			servers, err := c.getAppServersFallback(ctx, namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return servers, nil
+		}
+		return nil, trail.FromGRPC(err)
+	}
+	var servers []types.AppServer
 	for _, server := range resp.GetServers() {
 		servers = append(servers, server)
+	}
+
+	return servers, nil
+}
+
+// getAppServersFallback fetches app servers using legacy API call
+// `GetAppServers`.
+//
+// DELETE IN 9.0.
+func (c *Client) getAppServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	legacyServers, err := c.GetAppServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var servers []types.AppServer
+	for _, legacyServer := range legacyServers {
+		converted, err := types.NewAppServersV3FromServer(legacyServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers = append(servers, converted...)
 	}
 	return servers, nil
 }
 
+// UpsertApplicationServer registers an application server.
+func (c *Client) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	s, ok := server.(*types.AppServerV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", server)
+	}
+	keepAlive, err := c.grpc.UpsertApplicationServer(ctx, &proto.UpsertApplicationServerRequest{
+		Server: s,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteApplicationServer removes specified application server.
+func (c *Client) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+	_, err := c.grpc.DeleteApplicationServer(ctx, &proto.DeleteApplicationServerRequest{
+		Namespace: namespace,
+		HostID:    hostID,
+		Name:      name,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllApplicationServers removes all registered application servers.
+func (c *Client) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
+	_, err := c.grpc.DeleteAllApplicationServers(ctx, &proto.DeleteAllApplicationServersRequest{
+		Namespace: namespace,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetAppServers gets all application servers.
+//
+// DELETE IN 9.0. Deprecated, use GetApplicationServers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string) ([]types.Server, error) {
 	resp, err := c.grpc.GetAppServers(ctx, &proto.GetAppServersRequest{
 		Namespace: namespace,
@@ -817,6 +1056,8 @@ func (c *Client) GetAppServers(ctx context.Context, namespace string) ([]types.S
 }
 
 // UpsertAppServer adds an application server.
+//
+// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
 func (c *Client) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	s, ok := server.(*types.ServerV2)
 	if !ok {
@@ -833,6 +1074,8 @@ func (c *Client) UpsertAppServer(ctx context.Context, server types.Server) (*typ
 }
 
 // DeleteAppServer removes an application server.
+//
+// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
 func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name string) error {
 	_, err := c.grpc.DeleteAppServer(ctx, &proto.DeleteAppServerRequest{
 		Namespace: namespace,
@@ -842,6 +1085,8 @@ func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name str
 }
 
 // DeleteAllAppServers removes all application servers.
+//
+// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
 func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) error {
 	_, err := c.grpc.DeleteAllAppServers(ctx, &proto.DeleteAllAppServersRequest{
 		Namespace: namespace,
@@ -905,6 +1150,12 @@ func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// DeleteUserAppSessions deletes all user’s application sessions.
+func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	_, err := c.grpc.DeleteUserAppSessions(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GenerateAppToken creates a JWT token with application access.
 func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	resp, err := c.grpc.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
@@ -936,6 +1187,39 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		Namespace:    namespace,
+		ResourceType: types.KindDatabaseServer,
+	})
+	if err != nil {
+		// Underlying ListResources for db server was not available, use fallback.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			servers, err := c.getDatabaseServersFallback(ctx, namespace)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return servers, nil
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
+}
+
+// getDatabaseServersFallback fetches database servers using legacy API call
+// `GetDatabaseServers`.
+//
+// DELETE IN 10.0.
+func (c *Client) getDatabaseServersFallback(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
 	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
 		Namespace: namespace,
 	}, c.callOpts...)
@@ -946,6 +1230,7 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]ty
 	for _, server := range resp.GetServers() {
 		servers = append(servers, server)
 	}
+
 	return servers, nil
 }
 
@@ -1035,7 +1320,7 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
-	roleV4, ok := role.(*types.RoleV4)
+	roleV4, ok := role.(*types.RoleV5)
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
@@ -1066,6 +1351,18 @@ func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteM
 		return nil, trail.FromGRPC(err)
 	}
 	return stream, nil
+}
+
+// AddMFADeviceSync adds a new MFA device (nonstream).
+func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+	res, err := c.grpc.AddMFADeviceSync(ctx, in, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
+	_, err := c.grpc.DeleteMFADeviceSync(ctx, in, c.callOpts...)
+	return trail.FromGRPC(err)
 }
 
 func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
@@ -1121,11 +1418,11 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
-	oidcConnectorV2, ok := oidcConnector.(*types.OIDCConnectorV2)
+	connector, ok := oidcConnector.(*types.OIDCConnectorV3)
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	_, err := c.grpc.UpsertOIDCConnector(ctx, oidcConnectorV2, c.callOpts...)
+	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -1337,18 +1634,60 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    namespace,
+	})
+	if err != nil {
+		// Underlying ListResources for nodes was not available, use fallback.
+		//
+		// DELETE IN 11.0.0
+		if trace.IsNotImplemented(err) {
+			servers, err := GetNodesWithLabels(ctx, c, namespace, nil)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return servers, nil
+		}
+
+		return nil, trace.Wrap(err)
 	}
 
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
+}
+
+// NodeClient is an interface used by GetNodesWithLabels to abstract over implementations of
+// the ListNodes method.
+//
+// DELETE IN 11.0.0 with GetNodesWithLabels (used in both api/client/client.go and lib/auth/httpfallback.go)
+// replaced by ListResourcesClient
+type NodeClient interface {
+	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+}
+
+// GetNodesWithLabels is a helper for getting a list of nodes with optional label-based filtering.  In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+//
+// DELETE IN 11.0.0 replaced by GetResourcesWithFilters.
+func GetNodesWithLabels(ctx context.Context, clt NodeClient, namespace string, labels map[string]string) ([]types.Server, error) {
 	// Retrieve the complete list of nodes in chunks.
 	var (
 		nodes     []types.Server
 		startKey  string
-		chunkSize = defaults.DefaultChunkSize
+		chunkSize = int32(defaults.DefaultChunkSize)
 	)
 	for {
-		resp, nextKey, err := c.ListNodes(ctx, namespace, chunkSize, startKey)
+		resp, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
+			Namespace: namespace,
+			Limit:     chunkSize,
+			StartKey:  startKey,
+			Labels:    labels,
+		})
 		if trace.IsLimitExceeded(err) {
 			// Cut chunkSize in half if gRPC max message size is exceeded.
 			chunkSize = chunkSize / 2
@@ -1361,7 +1700,14 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 			return nil, trail.FromGRPC(err)
 		}
 
-		nodes = append(nodes, resp...)
+		// perform client-side filtering in case we're dealing with an older auth server which
+		// does not support server-side filtering.
+		for _, node := range resp {
+			if node.MatchAgainst(labels) {
+				nodes = append(nodes, node)
+			}
+		}
+
 		startKey = nextKey
 		if startKey == "" {
 			return nodes, nil
@@ -1372,19 +1718,47 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 // ListNodes returns a paginated list of nodes that the user has access to in the given namespace.
 // nextKey can be used as startKey in another call to ListNodes to retrieve the next page of nodes.
 // ListNodes will return a trace.LimitExceeded error if the page of nodes retrieved exceeds 4MiB.
-func (c *Client) ListNodes(ctx context.Context, namespace string, limit int, startKey string) (nodes []types.Server, nextKey string, err error) {
-	if namespace == "" {
+func (c *Client) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]types.Server, string, error) {
+	resp, err := c.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    req.Namespace,
+		StartKey:     req.StartKey,
+		Limit:        req.Limit,
+		Labels:       req.Labels,
+	})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.listNodesFallback(ctx, req)
+		}
+
+		return nil, "", trace.Wrap(err)
+	}
+
+	servers := make([]types.Server, len(resp.Resources))
+	for i, resource := range resp.Resources {
+		server, ok := resource.(*types.ServerV2)
+		if !ok {
+			return nil, "", trace.BadParameter("invalid node type %T", resource)
+		}
+
+		servers[i] = server
+	}
+
+	return servers, resp.NextKey, nil
+}
+
+// listNodesFallback previous implementation of `ListNodes` function using
+// `ListNodes` RPC call.
+// DELETE IN 10.0
+func (c *Client) listNodesFallback(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
+	if req.Namespace == "" {
 		return nil, "", trace.BadParameter("missing parameter namespace")
 	}
-	if limit <= 0 {
+	if req.Limit <= 0 {
 		return nil, "", trace.BadParameter("nonpositive parameter limit")
 	}
 
-	resp, err := c.grpc.ListNodes(ctx, &proto.ListNodesRequest{
-		Namespace: namespace,
-		Limit:     int32(limit),
-		StartKey:  startKey,
-	}, c.callOpts...)
+	resp, err := c.grpc.ListNodes(ctx, &req, c.callOpts...)
 	if err != nil {
 		return nil, "", trail.FromGRPC(err)
 	}
@@ -1567,11 +1941,6 @@ func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteClusterNetworkingConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterNetworkingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	resp, err := c.grpc.GetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1595,11 +1964,6 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
 	_, err := c.grpc.ResetSessionRecordingConfig(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
-}
-
-// DeleteSessionRecordingConfig not implemented: can only be called locally.
-func (c *Client) DeleteSessionRecordingConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetAuthPreference gets cluster auth preference.
@@ -1627,11 +1991,6 @@ func (c *Client) ResetAuthPreference(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteAuthPreference not implemented: can only be called locally.
-func (c *Client) DeleteAuthPreference(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // GetClusterAuditConfig gets cluster audit configuration.
 func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	resp, err := c.grpc.GetClusterAuditConfig(ctx, &empty.Empty{}, c.callOpts...)
@@ -1639,16 +1998,6 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
-}
-
-// SetClusterAuditConfig not implemented: can only be called locally.
-func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteClusterAuditConfig not implemented: can only be called locally.
-func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetLock gets a lock by name.
@@ -1702,11 +2051,6 @@ func (c *Client) DeleteLock(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
-// DeleteAllLocks not implemented: can only be called locally.
-func (c *Client) DeleteAllLocks(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 func (c *Client) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
 	if clusterName == "" {
@@ -1756,6 +2100,63 @@ func (c *Client) DeleteNetworkRestrictions(ctx context.Context) error {
 		return trail.FromGRPC(err)
 	}
 	return nil
+}
+
+// CreateApp creates a new application resource.
+func (c *Client) CreateApp(ctx context.Context, app types.Application) error {
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return trace.BadParameter("unsupported application type %T", app)
+	}
+	_, err := c.grpc.CreateApp(ctx, appV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateApp updates existing application resource.
+func (c *Client) UpdateApp(ctx context.Context, app types.Application) error {
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return trace.BadParameter("unsupported application type %T", app)
+	}
+	_, err := c.grpc.UpdateApp(ctx, appV3, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetApp returns the specified application resource.
+func (c *Client) GetApp(ctx context.Context, name string) (types.Application, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing application name")
+	}
+	app, err := c.grpc.GetApp(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return app, nil
+}
+
+// GetApps returns all application resources.
+func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
+	items, err := c.grpc.GetApps(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	apps := make([]types.Application, len(items.Apps))
+	for i := range items.Apps {
+		apps[i] = items.Apps[i]
+	}
+	return apps, nil
+}
+
+// DeleteApp deletes specified application resource.
+func (c *Client) DeleteApp(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteApp(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllApps deletes all application resources.
+func (c *Client) DeleteAllApps(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllApps(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
 }
 
 // CreateDatabase creates a new database resource.
@@ -1828,6 +2229,15 @@ func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.Windows
 	return services, nil
 }
 
+// GetWindowsDesktopService returns a registered windows desktop service by name.
+func (c *Client) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	resp, err := c.grpc.GetWindowsDesktopService(ctx, &proto.GetWindowsDesktopServiceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp.GetService(), nil
+}
+
 // UpsertWindowsDesktopService registers a new windows desktop service.
 func (c *Client) UpsertWindowsDesktopService(ctx context.Context, service types.WindowsDesktopService) (*types.KeepAlive, error) {
 	s, ok := service.(*types.WindowsDesktopServiceV3)
@@ -1862,8 +2272,8 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 }
 
 // GetWindowsDesktops returns all registered windows desktop hosts.
-func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error) {
-	resp, err := c.grpc.GetWindowsDesktops(ctx, &empty.Empty{}, c.callOpts...)
+func (c *Client) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	resp, err := c.grpc.GetWindowsDesktops(ctx, &filter, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1872,15 +2282,6 @@ func (c *Client) GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop
 		desktops = append(desktops, desktop)
 	}
 	return desktops, nil
-}
-
-// GetWindowsDesktop returns a registered windows desktop host.
-func (c *Client) GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error) {
-	desktop, err := c.grpc.GetWindowsDesktop(ctx, &proto.GetWindowsDesktopRequest{Name: name}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return desktop, nil
 }
 
 // CreateWindowsDesktop registers a new windows desktop host.
@@ -1903,10 +2304,24 @@ func (c *Client) UpdateWindowsDesktop(ctx context.Context, desktop types.Windows
 	return trail.FromGRPC(err)
 }
 
+// UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+func (c *Client) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	d, ok := desktop.(*types.WindowsDesktopV3)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpsertWindowsDesktop(ctx, d, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteWindowsDesktop removes the specified windows desktop host.
-func (c *Client) DeleteWindowsDesktop(ctx context.Context, name string) error {
+// Note: unlike GetWindowsDesktops, this will delete at-most one desktop.
+// Passing an empty host ID will not trigger "delete all" behavior. To delete
+// all desktops, use DeleteAllWindowsDesktops.
+func (c *Client) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
 	_, err := c.grpc.DeleteWindowsDesktop(ctx, &proto.DeleteWindowsDesktopRequest{
-		Name: name,
+		Name:   name,
+		HostID: hostID,
 	}, c.callOpts...)
 	if err != nil {
 		return trail.FromGRPC(err)
@@ -1921,4 +2336,238 @@ func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
 		return trail.FromGRPC(err)
 	}
 	return nil
+}
+
+// GenerateWindowsDesktopCert generates client certificate for Windows RDP authentication.
+func (c *Client) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	resp, err := c.grpc.GenerateWindowsDesktopCert(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
+// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
+func (c *Client) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	res, err := c.grpc.ChangeUserAuthentication(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// StartAccountRecovery creates a recovery start token for a user who successfully verified their username and their recovery code.
+// This token is used as part of a URL that will be emailed to the user (not done in this request).
+// Represents step 1 of the account recovery process.
+func (c *Client) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.StartAccountRecovery(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// VerifyAccountRecovery creates a recovery approved token after successful verification of users password or second factor
+// (authn depending on what user needed to recover). This token will allow users to perform protected actions while not logged in.
+// Represents step 2 of the account recovery process after RPC StartAccountRecovery.
+func (c *Client) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAccountRecoveryRequest) (types.UserToken, error) {
+	res, err := c.grpc.VerifyAccountRecovery(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// CompleteAccountRecovery sets a new password or adds a new mfa device,
+// allowing user to regain access to their account using the new credentials.
+// Represents the last step in the account recovery process after RPC's StartAccountRecovery and VerifyAccountRecovery.
+func (c *Client) CompleteAccountRecovery(ctx context.Context, req *proto.CompleteAccountRecoveryRequest) error {
+	_, err := c.grpc.CompleteAccountRecovery(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// CreateAccountRecoveryCodes creates new set of recovery codes for a user, replacing and invalidating any previously owned codes.
+func (c *Client) CreateAccountRecoveryCodes(ctx context.Context, req *proto.CreateAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
+	res, err := c.grpc.CreateAccountRecoveryCodes(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// GetAccountRecoveryToken returns a user token resource after verifying the token in
+// request is not expired and is of the correct recovery type.
+func (c *Client) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
+	res, err := c.grpc.GetAccountRecoveryToken(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// GetAccountRecoveryCodes returns the user in context their recovery codes resource without any secrets.
+func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
+	res, err := c.grpc.GetAccountRecoveryCodes(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
+func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	resp, err := c.grpc.CreateAuthenticateChallenge(ctx, in, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
+func (c *Client) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	resp, err := c.grpc.CreatePrivilegeToken(ctx, req, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
+func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	resp, err := c.grpc.CreateRegisterChallenge(ctx, in, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// GenerateCertAuthorityCRL generates an empty CRL for a CA.
+func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
+	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
+// ListResources returns a paginated list of nodes that the user has access to.
+// `nextKey` is used as `startKey` in another call to ListResources to retrieve
+// the next page. If you want to list all resources pages, check the
+// `GetResources` function.
+// It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
+// message size.
+func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.grpc.ListResources(ctx, &req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	resources := make([]types.ResourceWithLabels, len(resp.GetResources()))
+	for i, respResource := range resp.GetResources() {
+		switch req.ResourceType {
+		case types.KindDatabaseServer:
+			resources[i] = respResource.GetDatabaseServer()
+		case types.KindAppServer:
+			resources[i] = respResource.GetAppServer()
+		case types.KindNode:
+			resources[i] = respResource.GetNode()
+		case types.KindKubeService:
+			resources[i] = respResource.GetKubeService()
+		case types.KindWindowsDesktop:
+			resources[i] = respResource.GetWindowsDesktop()
+		case types.KindKubernetesCluster:
+			resources[i] = respResource.GetKubeCluster()
+		default:
+			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+		}
+	}
+
+	return &types.ListResourcesResponse{
+		Resources:  resources,
+		NextKey:    resp.NextKey,
+		TotalCount: int(resp.TotalCount),
+	}, nil
+}
+
+// ListResourcesClient is an interface used by GetResourcesWithFilters to abstract over implementations of
+// the ListResources method.
+type ListResourcesClient interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+// GetResourcesWithFilters is a helper for getting a list of resources with optional filtering. In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, error) {
+	// Retrieve the complete list of resources in chunks.
+	var (
+		resources []types.ResourceWithLabels
+		startKey  string
+		chunkSize = int32(defaults.DefaultChunkSize)
+	)
+
+	for {
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:           req.Namespace,
+			ResourceType:        req.ResourceType,
+			StartKey:            startKey,
+			Limit:               chunkSize,
+			Labels:              req.Labels,
+			SearchKeywords:      req.SearchKeywords,
+			PredicateExpression: req.PredicateExpression,
+			UseSearchAsRoles:    req.UseSearchAsRoles,
+		})
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				// Cut chunkSize in half if gRPC max message size is exceeded.
+				chunkSize = chunkSize / 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
+				if chunkSize == 0 {
+					return nil, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
+				}
+
+				continue
+			}
+
+			return nil, trail.FromGRPC(err)
+		}
+
+		startKey = resp.NextKey
+		resources = append(resources, resp.Resources...)
+		if startKey == "" || len(resp.Resources) == 0 {
+			break
+		}
+
+	}
+
+	return resources, nil
+}
+
+// CreateSessionTracker creates a tracker resource for an active session.
+func (c *Client) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
+	resp, err := c.grpc.CreateSessionTracker(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
+// GetSessionTracker returns the current state of a session tracker for an active session.
+func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	req := &proto.GetSessionTrackerRequest{SessionID: sessionID}
+	resp, err := c.grpc.GetSessionTracker(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
+// GetActiveSessionTrackers returns a list of active session trackers.
+func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var sessions []types.SessionTracker
+	for {
+		session, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		sessions = append(sessions, session)
+	}
+
+	return sessions, nil
+}
+
+// RemoveSessionTracker removes a tracker resource for an active session.
+func (c *Client) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	_, err := c.grpc.RemoveSessionTracker(ctx, &proto.RemoveSessionTrackerRequest{SessionID: sessionID})
+	return trail.FromGRPC(err)
+}
+
+// UpdateSessionTracker updates a tracker resource for an active session.
+func (c *Client) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	_, err := c.grpc.UpdateSessionTracker(ctx, req)
+	return trail.FromGRPC(err)
+}
+
+// MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
+func (c *Client) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
+	stream, err := c.grpc.MaintainSessionPresence(ctx)
+	return stream, trail.FromGRPC(err)
 }
