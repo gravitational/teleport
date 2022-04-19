@@ -38,7 +38,7 @@ import (
 
 // IAMConfig is the IAM configurator config.
 type IAMConfig struct {
-	// Clock used to control time.
+	// Clock is used to control time.
 	Clock clockwork.Clock
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
@@ -47,8 +47,8 @@ type IAMConfig struct {
 	// HostID is the host identified where this agent is running.
 	// DELETE IN 11.0.
 	HostID string
-	// onProcessTask is called after a task is processed.
-	onProcessTask func(task iamTask)
+	// onProcessedTask is called after a task is processed.
+	onProcessedTask func(processedTask iamTask, processError error)
 }
 
 // Check validates the IAM configurator config.
@@ -107,7 +107,7 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 // Start starts the IAM configurator service.
 func (c *IAM) Start(ctx context.Context) error {
 	// DELETE IN 11.0.
-	c.deleteOldPolicy(ctx)
+	go c.deleteOldPolicy(ctx)
 
 	go func() {
 		c.log.Info("Started IAM configurator service.")
@@ -122,8 +122,8 @@ func (c *IAM) Start(ctx context.Context) error {
 				if err != nil {
 					c.log.WithError(err).Errorf("Failed to auto-configure IAM for %v.", task.database)
 				}
-				if c.cfg.onProcessTask != nil {
-					c.cfg.onProcessTask(task)
+				if c.cfg.onProcessedTask != nil {
+					c.cfg.onProcessedTask(task, err)
 				}
 			}
 		}
@@ -219,6 +219,8 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		return trace.Wrap(err)
 	}
 
+	// Acquire a semaphore before making changes to the shared IAM policy.
+	//
 	// TODO(greedy52) ideally tasks can be bundled so the semaphore is acquired
 	// once per group, and the IAM policy is only get/put once per group.
 	lease, err := services.AcquireSemaphoreWithRetry(ctx, services.AcquireSemaphoreWithRetryConfig{
@@ -227,8 +229,13 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 			SemaphoreKind: configurator.cfg.policyName,
 			SemaphoreName: configurator.cfg.identity.GetName(),
 			MaxLeases:     1,
-			Expires:       c.cfg.Clock.Now().Add(time.Minute),
+
+			// If the semaphore fails to release for some reason, it will expire in a
+			// minute on its own.
+			Expires: c.cfg.Clock.Now().Add(time.Minute),
 		},
+
+		// Retry with some jitters up to twice of the semaphore expire time.
 		Retry: utils.LinearConfig{
 			Step:   10 * time.Second,
 			Max:    2 * time.Minute,
@@ -267,18 +274,60 @@ func (c *IAM) addTask(task iamTask) error {
 // caller identity. DELETE IN 11.0.
 func (c *IAM) deleteOldPolicy(ctx context.Context) {
 	oldPolicyName := "teleport-" + c.cfg.HostID
+	newPolicyName, err := c.getPolicyName()
+	if err != nil {
+		c.log.WithError(err).Errorf("Failed to get new policy name.")
+		return
+	}
+
 	identity, err := c.getAWSIdentity(ctx)
 	if err != nil {
-		c.log.WithError(err).Debugf("Failed to get AWS identity.")
+		c.log.WithError(err).Errorf("Failed to get AWS identity.")
 		return
 	}
 
 	iamClient, err := c.cfg.Clients.GetAWSIAMClient("")
 	if err != nil {
-		c.log.WithError(err).Debugf("Failed to get IAM client.")
+		c.log.WithError(err).Errorf("Failed to get IAM client.")
 		return
 	}
 
+	findPolicy := func(policyName string) error {
+		switch identity.(type) {
+		case awslib.Role:
+			_, err := iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
+				PolicyName: aws.String(policyName),
+				RoleName:   aws.String(identity.GetName()),
+			})
+			return common.ConvertError(err)
+		case awslib.User:
+			_, err := iamClient.GetUserPolicyWithContext(ctx, &iam.GetUserPolicyInput{
+				PolicyName: aws.String(policyName),
+				UserName:   aws.String(identity.GetName()),
+			})
+			return common.ConvertError(err)
+		default:
+			return trace.BadParameter("can only fetch policies for roles or users, got %v", identity)
+		}
+	}
+
+	// Check on old policy. If the old policy does not exist or any other
+	// error, this operation is aborted.
+	if err = findPolicy(oldPolicyName); err != nil {
+		if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
+			c.log.WithError(err).Errorf("Failed to get inline policy %v for %v.", oldPolicyName, identity)
+		}
+		return
+	}
+
+	// Wait a bit and check on new policy. Only proceed if new policy is found.
+	c.cfg.Clock.Sleep(10 * time.Minute)
+	if err = findPolicy(newPolicyName); err != nil {
+		c.log.WithError(err).Errorf("Failed to get inline policy %v for %v.", newPolicyName, identity)
+		return
+	}
+
+	// Remove old policy.
 	switch identity.(type) {
 	case awslib.Role:
 		_, err = iamClient.DeleteRolePolicyWithContext(ctx, &iam.DeleteRolePolicyInput{

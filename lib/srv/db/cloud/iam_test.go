@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -131,7 +132,7 @@ func TestAWSIAM(t *testing.T) {
 			IAM:      iamClient,
 		},
 		HostID: "host-id",
-		onProcessTask: func(iamTask) {
+		onProcessedTask: func(iamTask, error) {
 			taskChan <- struct{}{}
 		},
 	})
@@ -274,7 +275,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 }
 
 // DELETE IN 11.0.
-func TestAWSIAMMigration(t *testing.T) {
+func TestAWSIAMDeleteOldPolicy(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -286,13 +287,17 @@ func TestAWSIAMMigration(t *testing.T) {
 	iamClient := &IAMMock{
 		attachedRolePolicies: map[string]map[string]string{
 			"test-role": map[string]string{
-				"teleport-host-id": "old policy",
+				"teleport-host-id":                 "old policy",
+				"cluster.local" + policyNameSuffix: "new policy",
 			},
 		},
 	}
 
+	fakeClock := clockwork.NewFakeClock()
+
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
+		Clock:       fakeClock,
 		AccessPoint: &mockAccessPoint{},
 		Clients: &common.TestCloudClients{
 			STS: stsClient,
@@ -301,14 +306,20 @@ func TestAWSIAMMigration(t *testing.T) {
 		HostID: "host-id",
 	})
 	require.NoError(t, err)
-
-	// Old policy should not be deleted after Start.
 	require.NoError(t, configurator.Start(ctx))
-	_, err = iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
-		RoleName:   aws.String("test-role"),
-		PolicyName: aws.String("teleport-host-id"),
-	})
-	require.True(t, trace.IsNotFound(common.ConvertError(err)), "expect err is trace.NotFound")
+
+	isPolicyDeleted := func() bool {
+		// Advance in periodic check to make sure Advance happens after
+		// Clock.Sleep in deleteOldPolicy goroutine.
+		fakeClock.Advance(time.Hour)
+
+		_, err = iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
+			RoleName:   aws.String("test-role"),
+			PolicyName: aws.String("teleport-host-id"),
+		})
+		return trace.IsNotFound(common.ConvertError(err))
+	}
+	require.Eventually(t, isPolicyDeleted, 2*time.Second, 100*time.Millisecond)
 }
 
 // mockAccessPoint is a mock for auth.DatabaseAccessPoint.
