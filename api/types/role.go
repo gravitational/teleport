@@ -171,6 +171,11 @@ type Role interface {
 	GetHostGroups(RoleConditionType) []string
 	// SetHostGroups sets the list of groups this role is put in when users are provisioned
 	SetHostGroups(RoleConditionType, []string)
+
+	// GetHostSudoers gets the list of sudoers entries for the role
+	GetHostSudoers(RoleConditionType) []string
+	// SetHostSudoers sets the list of sudoers entries for the role
+	SetHostSudoers(RoleConditionType, []string)
 }
 
 // NewRole constructs new standard V5 role.
@@ -631,6 +636,25 @@ func (r *RoleV5) SetHostGroups(rct RoleConditionType, groups []string) {
 		r.Spec.Allow.HostGroups = ncopy
 	} else {
 		r.Spec.Deny.HostGroups = ncopy
+	}
+}
+
+// GetHostSudoers gets the list of sudoers entries for the role
+func (r *RoleV5) GetHostSudoers(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.HostSudoers
+	}
+	return r.Spec.Deny.HostSudoers
+
+}
+
+// GetHostSudoers sets the list of sudoers entries for the role
+func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
+	ncopy := utils.CopyStrings(sudoers)
+	if rct == Allow {
+		r.Spec.Allow.HostSudoers = ncopy
+	} else {
+		r.Spec.Deny.HostSudoers = ncopy
 	}
 }
 

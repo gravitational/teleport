@@ -24,6 +24,6 @@ import (
 )
 
 //nolint:staticcheck // intended to always return an error for non-linux builds
-func newHostUsersBackend() (HostUsersBackend, error) {
+func newHostUsersBackend(_ string) (HostUsersBackend, error) {
 	return nil, trace.NotImplemented("Host user creation management is only supported on linux")
 }
