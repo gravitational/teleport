@@ -1352,10 +1352,8 @@ func (*webSessionsWithRoles) Upsert(ctx context.Context, session types.WebSessio
 
 // Delete removes the web session specified with req.
 func (r *webSessionsWithRoles) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
-	if err := r.c.currentUserAction(req.User); err != nil {
-		if err := r.c.action(apidefaults.Namespace, types.KindWebSession, types.VerbDelete); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := r.c.canDeleteWebSession(req.User); err != nil {
+		return trace.Wrap(err)
 	}
 	return r.ws.Delete(ctx, req)
 }
@@ -1442,6 +1440,7 @@ type webTokensWithRoles struct {
 type accessChecker interface {
 	action(namespace, resource string, verbs ...string) error
 	currentUserAction(user string) error
+	canDeleteWebSession(username string) error
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
@@ -3466,11 +3465,9 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Users can only delete their own app sessions.
-	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbDelete); err != nil {
-			return trace.Wrap(err)
-		}
+	// Check if user can delete this web session.
+	if err := a.canDeleteWebSession(session.GetUser()); err != nil {
+		return trace.Wrap(err)
 	}
 	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -3487,6 +3484,32 @@ func (a *ServerWithRoles) DeleteAllAppSessions(ctx context.Context) error {
 	if err := a.authServer.DeleteAllAppSessions(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// DeleteUserAppSessions deletes all user’s application sessions.
+func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	// First, check if the current user can delete the request user sessions.
+	if err := a.canDeleteWebSession(req.Username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteUserAppSessions(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// canDeleteWebSession checks if the current user can delete
+// WebSessions from the provided `username`.
+func (a *ServerWithRoles) canDeleteWebSession(username string) error {
+	if err := a.currentUserAction(username); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 

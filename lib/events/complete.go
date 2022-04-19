@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 
@@ -41,9 +42,9 @@ type UploadCompleterConfig struct {
 	AuditLog IAuditLog
 	// Uploader allows the completer to list and complete uploads
 	Uploader MultipartUploader
-	// GracePeriod is the period after which uploads are considered
-	// abandoned and will be completed
-	GracePeriod time.Duration
+	// SessionTracker is used to discover the current state of a
+	// sesssions with active uploads.
+	SessionTracker services.SessionTrackerService
 	// Component is a component used in logging
 	Component string
 	// CheckPeriod is a period for checking the upload
@@ -60,8 +61,8 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	if cfg.Uploader == nil {
 		return trace.BadParameter("missing parameter Uploader")
 	}
-	if cfg.GracePeriod == 0 {
-		cfg.GracePeriod = defaults.UploadGracePeriod
+	if cfg.SessionTracker == nil {
+		return trace.BadParameter("missing parameter SessionTracker")
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentAuth
@@ -125,19 +126,30 @@ func (u *UploadCompleter) run() {
 	}
 }
 
-// CheckUploads fetches uploads, checks if any uploads exceed grace period
-// and completes unfinished uploads
+// CheckUploads fetches uploads and completes any abandoned uploads
 func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 	uploads, err := u.cfg.Uploader.ListUploads(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	completed := 0
-	for _, upload := range uploads {
-		gracePoint := upload.Initiated.Add(u.cfg.GracePeriod)
-		if !gracePoint.Before(u.cfg.Clock.Now()) {
-			return nil
+	defer func() {
+		if completed > 0 {
+			u.log.Debugf("Found %v active uploads, completed %v.", len(uploads), completed)
 		}
+	}()
+
+	for _, upload := range uploads {
+		// Check for an active session tracker for the session upload.
+		_, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String())
+		if err == nil {
+			// session appears to be active, don't complete the upload.
+			continue
+		} else if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
 		parts, err := u.cfg.Uploader.ListParts(ctx, upload)
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -147,7 +159,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		u.log.Debugf("Upload %v grace period is over. Trying to complete.", upload.ID)
+		u.log.Debugf("Upload %v was abandoned, trying to complete.", upload.ID)
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); err != nil {
 			return trace.Wrap(err)
 		}
@@ -191,9 +203,6 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
-	if completed > 0 {
-		u.log.Debugf("Found %v active uploads, completed %v.", len(uploads), completed)
 	}
 	return nil
 }

@@ -66,7 +66,7 @@ Let's start with a single-pod Teleport deployment using a persistent volume as a
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise"  scope={["enterprise"]}>
     ```code
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
@@ -115,7 +115,7 @@ to create a public IP for Teleport.
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise" scope={["enterprise"]}>
     ```code
     # Set kubectl context to the namespace to set some typing
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
@@ -270,7 +270,7 @@ In this step, we will set up the GitHub Single Sign-On connector for the OSS ver
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise"  scope={["enterprise"]}>
     Follow the [SAML Okta Guide](../../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
     Check out [OIDC guides](../../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
@@ -305,7 +305,7 @@ To create a connector, we are going to run Teleport's admin tool `tctl` from the
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise"  scope={["enterprise"]}>
     ```code
     # To create an Okta connector, we are going to run Teleport's admin tool tctl from the pod.
     $ POD=$(kubectl get po -l app=teleport-cluster-ent -o jsonpath='{.items[0].metadata.name}')
@@ -326,7 +326,7 @@ the default one in case there is a problem.
     ```
   </TabItem>
 
-  <TabItem label="Enterprise">
+  <TabItem label="Enterprise"  scope={["enterprise"]}>
     ```code
     $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com --auth=okta
     ```

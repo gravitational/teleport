@@ -22,6 +22,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -57,8 +58,8 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
-		if proxyAddr := GetProxyAddress(addr); proxyAddr != "" {
-			return DialProxyWithDialer(ctx, proxyAddr, addr, dialer)
+		if proxyAddr := proxy.GetProxyAddress(addr); proxyAddr != nil {
+			return DialProxyWithDialer(ctx, proxyAddr.Host, addr, dialer)
 		}
 		return dialer.DialContext(ctx, network, addr)
 	})
