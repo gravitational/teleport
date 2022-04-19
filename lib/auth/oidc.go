@@ -81,11 +81,10 @@ func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error
 	}
 
 	// SyncProviderConfig doesn't take a context for cancellation, instead it
-	// returns a channel that has to be closed to stop the sync. So what we
-	// can do until it is changed to take a context, is to wait for the syncContext
-	// we create below to be done and then close the channel. This allows the sync
-	// to be stopped in the event that the oidcClient is removed, or if the Server
-	// is Closed.
+	// returns a channel that has to be closed to stop the sync. To ensure that
+	// the sync is eventually stopped we create a child context of the server context, which
+	// is cancelled either on deletion of the connector or shutdown of the server.
+	// This will cause syncCtx.Done() to unblock, at which point we can close the stop channel.
 	firstSync := make(chan struct{})
 	syncCtx, syncCancel := context.WithCancel(a.closeCtx)
 	go func() {
