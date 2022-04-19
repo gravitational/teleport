@@ -203,8 +203,8 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	_, offset = caUTC.GetRotation().LastRotated.Zone()
 	require.Zero(t, offset)
 
-	// successfully Clone without panic, see https://github.com/gogo/protobuf/issues/519
-	_ = caUTC.Clone()
+	// see https://github.com/gogo/protobuf/issues/519
+	require.NotPanics(t, func() { caUTC.Clone() })
 
 	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
 }
