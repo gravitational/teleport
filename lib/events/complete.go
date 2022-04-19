@@ -68,7 +68,7 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 		cfg.Component = teleport.ComponentAuth
 	}
 	if cfg.CheckPeriod == 0 {
-		cfg.CheckPeriod = defaults.LowResPollingPeriod
+		cfg.CheckPeriod = defaults.AbandonedUploadPollingRate
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
