@@ -84,18 +84,7 @@ func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error
 		return nil, trace.Wrap(err)
 	}
 
-	var result types.Databases
-	for _, database := range rdsDatabases {
-		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
-		if err != nil {
-			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
-		} else if match {
-			result = append(result, database)
-		} else {
-			f.log.Debugf("%v doesn't match selector.", database)
-		}
-	}
-	return result, nil
+	return filterDatabasesByLabels(rdsDatabases, f.cfg.Labels, f.log), nil
 }
 
 // getRDSDatabases returns a list of database resources representing RDS instances.
@@ -180,18 +169,7 @@ func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, er
 		return nil, trace.Wrap(err)
 	}
 
-	var result types.Databases
-	for _, database := range auroraDatabases {
-		match, _, err := services.MatchLabels(f.cfg.Labels, database.GetAllLabels())
-		if err != nil {
-			f.log.Warnf("Failed to match %v against selector: %v.", database, err)
-		} else if match {
-			result = append(result, database)
-		} else {
-			f.log.Debugf("%v doesn't match selector.", database)
-		}
-	}
-	return result, nil
+	return filterDatabasesByLabels(auroraDatabases, f.cfg.Labels, f.log), nil
 }
 
 // getAuroraDatabases returns a list of database resources representing RDS clusters.

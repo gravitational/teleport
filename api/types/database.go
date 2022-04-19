@@ -325,6 +325,9 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
 		return DatabaseTypeRDS
 	}
+	if d.GetAWS().ElastiCache.ReplicationGroupID != "" {
+		return DatabaseTypeElastiCache
+	}
 	if d.GetGCP().ProjectID != "" {
 		return DatabaseTypeCloudSQL
 	}
@@ -409,6 +412,19 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
+	case awsutils.IsElastiCacheEndpoint(d.Spec.URI):
+		endpointInfo, err := awsutils.ParseElastiCacheRedisEndpoint(d.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if d.Spec.AWS.ElastiCache.ReplicationGroupID == "" {
+			d.Spec.AWS.ElastiCache.ReplicationGroupID = endpointInfo.ClusterName
+		}
+		if d.Spec.AWS.Region == "" {
+			d.Spec.AWS.Region = endpointInfo.Region
+		}
+		d.Spec.AWS.ElastiCache.TLSEnabled = endpointInfo.TLSEnabled
+		d.Spec.AWS.ElastiCache.ClusterEnabled = endpointInfo.ClusterEnabled
 	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
 		if err != nil {
