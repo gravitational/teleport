@@ -155,13 +155,20 @@ endif
 endif
 endif
 
-# Enable libfido2 for buildbox and local environments that have it.
+# Enable libfido2 for testing?
+# Eargerly enable if we detect the package, we want to test as much as possible.
 ifneq ("$(shell ls {/opt/homebrew,/usr/lib/x86_64-linux-gnu,/usr/local/lib}/libfido2.* 2>/dev/null)","")
-LIBFIDO2_TAG := libfido2
-else
+LIBFIDO2_TEST_TAG := libfido2
 endif
-# TODO(codingllama): Re-enable fido2 static builds.
+
+# Build tsh against libfido2?
+# Only build if FIDO2=yes, each platform we support must make this decision
+# explicitly.
 LIBFIDO2_MESSAGE := without libfido2
+ifeq ("$(FIDO2)", "yes")
+LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_BUILD_TAG := libfido2 libfido2static
+endif
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
@@ -218,7 +225,7 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_STATIC_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
@@ -517,12 +524,12 @@ test-go: $(VERSRC) $(TEST_LOG_DIR)
 # separately.
 # TODO(codingllama): Run libfido2 tests along with others once RDP doesn't
 #  embed openssl/libcrypto.
-ifneq ("$(LIBFIDO2_TAG)", "")
-	$(CGOFLAG) go test -cover -json -tags "$(LIBFIDO2_TAG)" ./lib/auth/webauthncli/... $(FLAGS) $(ADDFLAGS) \
+ifneq ("$(LIBFIDO2_TEST_TAG)", "")
+	$(CGOFLAG) go test -cover -json -tags "$(LIBFIDO2_TEST_TAG)" ./lib/auth/webauthncli/... $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 endif
-	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
@@ -646,7 +653,7 @@ endif
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
 lint-go:
-	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TAG)' $(GO_LINT_FLAGS)
+	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG)' $(GO_LINT_FLAGS)
 
 .PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
