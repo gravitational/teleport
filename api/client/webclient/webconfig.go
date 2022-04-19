@@ -21,17 +21,23 @@ import "github.com/gravitational/teleport/api/constants"
 const (
 	// WebConfigAuthProviderOIDCType is OIDC provider type
 	WebConfigAuthProviderOIDCType = "oidc"
-	// WebConfigAuthProviderOIDCURL is OIDC webapi endpoint
+	// WebConfigAuthProviderOIDCURL is OIDC webapi endpoint.
+	// Query param "redirect_url" must be located at the end of URL as this param
+	// gets manually extracted and assumes anything coming after it is part of this param.
 	WebConfigAuthProviderOIDCURL = "/v1/webapi/oidc/login/web?connector_id=:providerName&redirect_url=:redirect"
 
 	// WebConfigAuthProviderSAMLType is SAML provider type
 	WebConfigAuthProviderSAMLType = "saml"
-	// WebConfigAuthProviderSAMLURL is SAML webapi endpoint
+	// WebConfigAuthProviderSAMLURL is SAML webapi endpoint.
+	// Query param "redirect_url" must be located at the end of URL as this param
+	// gets manually extracted and assumes anything coming after it is part of this param.
 	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?connector_id=:providerName&redirect_url=:redirect"
 
 	// WebConfigAuthProviderGitHubType is GitHub provider type
 	WebConfigAuthProviderGitHubType = "github"
 	// WebConfigAuthProviderGitHubURL is GitHub webapi endpoint
+	// Query param "redirect_url" must be located at the end of URL as this param
+	// gets manually extracted and assumes anything coming after it is part of this param.
 	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?connector_id=:providerName&redirect_url=:redirect"
 )
 
