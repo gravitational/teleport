@@ -77,8 +77,7 @@ impl Client {
                     self.handle_device_io_request(&mut payload)?
                 }
                 _ => {
-                    // We don't implement the full set of messages. Only the ones necessary for initial
-                    // negotiation and registration of a smartcard device.
+                    // We don't implement the full set of messages.
                     error!(
                         "RDPDR packets {:?} are not implemented yet, ignoring",
                         header.packet_id
@@ -1246,7 +1245,7 @@ impl DeviceCreateResponse {
                 device_io_request,
                 NTSTATUS::to_u32(&io_status).unwrap(),
             ),
-            file_id: device_io_request.file_id,
+            file_id: device_io_request.file_id, // TODO(isaiah): this is false, the client should be generating the file_id here
             information,
         }
     }
