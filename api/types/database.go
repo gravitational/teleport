@@ -87,6 +87,8 @@ type Database interface {
 	IsCloudSQL() bool
 	// IsAzure returns true if this is an Azure database.
 	IsAzure() bool
+	// IsElastiCache returns true if this is an AWS ElastiCache database.
+	IsElastiCache() bool
 	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
 	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
@@ -304,9 +306,15 @@ func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
 }
 
-// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
+// IsElastiCache returns true if this is an AWS ElastiCache database.
+func (d *DatabaseV3) IsElastiCache() bool {
+	return d.GetType() == DatabaseTypeElastiCache
+}
+
+// IsCloudHosted returns true if database is hosted in the cloud (AWS
+// RDS/Aurora/Redshift/ElastiCache, Azure or Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure()
+	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure() || d.IsElastiCache()
 }
 
 // GetType returns the database type.
@@ -516,6 +524,10 @@ const (
 	DatabaseTypeCloudSQL = "gcp"
 	// DatabaseTypeAzure is Azure-hosted database.
 	DatabaseTypeAzure = "azure"
+	// DatabaseTypeElastiCache is AWS-hosted ElastiCache database.
+	DatabaseTypeElastiCache = "elasticache"
+	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
+	//DatabaseTypeMemoryDB = "memoryDB"
 )
 
 // DeduplicateDatabases deduplicates databases by name.

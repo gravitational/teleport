@@ -18,6 +18,7 @@ package aws
 
 import (
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -46,14 +47,19 @@ func IsRedshiftEndpoint(uri string) bool {
 		IsAWSEndpoint(uri)
 }
 
+// IsElastiCacheEndpoint returns true if the input URI is an ElastiCache
+// endpoint.
+func IsElastiCacheEndpoint(uri string) bool {
+	return strings.Contains(uri, ElastiCacheSubdomain) &&
+		IsAWSEndpoint(uri)
+}
+
 // ParseRDSEndpoint extracts the identifier and region from the provided RDS
 // endpoint.
 func ParseRDSEndpoint(endpoint string) (id, region string, err error) {
-	if strings.ContainsRune(endpoint, ':') {
-		endpoint, _, err = net.SplitHostPort(endpoint)
-		if err != nil {
-			return "", "", trace.Wrap(err)
-		}
+	endpoint, err = trimEndpointPort(endpoint)
+	if err != nil {
+		return "", "", trace.Wrap(err)
 	}
 
 	if strings.HasSuffix(endpoint, AWSCNEndpointSuffix) {
@@ -91,11 +97,9 @@ func parseRDSCNEndpoint(endpoint string) (id, region string, err error) {
 // ParseRedshiftEndpoint extracts cluster ID and region from the provided
 // Redshift endpoint.
 func ParseRedshiftEndpoint(endpoint string) (clusterID, region string, err error) {
-	if strings.ContainsRune(endpoint, ':') {
-		endpoint, _, err = net.SplitHostPort(endpoint)
-		if err != nil {
-			return "", "", trace.Wrap(err)
-		}
+	endpoint, err = trimEndpointPort(endpoint)
+	if err != nil {
+		return "", "", trace.Wrap(err)
 	}
 
 	if strings.HasSuffix(endpoint, AWSCNEndpointSuffix) {
@@ -130,6 +134,163 @@ func parseRedshiftCNEndpoint(endpoint string) (clusterID, region string, err err
 	return parts[0], parts[3], nil
 }
 
+// TODO
+type RedisEndpointInfo struct {
+	ClusterName    string
+	Region         string
+	TLSEnabled     bool
+	ClusterEnabled bool
+}
+
+// TODO
+//
+// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/GettingStarted.ConnectToCacheNode.html
+func ParseElastiCacheRedisEndpoint(endpoint string) (*RedisEndpointInfo, error) {
+	endpoint, err := trimEndpointPort(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var endpointWithoutSuffix string
+	switch {
+	case strings.HasPrefix(endpoint, AWSEndpointSuffix):
+		endpointWithoutSuffix = strings.TrimSuffix(endpoint, AWSEndpointSuffix)
+
+	case strings.HasSuffix(endpoint, AWSCNEndpointSuffix):
+		// Endpoints for CN regions look like this:
+		// my-redis-cluster.xxxxxx.0001.cnn1.cache.amazonaws.com.cn:6379
+		endpointWithoutSuffix = strings.TrimSuffix(endpoint, AWSCNEndpointSuffix)
+
+	default:
+		return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint", endpoint)
+	}
+
+	// Parts should end with service name without partition suffix.
+	parts := strings.Split(endpointWithoutSuffix, ".")
+
+	// For <part>.<part>.<part>.<short-region>.cache.
+	//
+	// Note that ElastiCache uses short region codes (e.g. "use1" for "us-east-1").
+	//
+	// For Redis with Cluster mode enabled, there is a single "configuration"
+	// endpoint. For Redis with Cluster mode disabled, users can connect
+	// through either "primary", "reader", or "node" endpoints.
+	if len(parts) == 5 && parts[4] == ElastiCacheServiceName {
+		region, ok := ShortRegionToRegion(parts[3])
+		if !ok {
+			return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint: %v is not a valid region", endpoint, parts[3])
+		}
+
+		// Configuration endpoint for Redis with TLS enabled looks like:
+		// clustercfg.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
+		if parts[0] == "clustercfg" {
+			return &RedisEndpointInfo{
+				ClusterName:    parts[1],
+				Region:         region,
+				TLSEnabled:     true,
+				ClusterEnabled: true,
+			}, nil
+		}
+
+		// Configuration endpoint for Redis with TLS disabled looks like:
+		// my-redis-cluster.xxxxxx.clustercfg.use1.cache.<suffix>:6379
+		if parts[2] == "clustercfg" {
+			return &RedisEndpointInfo{
+				ClusterName:    parts[0],
+				Region:         region,
+				TLSEnabled:     false,
+				ClusterEnabled: true,
+			}, nil
+		}
+
+		// Node endpoint for Redis with TLS disabled looks like:
+		// my-redis-cluster-001.xxxxxx.0001.use0.cache.<suffix>:6379
+		if isElasticCacheShardID(parts[2]) {
+			return &RedisEndpointInfo{
+				ClusterName:    trimElastiCacheNodeID(parts[0]),
+				Region:         region,
+				TLSEnabled:     false,
+				ClusterEnabled: false,
+			}, nil
+		}
+
+		// Node, primary, reader endpoints for Redis with TLS enabled look like:
+		// my-redis-cluster-001.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
+		// master.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
+		// replica.my-redis-cluster.xxxxxx.use1.cache.<suffix>:6379
+		return &RedisEndpointInfo{
+			ClusterName:    parts[1],
+			Region:         region,
+			TLSEnabled:     true,
+			ClusterEnabled: false,
+		}, nil
+	}
+
+	// Primary and reader endpoints for Redis with TLS disabled look like:
+	// my-redis.xxxxxx.ng.0001.use1.cache.<suffix>:6379
+	// my-redis-ro.xxxxxx.ng.0001.use1.cache.<suffix>:6379
+	if len(parts) == 6 && parts[5] == ElastiCacheServiceName && isElasticCacheShardID(parts[3]) {
+		region, ok := ShortRegionToRegion(parts[4])
+		if !ok {
+			return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint: %v is not a valid region", endpoint, parts[4])
+		}
+
+		// Remove "-ro" if exist.
+		clusterName := strings.TrimSuffix(parts[0], "-ro")
+
+		return &RedisEndpointInfo{
+			ClusterName:    clusterName,
+			Region:         region,
+			TLSEnabled:     false,
+			ClusterEnabled: false,
+		}, nil
+	}
+
+	return nil, trace.BadParameter("failed to parse %v as ElastiCache Redis endpoint", endpoint)
+}
+
+// TODO
+func isElasticCacheShardID(part string) bool {
+	if len(part) != 4 {
+		return false
+	}
+	_, err := strconv.Atoi(part)
+	return err == nil
+}
+
+// TODO
+func isElasticCacheNodeID(part string) bool {
+	if len(part) != 3 {
+		return false
+	}
+	_, err := strconv.Atoi(part)
+	return err == nil
+}
+
+// TODO
+func trimElastiCacheNodeID(name string) string {
+	parts := strings.Split(name, "-")
+	lastPart := parts[len(parts)-1]
+	if isElasticCacheNodeID(lastPart) {
+		return strings.TrimSuffix(name, "-"+lastPart)
+	}
+	return name
+}
+
+// TODO
+func trimEndpointPort(endpoint string) (string, error) {
+	if !strings.ContainsRune(endpoint, ':') {
+		return endpoint, nil
+	}
+
+	endpoint, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return endpoint, nil
+}
+
 const (
 	// AWSEndpointSuffix is the endpoint suffix for AWS Standard and AWS US
 	// GovCloud regions.
@@ -149,9 +310,15 @@ const (
 	// RedshiftServiceName is the service name for AWS Redshift.
 	RedshiftServiceName = "redshift"
 
+	// ElastiCacheServiceName is the service name for AWS ElastiCache.
+	ElastiCacheServiceName = "cache"
+
 	// RDSEndpointSubdomain is the RDS/Aurora subdomain.
 	RDSEndpointSubdomain = "." + RDSServiceName + "."
 
 	// RedshiftEndpointSubdomain is the Redshift endpoint subdomain.
 	RedshiftEndpointSubdomain = "." + RedshiftServiceName + "."
+
+	// ElastiCacheSubdomain is the ElastiCache endpoint subdomain.
+	ElastiCacheSubdomain = "." + ElastiCacheServiceName + "."
 )
