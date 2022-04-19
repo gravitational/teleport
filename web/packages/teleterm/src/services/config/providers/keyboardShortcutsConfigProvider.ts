@@ -45,7 +45,7 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'tab-previous': 'Control-Shift-Tab',
         'tab-next': 'Control-Tab',
         'open-quick-input': 'Command-K',
-        'toggle-connections': 'Command-O',
+        'toggle-connections': 'Command-P',
         'toggle-clusters': 'Command-E',
         'toggle-identity': 'Command-I',
       };
@@ -65,7 +65,7 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'tab-previous': 'Ctrl-PageUp',
         'tab-next': 'Ctrl-PageDown',
         'open-quick-input': 'Ctrl-K',
-        'toggle-connections': 'Ctrl-O',
+        'toggle-connections': 'Ctrl-P',
         'toggle-clusters': 'Ctrl-E',
         'toggle-identity': 'Ctrl-I',
       };
