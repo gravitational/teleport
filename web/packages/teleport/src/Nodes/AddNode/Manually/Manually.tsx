@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { Text, Box, ButtonLink, Indicator } from 'design';
+import React, { useEffect } from 'react';
+import { Text, Box, ButtonLink, Indicator, ButtonSecondary } from 'design';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
 import { State } from './../useAddNode';
+import { DialogContent, DialogFooter } from 'design/Dialog';
 
 export default function Manually({
   isEnterprise,
@@ -27,18 +28,24 @@ export default function Manually({
   isAuthTypeLocal,
   joinToken,
   createJoinToken,
-  expiry,
   attempt,
+  onClose,
 }: Props) {
   const { hostname, port } = window.document.location;
   const host = `${hostname}:${port || '443'}`;
   let tshLoginCmd = `tsh login --proxy=${host}`;
 
+  useEffect(() => {
+    if (!joinToken) {
+      createJoinToken();
+    }
+  }, []);
+
   if (isAuthTypeLocal) {
     tshLoginCmd = `${tshLoginCmd} --auth=local --user=${user}`;
   }
 
-  if (attempt.status === 'processing') {
+  if (attempt.status === 'processing' || attempt.status === '') {
     return (
       <Box textAlign="center">
         <Indicator />
@@ -48,28 +55,37 @@ export default function Manually({
 
   return (
     <>
-      <Box mb={4}>
-        <Text bold as="span">
-          Step 1
-        </Text>{' '}
-        - Download Teleport package to your computer
-        <DownloadLinks isEnterprise={isEnterprise} version={version} />
-      </Box>
-      {attempt.status === 'failed' ? (
-        <StepsWithoutToken host={host} tshLoginCmd={tshLoginCmd} />
-      ) : (
-        <StepsWithToken
-          joinToken={joinToken}
-          host={host}
-          createJoinToken={createJoinToken}
-          expiry={expiry}
-        />
-      )}
+      <DialogContent>
+        <Box mb={4}>
+          <Text bold as="span">
+            Step 1
+          </Text>{' '}
+          - Download Teleport package to your computer
+          <DownloadLinks isEnterprise={isEnterprise} version={version} />
+        </Box>
+        {attempt.status === 'failed' ? (
+          <StepsWithoutToken host={host} tshLoginCmd={tshLoginCmd} />
+        ) : (
+          <StepsWithToken
+            joinToken={joinToken}
+            host={host}
+            createJoinToken={createJoinToken}
+          />
+        )}
+      </DialogContent>
+      <DialogFooter>
+        <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>
+      </DialogFooter>
     </>
   );
 }
 
-const StepsWithoutToken = ({ tshLoginCmd, host }) => (
+type StepsWithoutTokenProps = {
+  tshLoginCmd: string;
+  host: string;
+};
+
+const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
   <>
     <Box mb={4}>
       <Text bold as="span">
@@ -98,7 +114,17 @@ const StepsWithoutToken = ({ tshLoginCmd, host }) => (
   </>
 );
 
-const StepsWithToken = ({ joinToken, host, createJoinToken, expiry }) => (
+type StepsWithTokenProps = {
+  joinToken: State['token'];
+  host: string;
+  createJoinToken: State['createJoinToken'];
+};
+
+const StepsWithToken = ({
+  joinToken,
+  host,
+  createJoinToken,
+}: StepsWithTokenProps) => (
   <Box>
     <Text bold as="span">
       Step 2
@@ -107,12 +133,12 @@ const StepsWithToken = ({ joinToken, host, createJoinToken, expiry }) => (
     <Text mt="1">
       The token will be valid for{' '}
       <Text bold as={'span'}>
-        {expiry}.
+        {joinToken.expiryText}.
       </Text>
     </Text>
     <TextSelectCopy
       mt="2"
-      text={`teleport start --roles=node --token=${joinToken} --auth-server=${host} `}
+      text={`teleport start --roles=node --token=${joinToken.id} --auth-server=${host} `}
     />
     <Box>
       <ButtonLink onClick={createJoinToken}>Regenerate Token</ButtonLink>
@@ -125,8 +151,8 @@ type Props = {
   user: string;
   version: string;
   isAuthTypeLocal: boolean;
-  joinToken: string;
-  expiry: State['expiry'];
+  joinToken: State['token'];
   createJoinToken: State['createJoinToken'];
   attempt: State['attempt'];
+  onClose(): void;
 };

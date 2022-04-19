@@ -29,9 +29,10 @@ import FieldInput from 'shared/components/FieldInput';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import cfg from 'teleport/config';
+import { State } from '../useAddApp';
 
 export default function Automatically(props: Props) {
-  const { onClose, attempt, expires, token } = props;
+  const { onClose, attempt, token } = props;
 
   const [name, setName] = React.useState('');
   const [uri, setUri] = React.useState('');
@@ -39,7 +40,7 @@ export default function Automatically(props: Props) {
 
   React.useEffect(() => {
     if (name && uri) {
-      const cmd = createAppBashCommand(token, name, uri);
+      const cmd = createAppBashCommand(token.id, name, uri);
       setCmd(cmd);
     }
   }, [token]);
@@ -57,7 +58,7 @@ export default function Automatically(props: Props) {
       return;
     }
 
-    const cmd = createAppBashCommand(token, name, uri);
+    const cmd = createAppBashCommand(token.id, name, uri);
     setCmd(cmd);
   }
 
@@ -121,7 +122,7 @@ export default function Automatically(props: Props) {
                   Use the script below to add an application to your cluster.{' '}
                   The script will be valid for
                   <Text bold as="span">
-                    {` ${expires}`}.
+                    {` ${token.expiryText}`}.
                   </Text>
                   {renderUrl(name)}
                 </Text>
@@ -241,7 +242,11 @@ const requiredAppName = value => () => {
   };
 };
 
-export const createAppBashCommand = (token, appName, appUri): string => {
+export const createAppBashCommand = (
+  tokenId: string,
+  appName: string,
+  appUri: string
+): string => {
   // encode uri so it can be passed around as URL query parameter
   const encoded = encodeURIComponent(appUri)
     // encode single quotes so they do not break the curl parameters
@@ -249,7 +254,7 @@ export const createAppBashCommand = (token, appName, appUri): string => {
   const bashUrl =
     cfg.baseUrl +
     cfg.api.appNodeScriptPath
-      .replace(':token', token)
+      .replace(':token', tokenId)
       .replace(':name', appName)
       .replace(':uri', encoded);
 
@@ -259,7 +264,6 @@ export const createAppBashCommand = (token, appName, appUri): string => {
 type Props = {
   onClose(): void;
   onCreate(name: string, uri: string): Promise<any>;
-  token: string;
-  expires: string;
+  token: State['token'];
   attempt: Attempt;
 };

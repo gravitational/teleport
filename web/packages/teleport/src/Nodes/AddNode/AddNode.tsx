@@ -15,17 +15,14 @@
  */
 
 import React from 'react';
-import { ButtonSecondary, Flex } from 'design';
+import { Flex } from 'design';
 import { TabIcon } from 'teleport/components/Tabs';
 import useTeleport from 'teleport/useTeleport';
 import * as Icons from 'design/Icon';
-import Dialog, {
-  DialogContent,
-  DialogFooter,
-  DialogTitle,
-} from 'design/Dialog';
+import Dialog, { DialogTitle } from 'design/Dialog';
 import Manually from './Manually';
 import Automatically from './Automatically';
+import Iam from './Iam';
 import useAddNode, { State } from './useAddNode';
 
 export default function Container(props: Props) {
@@ -38,15 +35,15 @@ export function AddNode({
   isEnterprise,
   user,
   onClose,
-  script,
-  expiry,
   createJoinToken,
-  automatic,
-  setAutomatic,
+  method,
+  setMethod,
   version,
   attempt,
   isAuthTypeLocal,
   token,
+  iamJoinToken,
+  createIamJoinToken,
 }: Props & State) {
   return (
     <Dialog
@@ -63,43 +60,54 @@ export function AddNode({
         <Flex alignItems="center" justifyContent="space-between" mb="4">
           <DialogTitle mr="auto">Add Server</DialogTitle>
           <TabIcon
+            Icon={Icons.Server}
+            title="AWS"
+            active={method === 'iam'}
+            onClick={() => setMethod('iam')}
+          />
+          <TabIcon
             Icon={Icons.Wand}
             title="Automatically"
-            active={automatic}
-            onClick={() => setAutomatic(true)}
+            active={method === 'automatic'}
+            onClick={() => setMethod('automatic')}
           />
           <TabIcon
             Icon={Icons.Cog}
             title="Manually"
-            active={!automatic}
-            onClick={() => setAutomatic(false)}
+            active={method === 'manual'}
+            onClick={() => setMethod('manual')}
           />
         </Flex>
-        <DialogContent minHeight="100px">
-          {automatic && (
-            <Automatically
-              script={script}
-              expiry={expiry}
-              createJoinToken={createJoinToken}
-              attempt={attempt}
-            />
-          )}
-          {!automatic && (
-            <Manually
-              isEnterprise={isEnterprise}
-              user={user}
-              version={version}
-              isAuthTypeLocal={isAuthTypeLocal}
-              joinToken={token}
-              expiry={expiry}
-              createJoinToken={createJoinToken}
-              attempt={attempt}
-            />
-          )}
-        </DialogContent>
-        <DialogFooter>
-          <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>
-        </DialogFooter>
+        {method === 'automatic' && (
+          <Automatically
+            joinToken={token}
+            createJoinToken={createJoinToken}
+            attempt={attempt}
+            onClose={onClose}
+          />
+        )}
+        {method === 'manual' && (
+          <Manually
+            isEnterprise={isEnterprise}
+            user={user}
+            version={version}
+            isAuthTypeLocal={isAuthTypeLocal}
+            joinToken={token}
+            createJoinToken={createJoinToken}
+            attempt={attempt}
+            onClose={onClose}
+          />
+        )}
+        {method === 'iam' && (
+          <Iam
+            onGenerate={createIamJoinToken}
+            attempt={attempt}
+            token={iamJoinToken}
+            isEnterprise={isEnterprise}
+            version={version}
+            onClose={onClose}
+          />
+        )}
       </Flex>
     </Dialog>
   );

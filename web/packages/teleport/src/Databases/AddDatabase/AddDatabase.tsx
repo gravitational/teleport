@@ -49,7 +49,6 @@ export default function Container(props: Props) {
 
 export function AddDatabase({
   createJoinToken,
-  expiry,
   attempt,
   token,
   authType,
@@ -121,9 +120,9 @@ export function AddDatabase({
               selectedDbOption.value.type,
               selectedDbOption.value.protocol,
               host,
-              token
+              token.id
             )}
-            expiry={expiry}
+            expiry={token.expiryText}
             onRegenerateToken={createJoinToken}
             isEnterprise={isEnterprise}
             version={version}

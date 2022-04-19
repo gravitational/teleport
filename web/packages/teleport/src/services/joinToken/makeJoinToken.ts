@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { formatDistanceStrict } from 'date-fns';
 import { JoinToken } from './types';
 
 export default function makeToken(json): JoinToken {
@@ -22,5 +23,8 @@ export default function makeToken(json): JoinToken {
   return {
     id,
     expiry: expiry ? new Date(expiry) : null,
+    expiryText: expiry
+      ? formatDistanceStrict(new Date(), new Date(expiry))
+      : '',
   };
 }

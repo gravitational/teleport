@@ -19,6 +19,7 @@ import FieldInput from './FieldInput';
 import { render, fireEvent } from 'design/utils/testing';
 import * as useRule from '../Validation/useRule';
 import theme from 'design/theme';
+import { Fields } from './FieldInput.story';
 
 test('valid values, autofocus, onChange, onKeyPress', () => {
   const rule = jest.fn();
@@ -82,4 +83,9 @@ test('input validation error state', () => {
   expect(inputEl).toHaveStyle({
     'border-color': errorColor,
   });
+});
+
+test('snapshot tests', () => {
+  const fields = render(<Fields />);
+  expect(fields).toMatchSnapshot();
 });

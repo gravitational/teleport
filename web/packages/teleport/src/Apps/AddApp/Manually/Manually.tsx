@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import {
   Text,
   Box,
@@ -36,7 +36,6 @@ export default function Manually({
   isAuthTypeLocal,
   token,
   createToken,
-  expires,
   attempt,
 }: Props) {
   const { hostname, port } = window.document.location;
@@ -68,12 +67,7 @@ export default function Manually({
         {attempt.status === 'failed' ? (
           <StepsWithoutToken host={host} tshLoginCmd={tshLoginCmd} />
         ) : (
-          <StepsWithToken
-            createToken={createToken}
-            expires={expires}
-            host={host}
-            token={token}
-          />
+          <StepsWithToken createToken={createToken} host={host} token={token} />
         )}
       </DialogContent>
       <DialogFooter>
@@ -83,7 +77,12 @@ export default function Manually({
   );
 }
 
-const StepsWithoutToken = ({ tshLoginCmd, host }) => (
+type StepsWithoutTokenProps = {
+  tshLoginCmd: string;
+  host: string;
+};
+
+const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
   <>
     <Box mb={4}>
       <Text bold as="span">
@@ -123,7 +122,13 @@ const StepsWithoutToken = ({ tshLoginCmd, host }) => (
   </>
 );
 
-const StepsWithToken = ({ token, host, createToken, expires }) => (
+type StepsWithTokenProps = {
+  token: State['token'];
+  host: string;
+  createToken: State['createToken'];
+};
+
+const StepsWithToken = ({ token, host, createToken }: StepsWithTokenProps) => (
   <Box>
     <Text bold as="span">
       Step 2
@@ -132,12 +137,12 @@ const StepsWithToken = ({ token, host, createToken, expires }) => (
     <Text mt="1">
       The token will be valid for{' '}
       <Text bold as={'span'}>
-        {expires}.
+        {token.expiryText}.
       </Text>
     </Text>
     <TextSelectCopy
       mt="2"
-      text={`teleport start --roles=app --app-name=[example-app] --app-uri=http://localhost/ --token=${token} --auth-server=${host}`}
+      text={`teleport start --roles=app --app-name=[example-app] --app-uri=http://localhost/ --token=${token.id} --auth-server=${host}`}
     />
     <Box>
       <ButtonLink onClick={createToken}>Regenerate Token</ButtonLink>
@@ -152,7 +157,6 @@ type Props = {
   user: string;
   isAuthTypeLocal: boolean;
   token: State['token'];
-  expires: State['expires'];
   createToken: State['createToken'];
   attempt: State['attempt'];
 };

@@ -3,19 +3,18 @@ import { fireEvent, render, screen } from 'design/utils/testing';
 import Automatically, { createAppBashCommand } from './Automatically';
 
 test('render command only after form submit', async () => {
-  const token = 'token';
+  const token = { id: 'token', expiryText: '', expiry: null };
   render(
     <Automatically
       token={token}
       attempt={{ status: 'success' }}
       onClose={() => {}}
       onCreate={() => Promise.resolve(true)}
-      expires=""
     />
   );
 
   // initially, should not show the command
-  let cmd = createAppBashCommand(token, '', '');
+  let cmd = createAppBashCommand(token.id, '', '');
   expect(screen.queryByText(cmd)).toBeNull();
 
   // set app name
@@ -32,7 +31,7 @@ test('render command only after form submit', async () => {
   screen.getByRole('button', { name: /Generate Script/i }).click();
 
   // after form submission should show the command
-  cmd = createAppBashCommand(token, 'app-name', 'https://gravitational.com');
+  cmd = createAppBashCommand(token.id, 'app-name', 'https://gravitational.com');
   expect(screen.queryByText(cmd)).not.toBeNull();
 });
 

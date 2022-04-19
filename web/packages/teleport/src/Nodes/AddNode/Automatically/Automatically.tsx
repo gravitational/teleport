@@ -14,15 +14,29 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { State } from './../useAddNode';
+import React, { useEffect } from 'react';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import { Alert, Text, Indicator, Box, ButtonLink } from 'design';
+import {
+  Alert,
+  Text,
+  Indicator,
+  Box,
+  ButtonLink,
+  ButtonSecondary,
+} from 'design';
+import { DialogContent, DialogFooter } from 'design/Dialog';
+import { createBashCommand, State } from './../useAddNode';
 
 export default function Automatically(props: Props) {
-  const { script, expiry, createJoinToken, attempt } = props;
+  const { createJoinToken, attempt, onClose, joinToken } = props;
 
-  if (attempt.status === 'processing') {
+  useEffect(() => {
+    if (!joinToken) {
+      createJoinToken();
+    }
+  }, []);
+
+  if (attempt.status === 'processing' || attempt.status == '') {
     return (
       <Box textAlign="center">
         <Indicator />
@@ -36,27 +50,32 @@ export default function Automatically(props: Props) {
 
   return (
     <>
-      <Text>
-        Use below script to add a server to your cluster. This script will
-        install the Teleport agent to provide secure access to your server.
-        <Text mt="3">
-          The script will be valid for{' '}
-          <Text bold as={'span'}>
-            {expiry}.
+      <DialogContent>
+        <Text>
+          Use below script to add a server to your cluster. This script will
+          install the Teleport agent to provide secure access to your server.
+          <Text mt="3">
+            The script will be valid for{' '}
+            <Text bold as={'span'}>
+              {joinToken.expiryText}.
+            </Text>
           </Text>
         </Text>
-      </Text>
-      <TextSelectCopy text={script} mt={2} />
-      <Box>
-        <ButtonLink onClick={createJoinToken}>Regenerate Script</ButtonLink>
-      </Box>
+        <TextSelectCopy text={createBashCommand(joinToken.id)} mt={2} />
+        <Box>
+          <ButtonLink onClick={createJoinToken}>Regenerate Script</ButtonLink>
+        </Box>
+      </DialogContent>
+      <DialogFooter>
+        <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>
+      </DialogFooter>
     </>
   );
 }
 
 type Props = {
-  script: State['script'];
-  expiry: State['expiry'];
   createJoinToken: State['createJoinToken'];
   attempt: State['attempt'];
+  joinToken: State['token'];
+  onClose(): void;
 };

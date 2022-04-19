@@ -1,28 +1,21 @@
 import { JoinToken } from 'teleport/services/joinToken';
-import { createNodeBashCommand } from './useAddNode';
+import { createBashCommand } from './useAddNode';
 
-describe('correct node bash command', () => {
-  const now = new Date();
-
+describe('correct bash command', () => {
   test.each`
-    token            | hours  | expires      | cmd
-    ${'some-token'}  | ${1.1} | ${'1 hour'}  | ${'sudo bash -c "$(curl -fsSL http://localhost/scripts/some-token/install-node.sh)"'}
-    ${'other-token'} | ${2.1} | ${'2 hours'} | ${'sudo bash -c "$(curl -fsSL http://localhost/scripts/other-token/install-node.sh)"'}
-    ${'some-token'}  | ${25}  | ${'1 day'}   | ${'sudo bash -c "$(curl -fsSL http://localhost/scripts/some-token/install-node.sh)"'}
+    token            | method     | cmd
+    ${'some-token'}  | ${'token'} | ${'sudo bash -c "$(curl -fsSL http://localhost/scripts/some-token/install-node.sh)"'}
+    ${'other-token'} | ${'token'} | ${'sudo bash -c "$(curl -fsSL http://localhost/scripts/other-token/install-node.sh)"'}
+    ${'some-token'}  | ${'iam'}   | ${'sudo bash -c "$(curl -fsSL http://localhost/scripts/some-token/install-node.sh?method=iam)"'}
   `(
     'test bash command with: $token expiring in $hours',
-    ({ token, hours, expires, cmd }) => {
+    ({ token, method, cmd }) => {
       const node: JoinToken = {
-        expiry: addHours(now, hours),
         id: token,
+        expiry: null,
       };
-      const bashCommand = createNodeBashCommand(node);
-      expect(bashCommand.expires).toBe(expires);
-      expect(bashCommand.text).toBe(cmd);
+      const bashCommand = createBashCommand(node.id, method);
+      expect(bashCommand).toBe(cmd);
     }
   );
 });
-
-function addHours(date: Date, hours: number): Date {
-  return new Date(date.getTime() + hours * 60 * 60 * 1000);
-}

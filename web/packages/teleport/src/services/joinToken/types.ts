@@ -17,6 +17,14 @@ limitations under the License.
 export type JoinToken = {
   id: string;
   expiry: Date;
+  expiryText?: string;
 };
 
 export type Roles = 'App' | 'Node' | 'Db';
+
+export type Method = 'token' | 'ec2' | 'iam';
+
+export type Rule = {
+  awsAccountId: string;
+  awsArn?: string;
+};

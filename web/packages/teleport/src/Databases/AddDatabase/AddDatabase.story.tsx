@@ -43,9 +43,8 @@ const props = {
     status: 'success',
     statusText: '',
   } as any,
-  token: 'some-join-token-hash',
+  token: { id: 'some-join-token-hash', expiry: null, expiryText: '4 hours' },
   createJoinToken() {
     return Promise.resolve(null);
   },
-  expiry: '4 hours',
 };

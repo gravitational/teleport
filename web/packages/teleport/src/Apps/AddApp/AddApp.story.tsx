@@ -70,11 +70,10 @@ const props = {
   setCmdParams: () => null,
   createJoinToken: () => Promise.resolve(null),
   version: '5.0.0-dev',
-  expires: '1 hour',
   reset: () => null,
   attempt: {
     status: '',
     statusText: '',
   } as any,
-  token: 'join-token',
+  token: { id: 'join-token', expiryText: '1 hour', expiry: null },
 };

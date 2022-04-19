@@ -56,9 +56,8 @@ const props: Props & State = {
     status: 'failed',
     statusText: '',
   } as any,
-  token: 'some-token',
+  token: { id: 'some-token', expiryText: '4 hours', expiry: null },
   createJoinToken() {
     return Promise.resolve(null);
   },
-  expiry: '4 hours',
 };

@@ -15,11 +15,12 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box, Input, LabelInput } from 'design';
+import { Box, Input, LabelInput, Text } from 'design';
 import { useRule } from 'shared/components/Validation';
 
 export default function FieldInput({
   label,
+  labelTip,
   value,
   onChange,
   onKeyPress,
@@ -37,7 +38,12 @@ export default function FieldInput({
   const labelText = hasError ? message : label;
   return (
     <Box mb="4" {...styles}>
-      {label && <LabelInput hasError={hasError}>{labelText}</LabelInput>}
+      {label && (
+        <LabelInput hasError={hasError}>
+          {labelText}
+          {labelTip && <LabelTip text={labelTip} />}
+        </LabelInput>
+      )}
       <Input
         type={type}
         autoFocus={autoFocus}
@@ -56,9 +62,14 @@ export default function FieldInput({
 
 const defaultRule = () => () => ({ valid: true });
 
+const LabelTip = ({ text }) => (
+  <Text as="span" style={{ fontWeight: 'normal' }}>{` - ${text}`}</Text>
+);
+
 type Props = {
   value?: string;
   label?: string;
+  labelTip?: string;
   placeholder?: string;
   autoFocus?: boolean;
   autoComplete?: 'off' | 'on' | 'one-time-code';

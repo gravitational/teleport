@@ -35,21 +35,45 @@ export const Failed = () => (
 );
 
 export const ManuallyProcessing = () => (
-  <AddNode {...props} automatic={false} attempt={{ status: 'processing' }} />
+  <AddNode {...props} method="manual" attempt={{ status: 'processing' }} />
 );
 
-export const ManuallyWithToken = () => <AddNode {...props} automatic={false} />;
+export const ManuallyWithToken = () => <AddNode {...props} method="manual" />;
 
 export const ManuallyWithoutTokenLocal = () => (
-  <AddNode {...props} automatic={false} attempt={{ status: 'failed' }} />
+  <AddNode {...props} method="manual" attempt={{ status: 'failed' }} />
 );
 
 export const ManuallyWithoutTokenSSO = () => (
   <AddNode
     {...props}
-    automatic={false}
+    method="manual"
     isAuthTypeLocal={false}
     attempt={{ status: 'failed' }}
+  />
+);
+
+export const IamWithoutToken = () => (
+  <AddNode {...props} method="iam" iamJoinToken={null} />
+);
+
+export const IamWithToken = () => <AddNode {...props} method="iam" />;
+
+export const IamProcessing = () => (
+  <AddNode
+    {...props}
+    method="iam"
+    iamJoinToken={null}
+    attempt={{ status: 'processing' }}
+  />
+);
+
+export const IamFailed = () => (
+  <AddNode
+    {...props}
+    method="iam"
+    iamJoinToken={null}
+    attempt={{ status: 'failed', statusText: 'some err' }}
   />
 );
 
@@ -62,15 +86,26 @@ const props = {
     return Promise.resolve(null);
   },
   user: 'sam',
-  automatic: true,
+  method: 'automatic' as any,
+  setMethod: () => null,
   setAutomatic: () => null,
   version: '5.0.0-dev',
   isEnterprise: true,
-  script: 'some bash script',
-  expiry: '4 hours',
   attempt: {
     status: 'success',
     statusText: '',
   } as any,
-  token: 'some-join-token-hash',
+  token: {
+    id: 'some-join-token-hash',
+    expiryText: '4 hours',
+    expiry: new Date(),
+  },
+  iamJoinToken: {
+    id: 'some-join-token-hash',
+    expiryText: '1000 years',
+    expiry: new Date(),
+  },
+  createIamJoinToken() {
+    return Promise.resolve(null);
+  },
 };

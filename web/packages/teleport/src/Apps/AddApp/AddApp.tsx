@@ -32,7 +32,6 @@ export default function Container(props: Props) {
 
 export function AddApp({
   user,
-  expires,
   onClose,
   createToken,
   isEnterprise,
@@ -76,7 +75,6 @@ export function AddApp({
         </Flex>
         {automatic && (
           <Automatically
-            expires={expires}
             onClose={onClose}
             onCreate={createToken}
             attempt={attempt}
@@ -90,7 +88,6 @@ export function AddApp({
             onClose={onClose}
             user={user}
             version={version}
-            expires={expires}
             createToken={createToken}
             attempt={attempt}
             token={token}

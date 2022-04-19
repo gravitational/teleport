@@ -14,65 +14,58 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState, useEffect } from 'react';
-import { formatDistanceStrict } from 'date-fns';
+import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import TeleportContext from 'teleport/teleportContext';
-import { BashCommand } from 'teleport/services/nodes';
 import cfg from 'teleport/config';
-import { JoinToken } from 'teleport/services/joinToken';
+import { JoinToken, Rule } from 'teleport/services/joinToken';
 
 export default function useAddNode(ctx: TeleportContext) {
-  const { attempt, run } = useAttempt('processing');
+  const { attempt, run } = useAttempt('');
   const isEnterprise = ctx.isEnterprise;
   const version = ctx.storeUser.state.cluster.authVersion;
   const user = ctx.storeUser.state.username;
   const isAuthTypeLocal = !ctx.storeUser.isSso();
-  const [automatic, setAutomatic] = useState(true);
-  const [script, setScript] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [token, setToken] = useState('');
-
-  useEffect(() => {
-    createJoinToken();
-  }, []);
+  const [method, setMethod] = useState<JoinMethod>('iam');
+  const [token, setToken] = useState<JoinToken>();
+  const [iamJoinToken, setIamJoinToken] = useState<JoinToken>();
 
   function createJoinToken() {
     return run(() =>
-      ctx.joinTokenService.fetchJoinToken(['Node']).then(token => {
-        const cmd = createNodeBashCommand(token);
-        setExpiry(cmd.expires);
-        setScript(cmd.text);
-        setToken(token.id);
-      })
+      ctx.joinTokenService.fetchJoinToken(['Node'], 'token').then(setToken)
+    );
+  }
+
+  function createIamJoinToken(rules: Rule) {
+    return run(() =>
+      ctx.joinTokenService
+        .fetchJoinToken(['Node'], 'iam', [rules])
+        .then(setIamJoinToken)
     );
   }
 
   return {
     isEnterprise,
     createJoinToken,
-    automatic,
-    setAutomatic,
-    script,
-    expiry,
+    method,
+    setMethod,
     attempt,
     version,
     user,
     isAuthTypeLocal,
     token,
+    iamJoinToken,
+    createIamJoinToken,
   };
 }
 
-export function createNodeBashCommand(node: JoinToken): BashCommand {
-  const { expiry, id } = node;
-
-  const expires = formatDistanceStrict(new Date(), new Date(expiry));
-  const text = `sudo bash -c "$(curl -fsSL ${cfg.getNodeScriptUrl(id)})"`;
-
-  return {
-    text,
-    expires,
-  };
+export function createBashCommand(tokenId: string, method?: JoinMethod) {
+  const param = method === 'iam' ? '?method=iam' : '';
+  return `sudo bash -c "$(curl -fsSL ${cfg.getNodeScriptUrl(
+    tokenId
+  )}${param})"`;
 }
+
+export type JoinMethod = 'automatic' | 'manual' | 'iam';
 
 export type State = ReturnType<typeof useAddNode>;

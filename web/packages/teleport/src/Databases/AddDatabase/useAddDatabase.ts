@@ -15,14 +15,13 @@ limitations under the License.
 */
 
 import { useEffect, useState } from 'react';
-import { formatDistanceStrict } from 'date-fns';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import TeleportContext from 'teleport/teleportContext';
+import { JoinToken } from 'teleport/services/joinToken';
 
 export default function useAddDatabase(ctx: TeleportContext) {
   const { attempt, run } = useAttempt('processing');
-  const [expiry, setExpiry] = useState('');
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState<JoinToken>();
 
   useEffect(() => {
     createJoinToken();
@@ -30,20 +29,12 @@ export default function useAddDatabase(ctx: TeleportContext) {
 
   function createJoinToken() {
     return run(() =>
-      ctx.joinTokenService.fetchJoinToken(['Db']).then(token => {
-        const expires = formatDistanceStrict(
-          new Date(),
-          new Date(token.expiry)
-        );
-        setExpiry(expires);
-        setToken(token.id);
-      })
+      ctx.joinTokenService.fetchJoinToken(['Db']).then(setToken)
     );
   }
 
   return {
     createJoinToken,
-    expiry,
     attempt,
     token,
   };
