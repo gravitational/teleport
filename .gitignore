@@ -75,3 +75,6 @@ ssh.config
 /tctl
 /teleport
 /tsh
+
+# Go workspace file
+go.work
