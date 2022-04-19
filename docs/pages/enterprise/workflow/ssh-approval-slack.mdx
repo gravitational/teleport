@@ -285,8 +285,12 @@ Save this as `teleport-slack.service`.
 ## Audit log
 
 The plugin will let anyone with access to the Slack channel approve access
-requests, so it's important to review Teleport's audit log to ensure that only
-the expected users are accessing the channel.
+requests, so it's important to review the Teleport audit log to ensure that only
+the expected users are submitting reviews.
+
+When auditing access request reviews, check for events with the type
+`Access Request Reviewed` in the Teleport Web UI 
+<ScopedBlock scope={["oss", "enterprise"]}>and `access_request.review` if reviewing the audit log on the Auth Service host</ScopedBlock>.
 
 ## Feedback
 
