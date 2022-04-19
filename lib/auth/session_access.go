@@ -149,13 +149,12 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 		return false
 	}
 
-	for _, policySet := range e.policySets {
-		for _, allowRole := range allow.Roles {
-			expr := utils.GlobToRegexp(policySet.Name)
-			// GlobToRegexp makes sure this is always a valid regexp.
-			matched, _ := regexp.MatchString(expr, allowRole)
+	for _, allowRole := range allow.Roles {
+		// GlobToRegexp makes sure this is always a valid regexp.
+		expr := regexp.MustCompile(utils.GlobToRegexp(allowRole))
 
-			if matched {
+		for _, policySet := range e.policySets {
+			if expr.MatchString(policySet.Name) {
 				return true
 			}
 		}

@@ -161,11 +161,17 @@ func (s *WebSuite) SetUpTest(c *C) {
 	s.user = u.Username
 	s.clock = clockwork.NewFakeClock()
 
+	networkingConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		KeepAliveInterval: types.Duration(10 * time.Second),
+	})
+	c.Assert(err, IsNil)
+
 	s.server, err = auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
-			ClusterName: "localhost",
-			Dir:         c.MkDir(),
-			Clock:       s.clock,
+			ClusterName:             "localhost",
+			Dir:                     c.MkDir(),
+			Clock:                   s.clock,
+			ClusterNetworkingConfig: networkingConfig,
 		},
 	})
 	c.Assert(err, IsNil)
@@ -1032,6 +1038,47 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 	case <-ws2Event:
 		c.Fatal("unexpected resize event")
 	case <-time.After(time.Second):
+	}
+}
+
+// TestTerminalPing tests that the server sends continuous ping control messages.
+func (s *WebSuite) TestTerminalPing(c *C) {
+	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	c.Assert(err, IsNil)
+	defer ws.Close()
+
+	closed := false
+	done := make(chan struct{})
+	ws.SetPingHandler(func(message string) error {
+		if closed == false {
+			close(done)
+			closed = true
+		}
+
+		err := ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
+		if err == websocket.ErrCloseSent {
+			return nil
+		} else if e, ok := err.(net.Error); ok && e.Temporary() {
+			return nil
+		}
+		return err
+	})
+
+	// We need to continuously read incoming messages in order to process ping messages.
+	// We only care about receiving a ping here so dropping them is fine.
+	go func() {
+		for {
+			_, _, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Minute):
+		c.Fatal("timeout waiting for ping")
 	}
 }
 
@@ -1961,9 +2008,11 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 
 func TestTokenGeneration(t *testing.T) {
 	tt := []struct {
-		name      string
-		roles     types.SystemRoles
-		shouldErr bool
+		name       string
+		roles      types.SystemRoles
+		shouldErr  bool
+		joinMethod types.JoinMethod
+		allow      []*types.TokenRule
 	}{
 		{
 			name:      "single node role",
@@ -1990,6 +2039,19 @@ func TestTokenGeneration(t *testing.T) {
 			roles:     types.SystemRoles{},
 			shouldErr: true,
 		},
+		{
+			name:       "cannot request token with IAM join method without allow field",
+			roles:      types.SystemRoles{types.RoleNode},
+			joinMethod: types.JoinMethodIAM,
+			shouldErr:  true,
+		},
+		{
+			name:       "can request token with IAM join method",
+			roles:      types.SystemRoles{types.RoleNode},
+			joinMethod: types.JoinMethodIAM,
+			allow:      []*types.TokenRule{{AWSAccount: "1234"}},
+			shouldErr:  false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2000,8 +2062,10 @@ func TestTokenGeneration(t *testing.T) {
 			pack := proxy.authPack(t, "test-user@example.com")
 
 			endpoint := pack.clt.Endpoint("webapi", "token")
-			re, err := pack.clt.PostJSON(context.Background(), endpoint, createTokenRequest{
-				Roles: tc.roles,
+			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
+				Roles:      tc.roles,
+				JoinMethod: tc.joinMethod,
+				Allow:      tc.allow,
 			})
 
 			if tc.shouldErr {
@@ -2019,6 +2083,13 @@ func TestTokenGeneration(t *testing.T) {
 			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
 			require.NoError(t, err)
 			require.Equal(t, tc.roles, generatedToken.GetRoles())
+
+			expectedJoinMethod := tc.joinMethod
+			if tc.joinMethod == "" {
+				expectedJoinMethod = types.JoinMethodToken
+			}
+			// if no joinMethod is provided, expect token method
+			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
 		})
 	}
 }
@@ -2162,6 +2233,64 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
 }
 
+// TestApplicationWebSessionsDeletedAfterLogout makes sure user's application
+// sessions are deleted after user logout.
+func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	// Register multiple applications.
+	applications := []struct {
+		name       string
+		publicAddr string
+	}{
+		{name: "panel", publicAddr: "panel.example.com"},
+		{name: "admin", publicAddr: "admin.example.com"},
+		{name: "metrics", publicAddr: "metrics.example.com"},
+	}
+
+	// Register and create a session for each application.
+	for _, application := range applications {
+		// Register an application.
+		app, err := types.NewAppV3(types.Metadata{
+			Name: application.name,
+		}, types.AppSpecV3{
+			URI:        "localhost",
+			PublicAddr: application.publicAddr,
+		})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertApplicationServer(context.Background(), server)
+		require.NoError(t, err)
+
+		// Create application session
+		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+		_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
+			FQDNHint:    application.publicAddr,
+			PublicAddr:  application.publicAddr,
+			ClusterName: "localhost",
+		})
+		require.NoError(t, err)
+	}
+
+	// List sessions, should have one for each application.
+	sessions, err := proxy.client.GetAppSessions(context.Background())
+	require.NoError(t, err)
+	require.Len(t, sessions, len(applications))
+
+	// Logout from Telport.
+	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions"))
+	require.NoError(t, err)
+
+	// Check sessions after logout, should be empty.
+	sessions, err = proxy.client.GetAppSessions(context.Background())
+	require.NoError(t, err)
+	require.Len(t, sessions, 0)
+}
+
 func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
@@ -2281,6 +2410,53 @@ func TestAddMFADevice(t *testing.T) {
 				SecondFactorToken:        totpCode,
 				WebauthnRegisterResponse: webauthnRegResp,
 			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestDeleteMFA(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo@example.com")
+
+	//setting up client manually because we need sanitizer off
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	opts := []roundtrip.ClientParam{roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar), roundtrip.HTTPClient(client.NewInsecureWebClient())}
+	rclt, err := roundtrip.NewClient(proxy.webURL.String(), teleport.WebAPIVersion, opts...)
+	require.NoError(t, err)
+	clt := client.WebClient{Client: rclt}
+	jar.SetCookies(&proxy.webURL, pack.cookies)
+
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	// Obtain a privilege token.
+	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
+	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
+		SecondFactorToken: totpCode,
+	})
+	require.NoError(t, err)
+
+	var privilegeToken string
+	require.NoError(t, json.Unmarshal(re.Bytes(), &privilegeToken))
+
+	names := []string{"x", "??", "%123/", "///", "my/device", "?/%&*1"}
+	for _, devName := range names {
+		devName := devName
+		t.Run(devName, func(t *testing.T) {
+			t.Parallel()
+			otpSecret := base32.StdEncoding.EncodeToString([]byte(devName))
+			dev, err := services.NewTOTPDevice(devName, otpSecret, env.clock.Now())
+			require.NoError(t, err)
+			err = env.server.Auth().UpsertMFADevice(ctx, pack.user, dev)
+			require.NoError(t, err)
+
+			enc := url.PathEscape(devName)
+			_, err = clt.Delete(ctx, pack.clt.Endpoint("webapi", "mfa", "token", privilegeToken, "devices", enc))
 			require.NoError(t, err)
 		})
 	}
