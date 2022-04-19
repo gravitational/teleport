@@ -160,18 +160,8 @@ ifneq ("$(shell ls {/opt/homebrew,/usr/lib/x86_64-linux-gnu,/usr/local/lib}/libf
 LIBFIDO2_TAG := libfido2
 else
 endif
-# Build tsh with static libfido2 support if the requirements are present in the
-# system. The required libs are uncommon enough that their presence makes for a
-# strong signal.
+# TODO(codingllama): Re-enable fido2 static builds.
 LIBFIDO2_MESSAGE := without libfido2
-ifneq ("$(wildcard /usr/local/lib/libfido2.a)", "")
-ifneq ("$(wildcard /usr/local/lib/libcbor.a)", "")
-ifneq ("$(wildcard /usr/local/lib/libudev.a)", "")
-LIBFIDO2_STATIC_TAG := libfido2 libfido2static
-LIBFIDO2_MESSAGE := with libfido2
-endif # libudev
-endif # libcbor
-endif # libfido2
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
