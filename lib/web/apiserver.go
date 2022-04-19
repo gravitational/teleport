@@ -34,7 +34,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -42,6 +41,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
@@ -228,6 +229,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		clock:           clockwork.NewRealClock(),
 		ClusterFeatures: cfg.ClusterFeatures,
 	}
+
+	// for properly handling url-encoded parameter values.
+	h.UseRawPath = true
 
 	for _, o := range opts {
 		if err := o(h); err != nil {
@@ -624,6 +628,13 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		Type:              constants.Local,
 		SecondFactor:      cap.GetSecondFactor(),
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		AllowPasswordless: cap.GetAllowPasswordless(),
+		Local:             &webclient.LocalSettings{},
+	}
+
+	// Only copy the connector name if it's truly local and not a local fallback.
+	if cap.GetType() == constants.Local {
+		as.Local.Name = cap.GetConnectorName()
 	}
 
 	// U2F settings.
@@ -654,8 +665,9 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
-		// if you falling back to local accounts
-		SecondFactor: cap.GetSecondFactor(),
+		// Local fallback / MFA.
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 }
 
@@ -666,8 +678,9 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
-		// if you are falling back to local accounts
-		SecondFactor: cap.GetSecondFactor(),
+		// Local fallback / MFA.
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 }
 
@@ -678,11 +691,13 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 			Name:    connector.GetName(),
 			Display: connector.GetDisplay(),
 		},
-		SecondFactor: cap.GetSecondFactor(),
+		// Local fallback / MFA.
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 	}
 }
 
-func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
+func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
 	cap, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
@@ -762,7 +777,7 @@ func defaultAuthenticationSettings(ctx context.Context, authClient auth.ClientI)
 
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
-	defaultSettings, err := defaultAuthenticationSettings(r.Context(), h.cfg.ProxyClient)
+	authSettings, err := getAuthSettings(r.Context(), h.cfg.ProxyClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -773,7 +788,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	return webclient.PingResponse{
-		Auth:             defaultSettings,
+		Auth:             authSettings,
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
@@ -811,12 +826,13 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
-	if connectorName == constants.Local {
+	if apiutils.SliceContainsStr(constants.SystemConnectors, connectorName) {
 		response.Auth, err = localSettings(cap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+		response.Auth.Local.Name = connectorName // echo connector queried by caller
 		return response, nil
 	}
 

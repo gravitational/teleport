@@ -28,12 +28,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
@@ -70,6 +73,7 @@ func newMFACommand(app *kingpin.Application) mfaCommands {
 type mfaLSCommand struct {
 	*kingpin.CmdClause
 	verbose bool
+	format  string
 }
 
 func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
@@ -77,6 +81,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
+	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
 	return c
 }
 
@@ -112,8 +117,32 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 	// Sort by name before printing.
 	sort.Slice(devs, func(i, j int) bool { return devs[i].GetName() < devs[j].GetName() })
 
-	printMFADevices(devs, c.verbose)
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		printMFADevices(devs, c.verbose)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeMFADevices(devs, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", c.format)
+	}
+
 	return nil
+}
+
+func serializeMFADevices(devs []*types.MFADevice, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(devs, "", "  ")
+	} else {
+		out, err = yaml.Marshal(devs)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func printMFADevices(devs []*types.MFADevice, verbose bool) {
