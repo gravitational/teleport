@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -41,11 +40,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -65,6 +64,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
+	"github.com/ghodss/yaml"
 	gops "github.com/google/gops/agent"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -303,9 +303,6 @@ type CLIConf struct {
 	// JoinMode is the participant mode someone is joining a session as.
 	JoinMode string
 
-	// Passwordless instructs tsh to do passwordless login.
-	Passwordless bool
-
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
 
@@ -380,6 +377,9 @@ const (
 // cliOption is used in tests to inject/override configuration within Run
 type cliOption func(*CLIConf) error
 
+// defaultFormats is the default set of formats to use for commands that have the --format flag.
+var defaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
+
 // Run executes TSH client. same as main() but easier to test
 func Run(args []string, opts ...cliOption) error {
 	var cf CLIConf
@@ -394,9 +394,6 @@ func Run(args []string, opts ...cliOption) error {
 	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
-	if wancli.IsFIDO2Available() {
-		app.Flag("pwdless", "Do passwordless login").BoolVar(&cf.Passwordless)
-	}
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
@@ -432,7 +429,7 @@ func Run(args []string, opts ...cliOption) error {
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the version")
-
+	ver.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	// ssh
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
@@ -469,6 +466,7 @@ func Run(args []string, opts ...cliOption) error {
 	lsApps.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	lsApps.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
@@ -477,8 +475,9 @@ func Run(args []string, opts ...cliOption) error {
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
 	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
-	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command.",
-		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL)).StringVar(&cf.Format)
+	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, %q or %q to print everything as JSON or YAML.",
+		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
+	).Short('f').StringVar(&cf.Format)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
@@ -502,6 +501,7 @@ func Run(args []string, opts ...cliOption) error {
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
 	dbList.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	dbList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	dbList.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	dbList.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
@@ -510,6 +510,7 @@ func Run(args []string, opts ...cliOption) error {
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbEnv := db.Command("env", "Print environment variables for the configured database.")
+	dbEnv.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	dbEnv.Arg("db", "Print environment for the specified database").StringVar(&cf.DatabaseService)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbEnv.Flag("db", "Print environment for the specified database.").Hidden().StringVar(&cf.DatabaseService)
@@ -517,7 +518,8 @@ func Run(args []string, opts ...cliOption) error {
 	dbConfig.Arg("db", "Print information for the specified database.").StringVar(&cf.DatabaseService)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbConfig.Flag("db", "Print information for the specified database.").Hidden().StringVar(&cf.DatabaseService)
-	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command.", dbFormatText, dbFormatCommand)).StringVar(&cf.Format)
+	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command, %q or %q to print in JSON or YAML.",
+		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
 	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
@@ -533,7 +535,9 @@ func Run(args []string, opts ...cliOption) error {
 	// play
 	play := app.Command("play", "Replay the recorded SSH session")
 	play.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
-	play.Flag("format", "Format output (json, pty)").Short('f').Default(teleport.PTY).StringVar(&cf.Format)
+	play.Flag("format", formatFlagDescription(
+		teleport.PTY, teleport.JSON, teleport.YAML,
+	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
@@ -548,12 +552,15 @@ func Run(args []string, opts ...cliOption) error {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).StringVar(&cf.SiteName)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
-	ls.Flag("format", "Format output (text, json, names)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	ls.Flag("format", formatFlagDescription(
+		teleport.Text, teleport.JSON, teleport.YAML, teleport.Names,
+	)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, teleport.Text, teleport.JSON, teleport.YAML, teleport.Names)
 	ls.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	ls.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
+	clusters.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
@@ -564,7 +571,7 @@ func Run(args []string, opts ...cliOption) error {
 		identityfile.DefaultFormat,
 		identityfile.FormatOpenSSH,
 		identityfile.FormatKubernetes,
-	)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
+	)).Default(string(identityfile.DefaultFormat)).Short('f').StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("overwrite", "Whether to overwrite the existing identity file.").BoolVar(&cf.IdentityOverwrite)
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
@@ -600,22 +607,25 @@ func Run(args []string, opts ...cliOption) error {
 	// The status command shows which proxy the user is logged into and metadata
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
+	status.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
 	// even if the user runs "tsh login" again in another window.
 	environment := app.Command("env", "Print commands to set Teleport session environment variables")
+	environment.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables").BoolVar(&cf.unsetEnvironment)
 
 	req := app.Command("request", "Manage access requests").Alias("requests")
 
 	reqList := req.Command("ls", "List access requests").Alias("list")
-	reqList.Flag("format", "Format output (text, json)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
+	reqList.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	reqList.Flag("reviewable", "Only show requests reviewable by current user").BoolVar(&cf.ReviewableRequests)
 	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer").BoolVar(&cf.SuggestedRequests)
 	reqList.Flag("my-requests", "Only show requests created by current user").BoolVar(&cf.MyRequests)
 
 	reqShow := req.Command("show", "Show request details").Alias("details")
+	reqShow.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	reqCreate := req.Command("new", "Create a new access request").Alias("create")
@@ -727,7 +737,7 @@ func Run(args []string, opts ...cliOption) error {
 
 	switch command {
 	case ver.FullCommand():
-		utils.PrintVersion()
+		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
 	case bench.FullCommand():
@@ -833,9 +843,46 @@ func Run(args []string, opts ...cliOption) error {
 	return trace.Wrap(err)
 }
 
+// onVersion prints version info.
+func onVersion(cf *CLIConf) error {
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		utils.PrintVersion()
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeVersion(format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+	return nil
+}
+
+func serializeVersion(format string) (string, error) {
+	versionInfo := struct {
+		Version string `json:"version"`
+		Gitref  string `json:"gitref"`
+		Runtime string `json:"runtime"`
+	}{
+		teleport.Version, teleport.Gitref, runtime.Version(),
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(versionInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(versionInfo)
+	}
+	return string(out), trace.Wrap(err)
+}
+
 // onPlay replays a session with a given ID
 func onPlay(cf *CLIConf) error {
-	switch cf.Format {
+	format := strings.ToLower(cf.Format)
+	switch format {
 	case teleport.PTY:
 		switch {
 		case path.Ext(cf.SessionID) == ".tar":
@@ -877,7 +924,13 @@ func onPlay(cf *CLIConf) error {
 				// when playing from a file, id is not included, this
 				// makes the outputs otherwise identical
 				delete(event, "id")
-				e, err := utils.FastMarshal(event)
+				var e []byte
+				var err error
+				if format == teleport.JSON {
+					e, err = utils.FastMarshal(event)
+				} else {
+					e, err = yaml.Marshal(event)
+				}
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -1473,24 +1526,39 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 }
 
 func printNodes(nodes []types.Server, format string, verbose bool) error {
-	switch strings.ToLower(format) {
-	case teleport.Text:
+	format = strings.ToLower(format)
+	switch format {
+	case teleport.Text, "":
 		printNodesAsText(nodes, verbose)
-	case teleport.JSON:
-		out, err := json.MarshalIndent(nodes, "", "  ")
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeNodes(nodes, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(string(out))
+		fmt.Println(out)
 	case teleport.Names:
 		for _, n := range nodes {
 			fmt.Println(n.GetHostname())
 		}
 	default:
-		return trace.BadParameter("unsupported format. try 'json', 'text', or 'names'")
+		return trace.BadParameter("unsupported format %q", format)
 	}
 
 	return nil
+}
+
+func serializeNodes(nodes []types.Server, format string) (string, error) {
+	if nodes == nil {
+		nodes = []types.Server{}
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(nodes, "", "  ")
+	} else {
+		out, err = yaml.Marshal(nodes)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 func printNodesAsText(nodes []types.Server, verbose bool) {
@@ -1548,7 +1616,38 @@ func sortedLabels(labels map[string]string) string {
 	return strings.Join(append(result, namespaced...), ",")
 }
 
-func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
+func showApps(apps []types.Application, active []tlsca.RouteToApp, format string, verbose bool) error {
+	format = strings.ToLower(format)
+	switch format {
+	case teleport.Text, "":
+		showAppsAsText(apps, active, verbose)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeApps(apps, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
+	return nil
+}
+
+func serializeApps(apps []types.Application, format string) (string, error) {
+	if apps == nil {
+		apps = []types.Application{}
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(apps, "", "  ")
+	} else {
+		out, err = yaml.Marshal(apps)
+	}
+	return string(out), trace.Wrap(err)
+}
+
+func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose bool) {
 	// In verbose mode, print everything on a single line and include host UUID.
 	// In normal mode, chunk the labels, print two per line and allow multiple
 	// lines per node.
@@ -1590,6 +1689,37 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, verbose bool)
 	}
 }
 
+func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
+	format = strings.ToLower(format)
+	switch format {
+	case teleport.Text, "":
+		showDatabasesAsText(clusterFlag, databases, active, roleSet, verbose)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeDatabases(databases, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
+	return nil
+}
+
+func serializeDatabases(databases []types.Database, format string) (string, error) {
+	if databases == nil {
+		databases = []types.Database{}
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(databases, "", "  ")
+	} else {
+		out, err = yaml.Marshal(databases)
+	}
+	return string(out), trace.Wrap(err)
+}
+
 func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
 	dbUsers := roleSet.EnumerateDatabaseUsers(database)
 	allowed := dbUsers.Allowed()
@@ -1610,7 +1740,7 @@ func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
 	return fmt.Sprintf("%v, except: %v", allowed, denied)
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
+func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
@@ -1727,30 +1857,70 @@ func onListClusters(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	isSelected := func(clusterName string) bool {
+		return profile != nil && clusterName == profile.Cluster
+	}
 	showSelected := func(clusterName string) string {
-		if profile != nil && clusterName == profile.Cluster {
+		if isSelected(clusterName) {
 			return "*"
 		}
 		return ""
 	}
 
-	var t asciitable.Table
-	if cf.Quiet {
-		t = asciitable.MakeHeadlessTable(4)
-	} else {
-		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
-	}
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		var t asciitable.Table
+		if cf.Quiet {
+			t = asciitable.MakeHeadlessTable(4)
+		} else {
+			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
+		}
 
-	t.AddRow([]string{
-		rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
-	})
-	for _, cluster := range leafClusters {
 		t.AddRow([]string{
-			cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
+			rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
 		})
+		for _, cluster := range leafClusters {
+			t.AddRow([]string{
+				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	case teleport.JSON, teleport.YAML:
+		rootClusterInfo := clusterInfo{rootClusterName, teleport.RemoteClusterStatusOnline, "root", isSelected(rootClusterName)}
+		leafClusterInfo := make([]clusterInfo, 0, len(leafClusters))
+		for _, leaf := range leafClusters {
+			leafClusterInfo = append(leafClusterInfo, clusterInfo{leaf.GetName(), leaf.GetConnectionStatus(), "leaf", isSelected(leaf.GetName())})
+		}
+		out, err := serializeClusters(rootClusterInfo, leafClusterInfo, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
-	fmt.Println(t.AsBuffer().String())
 	return nil
+}
+
+type clusterInfo struct {
+	ClusterName string `json:"cluster_name"`
+	Status      string `json:"status"`
+	ClusterType string `json:"cluster_type"`
+	Selected    bool   `json:"selected"`
+}
+
+func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, format string) (string, error) {
+	clusters := []clusterInfo{rootCluster}
+	clusters = append(clusters, leafClusters...)
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(clusters, "", "  ")
+	} else {
+		out, err = yaml.Marshal(clusters)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // onSSH executes 'tsh ssh' command
@@ -2044,7 +2214,6 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		c.Username = cf.Username
 	}
 	c.ExplicitUsername = cf.ExplicitUsername
-	c.Passwordless = cf.Passwordless
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
 	if err := setClientWebProxyAddr(cf, c); err != nil {
@@ -2411,7 +2580,17 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	printProfiles(cf.Debug, profile, profiles)
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeProfiles(profile, profiles, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		printProfiles(cf.Debug, profile, profiles)
+	}
 
 	if profile == nil {
 		return trace.NotFound("Not logged in.")
@@ -2423,6 +2602,66 @@ func onStatus(cf *CLIConf) error {
 	}
 
 	return nil
+}
+
+type profileInfo struct {
+	ProxyURL          string          `json:"profile_url"`
+	Username          string          `json:"username"`
+	ActiveRequests    []string        `json:"active_requests,omitempty"`
+	Cluster           string          `json:"cluster"`
+	Roles             []string        `json:"roles,omitempty"`
+	Traits            wrappers.Traits `json:"traits,omitempty"`
+	Logins            []string        `json:"logins,omitempty"`
+	KubernetesEnabled bool            `json:"kubernetes_enabled"`
+	KubernetesCluster string          `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers   []string        `json:"kubernetes_users,omitempty"`
+	KubernetesGroups  []string        `json:"kubernetes_groups,omitempty"`
+	Databases         []string        `json:"databases,omitempty"`
+	ValidUntil        time.Time       `json:"valid_until"`
+	Extensions        []string        `json:"extensions,omitempty"`
+}
+
+func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
+	if p == nil {
+		return nil
+	}
+	return &profileInfo{
+		ProxyURL:          p.ProxyURL.String(),
+		Username:          p.Username,
+		ActiveRequests:    p.ActiveRequests.AccessRequests,
+		Cluster:           p.Cluster,
+		Roles:             p.Roles,
+		Traits:            p.Traits,
+		Logins:            p.Logins,
+		KubernetesEnabled: p.KubeEnabled,
+		KubernetesCluster: selectedKubeCluster(p.Cluster),
+		KubernetesUsers:   p.KubeUsers,
+		KubernetesGroups:  p.KubeGroups,
+		Databases:         p.DatabaseServices(),
+		ValidUntil:        p.ValidUntil,
+		Extensions:        p.Extensions,
+	}
+}
+
+func serializeProfiles(profile *client.ProfileStatus, profiles []*client.ProfileStatus, format string) (string, error) {
+	profileData := struct {
+		Active   *profileInfo   `json:"active,omitempty"`
+		Profiles []*profileInfo `json:"profiles"`
+	}{makeProfileInfo(profile), []*profileInfo{}}
+	for _, prof := range profiles {
+		profileData.Profiles = append(profileData.Profiles, makeProfileInfo(prof))
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(profileData, "", "  ")
+	} else {
+		out, err = yaml.Marshal(profileData)
+	}
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(out), nil
 }
 
 func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
@@ -2582,8 +2821,7 @@ func onApps(cf *CLIConf) error {
 		return apps[i].GetName() < apps[j].GetName()
 	})
 
-	showApps(apps, profile.Apps, cf.Verbose)
-	return nil
+	return trace.Wrap(showApps(apps, profile.Apps, cf.Format, cf.Verbose))
 }
 
 // onEnvironment handles "tsh env" command.
@@ -2593,24 +2831,55 @@ func onEnvironment(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Print shell built-in commands to set (or unset) environment.
-	switch {
-	case cf.unsetEnvironment:
-		fmt.Printf("unset %v\n", proxyEnvVar)
-		fmt.Printf("unset %v\n", clusterEnvVar)
-		fmt.Printf("unset %v\n", kubeClusterEnvVar)
-		fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
-	case !cf.unsetEnvironment:
-		fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
-		fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
-		if kubeName := selectedKubeCluster(profile.Cluster); kubeName != "" {
-			fmt.Printf("export %v=%v\n", kubeClusterEnvVar, kubeName)
-			fmt.Printf("# set %v to a standalone kubeconfig for the selected kube cluster\n", teleport.EnvKubeConfig)
-			fmt.Printf("export %v=%v\n", teleport.EnvKubeConfig, profile.KubeConfigPath(kubeName))
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		// Print shell built-in commands to set (or unset) environment.
+		switch {
+		case cf.unsetEnvironment:
+			fmt.Printf("unset %v\n", proxyEnvVar)
+			fmt.Printf("unset %v\n", clusterEnvVar)
+			fmt.Printf("unset %v\n", kubeClusterEnvVar)
+			fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
+		case !cf.unsetEnvironment:
+			kubeName := selectedKubeCluster(profile.Cluster)
+			fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
+			fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
+			if kubeName != "" {
+				fmt.Printf("export %v=%v\n", kubeClusterEnvVar, kubeName)
+				fmt.Printf("# set %v to a standalone kubeconfig for the selected kube cluster\n", teleport.EnvKubeConfig)
+				fmt.Printf("export %v=%v\n", teleport.EnvKubeConfig, profile.KubeConfigPath(kubeName))
+			}
 		}
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeEnvironment(profile, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
 	}
 
 	return nil
+}
+
+func serializeEnvironment(profile *client.ProfileStatus, format string) (string, error) {
+	env := map[string]string{
+		proxyEnvVar:   profile.ProxyURL.Host,
+		clusterEnvVar: profile.Cluster,
+	}
+	kubeName := selectedKubeCluster(profile.Cluster)
+	if kubeName != "" {
+		env[kubeClusterEnvVar] = kubeName
+		env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(env, "", "  ")
+	} else {
+		out, err = yaml.Marshal(env)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // envGetter is used to read in the environment. In production "os.Getenv"
